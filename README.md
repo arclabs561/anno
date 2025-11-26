@@ -8,11 +8,21 @@ Named entity recognition.
 [![MSRV](https://img.shields.io/badge/MSRV-1.75-blue)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
 
 ```rust
-use anno::{PatternNER, Model};
+use anno::prelude::*;
 
 let ner = PatternNER::new();
 let entities = ner.extract_entities("Meeting on January 15, 2025 for $100", None).unwrap();
 // [Entity { text: "January 15, 2025", type: Date }, Entity { text: "$100", type: Money }]
+```
+
+## Prelude
+
+Import common types with one line:
+
+```rust
+use anno::prelude::*;
+// Imports: Entity, EntityType, Error, Result, Model, PatternNER
+// Plus feature-gated: BertNEROnnx, GLiNERNER (onnx), CandleNER (candle)
 ```
 
 ## Backends
