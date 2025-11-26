@@ -18,6 +18,8 @@ fn test_partial_match_metrics_exact() {
         start: 0,
         end: 16,
         confidence: 0.9,
+        normalized: None,
+        provenance: None,
     }];
 
     let ground_truth = vec![GoldEntity::with_span(
@@ -41,6 +43,8 @@ fn test_partial_match_metrics_overlap() {
         start: 0,
         end: 10,
         confidence: 0.9,
+        normalized: None,
+        provenance: None,
     }];
 
     let ground_truth = vec![GoldEntity::with_span(
@@ -65,6 +69,8 @@ fn test_confidence_threshold_analysis() {
             start: 0,
             end: 4,
             confidence: 0.9,
+            normalized: None,
+            provenance: None,
         },
         Entity {
             text: "$50".to_string(),
@@ -72,6 +78,8 @@ fn test_confidence_threshold_analysis() {
             start: 10,
             end: 13,
             confidence: 0.3,
+            normalized: None,
+            provenance: None,
         },
     ];
 
