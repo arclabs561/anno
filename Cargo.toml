@@ -3,23 +3,22 @@ name = "anno"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-authors = ["Henry Wallace <arclabs561@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
-description = "Fast Named Entity Recognition (NER) — Pattern, Rule-based, BERT ONNX, Candle backends with evaluation framework"
-repository = "https://github.com/arclabs561/anno"
-keywords = ["ner", "nlp", "entity-recognition", "annotation", "ml"]
+description = "Named entity recognition — pattern, rule-based, BERT ONNX, Candle backends"
+keywords = ["ner", "nlp", "entity", "extraction", "annotation"]
 categories = ["text-processing", "science"]
+repository = "https://github.com/arclabs561/anno"
+readme = "README.md"
+authors = ["Arc <attobop@gmail.com>"]
 
 [dependencies]
-# Core (always available)
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-thiserror = "2.0"
-regex = "1.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+regex = "1"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
-once_cell = "1.19"
-tempfile = { version = "3.0", optional = true }
+once_cell = "1"
 
 # ML backends (optional)
 ort = { version = "2.0.0-rc.10", optional = true }
@@ -31,18 +30,17 @@ candle-transformers = { version = "0.9", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
-proptest = "1.5"
-tempfile = "3.0"
+proptest = "1"
+tempfile = "3"
 
 [features]
 default = []
-
-# ML backends
 onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
 
-# Convenience
-ml = ["onnx"]  # Default ML backend is ONNX (most reliable)
+[[bench]]
+name = "ner"
+harness = false
 
 [lints.rust]
 missing_docs = "warn"
