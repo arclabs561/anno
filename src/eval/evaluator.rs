@@ -180,7 +180,6 @@ impl Default for TypeMetricGoals {
 
 /// Trait for NER evaluation strategies.
 ///
-/// Matches the `RetrievalEvaluator` pattern for consistency.
 /// Allows plugging in different evaluation implementations:
 /// - Standard evaluator (exact match)
 /// - Partial match evaluator (overlap-based)
@@ -188,38 +187,24 @@ impl Default for TypeMetricGoals {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// use hop_core::evaluation::ner::evaluator::{NEREvaluator, StandardNEREvaluator};
-/// use hop_core::evaluation::GoldEntity;
-/// use hop_core::extractors::ner::{Model, RuleBasedNER};
+/// ```rust
+/// use anno::eval::{GoldEntity, StandardNEREvaluator, NEREvaluator};
+/// use anno::{PatternNER, Model, EntityType};
 ///
 /// let evaluator = StandardNEREvaluator::new();
-/// let model = RuleBasedNER::new();
+/// let model = PatternNER::new();
 /// let ground_truth = vec![
-///     GoldEntity {
-///         text: "John Doe".to_string(),
-///         entity_type: hop_core::document::EntityType::Person,
-///         start: 0,
-///         end: 8,
-///     }
+///     GoldEntity::new("$100", EntityType::Money, 6),
 /// ];
 ///
-/// // Evaluate a test case
 /// let metrics = evaluator.evaluate_test_case(
 ///     &model,
-///     "John Doe works at Acme Corp",
+///     "Cost: $100",
 ///     &ground_truth,
 ///     Some("test-1"),
 /// ).unwrap();
 ///
-/// // Aggregate across multiple test cases
-/// let aggregate = evaluator.aggregate(&[metrics]).unwrap();
-///
-/// // Check if metrics meet goals
-/// let goals = hop_core::evaluation::ner::evaluator::NERMetricGoals::new()
-///     .with_min_precision(0.8).unwrap()
-///     .with_min_f1(0.75).unwrap();
-/// let check = evaluator.check_goals(&aggregate, &goals).unwrap();
+/// assert!(metrics.precision.get() > 0.0);
 /// ```
 pub trait NEREvaluator: Send + Sync {
     /// Evaluate a single test case.

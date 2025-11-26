@@ -18,14 +18,13 @@
 //!
 //! ## Migration
 //!
-//! ```rust,ignore
-//! // OLD (deprecated):
-//! let extractor = NERExtractor::rule_based_only();
+//! ```rust
+//! use anno::{PatternNER, Model};
 //!
-//! // NEW (recommended):
-//! let extractor = NERExtractor::best_available(); // Uses BERT ONNX
-//! // or
-//! let extractor = NERExtractor::pattern_only(); // Dates/Money/% only
+//! // Use PatternNER for dates, money, percentages
+//! let model = PatternNER::new();
+//! let entities = model.extract_entities("Cost: $100", None).unwrap();
+//! // For Person/Org/Location, enable `onnx` feature and use BertNEROnnx
 //! ```
 //!
 //! ## If You Must Use This

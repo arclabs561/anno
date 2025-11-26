@@ -11,7 +11,7 @@ Named entity recognition.
 use anno::{PatternNER, Model};
 
 let ner = PatternNER::new();
-let entities = ner.extract_entities("Meeting on January 15, 2025 for $100", None)?;
+let entities = ner.extract_entities("Meeting on January 15, 2025 for $100", None).unwrap();
 // [Entity { text: "January 15, 2025", type: Date }, Entity { text: "$100", type: Money }]
 ```
 
@@ -26,14 +26,14 @@ let entities = ner.extract_entities("Meeting on January 15, 2025 for $100", None
 
 ## Evaluation
 
-```rust
-use anno::eval::{GoldEntity, evaluate_ner_model};
+```rust,ignore
+use anno::{Model, EntityType, eval::{GoldEntity, evaluate_ner_model}};
 
 let test_cases = vec![("John works at Google.", vec![
     GoldEntity::new("John", EntityType::Person, 0),
     GoldEntity::new("Google", EntityType::Organization, 15),
 ])];
-let results = evaluate_ner_model(&model, &test_cases)?;
+let results = evaluate_ner_model(&model, &test_cases).unwrap();
 println!("F1: {:.2}", results.f1);
 ```
 

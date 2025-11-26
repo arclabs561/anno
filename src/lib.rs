@@ -13,12 +13,12 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust,ignore
-//! use anno::{Model, Entity, EntityType};
+//! ```rust
+//! use anno::{Model, PatternNER};
 //!
-//! // Use pattern-based (always available)
-//! let model = anno::PatternNER::new();
-//! let entities = model.extract_entities("Meeting on January 15, 2025", None)?;
+//! let model = PatternNER::new();
+//! let entities = model.extract_entities("Meeting on January 15, 2025", None).unwrap();
+//! assert!(entities.iter().any(|e| e.text.contains("January")));
 //! ```
 //!
 //! ## Design Philosophy
@@ -34,6 +34,24 @@ pub mod backends;
 mod entity;
 mod error;
 pub mod eval;
+
+/// Prelude for common imports.
+///
+/// ```rust
+/// use anno::prelude::*;
+/// ```
+pub mod prelude {
+    pub use crate::entity::{Entity, EntityType};
+    pub use crate::error::{Error, Result};
+    pub use crate::Model;
+    pub use crate::PatternNER;
+
+    #[cfg(feature = "onnx")]
+    pub use crate::{BertNEROnnx, GLiNERNER};
+
+    #[cfg(feature = "candle")]
+    pub use crate::CandleNER;
+}
 
 // Re-exports
 pub use entity::{Entity, EntityType};

@@ -25,6 +25,7 @@ pub enum EntityType {
 
 impl EntityType {
     /// Convert to standard label string (CoNLL format).
+    #[must_use]
     pub fn as_label(&self) -> &str {
         match self {
             EntityType::Person => "PER",
@@ -38,6 +39,7 @@ impl EntityType {
     }
 
     /// Parse from standard label string.
+    #[must_use]
     pub fn from_label(label: &str) -> Self {
         match label.to_uppercase().as_str() {
             "PER" | "PERSON" | "B-PER" | "I-PER" => EntityType::Person,
@@ -74,6 +76,7 @@ pub struct Entity {
 
 impl Entity {
     /// Create a new entity.
+    #[must_use]
     pub fn new(
         text: impl Into<String>,
         entity_type: EntityType,
@@ -91,6 +94,7 @@ impl Entity {
     }
 
     /// Create an entity with default confidence (1.0).
+    #[must_use]
     pub fn with_type(
         text: impl Into<String>,
         entity_type: EntityType,
@@ -101,11 +105,13 @@ impl Entity {
     }
 
     /// Check if this entity overlaps with another.
+    #[must_use]
     pub fn overlaps(&self, other: &Entity) -> bool {
         !(self.end <= other.start || other.end <= self.start)
     }
 
     /// Calculate overlap ratio (IoU) with another entity.
+    #[must_use]
     pub fn overlap_ratio(&self, other: &Entity) -> f64 {
         let intersection_start = self.start.max(other.start);
         let intersection_end = self.end.min(other.end);
@@ -166,5 +172,61 @@ mod tests {
 
         let e2 = Entity::new("test", EntityType::Person, 0, 4, -0.5);
         assert!(e2.confidence.abs() < f64::EPSILON);
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn confidence_always_clamped(conf in -10.0f64..10.0) {
+            let e = Entity::new("test", EntityType::Person, 0, 4, conf);
+            prop_assert!(e.confidence >= 0.0);
+            prop_assert!(e.confidence <= 1.0);
+        }
+
+        #[test]
+        fn entity_type_roundtrip(label in "[A-Z]{3,10}") {
+            let et = EntityType::from_label(&label);
+            let back = EntityType::from_label(et.as_label());
+            // Other types may round-trip to themselves or normalize
+            prop_assert!(matches!(back, EntityType::Other(_)) || back == et);
+        }
+
+        #[test]
+        fn overlap_is_symmetric(
+            s1 in 0usize..100,
+            len1 in 1usize..50,
+            s2 in 0usize..100,
+            len2 in 1usize..50,
+        ) {
+            let e1 = Entity::new("a", EntityType::Person, s1, s1 + len1, 1.0);
+            let e2 = Entity::new("b", EntityType::Person, s2, s2 + len2, 1.0);
+            prop_assert_eq!(e1.overlaps(&e2), e2.overlaps(&e1));
+        }
+
+        #[test]
+        fn overlap_ratio_bounded(
+            s1 in 0usize..100,
+            len1 in 1usize..50,
+            s2 in 0usize..100,
+            len2 in 1usize..50,
+        ) {
+            let e1 = Entity::new("a", EntityType::Person, s1, s1 + len1, 1.0);
+            let e2 = Entity::new("b", EntityType::Person, s2, s2 + len2, 1.0);
+            let ratio = e1.overlap_ratio(&e2);
+            prop_assert!(ratio >= 0.0);
+            prop_assert!(ratio <= 1.0);
+        }
+
+        #[test]
+        fn self_overlap_ratio_is_one(s in 0usize..100, len in 1usize..50) {
+            let e = Entity::new("test", EntityType::Person, s, s + len, 1.0);
+            let ratio = e.overlap_ratio(&e);
+            prop_assert!((ratio - 1.0).abs() < 1e-10);
+        }
     }
 }

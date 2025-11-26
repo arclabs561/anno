@@ -20,6 +20,7 @@ pub struct PatternNER;
 
 impl PatternNER {
     /// Create a new pattern-based NER.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -184,5 +185,58 @@ mod tests {
             e.entity_type,
             EntityType::Date | EntityType::Money | EntityType::Percent
         )));
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn extraction_never_panics(text in ".*") {
+            let ner = PatternNER::new();
+            let _ = ner.extract_entities(&text, None);
+        }
+
+        #[test]
+        fn entities_within_text_bounds(text in ".{1,200}") {
+            let ner = PatternNER::new();
+            if let Ok(entities) = ner.extract_entities(&text, None) {
+                for e in entities {
+                    prop_assert!(e.start <= text.len());
+                    prop_assert!(e.end <= text.len());
+                    prop_assert!(e.start <= e.end);
+                }
+            }
+        }
+
+        #[test]
+        fn dollar_amounts_detected(amount in 1u32..10000) {
+            let text = format!("Cost: ${}", amount);
+            let ner = PatternNER::new();
+            let entities = ner.extract_entities(&text, None).unwrap();
+            prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Money));
+        }
+
+        #[test]
+        fn percentages_detected(pct in 1u32..100) {
+            let text = format!("{}% complete", pct);
+            let ner = PatternNER::new();
+            let entities = ner.extract_entities(&text, None).unwrap();
+            prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Percent));
+        }
+
+        #[test]
+        fn only_supported_types(text in ".{0,100}") {
+            let ner = PatternNER::new();
+            if let Ok(entities) = ner.extract_entities(&text, None) {
+                let supported = ner.supported_types();
+                for e in entities {
+                    prop_assert!(supported.contains(&e.entity_type));
+                }
+            }
+        }
     }
 }

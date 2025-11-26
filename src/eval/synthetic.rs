@@ -10,11 +10,12 @@
 //!
 //! # Usage
 //!
-//! ```rust,ignore
-//! use anno::eval::synthetic::{all_datasets, Domain, Difficulty};
+//! ```rust
+//! use anno::eval::synthetic::{all_datasets, datasets_by_domain, datasets_by_difficulty, Domain, Difficulty};
 //!
 //! // Get all datasets
 //! let all = all_datasets();
+//! assert!(!all.is_empty());
 //!
 //! // Filter by domain
 //! let news = datasets_by_domain(Domain::News);
@@ -386,6 +387,7 @@ pub fn adversarial_dataset() -> Vec<AnnotatedExample> {
 // ============================================================================
 
 /// Get all synthetic datasets combined
+#[must_use]
 pub fn all_datasets() -> Vec<AnnotatedExample> {
     let mut all = Vec::new();
     all.extend(conll_style_dataset());

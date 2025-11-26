@@ -51,6 +51,7 @@ impl GoldEntity {
     /// Create a new gold entity with computed end offset.
     ///
     /// Note: Uses character count (not byte count) for Unicode correctness.
+    #[must_use]
     pub fn new(text: impl Into<String>, entity_type: EntityType, start: usize) -> Self {
         let text = text.into();
         // Use char count for Unicode correctness

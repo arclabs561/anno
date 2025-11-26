@@ -30,6 +30,7 @@ pub struct PartialMatchMetrics {
 /// Calculate overlap between two entity spans.
 ///
 /// Returns overlap ratio (0.0-1.0) based on intersection over union.
+#[must_use]
 pub fn calculate_overlap(
     pred_start: usize,
     pred_end: usize,
