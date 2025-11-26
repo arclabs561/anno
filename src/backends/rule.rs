@@ -108,13 +108,13 @@ impl Model for RuleBasedNER {
         });
 
         for cap in KNOWN_ORGS.find_iter(text) {
-            entities.push(Entity {
-                text: cap.as_str().to_string(),
-                entity_type: EntityType::Organization,
-                start: cap.start(),
-                end: cap.end(),
-                confidence: 0.95, // Very high confidence for known orgs
-            });
+            entities.push(Entity::new(
+                cap.as_str(),
+                EntityType::Organization,
+                cap.start(),
+                cap.end(),
+                0.95, // Very high confidence for known orgs
+            ));
         }
 
         // Pattern 1: Organizations (Inc., Corp., Corporation, Ltd., University, etc.)
@@ -134,13 +134,13 @@ impl Model for RuleBasedNER {
             }
             let text_str = strip_leading_article(cap.as_str());
             let start_adj = cap.start() + (cap.as_str().len() - text_str.len());
-            entities.push(Entity {
-                text: text_str.to_string(),
-                entity_type: EntityType::Organization,
-                start: start_adj,
-                end: cap.end(),
-                confidence: 0.85, // High confidence for explicit org suffixes
-            });
+            entities.push(Entity::new(
+                text_str,
+                EntityType::Organization,
+                start_adj,
+                cap.end(),
+                0.85, // High confidence for explicit org suffixes
+            ));
         }
 
         // Pattern 2: Locations (city, country patterns - expanded)
@@ -159,13 +159,13 @@ impl Model for RuleBasedNER {
             }
             let text_str = strip_leading_article(cap.as_str());
             let start_adj = cap.start() + (cap.as_str().len() - text_str.len());
-            entities.push(Entity {
-                text: text_str.to_string(),
-                entity_type: EntityType::Location,
-                start: start_adj,
-                end: cap.end(),
-                confidence: 0.9,
-            });
+            entities.push(Entity::new(
+                text_str,
+                EntityType::Location,
+                start_adj,
+                cap.end(),
+                0.9,
+            ));
         }
 
         // Pattern 3: Person names (common first+last name patterns)
@@ -195,13 +195,13 @@ impl Model for RuleBasedNER {
                 continue;
             }
             let start_adj = cap.start() + (cap.as_str().len() - text_str.len());
-            entities.push(Entity {
-                text: text_str.to_string(),
-                entity_type: EntityType::Person,
-                start: start_adj,
-                end: cap.end(),
-                confidence: 0.7,
-            });
+            entities.push(Entity::new(
+                text_str,
+                EntityType::Person,
+                start_adj,
+                cap.end(),
+                0.7,
+            ));
         }
 
         // Pattern 4: Other capitalized phrases (less confident)
@@ -233,13 +233,13 @@ impl Model for RuleBasedNER {
             // Use heuristics to infer type
             let entity_type = infer_entity_type(text_str);
             let start_adj = cap.start() + (cap.as_str().len() - text_str.len());
-            entities.push(Entity {
-                text: text_str.to_string(),
+            entities.push(Entity::new(
+                text_str,
                 entity_type,
-                start: start_adj,
-                end: cap.end(),
-                confidence: 0.4, // Lower confidence for generic matches
-            });
+                start_adj,
+                cap.end(),
+                0.4, // Lower confidence for generic matches
+            ));
         }
 
         // Pattern 5: Dates - expanded to catch more formats
@@ -256,13 +256,13 @@ impl Model for RuleBasedNER {
             {
                 continue;
             }
-            entities.push(Entity {
-                text: date_match.as_str().to_string(),
-                entity_type: EntityType::Date,
-                start: date_match.start(),
-                end: date_match.end(),
-                confidence: 0.8,
-            });
+            entities.push(Entity::new(
+                date_match.as_str(),
+                EntityType::Date,
+                date_match.start(),
+                date_match.end(),
+                0.8,
+            ));
         }
 
         // Pattern 6: Money amounts (enhanced)
@@ -279,13 +279,13 @@ impl Model for RuleBasedNER {
             {
                 continue;
             }
-            entities.push(Entity {
-                text: money_match.as_str().to_string(),
-                entity_type: EntityType::Money,
-                start: money_match.start(),
-                end: money_match.end(),
-                confidence: 0.8,
-            });
+            entities.push(Entity::new(
+                money_match.as_str(),
+                EntityType::Money,
+                money_match.start(),
+                money_match.end(),
+                0.8,
+            ));
         }
 
         // Pattern 7: Percentages
@@ -300,13 +300,13 @@ impl Model for RuleBasedNER {
             {
                 continue;
             }
-            entities.push(Entity {
-                text: percent_match.as_str().to_string(),
-                entity_type: EntityType::Percent,
-                start: percent_match.start(),
-                end: percent_match.end(),
-                confidence: 0.8,
-            });
+            entities.push(Entity::new(
+                percent_match.as_str(),
+                EntityType::Percent,
+                percent_match.start(),
+                percent_match.end(),
+                0.8,
+            ));
         }
 
         // Filter by minimum confidence

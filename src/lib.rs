@@ -41,7 +41,7 @@ pub mod eval;
 /// use anno::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::entity::{Entity, EntityType};
+    pub use crate::entity::{Entity, EntityType, ExtractionMethod, Provenance};
     pub use crate::error::{Error, Result};
     pub use crate::Model;
     pub use crate::{HybridConfig, HybridNER, MergeStrategy, PatternNER};
@@ -54,7 +54,7 @@ pub mod prelude {
 }
 
 // Re-exports
-pub use entity::{Entity, EntityType};
+pub use entity::{Entity, EntityType, ExtractionMethod, Provenance};
 pub use error::{Error, Result};
 
 // Backend re-exports (always available)

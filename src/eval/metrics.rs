@@ -210,13 +210,7 @@ mod tests {
 
     #[test]
     fn test_calculate_partial_match_metrics() {
-        let predicted = vec![Entity {
-            text: "John Smith".to_string(),
-            entity_type: EntityType::Person,
-            start: 0,
-            end: 10,
-            confidence: 0.9,
-        }];
+        let predicted = vec![Entity::new("John Smith", EntityType::Person, 0, 10, 0.9)];
 
         let ground_truth = vec![GoldEntity {
             text: "John Smith".to_string(),

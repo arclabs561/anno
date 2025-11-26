@@ -135,69 +135,86 @@ static PHONE_INTL: Lazy<Regex> = Lazy::new(|| {
 
 impl Model for PatternNER {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
+        use crate::entity::Provenance;
         let mut entities = Vec::new();
 
         // Helper to add entity if no overlap
-        let mut add_entity = |m: regex::Match, entity_type: EntityType, confidence: f64| {
-            if !overlaps(&entities, m.start(), m.end()) {
-                entities.push(Entity {
-                    text: m.as_str().to_string(),
-                    entity_type,
-                    start: m.start(),
-                    end: m.end(),
-                    confidence,
-                });
-            }
-        };
+        let mut add_entity =
+            |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
+                if !overlaps(&entities, m.start(), m.end()) {
+                    entities.push(Entity::with_provenance(
+                        m.as_str(),
+                        entity_type,
+                        m.start(),
+                        m.end(),
+                        confidence,
+                        Provenance::pattern(pattern),
+                    ));
+                }
+            };
 
         // Dates (high confidence - very specific patterns)
-        for pattern in [
-            &*DATE_ISO,
-            &*DATE_US,
-            &*DATE_EU,
-            &*DATE_WRITTEN_FULL,
-            &*DATE_WRITTEN_SHORT,
-            &*DATE_WRITTEN_EU,
-        ] {
+        let date_patterns: &[(&Lazy<Regex>, &'static str)] = &[
+            (&DATE_ISO, "DATE_ISO"),
+            (&DATE_US, "DATE_US"),
+            (&DATE_EU, "DATE_EU"),
+            (&DATE_WRITTEN_FULL, "DATE_WRITTEN_FULL"),
+            (&DATE_WRITTEN_SHORT, "DATE_WRITTEN_SHORT"),
+            (&DATE_WRITTEN_EU, "DATE_WRITTEN_EU"),
+        ];
+        for (pattern, name) in date_patterns {
             for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Date, 0.95);
+                add_entity(m, EntityType::Date, 0.95, name);
             }
         }
 
         // Times
-        for pattern in [&*TIME_12H, &*TIME_24H, &*TIME_SIMPLE] {
+        let time_patterns: &[(&Lazy<Regex>, &'static str)] = &[
+            (&TIME_12H, "TIME_12H"),
+            (&TIME_24H, "TIME_24H"),
+            (&TIME_SIMPLE, "TIME_SIMPLE"),
+        ];
+        for (pattern, name) in time_patterns {
             for m in pattern.find_iter(text) {
-                // Use Date type for time (or could add Time variant)
-                add_entity(m, EntityType::Date, 0.90);
+                add_entity(m, EntityType::Date, 0.90, name);
             }
         }
 
         // Money (high confidence)
-        for pattern in [&*MONEY_SYMBOL, &*MONEY_WRITTEN, &*MONEY_MAGNITUDE] {
+        let money_patterns: &[(&Lazy<Regex>, &'static str)] = &[
+            (&MONEY_SYMBOL, "MONEY_SYMBOL"),
+            (&MONEY_WRITTEN, "MONEY_WRITTEN"),
+            (&MONEY_MAGNITUDE, "MONEY_MAGNITUDE"),
+        ];
+        for (pattern, name) in money_patterns {
             for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Money, 0.95);
+                add_entity(m, EntityType::Money, 0.95, name);
             }
         }
 
         // Percentages
         for m in PERCENT.find_iter(text) {
-            add_entity(m, EntityType::Percent, 0.95);
+            add_entity(m, EntityType::Percent, 0.95, "PERCENT");
         }
 
         // Emails (very high confidence - very specific pattern)
         for m in EMAIL.find_iter(text) {
-            add_entity(m, EntityType::Other("EMAIL".to_string()), 0.98);
+            add_entity(m, EntityType::Other("EMAIL".to_string()), 0.98, "EMAIL");
         }
 
         // URLs (very high confidence)
         for m in URL.find_iter(text) {
-            add_entity(m, EntityType::Other("URL".to_string()), 0.98);
+            add_entity(m, EntityType::Other("URL".to_string()), 0.98, "URL");
         }
 
         // Phone numbers (medium confidence - can have false positives)
-        for pattern in [&*PHONE_US, &*PHONE_INTL] {
+        let phone_patterns: &[(&Lazy<Regex>, &'static str)] = &[
+            (&PHONE_US, "PHONE_US"),
+            (&PHONE_INTL, "PHONE_INTL"),
+        ];
+        for (pattern, name) in phone_patterns {
             for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Other("PHONE".to_string()), 0.85);
+                add_entity(m, EntityType::Other("PHONE".to_string()), 0.85, name);
             }
         }
 
@@ -573,6 +590,40 @@ mod tests {
         let e = extract(text);
         let money = find_text(&e, "$100").unwrap();
         assert_eq!(&text[money.start..money.end], "$100");
+    }
+
+    #[test]
+    fn provenance_attached() {
+        use crate::entity::ExtractionMethod;
+
+        let text = "Contact: test@email.com on 2024-01-15";
+        let e = extract(text);
+
+        // All entities should have provenance
+        for entity in &e {
+            assert!(entity.provenance.is_some(), "Missing provenance for {:?}", entity);
+            let prov = entity.provenance.as_ref().unwrap();
+
+            // Source should be "pattern"
+            assert_eq!(prov.source.as_ref(), "pattern");
+            assert_eq!(prov.method, ExtractionMethod::Pattern);
+
+            // Pattern name should be set
+            assert!(prov.pattern.is_some(), "Missing pattern name for {:?}", entity);
+        }
+
+        // Check specific pattern names
+        let email = find_text(&e, "test@email.com").unwrap();
+        assert_eq!(
+            email.provenance.as_ref().unwrap().pattern.as_ref().unwrap().as_ref(),
+            "EMAIL"
+        );
+
+        let date = find_text(&e, "2024-01-15").unwrap();
+        assert_eq!(
+            date.provenance.as_ref().unwrap().pattern.as_ref().unwrap().as_ref(),
+            "DATE_ISO"
+        );
     }
 }
 

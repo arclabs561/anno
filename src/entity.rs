@@ -1,6 +1,7 @@
 //! Entity types and structures for NER.
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 /// Entity type classification.
 ///
@@ -59,6 +60,85 @@ impl std::fmt::Display for EntityType {
     }
 }
 
+/// Extraction method used to identify an entity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum ExtractionMethod {
+    /// Regex pattern matching (high precision for structured data)
+    Pattern,
+    /// Machine learning model inference
+    #[default]
+    ML,
+    /// Rule-based / gazetteer lookup
+    Rule,
+    /// Hybrid: multiple methods agreed
+    Ensemble,
+    /// Unknown or unspecified
+    Unknown,
+}
+
+impl std::fmt::Display for ExtractionMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExtractionMethod::Pattern => write!(f, "pattern"),
+            ExtractionMethod::ML => write!(f, "ml"),
+            ExtractionMethod::Rule => write!(f, "rule"),
+            ExtractionMethod::Ensemble => write!(f, "ensemble"),
+            ExtractionMethod::Unknown => write!(f, "unknown"),
+        }
+    }
+}
+
+/// Provenance information for an extracted entity.
+///
+/// Tracks where an entity came from for debugging, explainability,
+/// and confidence calibration in hybrid/ensemble systems.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct Provenance {
+    /// Name of the backend that produced this entity (e.g., "pattern", "bert-onnx")
+    pub source: Cow<'static, str>,
+    /// Extraction method used
+    pub method: ExtractionMethod,
+    /// Specific pattern/rule name (for pattern/rule-based extraction)
+    pub pattern: Option<Cow<'static, str>>,
+    /// Raw confidence from the source model (before any calibration)
+    pub raw_confidence: Option<f64>,
+}
+
+impl Provenance {
+    /// Create provenance for pattern-based extraction.
+    #[must_use]
+    pub fn pattern(pattern_name: &'static str) -> Self {
+        Self {
+            source: Cow::Borrowed("pattern"),
+            method: ExtractionMethod::Pattern,
+            pattern: Some(Cow::Borrowed(pattern_name)),
+            raw_confidence: Some(1.0), // Patterns are deterministic
+        }
+    }
+
+    /// Create provenance for ML-based extraction.
+    #[must_use]
+    pub fn ml(model_name: &'static str, confidence: f64) -> Self {
+        Self {
+            source: Cow::Borrowed(model_name),
+            method: ExtractionMethod::ML,
+            pattern: None,
+            raw_confidence: Some(confidence),
+        }
+    }
+
+    /// Create provenance for ensemble/hybrid extraction.
+    #[must_use]
+    pub fn ensemble(sources: &'static str) -> Self {
+        Self {
+            source: Cow::Borrowed(sources),
+            method: ExtractionMethod::Ensemble,
+            pattern: None,
+            raw_confidence: None,
+        }
+    }
+}
+
 /// A recognized named entity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entity {
@@ -70,8 +150,11 @@ pub struct Entity {
     pub start: usize,
     /// End position (byte offset, exclusive)
     pub end: usize,
-    /// Confidence score (0.0-1.0)
+    /// Confidence score (0.0-1.0, calibrated)
     pub confidence: f64,
+    /// Provenance: which backend/method produced this entity
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Provenance>,
 }
 
 impl Entity {
@@ -90,6 +173,27 @@ impl Entity {
             start,
             end,
             confidence: confidence.clamp(0.0, 1.0),
+            provenance: None,
+        }
+    }
+
+    /// Create a new entity with provenance information.
+    #[must_use]
+    pub fn with_provenance(
+        text: impl Into<String>,
+        entity_type: EntityType,
+        start: usize,
+        end: usize,
+        confidence: f64,
+        provenance: Provenance,
+    ) -> Self {
+        Self {
+            text: text.into(),
+            entity_type,
+            start,
+            end,
+            confidence: confidence.clamp(0.0, 1.0),
+            provenance: Some(provenance),
         }
     }
 
@@ -102,6 +206,20 @@ impl Entity {
         end: usize,
     ) -> Self {
         Self::new(text, entity_type, start, end, 1.0)
+    }
+
+    /// Get the extraction method, if known.
+    #[must_use]
+    pub fn method(&self) -> ExtractionMethod {
+        self.provenance
+            .as_ref()
+            .map_or(ExtractionMethod::Unknown, |p| p.method)
+    }
+
+    /// Get the source backend name, if known.
+    #[must_use]
+    pub fn source(&self) -> Option<&str> {
+        self.provenance.as_ref().map(|p| p.source.as_ref())
     }
 
     /// Check if this entity overlaps with another.
