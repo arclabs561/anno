@@ -30,9 +30,9 @@
 
 #![warn(missing_docs)]
 
+pub mod backends;
 mod entity;
 mod error;
-pub mod backends;
 pub mod eval;
 
 // Re-exports
@@ -40,7 +40,10 @@ pub use entity::{Entity, EntityType};
 pub use error::{Error, Result};
 
 // Backend re-exports (always available)
-pub use backends::{PatternNER, RuleBasedNER};
+pub use backends::PatternNER;
+
+#[allow(deprecated)]
+pub use backends::RuleBasedNER;
 
 #[cfg(feature = "onnx")]
 pub use backends::{BertNEROnnx, GLiNERNER};

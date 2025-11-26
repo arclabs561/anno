@@ -16,6 +16,7 @@ pub mod candle;
 
 // Re-exports
 pub use pattern::PatternNER;
+#[allow(deprecated)]
 pub use rule::RuleBasedNER;
 
 #[cfg(feature = "onnx")]
@@ -26,4 +27,3 @@ pub use gliner::GLiNERNER;
 
 #[cfg(feature = "candle")]
 pub use candle::CandleNER;
-

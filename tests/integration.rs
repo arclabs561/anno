@@ -9,7 +9,7 @@ fn test_end_to_end_conll_evaluation() {
     // Create a temp CoNLL file
     let temp_dir = std::env::temp_dir();
     let temp_file = temp_dir.join("anno_integration_test.conll");
-    
+
     let content = "Meeting NNP B-NP O
 on IN B-PP O
 January NNP B-NP B-DATE
@@ -55,7 +55,7 @@ fn test_synthetic_dataset_evaluation() {
 
     // Convert to test cases and evaluate
     let model = PatternNER::new();
-    
+
     // PatternNER only detects DATE/MONEY/PERCENT, so we need test cases with those
     let test_cases: Vec<(String, Vec<GoldEntity>)> = vec![
         (
@@ -67,14 +67,12 @@ fn test_synthetic_dataset_evaluation() {
         ),
         (
             "Growth of 25% in Q1 2024".to_string(),
-            vec![
-                GoldEntity::with_span("25%", EntityType::Percent, 10, 13),
-            ],
+            vec![GoldEntity::with_span("25%", EntityType::Percent, 10, 13)],
         ),
     ];
 
     let results = evaluate_ner_model(&model, &test_cases).unwrap();
-    
+
     // PatternNER should do well on DATE/MONEY/PERCENT
     assert!(results.f1 > 0.0, "PatternNER should find some entities");
 }
@@ -84,7 +82,12 @@ fn test_metrics_serialization() {
     let model = PatternNER::new();
     let test_cases = vec![(
         "Meeting on January 15, 2025".to_string(),
-        vec![GoldEntity::with_span("January 15, 2025", EntityType::Date, 11, 27)],
+        vec![GoldEntity::with_span(
+            "January 15, 2025",
+            EntityType::Date,
+            11,
+            27,
+        )],
     )];
 
     let results = evaluate_ner_model(&model, &test_cases).unwrap();

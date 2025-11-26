@@ -91,7 +91,12 @@ impl Entity {
     }
 
     /// Create an entity with default confidence (1.0).
-    pub fn with_type(text: impl Into<String>, entity_type: EntityType, start: usize, end: usize) -> Self {
+    pub fn with_type(
+        text: impl Into<String>,
+        entity_type: EntityType,
+        start: usize,
+        end: usize,
+    ) -> Self {
         Self::new(text, entity_type, start, end, 1.0)
     }
 
@@ -150,8 +155,8 @@ mod tests {
         let e3 = Entity::new("John Smith", EntityType::Person, 0, 10, 0.9);
 
         assert!(!e1.overlaps(&e2)); // No overlap
-        assert!(e1.overlaps(&e3));  // e1 is contained in e3
-        assert!(e3.overlaps(&e2));  // e3 contains e2
+        assert!(e1.overlaps(&e3)); // e1 is contained in e3
+        assert!(e3.overlaps(&e2)); // e3 contains e2
     }
 
     #[test]
@@ -163,4 +168,3 @@ mod tests {
         assert!(e2.confidence.abs() < f64::EPSILON);
     }
 }
-

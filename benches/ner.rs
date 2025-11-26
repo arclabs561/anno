@@ -12,4 +12,3 @@ fn bench_pattern_ner(c: &mut Criterion) {
 
 criterion_group!(benches, bench_pattern_ner);
 criterion_main!(benches);
-

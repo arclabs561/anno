@@ -1,4 +1,5 @@
 //! Synthetic NER Test Datasets
+#![allow(missing_docs)] // Internal evaluation types
 //!
 //! Comprehensive annotated datasets covering multiple domains:
 //! - News (CoNLL-2003 style)
@@ -22,8 +23,8 @@
 //! let hard = datasets_by_difficulty(Difficulty::Hard);
 //! ```
 
-use crate::EntityType;
 use super::datasets::GoldEntity;
+use crate::EntityType;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -162,7 +163,8 @@ pub fn social_media_dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Medium,
         },
         AnnotatedExample {
-            text: "Excited for #WWDC2024 in Cupertino! Apple is gonna announce something big".into(),
+            text: "Excited for #WWDC2024 in Cupertino! Apple is gonna announce something big"
+                .into(),
             entities: vec![
                 entity("Cupertino", EntityType::Location, 25),
                 entity("Apple", EntityType::Organization, 36),
@@ -297,7 +299,8 @@ pub fn legal_dataset() -> Vec<AnnotatedExample> {
 pub fn scientific_dataset() -> Vec<AnnotatedExample> {
     vec![
         AnnotatedExample {
-            text: "Dr. Jennifer Doudna won the Nobel Prize for CRISPR research at UC Berkeley.".into(),
+            text: "Dr. Jennifer Doudna won the Nobel Prize for CRISPR research at UC Berkeley."
+                .into(),
             entities: vec![
                 entity("Dr. Jennifer Doudna", EntityType::Person, 0),
                 entity("UC Berkeley", EntityType::Organization, 63),
@@ -415,7 +418,7 @@ pub fn datasets_by_difficulty(difficulty: Difficulty) -> Vec<AnnotatedExample> {
 pub fn dataset_stats() -> DatasetStats {
     let all = all_datasets();
     let total_entities: usize = all.iter().map(|ex| ex.entities.len()).sum();
-    
+
     DatasetStats {
         total_examples: all.len(),
         total_entities,
@@ -503,4 +506,3 @@ mod tests {
         }
     }
 }
-

@@ -31,6 +31,7 @@ pub mod types;
 pub mod validation;
 
 // Re-exports
+#[allow(deprecated)]
 pub use datasets::{GoldEntity, GroundTruthEntity};
 pub use evaluator::*;
 pub use metrics::*;
@@ -40,11 +41,17 @@ pub use validation::*;
 /// Per-entity-type metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeMetrics {
+    /// Precision for this entity type.
     pub precision: f64,
+    /// Recall for this entity type.
     pub recall: f64,
+    /// F1 score for this entity type.
     pub f1: f64,
+    /// Number of entities found by the model.
     pub found: usize,
+    /// Number of entities expected (ground truth).
     pub expected: usize,
+    /// Number of correctly identified entities.
     pub correct: usize,
 }
 
@@ -71,8 +78,9 @@ pub struct NEREvaluationResults {
     pub per_type: HashMap<String, TypeMetrics>,
     /// Speed metrics
     pub tokens_per_second: f64,
-    /// Total entities found vs expected
+    /// Total entities found by the model.
     pub found: usize,
+    /// Total entities expected (ground truth).
     pub expected: usize,
     /// Additional metadata
     #[serde(default)]
@@ -199,7 +207,12 @@ pub fn load_conll2003<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEn
 
             if prefix == "B" {
                 // Beginning of entity - start new entity
-                current_entities.push(GoldEntity::with_span(word, entity_type, word_start, word_end));
+                current_entities.push(GoldEntity::with_span(
+                    word,
+                    entity_type,
+                    word_start,
+                    word_end,
+                ));
             } else if prefix == "I" {
                 // Inside entity - extend last entity if same type
                 if let Some(last) = current_entities.last_mut() {
@@ -350,11 +363,13 @@ mod tests {
 
     #[test]
     fn test_entity_type_matches() {
-        assert!(entity_type_matches(&EntityType::Person, &EntityType::Person));
+        assert!(entity_type_matches(
+            &EntityType::Person,
+            &EntityType::Person
+        ));
         assert!(!entity_type_matches(
             &EntityType::Person,
             &EntityType::Organization
         ));
     }
 }
-

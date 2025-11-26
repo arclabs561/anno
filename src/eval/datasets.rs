@@ -1,4 +1,5 @@
 //! Dataset loading for NER evaluation.
+#![allow(missing_docs)] // Internal evaluation types
 //!
 //! Supports multiple dataset formats:
 //! - CoNLL-2003 (classic BIO tagging format)
@@ -176,10 +177,8 @@ pub type JSONLNERExample = JSONNERExample;
 /// Supports:
 /// - Single JSON file with array of examples
 /// - JSONL file (one JSON object per line)
-pub fn load_json_ner_dataset<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<(String, Vec<GoldEntity>)>> {
-    let content = std::fs::read_to_string(path.as_ref()).map_err(|e| Error::Io(e))?;
+pub fn load_json_ner_dataset<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEntity>)>> {
+    let content = std::fs::read_to_string(path.as_ref()).map_err(Error::Io)?;
 
     let mut test_cases = Vec::new();
 
@@ -268,9 +267,7 @@ pub fn load_json_ner_dataset<P: AsRef<Path>>(
 ///
 /// HuggingFace datasets are typically stored as JSON/JSONL with specific structure.
 /// This function handles common HuggingFace NER dataset formats.
-pub fn load_hf_ner_dataset<P: AsRef<Path>>(
-    path: P,
-) -> Result<Vec<(String, Vec<GoldEntity>)>> {
+pub fn load_hf_ner_dataset<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEntity>)>> {
     // HuggingFace datasets are often JSONL or JSON arrays
     // Try JSONL first, then fall back to JSON array
     load_json_ner_dataset(path)
@@ -314,7 +311,11 @@ fn map_label_to_entity_type(label: &str) -> EntityType {
 /// - `.txt` → Try CoNLL first, then JSON
 pub fn load_ner_dataset<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEntity>)>> {
     let path = path.as_ref();
-    let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("").to_lowercase();
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
     match extension.as_str() {
         "conll" | "conll2003" | "txt" => {

@@ -19,6 +19,7 @@ use regex::Regex;
 pub struct PatternNER;
 
 impl PatternNER {
+    /// Create a new pattern-based NER.
     pub fn new() -> Self {
         Self
     }
@@ -31,16 +32,14 @@ impl Default for PatternNER {
 }
 
 impl Model for PatternNER {
+    #[allow(clippy::unwrap_used)] // Static regexes are validated at compile time
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         let mut entities = Vec::new();
 
         // Date patterns
-        static DATE_ISO: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").unwrap()
-        });
-        static DATE_US: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r"\b\d{1,2}/\d{1,2}/\d{4}\b").unwrap()
-        });
+        static DATE_ISO: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").unwrap());
+        static DATE_US: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"\b\d{1,2}/\d{1,2}/\d{4}\b").unwrap());
         static DATE_WRITTEN: Lazy<Regex> = Lazy::new(|| {
             Regex::new(r"\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:,\s*\d{4})?\b").unwrap()
         });
@@ -85,9 +84,7 @@ impl Model for PatternNER {
         }
 
         // Percentage patterns
-        static PERCENT: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r"\b\d+\.?\d*\s*%").unwrap()
-        });
+        static PERCENT: Lazy<Regex> = Lazy::new(|| Regex::new(r"\b\d+\.?\d*\s*%").unwrap());
 
         for m in PERCENT.find_iter(text) {
             if !overlaps(&entities, m.start(), m.end()) {
@@ -133,9 +130,14 @@ mod tests {
     #[test]
     fn test_date_extraction() {
         let ner = PatternNER::new();
-        let entities = ner.extract_entities("Meeting on 2024-01-15 and January 20, 2024.", None).unwrap();
-        
-        let dates: Vec<_> = entities.iter().filter(|e| e.entity_type == EntityType::Date).collect();
+        let entities = ner
+            .extract_entities("Meeting on 2024-01-15 and January 20, 2024.", None)
+            .unwrap();
+
+        let dates: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .collect();
         assert_eq!(dates.len(), 2);
         assert!(dates.iter().any(|e| e.text == "2024-01-15"));
         assert!(dates.iter().any(|e| e.text == "January 20, 2024"));
@@ -144,18 +146,28 @@ mod tests {
     #[test]
     fn test_money_extraction() {
         let ner = PatternNER::new();
-        let entities = ner.extract_entities("Cost is $100.50 or 50 dollars.", None).unwrap();
-        
-        let money: Vec<_> = entities.iter().filter(|e| e.entity_type == EntityType::Money).collect();
+        let entities = ner
+            .extract_entities("Cost is $100.50 or 50 dollars.", None)
+            .unwrap();
+
+        let money: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .collect();
         assert_eq!(money.len(), 2);
     }
 
     #[test]
     fn test_percent_extraction() {
         let ner = PatternNER::new();
-        let entities = ner.extract_entities("Improved by 15% and 3.5%.", None).unwrap();
-        
-        let percents: Vec<_> = entities.iter().filter(|e| e.entity_type == EntityType::Percent).collect();
+        let entities = ner
+            .extract_entities("Improved by 15% and 3.5%.", None)
+            .unwrap();
+
+        let percents: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Percent)
+            .collect();
         assert_eq!(percents.len(), 2);
     }
 
@@ -163,13 +175,14 @@ mod tests {
     fn test_no_person_org_loc() {
         let ner = PatternNER::new();
         // Pattern NER should NOT extract Person/Org/Location
-        let entities = ner.extract_entities("John Smith works at Google in New York.", None).unwrap();
-        
+        let entities = ner
+            .extract_entities("John Smith works at Google in New York.", None)
+            .unwrap();
+
         // Only pattern-based types
         assert!(entities.iter().all(|e| matches!(
-            e.entity_type, 
+            e.entity_type,
             EntityType::Date | EntityType::Money | EntityType::Percent
         )));
     }
 }
-

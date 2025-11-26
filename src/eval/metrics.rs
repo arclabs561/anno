@@ -91,10 +91,8 @@ pub fn calculate_partial_match_metrics(
             // Calculate overlap
             let overlap = calculate_overlap(pred.start, pred.end, gt.start, gt.end);
 
-            if overlap >= overlap_threshold {
-                if best_match.is_none() || best_match.unwrap().1 < overlap {
-                    best_match = Some((gt_idx, overlap));
-                }
+            if overlap >= overlap_threshold && best_match.as_ref().map_or(true, |m| m.1 < overlap) {
+                best_match = Some((gt_idx, overlap));
             }
         }
 
@@ -109,13 +107,13 @@ pub fn calculate_partial_match_metrics(
     // Count unmatched ground truth as false negatives (for potential future use)
     let _false_negatives = gt_matched.iter().filter(|&&matched| !matched).count();
 
-    let precision = if predicted.len() > 0 {
+    let precision = if !predicted.is_empty() {
         true_positives as f64 / predicted.len() as f64
     } else {
         0.0
     };
 
-    let recall = if ground_truth.len() > 0 {
+    let recall = if !ground_truth.is_empty() {
         true_positives as f64 / ground_truth.len() as f64
     } else {
         0.0
@@ -163,8 +161,10 @@ pub fn analyze_confidence_thresholds(
 
     for threshold in &thresholds {
         // Filter predictions by confidence
-        let filtered: Vec<&Entity> =
-            predicted.iter().filter(|e| e.confidence >= *threshold).collect();
+        let filtered: Vec<&Entity> = predicted
+            .iter()
+            .filter(|e| e.confidence >= *threshold)
+            .collect();
 
         // Convert to owned for metrics calculation
         let filtered_owned: Vec<Entity> = filtered.iter().map(|e| (*e).clone()).collect();

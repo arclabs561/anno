@@ -50,7 +50,12 @@ fn test_aggregate_metrics() {
     let test_cases = vec![
         (
             "Meeting on January 15, 2025",
-            vec![GoldEntity::with_span("January 15, 2025", EntityType::Date, 11, 27)],
+            vec![GoldEntity::with_span(
+                "January 15, 2025",
+                EntityType::Date,
+                11,
+                27,
+            )],
         ),
         (
             "Cost: $500",

@@ -115,5 +115,7 @@ fn test_pattern_ner_percent() {
         .unwrap();
 
     assert!(!entities.is_empty());
-    assert!(entities.iter().any(|e| e.entity_type == EntityType::Percent));
+    assert!(entities
+        .iter()
+        .any(|e| e.entity_type == EntityType::Percent));
 }

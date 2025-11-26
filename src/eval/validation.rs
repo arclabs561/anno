@@ -6,9 +6,9 @@
 //! - Text bounds validation
 //! - Overlapping entity detection
 
+use super::datasets::GoldEntity;
 use crate::EntityType;
 use crate::{Error, Result};
-use super::datasets::GoldEntity;
 
 /// Validation result for ground truth entities.
 #[derive(Debug, Clone)]
@@ -94,7 +94,7 @@ pub fn validate_ground_truth_entities(
                 i, entity.text
             ));
         }
-        
+
         // Check bounds (using character count, not byte count)
         if entity.start >= text_char_len {
             result.add_error(format!(
@@ -172,8 +172,7 @@ pub fn validate_entity_type_consistency(
             let type_str = crate::eval::entity_type_to_string(&entity.entity_type);
             if let Some(existing_type) = type_map.get(&type_str) {
                 // Check if types match
-                if !crate::eval::entity_type_matches(existing_type, &entity.entity_type)
-                {
+                if !crate::eval::entity_type_matches(existing_type, &entity.entity_type) {
                     result.add_warning(format!(
                         "Test case {}: Entity type '{}' inconsistent with previous usage",
                         case_idx, type_str
@@ -251,4 +250,3 @@ mod tests {
         assert!(!result_strict.is_valid); // Errors fail validation
     }
 }
-

@@ -57,6 +57,7 @@ dependencies = [
  "criterion",
  "hf-hub",
  "log",
+ "ndarray",
  "once_cell",
  "ort",
  "proptest",

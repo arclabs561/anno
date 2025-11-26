@@ -29,7 +29,7 @@ impl MetricValue {
 
     /// Try to create a MetricValue, returning error if out of bounds.
     pub fn try_new(value: f64) -> Result<Self> {
-        if value < 0.0 || value > 1.0 {
+        if !(0.0..=1.0).contains(&value) {
             return Err(Error::InvalidInput(format!(
                 "MetricValue must be in [0.0, 1.0], got {}",
                 value
@@ -187,4 +187,3 @@ mod tests {
         assert_eq!(result.failed_count(), 1);
     }
 }
-

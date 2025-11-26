@@ -39,6 +39,10 @@ pub enum Error {
     /// Evaluation error.
     #[error("Evaluation error: {0}")]
     Evaluation(String),
+
+    /// Model retrieval error (downloading from HuggingFace).
+    #[error("Retrieval error: {0}")]
+    Retrieval(String),
 }
 
 impl Error {
@@ -76,5 +80,9 @@ impl Error {
     pub fn evaluation(msg: impl Into<String>) -> Self {
         Error::Evaluation(msg.into())
     }
-}
 
+    /// Create a retrieval error.
+    pub fn retrieval(msg: impl Into<String>) -> Self {
+        Error::Retrieval(msg.into())
+    }
+}

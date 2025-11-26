@@ -3,10 +3,10 @@
 //! Provides trait-based evaluation matching the RetrievalEvaluator pattern
 //! for consistency and extensibility.
 
-use crate::{Error, Model, Result};
 use super::datasets::GoldEntity;
 use super::types::{GoalCheckResult, MetricValue};
 use super::TypeMetrics;
+use crate::{Error, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -304,14 +304,11 @@ impl NEREvaluator for StandardNEREvaluator {
         }
 
         // Validate ground truth entities
-        #[cfg(feature = "evaluation")]
         let validation = crate::eval::validation::validate_ground_truth_entities(
             text,
             ground_truth,
             false, // Warnings for overlaps, not errors
         );
-        #[cfg(not(feature = "evaluation"))]
-        let validation = crate::eval::ValidationResult::new();
         if !validation.is_valid {
             return Err(Error::InvalidInput(format!(
                 "Invalid ground truth entities: {}",
@@ -504,7 +501,7 @@ impl NEREvaluator for StandardNEREvaluator {
             for (type_name, type_metric) in &metric.per_type {
                 per_type_aggregated
                     .entry(type_name.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(type_metric.clone());
             }
         }

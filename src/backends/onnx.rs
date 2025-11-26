@@ -19,23 +19,19 @@
 //! - F1 Score: ~86% on CoNLL-03
 //! - Speed: ~50ms/doc on CPU
 
-#[cfg(test)]
-#[path = "ner_onnx/tests.rs"]
-mod tests;
+#![allow(missing_docs)] // Stub implementation
+#![allow(dead_code)] // Placeholder constants
+#![allow(clippy::manual_strip)] // Complex BIO tag parsing
 
+#[cfg(feature = "onnx")]
 use crate::EntityType;
-use crate::{{Error, Result}};
-use crate::{Entity};
+use crate::{Entity, Error, Result};
 
-#[cfg(feature = "ml-ner-onnx")]
+#[cfg(feature = "onnx")]
 use {
     hf_hub::api::sync::Api,
     ndarray::Array2,
-    ort::{
-        session::builder::GraphOptimizationLevel,
-        session::Session,
-        value::Tensor,
-    },
+    ort::{session::builder::GraphOptimizationLevel, session::Session, value::Tensor},
     std::collections::HashMap,
     std::sync::Mutex,
     tokenizers::Tokenizer,
@@ -48,7 +44,7 @@ pub const DEFAULT_BERT_NER_MODEL: &str = "protectai/bert-base-NER-onnx";
 ///
 /// Uses standard BERT models fine-tuned for NER with BIO tagging scheme.
 /// This is more reliable than GLiNER ONNX since the models are properly exported.
-#[cfg(feature = "ml-ner-onnx")]
+#[cfg(feature = "onnx")]
 pub struct BertNEROnnx {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
@@ -57,7 +53,7 @@ pub struct BertNEROnnx {
     model_name: String,
 }
 
-#[cfg(feature = "ml-ner-onnx")]
+#[cfg(feature = "onnx")]
 impl BertNEROnnx {
     /// Create a new BERT NER ONNX model.
     ///
@@ -207,16 +203,14 @@ impl BertNEROnnx {
                 .map_err(|e| Error::Parse(format!("Failed to create input_ids array: {}", e)))?;
 
         let attention_mask_array: Array2<i64> =
-            Array2::from_shape_vec((batch_size, seq_len), attention_mask.clone())
-                .map_err(|e| {
-                    Error::Parse(format!("Failed to create attention_mask array: {}", e))
-                })?;
+            Array2::from_shape_vec((batch_size, seq_len), attention_mask.clone()).map_err(|e| {
+                Error::Parse(format!("Failed to create attention_mask array: {}", e))
+            })?;
 
         let token_type_ids_array: Array2<i64> =
-            Array2::from_shape_vec((batch_size, seq_len), token_type_ids)
-                .map_err(|e| {
-                    Error::Parse(format!("Failed to create token_type_ids array: {}", e))
-                })?;
+            Array2::from_shape_vec((batch_size, seq_len), token_type_ids).map_err(|e| {
+                Error::Parse(format!("Failed to create token_type_ids array: {}", e))
+            })?;
 
         let input_ids_tensor = Tensor::from_array(input_ids_array)
             .map_err(|e| Error::Parse(format!("Failed to create input_ids tensor: {}", e)))?;
@@ -264,7 +258,10 @@ impl BertNEROnnx {
 
         // Expected shape: [batch_size, seq_len, num_labels]
         if shape.len() != 3 || shape[0] != 1 {
-            return Err(Error::Parse(format!("Unexpected logits shape: {:?}", shape)));
+            return Err(Error::Parse(format!(
+                "Unexpected logits shape: {:?}",
+                shape
+            )));
         }
 
         let seq_len = shape[1] as usize;
@@ -434,20 +431,20 @@ impl BertNEROnnx {
 }
 
 // Stub implementation when feature is disabled
-#[cfg(not(feature = "ml-ner-onnx"))]
+#[cfg(not(feature = "onnx"))]
 pub struct BertNEROnnx;
 
-#[cfg(not(feature = "ml-ner-onnx"))]
+#[cfg(not(feature = "onnx"))]
 impl BertNEROnnx {
     pub fn new(_model_name: &str) -> Result<Self> {
         Err(Error::Parse(
-            "BERT NER ONNX support requires 'ml-ner-onnx' feature".to_string(),
+            "BERT NER ONNX support requires 'onnx' feature".to_string(),
         ))
     }
 
     pub fn extract_entities(&self, _text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         Err(Error::Parse(
-            "BERT NER ONNX support requires 'ml-ner-onnx' feature".to_string(),
+            "BERT NER ONNX support requires 'onnx' feature".to_string(),
         ))
     }
 
@@ -455,4 +452,3 @@ impl BertNEROnnx {
         "onnx-not-enabled"
     }
 }
-

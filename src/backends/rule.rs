@@ -44,7 +44,10 @@ use regex::Regex;
 ///
 /// Contains hardcoded gazetteers that give inflated F1 on curated tests
 /// but fail on novel entities. Use `NERExtractor::best_available()` instead.
-#[deprecated(since = "0.5.0", note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX)")]
+#[deprecated(
+    since = "0.5.0",
+    note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX)"
+)]
 pub struct RuleBasedNER {
     /// Minimum confidence for extracted entities
     min_confidence: f64,
@@ -52,6 +55,7 @@ pub struct RuleBasedNER {
     filter_common: bool,
 }
 
+#[allow(deprecated)]
 impl RuleBasedNER {
     /// Create a new rule-based NER with default settings.
     pub fn new() -> Self {
@@ -79,12 +83,14 @@ impl RuleBasedNER {
     }
 }
 
+#[allow(deprecated)]
 impl Default for RuleBasedNER {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[allow(deprecated)]
 impl Model for RuleBasedNER {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         let mut entities = Vec::new();
@@ -121,7 +127,10 @@ impl Model for RuleBasedNER {
 
         for cap in ORG_PATTERN.find_iter(text) {
             // Skip if already covered
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end()))
+            {
                 continue;
             }
             let text_str = strip_leading_article(cap.as_str());
@@ -143,7 +152,10 @@ impl Model for RuleBasedNER {
 
         for cap in LOCATION_PATTERN.find_iter(text) {
             // Skip if already covered by organization
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end()))
+            {
                 continue;
             }
             let text_str = strip_leading_article(cap.as_str());
@@ -169,13 +181,18 @@ impl Model for RuleBasedNER {
             let mut text_str = cap.as_str();
             // Strip leading "The " if present
             text_str = strip_leading_article(text_str);
-            
+
             // Skip if overlaps with already-extracted org/location (higher priority)
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end()))
+            {
                 continue;
             }
             // Skip common words or sentences starting with "The"
-            if self.filter_common && (is_common_capitalized_word(text_str) || starts_with_noise(text_str)) {
+            if self.filter_common
+                && (is_common_capitalized_word(text_str) || starts_with_noise(text_str))
+            {
                 continue;
             }
             let start_adj = cap.start() + (cap.as_str().len() - text_str.len());
@@ -202,11 +219,16 @@ impl Model for RuleBasedNER {
                 continue;
             }
             // Skip common words that are capitalized but not entities
-            if self.filter_common && (is_common_capitalized_word(text_str) || starts_with_noise(text_str)) {
+            if self.filter_common
+                && (is_common_capitalized_word(text_str) || starts_with_noise(text_str))
+            {
                 continue;
             }
             // Skip if already matched by more specific patterns (org, location, person)
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, cap.start(), cap.end()))
+            {
                 continue;
             }
             // Use heuristics to infer type
@@ -229,7 +251,10 @@ impl Model for RuleBasedNER {
 
         for date_match in DATE_PATTERN.find_iter(text) {
             // Skip if overlaps with existing entity
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, date_match.start(), date_match.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, date_match.start(), date_match.end()))
+            {
                 continue;
             }
             entities.push(Entity {
@@ -249,7 +274,10 @@ impl Model for RuleBasedNER {
 
         for money_match in MONEY_PATTERN.find_iter(text) {
             // Skip if overlaps with existing entity
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, money_match.start(), money_match.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, money_match.start(), money_match.end()))
+            {
                 continue;
             }
             entities.push(Entity {
@@ -262,13 +290,15 @@ impl Model for RuleBasedNER {
         }
 
         // Pattern 7: Percentages
-        static PERCENT_PATTERN: Lazy<Regex> = Lazy::new(|| {
-            Regex::new(r"\d+\.?\d*\s*%").expect("Failed to compile percent pattern")
-        });
+        static PERCENT_PATTERN: Lazy<Regex> =
+            Lazy::new(|| Regex::new(r"\d+\.?\d*\s*%").expect("Failed to compile percent pattern"));
 
         for percent_match in PERCENT_PATTERN.find_iter(text) {
             // Skip if overlaps with existing entity
-            if entities.iter().any(|e| spans_overlap(e.start, e.end, percent_match.start(), percent_match.end())) {
+            if entities
+                .iter()
+                .any(|e| spans_overlap(e.start, e.end, percent_match.start(), percent_match.end()))
+            {
                 continue;
             }
             entities.push(Entity {
@@ -321,23 +351,23 @@ fn spans_overlap(s1_start: usize, s1_end: usize, s2_start: usize, s2_end: usize)
 
 /// Strip leading articles ("The ", "A ", "An ") from entity text.
 fn strip_leading_article(text: &str) -> &str {
-    if text.starts_with("The ") {
-        &text[4..]
-    } else if text.starts_with("A ") {
-        &text[2..]
-    } else if text.starts_with("An ") {
-        &text[3..]
-    } else {
-        text
-    }
+    text.strip_prefix("The ")
+        .or_else(|| text.strip_prefix("A "))
+        .or_else(|| text.strip_prefix("An "))
+        .unwrap_or(text)
 }
 
 /// Check if text starts with common noise patterns.
 fn starts_with_noise(text: &str) -> bool {
     // These patterns often lead to false positives
     let noise_starts = [
-        "According", "Based", "Given", "Following", "Regarding",
-        "Attention Is", "All You", // Common paper title fragments
+        "According",
+        "Based",
+        "Given",
+        "Following",
+        "Regarding",
+        "Attention Is",
+        "All You", // Common paper title fragments
     ];
     noise_starts.iter().any(|n| text.starts_with(n))
 }
@@ -352,9 +382,14 @@ fn infer_entity_type(text: &str) -> EntityType {
     // Looks like a person name (2-3 word capitalized, common name patterns)
     if words.len() == 2 || words.len() == 3 {
         // Check if looks like "Firstname Lastname"
-        if words.iter().all(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false)) {
+        if words
+            .iter()
+            .all(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false))
+        {
             // Common Chinese/Korean surnames are a strong signal
-            if is_common_surname(words[0]) || (words.len() > 1 && is_common_surname(words.last().unwrap())) {
+            if is_common_surname(words[0])
+                || (words.len() > 1 && words.last().is_some_and(|w| is_common_surname(w)))
+            {
                 return EntityType::Person;
             }
         }
@@ -366,8 +401,12 @@ fn infer_entity_type(text: &str) -> EntityType {
     }
 
     // Technical/concept terms
-    if lower.contains("network") || lower.contains("model") || lower.contains("algorithm")
-        || lower.contains("learning") || lower.contains("neural") || lower.contains("transformer")
+    if lower.contains("network")
+        || lower.contains("model")
+        || lower.contains("algorithm")
+        || lower.contains("learning")
+        || lower.contains("neural")
+        || lower.contains("transformer")
     {
         return EntityType::Other("concept".to_string());
     }
@@ -384,17 +423,16 @@ fn infer_entity_type(text: &str) -> EntityType {
 fn is_common_surname(word: &str) -> bool {
     static COMMON_SURNAMES: &[&str] = &[
         // Chinese surnames (very common in academic papers)
-        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou",
-        "Xu", "Sun", "Ma", "Zhu", "Hu", "Guo", "Lin", "He", "Gao", "Luo",
-        "Zheng", "Liang", "Xie", "Tang", "Han", "Feng", "Deng", "Cao", "Peng", "Xiao",
-        "Jiang", "Cheng", "Yuan", "Lu", "Pan", "Ding", "Wei", "Ren", "Shao", "Qian",
-        // Korean surnames
+        "Wang", "Li", "Zhang", "Liu", "Chen", "Yang", "Huang", "Zhao", "Wu", "Zhou", "Xu", "Sun",
+        "Ma", "Zhu", "Hu", "Guo", "Lin", "He", "Gao", "Luo", "Zheng", "Liang", "Xie", "Tang",
+        "Han", "Feng", "Deng", "Cao", "Peng", "Xiao", "Jiang", "Cheng", "Yuan", "Lu", "Pan",
+        "Ding", "Wei", "Ren", "Shao", "Qian", // Korean surnames
         "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon", "Jang", "Lim",
         // Japanese surnames
         "Tanaka", "Suzuki", "Yamamoto", "Watanabe", "Sato", "Ito", "Nakamura",
         // Western surnames (common in papers)
-        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis",
-        "Wilson", "Moore", "Taylor", "Anderson", "Thomas", "White", "Harris",
+        "Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Wilson", "Moore",
+        "Taylor", "Anderson", "Thomas", "White", "Harris",
     ];
     COMMON_SURNAMES.contains(&word)
 }
@@ -413,62 +451,375 @@ fn is_common_capitalized_word(word: &str) -> bool {
     let common_words = COMMON_WORDS.get_or_init(|| {
         let words: &[&str] = &[
             // Pronouns and determiners
-            "The", "A", "An", "This", "That", "These", "Those", "I", "You", "He", "She", "It",
-            "We", "They", "My", "Your", "His", "Her", "Its", "Our", "Their", "What", "Which",
-            "Who", "Whom",
+            "The",
+            "A",
+            "An",
+            "This",
+            "That",
+            "These",
+            "Those",
+            "I",
+            "You",
+            "He",
+            "She",
+            "It",
+            "We",
+            "They",
+            "My",
+            "Your",
+            "His",
+            "Her",
+            "Its",
+            "Our",
+            "Their",
+            "What",
+            "Which",
+            "Who",
+            "Whom",
             // Conjunctions and prepositions
-            "And", "Or", "But", "If", "When", "Where", "Why", "How", "As", "At", "By", "For",
-            "From", "In", "Into", "Of", "On", "To", "With", "About", "After", "Against",
-            "Before", "Between", "During", "Through", "Under", "Over", "Above", "Below",
-            "Since", "Until", "Upon",
+            "And",
+            "Or",
+            "But",
+            "If",
+            "When",
+            "Where",
+            "Why",
+            "How",
+            "As",
+            "At",
+            "By",
+            "For",
+            "From",
+            "In",
+            "Into",
+            "Of",
+            "On",
+            "To",
+            "With",
+            "About",
+            "After",
+            "Against",
+            "Before",
+            "Between",
+            "During",
+            "Through",
+            "Under",
+            "Over",
+            "Above",
+            "Below",
+            "Since",
+            "Until",
+            "Upon",
             // Verbs (common)
-            "Is", "Are", "Was", "Were", "Be", "Been", "Being", "Have", "Has", "Had", "Do",
-            "Does", "Did", "Will", "Would", "Could", "Should", "May", "Might", "Can", "Cannot",
-            "Let", "Get", "Got", "Make", "Made", "Take", "Took", "Give", "Gave", "See", "Saw",
-            "Know", "Knew", "Think", "Thought", "Want", "Use", "Used", "Using", "Find",
+            "Is",
+            "Are",
+            "Was",
+            "Were",
+            "Be",
+            "Been",
+            "Being",
+            "Have",
+            "Has",
+            "Had",
+            "Do",
+            "Does",
+            "Did",
+            "Will",
+            "Would",
+            "Could",
+            "Should",
+            "May",
+            "Might",
+            "Can",
+            "Cannot",
+            "Let",
+            "Get",
+            "Got",
+            "Make",
+            "Made",
+            "Take",
+            "Took",
+            "Give",
+            "Gave",
+            "See",
+            "Saw",
+            "Know",
+            "Knew",
+            "Think",
+            "Thought",
+            "Want",
+            "Use",
+            "Used",
+            "Using",
+            "Find",
             // Academic/document noise
-            "Figure", "Table", "Section", "Chapter", "Page", "Abstract", "Introduction",
-            "Conclusion", "Conclusions", "Discussion", "Method", "Methods", "Results",
-            "References", "Appendix", "Acknowledgments", "Background", "Related", "Work",
-            "Paper", "Papers", "Study", "Studies", "Research", "Analysis", "Data", "Model",
-            "Models", "Approach", "Problem", "Solution", "System", "Systems", "Algorithm",
-            "Algorithms", "Experiment", "Experiments", "Evaluation", "Performance",
-            "Application", "Applications",
+            "Figure",
+            "Table",
+            "Section",
+            "Chapter",
+            "Page",
+            "Abstract",
+            "Introduction",
+            "Conclusion",
+            "Conclusions",
+            "Discussion",
+            "Method",
+            "Methods",
+            "Results",
+            "References",
+            "Appendix",
+            "Acknowledgments",
+            "Background",
+            "Related",
+            "Work",
+            "Paper",
+            "Papers",
+            "Study",
+            "Studies",
+            "Research",
+            "Analysis",
+            "Data",
+            "Model",
+            "Models",
+            "Approach",
+            "Problem",
+            "Solution",
+            "System",
+            "Systems",
+            "Algorithm",
+            "Algorithms",
+            "Experiment",
+            "Experiments",
+            "Evaluation",
+            "Performance",
+            "Application",
+            "Applications",
             // Common sentence starters
-            "However", "Therefore", "Furthermore", "Moreover", "Although", "Thus", "Hence",
-            "Similarly", "Additionally", "Nevertheless", "Consequently", "Specifically",
-            "Generally", "Particularly", "Especially", "Indeed", "Actually", "Obviously",
-            "Clearly", "Certainly", "Probably", "Possibly", "Perhaps", "Rather", "Instead",
-            "Otherwise", "Finally", "Initially", "Ultimately", "Essentially", "Basically",
+            "However",
+            "Therefore",
+            "Furthermore",
+            "Moreover",
+            "Although",
+            "Thus",
+            "Hence",
+            "Similarly",
+            "Additionally",
+            "Nevertheless",
+            "Consequently",
+            "Specifically",
+            "Generally",
+            "Particularly",
+            "Especially",
+            "Indeed",
+            "Actually",
+            "Obviously",
+            "Clearly",
+            "Certainly",
+            "Probably",
+            "Possibly",
+            "Perhaps",
+            "Rather",
+            "Instead",
+            "Otherwise",
+            "Finally",
+            "Initially",
+            "Ultimately",
+            "Essentially",
+            "Basically",
             // Noise from PDFs
-            "Note", "Notes", "Example", "Examples", "Definition", "Theorem", "Proof", "Lemma",
-            "Proposition", "Corollary", "Remark", "Case", "Cases", "Step", "Steps", "Part",
-            "Parts", "Item", "Items", "Point", "Points", "Fact", "Facts", "First", "Second",
-            "Third", "Fourth", "Fifth", "Next", "Previous", "Following", "Preceding", "Here",
-            "There", "Now", "Then", "Today", "Yesterday", "Tomorrow",
+            "Note",
+            "Notes",
+            "Example",
+            "Examples",
+            "Definition",
+            "Theorem",
+            "Proof",
+            "Lemma",
+            "Proposition",
+            "Corollary",
+            "Remark",
+            "Case",
+            "Cases",
+            "Step",
+            "Steps",
+            "Part",
+            "Parts",
+            "Item",
+            "Items",
+            "Point",
+            "Points",
+            "Fact",
+            "Facts",
+            "First",
+            "Second",
+            "Third",
+            "Fourth",
+            "Fifth",
+            "Next",
+            "Previous",
+            "Following",
+            "Preceding",
+            "Here",
+            "There",
+            "Now",
+            "Then",
+            "Today",
+            "Yesterday",
+            "Tomorrow",
             // Very short words (likely noise)
-            "So", "No", "Yes", "Ok", "Oh", "Ah", "Eh", "Um", "Uh", "Re", "Vs", "Et", "Al",
+            "So",
+            "No",
+            "Yes",
+            "Ok",
+            "Oh",
+            "Ah",
+            "Eh",
+            "Um",
+            "Uh",
+            "Re",
+            "Vs",
+            "Et",
+            "Al",
             // Common academic phrases as single words
-            "Based", "According", "Regarding", "Concerning", "Given", "Assuming", "Suppose",
-            "Consider", "Considering", "Such", "Many", "Much", "Most", "Some", "Any", "Each",
-            "Every", "Both", "All", "Other", "Another", "Same", "Different", "Various",
+            "Based",
+            "According",
+            "Regarding",
+            "Concerning",
+            "Given",
+            "Assuming",
+            "Suppose",
+            "Consider",
+            "Considering",
+            "Such",
+            "Many",
+            "Much",
+            "Most",
+            "Some",
+            "Any",
+            "Each",
+            "Every",
+            "Both",
+            "All",
+            "Other",
+            "Another",
+            "Same",
+            "Different",
+            "Various",
             "Several",
             // More noise
-            "Published", "Received", "Accepted", "Revised", "Available", "Online", "Copyright",
-            "Rights", "Reserved", "Author", "Authors", "Corresponding", "Email", "Address",
-            "University", "Department", "Institute", "Center", "College", "School", "Lab",
+            "Published",
+            "Received",
+            "Accepted",
+            "Revised",
+            "Available",
+            "Online",
+            "Copyright",
+            "Rights",
+            "Reserved",
+            "Author",
+            "Authors",
+            "Corresponding",
+            "Email",
+            "Address",
+            "University",
+            "Department",
+            "Institute",
+            "Center",
+            "College",
+            "School",
+            "Lab",
             // Additional noise from PDFs
-            "Fig", "Eq", "Eqs", "Ref", "Refs", "Tab", "Sec", "App", "Vol", "No", "Pp", "Ed",
-            "Eds", "Inc", "Ltd", "Corp", "Co", "Jr", "Sr", "Dr", "Mr", "Mrs", "Ms", "Prof",
-            // Quantifiers and modifiers  
-            "More", "Less", "Few", "Little", "New", "Old", "Good", "Bad", "Large", "Small",
-            "High", "Low", "Long", "Short", "Full", "Empty", "True", "False", "Real", "Main",
+            "Fig",
+            "Eq",
+            "Eqs",
+            "Ref",
+            "Refs",
+            "Tab",
+            "Sec",
+            "App",
+            "Vol",
+            "No",
+            "Pp",
+            "Ed",
+            "Eds",
+            "Inc",
+            "Ltd",
+            "Corp",
+            "Co",
+            "Jr",
+            "Sr",
+            "Dr",
+            "Mr",
+            "Mrs",
+            "Ms",
+            "Prof",
+            // Quantifiers and modifiers
+            "More",
+            "Less",
+            "Few",
+            "Little",
+            "New",
+            "Old",
+            "Good",
+            "Bad",
+            "Large",
+            "Small",
+            "High",
+            "Low",
+            "Long",
+            "Short",
+            "Full",
+            "Empty",
+            "True",
+            "False",
+            "Real",
+            "Main",
             // Technical noise
-            "Input", "Output", "Function", "Variable", "Parameter", "Value", "Type", "Class",
-            "Object", "Array", "List", "Set", "Map", "Key", "Node", "Edge", "Graph", "Tree",
-            "Network", "Layer", "Hidden", "Embedding", "Vector", "Matrix", "Tensor", "Loss",
-            "Error", "Accuracy", "Score", "Rate", "Ratio", "Mean", "Average", "Sum", "Total",
-            "Max", "Min", "Like", "Net", "Core", "Base", "Top", "Bottom", "Left", "Right",
+            "Input",
+            "Output",
+            "Function",
+            "Variable",
+            "Parameter",
+            "Value",
+            "Type",
+            "Class",
+            "Object",
+            "Array",
+            "List",
+            "Set",
+            "Map",
+            "Key",
+            "Node",
+            "Edge",
+            "Graph",
+            "Tree",
+            "Network",
+            "Layer",
+            "Hidden",
+            "Embedding",
+            "Vector",
+            "Matrix",
+            "Tensor",
+            "Loss",
+            "Error",
+            "Accuracy",
+            "Score",
+            "Rate",
+            "Ratio",
+            "Mean",
+            "Average",
+            "Sum",
+            "Total",
+            "Max",
+            "Min",
+            "Like",
+            "Net",
+            "Core",
+            "Base",
+            "Top",
+            "Bottom",
+            "Left",
+            "Right",
         ];
         words.iter().copied().collect()
     });
@@ -550,4 +901,3 @@ mod tests {
         assert!(!ner.supported_types().is_empty());
     }
 }
-
