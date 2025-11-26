@@ -1,6 +1,15 @@
 # Changelog
 
-## [0.1.0] - 2024-11-26
+## [0.1.1] - 2025-11-26
+
+### Changed
+- Fixed CI: align feature names (`onnx` instead of `ml-ner-onnx`)
+- Added property tests for Entity and PatternNER
+- Added `#[must_use]` to pure functions
+- Fixed all doc tests (6/6 passing)
+- Fixed clippy lints
+
+## [0.1.0] - 2025-11-26
 
 Initial release.
 
