@@ -121,8 +121,12 @@ pub fn validate_ground_truth_entities(
             continue;
         }
 
-        // Check text matches span
-        let span_text = &text[entity.start..entity.end];
+        // Check text matches span (using character offsets, not byte offsets)
+        let span_text: String = text
+            .chars()
+            .skip(entity.start)
+            .take(entity.end - entity.start)
+            .collect();
         if span_text != entity.text {
             result.add_warning(format!(
                 "Entity {}: text mismatch. Expected '{}', found '{}'",

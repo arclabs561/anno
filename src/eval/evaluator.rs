@@ -3,10 +3,10 @@
 //! Provides trait-based evaluation matching the RetrievalEvaluator pattern
 //! for consistency and extensibility.
 
+use crate::{Error, Model, Result};
 use super::datasets::GoldEntity;
 use super::types::{GoalCheckResult, MetricValue};
 use super::TypeMetrics;
-use crate::{Error, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

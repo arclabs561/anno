@@ -44,7 +44,7 @@ pub mod prelude {
     pub use crate::entity::{Entity, EntityType};
     pub use crate::error::{Error, Result};
     pub use crate::Model;
-    pub use crate::PatternNER;
+    pub use crate::{HybridConfig, HybridNER, MergeStrategy, PatternNER};
 
     #[cfg(feature = "onnx")]
     pub use crate::{BertNEROnnx, GLiNERNER};
@@ -58,7 +58,7 @@ pub use entity::{Entity, EntityType};
 pub use error::{Error, Result};
 
 // Backend re-exports (always available)
-pub use backends::PatternNER;
+pub use backends::{HybridConfig, HybridNER, MergeStrategy, PatternNER};
 
 #[allow(deprecated)]
 pub use backends::RuleBasedNER;
