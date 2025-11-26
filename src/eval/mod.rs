@@ -26,6 +26,7 @@ use std::path::Path;
 pub mod datasets;
 pub mod evaluator;
 pub mod metrics;
+pub mod synthetic;
 pub mod types;
 pub mod validation;
 
