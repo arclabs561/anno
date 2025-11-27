@@ -75,6 +75,10 @@ use crate::{Entity, EntityType, Model, Result};
 #[cfg(feature = "onnx")]
 use crate::Error;
 
+/// Encoded prompt result: (input_ids, attention_mask, word_mask, num_entity_types)
+#[cfg(feature = "onnx")]
+type EncodedPrompt = (Vec<i64>, Vec<i64>, Vec<i64>, i64);
+
 /// Special token IDs for GLiNER/NuNER models (shared architecture)
 #[cfg(feature = "onnx")]
 const TOKEN_START: u32 = 1;
@@ -338,7 +342,7 @@ impl NuNER {
         tokenizer: &tokenizers::Tokenizer,
         text_words: &[&str],
         entity_types: &[&str],
-    ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>, i64)> {
+    ) -> Result<EncodedPrompt> {
         let mut input_ids: Vec<i64> = Vec::new();
         let mut word_mask: Vec<i64> = Vec::new();
 
@@ -504,6 +508,7 @@ impl NuNER {
     }
 
     #[cfg(feature = "onnx")]
+    #[allow(clippy::too_many_arguments)]
     fn create_entity(
         &self,
         text: &str,
@@ -579,7 +584,7 @@ impl Model for NuNER {
     fn is_available(&self) -> bool {
         #[cfg(feature = "onnx")]
         {
-            return self.session.is_some();
+            self.session.is_some()
         }
         #[cfg(not(feature = "onnx"))]
         {

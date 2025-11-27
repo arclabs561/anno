@@ -44,15 +44,15 @@
 //! )?;
 //! ```
 
+#![allow(dead_code)] // Token constants for future prompt encoding
+
 use crate::{Entity, EntityType, Error, Result};
 
 #[cfg(feature = "candle")]
 use {
-    super::encoder_candle::{CandleEncoder, EncoderConfig, TextEncoder},
+    super::encoder_candle::{CandleEncoder, TextEncoder},
     candle_core::{DType, Device, IndexOp, Module, Tensor, D},
-    candle_nn::{embedding, layer_norm, linear, Embedding, LayerNorm, Linear, VarBuilder},
-    std::collections::HashMap,
-    std::sync::Mutex,
+    candle_nn::{embedding, linear, Embedding, Linear, VarBuilder},
     tokenizers::Tokenizer,
 };
 
@@ -110,6 +110,7 @@ pub struct SpanRepLayer {
 
 #[cfg(feature = "candle")]
 impl SpanRepLayer {
+    /// Create a new span representation layer.
     pub fn new(hidden_size: usize, max_width: usize, vb: VarBuilder) -> Result<Self> {
         let width_emb_size = hidden_size / 4;
         let input_size = hidden_size * 2 + width_emb_size;
@@ -179,6 +180,7 @@ pub struct LabelEncoder {
 
 #[cfg(feature = "candle")]
 impl LabelEncoder {
+    /// Create a new label encoder.
     pub fn new(hidden_size: usize, vb: VarBuilder) -> Result<Self> {
         let projection = linear(hidden_size, hidden_size, vb.pp("label_projection"))
             .map_err(|e| Error::Retrieval(format!("LabelEncoder: {}", e)))?;
@@ -186,6 +188,7 @@ impl LabelEncoder {
         Ok(Self { projection })
     }
 
+    /// Project label embeddings to matching space.
     pub fn forward(&self, label_embeddings: &Tensor) -> Result<Tensor> {
         self.projection.forward(label_embeddings)
             .map_err(|e| Error::Parse(format!("label projection: {}", e)))
@@ -204,6 +207,7 @@ pub struct SpanLabelMatcher {
 
 #[cfg(feature = "candle")]
 impl SpanLabelMatcher {
+    /// Create a new span-label matcher with temperature scaling.
     pub fn new(temperature: f64) -> Self {
         Self { temperature }
     }

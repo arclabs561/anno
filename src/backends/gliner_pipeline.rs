@@ -47,14 +47,13 @@
 #![allow(unused_variables)]
 
 use crate::backends::inference::{
-    DotProductInteraction, LabelCategory, LabelDefinition, LateInteraction, 
-    ModalityHint, SemanticRegistry, SpanRepConfig, SpanRepresentationLayer,
+    DotProductInteraction, LateInteraction, SemanticRegistry, SpanRepConfig, SpanRepresentationLayer,
 };
 use crate::entity::{RaggedBatch, SpanCandidate, generate_span_candidates};
-use crate::{Entity, EntityType, Error, Result};
+use crate::{Entity, EntityType, Result};
 
 #[cfg(feature = "candle")]
-use crate::backends::encoder_candle::{CandleEncoder, EncoderConfig, TextEncoder};
+use crate::backends::encoder_candle::{CandleEncoder, TextEncoder};
 
 use std::sync::Arc;
 

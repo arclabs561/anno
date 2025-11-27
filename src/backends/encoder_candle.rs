@@ -39,7 +39,6 @@ use crate::{Error, Result};
 use {
     candle_core::{DType, Device, IndexOp, Module, Tensor, D},
     candle_nn::{embedding, layer_norm, linear, Embedding, LayerNorm, Linear, VarBuilder},
-    std::collections::HashMap,
 };
 
 #[cfg(feature = "candle")]
@@ -355,6 +354,7 @@ mod candle_impl {
     }
 
     impl RotaryEmbedding {
+        /// Create new rotary embeddings with precomputed sin/cos caches.
         pub fn new(head_dim: usize, max_seq_len: usize, theta: f64, device: &Device) -> Result<Self> {
             // Compute inverse frequencies
             let half_dim = head_dim / 2;
@@ -478,6 +478,7 @@ mod candle_impl {
     }
 
     impl Attention {
+        /// Create a new attention layer from config and weights.
         pub fn new(config: &EncoderConfig, vb: VarBuilder, device: &Device) -> Result<Self> {
             let hidden = config.hidden_size;
             let num_heads = config.num_attention_heads;
@@ -514,6 +515,7 @@ mod candle_impl {
             })
         }
 
+        /// Forward pass through attention layer.
         pub fn forward(&self, hidden_states: &Tensor, start_pos: usize) -> Result<Tensor> {
             let (batch, seq_len, hidden) = hidden_states.dims3()
                 .map_err(|e| Error::Parse(format!("Attention dims: {}", e)))?;
@@ -568,6 +570,7 @@ mod candle_impl {
     }
 
     impl FeedForward {
+        /// Create a new feed-forward network from config and weights.
         pub fn new(config: &EncoderConfig, vb: VarBuilder) -> Result<Self> {
             let hidden = config.hidden_size;
             let intermediate = if config.use_geglu {
@@ -589,6 +592,7 @@ mod candle_impl {
             })
         }
 
+        /// Forward pass through FFN.
         pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
             let up = self.up_proj.forward(x)
                 .map_err(|e| Error::Parse(format!("FFN up: {}", e)))?;
@@ -615,6 +619,7 @@ mod candle_impl {
     }
 
     impl TransformerLayer {
+        /// Create a new transformer layer from config and weights.
         pub fn new(config: &EncoderConfig, vb: VarBuilder, device: &Device) -> Result<Self> {
             let attention = Attention::new(config, vb.pp("attention"), device)?;
             let ffn = FeedForward::new(config, vb.pp("ffn"))?;
@@ -632,6 +637,7 @@ mod candle_impl {
             })
         }
 
+        /// Forward pass through transformer layer.
         pub fn forward(&self, x: &Tensor, start_pos: usize) -> Result<Tensor> {
             // Pre-norm: LN -> Attention -> Residual
             let normed = self.ln1.forward(x)

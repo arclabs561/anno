@@ -47,7 +47,6 @@ use {
     candle_core::{DType, Device, Module, Tensor, D},
     candle_nn::{linear, Linear, VarBuilder},
     std::collections::HashMap,
-    std::sync::Mutex,
     tokenizers::Tokenizer,
 };
 

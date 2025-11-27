@@ -481,7 +481,7 @@ impl W2NER {
         // Decode entities for each type
         let mut entities = Vec::new();
         for (type_idx, label) in self.config.entity_labels.iter().enumerate() {
-            let spans = self.decode_from_matrix(&matrix, &words.iter().map(|s| *s).collect::<Vec<_>>(), type_idx);
+            let spans = self.decode_from_matrix(&matrix, &words.to_vec(), type_idx);
             
             for (start_word, end_word, score) in spans {
                 if let (Some(&(start_pos, _)), Some(&(_, end_pos))) = 
@@ -537,7 +537,7 @@ impl Model for W2NER {
     fn is_available(&self) -> bool {
         #[cfg(feature = "onnx")]
         {
-            return self.session.is_some();
+            self.session.is_some()
         }
         #[cfg(not(feature = "onnx"))]
         {
