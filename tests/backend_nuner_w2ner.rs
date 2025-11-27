@@ -436,6 +436,130 @@ mod handshaking {
 }
 
 // =============================================================================
+// Integration Tests (require model downloads)
+// =============================================================================
+
+mod integration {
+    use super::*;
+
+    /// Test NuNER with real model - requires network and onnx feature.
+    #[test]
+    #[ignore] // Run with: cargo test --features onnx -- --ignored nuner_real
+    fn test_nuner_real_model() {
+        #[cfg(feature = "onnx")]
+        {
+            println!("\n=== NuNER Real Model Test ===\n");
+
+            // Load real model with custom labels
+            let ner = match NuNER::from_pretrained("numind/NuNerZero") {
+                Ok(n) => n.with_labels(vec![
+                    "person".to_string(),
+                    "organization".to_string(), 
+                    "location".to_string(),
+                ]),
+                Err(e) => {
+                    println!("Skipping NuNER test (model not available): {}", e);
+                    return;
+                }
+            };
+
+            assert!(ner.is_available(), "NuNER should be available after loading");
+
+            let test_cases = [
+                "Steve Jobs founded Apple in California.",
+                "Microsoft acquired GitHub for $7.5 billion.",
+                "CRISPR was developed by Jennifer Doudna at UC Berkeley.",
+            ];
+
+            for text in test_cases {
+                println!("Input: {}", text);
+
+                match ner.extract_entities(text, None) {
+                    Ok(entities) => {
+                        for e in &entities {
+                            println!("  - {} ({}, {:.2})", e.text, e.entity_type.as_label(), e.confidence);
+                        }
+                        if entities.is_empty() {
+                            println!("  (no entities found)");
+                        }
+                    }
+                    Err(e) => println!("  Error: {}", e),
+                }
+                println!();
+            }
+        }
+
+        #[cfg(not(feature = "onnx"))]
+        println!("Skipping NuNER test (onnx feature not enabled)");
+    }
+
+    /// Test W2NER with real model - requires network and onnx feature.
+    #[test]
+    #[ignore] // Run with: cargo test --features onnx -- --ignored w2ner_real
+    fn test_w2ner_real_model() {
+        #[cfg(feature = "onnx")]
+        {
+            use anno::DiscontinuousNER;
+
+            println!("\n=== W2NER Real Model Test ===\n");
+
+            // Load real model using from_pretrained
+            let ner = match W2NER::from_pretrained("ljvmiranda921/w2ner-conll2003") {
+                Ok(n) => n,
+                Err(e) => {
+                    println!("Skipping W2NER test (model not available): {}", e);
+                    return;
+                }
+            };
+
+            assert!(ner.is_available(), "W2NER should be available after loading");
+
+            let test_cases = [
+                "The European Union met with United States officials.",
+                "John Smith and Mary Johnson visited New York City.",
+                "Apple CEO Tim Cook announced new products in San Francisco.",
+            ];
+
+            for text in test_cases {
+                println!("Input: {}", text);
+
+                // Standard extraction
+                match ner.extract_entities(text, None) {
+                    Ok(entities) => {
+                        println!("  Standard entities:");
+                        for e in &entities {
+                            println!("    - {} ({}, {:.2})", e.text, e.entity_type.as_label(), e.confidence);
+                        }
+                        if entities.is_empty() {
+                            println!("    (no entities found)");
+                        }
+                    }
+                    Err(e) => println!("  Error: {}", e),
+                }
+
+                // Discontinuous extraction using the DiscontinuousNER trait
+                match ner.extract_discontinuous(text, &["PER", "ORG", "LOC"], 0.5) {
+                    Ok(entities) => {
+                        if !entities.is_empty() {
+                            println!("  Discontinuous entities:");
+                            for e in &entities {
+                                println!("    - {} ({}, {:.2}) spans: {:?}", 
+                                    e.text, e.entity_type, e.confidence, e.spans);
+                            }
+                        }
+                    }
+                    Err(e) => println!("  Discontinuous error: {}", e),
+                }
+                println!();
+            }
+        }
+
+        #[cfg(not(feature = "onnx"))]
+        println!("Skipping W2NER test (onnx feature not enabled)");
+    }
+}
+
+// =============================================================================
 // Property-Based Tests
 // =============================================================================
 

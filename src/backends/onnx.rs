@@ -360,22 +360,40 @@ impl BertNEROnnx {
 
             match bio {
                 "B" => {
-                    // Finalize previous entity
-                    if let Some((start, end, prev_type, conf)) = current_entity.take() {
-                        let entity_text: String =
-                            text.chars().skip(start).take(end - start).collect();
-                        if !entity_text.trim().is_empty() {
-                            entities.push(Entity::new(
-                                entity_text.trim().to_string(),
-                                prev_type,
-                                start,
-                                end,
-                                conf,
-                            ));
+                    // Check if this B- tag should merge with previous entity
+                    // This handles subword tokenization where "Biden" becomes ["B", "##iden"]
+                    // and both tokens get B-PER labels
+                    let should_merge = if let Some((_, prev_end, ref prev_type, _)) = current_entity {
+                        // Merge if: same type AND adjacent (no gap or only whitespace)
+                        std::mem::discriminant(prev_type) == std::mem::discriminant(&entity_type)
+                            && char_start <= prev_end + 1 // Adjacent or overlapping
+                    } else {
+                        false
+                    };
+
+                    if should_merge {
+                        // Extend the current entity instead of starting new
+                        if let Some((start, _, prev_type, conf)) = current_entity.take() {
+                            current_entity = Some((start, char_end, prev_type, conf));
                         }
+                    } else {
+                        // Finalize previous entity and start new
+                        if let Some((start, end, prev_type, conf)) = current_entity.take() {
+                            let entity_text: String =
+                                text.chars().skip(start).take(end - start).collect();
+                            if !entity_text.trim().is_empty() {
+                                entities.push(Entity::new(
+                                    entity_text.trim().to_string(),
+                                    prev_type,
+                                    start,
+                                    end,
+                                    conf,
+                                ));
+                            }
+                        }
+                        // Start new entity
+                        current_entity = Some((char_start, char_end, entity_type, confidence));
                     }
-                    // Start new entity
-                    current_entity = Some((char_start, char_end, entity_type, confidence));
                 }
                 "I" => {
                     // Continue current entity if same type

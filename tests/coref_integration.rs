@@ -101,7 +101,7 @@ fn test_perfect_resolution_gives_perfect_score() {
     let resolver = SimpleCorefResolver::default();
     let pred_chains = resolver.resolve_to_chains(&entities);
 
-    let (muc_p, muc_r, muc_f1) = muc_score(&pred_chains, &gold_chains);
+    let (_muc_p, _muc_r, muc_f1) = muc_score(&pred_chains, &gold_chains);
 
     // Exact name match should give perfect score
     assert!(
