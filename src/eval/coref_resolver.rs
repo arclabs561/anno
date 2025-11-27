@@ -291,15 +291,11 @@ impl SimpleCorefResolver {
         let words1: Vec<&str> = text1.split_whitespace().collect();
         let words2: Vec<&str> = text2.split_whitespace().collect();
         
-        if words1.len() > 1 && words2.len() == 1 {
-            if words1.last() == words2.first() {
-                return true;
-            }
+        if words1.len() > 1 && words2.len() == 1 && words1.last() == words2.first() {
+            return true;
         }
-        if words2.len() > 1 && words1.len() == 1 {
-            if words2.last() == words1.first() {
-                return true;
-            }
+        if words2.len() > 1 && words1.len() == 1 && words2.last() == words1.first() {
+            return true;
         }
         
         false
