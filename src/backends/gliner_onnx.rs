@@ -568,6 +568,28 @@ impl crate::Model for GLiNEROnnx {
     }
 }
 
+#[cfg(feature = "onnx")]
+impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
+    fn extract_with_types(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        threshold: f32,
+    ) -> crate::Result<Vec<Entity>> {
+        self.extract(text, entity_types, threshold)
+    }
+
+    fn extract_with_descriptions(
+        &self,
+        text: &str,
+        descriptions: &[&str],
+        threshold: f32,
+    ) -> crate::Result<Vec<Entity>> {
+        // GLiNER encodes labels as text, so descriptions work the same way
+        self.extract(text, descriptions, threshold)
+    }
+}
+
 // =============================================================================
 // Stub when feature disabled
 // =============================================================================
@@ -625,5 +647,30 @@ impl crate::Model for GLiNEROnnx {
 
     fn description(&self) -> &'static str {
         "GLiNER with ONNX Runtime backend - requires 'onnx' feature"
+    }
+}
+
+#[cfg(not(feature = "onnx"))]
+impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
+    fn extract_with_types(
+        &self,
+        _text: &str,
+        _entity_types: &[&str],
+        _threshold: f32,
+    ) -> crate::Result<Vec<Entity>> {
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+        ))
+    }
+
+    fn extract_with_descriptions(
+        &self,
+        _text: &str,
+        _descriptions: &[&str],
+        _threshold: f32,
+    ) -> crate::Result<Vec<Entity>> {
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+        ))
     }
 }

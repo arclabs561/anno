@@ -440,6 +440,7 @@ mod handshaking {
 // =============================================================================
 
 mod integration {
+    #[allow(unused_imports)]
     use super::*;
 
     /// Test NuNER with real model - requires network and onnx feature.

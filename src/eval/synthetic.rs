@@ -250,6 +250,55 @@ pub fn social_media_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::SocialMedia,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "omg Taylor Swift just showed up at Arrowhead Stadium in Kansas City!!!!".into(),
+            entities: vec![
+                entity("Taylor Swift", EntityType::Person, 4),
+                entity("Arrowhead Stadium", EntityType::Location, 35),
+                entity("Kansas City", EntityType::Location, 56),
+            ],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "lol Amazon Prime Day deals r insane this year $50 off everything".into(),
+            entities: vec![
+                entity("Amazon", EntityType::Organization, 4),
+                entity("$50", EntityType::Money, 46),
+            ],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "caught the sunrise at Golden Gate Bridge SF is just different ngl".into(),
+            entities: vec![
+                entity("Golden Gate Bridge", EntityType::Location, 22),
+                entity("SF", EntityType::Location, 41),
+            ],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Follow me on IG @foodie_nyc or check my site https://foodblog.io".into(),
+            entities: vec![entity_url("https://foodblog.io", 45)],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Netflix stock down 20% after earnings miss oof".into(),
+            entities: vec![
+                entity("Netflix", EntityType::Organization, 0),
+                entity("20%", EntityType::Percent, 19),
+            ],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "im literally at the Louvre rn and mona lisa kinda mid tbh".into(),
+            entities: vec![entity("Louvre", EntityType::Location, 20)],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Hard,
+        },
     ]
 }
 
@@ -433,6 +482,75 @@ pub fn legal_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Legal,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "Judge Ketanji Brown Jackson was confirmed to the Supreme Court on April 7, 2022.".into(),
+            entities: vec![
+                entity("Ketanji Brown Jackson", EntityType::Person, 6),
+                entity("Supreme Court", EntityType::Organization, 49),
+                entity("April 7, 2022", EntityType::Date, 66),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The FTC filed an antitrust case against Meta Platforms in Washington D.C.".into(),
+            entities: vec![
+                entity("FTC", EntityType::Organization, 4),
+                entity("Meta Platforms", EntityType::Organization, 40),
+                entity("Washington D.C.", EntityType::Location, 58),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Brown v. Board of Education (1954) ended school segregation in America.".into(),
+            entities: vec![entity("America", EntityType::Location, 63)],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Roe v. Wade was overturned by the Supreme Court on June 24, 2022.".into(),
+            entities: vec![
+                entity("Supreme Court", EntityType::Organization, 34),
+                entity("June 24, 2022", EntityType::Date, 51),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Miranda rights derive from Miranda v. Arizona (1966).".into(),
+            entities: vec![entity("Arizona", EntityType::Location, 38)],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "The SEC charged Sam Bankman-Fried with securities fraud totaling $8 billion.".into(),
+            entities: vec![
+                entity("SEC", EntityType::Organization, 4),
+                entity("Sam Bankman-Fried", EntityType::Person, 16),
+                entity("$8 billion", EntityType::Money, 65),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Contact our firm at legal@lawpartners.com or (212) 555-1234 for a consultation.".into(),
+            entities: vec![
+                entity_email("legal@lawpartners.com", 20),
+                entity_phone("(212) 555-1234", 45),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Patent US12345678 was filed by Google LLC on March 15, 2023.".into(),
+            entities: vec![
+                entity("Google LLC", EntityType::Organization, 31),
+                entity("March 15, 2023", EntityType::Date, 45),
+            ],
+            domain: Domain::Legal,
+            difficulty: Difficulty::Medium,
+        },
     ]
 }
 
@@ -459,6 +577,72 @@ pub fn scientific_dataset() -> Vec<AnnotatedExample> {
                 entity("NASA", EntityType::Organization, 0),
                 entity("Carina Nebula", EntityType::Location, 57),
             ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "SpaceX launched Starship from Boca Chica, Texas on April 20, 2023.".into(),
+            entities: vec![
+                entity("SpaceX", EntityType::Organization, 0),
+                entity("Boca Chica", EntityType::Location, 30),
+                entity("Texas", EntityType::Location, 42),
+                entity("April 20, 2023", EntityType::Date, 51),
+            ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Einstein published special relativity while working at the Swiss Patent Office in Bern.".into(),
+            entities: vec![
+                entity("Einstein", EntityType::Person, 0),
+                entity("Swiss Patent Office", EntityType::Organization, 59),
+                entity("Bern", EntityType::Location, 82),
+            ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "CERN's Large Hadron Collider near Geneva discovered the Higgs boson.".into(),
+            entities: vec![
+                entity("CERN", EntityType::Organization, 0),
+                entity("Geneva", EntityType::Location, 34),
+            ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Marie Curie conducted radioactivity research at the University of Paris.".into(),
+            entities: vec![
+                entity("Marie Curie", EntityType::Person, 0),
+                entity("University of Paris", EntityType::Organization, 52),
+            ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The Mars Perseverance rover landed in Jezero Crater on February 18, 2021.".into(),
+            entities: vec![
+                entity("Jezero Crater", EntityType::Location, 38),
+                entity("February 18, 2021", EntityType::Date, 55),
+            ],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "DeepMind's AlphaFold predicted 200 million protein structures.".into(),
+            entities: vec![entity("DeepMind", EntityType::Organization, 0)],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Prof. Katalin Karikó received the Nobel Prize for mRNA vaccine research.".into(),
+            entities: vec![entity("Prof. Katalin Karikó", EntityType::Person, 0)],
+            domain: Domain::Scientific,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The Voyager 1 spacecraft, launched in 1977, is now 15 billion miles from Earth.".into(),
+            entities: vec![entity("Earth", EntityType::Location, 73)],
             domain: Domain::Scientific,
             difficulty: Difficulty::Hard,
         },
@@ -1013,6 +1197,73 @@ pub fn weather_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Weather,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "Tornado warning issued for Oklahoma City until 6pm on May 3, 2024.".into(),
+            entities: vec![
+                entity("Oklahoma City", EntityType::Location, 27),
+                entity("6pm", EntityType::Date, 47),
+                entity("May 3, 2024", EntityType::Date, 54),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "AccuWeather predicts 6 inches of snow in Denver this weekend.".into(),
+            entities: vec![
+                entity("AccuWeather", EntityType::Organization, 0),
+                entity("Denver", EntityType::Location, 41),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The National Weather Service warns of flooding in Houston, Texas.".into(),
+            entities: vec![
+                entity("National Weather Service", EntityType::Organization, 4),
+                entity("Houston", EntityType::Location, 50),
+                entity("Texas", EntityType::Location, 59),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Typhoon Haiyan devastated the Philippines in November 2013.".into(),
+            entities: vec![
+                entity("Philippines", EntityType::Location, 30),
+                entity("November 2013", EntityType::Date, 45),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Check forecasts at https://weather.gov or call (800) 555-1234.".into(),
+            entities: vec![
+                entity_url("https://weather.gov", 19),
+                entity_phone("(800) 555-1234", 47),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Record high of 130°F in Death Valley, California on July 10, 2021.".into(),
+            entities: vec![
+                entity("Death Valley", EntityType::Location, 24),
+                entity("California", EntityType::Location, 38),
+                entity("July 10, 2021", EntityType::Date, 52),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "FEMA deployed to Louisiana after Hurricane Ida on August 29, 2021.".into(),
+            entities: vec![
+                entity("FEMA", EntityType::Organization, 0),
+                entity("Louisiana", EntityType::Location, 17),
+                entity("August 29, 2021", EntityType::Date, 50),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Medium,
+        },
     ]
 }
 
@@ -1116,6 +1367,66 @@ pub fn historical_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Historical,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "Winston Churchill gave the Iron Curtain speech in Fulton, Missouri on March 5, 1946.".into(),
+            entities: vec![
+                entity("Winston Churchill", EntityType::Person, 0),
+                entity("Fulton", EntityType::Location, 50),
+                entity("Missouri", EntityType::Location, 58),
+                entity("March 5, 1946", EntityType::Date, 70),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Cleopatra ruled Egypt from Alexandria until 30 BC.".into(),
+            entities: vec![
+                entity("Cleopatra", EntityType::Person, 0),
+                entity("Egypt", EntityType::Location, 16),
+                entity("Alexandria", EntityType::Location, 27),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Martin Luther King Jr. delivered the I Have a Dream speech in Washington D.C. on August 28, 1963.".into(),
+            entities: vec![
+                entity("Martin Luther King Jr.", EntityType::Person, 0),
+                entity("Washington D.C.", EntityType::Location, 62),
+                entity("August 28, 1963", EntityType::Date, 81),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The Berlin Wall fell on November 9, 1989.".into(),
+            entities: vec![
+                entity("Berlin", EntityType::Location, 4),
+                entity("November 9, 1989", EntityType::Date, 24),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Mahatma Gandhi led India's independence movement against the British Empire.".into(),
+            entities: vec![
+                entity("Mahatma Gandhi", EntityType::Person, 0),
+                entity("India", EntityType::Location, 19),
+                entity("British Empire", EntityType::Organization, 61),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The Magna Carta was signed at Runnymede, England on June 15, 1215.".into(),
+            entities: vec![
+                entity("Runnymede", EntityType::Location, 30),
+                entity("England", EntityType::Location, 41),
+                entity("June 15, 1215", EntityType::Date, 52),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Medium,
+        },
     ]
 }
 
@@ -1156,6 +1467,74 @@ pub fn food_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Food,
             difficulty: Difficulty::Easy,
         },
+        AnnotatedExample {
+            text: "Chef Gordon Ramsay opened a new restaurant in Las Vegas.".into(),
+            entities: vec![
+                entity("Gordon Ramsay", EntityType::Person, 5),
+                entity("Las Vegas", EntityType::Location, 46),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Starbucks CEO Laxman Narasimhan announced $3 billion in buybacks.".into(),
+            entities: vec![
+                entity("Starbucks", EntityType::Organization, 0),
+                entity("Laxman Narasimhan", EntityType::Person, 14),
+                entity("$3 billion", EntityType::Money, 42),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Chipotle Mexican Grill opened 100 new locations in California.".into(),
+            entities: vec![
+                entity("Chipotle Mexican Grill", EntityType::Organization, 0),
+                entity("California", EntityType::Location, 51),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "DoorDash charges 15% commission to restaurants in New York City.".into(),
+            entities: vec![
+                entity("DoorDash", EntityType::Organization, 0),
+                entity("15%", EntityType::Percent, 17),
+                entity("New York City", EntityType::Location, 50),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Sweetgreen raised $200 million at a $3.2 billion valuation.".into(),
+            entities: vec![
+                entity("Sweetgreen", EntityType::Organization, 0),
+                entity("$200 million", EntityType::Money, 18),
+                entity("$3.2 billion", EntityType::Money, 36),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Contact reservations@finedining.com for bookings on January 15, 2025.".into(),
+            entities: vec![
+                entity_email("reservations@finedining.com", 8),
+                entity("January 15, 2025", EntityType::Date, 52),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Yum! Brands owns KFC, Pizza Hut, and Taco Bell worldwide.".into(),
+            entities: vec![
+                entity("Yum! Brands", EntityType::Organization, 0),
+                entity("KFC", EntityType::Organization, 17),
+                entity("Pizza Hut", EntityType::Organization, 22),
+                entity("Taco Bell", EntityType::Organization, 37),
+            ],
+            domain: Domain::Food,
+            difficulty: Difficulty::Hard,
+        },
     ]
 }
 
@@ -1192,6 +1571,76 @@ pub fn real_estate_dataset() -> Vec<AnnotatedExample> {
                 entity("Zillow", EntityType::Organization, 0),
                 entity("15%", EntityType::Percent, 17),
                 entity("Austin", EntityType::Location, 39),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Redfin CEO Glenn Kelman announced 20% workforce reduction.".into(),
+            entities: vec![
+                entity("Redfin", EntityType::Organization, 0),
+                entity("Glenn Kelman", EntityType::Person, 11),
+                entity("20%", EntityType::Percent, 34),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Blackstone acquired $6 billion in apartments in Miami and Atlanta.".into(),
+            entities: vec![
+                entity("Blackstone", EntityType::Organization, 0),
+                entity("$6 billion", EntityType::Money, 20),
+                entity("Miami", EntityType::Location, 48),
+                entity("Atlanta", EntityType::Location, 58),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Call (310) 555-7890 for property tours in Los Angeles.".into(),
+            entities: vec![
+                entity_phone("(310) 555-7890", 5),
+                entity("Los Angeles", EntityType::Location, 42),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "CBRE reports commercial vacancy rates at 18% in Manhattan.".into(),
+            entities: vec![
+                entity("CBRE", EntityType::Organization, 0),
+                entity("18%", EntityType::Percent, 41),
+                entity("Manhattan", EntityType::Location, 48),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Visit https://homes.com for listings or email info@homes.com.".into(),
+            entities: vec![
+                entity_url("https://homes.com", 6),
+                entity_email("info@homes.com", 46),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "JLL predicts 5% rent growth in Seattle through 2025.".into(),
+            entities: vec![
+                entity("JLL", EntityType::Organization, 0),
+                entity("5%", EntityType::Percent, 13),
+                entity("Seattle", EntityType::Location, 31),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "CoStar acquired RentPath for $588 million in February 2021.".into(),
+            entities: vec![
+                entity("CoStar", EntityType::Organization, 0),
+                entity("RentPath", EntityType::Organization, 16),
+                entity("$588 million", EntityType::Money, 29),
+                entity("February 2021", EntityType::Date, 45),
             ],
             domain: Domain::RealEstate,
             difficulty: Difficulty::Medium,
@@ -1496,6 +1945,272 @@ pub fn extended_quality_dataset() -> Vec<AnnotatedExample> {
 }
 
 // ============================================================================
+// Globally Diverse Dataset (Bias Testing)
+// ============================================================================
+
+/// Globally diverse dataset for demographic bias testing.
+///
+/// Includes names and entities from multiple cultural/ethnic backgrounds
+/// to test for systematic bias in NER systems.
+///
+/// Based on research showing NER models perform worse on:
+/// - Non-Western names (Mishra et al. 2020)
+/// - Non-Latin scripts (Loessberg-Zahl 2024)
+/// - Rare or uncommon name patterns
+pub fn globally_diverse_dataset() -> Vec<AnnotatedExample> {
+    vec![
+        // === African Names ===
+        AnnotatedExample {
+            text: "Chidi Okonkwo is the CEO of Lagos Tech Solutions in Nigeria.".into(),
+            entities: vec![
+                entity("Chidi Okonkwo", EntityType::Person, 0),
+                entity("Lagos Tech Solutions", EntityType::Organization, 28),
+                entity("Nigeria", EntityType::Location, 52),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Amara Adebayo met Kwame Mensah in Accra to discuss the partnership.".into(),
+            entities: vec![
+                entity("Amara Adebayo", EntityType::Person, 0),
+                entity("Kwame Mensah", EntityType::Person, 18),
+                entity("Accra", EntityType::Location, 34),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Oluwaseun Afolabi works at the University of Nairobi in Kenya.".into(),
+            entities: vec![
+                entity("Oluwaseun Afolabi", EntityType::Person, 0),
+                entity("University of Nairobi", EntityType::Organization, 31),
+                entity("Kenya", EntityType::Location, 56),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === South Asian Names ===
+        AnnotatedExample {
+            text: "Dr. Priya Sharma presented research at IIT Delhi on February 15, 2024.".into(),
+            entities: vec![
+                entity("Dr. Priya Sharma", EntityType::Person, 0),
+                entity("IIT Delhi", EntityType::Organization, 39),
+                entity("February 15, 2024", EntityType::Date, 52),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Raj Patel and Arjun Singh founded Mumbai AI Labs with $5 million.".into(),
+            entities: vec![
+                entity("Raj Patel", EntityType::Person, 0),
+                entity("Arjun Singh", EntityType::Person, 14),
+                entity("Mumbai AI Labs", EntityType::Organization, 34),
+                entity("$5 million", EntityType::Money, 54),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Aisha Khan from Karachi won the award at the Dhaka conference.".into(),
+            entities: vec![
+                entity("Aisha Khan", EntityType::Person, 0),
+                entity("Karachi", EntityType::Location, 16),
+                entity("Dhaka", EntityType::Location, 45),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === East Asian Names (Romanized) ===
+        AnnotatedExample {
+            text: "Wei Wang and Li Zhang lead Tsinghua University's AI research team.".into(),
+            entities: vec![
+                entity("Wei Wang", EntityType::Person, 0),
+                entity("Li Zhang", EntityType::Person, 13),
+                entity("Tsinghua University", EntityType::Organization, 27),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Yuki Tanaka met Min-jun Kim in Seoul to discuss trade with Tokyo.".into(),
+            entities: vec![
+                entity("Yuki Tanaka", EntityType::Person, 0),
+                entity("Min-jun Kim", EntityType::Person, 16),
+                entity("Seoul", EntityType::Location, 31),
+                entity("Tokyo", EntityType::Location, 59),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Seo-yeon Park is the director of Samsung's Beijing office.".into(),
+            entities: vec![
+                entity("Seo-yeon Park", EntityType::Person, 0),
+                entity("Samsung", EntityType::Organization, 33),
+                entity("Beijing", EntityType::Location, 43),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Middle Eastern Names ===
+        AnnotatedExample {
+            text: "Ahmed Hassan founded Dubai Innovations with backing from Abu Dhabi.".into(),
+            entities: vec![
+                entity("Ahmed Hassan", EntityType::Person, 0),
+                entity("Dubai Innovations", EntityType::Organization, 21),
+                entity("Abu Dhabi", EntityType::Location, 57),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Fatima Ali and Mohammed Ibrahim met in Tehran on January 10, 2024.".into(),
+            entities: vec![
+                entity("Fatima Ali", EntityType::Person, 0),
+                entity("Mohammed Ibrahim", EntityType::Person, 15),
+                entity("Tehran", EntityType::Location, 39),
+                entity("January 10, 2024", EntityType::Date, 49),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Hispanic/Latino Names ===
+        AnnotatedExample {
+            text: "José García and María Rodriguez lead UNAM's research in Mexico City.".into(),
+            entities: vec![
+                entity("José García", EntityType::Person, 0),
+                entity("María Rodriguez", EntityType::Person, 16),
+                entity("UNAM", EntityType::Organization, 37),
+                entity("Mexico City", EntityType::Location, 56),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Carlos Hernández announced $2 billion investment in São Paulo.".into(),
+            entities: vec![
+                entity("Carlos Hernández", EntityType::Person, 0),
+                entity("$2 billion", EntityType::Money, 27),
+                entity("São Paulo", EntityType::Location, 52),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Guadalupe Sánchez from Buenos Aires visited Lima on March 5, 2024.".into(),
+            entities: vec![
+                entity("Guadalupe Sánchez", EntityType::Person, 0),
+                entity("Buenos Aires", EntityType::Location, 23),
+                entity("Lima", EntityType::Location, 44),
+                entity("March 5, 2024", EntityType::Date, 52),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === African-American Names ===
+        AnnotatedExample {
+            text: "DeShawn Jackson and Latoya Williams founded Atlanta Tech Hub.".into(),
+            entities: vec![
+                entity("DeShawn Jackson", EntityType::Person, 0),
+                entity("Latoya Williams", EntityType::Person, 20),
+                entity("Atlanta Tech Hub", EntityType::Organization, 44),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Jamal Robinson received $3 million funding from Howard University.".into(),
+            entities: vec![
+                entity("Jamal Robinson", EntityType::Person, 0),
+                entity("$3 million", EntityType::Money, 24),
+                entity("Howard University", EntityType::Organization, 48),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Aaliyah Washington spoke at Spelman College in Atlanta on May 15.".into(),
+            entities: vec![
+                entity("Aaliyah Washington", EntityType::Person, 0),
+                entity("Spelman College", EntityType::Organization, 28),
+                entity("Atlanta", EntityType::Location, 47),
+                entity("May 15", EntityType::Date, 58),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Eastern European Names ===
+        AnnotatedExample {
+            text: "Ivan Petrov met Olga Ivanova in Moscow at the Kremlin.".into(),
+            entities: vec![
+                entity("Ivan Petrov", EntityType::Person, 0),
+                entity("Olga Ivanova", EntityType::Person, 16),
+                entity("Moscow", EntityType::Location, 32),
+                entity("Kremlin", EntityType::Location, 46),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Katarzyna Kowalski from Warsaw visited Prague on April 20, 2024.".into(),
+            entities: vec![
+                entity("Katarzyna Kowalski", EntityType::Person, 0),
+                entity("Warsaw", EntityType::Location, 24),
+                entity("Prague", EntityType::Location, 39),
+                entity("April 20, 2024", EntityType::Date, 49),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Mixed/Intersectional Examples ===
+        AnnotatedExample {
+            text: "Priya Sharma from Mumbai met Wei Wang from Beijing at MIT.".into(),
+            entities: vec![
+                entity("Priya Sharma", EntityType::Person, 0),
+                entity("Mumbai", EntityType::Location, 18),
+                entity("Wei Wang", EntityType::Person, 29),
+                entity("Beijing", EntityType::Location, 43),
+                entity("MIT", EntityType::Organization, 54),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Ahmed Hassan and María García discussed $50M partnership in Geneva.".into(),
+            entities: vec![
+                entity("Ahmed Hassan", EntityType::Person, 0),
+                entity("María García", EntityType::Person, 17),
+                entity("$50M", EntityType::Money, 40),
+                entity("Geneva", EntityType::Location, 60),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Chidi Okonkwo, Yuki Tanaka, and José García presented at the UN in New York.".into(),
+            entities: vec![
+                entity("Chidi Okonkwo", EntityType::Person, 0),
+                entity("Yuki Tanaka", EntityType::Person, 15),
+                entity("José García", EntityType::Person, 32),
+                entity("UN", EntityType::Organization, 61),
+                entity("New York", EntityType::Location, 67),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Hard,
+        },
+    ]
+}
+
+// ============================================================================
 // Aggregate Functions
 // ============================================================================
 
@@ -1523,6 +2238,7 @@ pub fn all_datasets() -> Vec<AnnotatedExample> {
     all.extend(real_estate_dataset());
     all.extend(conversational_dataset());
     all.extend(extended_quality_dataset());
+    all.extend(globally_diverse_dataset());
     all
 }
 

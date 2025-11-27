@@ -15,6 +15,44 @@
 //! - AllenNLP coref
 //! - Hugging Face neuralcoref
 //!
+//! # Gender Handling & Bias Considerations
+//!
+//! This resolver takes a **gender-aware but debiased** approach, informed by
+//! research in NLP fairness (Rudinger 2018, Cao & Daumé 2019, Hossain 2023):
+//!
+//! 1. **No name-based gender inference**: We do NOT assume "Mary" is female
+//!    or "John" is male. Such assumptions encode cultural stereotypes that
+//!    harm transgender, non-binary, and gender-nonconforming individuals.
+//!
+//! 2. **Pronoun-only gender signals**: Gender is inferred ONLY from pronouns
+//!    (he→masculine, she→feminine, they→neutral). Names get `None` gender.
+//!
+//! 3. **Singular "they" support**: Treated as gender-neutral, compatible with
+//!    any antecedent. This reflects contemporary English usage.
+//!
+//! 4. **Neopronoun support**: Recognizes xe/xem, ze/zir, ey/em, fae/faer.
+//!    These are used by non-binary individuals and should resolve correctly.
+//!
+//! ## Limitations
+//!
+//! - **No occupational bias mitigation**: WinoBias shows systems struggle with
+//!   anti-stereotypical pronoun-occupation pairs. This simple resolver doesn't
+//!   address that—use ML-based systems with debiasing for production.
+//!
+//! - **Neopronoun performance gap**: Research (MISGENDERED, ACL 2023) shows
+//!   ML models achieve only ~7.7% accuracy on neopronouns out-of-the-box.
+//!   Our rule-based approach handles them correctly but can't learn context.
+//!
+//! - **No intersectional analysis**: WinoIdentity shows bias compounds for
+//!   doubly-disadvantaged groups. We don't measure or mitigate this.
+//!
+//! ## References
+//!
+//! - Rudinger et al. (2018): "Gender Bias in Coreference Resolution"
+//! - Cao & Daumé (2019): "Toward Gender-Inclusive Coreference Resolution"
+//! - Hossain et al. (2023): "MISGENDERED: Limits of LLMs in Understanding Pronouns"
+//! - Devinney et al. (2022): "Theories of 'Gender' in NLP Bias Research"
+//!
 //! # Example
 //!
 //! ```rust
@@ -186,6 +224,15 @@ impl SimpleCorefResolver {
     }
 
     /// Resolve a pronoun to its antecedent.
+    ///
+    /// # Gender Handling
+    ///
+    /// - Gendered pronouns (he/she) link to the nearest type-compatible entity
+    /// - Neutral pronouns (they/them) link to any type-compatible entity
+    /// - We do NOT infer gender from names to avoid encoding bias
+    ///
+    /// This means "they" can refer to anyone, and we don't assume
+    /// "Mary" is female or "John" is male.
     fn resolve_pronoun(&self, pronoun: &Entity, previous: &[Entity]) -> Option<u64> {
         let pronoun_gender = self.infer_gender(&pronoun.text);
         
@@ -201,13 +248,33 @@ impl SimpleCorefResolver {
                 continue;
             }
             
-            // Gender compatibility (if we can infer)
-            if let Some(entity_gender) = self.infer_gender(&entity.text) {
-                if let Some(pg) = pronoun_gender {
-                    if pg != entity_gender {
+            // Gender compatibility check
+            // 
+            // Key insight: We only know gender from PRONOUNS, not from names.
+            // So entity_gender will almost always be None (can't infer from "John" or "Mary").
+            // This is intentional - it avoids encoding stereotypical assumptions.
+            //
+            // - If pronoun is 'n' (they/them): compatible with any entity
+            // - If pronoun is 'm' or 'f': compatible with any entity (we can't check name gender)
+            // - If entity was a pronoun (already skipped above): would check gender match
+            let entity_gender = self.infer_gender(&entity.text);
+            
+            match (pronoun_gender, entity_gender) {
+                // Neutral pronoun: compatible with everything
+                (Some('n'), _) => {}
+                // Entity is neutral (they): compatible with any pronoun
+                (_, Some('n')) => {}
+                // Entity has known gender (was a pronoun in original text): must match
+                (Some(pg), Some(eg)) => {
+                    if pg != eg {
                         continue;
                     }
                 }
+                // Can't determine entity gender (it's a name): no filtering
+                // This is the common case and avoids gender-from-name bias
+                (_, None) => {}
+                // Pronoun has no gender (shouldn't happen for pronouns): accept
+                (None, Some(_)) => {}
             }
             
             // Found a compatible antecedent
@@ -218,25 +285,52 @@ impl SimpleCorefResolver {
     }
 
     /// Check if text is a pronoun.
+    ///
+    /// Recognizes:
+    /// - Traditional binary pronouns (he/she)
+    /// - Singular "they" (widely adopted for non-binary individuals)
+    /// - Common neopronouns (xe, ze, ey, fae) per MISGENDERED dataset
     fn is_pronoun(&self, text: &str) -> bool {
         matches!(
             text.to_lowercase().as_str(),
-            "he" | "she" | "it" | "they" | "him" | "her" | "them" |
-            "his" | "hers" | "its" | "their" | "theirs" |
-            "himself" | "herself" | "itself" | "themselves"
+            // Traditional gendered pronouns
+            "he" | "she" | "him" | "her" | "his" | "hers" | "himself" | "herself" |
+            // Singular they (gender-neutral, widely adopted)
+            "they" | "them" | "their" | "theirs" | "themselves" | "themself" |
+            // Impersonal pronouns
+            "it" | "its" | "itself" |
+            // Neopronouns: xe/xem/xyr (one of the most common)
+            "xe" | "xem" | "xyr" | "xyrs" | "xemself" |
+            // Neopronouns: ze/zir (Spivak-derived)
+            "ze" | "hir" | "zir" | "hirs" | "zirs" | "hirself" | "zirself" |
+            // Neopronouns: ey/em (from "they" minus "th")
+            "ey" | "em" | "eir" | "eirs" | "emself" |
+            // Neopronouns: fae/faer (nature-inspired)
+            "fae" | "faer" | "faers" | "faeself"
         )
     }
 
     /// Check if a pronoun is compatible with an entity type.
+    ///
+    /// Person entities can take any personal pronoun including neopronouns.
+    /// Organizations can take "they" (collective) or "it".
+    /// Locations typically take "it".
     fn pronoun_compatible(&self, pronoun: &str, entity_type: &EntityType) -> bool {
         let lower = pronoun.to_lowercase();
         match entity_type {
             EntityType::Person => matches!(lower.as_str(), 
+                // Traditional
                 "he" | "she" | "they" | "him" | "her" | "them" |
                 "his" | "hers" | "their" | "theirs" |
-                "himself" | "herself" | "themselves"
+                "himself" | "herself" | "themselves" | "themself" |
+                // Neopronouns (all can refer to people)
+                "xe" | "xem" | "xyr" | "xyrs" | "xemself" |
+                "ze" | "hir" | "zir" | "hirs" | "zirs" | "hirself" | "zirself" |
+                "ey" | "em" | "eir" | "eirs" | "emself" |
+                "fae" | "faer" | "faers" | "faeself"
             ),
             EntityType::Organization => matches!(lower.as_str(),
+                // Orgs use "it" or collective "they"
                 "it" | "they" | "its" | "their" | "theirs" | "itself" | "themselves"
             ),
             EntityType::Location => matches!(lower.as_str(),
@@ -246,13 +340,55 @@ impl SimpleCorefResolver {
         }
     }
 
-    /// Infer gender from text (heuristic).
+    /// Infer gender from pronoun text.
+    ///
+    /// # Gender Bias Warning
+    ///
+    /// This method only infers gender from **pronouns**, not from names.
+    /// Inferring gender from names (e.g., "Mary" → female) encodes cultural
+    /// and stereotypical assumptions that don't hold universally.
+    ///
+    /// # Pronoun Categories
+    ///
+    /// - **Masculine** ('m'): he/him/his
+    /// - **Feminine** ('f'): she/her/hers
+    /// - **Neutral** ('n'): they/them, neopronouns (xe/ze/ey/fae)
+    ///
+    /// All neopronouns are treated as neutral since they explicitly signal
+    /// non-binary identity. Per Cao & Daumé (2019), this avoids forcing
+    /// binary categorization on non-binary individuals.
+    ///
+    /// # Returns
+    ///
+    /// - `Some('m')` for masculine pronouns
+    /// - `Some('f')` for feminine pronouns
+    /// - `Some('n')` for neutral/non-binary pronouns (including neopronouns)
+    /// - `None` for names and other text (no assumption made)
     fn infer_gender(&self, text: &str) -> Option<char> {
         let lower = text.to_lowercase();
         match lower.as_str() {
+            // Traditional masculine
             "he" | "him" | "his" | "himself" => Some('m'),
+            
+            // Traditional feminine
             "she" | "her" | "hers" | "herself" => Some('f'),
-            _ => None, // Can't infer from name without external knowledge
+            
+            // Singular "they" - gender-neutral, compatible with any antecedent
+            "they" | "them" | "their" | "theirs" | "themselves" | "themself" => Some('n'),
+            
+            // Neopronouns - all treated as neutral ('n')
+            // xe/xem set
+            "xe" | "xem" | "xyr" | "xyrs" | "xemself" => Some('n'),
+            // ze/zir set (includes "hir" which is distinct from "her")
+            "ze" | "hir" | "zir" | "hirs" | "zirs" | "hirself" | "zirself" => Some('n'),
+            // ey/em set
+            "ey" | "em" | "eir" | "eirs" | "emself" => Some('n'),
+            // fae/faer set
+            "fae" | "faer" | "faers" | "faeself" => Some('n'),
+            
+            // Names and other text: NO gender inference
+            // This is critical - assuming "Mary" → female encodes bias
+            _ => None,
         }
     }
 
@@ -427,6 +563,108 @@ mod tests {
         let non_singletons: Vec<_> = chains.iter().filter(|c| !c.is_singleton()).collect();
         assert_eq!(non_singletons.len(), 1);
         assert_eq!(non_singletons[0].len(), 2);
+    }
+
+    // =========================================================================
+    // Gender-inclusive pronoun tests
+    // =========================================================================
+
+    #[test]
+    fn test_singular_they_resolves_to_any_person() {
+        let resolver = SimpleCorefResolver::default();
+        let entities = vec![
+            person("Alex", 0),  // Gender-ambiguous name
+            person("they", 20),
+        ];
+        
+        let resolved = resolver.resolve(&entities);
+        assert_eq!(
+            resolved[0].canonical_id, resolved[1].canonical_id,
+            "Singular 'they' should resolve to any person"
+        );
+    }
+
+    #[test]
+    fn test_neopronoun_xe_resolves() {
+        let resolver = SimpleCorefResolver::default();
+        let entities = vec![
+            person("Jordan", 0),
+            person("xe", 30),
+        ];
+        
+        let resolved = resolver.resolve(&entities);
+        assert_eq!(
+            resolved[0].canonical_id, resolved[1].canonical_id,
+            "Neopronoun 'xe' should resolve to any person"
+        );
+    }
+
+    #[test]
+    fn test_neopronoun_ze_resolves() {
+        let resolver = SimpleCorefResolver::default();
+        let entities = vec![
+            person("Sam", 0),
+            person("zir", 25),  // possessive of ze
+        ];
+        
+        let resolved = resolver.resolve(&entities);
+        assert_eq!(
+            resolved[0].canonical_id, resolved[1].canonical_id,
+            "Neopronoun 'zir' should resolve to any person"
+        );
+    }
+
+    #[test]
+    fn test_neopronoun_fae_resolves() {
+        let resolver = SimpleCorefResolver::default();
+        let entities = vec![
+            person("River", 0),
+            person("faer", 30),
+        ];
+        
+        let resolved = resolver.resolve(&entities);
+        assert_eq!(
+            resolved[0].canonical_id, resolved[1].canonical_id,
+            "Neopronoun 'faer' should resolve to any person"
+        );
+    }
+
+    #[test]
+    fn test_no_gender_inferred_from_names() {
+        let resolver = SimpleCorefResolver::default();
+        
+        // Even stereotypically "female" names should not block "he"
+        // This is intentional: we don't assume gender from names
+        let entities = vec![
+            person("Mary", 0),
+            person("he", 20),  // Should still link - we don't know Mary's pronouns
+        ];
+        
+        let resolved = resolver.resolve(&entities);
+        assert_eq!(
+            resolved[0].canonical_id, resolved[1].canonical_id,
+            "Should not infer gender from names (avoids stereotyping)"
+        );
+    }
+
+    #[test]
+    fn test_all_neopronouns_recognized() {
+        let resolver = SimpleCorefResolver::default();
+        
+        // Test that all supported neopronouns are recognized
+        let neopronouns = [
+            "xe", "xem", "xyr", "xyrs", "xemself",
+            "ze", "hir", "zir", "hirs", "zirs", "hirself", "zirself",
+            "ey", "em", "eir", "eirs", "emself",
+            "fae", "faer", "faers", "faeself",
+        ];
+        
+        for pronoun in neopronouns {
+            assert!(
+                resolver.is_pronoun(pronoun),
+                "Should recognize neopronoun: {}", pronoun
+            );
+        }
     }
 }
 

@@ -204,7 +204,9 @@ pub mod coref_loader;
 pub mod coref_metrics;
 pub mod coref_resolver;
 pub mod datasets;
+pub mod demographic_bias;
 pub mod evaluator;
+pub mod gender_bias;
 pub mod harness;
 pub mod loader;
 pub mod metrics;
@@ -238,6 +240,20 @@ pub use coref_metrics::{
 
 // Coreference resolution
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
+
+// Gender bias evaluation
+pub use gender_bias::{
+    create_comprehensive_bias_templates, create_neopronoun_templates, create_winobias_templates,
+    occupation_stereotype, GenderBiasEvaluator, GenderBiasResults, OccupationBiasMetrics,
+    PronounGender, StereotypeType, WinoBiasExample,
+};
+
+// Demographic bias evaluation (ethnicity, region, script)
+pub use demographic_bias::{
+    create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
+    DemographicBiasResults, Ethnicity, Gender, LocationExample, LocationType, NameExample,
+    NameFrequency, NameResult, Region, RegionalBiasResults, Script,
+};
 
 // Analysis re-exports
 pub use analysis::{

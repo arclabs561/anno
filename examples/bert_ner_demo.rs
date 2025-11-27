@@ -39,6 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("History", "Leonardo da Vinci painted the Mona Lisa in Florence during the Renaissance."),
         ("Legal", "The Supreme Court ruled in Brown v. Board of Education that segregation is unconstitutional."),
         ("Entertainment", "Christopher Nolan directed Oppenheimer starring Cillian Murphy and Robert Downey Jr."),
+        // Edge cases for multi-word entities and adjacent names
+        ("Multi-word", "John Smith works in New York City and visits Los Angeles often."),
+        ("Adjacent", "Paris and London are European capitals, unlike Tokyo and Beijing."),
     ];
 
     for (domain, text) in &test_texts {

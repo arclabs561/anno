@@ -219,16 +219,23 @@ for chunk in document.chunks(10_000) {
 
 ### Custom Entity Types (Zero-Shot)
 
-With GLiNER, define entity types at runtime:
+With GLiNER, define entity types at runtime using the `extract()` method:
 
 ```rust
 use anno::GLiNEROnnx;
 
-let ner = GLiNEROnnx::new("path/to/model")?;
-let entities = ner.extract_entities(
+let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+
+// Use extract() for custom entity types with confidence threshold
+let entities = ner.extract(
     "Tesla announced the Model Y at $45,000",
-    Some(&["COMPANY", "PRODUCT", "PRICE"].map(String::from).to_vec())
+    &["company", "product", "price"],  // custom labels
+    0.5  // confidence threshold
 )?;
+
+// Or use the Model trait with default labels
+use anno::Model;
+let entities = ner.extract_entities("John works at Google", None)?;
 ```
 
 ### Provenance Tracking
