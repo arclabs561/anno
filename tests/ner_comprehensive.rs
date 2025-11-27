@@ -12,15 +12,7 @@ use anno::{Entity, EntityType, Model, PatternNER};
 
 #[test]
 fn test_partial_match_metrics_exact() {
-    let predicted = vec![Entity {
-        text: "January 15, 2025".to_string(),
-        entity_type: EntityType::Date,
-        start: 0,
-        end: 16,
-        confidence: 0.9,
-        normalized: None,
-        provenance: None,
-    }];
+    let predicted = vec![Entity::new("January 15, 2025", EntityType::Date, 0, 16, 0.9)];
 
     let ground_truth = vec![GoldEntity::with_span(
         "January 15, 2025",
@@ -37,15 +29,7 @@ fn test_partial_match_metrics_exact() {
 
 #[test]
 fn test_partial_match_metrics_overlap() {
-    let predicted = vec![Entity {
-        text: "January 15".to_string(),
-        entity_type: EntityType::Date,
-        start: 0,
-        end: 10,
-        confidence: 0.9,
-        normalized: None,
-        provenance: None,
-    }];
+    let predicted = vec![Entity::new("January 15", EntityType::Date, 0, 10, 0.9)];
 
     let ground_truth = vec![GoldEntity::with_span(
         "January 15, 2025",
@@ -63,24 +47,8 @@ fn test_partial_match_metrics_overlap() {
 #[test]
 fn test_confidence_threshold_analysis() {
     let predicted = vec![
-        Entity {
-            text: "$100".to_string(),
-            entity_type: EntityType::Money,
-            start: 0,
-            end: 4,
-            confidence: 0.9,
-            normalized: None,
-            provenance: None,
-        },
-        Entity {
-            text: "$50".to_string(),
-            entity_type: EntityType::Money,
-            start: 10,
-            end: 13,
-            confidence: 0.3,
-            normalized: None,
-            provenance: None,
-        },
+        Entity::new("$100", EntityType::Money, 0, 4, 0.9),
+        Entity::new("$50", EntityType::Money, 10, 13, 0.3),
     ];
 
     let ground_truth = vec![GoldEntity::with_span("$100", EntityType::Money, 0, 4)];

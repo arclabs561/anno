@@ -471,8 +471,8 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Contact support@example.com or sales@company.org for help.".into(),
             entities: vec![
-                entity_other("support@example.com", "EMAIL", 8),
-                entity_other("sales@company.org", "EMAIL", 31),
+                entity_email("support@example.com", 8),
+                entity_email("sales@company.org", 31),
             ],
             domain: Domain::Technical,
             difficulty: Difficulty::Easy,
@@ -481,8 +481,8 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Visit https://docs.example.com or http://api.test.io/v2 for documentation.".into(),
             entities: vec![
-                entity_other("https://docs.example.com", "URL", 6),
-                entity_other("http://api.test.io/v2", "URL", 34),
+                entity_url("https://docs.example.com", 6),
+                entity_url("http://api.test.io/v2", 34),
             ],
             domain: Domain::Technical,
             difficulty: Difficulty::Easy,
@@ -491,8 +491,8 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Call (555) 123-4567 or +1-800-555-0199 for support.".into(),
             entities: vec![
-                entity_other("(555) 123-4567", "PHONE", 5),
-                entity_other("+1-800-555-0199", "PHONE", 23),
+                entity_phone("(555) 123-4567", 5),
+                entity_phone("+1-800-555-0199", 23),
             ],
             domain: Domain::Technical,
             difficulty: Difficulty::Easy,
@@ -504,7 +504,7 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
                 entity("2024-03-15", EntityType::Date, 19),
                 entity("$1,250.00", EntityType::Money, 31),
                 entity("10%", EntityType::Percent, 42),
-                entity_other("billing@corp.com", "EMAIL", 66),
+                entity_email("billing@corp.com", 66),
             ],
             domain: Domain::Financial,
             difficulty: Difficulty::Medium,
@@ -514,7 +514,7 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
             entities: vec![
                 entity("Jan 20", EntityType::Date, 11),
                 entity("2pm", EntityType::Date, 21),
-                entity_other("https://events.co/webinar", "URL", 42),
+                entity_url("https://events.co/webinar", 42),
                 entity("$99", EntityType::Money, 74),
             ],
             domain: Domain::Technical,
@@ -523,9 +523,19 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
     ]
 }
 
-/// Helper for creating Other entity types
-fn entity_other(text: &str, label: &str, start: usize) -> GoldEntity {
-    GoldEntity::new(text, EntityType::Other(label.to_string()), start)
+/// Helper for creating email entities
+fn entity_email(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(text, EntityType::Email, start)
+}
+
+/// Helper for creating URL entities
+fn entity_url(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(text, EntityType::Url, start)
+}
+
+/// Helper for creating phone entities
+fn entity_phone(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(text, EntityType::Phone, start)
 }
 
 // ============================================================================
@@ -730,8 +740,8 @@ pub fn ecommerce_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Contact customer service at help@store.com or (800) 555-1234.".into(),
             entities: vec![
-                entity_other("help@store.com", "EMAIL", 28),
-                entity_other("(800) 555-1234", "PHONE", 46),
+                entity_email("help@store.com", 28),
+                entity_phone("(800) 555-1234", 46),
             ],
             domain: Domain::Ecommerce,
             difficulty: Difficulty::Easy,
@@ -802,8 +812,8 @@ pub fn travel_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Book at https://travel.example.com or call +1-888-555-0100.".into(),
             entities: vec![
-                entity_other("https://travel.example.com", "URL", 8),
-                entity_other("+1-888-555-0100", "PHONE", 43),
+                entity_url("https://travel.example.com", 8),
+                entity_phone("+1-888-555-0100", 43),
             ],
             domain: Domain::Travel,
             difficulty: Difficulty::Easy,
@@ -901,7 +911,7 @@ pub fn academic_dataset() -> Vec<AnnotatedExample> {
             text: "Enrollment deadline: March 1, 2025. Apply at admissions@university.edu.".into(),
             entities: vec![
                 entity("March 1, 2025", EntityType::Date, 21),
-                entity_other("admissions@university.edu", "EMAIL", 45),
+                entity_email("admissions@university.edu", 45),
             ],
             domain: Domain::Academic,
             difficulty: Difficulty::Easy,
@@ -996,8 +1006,8 @@ pub fn food_dataset() -> Vec<AnnotatedExample> {
         AnnotatedExample {
             text: "Order online at https://food.delivery or call (555) 123-4567.".into(),
             entities: vec![
-                entity_other("https://food.delivery", "URL", 16),
-                entity_other("(555) 123-4567", "PHONE", 46),
+                entity_url("https://food.delivery", 16),
+                entity_phone("(555) 123-4567", 46),
             ],
             domain: Domain::Food,
             difficulty: Difficulty::Easy,
@@ -1017,7 +1027,7 @@ pub fn real_estate_dataset() -> Vec<AnnotatedExample> {
             entities: vec![
                 entity("San Francisco", EntityType::Location, 13),
                 entity("$1.2 million", EntityType::Money, 37),
-                entity_other("agent@realty.com", "EMAIL", 59),
+                entity_email("agent@realty.com", 59),
             ],
             domain: Domain::RealEstate,
             difficulty: Difficulty::Medium,
@@ -1074,7 +1084,7 @@ pub fn conversational_dataset() -> Vec<AnnotatedExample> {
             entities: vec![
                 entity("$50", EntityType::Money, 5),
                 entity("John Smith", EntityType::Person, 12),
-                entity_other("john@email.com", "EMAIL", 26),
+                entity_email("john@email.com", 26),
             ],
             domain: Domain::Conversational,
             difficulty: Difficulty::Medium,

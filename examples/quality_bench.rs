@@ -2,9 +2,9 @@
 //!
 //! Run with: `cargo run --example quality_bench`
 
-use anno::eval::synthetic::{all_datasets, dataset_stats, Domain, Difficulty, AnnotatedExample};
+use anno::eval::synthetic::{all_datasets, dataset_stats, Difficulty, Domain};
 use anno::eval::{evaluate_ner_model, NEREvaluationResults};
-use anno::{HybridNER, Model, PatternNER};
+use anno::{HybridNER, PatternNER};
 use std::collections::HashMap;
 use std::time::Instant;
 

@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 // Submodules
+pub mod benchmark;
 pub mod datasets;
 pub mod evaluator;
 pub mod metrics;
@@ -116,31 +117,14 @@ pub struct EvaluationMetadata {
 ///
 /// Used for evaluation metrics and dataset compatibility.
 pub fn entity_type_to_string(et: &EntityType) -> String {
-    match et {
-        EntityType::Person => "PER".to_string(),
-        EntityType::Organization => "ORG".to_string(),
-        EntityType::Location => "LOC".to_string(),
-        EntityType::Date => "DATE".to_string(),
-        EntityType::Money => "MONEY".to_string(),
-        EntityType::Percent => "PERCENT".to_string(),
-        EntityType::Other(s) => s.clone(),
-    }
+    et.as_label().to_string()
 }
 
 /// Entity type matching for evaluation.
 ///
-/// Handles exact matches and common variations.
+/// Handles exact matches. Uses PartialEq implementation.
 pub fn entity_type_matches(a: &EntityType, b: &EntityType) -> bool {
-    match (a, b) {
-        (EntityType::Person, EntityType::Person) => true,
-        (EntityType::Organization, EntityType::Organization) => true,
-        (EntityType::Location, EntityType::Location) => true,
-        (EntityType::Date, EntityType::Date) => true,
-        (EntityType::Money, EntityType::Money) => true,
-        (EntityType::Percent, EntityType::Percent) => true,
-        (EntityType::Other(a_str), EntityType::Other(b_str)) => a_str == b_str,
-        _ => false,
-    }
+    a == b
 }
 
 /// Load CoNLL-2003 format dataset.

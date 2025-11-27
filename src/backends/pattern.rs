@@ -199,12 +199,12 @@ impl Model for PatternNER {
 
         // Emails (very high confidence - very specific pattern)
         for m in EMAIL.find_iter(text) {
-            add_entity(m, EntityType::Other("EMAIL".to_string()), 0.98, "EMAIL");
+            add_entity(m, EntityType::Email, 0.98, "EMAIL");
         }
 
         // URLs (very high confidence)
         for m in URL.find_iter(text) {
-            add_entity(m, EntityType::Other("URL".to_string()), 0.98, "URL");
+            add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
         // Phone numbers (medium confidence - can have false positives)
@@ -214,7 +214,7 @@ impl Model for PatternNER {
         ];
         for (pattern, name) in phone_patterns {
             for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Other("PHONE".to_string()), 0.85, name);
+                add_entity(m, EntityType::Phone, 0.85, name);
             }
         }
 
@@ -227,11 +227,12 @@ impl Model for PatternNER {
     fn supported_types(&self) -> Vec<EntityType> {
         vec![
             EntityType::Date,
+            EntityType::Time,
             EntityType::Money,
             EntityType::Percent,
-            EntityType::Other("EMAIL".to_string()),
-            EntityType::Other("URL".to_string()),
-            EntityType::Other("PHONE".to_string()),
+            EntityType::Email,
+            EntityType::Url,
+            EntityType::Phone,
         ]
     }
 
@@ -455,7 +456,7 @@ mod tests {
             let e = extract(case);
             assert!(
                 e.iter()
-                    .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "EMAIL")),
+                    .any(|e| e.entity_type == EntityType::Email),
                 "Failed: {}",
                 case
             );
@@ -478,7 +479,7 @@ mod tests {
             let e = extract(case);
             assert!(
                 e.iter()
-                    .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "URL")),
+                    .any(|e| e.entity_type == EntityType::Url),
                 "Failed: {}",
                 case
             );
@@ -502,7 +503,7 @@ mod tests {
             let e = extract(case);
             assert!(
                 e.iter()
-                    .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "PHONE")),
+                    .any(|e| e.entity_type == EntityType::Phone),
                 "Failed: {}",
                 case
             );
@@ -516,7 +517,7 @@ mod tests {
             let e = extract(case);
             assert!(
                 e.iter()
-                    .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "PHONE")),
+                    .any(|e| e.entity_type == EntityType::Phone),
                 "Failed: {}",
                 case
             );
@@ -537,10 +538,8 @@ mod tests {
         assert!(has_type(&e, &EntityType::Percent));
         assert!(e
             .iter()
-            .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "EMAIL")));
-        assert!(e
-            .iter()
-            .any(|e| matches!(&e.entity_type, EntityType::Other(s) if s == "PHONE")));
+            .any(|e| e.entity_type == EntityType::Email));
+        assert!(e.iter().any(|e| e.entity_type == EntityType::Phone));
     }
 
     #[test]
@@ -673,7 +672,7 @@ mod proptests {
             let ner = PatternNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e|
-                matches!(&e.entity_type, EntityType::Other(s) if s == "EMAIL")
+                e.entity_type == EntityType::Email
             ));
         }
 
@@ -683,7 +682,7 @@ mod proptests {
             let ner = PatternNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e|
-                matches!(&e.entity_type, EntityType::Other(s) if s == "URL")
+                e.entity_type == EntityType::Url
             ));
         }
 

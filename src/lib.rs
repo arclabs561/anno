@@ -54,7 +54,11 @@ pub mod prelude {
 }
 
 // Re-exports
-pub use entity::{Entity, EntityType, ExtractionMethod, Provenance};
+pub use entity::{
+    Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod,
+    HierarchicalConfidence, Provenance, RaggedBatch, Relation, Span, SpanCandidate,
+    generate_filtered_candidates, generate_span_candidates,
+};
 pub use error::{Error, Result};
 
 // Backend re-exports (always available)

@@ -7,6 +7,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error type for anno operations.
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum Error {
     /// Model initialization failed.
     #[error("Model initialization failed: {0}")]

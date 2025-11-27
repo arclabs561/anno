@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2] - 2025-11-27
+
+### Fixed
+- Clippy `implicit_saturating_sub` in `Relation::span_distance()`
+- Clippy `type_complexity` in benchmark templates
+
 ## [0.1.1] - 2025-11-26
 
 ### Changed
