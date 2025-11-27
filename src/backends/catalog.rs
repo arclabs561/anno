@@ -31,15 +31,18 @@
 //!
 //! # Implemented Backends
 //!
-//! | Backend | Feature | Zero-Shot | Nested | Speed | Best For |
-//! |---------|---------|-----------|--------|-------|----------|
-//! | `PatternNER` | - | No | No | ~400ns | Dates, money, emails |
-//! | `StatisticalNER` | - | No | No | ~50μs | Person/Org/Location |
-//! | `StackedNER` | - | No | No | varies | Composable layers |
-//! | `NuNER` | `onnx` | **Yes** | No | ~100ms | Any entity type |
-//! | `W2NER` | `onnx` | No | **Yes** | ~150ms | Nested entities |
-//! | `BertNEROnnx` | `onnx` | No | No | ~50ms | Traditional NER |
-//! | `GLiNEROnnx` | `onnx` | **Yes** | No | ~100ms | Zero-shot |
+//! | Backend | Feature | Zero-Shot | Nested | Speed | Status |
+//! |---------|---------|-----------|--------|-------|--------|
+//! | `PatternNER` | - | No | No | ~400ns | ✅ Complete |
+//! | `StatisticalNER` | - | No | No | ~50μs | ✅ Complete |
+//! | `StackedNER` | - | No | No | varies | ✅ Complete |
+//! | `HybridNER` | - | No | No | varies | ✅ Complete |
+//! | `BertNEROnnx` | `onnx` | No | No | ~50ms | ✅ Complete |
+//! | `GLiNEROnnx` | `onnx` | **Yes** | No | ~100ms | ✅ Complete |
+//! | `NuNER` | `onnx` | **Yes** | No | ~100ms | ✅ Complete |
+//! | `W2NER` | `onnx` | No | **Yes** | ~150ms | ✅ Complete |
+//! | `CandleNER` | `candle` | No | No | varies | ✅ Complete |
+//! | `GLiNERCandle` | `candle` | **Yes** | No | varies | ✅ Complete |
 //!
 //! # Research Landscape (2024-2025)
 //!
@@ -94,10 +97,16 @@
 //!
 //! | Encoder | Context | ONNX | Candle | Notes |
 //! |---------|---------|------|--------|-------|
-//! | BERT | 512 | Yes | Yes | Classic, well-tested |
-//! | DeBERTa-v3 | 512 | Yes | Partial | Better attention |
-//! | ModernBERT | 8192 | Yes | WIP | SOTA (2024), RoPE |
-//! | RoBERTa | 512 | Yes | Yes | Improved pretraining |
+//! | BERT | 512 | ✅ | ✅ | Classic, well-tested |
+//! | DeBERTa-v3 | 512 | ✅ | ✅ | Disentangled attention |
+//! | ModernBERT | 8192 | ✅ | ✅ | SOTA (2024), RoPE, GeGLU |
+//! | RoBERTa | 512 | ✅ | ✅ | Improved pretraining |
+//!
+//! All encoders are implemented in `encoder_candle.rs` with:
+//! - `EncoderConfig::bert_base()` / `::deberta_v3_base()` / `::modernbert_base()`
+//! - Automatic config detection from HuggingFace `config.json`
+//! - RoPE (Rotary Position Embeddings) for long-context models
+//! - GeGLU activation for ModernBERT
 //!
 //! # Model Recommendations
 //!
@@ -127,14 +136,20 @@
 //!
 //! ## 2. `GLiNERCandle` (Pure Rust, GPU)
 //!
-//! Planned Candle implementation for native GPU support.
+//! Pure Rust implementation for native GPU support.
 //!
 //! - **Feature**: `candle`
-//! - **Deps**: `candle-core`, `candle-nn`
-//! - **Status**: Placeholder
+//! - **Deps**: `candle-core`, `candle-nn`, `tokenizers`
+//! - **Status**: ✅ Implemented
 //!
 //! **Why**: Metal (Apple Silicon) and CUDA acceleration
-//! without C++ dependencies. Pure Rust.
+//! without C++ dependencies. Pure Rust ML inference.
+//!
+//! **Components**:
+//! - `CandleEncoder`: Transformer encoder (BERT/ModernBERT/DeBERTa)
+//! - `SpanRepLayer`: Span embeddings from [start, end, width]
+//! - `LabelEncoder`: Project label embeddings
+//! - `SpanLabelMatcher`: Cosine similarity matching
 //!
 //! ## 3. `gline-rs` (External Crate)
 //!

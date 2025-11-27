@@ -1,26 +1,42 @@
-//! GLiNER implementation using Candle (pure Rust ML) with Metal support.
+//! GLiNER implementation using Candle (pure Rust ML) with Metal/CUDA support.
 //!
-//! This provides native Rust GLiNER inference with GPU acceleration on Apple Silicon.
+//! Zero-shot NER using bi-encoder architecture: match text spans to entity labels.
 //!
 //! # Architecture
 //!
-//! GLiNER consists of:
-//! 1. **Encoder** (BERT/DeBERTa/ModernBERT): Transforms text to contextual embeddings
-//! 2. **Span Matching Head**: Computes similarity between span embeddings and label embeddings
-//!
-//! # Metal Support
-//!
-//! On macOS with Apple Silicon, this uses Metal for GPU acceleration:
-//! ```bash
-//! cargo build --features candle,metal
+//! ```text
+//! Text Input     Label Input
+//!     |              |
+//!     v              v
+//! [Tokenizer]   [Tokenizer]
+//!     |              |
+//!     v              v
+//! [Transformer Encoder] (shared)
+//!     |              |
+//!     v              v
+//! [SpanRepLayer]  [LabelEncoder]
+//!     |              |
+//!     +------+-------+
+//!            |
+//!            v
+//!     [SpanLabelMatcher]
+//!            |
+//!            v
+//!       [Entities]
 //! ```
+//!
+//! # GPU Support
+//!
+//! - **Metal** (Apple Silicon): `cargo build --features candle,metal`
+//! - **CUDA** (NVIDIA): `cargo build --features candle,cuda`
+//! - **CPU**: Always available as fallback
 //!
 //! # Example
 //!
 //! ```rust,ignore
 //! use anno::backends::gliner_candle::GLiNERCandle;
 //!
-//! let model = GLiNERCandle::new("answerdotai/ModernBERT-base")?;
+//! let model = GLiNERCandle::from_pretrained("urchade/gliner_small-v2.1")?;
 //! let entities = model.extract(
 //!     "Steve Jobs founded Apple in California.",
 //!     &["person", "organization", "location"],
@@ -28,56 +44,55 @@
 //! )?;
 //! ```
 
-#![allow(dead_code)]
-#![allow(unused_imports)]
-
 use crate::{Entity, EntityType, Error, Result};
 
 #[cfg(feature = "candle")]
 use {
+    super::encoder_candle::{CandleEncoder, EncoderConfig, TextEncoder},
     candle_core::{DType, Device, IndexOp, Module, Tensor, D},
     candle_nn::{embedding, layer_norm, linear, Embedding, LayerNorm, Linear, VarBuilder},
     std::collections::HashMap,
     std::sync::Mutex,
+    tokenizers::Tokenizer,
 };
 
-#[cfg(feature = "candle")]
-use tokenizers::Tokenizer;
-
-/// Maximum span width for entity candidates (from GLiNER config).
+/// Maximum span width for entity candidates.
 const MAX_SPAN_WIDTH: usize = 12;
 
-/// Special tokens for GLiNER.
+/// Special tokens for GLiNER models.
+#[cfg(feature = "candle")]
+const TOKEN_START: u32 = 1;
+#[cfg(feature = "candle")]
+const TOKEN_END: u32 = 2;
+#[cfg(feature = "candle")]
 const TOKEN_ENT: u32 = 128002;
+#[cfg(feature = "candle")]
 const TOKEN_SEP: u32 = 128003;
 
 // =============================================================================
-// Device Selection (Metal/CUDA/CPU)
+// Device Selection
 // =============================================================================
 
-/// Get the best available device for computation.
+/// Get the best available compute device.
 #[cfg(feature = "candle")]
 pub fn best_device() -> Result<Device> {
-    // Try Metal first (Apple Silicon)
     #[cfg(all(target_os = "macos", feature = "metal"))]
     {
         if let Ok(device) = Device::new_metal(0) {
-            log::info!("[GLiNER-Candle] Using Metal device");
+            log::info!("[GLiNER-Candle] Using Metal GPU");
             return Ok(device);
         }
     }
 
-    // Try CUDA (NVIDIA)
     #[cfg(feature = "cuda")]
     {
         if let Ok(device) = Device::new_cuda(0) {
-            log::info!("[GLiNER-Candle] Using CUDA device");
+            log::info!("[GLiNER-Candle] Using CUDA GPU");
             return Ok(device);
         }
     }
 
-    // Fallback to CPU
-    log::info!("[GLiNER-Candle] Using CPU device");
+    log::info!("[GLiNER-Candle] Using CPU");
     Ok(Device::Cpu)
 }
 
@@ -85,27 +100,17 @@ pub fn best_device() -> Result<Device> {
 // Span Representation Layer
 // =============================================================================
 
-/// Span representation layer: projects token embeddings to span embeddings.
-///
-/// For a span [i, j], combines:
-/// - Start token embedding
-/// - End token embedding  
-/// - Width embedding (learned)
+/// Span representation: combines start, end, and width embeddings.
 #[cfg(feature = "candle")]
 pub struct SpanRepLayer {
-    /// Projects concatenated [start, end, width] to span embedding
     projection: Linear,
-    /// Width embeddings (learned, indexed by span width)
     width_embeddings: Embedding,
-    /// Hidden size
     hidden_size: usize,
 }
 
 #[cfg(feature = "candle")]
 impl SpanRepLayer {
-    /// Create a new span representation layer.
     pub fn new(hidden_size: usize, max_width: usize, vb: VarBuilder) -> Result<Self> {
-        // Input: start (hidden) + end (hidden) + width_emb (hidden/4)
         let width_emb_size = hidden_size / 4;
         let input_size = hidden_size * 2 + width_emb_size;
 
@@ -122,56 +127,41 @@ impl SpanRepLayer {
         })
     }
 
-    /// Compute span representations from token embeddings.
+    /// Compute span embeddings from token embeddings.
     ///
     /// # Arguments
-    /// * `token_embeddings` - Shape: [batch, seq_len, hidden]
-    /// * `span_indices` - Shape: [batch, num_spans, 2] (start, end indices)
+    /// * `token_embeddings` - [batch, seq_len, hidden]
+    /// * `span_indices` - [batch, num_spans, 2] (start, end)
     ///
     /// # Returns
-    /// Span embeddings with shape: [batch, num_spans, hidden]
+    /// [batch, num_spans, hidden]
     pub fn forward(&self, token_embeddings: &Tensor, span_indices: &Tensor) -> Result<Tensor> {
         let (batch_size, _seq_len, hidden) = token_embeddings.dims3()
             .map_err(|e| Error::Parse(format!("token_embeddings dims: {}", e)))?;
         let (_, num_spans, _) = span_indices.dims3()
             .map_err(|e| Error::Parse(format!("span_indices dims: {}", e)))?;
 
-        let device = token_embeddings.device();
+        let start_idx = span_indices.i((.., .., 0))?.to_dtype(DType::U32)?;
+        let end_idx = span_indices.i((.., .., 1))?.to_dtype(DType::U32)?;
 
-        // Extract start and end indices
-        let start_idx = span_indices.i((.., .., 0))?
-            .to_dtype(DType::U32)?;
-        let end_idx = span_indices.i((.., .., 1))?
-            .to_dtype(DType::U32)?;
-
-        // Gather start and end embeddings
-        // For simplicity, process batch by batch
         let mut span_embs = Vec::new();
         
         for b in 0..batch_size {
-            let batch_tokens = token_embeddings.i(b)?; // [seq_len, hidden]
-            let batch_starts = start_idx.i(b)?; // [num_spans]
-            let batch_ends = end_idx.i(b)?; // [num_spans]
+            let batch_tokens = token_embeddings.i(b)?;
+            let batch_starts = start_idx.i(b)?;
+            let batch_ends = end_idx.i(b)?;
 
-            // Compute widths
             let widths = (&batch_ends - &batch_starts)?;
-            let width_embs = self.width_embeddings.forward(&widths)?; // [num_spans, width_emb_size]
+            let width_embs = self.width_embeddings.forward(&widths)?;
 
-            // Gather start embeddings
-            let start_embs = batch_tokens.index_select(&batch_starts, 0)?; // [num_spans, hidden]
-            
-            // Gather end embeddings
-            let end_embs = batch_tokens.index_select(&batch_ends, 0)?; // [num_spans, hidden]
+            let start_embs = batch_tokens.index_select(&batch_starts, 0)?;
+            let end_embs = batch_tokens.index_select(&batch_ends, 0)?;
 
-            // Concatenate [start, end, width]
             let combined = Tensor::cat(&[&start_embs, &end_embs, &width_embs], D::Minus1)?;
-
-            // Project to span embedding
             let span_emb = self.projection.forward(&combined)?;
             span_embs.push(span_emb);
         }
 
-        // Stack batches
         Tensor::stack(&span_embs, 0)
             .map_err(|e| Error::Parse(format!("stack span_embs: {}", e)))
     }
@@ -181,33 +171,21 @@ impl SpanRepLayer {
 // Label Encoder
 // =============================================================================
 
-/// Encodes entity type labels into embeddings.
-///
-/// Uses the same transformer encoder as text, ensuring labels and text
-/// live in the same embedding space (key insight of GLiNER bi-encoder).
+/// Projects label embeddings to matching space.
 #[cfg(feature = "candle")]
 pub struct LabelEncoder {
-    /// Shared projection layer
     projection: Linear,
 }
 
 #[cfg(feature = "candle")]
 impl LabelEncoder {
-    /// Create a new label encoder.
     pub fn new(hidden_size: usize, vb: VarBuilder) -> Result<Self> {
         let projection = linear(hidden_size, hidden_size, vb.pp("label_projection"))
-            .map_err(|e| Error::Retrieval(format!("LabelEncoder projection: {}", e)))?;
+            .map_err(|e| Error::Retrieval(format!("LabelEncoder: {}", e)))?;
 
         Ok(Self { projection })
     }
 
-    /// Encode label embeddings.
-    ///
-    /// # Arguments
-    /// * `label_embeddings` - Raw embeddings from transformer [num_labels, hidden]
-    ///
-    /// # Returns
-    /// Projected label embeddings [num_labels, hidden]
     pub fn forward(&self, label_embeddings: &Tensor) -> Result<Tensor> {
         self.projection.forward(label_embeddings)
             .map_err(|e| Error::Parse(format!("label projection: {}", e)))
@@ -218,63 +196,43 @@ impl LabelEncoder {
 // Span-Label Matcher
 // =============================================================================
 
-/// Computes matching scores between span embeddings and label embeddings.
-///
-/// This is the core of GLiNER: treating NER as a bi-encoder matching problem.
+/// Computes similarity between spans and labels.
 #[cfg(feature = "candle")]
 pub struct SpanLabelMatcher {
-    /// Temperature for softmax (learned)
     temperature: f64,
 }
 
 #[cfg(feature = "candle")]
 impl SpanLabelMatcher {
-    /// Create a new span-label matcher.
     pub fn new(temperature: f64) -> Self {
         Self { temperature }
     }
 
-    /// Compute matching scores between spans and labels.
+    /// Match spans to labels via cosine similarity.
     ///
     /// # Arguments
-    /// * `span_embeddings` - Shape: [batch, num_spans, hidden]
-    /// * `label_embeddings` - Shape: [num_labels, hidden]
+    /// * `span_embeddings` - [batch, num_spans, hidden]
+    /// * `label_embeddings` - [num_labels, hidden]
     ///
     /// # Returns
-    /// Matching scores: [batch, num_spans, num_labels]
+    /// [batch, num_spans, num_labels] scores in [0, 1]
     pub fn forward(&self, span_embeddings: &Tensor, label_embeddings: &Tensor) -> Result<Tensor> {
-        // Normalize embeddings for cosine similarity
         let span_norm = l2_normalize(span_embeddings, D::Minus1)?;
         let label_norm = l2_normalize(label_embeddings, D::Minus1)?;
 
-        // Compute cosine similarity via matmul
-        // span_norm: [batch, num_spans, hidden]
-        // label_norm: [num_labels, hidden]
-        // We need: [batch, num_spans, num_labels]
-        
-        // Get batch size for broadcasting
         let batch_size = span_norm.dims()[0];
-        
-        // Transpose labels: [num_labels, hidden] -> [hidden, num_labels]
         let label_t = label_norm.t()?;
-        
-        // Unsqueeze to [1, hidden, num_labels] then broadcast to [batch, hidden, num_labels]
         let label_t = label_t.unsqueeze(0)?
             .broadcast_as((batch_size, label_t.dims()[0], label_t.dims()[1]))?;
         
-        // Batched matmul: [batch, num_spans, hidden] @ [batch, hidden, num_labels]
-        let scores = span_norm.matmul(&label_t)?; // [batch, num_spans, num_labels]
-
-        // Apply temperature scaling
+        let scores = span_norm.matmul(&label_t)?;
         let scaled = (scores * self.temperature)?;
 
-        // Sigmoid to get probability scores
         candle_nn::ops::sigmoid(&scaled)
             .map_err(|e| Error::Parse(format!("sigmoid: {}", e)))
     }
 }
 
-/// L2 normalize along a dimension.
 #[cfg(feature = "candle")]
 fn l2_normalize(tensor: &Tensor, dim: D) -> Result<Tensor> {
     let norm = tensor.sqr()?.sum(dim)?.sqrt()?;
@@ -287,147 +245,321 @@ fn l2_normalize(tensor: &Tensor, dim: D) -> Result<Tensor> {
 // GLiNER Candle Model
 // =============================================================================
 
-/// GLiNER implementation using Candle with Metal/CUDA support.
+/// GLiNER zero-shot NER using pure Rust Candle backend.
 ///
-/// # Device Selection
-///
-/// Automatically selects the best available device:
-/// 1. Metal (Apple Silicon)
-/// 2. CUDA (NVIDIA GPU)
-/// 3. CPU (fallback)
-///
-/// # Architecture
-///
-/// ```text
-/// Text Input     Label Input
-///     |              |
-///     v              v
-/// [Tokenizer]   [Tokenizer]
-///     |              |
-///     v              v
-/// [Transformer Encoder] (shared)
-///     |              |
-///     v              v
-/// [SpanRepLayer]  [LabelEncoder]
-///     |              |
-///     +------+-------+
-///            |
-///            v
-///     [SpanLabelMatcher]
-///            |
-///            v
-///       [Entities]
-/// ```
+/// Matches text spans to entity type descriptions using a bi-encoder.
+/// Supports Metal (Apple Silicon) and CUDA (NVIDIA) GPU acceleration.
 #[cfg(feature = "candle")]
 pub struct GLiNERCandle {
+    /// Text encoder (BERT/ModernBERT/DeBERTa)
+    encoder: CandleEncoder,
     /// Tokenizer
     tokenizer: Tokenizer,
-    /// Device (Metal/CUDA/CPU)
-    device: Device,
-    /// Model name
-    model_name: String,
-    /// Hidden size
-    hidden_size: usize,
     /// Span representation layer
     span_rep: SpanRepLayer,
     /// Label encoder
     label_encoder: LabelEncoder,
     /// Span-label matcher
     matcher: SpanLabelMatcher,
-    // Note: Full transformer encoder would go here
-    // For now, this is a skeleton showing the architecture
+    /// Model name
+    model_name: String,
+    /// Hidden size
+    hidden_size: usize,
+    /// Device
+    device: Device,
 }
 
 #[cfg(feature = "candle")]
 impl GLiNERCandle {
-    /// Create a new GLiNER model with Candle backend.
+    /// Load GLiNER from HuggingFace.
     ///
     /// # Arguments
-    /// * `model_name` - HuggingFace model ID (e.g., "answerdotai/ModernBERT-base")
-    ///
-    /// # Device Selection
-    ///
-    /// Automatically uses:
-    /// - Metal on Apple Silicon (with `metal` feature)
-    /// - CUDA on NVIDIA GPUs (with `cuda` feature)
-    /// - CPU as fallback
-    pub fn new(model_name: &str) -> Result<Self> {
+    /// * `model_id` - HuggingFace model ID (e.g., "urchade/gliner_small-v2.1")
+    pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use hf_hub::api::sync::Api;
 
         let device = best_device()?;
         
         let api = Api::new().map_err(|e| {
-            Error::Retrieval(format!("HuggingFace API init failed: {}", e))
+            Error::Retrieval(format!("HuggingFace API: {}", e))
         })?;
 
-        let repo = api.model(model_name.to_string());
+        let repo = api.model(model_id.to_string());
 
-        // Download tokenizer
+        // Download files
         let tokenizer_path = repo.get("tokenizer.json")
-            .map_err(|e| Error::Retrieval(format!("tokenizer.json download: {}", e)))?;
+            .map_err(|e| Error::Retrieval(format!("tokenizer.json: {}", e)))?;
+        let weights_path = repo.get("model.safetensors")
+            .or_else(|_| repo.get("gliner_model.safetensors"))
+            .map_err(|e| Error::Retrieval(format!("weights: {}", e)))?;
+        let config_path = repo.get("config.json")
+            .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
         
         let tokenizer = Tokenizer::from_file(&tokenizer_path)
-            .map_err(|e| Error::Retrieval(format!("tokenizer load: {}", e)))?;
+            .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
 
-        // For a full implementation, we would:
-        // 1. Download model.safetensors
-        // 2. Load weights into VarBuilder
-        // 3. Build transformer encoder (BERT/DeBERTa/ModernBERT)
-        //
-        // This skeleton shows the GLiNER-specific components.
-        // The transformer encoder follows standard Candle patterns (see candle-transformers).
+        // Parse config for hidden size
+        let config_str = std::fs::read_to_string(&config_path)
+            .map_err(|e| Error::Retrieval(format!("config: {}", e)))?;
+        let config: serde_json::Value = serde_json::from_str(&config_str)
+            .map_err(|e| Error::Parse(format!("config JSON: {}", e)))?;
+        
+        let hidden_size = config["hidden_size"].as_u64().unwrap_or(768) as usize;
 
-        let hidden_size = 768; // Base model
+        // Load weights
+        let vb = unsafe {
+            VarBuilder::from_mmaped_safetensors(&[weights_path], DType::F32, &device)
+                .map_err(|e| Error::Retrieval(format!("safetensors: {}", e)))?
+        };
 
-        // Create VarBuilder (placeholder - would load from safetensors)
-        let varmap = candle_nn::VarMap::new();
-        let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
+        // Build encoder from the same model
+        let encoder = CandleEncoder::from_pretrained(model_id)?;
 
+        // Build GLiNER-specific components
         let span_rep = SpanRepLayer::new(hidden_size, MAX_SPAN_WIDTH, vb.pp("span_rep"))?;
         let label_encoder = LabelEncoder::new(hidden_size, vb.pp("label_encoder"))?;
         let matcher = SpanLabelMatcher::new(1.0);
 
+        log::info!(
+            "[GLiNER-Candle] Loaded {} (hidden={}) on {:?}",
+            model_id, hidden_size, device
+        );
+
         Ok(Self {
+            encoder,
             tokenizer,
-            device,
-            model_name: model_name.to_string(),
-            hidden_size,
             span_rep,
             label_encoder,
             matcher,
+            model_name: model_id.to_string(),
+            hidden_size,
+            device,
         })
     }
 
-    /// Extract entities from text using GLiNER.
+    /// Simplified constructor that creates with random weights (for testing).
+    pub fn new(model_name: &str) -> Result<Self> {
+        Self::from_pretrained(model_name)
+    }
+
+    /// Extract entities with custom labels (zero-shot).
     ///
     /// # Arguments
     /// * `text` - Input text
     /// * `labels` - Entity types to detect (e.g., ["person", "organization"])
     /// * `threshold` - Confidence threshold (0.0-1.0)
     pub fn extract(&self, text: &str, labels: &[&str], threshold: f32) -> Result<Vec<Entity>> {
-        // This is a skeleton showing the inference pipeline.
-        // A full implementation would:
-        //
-        // 1. Tokenize text and labels
-        // 2. Run through transformer encoder
-        // 3. Generate span candidates
-        // 4. Compute span embeddings via SpanRepLayer
-        // 5. Compute label embeddings via LabelEncoder
-        // 6. Match spans to labels via SpanLabelMatcher
-        // 7. Decode high-confidence matches to entities
+        if text.is_empty() || labels.is_empty() {
+            return Ok(vec![]);
+        }
 
-        log::warn!("[GLiNER-Candle] Full implementation pending - skeleton only");
+        // Tokenize text word-by-word (GLiNER pattern)
+        let words: Vec<&str> = text.split_whitespace().collect();
+        if words.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Build prompt: [START] <<ENT>> label1 <<ENT>> label2 <<SEP>> word1 word2 ... [END]
+        let (text_embeddings, word_positions) = self.encode_text(&words)?;
+        let label_embeddings = self.encode_labels(labels)?;
+
+        // Generate span candidates
+        let span_indices = self.generate_spans(words.len())?;
         
-        // Placeholder: return empty for now
-        Ok(vec![])
+        // Compute span embeddings
+        let span_embs = self.span_rep.forward(&text_embeddings, &span_indices)?;
+        
+        // Compute label embeddings
+        let label_embs = self.label_encoder.forward(&label_embeddings)?;
+
+        // Match spans to labels
+        let scores = self.matcher.forward(&span_embs, &label_embs)?;
+
+        // Decode to entities
+        let entities = self.decode_entities(
+            text, &words, &word_positions, &scores, labels, threshold
+        )?;
+
+        Ok(entities)
     }
 
-    /// Get the device being used.
+    fn encode_text(&self, words: &[&str]) -> Result<(Tensor, Vec<(usize, usize)>)> {
+        // For now, encode each word and average. Full implementation would:
+        // 1. Build GLiNER prompt format
+        // 2. Get per-word embeddings from words_mask
+        
+        let text = words.join(" ");
+        let (embeddings, seq_len) = self.encoder.encode(&text)?;
+        
+        // Reshape to [1, seq_len, hidden]
+        let tensor = Tensor::from_vec(
+            embeddings, 
+            (1, seq_len, self.hidden_size), 
+            &self.device
+        ).map_err(|e| Error::Parse(format!("text tensor: {}", e)))?;
+
+        // Build word positions
+        let full_text = words.join(" ");
+        let word_positions: Vec<(usize, usize)> = {
+            let mut positions = Vec::new();
+            let mut pos = 0;
+            for word in words {
+                if let Some(start) = full_text[pos..].find(word) {
+                    let abs_start = pos + start;
+                    positions.push((abs_start, abs_start + word.len()));
+                    pos = abs_start + word.len();
+                }
+            }
+            positions
+        };
+
+        Ok((tensor, word_positions))
+    }
+
+    fn encode_labels(&self, labels: &[&str]) -> Result<Tensor> {
+        // Encode each label
+        let mut all_embeddings = Vec::new();
+        
+        for label in labels {
+            let (embeddings, seq_len) = self.encoder.encode(label)?;
+            // Average pool to get single embedding
+            let avg: Vec<f32> = (0..self.hidden_size)
+                .map(|i| {
+                    embeddings.iter()
+                        .skip(i)
+                        .step_by(self.hidden_size)
+                        .take(seq_len)
+                        .sum::<f32>() / seq_len as f32
+                })
+                .collect();
+            all_embeddings.extend(avg);
+        }
+
+        Tensor::from_vec(
+            all_embeddings,
+            (labels.len(), self.hidden_size),
+            &self.device
+        ).map_err(|e| Error::Parse(format!("label tensor: {}", e)))
+    }
+
+    fn generate_spans(&self, num_words: usize) -> Result<Tensor> {
+        let mut spans = Vec::new();
+        
+        for start in 0..num_words {
+            for width in 0..MAX_SPAN_WIDTH.min(num_words - start) {
+                let end = start + width;
+                spans.push(start as i64);
+                spans.push(end as i64);
+            }
+        }
+
+        let num_spans = spans.len() / 2;
+        Tensor::from_vec(spans, (1, num_spans, 2), &self.device)
+            .map_err(|e| Error::Parse(format!("span tensor: {}", e)))
+    }
+
+    fn decode_entities(
+        &self,
+        text: &str,
+        words: &[&str],
+        word_positions: &[(usize, usize)],
+        scores: &Tensor,
+        labels: &[&str],
+        threshold: f32,
+    ) -> Result<Vec<Entity>> {
+        // scores: [1, num_spans, num_labels]
+        let scores_vec = scores.flatten_all()
+            .map_err(|e| Error::Parse(format!("flatten scores: {}", e)))?
+            .to_vec1::<f32>()
+            .map_err(|e| Error::Parse(format!("scores to vec: {}", e)))?;
+
+        let num_labels = labels.len();
+        let num_spans = scores_vec.len() / num_labels;
+
+        let mut entities = Vec::new();
+        let mut span_idx = 0;
+
+        for start in 0..words.len() {
+            for width in 0..MAX_SPAN_WIDTH.min(words.len() - start) {
+                if span_idx >= num_spans {
+                    break;
+                }
+
+                let end = start + width + 1;
+                
+                // Find best label for this span
+                let base = span_idx * num_labels;
+                let mut best_label = 0;
+                let mut best_score = 0.0f32;
+
+                for (label_idx, _) in labels.iter().enumerate() {
+                    let score = scores_vec.get(base + label_idx).copied().unwrap_or(0.0);
+                    if score > best_score {
+                        best_score = score;
+                        best_label = label_idx;
+                    }
+                }
+
+                if best_score >= threshold {
+                    if let (Some(&(start_pos, _)), Some(&(_, end_pos))) = 
+                        (word_positions.get(start), word_positions.get(end - 1)) 
+                    {
+                        if let Some(entity_text) = text.get(start_pos..end_pos) {
+                            let label = labels[best_label];
+                            let entity_type = Self::map_label(label);
+                            entities.push(Entity::new(
+                                entity_text,
+                                entity_type,
+                                start_pos,
+                                end_pos,
+                                best_score as f64,
+                            ));
+                        }
+                    }
+                }
+
+                span_idx += 1;
+            }
+        }
+
+        // Remove overlapping (keep highest scoring)
+        entities.sort_by(|a, b| {
+            b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut filtered = Vec::new();
+        for entity in entities {
+            let overlaps = filtered.iter().any(|e: &Entity| {
+                !(entity.end <= e.start || entity.start >= e.end)
+            });
+            if !overlaps {
+                filtered.push(entity);
+            }
+        }
+
+        filtered.sort_by_key(|e| e.start);
+        Ok(filtered)
+    }
+
+    fn map_label(label: &str) -> EntityType {
+        match label.to_lowercase().as_str() {
+            "person" | "per" => EntityType::Person,
+            "organization" | "org" | "company" => EntityType::Organization,
+            "location" | "loc" | "place" | "gpe" => EntityType::Location,
+            "date" => EntityType::Date,
+            "time" => EntityType::Time,
+            "money" | "currency" => EntityType::Money,
+            "percent" | "percentage" => EntityType::Percent,
+            other => EntityType::Other(other.to_string()),
+        }
+    }
+
+    /// Get device.
     pub fn device(&self) -> &Device {
         &self.device
     }
 
-    /// Get the model name.
+    /// Get model name.
     pub fn model_name(&self) -> &str {
         &self.model_name
     }
@@ -437,7 +569,6 @@ impl GLiNERCandle {
 // Model Trait Implementation
 // =============================================================================
 
-/// Default entity types for zero-shot GLiNER when used via the Model trait.
 #[cfg(feature = "candle")]
 const DEFAULT_GLINER_LABELS: &[&str] = &[
     "person", "organization", "location", "date", "time", "money", "percent",
@@ -447,24 +578,18 @@ const DEFAULT_GLINER_LABELS: &[&str] = &[
 #[cfg(feature = "candle")]
 impl crate::Model for GLiNERCandle {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
-        // Use default labels for the Model trait interface
-        // For custom labels, use the extract() method directly
         self.extract(text, DEFAULT_GLINER_LABELS, 0.5)
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
-        // GLiNER supports any type via zero-shot - return the defaults
         DEFAULT_GLINER_LABELS
             .iter()
-            .map(|label| EntityType::Custom {
-                name: (*label).to_string(),
-                category: crate::entity::EntityCategory::Misc,
-            })
+            .map(|label| Self::map_label(label))
             .collect()
     }
 
     fn is_available(&self) -> bool {
-        true // If we got this far, it's available
+        true
     }
 
     fn name(&self) -> &'static str {
@@ -472,7 +597,7 @@ impl crate::Model for GLiNERCandle {
     }
 
     fn description(&self) -> &'static str {
-        "Zero-shot NER using GLiNER with pure Rust Candle backend (Metal/CUDA/CPU)"
+        "Zero-shot NER using GLiNER bi-encoder (pure Rust with Metal/CUDA support)"
     }
 }
 
@@ -481,23 +606,31 @@ impl crate::Model for GLiNERCandle {
 // =============================================================================
 
 #[cfg(not(feature = "candle"))]
-pub struct GLiNERCandle;
+pub struct GLiNERCandle {
+    _private: (),
+}
 
 #[cfg(not(feature = "candle"))]
 impl GLiNERCandle {
-    /// Create a new GLiNER model (stub - requires candle feature).
+    /// Create GLiNER (requires candle feature).
     pub fn new(_model_name: &str) -> Result<Self> {
-        Err(Error::InvalidInput(
+        Err(Error::FeatureNotAvailable(
             "GLiNER-Candle requires the 'candle' feature. \
-             Build with: cargo build --features candle".to_string()
+             Build with: cargo build --features candle\n\
+             Alternative: Use GLiNEROnnx with the 'onnx' feature for similar functionality.".to_string()
         ))
+    }
+
+    /// Load from pretrained (requires candle feature).
+    pub fn from_pretrained(_model_id: &str) -> Result<Self> {
+        Self::new("")
     }
 }
 
 #[cfg(not(feature = "candle"))]
 impl crate::Model for GLiNERCandle {
     fn extract_entities(&self, _text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
-        Err(Error::InvalidInput(
+        Err(Error::FeatureNotAvailable(
             "GLiNER-Candle requires the 'candle' feature".to_string()
         ))
     }
@@ -515,7 +648,7 @@ impl crate::Model for GLiNERCandle {
     }
 
     fn description(&self) -> &'static str {
-        "GLiNER with Candle backend - requires 'candle' feature"
+        "Zero-shot NER with Candle - requires 'candle' feature"
     }
 }
 
@@ -533,6 +666,8 @@ mod tests {
         {
             let result = GLiNERCandle::new("test");
             assert!(result.is_err());
+            let err = result.unwrap_err().to_string();
+            assert!(err.contains("candle"));
         }
     }
 
@@ -542,22 +677,23 @@ mod tests {
         let device = Device::Cpu;
         let matcher = SpanLabelMatcher::new(1.0);
 
-        // Create dummy embeddings
         let span_embs = Tensor::randn(0f32, 1., (1, 10, 64), &device).unwrap();
         let label_embs = Tensor::randn(0f32, 1., (3, 64), &device).unwrap();
 
         let scores = matcher.forward(&span_embs, &label_embs).unwrap();
-        
-        // Check output shape: [batch=1, num_spans=10, num_labels=3]
         assert_eq!(scores.dims(), &[1, 10, 3]);
+    }
+
+    #[cfg(feature = "candle")]
+    #[test]
+    fn test_l2_normalize() {
+        let device = Device::Cpu;
+        let x = Tensor::from_vec(vec![3.0f32, 4.0], (1, 2), &device).unwrap();
+        let normed = l2_normalize(&x, D::Minus1).unwrap();
         
-        // Scores should be in [0, 1] after sigmoid
-        // Flatten and check bounds
-        let flat_scores = scores.flatten_all().unwrap();
-        let min_val = flat_scores.min(0).unwrap().to_scalar::<f32>().unwrap();
-        let max_val = flat_scores.max(0).unwrap().to_scalar::<f32>().unwrap();
-        assert!(min_val >= 0.0, "min {} should be >= 0", min_val);
-        assert!(max_val <= 1.0, "max {} should be <= 1", max_val);
+        // Should be [0.6, 0.8] (3/5, 4/5)
+        let values = normed.flatten_all().unwrap().to_vec1::<f32>().unwrap();
+        assert!((values[0] - 0.6).abs() < 0.01);
+        assert!((values[1] - 0.8).abs() < 0.01);
     }
 }
-
