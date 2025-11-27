@@ -129,7 +129,7 @@ pub struct NuNER {
 impl NuNER {
     /// Create NuNER with default configuration.
     ///
-    /// Uses standard NER labels. Call [`from_pretrained`](Self::from_pretrained)
+    /// Uses standard NER labels. Call `from_pretrained` (requires `onnx` feature)
     /// to load actual model weights.
     #[must_use]
     pub fn new() -> Self {
