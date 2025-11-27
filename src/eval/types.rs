@@ -209,6 +209,7 @@ pub struct GoalCheckResult {
 
 impl GoalCheckResult {
     /// Create a new GoalCheckResult (defaults to passed = true).
+    #[must_use]
     pub fn new() -> Self {
         Self {
             passed: true,

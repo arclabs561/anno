@@ -92,6 +92,7 @@ pub struct NERMetricGoals {
 
 impl NERMetricGoals {
     /// Create new empty goals.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             min_precision: None,
@@ -145,6 +146,7 @@ pub struct TypeMetricGoals {
 
 impl TypeMetricGoals {
     /// Create new type goals.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             min_precision: None,
@@ -262,6 +264,7 @@ pub struct StandardNEREvaluator;
 
 impl StandardNEREvaluator {
     /// Create a new standard evaluator.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }

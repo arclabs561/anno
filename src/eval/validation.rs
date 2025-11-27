@@ -23,6 +23,7 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Create a new validation result.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             is_valid: true,

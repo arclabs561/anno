@@ -147,6 +147,7 @@ pub struct BackendRegistry {
 
 impl BackendRegistry {
     /// Create empty registry.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             backends: Vec::new(),

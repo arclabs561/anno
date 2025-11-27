@@ -640,6 +640,7 @@ pub struct HashMapLexicon {
 
 impl HashMapLexicon {
     /// Create a new empty lexicon with the given source identifier.
+    #[must_use]
     pub fn new(source: impl Into<String>) -> Self {
         Self {
             entries: std::collections::HashMap::new(),
