@@ -86,7 +86,10 @@ cargo add anno --features full
 | `StackedNER` | — | ~100μs | ~50% | All above | **Recommended default** |
 | `BertNEROnnx` | `onnx` | ~50ms | ~90% | PER, ORG, LOC, MISC | Standard NER |
 | `GLiNEROnnx` | `onnx` | ~100ms | ~85% | **Custom** | Zero-shot NER |
+| `NuNER` | `onnx` | ~80ms | ~86% | **Custom** | Token-level zero-shot |
+| `W2NER` | `onnx` | ~120ms | ~82% | **Custom** | Nested/discontinuous |
 | `CandleNER` | `candle` | ~80ms | ~88% | PER, ORG, LOC | Pure Rust / Metal |
+| `GLiNERCandle` | `candle` | ~100ms | ~84% | **Custom** | Pure Rust zero-shot |
 
 *PatternNER has ~99% precision on structured entities but doesn't detect named entities.
 
@@ -98,8 +101,21 @@ Do you need Person/Org/Location?
 ├─ Yes, and...
 │  ├─ Zero dependencies OK → StackedNER (default)
 │  ├─ Need high accuracy → BertNEROnnx (onnx feature)
-│  ├─ Need custom entity types → GLiNEROnnx (onnx feature)
-│  └─ Need pure Rust / Metal → CandleNER (candle feature)
+│  ├─ Need custom entity types → GLiNEROnnx or NuNER (onnx feature)
+│  ├─ Need nested/discontinuous entities → W2NER (onnx feature)
+│  └─ Need pure Rust / Metal → CandleNER or GLiNERCandle (candle feature)
+```
+
+### Automatic Backend Selection
+
+Use `anno::auto()` to get the best available backend:
+
+```rust
+use anno::{auto, Model};
+
+// Automatically selects the highest-quality available backend
+let model = auto()?;
+let entities = model.extract_entities("John works at Apple", None)?;
 ```
 
 ## Evaluation
