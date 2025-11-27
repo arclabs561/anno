@@ -65,6 +65,7 @@ impl RuleBasedNER {
     }
 
     /// Create with custom minimum confidence.
+    #[must_use]
     pub fn with_min_confidence(min_confidence: f64) -> Self {
         Self {
             min_confidence,

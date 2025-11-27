@@ -282,6 +282,7 @@ impl GoalCheck {
     }
 
     /// Add a message to the check.
+    #[must_use]
     pub fn with_message(mut self, msg: impl Into<String>) -> Self {
         self.message = Some(msg.into());
         self

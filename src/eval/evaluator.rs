@@ -121,6 +121,7 @@ impl NERMetricGoals {
     }
 
     /// Add per-type goal.
+    #[must_use]
     pub fn with_type_goal(mut self, entity_type: String, goal: TypeMetricGoals) -> Self {
         self.per_type_goals.insert(entity_type, goal);
         self

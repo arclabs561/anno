@@ -1276,6 +1276,7 @@ impl DotProductInteraction {
     }
 
     /// Create with custom temperature.
+    #[must_use]
     pub fn with_temperature(temperature: f32) -> Self {
         Self { temperature }
     }

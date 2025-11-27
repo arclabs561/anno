@@ -130,6 +130,7 @@ impl EvalConfig {
     /// - MIT Movie "Actor" -> "Person"
     /// - MIT Restaurant "Restaurant_Name" -> "Organization"
     /// - Biomedical "Disease" -> "Other"
+    #[must_use]
     pub fn with_type_normalization(mut self) -> Self {
         self.normalize_types = true;
         self

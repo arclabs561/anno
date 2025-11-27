@@ -346,6 +346,7 @@ impl StackedNER {
     }
 
     /// Create with explicit layers and default priority strategy.
+    #[must_use]
     pub fn with_layers(layers: Vec<Box<dyn Model + Send + Sync>>) -> Self {
         let mut builder = Self::builder().strategy(ConflictStrategy::Priority);
         for layer in layers {

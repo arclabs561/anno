@@ -237,6 +237,7 @@ impl PipelineBuilder {
     }
 
     /// Use a predefined config.
+    #[must_use]
     pub fn with_config(mut self, config: PipelineConfig) -> Self {
         self.config = config;
         self
