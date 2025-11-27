@@ -29,6 +29,7 @@
 #![allow(dead_code)] // Evaluation scaffolding - used by ignored tests
 
 use anno::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
+#[allow(unused_imports)] // Used by ignored tests
 use anno::{Model, PatternNER};
 use std::collections::HashMap;
 use std::time::Instant;

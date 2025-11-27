@@ -44,8 +44,8 @@ use regex::Regex;
 /// Contains hardcoded gazetteers that give inflated F1 on curated tests
 /// but fail on novel entities. Use `NERExtractor::best_available()` instead.
 #[deprecated(
-    since = "0.5.0",
-    note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX)"
+    since = "0.1.0",
+    note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX). Will be removed in 1.0."
 )]
 pub struct RuleBasedNER {
     /// Minimum confidence for extracted entities

@@ -127,6 +127,7 @@ mod w2ner {
             entity_labels: vec!["GENE".to_string(), "DISEASE".to_string()],
             allow_nested: false,
             allow_discontinuous: true,
+            model_id: String::new(),
         };
 
         let ner = W2NER::with_config(config);
