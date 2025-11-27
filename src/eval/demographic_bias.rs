@@ -13,6 +13,18 @@
 //!   names not seen in training data
 //! - Li et al. (2022): "HERB" - Regional bias in language models
 //!
+//! # Critical Finding: Character-Based Models Are Less Biased
+//!
+//! Mishra et al. (2020) found that:
+//! - **Debiased word embeddings do NOT help** resolve NER demographic bias
+//! - **Character-based models (ELMo-style) show the least bias** across demographics
+//! - This suggests subword/character representations better generalize to unseen names
+//!
+//! Implications for model selection:
+//! - Prefer character-level or subword models over word-level models for fair NER
+//! - ELMo, BERT (with WordPiece), and similar subword models are better choices
+//! - Pure word2vec or GloVe-based models will exhibit more demographic bias
+//!
 //! # Key Metrics
 //!
 //! - **Recognition Rate**: % of names correctly identified as PERSON

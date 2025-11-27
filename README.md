@@ -1,9 +1,8 @@
 # anno
 
-Text annotation and knowledge extraction for Rust.
+NER for Rust.
 
-**Primary**: Named Entity Recognition (NER) with multiple backends  
-**Also**: Coreference metrics, relation extraction traits, evaluation framework
+Named entity recognition with multiple backends. Also: coreference metrics, evaluation.
 
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
@@ -52,8 +51,6 @@ for e in entities {
 ```
 
 ## Feature Flags
-
-anno uses feature flags to minimize compile times and dependencies:
 
 | Feature | Description | Dependencies | Compile Time |
 |---------|-------------|--------------|--------------|
@@ -119,8 +116,6 @@ let entities = model.extract_entities("John works at Apple", None)?;
 ```
 
 ## Evaluation
-
-anno provides comprehensive evaluation following NER community standards:
 
 ### F1 Score Variants
 
@@ -273,19 +268,11 @@ cargo test --features network   # Include download tests
 cargo test --features full      # All tests
 ```
 
-## Research Alignment
+## Research
 
-anno's architecture draws from recent NER research:
+Based on: [GLiNER](https://arxiv.org/abs/2311.08526), [UniversalNER](https://arxiv.org/abs/2308.03279), [ModernBERT](https://arxiv.org/abs/2412.13663), [W2NER](https://arxiv.org/abs/2112.10070).
 
-| Paper | Concept | Implementation |
-|-------|---------|----------------|
-| [GLiNER](https://arxiv.org/abs/2311.08526) (NAACL 2024) | Bi-encoder span-label matching | `BiEncoder`, `ZeroShotNER` traits |
-| [UniversalNER](https://arxiv.org/abs/2308.03279) (ICLR 2024) | Cross-domain distillation | 43 datasets, `TypeMapper` |
-| [ModernBERT](https://arxiv.org/abs/2412.13663) (2024) | Efficient encoder | `TextEncoder`, `RaggedBatch` |
-| [ReasoningNER](https://arxiv.org/abs/2511.11978) (2025) | Chain-of-thought NER | Future: reasoning traits |
-| [GEMNET](https://aclanthology.org/2021.naacl-main.118/) (NAACL 2021) | Gated gazetteers | `Lexicon` trait, `ExtractionMethod` |
-
-See `docs/SCOPE.md` for the full roadmap and `src/eval/TAXONOMY.md` for evaluation methodology.
+See `docs/SCOPE.md` for roadmap.
 
 ## Related
 

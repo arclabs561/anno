@@ -1,10 +1,8 @@
-# anno - Scope & Roadmap
+# anno - Scope
 
-## What This Library Does
+NER for Rust. Also: coreference metrics, relation traits.
 
-**anno** extracts structured data from text. Primarily NER, with support for related tasks.
-
-Text annotation tasks form a natural hierarchy:
+Task hierarchy:
 
 ```
                     Knowledge Graphs
@@ -17,10 +15,6 @@ Text annotation tasks form a natural hierarchy:
                           ↑
                    Pattern Matching
 ```
-
-Each layer builds on the previous. NER finds entity mentions; coreference links mentions
-to real-world entities; relation extraction connects entities; knowledge graphs organize
-it all into queryable structures.
 
 ## Scope
 
@@ -81,15 +75,13 @@ trait Lexicon {
 }
 ```
 
-### Knowledge Sources (Research-Aligned)
+### Knowledge Sources
 
-| Source | Purpose | When to Use | Research |
-|--------|---------|-------------|----------|
-| **TypeMapper** | Label normalization | Domain-specific datasets | — |
-| **Lexicon** | Exact entity lookup | Closed domains only | Song et al. 2020 |
-| **SemanticRegistry** | Embedding-based lookup | Zero-shot NER | GLiNER 2024 |
-
-See `docs/LEXICON_DESIGN.md` for detailed research context on lexicon integration.
+| Source | Purpose | When to Use |
+|--------|---------|-------------|
+| **TypeMapper** | Label normalization | Domain-specific datasets |
+| **Lexicon** | Exact entity lookup | Closed domains |
+| **SemanticRegistry** | Embedding-based lookup | Zero-shot NER |
 
 ### Backend Philosophy
 
@@ -104,30 +96,14 @@ See `docs/LEXICON_DESIGN.md` for detailed research context on lexicon integratio
 3. **Real datasets**: CoNLL-2003, WikiGold, WNUT-17, GAP, etc.
 4. **Stratified sampling**: Proportional entity type coverage
 
-## Research Papers
+## Research
 
-The trait system draws from recent NER/IE research:
-
-| Paper | Year | Concept | Implementation |
-|-------|------|---------|----------------|
-| GLiNER (NAACL) | 2024 | Bi-encoder matching | `BiEncoder`, `LateInteraction` traits |
-| ModernBERT | 2024 | RoPE, unpadding | `RaggedBatch`, encoder configs |
-| W2NER (AAAI) | 2022 | Word-word relations | `HandshakingMatrix`, `DiscontinuousNER` |
-| UniversalNER (ICLR) | 2024 | Cross-domain zero-shot | `ZeroShotNER`, `SemanticRegistry` |
-| ColPali | 2024 | Vision-native retrieval | `ModalityInput`, `VisualCapable` |
-| **ReasoningNER** | 2025 | CoT + GRPO for NER | Future: `ReasoningNER` trait |
-| **CMAS** | 2025 | Multi-agent zero-shot | Future: agent orchestration |
-| GEMNET (NAACL) | 2021 | Gated gazetteer | `GatedEnsemble`, `Lexicon` trait |
-| Soft Gazetteers (ACL) | 2020 | Embedding lookup | `SoftLexicon` (planned) |
-| Familiarity | 2024 | Label shift bias | `LabelShift` type |
-
-### Key 2025 Findings (bleeding edge)
-
-| Paper | F1 | Key Insight |
-|-------|-----|-------------|
-| ReasoningNER | 85.2 | CoT reasoning improves NER by 1.3+ F1 points |
-| BioClinical ModernBERT | SOTA | Domain adaptation + long context = gains |
-| NER Retriever | — | Retrieval-based approach for ad-hoc entity types |
+| Paper | Concept | Implementation |
+|-------|---------|----------------|
+| GLiNER | Bi-encoder | `ZeroShotNER` |
+| W2NER | Word-word | `DiscontinuousNER` |
+| ModernBERT | RoPE | `TextEncoder` |
+| UniversalNER | Cross-domain | `TypeMapper` |
 
 ## Non-Goals
 

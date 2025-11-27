@@ -1,6 +1,4 @@
-# Anno NER Backend Architecture
-
-A technical overview of all NER backends, their relationships, tradeoffs, and when to use each.
+# Backend Architecture
 
 ## Backend Taxonomy
 

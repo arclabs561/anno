@@ -208,11 +208,13 @@ pub mod demographic_bias;
 pub mod evaluator;
 pub mod gender_bias;
 pub mod harness;
+pub mod length_bias;
 pub mod loader;
 pub mod metrics;
 pub mod modes;
 pub mod sampling;
 pub mod synthetic;
+pub mod temporal_bias;
 pub mod types;
 pub mod validation;
 
@@ -253,6 +255,18 @@ pub use demographic_bias::{
     create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
     DemographicBiasResults, Ethnicity, Gender, LocationExample, LocationType, NameExample,
     NameFrequency, NameResult, Region, RegionalBiasResults, Script,
+};
+
+// Temporal bias evaluation (names by decade)
+pub use temporal_bias::{
+    create_temporal_name_dataset, Decade, TemporalBiasEvaluator, TemporalBiasResults,
+    TemporalGender, TemporalNameExample,
+};
+
+// Entity length bias evaluation
+pub use length_bias::{
+    create_length_varied_dataset, EntityLengthEvaluator, LengthBiasResults, LengthBucket,
+    LengthTestExample, WordCountBucket,
 };
 
 // Analysis re-exports

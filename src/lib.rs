@@ -1,11 +1,10 @@
-//! # anno - Text Annotation & Knowledge Extraction
+//! # anno
 //!
-//! `anno` extracts structured knowledge from unstructured text:
+//! NER for Rust.
 //!
-//! - **NER**: Named Entity Recognition with multiple backends
-//! - **Coreference**: Evaluation metrics (MUC, B³, CEAF, LEA)
-//! - **Relations**: Trait definitions for joint extraction
-//! - **Evaluation**: Comprehensive benchmarking framework
+//! - **NER**: Multiple backends (Pattern, BERT, GLiNER, NuNER, W2NER)
+//! - **Coreference**: Metrics (MUC, B³, CEAF, LEA)
+//! - **Evaluation**: Benchmarking against standard datasets
 //!
 //! ## Quick Start - Automatic Backend Selection
 //!
@@ -67,14 +66,11 @@
 //! assert!(entities.iter().any(|e| e.text.contains("January")));
 //! ```
 //!
-//! ## Evaluation Framework
+//! ## Evaluation
 //!
-//! The `eval` module provides comprehensive evaluation tools:
-//!
-//! - **NER metrics**: Precision, Recall, F1 (micro/macro/weighted), partial match
-//! - **Coreference metrics**: MUC, B³, CEAF, LEA, BLANC, CoNLL F1
-//! - **Analysis**: Confusion matrix, error categorization, significance testing
-//! - **Datasets**: CoNLL-2003, WikiGold, MultiNERD, GAP, and more
+//! - **NER**: P/R/F1 (micro/macro), partial match modes
+//! - **Coref**: MUC, B³, CEAF, LEA, BLANC
+//! - **Datasets**: CoNLL-2003, WikiGold, WNUT-17, MultiNERD, GAP
 //!
 //! ## Design Philosophy
 //!

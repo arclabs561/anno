@@ -921,6 +921,57 @@ pub fn sports_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Sports,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "Rafael Nadal defeated Roger Federer at Roland Garros in Paris.".into(),
+            entities: vec![
+                entity("Rafael Nadal", EntityType::Person, 0),
+                entity("Roger Federer", EntityType::Person, 22),
+                entity("Roland Garros", EntityType::Location, 39),
+                entity("Paris", EntityType::Location, 56),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The Golden State Warriors beat the Miami Heat 110-95 on December 3, 2023.".into(),
+            entities: vec![
+                entity("Golden State Warriors", EntityType::Organization, 4),
+                entity("Miami Heat", EntityType::Organization, 35),
+                entity("December 3, 2023", EntityType::Date, 56),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Usain Bolt ran 9.58 seconds at the Berlin World Championships.".into(),
+            entities: vec![
+                entity("Usain Bolt", EntityType::Person, 0),
+                entity("Berlin", EntityType::Location, 35),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The NFL fined Tom Brady $10,000 for equipment violations on January 5.".into(),
+            entities: vec![
+                entity("NFL", EntityType::Organization, 4),
+                entity("Tom Brady", EntityType::Person, 14),
+                entity("$10,000", EntityType::Money, 24),
+                entity("January 5", EntityType::Date, 60),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Simone Biles won gold for the USA at the Tokyo Olympics.".into(),
+            entities: vec![
+                entity("Simone Biles", EntityType::Person, 0),
+                entity("USA", EntityType::Organization, 30),
+                entity("Tokyo", EntityType::Location, 41),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Easy,
+        },
     ]
 }
 
@@ -974,6 +1025,54 @@ pub fn entertainment_dataset() -> Vec<AnnotatedExample> {
             entities: vec![
                 entity("Staples Center", EntityType::Location, 30),
                 entity("Beyoncé", EntityType::Person, 53),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Steven Spielberg directed Jurassic Park for Universal Pictures.".into(),
+            entities: vec![
+                entity("Steven Spielberg", EntityType::Person, 0),
+                entity("Universal Pictures", EntityType::Organization, 44),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "BTS performed at SoFi Stadium in Los Angeles on November 27, 2021.".into(),
+            entities: vec![
+                entity("BTS", EntityType::Organization, 0),
+                entity("SoFi Stadium", EntityType::Location, 17),
+                entity("Los Angeles", EntityType::Location, 33),
+                entity("November 27, 2021", EntityType::Date, 48),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Warner Bros released Dune directed by Denis Villeneuve.".into(),
+            entities: vec![
+                entity("Warner Bros", EntityType::Organization, 0),
+                entity("Denis Villeneuve", EntityType::Person, 38),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The Oscars nominated Cillian Murphy for his role in Oppenheimer.".into(),
+            entities: vec![
+                entity("Cillian Murphy", EntityType::Person, 21),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Spotify paid $100 million for Joe Rogan's podcast deal in Austin.".into(),
+            entities: vec![
+                entity("Spotify", EntityType::Organization, 0),
+                entity("$100 million", EntityType::Money, 13),
+                entity("Joe Rogan", EntityType::Person, 30),
+                entity("Austin", EntityType::Location, 58),
             ],
             domain: Domain::Entertainment,
             difficulty: Difficulty::Medium,
@@ -1687,6 +1786,62 @@ pub fn conversational_dataset() -> Vec<AnnotatedExample> {
             entities: vec![
                 entity("Dr. Johnson", EntityType::Person, 18),
                 entity("3pm", EntityType::Date, 33),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Schedule a meeting with Sarah at Google for Friday.".into(),
+            entities: vec![
+                entity("Sarah", EntityType::Person, 24),
+                entity("Google", EntityType::Organization, 33),
+                entity("Friday", EntityType::Date, 44),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Order me a pizza from Domino's to 123 Main Street.".into(),
+            entities: vec![
+                entity("Domino's", EntityType::Organization, 22),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Find restaurants near Central Park that cost under $30.".into(),
+            entities: vec![
+                entity("Central Park", EntityType::Location, 22),
+                entity("$30", EntityType::Money, 51),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Call Mom at her Boston number after 5pm on Saturday.".into(),
+            entities: vec![
+                entity("Mom", EntityType::Person, 5),
+                entity("Boston", EntityType::Location, 16),
+                entity("5pm", EntityType::Date, 36),
+                entity("Saturday", EntityType::Date, 43),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "How much did Amazon stock rise today?".into(),
+            entities: vec![
+                entity("Amazon", EntityType::Organization, 13),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Book a table at The French Laundry for 7pm on Valentine's Day.".into(),
+            entities: vec![
+                entity("The French Laundry", EntityType::Organization, 16),
+                entity("7pm", EntityType::Date, 39),
+                entity("Valentine's Day", EntityType::Date, 46),
             ],
             domain: Domain::Conversational,
             difficulty: Difficulty::Medium,

@@ -17,7 +17,9 @@ use anno::eval::demographic_bias::{
 };
 use anno::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 use anno::eval::harness::{EvalConfig, EvalHarness};
+use anno::eval::length_bias::{create_length_varied_dataset, EntityLengthEvaluator};
 use anno::eval::synthetic::dataset_stats;
+use anno::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
 use anno::eval::MetricWithVariance;
 use anno::eval::SimpleCorefResolver;
 use anno::PatternNER;
@@ -337,12 +339,113 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         location_results.regional_parity_gap * 100.0
     );
 
+    // --- Temporal Bias (Names by Decade) ---
+    println!("\n--- Temporal Bias (Names by Decade) ---\n");
+
+    let temporal_names = create_temporal_name_dataset();
+    let temporal_evaluator = TemporalBiasEvaluator::default();
+    let temporal_results = temporal_evaluator.evaluate(&ner, &temporal_names);
+
+    println!(
+        "{:<20} {:>12}",
+        "Time Period", "Recognition"
+    );
+    println!("{}", "-".repeat(34));
+    println!(
+        "{:<20} {:>11.1}%",
+        "Historical (pre-1950)",
+        temporal_results.historical_rate * 100.0
+    );
+    println!(
+        "{:<20} {:>11.1}%",
+        "Modern (post-2000)",
+        temporal_results.modern_rate * 100.0
+    );
+    println!(
+        "{:<20} {:>11.1}%",
+        "Classic names",
+        temporal_results.classic_rate * 100.0
+    );
+    println!(
+        "{:<20} {:>11.1}%",
+        "Trendy names",
+        temporal_results.trendy_rate * 100.0
+    );
+
+    println!(
+        "\nHistorical-Modern Gap: {:.1}% (lower is better)",
+        temporal_results.historical_modern_gap * 100.0
+    );
+    println!(
+        "Temporal Parity Gap: {:.1}% (max gap across decades)",
+        temporal_results.temporal_parity_gap * 100.0
+    );
+
+    // --- Entity Length Bias ---
+    println!("\n--- Entity Length Bias ---\n");
+
+    let length_examples = create_length_varied_dataset();
+    let length_evaluator = EntityLengthEvaluator::default();
+    let length_results = length_evaluator.evaluate(&ner, &length_examples);
+
+    println!(
+        "{:<16} {:>12}",
+        "Length Bucket", "Recognition"
+    );
+    println!("{}", "-".repeat(30));
+
+    let mut char_sorted: Vec<_> = length_results.by_char_bucket.iter().collect();
+    char_sorted.sort_by(|a, b| a.0.cmp(b.0));
+    for (bucket, rate) in char_sorted {
+        println!("{:<16} {:>11.1}%", bucket, rate * 100.0);
+    }
+
+    println!(
+        "\nChar Length Parity Gap: {:.1}%",
+        length_results.char_length_parity_gap * 100.0
+    );
+    println!(
+        "Short vs Long Gap: {:.1}%",
+        length_results.short_vs_long_gap * 100.0
+    );
+
+    if length_results.avg_recognized_char_length > 0.0 || length_results.avg_missed_char_length > 0.0 {
+        println!(
+            "Avg recognized entity length: {:.1} chars",
+            length_results.avg_recognized_char_length
+        );
+        println!(
+            "Avg missed entity length: {:.1} chars",
+            length_results.avg_missed_char_length
+        );
+    }
+
+    // --- Name Frequency Bias ---
+    println!("\n--- Name Frequency Bias ---\n");
+
+    println!(
+        "{:<16} {:>12}",
+        "Frequency", "Recognition"
+    );
+    println!("{}", "-".repeat(30));
+
+    let mut freq_sorted: Vec<_> = name_results.by_frequency.iter().collect();
+    freq_sorted.sort_by(|a, b| a.0.cmp(b.0));
+    for (freq, rate) in freq_sorted {
+        println!("{:<16} {:>11.1}%", freq, rate * 100.0);
+    }
+
     // --- Bias Summary ---
     println!("\n--- Bias Summary ---\n");
     println!("Note: PatternNER only detects structured entities (DATE/MONEY/etc.),");
-    println!("not PERSON/LOCATION, so demographic bias results will be 0%.");
-    println!("For meaningful demographic bias evaluation, use ML backends:");
+    println!("not PERSON/LOCATION, so demographic/temporal bias results will be 0%.");
+    println!("For meaningful bias evaluation, use ML backends:");
     println!("  cargo run --example quality_bench --features onnx");
+
+    println!("\nKey research findings (Mishra et al. 2020, Jeong & Kang 2021):");
+    println!("  - Character-based models (ELMo-style) show least demographic bias");
+    println!("  - Debiased embeddings do NOT help resolve NER bias");
+    println!("  - Entity length bias correlates with training data distribution");
 
     Ok(())
 }
