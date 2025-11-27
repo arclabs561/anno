@@ -202,6 +202,7 @@ pub mod benchmark;
 pub mod coref;
 pub mod coref_loader;
 pub mod coref_metrics;
+pub mod coref_resolver;
 pub mod datasets;
 pub mod evaluator;
 pub mod harness;
@@ -234,6 +235,9 @@ pub use coref_metrics::{
     b_cubed_score, blanc_score, ceaf_e_score, ceaf_m_score, compare_systems, conll_f1, lea_score,
     muc_score, AggregateCorefEvaluation, CorefEvaluation, CorefScores, SignificanceTest,
 };
+
+// Coreference resolution
+pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
 
 // Analysis re-exports
 pub use analysis::{

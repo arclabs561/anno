@@ -349,14 +349,17 @@ pub fn auto() -> Result<Box<dyn Model>> {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust,no_run
 /// use anno::{auto_for, UseCase, Model};
 ///
-/// // For zero-shot NER with custom types
-/// let model = auto_for(UseCase::ZeroShot)?;
+/// fn main() -> anno::Result<()> {
+///     // For zero-shot NER with custom types
+///     let model = auto_for(UseCase::ZeroShot)?;
 ///
-/// // For fastest inference
-/// let model = auto_for(UseCase::Fast)?;
+///     // For fastest inference  
+///     let model = auto_for(UseCase::Fast)?;
+///     Ok(())
+/// }
 /// ```
 pub fn auto_for(use_case: UseCase) -> Result<Box<dyn Model>> {
     match use_case {
@@ -568,20 +571,16 @@ pub trait GpuCapable: Model {
 /// incrementally. This is useful for very large documents that don't fit
 /// in memory or when you want early results.
 ///
-/// # Example
+/// # Conceptual Example
 ///
 /// ```rust,ignore
-/// use anno::{Model, StreamingCapable};
-///
+/// // For models implementing StreamingCapable:
 /// let chunks = document.as_bytes().chunks(10_000);
 /// let mut offset = 0;
 /// for chunk in chunks {
-///     let text = std::str::from_utf8(chunk).unwrap();
+///     let text = std::str::from_utf8(chunk)?;
 ///     let entities = model.extract_entities_streaming(text, offset)?;
 ///     offset += chunk.len();
-///     for entity in entities {
-///         println!("{}: {}", entity.entity_type.as_label(), entity.text);
-///     }
 /// }
 /// ```
 pub trait StreamingCapable: Model {
