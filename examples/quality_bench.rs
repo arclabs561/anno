@@ -9,10 +9,18 @@
 //! - Per-difficulty breakdown (Easy/Medium/Hard/Adversarial)
 //! - Per-domain breakdown (News/Financial/Technical/etc.)
 //! - Variance across domains using MetricWithVariance
+//! - Gender bias evaluation (WinoBias-style)
+//! - Demographic bias evaluation (ethnicity, region, script)
 
+use anno::eval::demographic_bias::{
+    create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
+};
+use anno::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 use anno::eval::harness::{EvalConfig, EvalHarness};
 use anno::eval::synthetic::dataset_stats;
 use anno::eval::MetricWithVariance;
+use anno::eval::SimpleCorefResolver;
+use anno::PatternNER;
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -224,6 +232,117 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::fs::write("eval_results.html", &html)?;
         println!("\nHTML report saved to eval_results.html");
     }
+
+    // === Bias Evaluation ===
+    println!("\n=== Bias Evaluation ===\n");
+    run_bias_evaluation()?;
+
+    Ok(())
+}
+
+/// Run comprehensive bias evaluations
+fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
+    // --- Gender Bias (WinoBias-style) ---
+    println!("--- Gender Bias (Coreference) ---\n");
+
+    let resolver = SimpleCorefResolver::default();
+    let templates = create_winobias_templates();
+    let gender_evaluator = GenderBiasEvaluator::new(false);
+    let gender_results = gender_evaluator.evaluate_resolver(&resolver, &templates);
+
+    println!(
+        "{:<20} {:>10} {:>12}",
+        "Stereotype Type", "Accuracy", "Count"
+    );
+    println!("{}", "-".repeat(44));
+    println!(
+        "{:<20} {:>9.1}% {:>12}",
+        "Pro-stereotypical",
+        gender_results.pro_stereotype_accuracy * 100.0,
+        gender_results.num_pro
+    );
+    println!(
+        "{:<20} {:>9.1}% {:>12}",
+        "Anti-stereotypical",
+        gender_results.anti_stereotype_accuracy * 100.0,
+        gender_results.num_anti
+    );
+    println!(
+        "\nBias Gap: {:.1}% (lower is better)",
+        gender_results.bias_gap * 100.0
+    );
+
+    if !gender_results.per_pronoun.is_empty() {
+        println!("\nPer-Pronoun Accuracy:");
+        let mut pronouns: Vec<_> = gender_results.per_pronoun.iter().collect();
+        pronouns.sort_by(|a, b| a.0.cmp(b.0));
+        for (pronoun, accuracy) in pronouns {
+            println!(
+                "  {:<8}: {:.1}%",
+                pronoun,
+                accuracy * 100.0
+            );
+        }
+    }
+
+    // --- Demographic Bias (NER) ---
+    println!("\n--- Demographic Bias (NER) ---\n");
+
+    let ner = PatternNER::new();
+    let names = create_diverse_name_dataset();
+    let locations = create_diverse_location_dataset();
+    let demo_evaluator = DemographicBiasEvaluator::new(false);
+
+    // Note: PatternNER doesn't detect PERSON entities, so we'll show the framework
+    let name_results = demo_evaluator.evaluate_ner(&ner, &names);
+    let location_results = demo_evaluator.evaluate_locations(&ner, &locations);
+
+    println!("Name Recognition by Ethnicity:");
+    println!(
+        "{:<20} {:>12}",
+        "Ethnicity", "Recognition"
+    );
+    println!("{}", "-".repeat(34));
+
+    let mut ethnicity_sorted: Vec<_> = name_results.by_ethnicity.iter().collect();
+    ethnicity_sorted.sort_by(|a, b| a.0.cmp(b.0));
+    for (ethnicity, rate) in ethnicity_sorted {
+        println!("{:<20} {:>11.1}%", ethnicity, rate * 100.0);
+    }
+
+    println!(
+        "\nEthnicity Parity Gap: {:.1}% (lower is better)",
+        name_results.ethnicity_parity_gap * 100.0
+    );
+    println!(
+        "Script Bias Gap: {:.1}% (Latin vs non-Latin)",
+        name_results.script_bias_gap * 100.0
+    );
+
+    println!("\nLocation Recognition by Region:");
+    println!(
+        "{:<20} {:>12}",
+        "Region", "Recognition"
+    );
+    println!("{}", "-".repeat(34));
+
+    let mut region_sorted: Vec<_> = location_results.by_region.iter().collect();
+    region_sorted.sort_by(|a, b| a.0.cmp(b.0));
+    for (region, rate) in region_sorted {
+        println!("{:<20} {:>11.1}%", region, rate * 100.0);
+    }
+
+    println!(
+        "\nRegional Parity Gap: {:.1}% (lower is better)",
+        location_results.regional_parity_gap * 100.0
+    );
+
+    // --- Bias Summary ---
+    println!("\n--- Bias Summary ---\n");
+    println!("Note: PatternNER only detects structured entities (DATE/MONEY/etc.),");
+    println!("not PERSON/LOCATION, so demographic bias results will be 0%.");
+    println!("For meaningful demographic bias evaluation, use ML backends:");
+    println!("  cargo run --example quality_bench --features onnx");
 
     Ok(())
 }
