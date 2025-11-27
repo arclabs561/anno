@@ -18,7 +18,7 @@
 
 #[cfg(feature = "onnx")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use anno::{BertNEROnnx, Model};
+    use anno::BertNEROnnx;
     use std::time::Instant;
 
     println!("=== BERT NER ONNX Demo ===\n");
