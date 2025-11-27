@@ -476,9 +476,9 @@ impl NuNER {
                     current_entity = Some((word_idx, word_idx + 1, type_idx, best_score));
                 } else if is_inside {
                     // Extend current entity if same type
-                    if let Some((start, _end, etype, score)) = current_entity.as_mut() {
+                    if let Some((_start, end, etype, score)) = current_entity.as_mut() {
                         if *etype == type_idx {
-                            *_end = word_idx + 1;
+                            *end = word_idx + 1;
                             *score = (*score + best_score) / 2.0; // Average confidence
                         }
                     }

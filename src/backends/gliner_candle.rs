@@ -136,9 +136,9 @@ impl SpanRepLayer {
     /// # Returns
     /// [batch, num_spans, hidden]
     pub fn forward(&self, token_embeddings: &Tensor, span_indices: &Tensor) -> Result<Tensor> {
-        let (batch_size, _seq_len, hidden) = token_embeddings.dims3()
+        let (batch_size, _seq_len, _hidden) = token_embeddings.dims3()
             .map_err(|e| Error::Parse(format!("token_embeddings dims: {}", e)))?;
-        let (_, num_spans, _) = span_indices.dims3()
+        let (_, _num_spans, _) = span_indices.dims3()
             .map_err(|e| Error::Parse(format!("span_indices dims: {}", e)))?;
 
         let start_idx = span_indices.i((.., .., 0))?.to_dtype(DType::U32)?;

@@ -574,10 +574,10 @@ impl DiscontinuousNER for W2NER {
                 
                 return Ok(entities.into_iter().map(|e| {
                     DiscontinuousEntity {
-                        fragments: vec![(e.start, e.end)],
+                        spans: vec![(e.start, e.end)],
                         text: e.text,
-                        entity_type: e.entity_type,
-                        confidence: e.confidence,
+                        entity_type: e.entity_type.as_label().to_string(),
+                        confidence: e.confidence as f32,
                     }
                 }).collect());
             }

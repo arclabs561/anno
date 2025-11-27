@@ -43,7 +43,7 @@ use crate::{Entity, EntityType, Error, Model, Result};
 
 #[cfg(feature = "candle")]
 use {
-    super::encoder_candle::{CandleEncoder, EncoderConfig},
+    super::encoder_candle::{CandleEncoder, EncoderConfig, TextEncoder},
     candle_core::{DType, Device, Module, Tensor, D},
     candle_nn::{linear, Linear, VarBuilder},
     std::collections::HashMap,
@@ -118,7 +118,7 @@ impl CandleNER {
         let num_labels = id2label.len();
 
         // Load tokenizer
-        let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        let _tokenizer = Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
 
         // Load weights
