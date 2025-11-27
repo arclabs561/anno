@@ -186,7 +186,7 @@ mod conflict_resolution {
         let entities = ner.extract_entities("$100 for Dr. Smith", None).unwrap();
 
         // Union should keep everything
-        assert!(entities.len() >= 1);
+        assert!(!entities.is_empty());
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod backend_composition {
 
         let entities = ner.extract_entities("$100", None).unwrap();
         // Should still work (might have duplicates with Union strategy)
-        assert!(entities.len() >= 1);
+        assert!(!entities.is_empty());
     }
 
     #[test]

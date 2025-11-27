@@ -448,7 +448,7 @@ mod proptests {
         fn nuner_threshold_always_valid(threshold in -10.0f64..10.0f64) {
             let ner = NuNER::new().with_threshold(threshold);
             let t = ner.threshold();
-            prop_assert!(t >= 0.0 && t <= 1.0);
+            prop_assert!((0.0..=1.0).contains(&t));
         }
 
         #[test]

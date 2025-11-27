@@ -6,7 +6,6 @@ use anno::{
     Entity, EntityCategory, EntityType, ExtractionMethod, HierarchicalConfidence, Model, PatternNER,
     Provenance, Span, StackedNER,
 };
-use serde_json;
 
 // =============================================================================
 // Entity Serialization

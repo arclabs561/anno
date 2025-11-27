@@ -47,7 +47,7 @@ fn entity_type_strategy() -> impl Strategy<Value = EntityType> {
         Just(EntityType::Date),
         Just(EntityType::Money),
         Just(EntityType::Percent),
-        "[a-z]{3,10}".prop_map(|s| EntityType::Other(s)),
+        "[a-z]{3,10}".prop_map(EntityType::Other),
     ]
 }
 
@@ -80,7 +80,7 @@ proptest! {
         }
 
         // Invariant: indices are in range [0, len)
-        for (_, &idx) in &registry.label_index {
+        for &idx in registry.label_index.values() {
             prop_assert!(idx < registry.len(),
                 "Index {} out of bounds (len={})", idx, registry.len());
         }

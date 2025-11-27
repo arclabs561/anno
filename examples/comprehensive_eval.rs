@@ -481,7 +481,7 @@ fn generate_html_report(
             br.total_time.as_secs_f64() * 1000.0
         )?;
     }
-    write!(f, "</div>\n")?;
+    writeln!(f, "</div>")?;
 
     // Per-dataset results table
     write!(
@@ -565,7 +565,7 @@ fn generate_html_report(
             stats.name, stats.sentences, stats.tokens, stats.entities
         )?;
     }
-    write!(f, "</div>\n")?;
+    writeln!(f, "</div>")?;
 
     // Footer
     write!(
