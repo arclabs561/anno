@@ -12,7 +12,12 @@
 - **DiscontinuousSpan**: Support for non-contiguous entity spans
 - **Provenance tracking**: model_version, timestamp fields
 - **Dataset loader**: Download/cache for CoNLL-2003, WikiGold, WNUT-17, etc.
-- **NuNER, W2NER**: Placeholder backends for future implementation
+- **NuNER**: Token-based zero-shot NER via ONNX (BIO tagging)
+- **W2NER**: Nested/discontinuous entity extraction via ONNX
+- **CandleNER**: Pure Rust BERT encoder with Metal/CUDA support
+- **GLiNERCandle**: Pure Rust zero-shot NER with span classification
+- **anno::auto()**: Automatic backend selection based on available features
+- **Capability traits**: BatchCapable, GpuCapable, DynamicLabels, etc.
 - 887 tests total
 
 ### Changed
