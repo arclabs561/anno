@@ -7,7 +7,7 @@
 //! - Money: $100, $1.5M, "50 dollars", €500
 //! - Percentages: 15%, 3.5%
 //! - Emails: user@example.com
-//! - URLs: https://example.com
+//! - URLs: `https://example.com`
 //! - Phone numbers: (555) 123-4567, +1-555-123-4567
 //!
 //! For Person/Organization/Location, use ML models (BERT ONNX, GLiNER).
@@ -30,7 +30,7 @@ use regex::Regex;
 /// | Money | "$100", "€50", "5 million dollars" |
 /// | Percent | "15%", "3.5%" |
 /// | Email | "user@example.com" |
-/// | URL | "https://example.com" |
+/// | URL | `https://example.com` |
 /// | Phone | "(555) 123-4567", "+1-555-1234" |
 ///
 /// # Example
@@ -136,17 +136,22 @@ static PHONE_INTL: Lazy<Regex> = Lazy::new(|| {
 impl Model for PatternNER {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         use crate::entity::Provenance;
+        use crate::offset::bytes_to_chars;
         let mut entities = Vec::new();
 
         // Helper to add entity if no overlap
+        // Note: regex returns byte offsets, but we convert to char offsets
+        // for consistency with evaluation (GoldEntity uses char offsets).
         let mut add_entity =
             |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
-                if !overlaps(&entities, m.start(), m.end()) {
+                // Convert byte offsets to character offsets for Unicode correctness
+                let (char_start, char_end) = bytes_to_chars(text, m.start(), m.end());
+                if !overlaps(&entities, char_start, char_end) {
                     entities.push(Entity::with_provenance(
                         m.as_str(),
                         entity_type,
-                        m.start(),
-                        m.end(),
+                        char_start,
+                        char_end,
                         confidence,
                         Provenance::pattern(pattern),
                     ));
@@ -176,7 +181,7 @@ impl Model for PatternNER {
         ];
         for (pattern, name) in time_patterns {
             for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Date, 0.90, name);
+                add_entity(m, EntityType::Time, 0.90, name);
             }
         }
 
@@ -253,6 +258,9 @@ impl Model for PatternNER {
 fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
     entities.iter().any(|e| !(end <= e.start || start >= e.end))
 }
+
+// Capability marker: PatternNER extracts structured entities via regex
+impl crate::StructuredEntityCapable for PatternNER {}
 
 #[cfg(test)]
 mod tests {
@@ -341,7 +349,7 @@ mod tests {
         let cases = ["3:30 PM", "10:00 am", "12:30:45 p.m.", "9:00 AM"];
         for case in cases {
             let e = extract(case);
-            assert!(has_type(&e, &EntityType::Date), "Failed: {}", case);
+            assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
         }
     }
 
@@ -350,7 +358,7 @@ mod tests {
         let cases = ["14:30", "09:00", "23:59:59", "0:00"];
         for case in cases {
             let e = extract(case);
-            assert!(has_type(&e, &EntityType::Date), "Failed: {}", case);
+            assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
         }
     }
 
@@ -359,7 +367,7 @@ mod tests {
         let cases = ["3pm", "10 AM", "9 a.m."];
         for case in cases {
             let e = extract(case);
-            assert!(has_type(&e, &EntityType::Date), "Failed: {}", case);
+            assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
         }
     }
 
@@ -392,6 +400,32 @@ mod tests {
             let e = extract(case);
             assert!(has_type(&e, &EntityType::Money), "Failed: {}", case);
         }
+    }
+
+    #[test]
+    fn money_unicode_offsets_correct() {
+        // Regression test: Entity offsets must be CHARACTER offsets, not byte offsets.
+        // Euro sign (€) is 3 bytes but 1 character.
+        // This test catches the bug where regex byte offsets were stored directly.
+        let text = "Price: €50 then €100";
+        let ner = PatternNER::new();
+        let entities = ner.extract_entities(text, None).unwrap();
+
+        // "Price: " = 7 chars, so first € is at char 7
+        // "€50 then " = 9 chars, so second € is at char 16
+        let money: Vec<_> = entities.iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .collect();
+
+        assert_eq!(money.len(), 2, "Expected 2 money entities, got {:?}", money);
+
+        // First entity: "€50" at char 7
+        assert_eq!(money[0].start, 7, "First € should be at char 7, not byte 7");
+        assert_eq!(money[0].end, 10, "First entity end should be char 10");
+
+        // Second entity: "€100" at char 16
+        assert_eq!(money[1].start, 16, "Second € should be at char 16, not byte 18");
+        assert_eq!(money[1].end, 20, "Second entity end should be char 20");
     }
 
     #[test]
@@ -533,13 +567,12 @@ mod tests {
         let text = "Meeting on Jan 15 at 3:30 PM. Cost: $500. Contact: bob@acme.com or (555) 123-4567. Completion: 75%.";
         let e = extract(text);
 
-        assert!(count_type(&e, &EntityType::Date) >= 2); // date + time
-        assert!(has_type(&e, &EntityType::Money));
-        assert!(has_type(&e, &EntityType::Percent));
-        assert!(e
-            .iter()
-            .any(|e| e.entity_type == EntityType::Email));
-        assert!(e.iter().any(|e| e.entity_type == EntityType::Phone));
+        assert!(has_type(&e, &EntityType::Date), "Should have Date: {:?}", e);
+        assert!(has_type(&e, &EntityType::Time), "Should have Time: {:?}", e);
+        assert!(has_type(&e, &EntityType::Money), "Should have Money: {:?}", e);
+        assert!(has_type(&e, &EntityType::Percent), "Should have Percent: {:?}", e);
+        assert!(e.iter().any(|e| e.entity_type == EntityType::Email), "Should have Email: {:?}", e);
+        assert!(e.iter().any(|e| e.entity_type == EntityType::Phone), "Should have Phone: {:?}", e);
     }
 
     #[test]

@@ -290,13 +290,13 @@ impl BertNEROnnx {
                 if let Some((start, end, entity_type, conf)) = current_entity.take() {
                     let entity_text: String = text.chars().skip(start).take(end - start).collect();
                     if !entity_text.trim().is_empty() {
-                        entities.push(Entity {
-                            text: entity_text.trim().to_string(),
+                        entities.push(Entity::new(
+                            entity_text.trim().to_string(),
                             entity_type,
                             start,
                             end,
-                            confidence: conf,
-                        });
+                            conf,
+                        ));
                     }
                 }
                 continue;
@@ -330,13 +330,13 @@ impl BertNEROnnx {
                 if let Some((start, end, entity_type, conf)) = current_entity.take() {
                     let entity_text: String = text.chars().skip(start).take(end - start).collect();
                     if !entity_text.trim().is_empty() {
-                        entities.push(Entity {
-                            text: entity_text.trim().to_string(),
+                        entities.push(Entity::new(
+                            entity_text.trim().to_string(),
                             entity_type,
                             start,
                             end,
-                            confidence: conf,
-                        });
+                            conf,
+                        ));
                     }
                 }
                 continue;
@@ -365,13 +365,13 @@ impl BertNEROnnx {
                         let entity_text: String =
                             text.chars().skip(start).take(end - start).collect();
                         if !entity_text.trim().is_empty() {
-                            entities.push(Entity {
-                                text: entity_text.trim().to_string(),
-                                entity_type: prev_type,
+                            entities.push(Entity::new(
+                                entity_text.trim().to_string(),
+                                prev_type,
                                 start,
                                 end,
-                                confidence: conf,
-                            });
+                                conf,
+                            ));
                         }
                     }
                     // Start new entity
@@ -388,13 +388,13 @@ impl BertNEROnnx {
                             let entity_text: String =
                                 text.chars().skip(start).take(_end - start).collect();
                             if !entity_text.trim().is_empty() {
-                                entities.push(Entity {
-                                    text: entity_text.trim().to_string(),
-                                    entity_type: prev_type.clone(),
+                                entities.push(Entity::new(
+                                    entity_text.trim().to_string(),
+                                    prev_type.clone(),
                                     start,
-                                    end: _end,
-                                    confidence: conf,
-                                });
+                                    _end,
+                                    conf,
+                                ));
                             }
                             current_entity = Some((char_start, char_end, entity_type, confidence));
                         }
@@ -411,13 +411,13 @@ impl BertNEROnnx {
         if let Some((start, end, entity_type, conf)) = current_entity {
             let entity_text: String = text.chars().skip(start).take(end - start).collect();
             if !entity_text.trim().is_empty() {
-                entities.push(Entity {
-                    text: entity_text.trim().to_string(),
+                entities.push(Entity::new(
+                    entity_text.trim().to_string(),
                     entity_type,
                     start,
                     end,
-                    confidence: conf,
-                });
+                    conf,
+                ));
             }
         }
 
@@ -427,6 +427,26 @@ impl BertNEROnnx {
     /// Get the model name.
     pub fn model_name(&self) -> &str {
         &self.model_name
+    }
+}
+
+#[cfg(feature = "onnx")]
+impl crate::Model for BertNEROnnx {
+    fn extract_entities(&self, text: &str, language: Option<&str>) -> Result<Vec<Entity>> {
+        self.extract_entities(text, language)
+    }
+
+    fn supported_types(&self) -> Vec<EntityType> {
+        vec![
+            EntityType::Person,
+            EntityType::Organization,
+            EntityType::Location,
+            EntityType::Other("MISC".to_string()),
+        ]
+    }
+
+    fn is_available(&self) -> bool {
+        true
     }
 }
 
@@ -450,5 +470,22 @@ impl BertNEROnnx {
 
     pub fn model_name(&self) -> &str {
         "onnx-not-enabled"
+    }
+}
+
+#[cfg(not(feature = "onnx"))]
+impl crate::Model for BertNEROnnx {
+    fn extract_entities(&self, _text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
+        Err(Error::Parse(
+            "BERT NER ONNX support requires 'onnx' feature".to_string(),
+        ))
+    }
+
+    fn supported_types(&self) -> Vec<crate::EntityType> {
+        vec![]
+    }
+
+    fn is_available(&self) -> bool {
+        false
     }
 }

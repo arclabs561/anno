@@ -90,7 +90,7 @@ fn test_ambiguous_cases_only() {
     evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER on ambiguous examples");
 
     // Ambiguous cases are genuinely hard - models should struggle
-    let results = evaluate_ner_model(&pattern_ner, &test_cases).unwrap();
+    let _results = evaluate_ner_model(&pattern_ner, &test_cases).unwrap();
     println!("\nNote: Low scores expected on ambiguous cases (Apple company vs fruit, etc.)");
 }
 

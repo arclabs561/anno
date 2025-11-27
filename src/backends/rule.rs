@@ -827,6 +827,7 @@ fn is_common_capitalized_word(word: &str) -> bool {
 }
 
 #[cfg(test)]
+#[allow(deprecated)]
 mod tests {
     use super::*;
 

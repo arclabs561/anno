@@ -44,6 +44,11 @@ pub enum Error {
     /// Model retrieval error (downloading from HuggingFace).
     #[error("Retrieval error: {0}")]
     Retrieval(String),
+
+    /// Candle ML error (when candle feature enabled).
+    #[cfg(feature = "candle")]
+    #[error("Candle error: {0}")]
+    Candle(#[from] candle_core::Error),
 }
 
 impl Error {

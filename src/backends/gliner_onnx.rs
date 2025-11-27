@@ -44,14 +44,14 @@ const MAX_SPAN_WIDTH: usize = 12;
 
 /// GLiNER model for zero-shot NER.
 #[cfg(feature = "onnx")]
-pub struct GLiNERNER {
+pub struct GLiNEROnnx {
     session: std::sync::Mutex<ort::session::Session>,
     tokenizer: tokenizers::Tokenizer,
     model_name: String,
 }
 
 #[cfg(feature = "onnx")]
-impl GLiNERNER {
+impl GLiNEROnnx {
     /// Create a new GLiNER model from HuggingFace.
     pub fn new(model_name: &str) -> Result<Self> {
         use hf_hub::api::sync::Api;
@@ -106,7 +106,19 @@ impl GLiNERNER {
     }
 
     /// Extract entities from text using GLiNER zero-shot NER.
-    pub fn extract_entities(
+    ///
+    /// # Arguments
+    /// * `text` - The text to extract entities from
+    /// * `entity_types` - Entity type labels to detect (e.g., ["person", "organization"])
+    /// * `threshold` - Confidence threshold (0.0-1.0, recommended: 0.5)
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let gliner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+    /// let entities = gliner.extract("John works at Apple", &["person", "organization"], 0.5)?;
+    /// ```
+    pub fn extract(
         &self,
         text: &str,
         entity_types: &[&str],
@@ -392,13 +404,13 @@ impl GLiNERNER {
                                     entity_types.get(class_idx).unwrap_or(&"OTHER");
                                 let entity_type = Self::map_entity_type(entity_type_str);
 
-                                entities.push(Entity {
-                                    text: span_text,
+                                entities.push(Entity::new(
+                                    span_text,
                                     entity_type,
-                                    start: char_start,
-                                    end: char_end,
-                                    confidence: score as f64,
-                                });
+                                    char_start,
+                                    char_end,
+                                    score as f64,
+                                ));
                             }
                         }
                     }
@@ -439,13 +451,13 @@ impl GLiNERNER {
                             let entity_type_str = entity_types.get(class_idx).unwrap_or(&"OTHER");
                             let entity_type = Self::map_entity_type(entity_type_str);
 
-                            entities.push(Entity {
-                                text: span_text,
+                            entities.push(Entity::new(
+                                span_text,
                                 entity_type,
-                                start: char_start,
-                                end: char_end,
-                                confidence: score as f64,
-                            });
+                                char_start,
+                                char_end,
+                                score as f64,
+                            ));
                         }
                     }
                 }
@@ -513,26 +525,105 @@ impl GLiNERNER {
     }
 }
 
-// Stub when feature disabled
-#[cfg(not(feature = "onnx"))]
-pub struct GLiNERNER;
+// =============================================================================
+// Model Trait Implementation
+// =============================================================================
 
-#[cfg(not(feature = "onnx"))]
-impl GLiNERNER {
-    pub fn new(_model_name: &str) -> Result<Self> {
-        Err(Error::Parse("GLiNER requires 'onnx' feature".to_string()))
+/// Default entity types for zero-shot GLiNER when used via the Model trait.
+#[cfg(feature = "onnx")]
+const DEFAULT_GLINER_LABELS: &[&str] = &[
+    "person", "organization", "location", "date", "time", "money", "percent",
+    "product", "event", "facility", "work_of_art", "law", "language",
+];
+
+#[cfg(feature = "onnx")]
+impl crate::Model for GLiNEROnnx {
+    fn extract_entities(&self, text: &str, _language: Option<&str>) -> crate::Result<Vec<Entity>> {
+        // Use default labels for the Model trait interface
+        // For custom labels, use the extract(text, labels, threshold) method directly
+        self.extract(text, DEFAULT_GLINER_LABELS, 0.5)
     }
 
+    fn supported_types(&self) -> Vec<crate::EntityType> {
+        // GLiNER supports any type via zero-shot - return the defaults
+        DEFAULT_GLINER_LABELS
+            .iter()
+            .map(|label| crate::EntityType::Custom {
+                name: (*label).to_string(),
+                category: crate::entity::EntityCategory::Misc,
+            })
+            .collect()
+    }
+
+    fn is_available(&self) -> bool {
+        true // If we got this far, it's available
+    }
+
+    fn name(&self) -> &'static str {
+        "GLiNER-ONNX"
+    }
+
+    fn description(&self) -> &'static str {
+        "Zero-shot NER using GLiNER with ONNX Runtime backend"
+    }
+}
+
+// =============================================================================
+// Stub when feature disabled
+// =============================================================================
+
+#[cfg(not(feature = "onnx"))]
+pub struct GLiNEROnnx;
+
+#[cfg(not(feature = "onnx"))]
+impl GLiNEROnnx {
+    /// Create a new GLiNER model (stub - requires onnx feature).
+    pub fn new(_model_name: &str) -> Result<Self> {
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature. \
+             Build with: cargo build --features onnx".to_string()
+        ))
+    }
+
+    /// Get the model name (stub).
     pub fn model_name(&self) -> &str {
         "gliner-not-enabled"
     }
 
-    pub fn extract_entities(
+    /// Extract entities (stub - requires onnx feature).
+    pub fn extract(
         &self,
         _text: &str,
         _entity_types: &[&str],
         _threshold: f32,
     ) -> Result<Vec<Entity>> {
-        Err(Error::Parse("GLiNER requires 'onnx' feature".to_string()))
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+        ))
+    }
+}
+
+#[cfg(not(feature = "onnx"))]
+impl crate::Model for GLiNEROnnx {
+    fn extract_entities(&self, _text: &str, _language: Option<&str>) -> crate::Result<Vec<Entity>> {
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+        ))
+    }
+
+    fn supported_types(&self) -> Vec<crate::EntityType> {
+        vec![]
+    }
+
+    fn is_available(&self) -> bool {
+        false
+    }
+
+    fn name(&self) -> &'static str {
+        "GLiNER-ONNX (unavailable)"
+    }
+
+    fn description(&self) -> &'static str {
+        "GLiNER with ONNX Runtime backend - requires 'onnx' feature"
     }
 }

@@ -1,8 +1,7 @@
 //! Integration tests for anno NER evaluation framework.
 
 use anno::eval::{evaluate_ner_model, load_conll2003, GoldEntity};
-use anno::{EntityType, Model, PatternNER};
-use std::io::Write;
+use anno::{EntityType, PatternNER};
 
 #[test]
 fn test_end_to_end_conll_evaluation() {

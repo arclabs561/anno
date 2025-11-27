@@ -383,7 +383,6 @@ mod tests {
     use super::*;
     use std::fs::File;
     use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_load_json_ner_dataset() {

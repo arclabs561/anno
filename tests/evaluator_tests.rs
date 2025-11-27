@@ -3,7 +3,7 @@
 use anno::eval::evaluator::{NEREvaluator, StandardNEREvaluator};
 use anno::eval::types::MetricValue;
 use anno::eval::GoldEntity;
-use anno::{Entity, EntityType, Model, PatternNER};
+use anno::{EntityType, PatternNER};
 
 #[test]
 fn test_evaluate_test_case_basic() {

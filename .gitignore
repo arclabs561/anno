@@ -1,1 +1,17 @@
 /target
+
+# Generated files
+*.html
+!docs/**/*.html
+
+# Proptest regressions (keep these in source control per proptest docs)
+# *.proptest-regressions
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store

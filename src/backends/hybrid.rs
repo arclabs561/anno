@@ -319,6 +319,9 @@ fn span_iou(start1: usize, end1: usize, start2: usize, end2: usize) -> f64 {
     }
 }
 
+// Capability markers: HybridNER combines pattern and optional ML extraction
+impl crate::StructuredEntityCapable for HybridNER {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

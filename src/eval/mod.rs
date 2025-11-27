@@ -1,20 +1,73 @@
-//! NER evaluation framework using standard datasets.
+//! NER and Coreference evaluation framework.
 //!
-//! Compares different NER backends:
-//! - Rule-based NER (fallback, always available)
-//! - GLiNER ONNX (zero-shot, state-of-the-art)
-//! - Candle NER (BERT-based, fine-tuned)
+//! # Overview
 //!
-//! Supports multiple dataset formats:
-//! - CoNLL-2003 (classic BIO tagging format)
-//! - JSON/JSONL (modern format: OpenNER 1.0, MultiNERD, Wikiann)
-//! - HuggingFace Datasets format
+//! This module provides comprehensive evaluation tools for:
+//! - **Named Entity Recognition (NER)**: Standard metrics, error analysis, significance testing
+//! - **Coreference Resolution**: MUC, B³, CEAF, LEA, BLANC, CoNLL F1
 //!
-//! Metrics:
-//! - Precision, Recall, F1 (per entity type and overall)
-//! - Exact match vs partial match
-//! - Speed (tokens/second)
-//! - Per-dataset statistics
+//! # NER Evaluation
+//!
+//! ```rust,ignore
+//! use anno::eval::{evaluate_ner_model, GoldEntity, ErrorAnalysis};
+//! use anno::PatternNER;
+//!
+//! let model = PatternNER::new();
+//! let test_cases = vec![
+//!     ("Meeting on January 15".to_string(), vec![
+//!         GoldEntity::new("January 15", anno::EntityType::Date, 11),
+//!     ]),
+//! ];
+//!
+//! let results = evaluate_ner_model(&model, &test_cases)?;
+//! println!("F1: {:.1}%", results.f1 * 100.0);
+//! ```
+//!
+//! # Coreference Evaluation
+//!
+//! ```rust,ignore
+//! use anno::eval::{CorefChain, Mention, conll_f1, muc_score, b_cubed_score};
+//!
+//! let gold = vec![
+//!     CorefChain::new(0, vec![Mention::new("John", 0, 4), Mention::new("he", 20, 22)]),
+//! ];
+//! let pred = gold.clone(); // Perfect match
+//!
+//! let (p, r, f1) = conll_f1(&gold, &pred);
+//! assert!((f1 - 1.0).abs() < 0.001);
+//! ```
+//!
+//! # Dataset Support
+//!
+//! | Dataset | Type | Size | Format |
+//! |---------|------|------|--------|
+//! | CoNLL-2003 | NER | ~22k sentences | BIO tags |
+//! | WikiGold | NER | 145 docs | CoNLL |
+//! | WNUT-17 | NER | ~5k tweets | CoNLL |
+//! | MultiNERD | NER | ~50k examples | JSONL |
+//! | GAP | Coref | 4.5k examples | TSV |
+//! | PreCo | Coref | 12k docs | JSON |
+//!
+//! # Metrics
+//!
+//! **NER Metrics:**
+//! - Precision, Recall, F1 (micro/macro)
+//! - Per-entity-type breakdown
+//! - Partial match (boundary overlap)
+//! - Confidence threshold analysis
+//!
+//! **Coreference Metrics:**
+//! - MUC (link-based)
+//! - B³ (mention-based)
+//! - CEAF-e/m (entity/mention alignment)
+//! - LEA (link-based entity-aware)
+//! - BLANC (rand-index based)
+//! - CoNLL F1 (average of MUC, B³, CEAF-e)
+//!
+//! **Error Analysis:**
+//! - Confusion matrix
+//! - Error categorization (type, boundary, spurious, missed)
+//! - Statistical significance testing (paired t-test)
 
 use crate::EntityType;
 use crate::{Error, Model, Result};
@@ -22,11 +75,140 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+// =============================================================================
+// Evaluation Task Enum
+// =============================================================================
+
+/// Evaluation task type.
+///
+/// Clarifies what capability is being evaluated, since the same model
+/// may support multiple tasks with different metrics.
+///
+/// # Example
+///
+/// ```rust
+/// use anno::eval::{EvalTask, EvalMode};
+///
+/// let task = EvalTask::NER {
+///     labels: vec!["PER", "ORG", "LOC"].into_iter().map(String::from).collect(),
+///     mode: EvalMode::Strict,
+/// };
+///
+/// match task {
+///     EvalTask::NER { labels, mode } => {
+///         println!("NER with {} entity types, {:?} mode", labels.len(), mode);
+///     }
+///     _ => {}
+/// }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EvalTask {
+    /// Named Entity Recognition: span extraction with type classification.
+    ///
+    /// Input: Text → Output: `Vec<Entity>`
+    ///
+    /// Metrics: Precision, Recall, F1 (Strict/Exact/Partial/Type modes)
+    NER {
+        /// Entity type labels expected (e.g., ["PER", "ORG", "LOC"])
+        labels: Vec<String>,
+        /// Evaluation mode (Strict, Exact, Partial, Type)
+        mode: EvalMode,
+    },
+
+    /// Relation Extraction: entity pairs with relation types.
+    ///
+    /// Input: Text → Output: `Vec<(Entity, Relation, Entity)>`
+    ///
+    /// Metrics: Relation F1 (with/without entity correctness)
+    RelationExtraction {
+        /// Relation types expected (e.g., ["WORKS_AT", "BORN_IN"])
+        relations: Vec<String>,
+        /// Whether to require correct entity spans for relation credit
+        require_entity_match: bool,
+    },
+
+    /// Coreference Resolution: mention clustering.
+    ///
+    /// Input: Text → Output: `Vec<CorefChain>`
+    ///
+    /// Metrics: MUC, B³, CEAF-e/m, LEA, BLANC, CoNLL F1
+    Coreference {
+        /// Which coreference metrics to compute
+        metrics: Vec<CorefMetric>,
+    },
+
+    /// Discontinuous NER: non-contiguous span extraction.
+    ///
+    /// Input: Text → Output: `Vec<DiscontinuousEntity>`
+    ///
+    /// Metrics: Same as NER but with discontinuous span matching
+    DiscontinuousNER {
+        /// Entity type labels expected
+        labels: Vec<String>,
+    },
+
+    /// Event Extraction: event triggers and arguments.
+    ///
+    /// Input: Text → Output: Events with trigger and argument spans
+    ///
+    /// Metrics: Trigger F1, Argument F1, Event F1
+    EventExtraction {
+        /// Event types (e.g., ["ATTACK", "MOVEMENT", "TRANSACTION"])
+        event_types: Vec<String>,
+        /// Argument roles (e.g., ["AGENT", "PATIENT", "LOCATION"])
+        argument_roles: Vec<String>,
+    },
+}
+
+impl Default for EvalTask {
+    fn default() -> Self {
+        EvalTask::NER {
+            labels: vec![
+                "PER".to_string(),
+                "ORG".to_string(),
+                "LOC".to_string(),
+                "MISC".to_string(),
+            ],
+            mode: EvalMode::Strict,
+        }
+    }
+}
+
+/// Coreference evaluation metrics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CorefMetric {
+    /// MUC (link-based)
+    MUC,
+    /// B-cubed (mention-based)
+    BCubed,
+    /// CEAF entity-based
+    CEAFe,
+    /// CEAF mention-based
+    CEAFm,
+    /// LEA (link-based entity-aware)
+    LEA,
+    /// BLANC (rand-index based)
+    BLANC,
+    /// CoNLL F1 (average of MUC, B³, CEAF-e)
+    CoNLL,
+}
+
+/// Evaluation mode for NER (re-exported from modes).
+pub use modes::EvalMode;
+
 // Submodules
+pub mod analysis;
 pub mod benchmark;
+pub mod coref;
+pub mod coref_loader;
+pub mod coref_metrics;
 pub mod datasets;
 pub mod evaluator;
+pub mod harness;
+pub mod loader;
 pub mod metrics;
+pub mod modes;
+pub mod sampling;
 pub mod synthetic;
 pub mod types;
 pub mod validation;
@@ -35,9 +217,32 @@ pub mod validation;
 #[allow(deprecated)]
 pub use datasets::{GoldEntity, GroundTruthEntity};
 pub use evaluator::*;
+pub use harness::{
+    BackendAggregateResult, BackendDatasetResult, BackendRegistry, DatasetStatsSummary,
+    EvalConfig, EvalHarness, EvalResults,
+};
 pub use metrics::*;
-pub use types::{GoalCheck, GoalCheckResult, MetricValue};
+pub use types::{CorefChainStats, GoalCheck, GoalCheckResult, LabelShift, MetricValue, MetricWithVariance};
 pub use validation::*;
+
+// Coreference re-exports
+pub use coref::{CorefChain, CorefDocument, Mention, MentionType};
+pub use coref_loader::{
+    adversarial_coref_examples, synthetic_coref_dataset, CorefLoader, GapExample,
+};
+pub use coref_metrics::{
+    b_cubed_score, blanc_score, ceaf_e_score, ceaf_m_score, compare_systems, conll_f1, lea_score,
+    muc_score, AggregateCorefEvaluation, CorefEvaluation, CorefScores, SignificanceTest,
+};
+
+// Analysis re-exports
+pub use analysis::{
+    build_confusion_matrix, compare_ner_systems, ConfusionMatrix, ErrorAnalysis, ErrorType,
+    NERError, NERSignificanceTest,
+};
+
+// Sampling re-exports
+pub use sampling::{multi_seed_eval, stratified_sample, stratified_sample_ner};
 
 /// Per-entity-type metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -243,6 +448,38 @@ pub fn evaluate_ner_model(
     model: &dyn Model,
     test_cases: &[(String, Vec<GoldEntity>)],
 ) -> Result<NEREvaluationResults> {
+    evaluate_ner_model_with_mapper(model, test_cases, None)
+}
+
+/// Evaluate NER model with optional type normalization.
+///
+/// # Arguments
+/// * `model` - NER model to evaluate
+/// * `test_cases` - Test cases with text and gold entities
+/// * `type_mapper` - Optional TypeMapper to normalize domain-specific types
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use anno::{TypeMapper, PatternNER, Model};
+/// use anno::eval::{evaluate_ner_model_with_mapper, GoldEntity};
+///
+/// // MIT Movie dataset - normalize ACTOR/DIRECTOR to Person
+/// let mapper = TypeMapper::mit_movie();
+/// let test_cases = vec![
+///     ("Tom Hanks directed the movie".to_string(), vec![
+///         GoldEntity::with_label("Tom Hanks", "ACTOR", 0),
+///     ]),
+/// ];
+///
+/// let model = PatternNER::new();
+/// let results = evaluate_ner_model_with_mapper(&model, &test_cases, Some(&mapper));
+/// ```
+pub fn evaluate_ner_model_with_mapper(
+    model: &dyn Model,
+    test_cases: &[(String, Vec<GoldEntity>)],
+    type_mapper: Option<&crate::TypeMapper>,
+) -> Result<NEREvaluationResults> {
     let evaluator = evaluator::StandardNEREvaluator::new();
 
     if test_cases.is_empty() {
@@ -270,8 +507,27 @@ pub fn evaluate_ner_model(
     let mut query_metrics = Vec::new();
     for (i, (text, ground_truth)) in test_cases.iter().enumerate() {
         let test_case_id = format!("test_case_{}", i);
+        
+        // Apply type normalization if mapper provided
+        let normalized_truth: Vec<GoldEntity>;
+        let truth_ref = if let Some(mapper) = type_mapper {
+            normalized_truth = ground_truth
+                .iter()
+                .map(|e| GoldEntity {
+                    text: e.text.clone(),
+                    entity_type: mapper.normalize(e.entity_type.as_label()),
+                    original_label: e.original_label.clone(), // Preserve original for debugging
+                    start: e.start,
+                    end: e.end,
+                })
+                .collect();
+            &normalized_truth
+        } else {
+            ground_truth
+        };
+        
         let metrics =
-            evaluator.evaluate_test_case(model, text, ground_truth, Some(&test_case_id))?;
+            evaluator.evaluate_test_case(model, text, truth_ref, Some(&test_case_id))?;
         query_metrics.push(metrics);
     }
 

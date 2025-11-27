@@ -32,3 +32,22 @@ impl CandleNER {
         "candle-not-enabled"
     }
 }
+
+impl crate::Model for CandleNER {
+    fn extract_entities(&self, text: &str, language: Option<&str>) -> Result<Vec<Entity>> {
+        self.extract_entities(text, language)
+    }
+
+    fn supported_types(&self) -> Vec<crate::EntityType> {
+        vec![
+            crate::EntityType::Person,
+            crate::EntityType::Organization,
+            crate::EntityType::Location,
+            crate::EntityType::Other("MISC".to_string()),
+        ]
+    }
+
+    fn is_available(&self) -> bool {
+        false // Stub, not yet implemented
+    }
+}

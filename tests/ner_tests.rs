@@ -1,6 +1,6 @@
 //! NER evaluation tests
 use anno::eval::{entity_type_matches, entity_type_to_string, evaluate_ner_model, GoldEntity};
-use anno::{EntityType, Model, PatternNER};
+use anno::{EntityType, PatternNER};
 
 #[test]
 fn test_entity_type_matches() {

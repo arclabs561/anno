@@ -1,11 +1,11 @@
 [package]
 name = "anno"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.75"
 license = "MIT OR Apache-2.0"
-description = "Named entity recognition — pattern, rule-based, BERT ONNX, Candle backends"
-keywords = ["ner", "nlp", "entity", "extraction", "annotation"]
+description = "Text annotation: NER, coreference metrics, relation extraction traits"
+keywords = ["ner", "nlp", "entity", "extraction", "coreference"]
 categories = ["text-processing", "science"]
 repository = "https://github.com/arclabs561/anno"
 readme = "README.md"
@@ -20,6 +20,10 @@ chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 once_cell = "1"
 
+# Networking (optional)
+ureq = { version = "2", optional = true }
+dirs = { version = "5", optional = true }
+
 # ML backends (optional)
 ort = { version = "2.0.0-rc.10", optional = true }
 tokenizers = { version = "0.22", optional = true }
@@ -28,6 +32,7 @@ ndarray = { version = "0.16", optional = true }
 candle-core = { version = "0.9", optional = true }
 candle-nn = { version = "0.9", optional = true }
 candle-transformers = { version = "0.9", optional = true }
+# gliner = { version = "0.1", optional = true } # Not yet published to crates.io
 
 [dev-dependencies]
 criterion = "0.5"
@@ -36,8 +41,14 @@ tempfile = "3"
 
 [features]
 default = []
+network = ["dep:ureq", "dep:dirs"]
 onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub", "dep:ndarray"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
+# GPU acceleration for Candle (opt-in)
+metal = ["candle", "candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
+cuda = ["candle", "candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+# gliner = ["dep:gliner", "dep:hf-hub"] # Not yet published
+full = ["onnx", "candle", "network"]
 
 [[bench]]
 name = "ner"

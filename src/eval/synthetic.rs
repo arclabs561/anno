@@ -1,12 +1,29 @@
 //! Synthetic NER Test Datasets
 #![allow(missing_docs)] // Internal evaluation types
 //!
-//! Comprehensive annotated datasets covering multiple domains:
-//! - News (CoNLL-2003 style)
-//! - Social Media (WNUT style)
-//! - Biomedical, Financial, Legal, Scientific
-//! - Multilingual/Unicode
-//! - Adversarial edge cases
+//! # Research Context
+//!
+//! Synthetic data has known limitations (arXiv:2505.16814 "Does Synthetic Data Help NER"):
+//!
+//! | Issue | Mitigation |
+//! |-------|------------|
+//! | Entity type skew | Stratified sampling |
+//! | Clean annotations | Add noise injection |
+//! | Domain gap | Mix with real data |
+//! | Label shift | Track via `LabelShift` |
+//!
+//! # What This Dataset IS Good For
+//!
+//! - **Unit testing**: Does the code work at all?
+//! - **Pattern coverage**: Are regex patterns correct?
+//! - **Edge cases**: Unicode, boundaries, special chars
+//! - **Fast iteration**: Runs in <1s, no network
+//!
+//! # What This Dataset IS NOT Good For
+//!
+//! - **Zero-shot claims**: Label overlap with training ≈ 100%
+//! - **Real-world performance**: Synthetic ≠ domain-specific noise
+//! - **Model comparison**: Needs WikiGold/CoNLL/WNUT for fair eval
 //!
 //! # Usage
 //!
@@ -88,6 +105,51 @@ pub enum Difficulty {
 
 fn entity(text: &str, entity_type: EntityType, start: usize) -> GoldEntity {
     GoldEntity::new(text, entity_type, start)
+}
+
+// Biomedical entity type helpers
+fn disease(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(
+        text,
+        EntityType::Custom {
+            name: "DISEASE".to_string(),
+            category: crate::EntityCategory::Misc, // Biomedical entities
+        },
+        start,
+    )
+}
+
+fn drug(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(
+        text,
+        EntityType::Custom {
+            name: "DRUG".to_string(),
+            category: crate::EntityCategory::Misc, // Biomedical entities
+        },
+        start,
+    )
+}
+
+fn gene(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(
+        text,
+        EntityType::Custom {
+            name: "GENE".to_string(),
+            category: crate::EntityCategory::Misc, // Biomedical entities
+        },
+        start,
+    )
+}
+
+fn chemical(text: &str, start: usize) -> GoldEntity {
+    GoldEntity::new(
+        text,
+        EntityType::Custom {
+            name: "CHEMICAL".to_string(),
+            category: crate::EntityCategory::Misc, // Biomedical entities
+        },
+        start,
+    )
 }
 
 // ============================================================================
@@ -198,6 +260,7 @@ pub fn social_media_dataset() -> Vec<AnnotatedExample> {
 /// Biomedical/healthcare domain dataset
 pub fn biomedical_dataset() -> Vec<AnnotatedExample> {
     vec![
+        // Easy: Organizations
         AnnotatedExample {
             text: "Pfizer's COVID-19 vaccine Comirnaty received FDA approval for boosters.".into(),
             entities: vec![
@@ -221,6 +284,87 @@ pub fn biomedical_dataset() -> Vec<AnnotatedExample> {
             ],
             domain: Domain::Biomedical,
             difficulty: Difficulty::Medium,
+        },
+        // Medium: Diseases
+        AnnotatedExample {
+            text: "The patient was diagnosed with Type 2 diabetes mellitus and hypertension.".into(),
+            entities: vec![
+                disease("Type 2 diabetes mellitus", 31),
+                disease("hypertension", 60),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Metformin is the first-line treatment for diabetes. Lisinopril helps control blood pressure.".into(),
+            entities: vec![
+                drug("Metformin", 0),
+                disease("diabetes", 42),
+                drug("Lisinopril", 52),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Medium,
+        },
+        // Hard: Genes and chemicals
+        AnnotatedExample {
+            text: "Mutations in BRCA1 and BRCA2 genes increase breast cancer risk significantly.".into(),
+            entities: vec![
+                gene("BRCA1", 13),
+                gene("BRCA2", 23),
+                disease("breast cancer", 44),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "The p53 tumor suppressor gene regulates cell cycle and apoptosis.".into(),
+            entities: vec![
+                gene("p53", 4),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Acetylsalicylic acid (aspirin) inhibits COX-1 and COX-2 enzymes.".into(),
+            entities: vec![
+                chemical("Acetylsalicylic acid", 0),
+                drug("aspirin", 22),
+                gene("COX-1", 40),
+                gene("COX-2", 50),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Hard,
+        },
+        // Adversarial: Complex medical terminology
+        AnnotatedExample {
+            text: "The TP53-mutated non-small cell lung carcinoma showed response to pembrolizumab immunotherapy.".into(),
+            entities: vec![
+                gene("TP53", 4),
+                disease("non-small cell lung carcinoma", 17),
+                drug("pembrolizumab", 66),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Adversarial,
+        },
+        AnnotatedExample {
+            text: "Rheumatoid arthritis patients receiving tocilizumab showed decreased IL-6 levels.".into(),
+            entities: vec![
+                disease("Rheumatoid arthritis", 0),
+                drug("tocilizumab", 40),
+                chemical("IL-6", 69),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Adversarial,
+        },
+        AnnotatedExample {
+            text: "EGFR T790M mutation confers resistance to first-generation EGFR-TKIs like gefitinib.".into(),
+            entities: vec![
+                gene("EGFR", 0),
+                gene("EGFR-TKIs", 59),
+                drug("gefitinib", 74),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Adversarial,
         },
     ]
 }
@@ -1102,6 +1246,256 @@ pub fn conversational_dataset() -> Vec<AnnotatedExample> {
 }
 
 // ============================================================================
+// Extended High-Quality Dataset
+// ============================================================================
+
+/// Extended dataset with high-quality annotations for comprehensive testing.
+///
+/// Focuses on:
+/// - Unicode/multilingual text
+/// - Complex structured entities
+/// - Nested and overlapping entity contexts
+/// - Edge cases for evaluation
+pub fn extended_quality_dataset() -> Vec<AnnotatedExample> {
+    vec![
+        // === Unicode/Multilingual ===
+        AnnotatedExample {
+            text: "François Hollande met Angela Merkel in Paris on 15 janvier 2024.".into(),
+            entities: vec![
+                entity("François Hollande", EntityType::Person, 0),
+                entity("Angela Merkel", EntityType::Person, 22),
+                entity("Paris", EntityType::Location, 39),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "株式会社トヨタ announced ¥500億 investment in 東京.".into(),
+            entities: vec![
+                entity("株式会社トヨタ", EntityType::Organization, 0),
+                entity("¥500億", EntityType::Money, 18),
+                entity("東京", EntityType::Location, 38),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Россия и Китай подписали соглашение в Москве.".into(),
+            entities: vec![
+                entity("Россия", EntityType::Location, 0),
+                entity("Китай", EntityType::Location, 9),
+                entity("Москве", EntityType::Location, 38),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Hard,
+        },
+        
+        // === Complex Structured Entities ===
+        AnnotatedExample {
+            text: "Invoice #2024-001: $15,432.50 due by March 31, 2024.".into(),
+            entities: vec![
+                entity("$15,432.50", EntityType::Money, 19),
+                entity("March 31, 2024", EntityType::Date, 37),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Contact support@acme-corp.io or call +1 (555) 123-4567.".into(),
+            entities: vec![
+                entity("support@acme-corp.io", EntityType::Email, 8),
+                entity("+1 (555) 123-4567", EntityType::Phone, 37),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Meeting at 2:30 PM EST on 2024-01-15 at 123 Main St, Suite 400.".into(),
+            entities: vec![
+                entity("2:30 PM", EntityType::Time, 11),
+                entity("2024-01-15", EntityType::Date, 26),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Price: €1.299,99 (incl. 19% VAT) - Delivery by 15/03/2024.".into(),
+            entities: vec![
+                entity("€1.299,99", EntityType::Money, 7),
+                entity("19%", EntityType::Percent, 24),
+                entity("15/03/2024", EntityType::Date, 47),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Nested Entity Contexts ===
+        AnnotatedExample {
+            text: "The Bank of America CEO spoke at the University of California, Berkeley.".into(),
+            entities: vec![
+                entity("Bank of America", EntityType::Organization, 4),
+                entity("University of California, Berkeley", EntityType::Organization, 37),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Dr. Sarah Johnson, MD, PhD, from Johns Hopkins Hospital in Baltimore.".into(),
+            entities: vec![
+                entity("Dr. Sarah Johnson", EntityType::Person, 0),
+                entity("Johns Hopkins Hospital", EntityType::Organization, 33),
+                entity("Baltimore", EntityType::Location, 59),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Hard,
+        },
+        
+        // === Tricky Entity Boundaries ===
+        AnnotatedExample {
+            text: "Apple's $3B acquisition vs. Google's $2.1B offer for DeepMind.".into(),
+            entities: vec![
+                entity("Apple", EntityType::Organization, 0),
+                entity("$3B", EntityType::Money, 8),
+                entity("Google", EntityType::Organization, 28),
+                entity("$2.1B", EntityType::Money, 37),
+                entity("DeepMind", EntityType::Organization, 53),
+            ],
+            domain: Domain::Financial,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "From NYC to LA: 2,451 miles, ~$500 by flight, arriving Jan. 15th.".into(),
+            entities: vec![
+                entity("NYC", EntityType::Location, 5),
+                entity("LA", EntityType::Location, 12),
+                entity("$500", EntityType::Money, 30),
+                entity("Jan. 15th", EntityType::Date, 55),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Possessives and Contractions ===
+        AnnotatedExample {
+            text: "Microsoft's Satya Nadella and Amazon's Andy Jassy discussed AI.".into(),
+            entities: vec![
+                entity("Microsoft", EntityType::Organization, 0),
+                entity("Satya Nadella", EntityType::Person, 12),
+                entity("Amazon", EntityType::Organization, 30),
+                entity("Andy Jassy", EntityType::Person, 39),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Abbreviations and Acronyms ===
+        AnnotatedExample {
+            text: "The EU and US signed a $50M agreement with NATO in Brussels.".into(),
+            entities: vec![
+                entity("EU", EntityType::Organization, 4),
+                entity("US", EntityType::Location, 11),
+                entity("$50M", EntityType::Money, 23),
+                entity("NATO", EntityType::Organization, 43),
+                entity("Brussels", EntityType::Location, 51),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Edge Cases ===
+        AnnotatedExample {
+            text: "  Whitespace   around   entities   like   Apple   matters.  ".into(),
+            entities: vec![
+                entity("Apple", EntityType::Organization, 42),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Adversarial,
+        },
+        AnnotatedExample {
+            text: "ALL CAPS: MICROSOFT ANNOUNCED $100M FOR SEATTLE EXPANSION.".into(),
+            entities: vec![
+                entity("MICROSOFT", EntityType::Organization, 10),
+                entity("$100M", EntityType::Money, 30),
+                entity("SEATTLE", EntityType::Location, 40),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        AnnotatedExample {
+            text: "lowercase: apple ceo tim cook visited new york city last january.".into(),
+            entities: vec![
+                // Note: All lowercase - difficult case, annotators differ
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        
+        // === Multiple Same-Type Entities ===
+        AnnotatedExample {
+            text: "Meeting with John, Mary, Bob, and Alice at 3pm to discuss the $1M budget.".into(),
+            entities: vec![
+                entity("John", EntityType::Person, 13),
+                entity("Mary", EntityType::Person, 19),
+                entity("Bob", EntityType::Person, 25),
+                entity("Alice", EntityType::Person, 34),
+                entity("3pm", EntityType::Time, 43),
+                entity("$1M", EntityType::Money, 62),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Long Entity Spans ===
+        AnnotatedExample {
+            text: "The Massachusetts Institute of Technology and Carnegie Mellon University collaborated.".into(),
+            entities: vec![
+                entity("Massachusetts Institute of Technology", EntityType::Organization, 4),
+                entity("Carnegie Mellon University", EntityType::Organization, 46),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Numbers in Context ===
+        AnnotatedExample {
+            text: "Version 3.14.159 costs $99.99 (50% off from $199.99) until Dec 31.".into(),
+            entities: vec![
+                entity("$99.99", EntityType::Money, 23),
+                entity("50%", EntityType::Percent, 31),
+                entity("$199.99", EntityType::Money, 44),
+                entity("Dec 31", EntityType::Date, 59),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Quotes and Attribution ===
+        AnnotatedExample {
+            text: "\"We're excited,\" said Elon Musk from Tesla's Austin headquarters.".into(),
+            entities: vec![
+                entity("Elon Musk", EntityType::Person, 22),
+                entity("Tesla", EntityType::Organization, 37),
+                entity("Austin", EntityType::Location, 45),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        
+        // === Medical/Technical ===
+        AnnotatedExample {
+            text: "Patient received 500mg aspirin at 08:30 on 2024-01-15 at Mayo Clinic.".into(),
+            entities: vec![
+                entity("08:30", EntityType::Time, 34),
+                entity("2024-01-15", EntityType::Date, 43),
+                entity("Mayo Clinic", EntityType::Organization, 57),
+            ],
+            domain: Domain::Biomedical,
+            difficulty: Difficulty::Medium,
+        },
+    ]
+}
+
+// ============================================================================
 // Aggregate Functions
 // ============================================================================
 
@@ -1128,6 +1522,7 @@ pub fn all_datasets() -> Vec<AnnotatedExample> {
     all.extend(food_dataset());
     all.extend(real_estate_dataset());
     all.extend(conversational_dataset());
+    all.extend(extended_quality_dataset());
     all
 }
 
@@ -1226,14 +1621,46 @@ mod tests {
     #[test]
     fn test_entity_offsets_valid() {
         for example in all_datasets() {
+            let text_chars: Vec<char> = example.text.chars().collect();
+            
             for entity in &example.entities {
+                // Check bounds
                 assert!(
-                    entity.end <= example.text.len(),
-                    "Entity '{}' end {} exceeds text length {} in: {}",
+                    entity.end <= text_chars.len(),
+                    "Entity '{}' end {} exceeds char count {} in: {}",
                     entity.text,
                     entity.end,
-                    example.text.len(),
+                    text_chars.len(),
                     example.text
+                );
+                
+                // Extract actual text at offset and compare
+                let actual_text: String = text_chars[entity.start..entity.end].iter().collect();
+                assert_eq!(
+                    actual_text, entity.text,
+                    "Entity text mismatch at [{}, {}): expected '{}', found '{}' in: {}",
+                    entity.start, entity.end, entity.text, actual_text, example.text
+                );
+            }
+        }
+    }
+    
+    #[test]
+    fn test_no_overlapping_entities() {
+        for example in all_datasets() {
+            let mut spans: Vec<(usize, usize, &str)> = example.entities
+                .iter()
+                .map(|e| (e.start, e.end, e.text.as_str()))
+                .collect();
+            spans.sort_by_key(|(start, _, _)| *start);
+            
+            for window in spans.windows(2) {
+                let (_, end1, text1) = window[0];
+                let (start2, _, text2) = window[1];
+                assert!(
+                    end1 <= start2,
+                    "Overlapping entities '{}' [{}, {}) and '{}' [{}, {}) in: {}",
+                    text1, window[0].0, end1, text2, start2, window[1].1, example.text
                 );
             }
         }

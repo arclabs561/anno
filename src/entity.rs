@@ -341,32 +341,347 @@ impl std::str::FromStr for EntityType {
     }
 }
 
+// =============================================================================
+// Type Mapping for Domain-Specific Datasets
+// =============================================================================
+
+/// Maps domain-specific entity types to standard NER types.
+///
+/// # Research Context (Familiarity paper, arXiv:2412.10121)
+///
+/// Type mapping creates "label overlap" between training and evaluation:
+/// - Mapping ACTOR → Person increases overlap
+/// - This can inflate zero-shot F1 scores
+///
+/// Use `LabelShift::from_type_sets()` to quantify how much overlap exists.
+/// High overlap (>80%) means the evaluation is NOT truly zero-shot.
+///
+/// # When to Use TypeMapper
+///
+/// - Cross-dataset comparison (normalize schemas for fair eval)
+/// - Domain adaptation (map new labels to known types)
+///
+/// # When NOT to Use TypeMapper
+///
+/// - True zero-shot evaluation (keep labels distinct)
+/// - Measuring generalization (overlap hides generalization failures)
+///
+/// # Example
+///
+/// ```rust
+/// use anno::{TypeMapper, EntityType, EntityCategory};
+///
+/// // MIT Movie dataset mapping
+/// let mut mapper = TypeMapper::new();
+/// mapper.add("ACTOR", EntityType::Person);
+/// mapper.add("DIRECTOR", EntityType::Person);
+/// mapper.add("TITLE", EntityType::custom("WORK_OF_ART", EntityCategory::Creative));
+///
+/// assert_eq!(mapper.map("ACTOR"), Some(&EntityType::Person));
+/// assert_eq!(mapper.normalize("DIRECTOR"), EntityType::Person);
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct TypeMapper {
+    mappings: std::collections::HashMap<String, EntityType>,
+}
+
+impl TypeMapper {
+    /// Create empty mapper.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create mapper for MIT Movie dataset.
+    #[must_use]
+    pub fn mit_movie() -> Self {
+        let mut mapper = Self::new();
+        // Map to standard types where possible
+        mapper.add("ACTOR", EntityType::Person);
+        mapper.add("DIRECTOR", EntityType::Person);
+        mapper.add("CHARACTER", EntityType::Person);
+        mapper.add("TITLE", EntityType::custom("WORK_OF_ART", EntityCategory::Creative));
+        mapper.add("GENRE", EntityType::custom("GENRE", EntityCategory::Misc));
+        mapper.add("YEAR", EntityType::Date);
+        mapper.add("RATING", EntityType::custom("RATING", EntityCategory::Misc));
+        mapper.add("PLOT", EntityType::custom("PLOT", EntityCategory::Misc));
+        mapper
+    }
+
+    /// Create mapper for MIT Restaurant dataset.
+    #[must_use]
+    pub fn mit_restaurant() -> Self {
+        let mut mapper = Self::new();
+        mapper.add("RESTAURANT_NAME", EntityType::Organization);
+        mapper.add("LOCATION", EntityType::Location);
+        mapper.add("CUISINE", EntityType::custom("CUISINE", EntityCategory::Misc));
+        mapper.add("DISH", EntityType::custom("DISH", EntityCategory::Misc));
+        mapper.add("PRICE", EntityType::Money);
+        mapper.add("AMENITY", EntityType::custom("AMENITY", EntityCategory::Misc));
+        mapper.add("HOURS", EntityType::Time);
+        mapper
+    }
+
+    /// Create mapper for biomedical datasets (BC5CDR, NCBI).
+    #[must_use]
+    pub fn biomedical() -> Self {
+        let mut mapper = Self::new();
+        mapper.add("DISEASE", EntityType::custom("DISEASE", EntityCategory::Agent));
+        mapper.add("CHEMICAL", EntityType::custom("CHEMICAL", EntityCategory::Misc));
+        mapper.add("DRUG", EntityType::custom("DRUG", EntityCategory::Misc));
+        mapper.add("GENE", EntityType::custom("GENE", EntityCategory::Misc));
+        mapper.add("PROTEIN", EntityType::custom("PROTEIN", EntityCategory::Misc));
+        mapper
+    }
+
+    /// Add a mapping from source label to target type.
+    pub fn add(&mut self, source: impl Into<String>, target: EntityType) {
+        self.mappings.insert(source.into().to_uppercase(), target);
+    }
+
+    /// Get mapped type for a label (returns None if not mapped).
+    #[must_use]
+    pub fn map(&self, label: &str) -> Option<&EntityType> {
+        self.mappings.get(&label.to_uppercase())
+    }
+
+    /// Normalize a label to EntityType, using mapping if available.
+    ///
+    /// Falls back to `EntityType::from_label()` if no mapping exists.
+    #[must_use]
+    pub fn normalize(&self, label: &str) -> EntityType {
+        self.map(label)
+            .cloned()
+            .unwrap_or_else(|| EntityType::from_label(label))
+    }
+
+    /// Check if a label is mapped.
+    #[must_use]
+    pub fn contains(&self, label: &str) -> bool {
+        self.mappings.contains_key(&label.to_uppercase())
+    }
+
+    /// Get all source labels.
+    pub fn labels(&self) -> impl Iterator<Item = &String> {
+        self.mappings.keys()
+    }
+}
+
 /// Extraction method used to identify an entity.
+///
+/// # Research Context
+///
+/// Different extraction methods have different strengths:
+///
+/// | Method | Precision | Recall | Generalization | Use Case |
+/// |--------|-----------|--------|----------------|----------|
+/// | Pattern | Very High | Low | N/A (format-based) | Dates, emails, money |
+/// | Neural | High | High | Good | General NER |
+/// | Lexicon | Very High | Low | None | Closed-domain entities |
+/// | SoftLexicon | Medium | High | Good for rare types | Low-resource NER |
+/// | GatedEnsemble | Highest | Highest | Contextual | Short texts, domain shift |
+///
+/// See `docs/LEXICON_DESIGN.md` for detailed research context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[non_exhaustive]
 pub enum ExtractionMethod {
-    /// Regex pattern matching (high precision for structured data)
+    /// Regex pattern matching (high precision for structured data like dates, money).
+    /// Does not generalize - only detects format-based entities.
     Pattern,
-    /// Machine learning model inference
+
+    /// Neural model inference (BERT, GLiNER, etc.).
+    /// The recommended default for general NER. Generalizes to unseen entities.
     #[default]
-    ML,
-    /// Rule-based / gazetteer lookup
-    Rule,
-    /// Hybrid: multiple methods agreed
-    Ensemble,
-    /// Unknown or unspecified
+    Neural,
+
+    /// Exact lexicon/gazetteer lookup (deprecated approach).
+    /// High precision on known entities, zero recall on novel entities.
+    /// Only use for closed domains (stock tickers, medical codes).
+    #[deprecated(since = "0.2.0", note = "Use Neural or GatedEnsemble instead")]
+    Lexicon,
+
+    /// Embedding-based soft lexicon matching.
+    /// Useful for low-resource languages and rare entity types.
+    /// See: Rijhwani et al. (2020) "Soft Gazetteers for Low-Resource NER"
+    SoftLexicon,
+
+    /// Gated ensemble: neural + lexicon with learned weighting.
+    /// Model learns when to trust lexicon vs. context.
+    /// See: Nie et al. (2021) "GEMNET: Effective Gated Gazetteer Representations"
+    GatedEnsemble,
+
+    /// Multiple methods agreed on this entity (high confidence).
+    Consensus,
+
+    /// Heuristic-based extraction (capitalization, word shape, context).
+    /// Used by statistical backends that don't use neural models.
+    Heuristic,
+
+    /// Unknown or unspecified extraction method.
     Unknown,
+
+    /// Legacy rule-based extraction (for backward compatibility).
+    #[deprecated(since = "0.2.0", note = "Use Heuristic or Pattern instead")]
+    Rule,
+
+    /// Legacy alias for Neural (for backward compatibility).
+    #[deprecated(since = "0.2.0", note = "Use Neural instead")]
+    ML,
+
+    /// Legacy alias for Consensus (for backward compatibility).
+    #[deprecated(since = "0.2.0", note = "Use Consensus instead")]
+    Ensemble,
 }
 
 impl std::fmt::Display for ExtractionMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[allow(deprecated)]
         match self {
             ExtractionMethod::Pattern => write!(f, "pattern"),
-            ExtractionMethod::ML => write!(f, "ml"),
-            ExtractionMethod::Rule => write!(f, "rule"),
-            ExtractionMethod::Ensemble => write!(f, "ensemble"),
+            ExtractionMethod::Neural => write!(f, "neural"),
+            ExtractionMethod::Lexicon => write!(f, "lexicon"),
+            ExtractionMethod::SoftLexicon => write!(f, "soft_lexicon"),
+            ExtractionMethod::GatedEnsemble => write!(f, "gated_ensemble"),
+            ExtractionMethod::Consensus => write!(f, "consensus"),
+            ExtractionMethod::Heuristic => write!(f, "heuristic"),
             ExtractionMethod::Unknown => write!(f, "unknown"),
+            ExtractionMethod::Rule => write!(f, "heuristic"), // Legacy alias
+            ExtractionMethod::ML => write!(f, "neural"),     // Legacy alias
+            ExtractionMethod::Ensemble => write!(f, "consensus"), // Legacy alias
         }
+    }
+}
+
+// =============================================================================
+// Lexicon Traits
+// =============================================================================
+
+/// Exact-match lexicon/gazetteer for entity lookup.
+///
+/// # Research Context
+///
+/// Gazetteers (lists of known entities) are a classic NER technique. Modern research
+/// shows they're most valuable when:
+///
+/// 1. **Domain is closed**: Stock tickers, medical codes, known product catalogs
+/// 2. **Text is short**: <50 tokens where context is insufficient (GEMNET +49% F1)
+/// 3. **Used as features**: Input to neural model, not final output (Song et al. 2020)
+///
+/// They're harmful when:
+/// 1. **Domain is open**: Novel entities not in the list get missed
+/// 2. **Used as authority**: Hardcoded lookups inflate test scores but fail in production
+///
+/// # When to Use
+///
+/// ```text
+/// Decision: Should I use a Lexicon?
+///
+/// Is entity type CLOSED (fixed, known list)?
+/// ├─ Yes: Lexicon is appropriate
+/// │       Examples: stock tickers, ICD-10 codes, country names
+/// └─ No:  Use Neural extraction instead
+///         Examples: person names, organization names, products
+/// ```
+///
+/// # Example
+///
+/// ```rust
+/// use anno::{Lexicon, EntityType, HashMapLexicon};
+///
+/// // Create a domain-specific lexicon
+/// let mut lexicon = HashMapLexicon::new("stock_tickers");
+/// lexicon.insert("AAPL", EntityType::Organization, 0.99);
+/// lexicon.insert("GOOGL", EntityType::Organization, 0.99);
+///
+/// // Lookup
+/// if let Some((entity_type, confidence)) = lexicon.lookup("AAPL") {
+///     assert_eq!(entity_type, EntityType::Organization);
+///     assert!(confidence > 0.9);
+/// }
+/// ```
+///
+/// # References
+///
+/// - Song et al. (2020). "Improving Neural NER with Gazetteers"
+/// - Nie et al. (2021). "GEMNET: Effective Gated Gazetteer Representations"
+/// - Rijhwani et al. (2020). "Soft Gazetteers for Low-Resource NER"
+pub trait Lexicon: Send + Sync {
+    /// Lookup an exact string, returning entity type and confidence if found.
+    ///
+    /// Returns `None` if the text is not in the lexicon.
+    fn lookup(&self, text: &str) -> Option<(EntityType, f64)>;
+
+    /// Check if the lexicon contains this exact string.
+    fn contains(&self, text: &str) -> bool {
+        self.lookup(text).is_some()
+    }
+
+    /// Get the lexicon source identifier (for provenance tracking).
+    fn source(&self) -> &str;
+
+    /// Get approximate number of entries (for debugging/metrics).
+    fn len(&self) -> usize;
+
+    /// Check if lexicon is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+/// Simple HashMap-based lexicon implementation.
+///
+/// Suitable for small to medium lexicons (<100k entries).
+/// For larger lexicons, consider a trie-based or FST implementation.
+#[derive(Debug, Clone)]
+pub struct HashMapLexicon {
+    entries: std::collections::HashMap<String, (EntityType, f64)>,
+    source: String,
+}
+
+impl HashMapLexicon {
+    /// Create a new empty lexicon with the given source identifier.
+    pub fn new(source: impl Into<String>) -> Self {
+        Self {
+            entries: std::collections::HashMap::new(),
+            source: source.into(),
+        }
+    }
+
+    /// Insert an entry into the lexicon.
+    pub fn insert(&mut self, text: impl Into<String>, entity_type: EntityType, confidence: f64) {
+        self.entries.insert(text.into(), (entity_type, confidence));
+    }
+
+    /// Create from an iterator of (text, type, confidence) tuples.
+    pub fn from_iter<I, S>(source: impl Into<String>, entries: I) -> Self
+    where
+        I: IntoIterator<Item = (S, EntityType, f64)>,
+        S: Into<String>,
+    {
+        let mut lexicon = Self::new(source);
+        for (text, entity_type, confidence) in entries {
+            lexicon.insert(text, entity_type, confidence);
+        }
+        lexicon
+    }
+
+    /// Get all entries as an iterator (for debugging).
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &EntityType, f64)> {
+        self.entries.iter().map(|(k, (t, c))| (k.as_str(), t, *c))
+    }
+}
+
+impl Lexicon for HashMapLexicon {
+    fn lookup(&self, text: &str) -> Option<(EntityType, f64)> {
+        self.entries.get(text).cloned()
+    }
+
+    fn source(&self) -> &str {
+        &self.source
+    }
+
+    fn len(&self) -> usize {
+        self.entries.len()
     }
 }
 
@@ -384,6 +699,12 @@ pub struct Provenance {
     pub pattern: Option<Cow<'static, str>>,
     /// Raw confidence from the source model (before any calibration)
     pub raw_confidence: Option<f64>,
+    /// Model version for reproducibility (e.g., "gliner-v2.1", "bert-base-uncased-2024-01")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_version: Option<Cow<'static, str>>,
+    /// Timestamp when extraction occurred (ISO 8601)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
 }
 
 impl Provenance {
@@ -395,6 +716,8 @@ impl Provenance {
             method: ExtractionMethod::Pattern,
             pattern: Some(Cow::Borrowed(pattern_name)),
             raw_confidence: Some(1.0), // Patterns are deterministic
+            model_version: None,
+            timestamp: None,
         }
     }
 
@@ -403,9 +726,11 @@ impl Provenance {
     pub fn ml(model_name: &'static str, confidence: f64) -> Self {
         Self {
             source: Cow::Borrowed(model_name),
-            method: ExtractionMethod::ML,
+            method: ExtractionMethod::Neural,
             pattern: None,
             raw_confidence: Some(confidence),
+            model_version: None,
+            timestamp: None,
         }
     }
 
@@ -414,10 +739,26 @@ impl Provenance {
     pub fn ensemble(sources: &'static str) -> Self {
         Self {
             source: Cow::Borrowed(sources),
-            method: ExtractionMethod::Ensemble,
+            method: ExtractionMethod::Consensus,
             pattern: None,
             raw_confidence: None,
+            model_version: None,
+            timestamp: None,
         }
+    }
+
+    /// Create provenance with model version for reproducibility.
+    #[must_use]
+    pub fn with_version(mut self, version: &'static str) -> Self {
+        self.model_version = Some(Cow::Borrowed(version));
+        self
+    }
+
+    /// Create provenance with timestamp.
+    #[must_use]
+    pub fn with_timestamp(mut self, timestamp: impl Into<String>) -> Self {
+        self.timestamp = Some(timestamp.into());
+        self
     }
 }
 
@@ -531,6 +872,134 @@ impl Span {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+}
+
+// ============================================================================
+// Discontinuous Spans (W2NER/ACE-style)
+// ============================================================================
+
+/// A discontinuous span representing non-contiguous entity mentions.
+///
+/// Some entities span multiple non-adjacent text regions:
+/// - "severe \[pain\] in the \[abdomen\]" → "severe abdominal pain"
+/// - "the \[president\] ... \[Obama\]" → coreference
+///
+/// This is required for:
+/// - **Medical NER**: Anatomical modifiers separated from findings
+/// - **Legal NER**: Parties referenced across clauses
+/// - **W2NER**: Word-word relation grids that detect discontinuous entities
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use anno::DiscontinuousSpan;
+///
+/// // "severe pain in the abdomen" where "severe" modifies "pain"
+/// // but they're separated by other words
+/// let span = DiscontinuousSpan::new(vec![
+///     0..6,   // "severe"
+///     12..16, // "pain"
+/// ]);
+///
+/// assert_eq!(span.num_segments(), 2);
+/// assert!(span.is_discontinuous());
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscontinuousSpan {
+    /// Non-overlapping segments, sorted by start position.
+    /// Each `Range<usize>` represents (start_byte, end_byte).
+    segments: Vec<std::ops::Range<usize>>,
+}
+
+impl DiscontinuousSpan {
+    /// Create a new discontinuous span from segments.
+    ///
+    /// Segments are sorted and validated (no overlaps).
+    #[must_use]
+    pub fn new(mut segments: Vec<std::ops::Range<usize>>) -> Self {
+        // Sort by start position
+        segments.sort_by_key(|r| r.start);
+        Self { segments }
+    }
+
+    /// Create from a single contiguous span.
+    #[must_use]
+    #[allow(clippy::single_range_in_vec_init)] // Intentional: contiguous is special case of discontinuous
+    pub fn contiguous(start: usize, end: usize) -> Self {
+        Self {
+            segments: vec![start..end],
+        }
+    }
+
+    /// Number of segments.
+    #[must_use]
+    pub fn num_segments(&self) -> usize {
+        self.segments.len()
+    }
+
+    /// True if this spans multiple non-adjacent regions.
+    #[must_use]
+    pub fn is_discontinuous(&self) -> bool {
+        self.segments.len() > 1
+    }
+
+    /// True if this is a single contiguous span.
+    #[must_use]
+    pub fn is_contiguous(&self) -> bool {
+        self.segments.len() <= 1
+    }
+
+    /// Get the segments.
+    #[must_use]
+    pub fn segments(&self) -> &[std::ops::Range<usize>] {
+        &self.segments
+    }
+
+    /// Get the overall bounding range (start of first to end of last).
+    #[must_use]
+    pub fn bounding_range(&self) -> Option<std::ops::Range<usize>> {
+        if self.segments.is_empty() {
+            return None;
+        }
+        let start = self.segments.first()?.start;
+        let end = self.segments.last()?.end;
+        Some(start..end)
+    }
+
+    /// Total character length (sum of all segments).
+    #[must_use]
+    pub fn total_len(&self) -> usize {
+        self.segments.iter().map(|r| r.end - r.start).sum()
+    }
+
+    /// Extract text from each segment and join with separator.
+    #[must_use]
+    pub fn extract_text(&self, text: &str, separator: &str) -> String {
+        self.segments
+            .iter()
+            .filter_map(|r| text.get(r.clone()))
+            .collect::<Vec<_>>()
+            .join(separator)
+    }
+
+    /// Check if a position falls within any segment.
+    #[must_use]
+    pub fn contains(&self, pos: usize) -> bool {
+        self.segments.iter().any(|r| r.contains(&pos))
+    }
+
+    /// Convert to a regular Span (uses bounding range, loses discontinuity info).
+    #[must_use]
+    pub fn to_span(&self) -> Option<Span> {
+        self.bounding_range()
+            .map(|r| Span::Text { start: r.start, end: r.end })
+    }
+}
+
+impl From<std::ops::Range<usize>> for DiscontinuousSpan {
+    fn from(range: std::ops::Range<usize>) -> Self {
+        Self::contiguous(range.start, range.end)
     }
 }
 
@@ -652,11 +1121,11 @@ impl From<f32> for HierarchicalConfidence {
 #[derive(Debug, Clone)]
 pub struct RaggedBatch {
     /// Token IDs flattened into a single contiguous array.
-    /// Shape: [total_tokens] (1D, no padding)
+    /// Shape: `[total_tokens]` (1D, no padding)
     pub token_ids: Vec<u32>,
     /// Cumulative sequence lengths.
     /// Length: batch_size + 1
-    /// Document i spans tokens [offsets[i]..offsets[i+1])
+    /// Document i spans tokens \[offsets\[i\]..offsets\[i+1\])
     pub cumulative_offsets: Vec<u32>,
     /// Maximum sequence length in this batch (for kernel bounds).
     pub max_seq_len: usize,
@@ -854,9 +1323,15 @@ pub struct Entity {
     pub text: String,
     /// Entity type classification
     pub entity_type: EntityType,
-    /// Start position (byte offset in original text)
+    /// Start position (character offset, NOT byte offset).
+    ///
+    /// For Unicode text, character offsets differ from byte offsets.
+    /// Use [`crate::offset::bytes_to_chars`] to convert if needed.
     pub start: usize,
-    /// End position (byte offset, exclusive)
+    /// End position (character offset, exclusive).
+    ///
+    /// For Unicode text, character offsets differ from byte offsets.
+    /// Use [`crate::offset::bytes_to_chars`] to convert if needed.
     pub end: usize,
     /// Confidence score (0.0-1.0, calibrated)
     pub confidence: f64,
@@ -883,6 +1358,11 @@ pub struct Entity {
     /// When set, provides bounding box location in addition to text offsets.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visual_span: Option<Span>,
+    /// Discontinuous span for non-contiguous entity mentions (W2NER support).
+    /// When set, overrides `start`/`end` for length calculations.
+    /// Example: "New York and LA \[airports\]" where "airports" modifies both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub discontinuous_span: Option<DiscontinuousSpan>,
 }
 
 impl Entity {
@@ -907,6 +1387,7 @@ impl Entity {
             canonical_id: None,
             hierarchical_confidence: None,
             visual_span: None,
+            discontinuous_span: None,
         }
     }
 
@@ -932,6 +1413,7 @@ impl Entity {
             canonical_id: None,
             hierarchical_confidence: None,
             visual_span: None,
+            discontinuous_span: None,
         }
     }
 
@@ -956,6 +1438,7 @@ impl Entity {
             canonical_id: None,
             hierarchical_confidence: Some(confidence),
             visual_span: None,
+            discontinuous_span: None,
         }
     }
 
@@ -979,6 +1462,7 @@ impl Entity {
             canonical_id: None,
             hierarchical_confidence: None,
             visual_span: Some(bbox),
+            discontinuous_span: None,
         }
     }
 
@@ -1022,6 +1506,55 @@ impl Entity {
     #[must_use]
     pub fn has_coreference(&self) -> bool {
         self.canonical_id.is_some()
+    }
+
+    /// Check if this entity has a discontinuous span.
+    ///
+    /// Discontinuous entities span non-contiguous text regions.
+    /// Example: "New York and LA airports" contains "New York airports"
+    /// as a discontinuous entity.
+    #[must_use]
+    pub fn is_discontinuous(&self) -> bool {
+        self.discontinuous_span
+            .as_ref()
+            .map(|s| s.is_discontinuous())
+            .unwrap_or(false)
+    }
+
+    /// Get the discontinuous segments if present.
+    ///
+    /// Returns `None` if this is a contiguous entity.
+    #[must_use]
+    pub fn discontinuous_segments(&self) -> Option<Vec<std::ops::Range<usize>>> {
+        self.discontinuous_span
+            .as_ref()
+            .filter(|s| s.is_discontinuous())
+            .map(|s| s.segments().to_vec())
+    }
+
+    /// Set a discontinuous span for this entity.
+    ///
+    /// This is used by W2NER and similar models that detect non-contiguous mentions.
+    pub fn set_discontinuous_span(&mut self, span: DiscontinuousSpan) {
+        // Update start/end to match the bounding range
+        if let Some(bounding) = span.bounding_range() {
+            self.start = bounding.start;
+            self.end = bounding.end;
+        }
+        self.discontinuous_span = Some(span);
+    }
+
+    /// Get the total length covered by this entity.
+    ///
+    /// For discontinuous entities, this is the sum of all segment lengths.
+    /// For contiguous entities, this is `end - start`.
+    #[must_use]
+    pub fn total_len(&self) -> usize {
+        if let Some(ref span) = self.discontinuous_span {
+            span.segments().iter().map(|r| r.end - r.start).sum()
+        } else {
+            self.end.saturating_sub(self.start)
+        }
     }
 
     /// Set the normalized form for this entity.
@@ -1149,6 +1682,40 @@ impl Entity {
         self.end.saturating_sub(self.start)
     }
 
+    /// Create a unified TextSpan with both byte and char offsets.
+    ///
+    /// This is useful when you need to work with both offset systems.
+    /// The `text` parameter must be the original source text from which
+    /// this entity was extracted.
+    ///
+    /// # Arguments
+    /// * `source_text` - The original text (needed to compute byte offsets)
+    ///
+    /// # Returns
+    /// A TextSpan with both byte and char offsets.
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    ///
+    /// let text = "Hello, 日本!";
+    /// // Entity stores CHARACTER offsets: "日本" is chars 7-9
+    /// let entity = Entity::new("日本", EntityType::Location, 7, 9, 0.95);
+    /// let span = entity.to_text_span(text);
+    ///
+    /// // Character offsets (stored in entity)
+    /// assert_eq!(span.char_start, 7);
+    /// assert_eq!(span.char_end, 9);
+    ///
+    /// // Byte offsets (computed from text)
+    /// assert_eq!(span.byte_start, 7);  // "Hello, ".len() in bytes
+    /// assert_eq!(span.byte_end, 13);   // + 6 bytes for "日本"
+    /// ```
+    pub fn to_text_span(&self, source_text: &str) -> crate::offset::TextSpan {
+        // Entity stores character offsets, compute byte offsets from text
+        crate::offset::TextSpan::from_chars(source_text, self.start, self.end)
+    }
+
     /// Set visual span for multi-modal extraction.
     pub fn set_visual_span(&mut self, span: Span) {
         self.visual_span = Some(span);
@@ -1188,6 +1755,7 @@ pub struct EntityBuilder {
     canonical_id: Option<u64>,
     hierarchical_confidence: Option<HierarchicalConfidence>,
     visual_span: Option<Span>,
+    discontinuous_span: Option<DiscontinuousSpan>,
 }
 
 impl EntityBuilder {
@@ -1206,6 +1774,7 @@ impl EntityBuilder {
             canonical_id: None,
             hierarchical_confidence: None,
             visual_span: None,
+            discontinuous_span: None,
         }
     }
 
@@ -1267,6 +1836,20 @@ impl EntityBuilder {
         self
     }
 
+    /// Set discontinuous span for non-contiguous entities.
+    ///
+    /// This automatically updates `start` and `end` to the bounding range.
+    #[must_use]
+    pub fn discontinuous_span(mut self, span: DiscontinuousSpan) -> Self {
+        // Update start/end to bounding range
+        if let Some(bounding) = span.bounding_range() {
+            self.start = bounding.start;
+            self.end = bounding.end;
+        }
+        self.discontinuous_span = Some(span);
+        self
+    }
+
     /// Build the entity.
     #[must_use]
     pub fn build(self) -> Entity {
@@ -1282,6 +1865,7 @@ impl EntityBuilder {
             canonical_id: self.canonical_id,
             hierarchical_confidence: self.hierarchical_confidence,
             visual_span: self.visual_span,
+            discontinuous_span: self.discontinuous_span,
         }
     }
 }
@@ -1861,6 +2445,71 @@ mod tests {
         let entity = Entity::new("test", EntityType::Person, 10, 20, 0.9);
         assert_eq!(entity.text_span(), (10, 20));
         assert_eq!(entity.span_len(), 10);
+    }
+
+    // ========================================================================
+    // Provenance Tests
+    // ========================================================================
+
+    #[test]
+    fn test_provenance_pattern() {
+        let prov = Provenance::pattern("EMAIL");
+        assert_eq!(prov.method, ExtractionMethod::Pattern);
+        assert_eq!(prov.pattern.as_deref(), Some("EMAIL"));
+        assert_eq!(prov.raw_confidence, Some(1.0)); // Patterns are deterministic
+    }
+
+    #[test]
+    fn test_provenance_ml() {
+        let prov = Provenance::ml("bert-ner", 0.87);
+        assert_eq!(prov.method, ExtractionMethod::Neural);
+        assert_eq!(prov.source.as_ref(), "bert-ner");
+        assert_eq!(prov.raw_confidence, Some(0.87));
+    }
+
+    #[test]
+    fn test_provenance_with_version() {
+        let prov = Provenance::ml("gliner", 0.92)
+            .with_version("v2.1.0");
+        
+        assert_eq!(prov.model_version.as_deref(), Some("v2.1.0"));
+        assert_eq!(prov.source.as_ref(), "gliner");
+    }
+
+    #[test]
+    fn test_provenance_with_timestamp() {
+        let prov = Provenance::pattern("DATE")
+            .with_timestamp("2024-01-15T10:30:00Z");
+        
+        assert_eq!(prov.timestamp.as_deref(), Some("2024-01-15T10:30:00Z"));
+    }
+
+    #[test]
+    fn test_provenance_builder_chain() {
+        let prov = Provenance::ml("modernbert-ner", 0.95)
+            .with_version("v1.0.0")
+            .with_timestamp("2024-11-27T12:00:00Z");
+        
+        assert_eq!(prov.method, ExtractionMethod::Neural);
+        assert_eq!(prov.source.as_ref(), "modernbert-ner");
+        assert_eq!(prov.raw_confidence, Some(0.95));
+        assert_eq!(prov.model_version.as_deref(), Some("v1.0.0"));
+        assert_eq!(prov.timestamp.as_deref(), Some("2024-11-27T12:00:00Z"));
+    }
+
+    #[test]
+    fn test_provenance_serialization() {
+        let prov = Provenance::ml("test", 0.9)
+            .with_version("v1.0")
+            .with_timestamp("2024-01-01");
+        
+        let json = serde_json::to_string(&prov).unwrap();
+        assert!(json.contains("model_version"));
+        assert!(json.contains("v1.0"));
+        
+        let restored: Provenance = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.model_version.as_deref(), Some("v1.0"));
+        assert_eq!(restored.timestamp.as_deref(), Some("2024-01-01"));
     }
 }
 

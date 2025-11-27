@@ -1,167 +1,258 @@
 //! Quality benchmark comparing NER backends on synthetic datasets.
 //!
-//! Run with: `cargo run --example quality_bench`
+//! Run with:
+//!   cargo run --example quality_bench                    # Zero-dep backends only
+//!   cargo run --example quality_bench --features onnx    # Include BERT ONNX
+//!
+//! Shows:
+//! - Per-backend quality metrics (F1, Precision, Recall)
+//! - Per-difficulty breakdown (Easy/Medium/Hard/Adversarial)
+//! - Per-domain breakdown (News/Financial/Technical/etc.)
+//! - Variance across domains using MetricWithVariance
 
-use anno::eval::synthetic::{all_datasets, dataset_stats, Difficulty, Domain};
-use anno::eval::{evaluate_ner_model, NEREvaluationResults};
-use anno::{HybridNER, PatternNER};
+use anno::eval::harness::{EvalConfig, EvalHarness};
+use anno::eval::synthetic::dataset_stats;
+use anno::eval::MetricWithVariance;
 use std::collections::HashMap;
-use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== NER Quality Benchmark ===\n");
 
+    // Dataset overview
     let stats = dataset_stats();
-    println!("Dataset: {} examples, {} entities", stats.total_examples, stats.total_entities);
+    println!(
+        "Dataset: {} examples, {} entities",
+        stats.total_examples, stats.total_entities
+    );
     println!("Domains: {:?}", stats.domains);
-    println!("Difficulties: {:?}", stats.difficulties);
+    println!("Difficulties: {:?}\n", stats.difficulties);
 
-    let all_examples = all_datasets();
-    
-    // Filter out empty texts
-    let test_cases: Vec<_> = all_examples
-        .iter()
-        .filter(|ex| !ex.text.is_empty())
-        .map(|ex| (ex.text.clone(), ex.entities.clone()))
-        .collect();
+    // Configure evaluation
+    let config = EvalConfig {
+        breakdown_by_difficulty: true,
+        breakdown_by_domain: true,
+        warmup: true,
+        warmup_iterations: 3,
+        ..EvalConfig::default()
+    };
 
-    println!("\nEvaluating {} test cases...\n", test_cases.len());
+    // Create harness with custom config and default backends
+    let harness = EvalHarness::with_config(config)?;
 
-    // === PatternNER ===
-    let pattern_ner = PatternNER::new();
-    let start = Instant::now();
-    let pattern_results = evaluate_ner_model(&pattern_ner, &test_cases)?;
-    let pattern_time = start.elapsed();
-    
-    print_results("PatternNER", &pattern_results, pattern_time);
-    print_per_type_metrics(&pattern_results);
+    // Print registered backends
+    println!("Backends: {}", harness.backend_count());
+    for (name, desc, _) in harness.registry().iter() {
+        println!("  - {}: {}", name, desc);
+    }
+    println!();
 
-    // === HybridNER (pattern only) ===
-    let hybrid_ner = HybridNER::pattern_only();
-    let start = Instant::now();
-    let hybrid_results = evaluate_ner_model(&hybrid_ner, &test_cases)?;
-    let hybrid_time = start.elapsed();
-    
-    print_results("HybridNER (pattern-only)", &hybrid_results, hybrid_time);
+    // Run evaluation
+    println!("Evaluating on synthetic data...\n");
+    let results = harness.run_synthetic()?;
 
-    // === Breakdown by difficulty ===
-    println!("\n=== Results by Difficulty ===");
-    for difficulty in [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard, Difficulty::Adversarial] {
-        let subset: Vec<_> = all_examples
-            .iter()
-            .filter(|ex| ex.difficulty == difficulty && !ex.text.is_empty())
-            .map(|ex| (ex.text.clone(), ex.entities.clone()))
-            .collect();
-        
-        if subset.is_empty() {
-            continue;
+    // === Overall Results ===
+    println!("=== Overall Results ===\n");
+    println!(
+        "{:<16} {:>8} {:>10} {:>8} {:>10} {:>12}",
+        "Backend", "F1", "Precision", "Recall", "Found/Exp", "Time"
+    );
+    println!("{}", "-".repeat(70));
+
+    for backend in &results.backends {
+        println!(
+            "{:<16} {:>7.1}% {:>9.1}% {:>7.1}% {:>5}/{:<5} {:>10.1}ms",
+            backend.backend_name,
+            backend.f1.mean * 100.0,
+            backend.precision.mean * 100.0,
+            backend.recall.mean * 100.0,
+            backend.total_found,
+            backend.total_expected,
+            backend.total_duration_ms
+        );
+    }
+
+    // === Per-type metrics for best backend ===
+    // Find StackedNER and show per-type breakdown from its per_dataset results
+    if let Some(stacked) = results.backends.iter().find(|b| b.backend_name == "StackedNER") {
+        if let Some(dataset_result) = stacked.per_dataset.first() {
+            println!("\n=== Per-Type Metrics (StackedNER) ===\n");
+            print_per_type_metrics(&dataset_result.per_type);
         }
-        
-        if let Ok(results) = evaluate_ner_model(&pattern_ner, &subset) {
+    }
+
+    // === Breakdown by difficulty with variance ===
+    if let Some(by_difficulty) = &results.by_difficulty {
+        println!("\n=== Results by Difficulty ===\n");
+
+        // Pick StackedNER for detailed analysis
+        let mut difficulty_f1s: Vec<f64> = Vec::new();
+
+        println!(
+            "{:<14} {:>8} {:>10} {:>8} {:>8}",
+            "Difficulty", "F1", "Precision", "Recall", "Count"
+        );
+        println!("{}", "-".repeat(52));
+
+        for difficulty in &["Easy", "Medium", "Hard", "Adversarial"] {
+            if let Some(results_list) = by_difficulty.get(*difficulty) {
+                // Find StackedNER result
+                if let Some(result) = results_list.iter().find(|r| r.backend_name == "StackedNER") {
+                    println!(
+                        "{:<14} {:>7.1}% {:>9.1}% {:>7.1}% {:>8}",
+                        difficulty,
+                        result.f1 * 100.0,
+                        result.precision * 100.0,
+                        result.recall * 100.0,
+                        result.num_examples
+                    );
+                    difficulty_f1s.push(result.f1);
+                }
+            }
+        }
+
+        // Show variance across difficulties
+        if !difficulty_f1s.is_empty() {
+            let diff_variance = MetricWithVariance::from_samples(&difficulty_f1s);
+            println!("\nVariance across difficulties: {}", diff_variance);
             println!(
-                "{:12} F1={:5.1}% P={:5.1}% R={:5.1}% (n={})",
-                format!("{:?}", difficulty),
-                results.f1 * 100.0,
-                results.precision * 100.0,
-                results.recall * 100.0,
-                subset.len()
+                "  Range: {:.1}% - {:.1}%",
+                diff_variance.min * 100.0,
+                diff_variance.max * 100.0
             );
         }
     }
 
-    // === Breakdown by domain ===
-    println!("\n=== Results by Domain ===");
-    let domains = [
-        Domain::News, Domain::Financial, Domain::Technical, Domain::Sports,
-        Domain::Entertainment, Domain::Politics, Domain::Ecommerce, Domain::Travel,
-        Domain::Weather, Domain::Academic, Domain::Historical, Domain::Food,
-        Domain::RealEstate, Domain::Conversational, Domain::SocialMedia,
-        Domain::Biomedical, Domain::Legal, Domain::Scientific,
-    ];
-    
-    for domain in domains {
-        let subset: Vec<_> = all_examples
+    // === Breakdown by domain with variance ===
+    if let Some(by_domain) = &results.by_domain {
+        println!("\n=== Results by Domain (StackedNER) ===\n");
+
+        let mut domain_f1s: Vec<f64> = Vec::new();
+
+        println!(
+            "{:<16} {:>8} {:>10} {:>8} {:>8}",
+            "Domain", "F1", "Precision", "Recall", "Count"
+        );
+        println!("{}", "-".repeat(54));
+
+        // Sort domains by F1 score for readability
+        let mut domain_results: Vec<_> = by_domain
             .iter()
-            .filter(|ex| ex.domain == domain && !ex.text.is_empty())
-            .map(|ex| (ex.text.clone(), ex.entities.clone()))
+            .filter_map(|(domain, results_list)| {
+                results_list
+                    .iter()
+                    .find(|r| r.backend_name == "StackedNER")
+                    .map(|r| (domain, r))
+            })
             .collect();
-        
-        if subset.is_empty() {
-            continue;
-        }
-        
-        if let Ok(results) = evaluate_ner_model(&pattern_ner, &subset) {
+        domain_results.sort_by(|a, b| b.1.f1.partial_cmp(&a.1.f1).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (domain, result) in &domain_results {
             println!(
-                "{:14} F1={:5.1}% P={:5.1}% R={:5.1}% (n={})",
-                format!("{:?}", domain),
-                results.f1 * 100.0,
-                results.precision * 100.0,
-                results.recall * 100.0,
-                subset.len()
+                "{:<16} {:>7.1}% {:>9.1}% {:>7.1}% {:>8}",
+                domain,
+                result.f1 * 100.0,
+                result.precision * 100.0,
+                result.recall * 100.0,
+                result.num_examples
+            );
+            domain_f1s.push(result.f1);
+        }
+
+        // Show variance across domains
+        if !domain_f1s.is_empty() {
+            let domain_variance = MetricWithVariance::from_samples(&domain_f1s);
+            println!("\nVariance across domains: {}", domain_variance);
+            println!(
+                "  Range: {:.1}% - {:.1}%",
+                domain_variance.min * 100.0,
+                domain_variance.max * 100.0
+            );
+            println!(
+                "  CV (coefficient of variation): {:.1}%",
+                domain_variance.coefficient_of_variation() * 100.0
             );
         }
     }
 
-    // === Entity type coverage ===
-    println!("\n=== Entity Type Distribution in Dataset ===");
-    let mut type_counts: HashMap<String, usize> = HashMap::new();
-    for ex in &all_examples {
-        for entity in &ex.entities {
-            let type_name = format!("{:?}", entity.entity_type);
-            *type_counts.entry(type_name).or_insert(0) += 1;
-        }
-    }
-    let mut sorted_types: Vec<_> = type_counts.into_iter().collect();
-    sorted_types.sort_by(|a, b| b.1.cmp(&a.1));
+    // === Entity type distribution ===
+    println!("\n=== Entity Type Distribution in Dataset ===\n");
+    println!("{:<20} {:>8} {:>10}", "Type", "Count", "Percent");
+    println!("{}", "-".repeat(40));
+
+    let mut sorted_types: Vec<_> = results.dataset_stats.entity_type_distribution.iter().collect();
+    sorted_types.sort_by(|a, b| b.1.cmp(a.1));
+
+    let total: usize = sorted_types.iter().map(|(_, c)| **c).sum();
     for (type_name, count) in sorted_types {
-        println!("  {:<20} {}", type_name, count);
+        println!(
+            "{:<20} {:>8} {:>9.1}%",
+            type_name,
+            count,
+            (*count as f64 / total as f64) * 100.0
+        );
     }
 
     // === Summary ===
-    println!("\n=== Summary ===");
-    println!("PatternNER excels at structured entities (DATE, MONEY, PERCENT, EMAIL, URL, PHONE)");
-    println!("For PER/ORG/LOC, enable ONNX/Candle backends with: --features onnx");
-    println!("\nTo run with ML backend:");
-    println!("  cargo run --example quality_bench --features onnx");
+    println!("\n=== Summary ===\n");
+
+    // Find best backend
+    if let Some(best) = results.backends.iter().max_by(|a, b| {
+        a.f1.mean.partial_cmp(&b.f1.mean).unwrap_or(std::cmp::Ordering::Equal)
+    }) {
+        println!("Best backend: {} (F1: {:.1}%)", best.backend_name, best.f1.mean * 100.0);
+    }
+
+    println!("\nKey observations:");
+    println!("  - PatternNER: High precision on DATE/MONEY/PERCENT/EMAIL/URL/PHONE");
+    println!("  - StatisticalNER: Baseline for PER/ORG/LOC (heuristic-based)");
+    println!("  - StackedNER: Best zero-dependency option");
+
+    #[cfg(not(feature = "onnx"))]
+    {
+        println!("\nTo test ML backends with higher accuracy:");
+        println!("  cargo run --example quality_bench --features onnx");
+    }
+
+    #[cfg(feature = "onnx")]
+    {
+        println!("\nML backend (BertNEROnnx) provides significant improvement on named entities.");
+    }
+
+    // Optionally save HTML report
+    if std::env::var("SAVE_HTML").is_ok() {
+        let html = results.to_html();
+        std::fs::write("eval_results.html", &html)?;
+        println!("\nHTML report saved to eval_results.html");
+    }
 
     Ok(())
 }
 
-fn print_results(name: &str, results: &NEREvaluationResults, elapsed: std::time::Duration) {
-    println!("=== {} ===", name);
-    println!(
-        "  F1: {:5.1}%  Precision: {:5.1}%  Recall: {:5.1}%",
-        results.f1 * 100.0,
-        results.precision * 100.0,
-        results.recall * 100.0
-    );
-    println!(
-        "  Found: {} / Expected: {}  ({:.0} tok/sec, {:.2}ms total)",
-        results.found,
-        results.expected,
-        results.tokens_per_second,
-        elapsed.as_secs_f64() * 1000.0
-    );
-}
+fn print_per_type_metrics(per_type: &HashMap<String, anno::eval::TypeMetrics>) {
+    let mut sorted_types: Vec<_> = per_type.iter().collect();
+    sorted_types.sort_by(|a, b| b.1.f1.partial_cmp(&a.1.f1).unwrap_or(std::cmp::Ordering::Equal));
 
-fn print_per_type_metrics(results: &NEREvaluationResults) {
-    println!("\n  Per-Type Metrics:");
-    let mut sorted_types: Vec<_> = results.per_type.iter().collect();
-    sorted_types.sort_by_key(|(name, _)| *name);
-    
+    println!(
+        "{:<3} {:<14} {:>8} {:>10} {:>8} {:>12}",
+        "", "Type", "F1", "Precision", "Recall", "Correct/Exp"
+    );
+    println!("{}", "-".repeat(60));
+
     for (entity_type, metrics) in sorted_types {
         let status = if metrics.f1 > 0.9 {
-            "+"  // Good
-        } else if metrics.f1 > 0.5 {
-            "~"  // Moderate
+            "[+]" // Excellent
+        } else if metrics.f1 > 0.7 {
+            "[~]" // Good
+        } else if metrics.f1 > 0.3 {
+            "[?]" // Moderate
         } else if metrics.expected > 0 {
-            "-"  // Poor
+            "[-]" // Poor
         } else {
-            " "  // N/A
+            "   " // N/A
         };
-        
+
         println!(
-            "  {} {:<12} F1={:5.1}% P={:5.1}% R={:5.1}% ({}/{})",
+            "{:<3} {:<14} {:>7.1}% {:>9.1}% {:>7.1}% {:>6}/{:<5}",
             status,
             entity_type,
             metrics.f1 * 100.0,

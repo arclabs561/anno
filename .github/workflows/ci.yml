@@ -2,23 +2,39 @@ name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [main, master]
   pull_request:
-    branches: [master]
+    branches: [main, master]
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  test:
+  # ==========================================================================
+  # Quick checks (fast feedback)
+  # ==========================================================================
+  check:
+    name: Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
+      - run: cargo check --all-targets
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
 
   clippy:
+    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,18 +42,56 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-features -- -D warnings
+      - run: cargo clippy --all-targets -- -D warnings
 
-  fmt:
-    runs-on: ubuntu-latest
+  # ==========================================================================
+  # Tests across platforms
+  # ==========================================================================
+  test:
+    name: Test (${{ matrix.os }}, ${{ matrix.features }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        features: [default, network]
+        include:
+          # Also test full features on Linux only (slow)
+          - os: ubuntu-latest
+            features: full
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          components: rustfmt
-      - run: cargo fmt --check
+          key: ${{ matrix.os }}-${{ matrix.features }}
+      
+      - name: Build
+        run: cargo build --features ${{ matrix.features }}
+      
+      - name: Test
+        run: cargo test --features ${{ matrix.features }}
+        env:
+          # Skip network tests in CI (flaky)
+          ANNO_SKIP_NETWORK_TESTS: "1"
 
-  doc:
+  # ==========================================================================
+  # MSRV (Minimum Supported Rust Version)
+  # ==========================================================================
+  msrv:
+    name: MSRV (1.75)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check
+
+  # ==========================================================================
+  # Documentation
+  # ==========================================================================
+  docs:
+    name: Docs
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,11 +101,28 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
 
-  msrv:
+  # ==========================================================================
+  # Benchmarks (informational, doesn't fail)
+  # ==========================================================================
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo bench --no-run
+
+  # ==========================================================================
+  # Regression Tests (F1 baselines)
+  # ==========================================================================
+  regression:
+    name: F1 Regression
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.75
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check
-
+      - name: Run regression tests
+        run: cargo test --test regression_f1 -- --nocapture
