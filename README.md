@@ -194,6 +194,36 @@ mapper.add("ACTOR", anno::EntityType::Person);
 mapper.add("TITLE", anno::EntityType::custom("WORK_OF_ART", anno::EntityCategory::Creative));
 ```
 
+### Comprehensive Evaluation Framework
+
+Beyond basic F1 metrics, `anno` provides production-grade evaluation tools:
+
+```rust
+use anno::eval::{
+    CalibrationEvaluator,           // Confidence reliability
+    GenderBiasEvaluator,            // WinoBias-style tests
+    RobustnessEvaluator,            // Perturbation testing
+    OODDetector,                    // Out-of-distribution detection
+    DriftDetector,                  // Production monitoring
+    ThresholdAnalyzer,              // Precision-recall curves
+    compare_datasets,               // Cross-domain analysis
+};
+```
+
+| Module | Purpose | Example Metric |
+|--------|---------|---------------|
+| **Calibration** | Confidence reliability | ECE, Brier score |
+| **Gender Bias** | Pro/anti-stereotype gaps | WinoBias accuracy gap |
+| **Demographic Bias** | Ethnicity/region fairness | Parity gap |
+| **Robustness** | Perturbation tolerance | F1 under typos |
+| **OOD Detection** | Domain shift detection | Vocab coverage |
+| **Drift Detection** | Production monitoring | Confidence drift |
+| **Threshold Analysis** | Operating point selection | AUC-PR |
+| **Dataset Comparison** | Transfer learning feasibility | Type divergence |
+| **Error Analysis** | Failure categorization | Boundary vs type errors |
+
+See `examples/quality_bench.rs` for a comprehensive demo.
+
 ## Advanced Usage
 
 ### Streaming (Large Documents)
