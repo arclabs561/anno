@@ -1,14 +1,17 @@
-//! Quality benchmark comparing NER backends on synthetic datasets.
+//! Quality benchmark comparing NER backends on synthetic and real datasets.
 //!
 //! Run with:
-//!   cargo run --example quality_bench                    # Zero-dep backends only
-//!   cargo run --example quality_bench --features onnx    # Include BERT ONNX
+//!   cargo run --example quality_bench                         # Zero-dep backends, synthetic only
+//!   cargo run --example quality_bench --features onnx         # + BERT ONNX backend
+//!   cargo run --example quality_bench --features network      # + real dataset evaluation
+//!   cargo run --example quality_bench --features onnx,network # Full evaluation
 //!
 //! Shows:
 //! - Per-backend quality metrics (F1, Precision, Recall)
 //! - Per-difficulty breakdown (Easy/Medium/Hard/Adversarial)
 //! - Per-domain breakdown (News/Financial/Technical/etc.)
 //! - Variance across domains using MetricWithVariance
+//! - Real dataset evaluation (WikiGold, WNUT-17, CoNLL-2003) when network feature enabled
 //! - Gender bias evaluation (WinoBias-style)
 //! - Demographic bias evaluation (ethnicity, region, script)
 
@@ -233,6 +236,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let html = results.to_html();
         std::fs::write("eval_results.html", &html)?;
         println!("\nHTML report saved to eval_results.html");
+    }
+
+    // === Real Dataset Evaluation ===
+    #[cfg(feature = "network")]
+    {
+        println!("\n=== Real Dataset Evaluation ===\n");
+        run_real_dataset_evaluation()?;
+    }
+    #[cfg(not(feature = "network"))]
+    {
+        println!("\n=== Real Dataset Evaluation ===\n");
+        println!("Skipped (requires --features network)");
+        println!("Real datasets: WikiGold, WNUT-17, CoNLL-2003");
     }
 
     // === Bias Evaluation ===
@@ -484,4 +500,71 @@ fn print_per_type_metrics(per_type: &HashMap<String, anno::eval::TypeMetrics>) {
             metrics.expected
         );
     }
+}
+
+/// Run evaluation on real NER datasets
+#[cfg(feature = "network")]
+fn run_real_dataset_evaluation() -> Result<(), Box<dyn std::error::Error>> {
+    use anno::eval::datasets::GoldEntity;
+    use anno::eval::loader::{DatasetId, DatasetLoader};
+    use anno::eval::evaluate_ner_model;
+    use anno::StackedNER;
+
+    let loader = DatasetLoader::new()?;
+    let model = StackedNER::default();
+
+    let datasets = [
+        DatasetId::WikiGold,
+        DatasetId::Wnut17,
+        DatasetId::CoNLL2003Sample,
+    ];
+
+    println!(
+        "{:<20} {:>10} {:>10} {:>10} {:>12}",
+        "Dataset", "F1", "Precision", "Recall", "Entities"
+    );
+    println!("{}", "-".repeat(64));
+
+    for dataset_id in &datasets {
+        match loader.load_or_download(*dataset_id) {
+            Ok(dataset) => {
+                // Convert to evaluation format
+                let test_cases: Vec<(String, Vec<GoldEntity>)> = dataset
+                    .sentences
+                    .iter()
+                    .filter(|s| !s.tokens.is_empty())
+                    .map(|s| (s.text(), s.entities()))
+                    .collect();
+
+                let total_entities: usize = test_cases.iter().map(|(_, e)| e.len()).sum();
+
+                // Sample for efficiency (max 500 sentences)
+                let sample: Vec<_> = test_cases.into_iter().take(500).collect();
+
+                match evaluate_ner_model(&model, &sample) {
+                    Ok(results) => {
+                        println!(
+                            "{:<20} {:>9.1}% {:>9.1}% {:>9.1}% {:>12}",
+                            dataset_id.name(),
+                            results.f1 * 100.0,
+                            results.precision * 100.0,
+                            results.recall * 100.0,
+                            total_entities
+                        );
+                    }
+                    Err(e) => {
+                        println!("{:<20} Eval error: {}", dataset_id.name(), e);
+                    }
+                }
+            }
+            Err(e) => {
+                println!("{:<20} Load error: {}", dataset_id.name(), e);
+            }
+        }
+    }
+
+    println!("\nNote: StackedNER (zero-dep) has limited accuracy on real datasets.");
+    println!("For better results, use: cargo run --example quality_bench --features onnx,network");
+
+    Ok(())
 }

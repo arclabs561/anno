@@ -1139,6 +1139,54 @@ pub fn politics_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::Politics,
             difficulty: Difficulty::Medium,
         },
+        AnnotatedExample {
+            text: "Prime Minister Rishi Sunak addressed Parliament on January 10.".into(),
+            entities: vec![
+                entity("Rishi Sunak", EntityType::Person, 15),
+                entity("Parliament", EntityType::Organization, 37),
+                entity("January 10", EntityType::Date, 51),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The European Union approved €750 billion recovery fund.".into(),
+            entities: vec![
+                entity("European Union", EntityType::Organization, 4),
+                entity("€750 billion", EntityType::Money, 28),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Chancellor Scholz met President Macron in Berlin.".into(),
+            entities: vec![
+                entity("Scholz", EntityType::Person, 11),
+                entity("Macron", EntityType::Person, 32),
+                entity("Berlin", EntityType::Location, 42),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The G7 summit in Hiroshima addressed climate change.".into(),
+            entities: vec![
+                entity("G7", EntityType::Organization, 4),
+                entity("Hiroshima", EntityType::Location, 17),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Secretary Blinken visited Tel Aviv amid the Gaza crisis.".into(),
+            entities: vec![
+                entity("Blinken", EntityType::Person, 10),
+                entity("Tel Aviv", EntityType::Location, 26),
+                entity("Gaza", EntityType::Location, 44),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Medium,
+        },
     ]
 }
 
@@ -1193,6 +1241,51 @@ pub fn ecommerce_dataset() -> Vec<AnnotatedExample> {
                 entity("Jan 31", EntityType::Date, 18),
                 entity("11:59 PM", EntityType::Date, 28),
                 entity("$299.99", EntityType::Money, 51),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Walmart offers free shipping on orders over $35.".into(),
+            entities: vec![
+                entity("Walmart", EntityType::Organization, 0),
+                entity("$35", EntityType::Money, 44),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Alibaba's Singles Day generated $84.5 billion in sales.".into(),
+            entities: vec![
+                entity("Alibaba", EntityType::Organization, 0),
+                entity("$84.5 billion", EntityType::Money, 32),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Etsy sellers shipped 12 million items in December 2023.".into(),
+            entities: vec![
+                entity("Etsy", EntityType::Organization, 0),
+                entity("December 2023", EntityType::Date, 41),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Target's REDcard offers 5% discount on all purchases.".into(),
+            entities: vec![
+                entity("Target", EntityType::Organization, 0),
+                entity("5%", EntityType::Percent, 24),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "PayPal processed $1.36 trillion in payment volume in 2023.".into(),
+            entities: vec![
+                entity("PayPal", EntityType::Organization, 0),
+                entity("$1.36 trillion", EntityType::Money, 17),
             ],
             domain: Domain::Ecommerce,
             difficulty: Difficulty::Medium,
@@ -1259,6 +1352,56 @@ pub fn travel_dataset() -> Vec<AnnotatedExample> {
             ],
             domain: Domain::Travel,
             difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Delta flight DL456 from Atlanta to Miami departs at 6:00 AM.".into(),
+            entities: vec![
+                entity("Delta", EntityType::Organization, 0),
+                entity("Atlanta", EntityType::Location, 24),
+                entity("Miami", EntityType::Location, 35),
+                entity("6:00 AM", EntityType::Date, 52),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Airbnb listing in Barcelona: $150/night, available June 1-15.".into(),
+            entities: vec![
+                entity("Airbnb", EntityType::Organization, 0),
+                entity("Barcelona", EntityType::Location, 18),
+                entity("$150", EntityType::Money, 29),
+                entity("June 1-15", EntityType::Date, 51),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Eurostar train from London to Paris takes 2 hours 15 minutes.".into(),
+            entities: vec![
+                entity("Eurostar", EntityType::Organization, 0),
+                entity("London", EntityType::Location, 20),
+                entity("Paris", EntityType::Location, 30),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Carnival Cruise Line offers 7-day trips to the Caribbean for $899.".into(),
+            entities: vec![
+                entity("Carnival Cruise Line", EntityType::Organization, 0),
+                entity("Caribbean", EntityType::Location, 47),
+                entity("$899", EntityType::Money, 61),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Singapore Airlines won Best Airline at the 2024 Skytrax Awards.".into(),
+            entities: vec![
+                entity("Singapore Airlines", EntityType::Organization, 0),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Easy,
         },
     ]
 }
