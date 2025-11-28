@@ -74,6 +74,8 @@ impl Default for DriftConfig {
 /// A single logged prediction.
 #[derive(Debug, Clone)]
 struct PredictionLog {
+    /// Timestamp for future time-based windowing
+    #[allow(dead_code)]
     timestamp: u64,
     confidence: f64,
     entity_type: String,
@@ -398,7 +400,8 @@ impl DriftDetector {
         }
 
         let baseline = &windows[0].type_distribution;
-        let current = windows.last().map(|w| &w.type_distribution).unwrap();
+        // Safety: we checked windows.len() >= 2 above
+        let current = &windows[windows.len() - 1].type_distribution;
 
         // Compute KL divergence
         let epsilon = 1e-10;

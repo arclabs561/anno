@@ -102,8 +102,8 @@ fn mixed_test_cases() -> Vec<(String, Vec<GoldEntity>)> {
         // Mix of structured and named entities
         ("Apple reported $50B revenue on Jan 15, 2024.".to_string(), vec![
             GoldEntity::new("Apple", EntityType::Organization, 0),
-            GoldEntity::new("$50B", EntityType::Money, 16),
-            GoldEntity::new("Jan 15, 2024", EntityType::Date, 32),
+            GoldEntity::new("$50B", EntityType::Money, 15),
+            GoldEntity::new("Jan 15, 2024", EntityType::Date, 31),
         ]),
         ("Email ceo@company.com for the meeting at 3pm.".to_string(), vec![
             GoldEntity::new("ceo@company.com", EntityType::Email, 6),

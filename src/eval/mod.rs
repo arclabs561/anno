@@ -197,6 +197,7 @@ pub enum CorefMetric {
 pub use modes::EvalMode;
 
 // Submodules
+pub mod active_learning;
 pub mod analysis;
 pub mod benchmark;
 pub mod calibration;
@@ -205,14 +206,20 @@ pub mod coref_loader;
 pub mod coref_metrics;
 pub mod coref_resolver;
 pub mod datasets;
+pub mod dataset_comparison;
 pub mod dataset_quality;
 pub mod demographic_bias;
+pub mod drift;
+pub mod ensemble;
+pub mod error_analysis;
 pub mod evaluator;
+pub mod few_shot;
 pub mod gender_bias;
 pub mod harness;
 pub mod learning_curve;
 pub mod length_bias;
 pub mod loader;
+pub mod long_tail;
 pub mod metrics;
 pub mod modes;
 pub mod ood_detection;
@@ -220,6 +227,7 @@ pub mod robustness;
 pub mod sampling;
 pub mod synthetic;
 pub mod temporal_bias;
+pub mod threshold_analysis;
 pub mod types;
 pub mod validation;
 
@@ -300,6 +308,53 @@ pub use dataset_quality::{
 pub use learning_curve::{
     suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis,
     LearningCurveAnalyzer, SampleEfficiencyMetrics,
+};
+
+// Ensemble disagreement analysis
+pub use ensemble::{
+    agreement_grade, kappa_interpretation, DisagreementDetail, EnsembleAnalysisResults,
+    EnsembleAnalyzer, ModelPrediction, SingleExampleAnalysis,
+};
+
+// Dataset comparison (cross-domain analysis)
+pub use dataset_comparison::{
+    compare_datasets, compute_stats, estimate_difficulty, DatasetComparison, DatasetStats,
+    Difficulty, DifficultyEstimate, LengthStats,
+};
+
+// Drift detection (production monitoring)
+pub use drift::{
+    ConfidenceDrift, DistributionDrift, DriftConfig, DriftDetector, DriftReport, DriftWindow,
+    VocabularyDrift,
+};
+
+// Active learning for annotation selection
+pub use active_learning::{
+    estimate_budget, ActiveLearner, Candidate, SamplingStrategy, ScoreStats, SelectionResult,
+};
+
+// Error analysis and categorization
+pub use error_analysis::{
+    EntityInfo, ErrorAnalyzer, ErrorCategory, ErrorInstance, ErrorPattern, ErrorReport,
+    PredictedEntity, TypeErrorStats,
+};
+
+// Threshold analysis (precision-recall curves)
+pub use threshold_analysis::{
+    format_threshold_table, interpret_curve, PredictionWithConfidence, ThresholdAnalyzer,
+    ThresholdCurve, ThresholdPoint,
+};
+
+// Few-shot learning evaluation
+pub use few_shot::{
+    FewShotEvaluator, FewShotGold, FewShotPrediction, FewShotResults, FewShotTask,
+    FewShotTaskResults, SupportExample, simulate_few_shot_task,
+};
+
+// Long-tail entity evaluation
+pub use long_tail::{
+    EntityFrequency, FrequencyBucket, FrequencySplit, LongTailAnalyzer, LongTailResults,
+    TypePerformance, format_long_tail_results,
 };
 
 // Analysis re-exports

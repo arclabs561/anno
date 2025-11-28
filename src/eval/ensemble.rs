@@ -20,11 +20,11 @@
 //! let predictions = vec![
 //!     ModelPrediction {
 //!         model_name: "model_a".into(),
-//!         entities: vec![("John", "PER"), ("Google", "ORG")],
+//!         entities: vec![("John".into(), "PER".into()), ("Google".into(), "ORG".into())],
 //!     },
 //!     ModelPrediction {
 //!         model_name: "model_b".into(),
-//!         entities: vec![("John", "PER"), ("Google", "LOC")],  // Disagrees on Google
+//!         entities: vec![("John".into(), "PER".into()), ("Google".into(), "LOC".into())],  // Disagrees on Google
 //!     },
 //! ];
 //!

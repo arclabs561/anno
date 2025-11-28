@@ -28,6 +28,10 @@ use anno::eval::ood_detection::{ood_rate_grade, OODDetector};
 use anno::eval::robustness::{robustness_grade, RobustnessEvaluator};
 use anno::eval::synthetic::{dataset_stats, all_datasets};
 use anno::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
+use anno::eval::threshold_analysis::{interpret_curve, PredictionWithConfidence, ThresholdAnalyzer};
+use anno::eval::dataset_comparison::{compare_datasets, estimate_difficulty};
+use anno::eval::drift::{DriftConfig, DriftDetector};
+use anno::eval::synthetic::Domain;
 use anno::eval::MetricWithVariance;
 use anno::eval::SimpleCorefResolver;
 use anno::PatternNER;
@@ -310,16 +314,23 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Demographic Bias (NER) ---
     println!("\n--- Demographic Bias (NER) ---\n");
+    println!("⚠️  NOTE: PatternNER cannot detect PERSON or LOCATION entities.");
+    println!("    These bias evaluations require ML backends (--features onnx).");
+    println!("    Results below demonstrate the API structure only.\n");
 
     let ner = PatternNER::new();
     let names = create_diverse_name_dataset();
     let locations = create_diverse_location_dataset();
     let demo_evaluator = DemographicBiasEvaluator::new(false);
 
-    // Note: PatternNER doesn't detect PERSON entities, so we'll show the framework
     let name_results = demo_evaluator.evaluate_ner(&ner, &names);
     let location_results = demo_evaluator.evaluate_locations(&ner, &locations);
 
+    // Only show results if there's actual data (i.e., ML backend detected something)
+    let has_name_data = name_results.by_ethnicity.values().any(|&v| v > 0.0);
+    let has_location_data = location_results.by_region.values().any(|&v| v > 0.0);
+
+    if has_name_data {
     println!("Name Recognition by Ethnicity:");
     println!(
         "{:<20} {:>12}",
@@ -341,7 +352,11 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         "Script Bias Gap: {:.1}% (Latin vs non-Latin)",
         name_results.script_bias_gap * 100.0
     );
+    } else {
+        println!("Name Recognition: [SKIPPED - PatternNER cannot detect PERSON]");
+    }
 
+    if has_location_data {
     println!("\nLocation Recognition by Region:");
     println!(
         "{:<20} {:>12}",
@@ -359,6 +374,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         "\nRegional Parity Gap: {:.1}% (lower is better)",
         location_results.regional_parity_gap * 100.0
     );
+    } else {
+        println!("\nLocation Recognition: [SKIPPED - PatternNER cannot detect LOCATION]");
+    }
 
     // --- Temporal Bias (Names by Decade) ---
     println!("\n--- Temporal Bias (Names by Decade) ---\n");
@@ -367,6 +385,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let temporal_evaluator = TemporalBiasEvaluator::default();
     let temporal_results = temporal_evaluator.evaluate(&ner, &temporal_names);
 
+    let has_temporal_data = temporal_results.historical_rate > 0.0 || temporal_results.modern_rate > 0.0;
+
+    if has_temporal_data {
     println!(
         "{:<20} {:>12}",
         "Time Period", "Recognition"
@@ -401,6 +422,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         "Temporal Parity Gap: {:.1}% (max gap across decades)",
         temporal_results.temporal_parity_gap * 100.0
     );
+    } else {
+        println!("[SKIPPED - PatternNER cannot detect PERSON entities]");
+    }
 
     // --- Entity Length Bias ---
     println!("\n--- Entity Length Bias ---\n");
@@ -491,6 +515,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- OOD Detection Demo ---
     println!("\n--- OOD Detection ---\n");
+    println!("⚠️  NOTE: This OOD detector uses vocabulary overlap only.");
+    println!("    It detects novel tokens, NOT semantic distribution shift.");
+    println!("    For embedding-based OOD detection, use ML backends.\n");
 
     let training_entities = vec![
         "John Smith", "Jane Doe", "Google", "Microsoft", "New York", "London",
@@ -498,9 +525,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let ood_detector = OODDetector::default().fit(&training_entities);
 
     let test_entities: Vec<(&str, Option<f64>)> = vec![
-        ("John Smith", Some(0.95)),      // In-distribution
-        ("Jane Doe", Some(0.90)),        // In-distribution  
-        ("Xiangjun Chen", Some(0.45)),   // OOD (unfamiliar name pattern)
+        ("John Smith", Some(0.95)),      // In-distribution (exact match)
+        ("Jane Doe", Some(0.90)),        // In-distribution (exact match)
+        ("Xiangjun Chen", Some(0.45)),   // OOD (unfamiliar tokens)
         ("山田太郎", Some(0.30)),          // OOD (different script)
     ];
 
@@ -514,6 +541,10 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     if !ood_results.sample_ood_entities.is_empty() {
         println!("Sample OOD entities: {:?}", ood_results.sample_ood_entities);
     }
+    println!("\nLimitations:");
+    println!("  - Cannot detect domain shift with overlapping vocabulary");
+    println!("  - \"John Smith\" in medical text would appear in-distribution");
+    println!("  - For production use, combine with embedding-space analysis");
 
     // --- Dataset Quality Demo ---
     println!("\n--- Dataset Quality Metrics ---\n");
@@ -535,8 +566,14 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Calibration Demo ---
     println!("\n--- Calibration Demo ---\n");
+    println!("⚠️  IMPORTANT: Calibration metrics are only meaningful for probabilistic");
+    println!("    confidence scores (e.g., softmax outputs from neural models).");
+    println!("    PatternNER outputs hardcoded values (0.95) - NOT calibrated.");
+    println!("    StatisticalNER outputs heuristic scores - NOT calibrated.");
+    println!("    Use ExtractionMethod::is_calibrated() to check.\n");
 
-    // Simulated predictions with confidence scores
+    // Simulated predictions - demonstrating what neural model output looks like
+    println!("Demo using simulated neural model outputs:");
     let predictions = vec![
         (0.95, true),   // High confidence, correct
         (0.88, true),   // High confidence, correct
@@ -558,11 +595,16 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         cal_results.avg_confidence_correct * 100.0,
         cal_results.avg_confidence_incorrect * 100.0
     );
+    
+    println!("\nTo run calibration on real predictions:");
+    println!("  cargo run --example quality_bench --features onnx");
 
     // --- Learning Curve Demo ---
     println!("\n--- Learning Curve Analysis ---\n");
+    println!("Demo using hypothetical training data points.");
+    println!("In production, collect these by training at different data sizes.\n");
 
-    // Simulated learning curve data
+    // Simulated learning curve data (typical NER model behavior)
     let learning_data = vec![
         DataPoint { train_size: 100, f1: 0.55, precision: 0.58, recall: 0.52 },
         DataPoint { train_size: 500, f1: 0.72, precision: 0.75, recall: 0.69 },
@@ -590,6 +632,134 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(samples) = curve_analysis.samples_for_target(0.90) {
         println!("Estimated samples for 90% F1: ~{}", samples);
     }
+    
+    println!("\nNote: Extrapolation assumes log-linear learning curve.");
+    println!("      Real gains depend on data quality and diversity.");
+
+    // === Threshold Analysis (Precision-Recall Curves) ===
+    println!("\n=== Threshold Analysis ===\n");
+    
+    // Simulate predictions with varying confidence levels
+    let simulated_predictions = vec![
+        PredictionWithConfidence::new("John Smith", "PER", 0.95, true),
+        PredictionWithConfidence::new("Google", "ORG", 0.92, true),
+        PredictionWithConfidence::new("New York", "LOC", 0.88, true),
+        PredictionWithConfidence::new("maybe-person", "PER", 0.45, false),  // FP
+        PredictionWithConfidence::new("Apple", "ORG", 0.78, true),
+        PredictionWithConfidence::new("random", "PER", 0.35, false),  // FP
+        PredictionWithConfidence::new("London", "LOC", 0.85, true),
+        PredictionWithConfidence::new("unclear", "ORG", 0.55, false),  // FP
+        PredictionWithConfidence::new("Microsoft", "ORG", 0.91, true),
+        PredictionWithConfidence::new("Paris", "LOC", 0.82, true),
+    ];
+
+    let threshold_analyzer = ThresholdAnalyzer::new(10);
+    let curve = threshold_analyzer.analyze(&simulated_predictions);
+
+    println!("Total predictions: {}, Correct: {}", curve.total_predictions, curve.total_correct);
+    println!("Optimal threshold: {:.2}", curve.optimal_threshold);
+    println!("  F1 at optimal: {:.1}%", curve.optimal_f1 * 100.0);
+    println!("  Precision: {:.1}%, Recall: {:.1}%", 
+        curve.optimal_precision * 100.0, curve.optimal_recall * 100.0);
+    println!("AUC-PR: {:.3}", curve.auc_pr);
+    
+    if let Some(t) = curve.high_precision_threshold {
+        println!("High-precision (>=95%) threshold: {:.2}", t);
+    }
+    
+    println!("\nInsights:");
+    for insight in interpret_curve(&curve) {
+        println!("  - {}", insight);
+    }
+
+    // === Dataset Comparison (Cross-Domain Analysis) ===
+    println!("\n=== Dataset Comparison ===\n");
+    
+    // Compare different synthetic dataset domains
+    let all_data = all_datasets();
+    let news_data: Vec<_> = all_data.iter()
+        .filter(|e| matches!(e.domain, Domain::News))
+        .cloned()
+        .collect();
+    let tech_data: Vec<_> = all_data.iter()
+        .filter(|e| matches!(e.domain, Domain::Technical))
+        .cloned()
+        .collect();
+    
+    if !news_data.is_empty() && !tech_data.is_empty() {
+        let comparison = compare_datasets(&news_data, &tech_data);
+        
+        println!("Comparing News vs Technical domains:");
+        println!("  News: {} examples, {} entities", 
+            comparison.stats_a.num_examples, comparison.stats_a.num_entities);
+        println!("  Tech: {} examples, {} entities",
+            comparison.stats_b.num_examples, comparison.stats_b.num_entities);
+        println!("  Type divergence: {:.3} (0=identical, 1=disjoint)", comparison.type_divergence);
+        println!("  Vocabulary overlap: {:.1}%", comparison.vocab_overlap * 100.0);
+        println!("  Entity overlap: {:.1}%", comparison.entity_text_overlap * 100.0);
+        println!("  Estimated domain gap: {:.2}", comparison.estimated_domain_gap);
+        
+        if !comparison.recommendations.is_empty() {
+            println!("\nRecommendations:");
+            for rec in &comparison.recommendations {
+                println!("  - {}", rec);
+            }
+        }
+        
+        // Show difficulty estimate for news domain
+        let news_difficulty = estimate_difficulty(&comparison.stats_a);
+        println!("\nNews domain difficulty: {:?} (score: {:.2})", 
+            news_difficulty.difficulty, news_difficulty.score);
+        if !news_difficulty.factors.is_empty() {
+            for factor in &news_difficulty.factors {
+                println!("  - {}", factor);
+            }
+        }
+    }
+
+    // === Drift Detection Demo ===
+    println!("\n=== Drift Detection Demo ===\n");
+    
+    let mut drift_detector = DriftDetector::new(DriftConfig {
+        min_samples: 10,
+        window_size: 10,
+        num_windows: 2,
+        confidence_drift_threshold: 0.1,
+        ..Default::default()
+    });
+    
+    // Simulate first window: high confidence, consistent types
+    for i in 0..10 {
+        drift_detector.log_prediction(i as u64, 0.92, "PER", "John Smith");
+    }
+    
+    // Simulate second window: lower confidence, new vocabulary
+    for i in 10..20 {
+        drift_detector.log_prediction(i as u64, 0.65, "PER", "Xiangjun Wei");
+    }
+    
+    let drift_report = drift_detector.analyze();
+    println!("Drift detected: {}", drift_report.drift_detected);
+    println!("Summary: {}", drift_report.summary);
+    
+    if drift_report.confidence_drift.is_significant {
+        println!("  Confidence drift: {:.2} -> {:.2} (change: {:.2})",
+            drift_report.confidence_drift.baseline_mean,
+            drift_report.confidence_drift.current_mean,
+            drift_report.confidence_drift.drift_amount);
+    }
+    
+    if drift_report.vocabulary_drift.is_significant {
+        println!("  Vocabulary drift: {:.1}% new tokens",
+            drift_report.vocabulary_drift.new_token_rate * 100.0);
+    }
+    
+    if !drift_report.recommendations.is_empty() {
+        println!("\nRecommendations:");
+        for rec in &drift_report.recommendations {
+            println!("  - {}", rec);
+        }
+    }
 
     // --- Summary ---
     println!("\n--- Summary ---\n");
@@ -613,6 +783,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - OOD detection (vocabulary coverage)");
     println!("  - Dataset quality (leakage, redundancy)");
     println!("  - Learning curve analysis");
+    println!("  - Threshold analysis (precision-recall curves)");
+    println!("  - Dataset comparison (cross-domain analysis)");
+    println!("  - Drift detection (production monitoring)");
 
     Ok(())
 }

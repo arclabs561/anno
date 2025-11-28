@@ -4,6 +4,21 @@
 //! A well-calibrated model should have high confidence for correct predictions
 //! and low confidence for incorrect ones.
 //!
+//! # ⚠️ Important: Confidence Score Semantics
+//!
+//! Calibration metrics are only meaningful for **probabilistically calibrated**
+//! confidence scores (i.e., scores that approximate P(correct|prediction)).
+//!
+//! | Backend | `ExtractionMethod` | Calibrated? | Notes |
+//! |---------|-------------------|-------------|-------|
+//! | BertNEROnnx, GLiNEROnnx | `Neural` | ✓ Yes | Softmax probabilities |
+//! | PatternNER | `Pattern` | ✗ No | Hardcoded values (e.g., 0.95) |
+//! | StatisticalNER | `Heuristic` | ✗ No | Rule-based scores |
+//! | StackedNER | Mixed | Partial | Depends on entity type |
+//!
+//! **Running calibration analysis on PatternNER or StatisticalNER produces
+//! meaningless results.** Use `ExtractionMethod::is_calibrated()` to check.
+//!
 //! # Research Background
 //!
 //! Calibration is critical for production NER systems where:
@@ -11,18 +26,21 @@
 //! - Human review should focus on low-confidence predictions
 //! - False confidence is worse than admitted uncertainty
 //!
+//! See: Guo et al. (2017) "On Calibration of Modern Neural Networks"
+//!
 //! # Key Metrics
 //!
-//! - **Expected Calibration Error (ECE)**: Measures overall calibration
+//! - **Expected Calibration Error (ECE)**: Weighted average of per-bin calibration error
 //! - **Maximum Calibration Error (MCE)**: Worst-case calibration in any bin
 //! - **Brier Score**: Mean squared error of probabilistic predictions
-//! - **Confidence-Accuracy Correlation**: Spearman correlation
+//! - **Confidence Gap**: Difference between avg confidence on correct vs incorrect
 //!
 //! # Example
 //!
 //! ```rust
 //! use anno::eval::calibration::{CalibrationEvaluator, CalibrationResults};
 //!
+//! // Only use with probabilistic confidence scores (e.g., from neural models)
 //! let predictions = vec![
 //!     (0.95, true),   // High confidence, correct
 //!     (0.80, true),   // Medium confidence, correct

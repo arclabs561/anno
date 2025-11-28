@@ -533,6 +533,72 @@ pub enum ExtractionMethod {
     Ensemble,
 }
 
+impl ExtractionMethod {
+    /// Returns true if this extraction method produces probabilistically calibrated
+    /// confidence scores suitable for calibration analysis (ECE, Brier score, etc.).
+    ///
+    /// # Calibrated Methods
+    ///
+    /// - **Neural**: Softmax outputs are intended to be probabilistic (though may need
+    ///   temperature scaling for true calibration)
+    /// - **GatedEnsemble**: Produces learned probability estimates
+    /// - **SoftLexicon**: Embedding similarity is pseudo-probabilistic
+    ///
+    /// # Uncalibrated Methods
+    ///
+    /// - **Pattern**: Binary (match/no-match); confidence is typically hardcoded
+    /// - **Heuristic**: Arbitrary scores from hand-crafted rules
+    /// - **Lexicon**: Binary exact match
+    /// - **Consensus**: Agreement count, not a probability
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anno::ExtractionMethod;
+    ///
+    /// assert!(ExtractionMethod::Neural.is_calibrated());
+    /// assert!(!ExtractionMethod::Pattern.is_calibrated());
+    /// assert!(!ExtractionMethod::Heuristic.is_calibrated());
+    /// ```
+    #[must_use]
+    pub const fn is_calibrated(&self) -> bool {
+        #[allow(deprecated)]
+        match self {
+            ExtractionMethod::Neural => true,
+            ExtractionMethod::GatedEnsemble => true,
+            ExtractionMethod::SoftLexicon => true,
+            ExtractionMethod::ML => true, // Legacy alias for Neural
+            // Everything else is not calibrated
+            ExtractionMethod::Pattern => false,
+            ExtractionMethod::Lexicon => false,
+            ExtractionMethod::Consensus => false,
+            ExtractionMethod::Heuristic => false,
+            ExtractionMethod::Unknown => false,
+            ExtractionMethod::Rule => false,
+            ExtractionMethod::Ensemble => false,
+        }
+    }
+
+    /// Returns the confidence interpretation for this extraction method.
+    ///
+    /// This helps users understand what the confidence score means:
+    /// - `"probability"`: Score approximates P(correct)
+    /// - `"heuristic_score"`: Score is a non-probabilistic quality measure
+    /// - `"binary"`: Score is 0 or 1 (or a fixed value for matches)
+    #[must_use]
+    pub const fn confidence_interpretation(&self) -> &'static str {
+        #[allow(deprecated)]
+        match self {
+            ExtractionMethod::Neural | ExtractionMethod::ML => "probability",
+            ExtractionMethod::GatedEnsemble | ExtractionMethod::SoftLexicon => "probability",
+            ExtractionMethod::Pattern | ExtractionMethod::Lexicon => "binary",
+            ExtractionMethod::Heuristic | ExtractionMethod::Rule => "heuristic_score",
+            ExtractionMethod::Consensus | ExtractionMethod::Ensemble => "agreement_ratio",
+            ExtractionMethod::Unknown => "unknown",
+        }
+    }
+}
+
 impl std::fmt::Display for ExtractionMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[allow(deprecated)]

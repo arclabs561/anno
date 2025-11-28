@@ -140,6 +140,12 @@ mod sealed {
 /// This is provided so tests can create custom mock implementations
 /// without breaking the sealed trait pattern.
 ///
+/// # Entity Validation
+///
+/// By default, `extract_entities` validates that entity offsets are within
+/// the input text bounds and that `start < end`. Set `validate = false`
+/// to disable this (useful for testing error handling).
+///
 /// # Example
 ///
 /// ```rust
@@ -157,6 +163,8 @@ pub struct MockModel {
     name: &'static str,
     entities: Vec<Entity>,
     types: Vec<EntityType>,
+    /// If true, validate entity offsets against input text (default: true)
+    validate: bool,
 }
 
 impl MockModel {
@@ -167,12 +175,33 @@ impl MockModel {
             name,
             entities: Vec::new(),
             types: Vec::new(),
+            validate: true,
         }
     }
 
     /// Set entities to return on extraction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any entity has `start >= end`.
     #[must_use]
     pub fn with_entities(mut self, entities: Vec<Entity>) -> Self {
+        // Basic validation on construction
+        for (i, e) in entities.iter().enumerate() {
+            assert!(
+                e.start < e.end,
+                "MockModel entity {}: start ({}) must be < end ({})",
+                i,
+                e.start,
+                e.end
+            );
+            assert!(
+                e.confidence >= 0.0 && e.confidence <= 1.0,
+                "MockModel entity {}: confidence ({}) must be in [0.0, 1.0]",
+                i,
+                e.confidence
+            );
+        }
         self.entities = entities;
         self
     }
@@ -183,12 +212,44 @@ impl MockModel {
         self.types = types;
         self
     }
+
+    /// Disable offset validation during extraction (for testing error paths).
+    #[must_use]
+    pub fn without_validation(mut self) -> Self {
+        self.validate = false;
+        self
+    }
+
+    /// Validate that entity offsets are within text bounds.
+    fn validate_entities(&self, text: &str) -> Result<()> {
+        let text_len = text.chars().count();
+        for (i, e) in self.entities.iter().enumerate() {
+            if e.end > text_len {
+                return Err(Error::InvalidInput(format!(
+                    "MockModel entity {} '{}': end offset ({}) exceeds text length ({} chars)",
+                    i, e.text, e.end, text_len
+                )));
+            }
+            // Verify text matches (using char offsets)
+            let actual_text: String = text.chars().skip(e.start).take(e.end - e.start).collect();
+            if actual_text != e.text {
+                return Err(Error::InvalidInput(format!(
+                    "MockModel entity {} text mismatch: expected '{}' at [{},{}), found '{}'",
+                    i, e.text, e.start, e.end, actual_text
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl sealed::Sealed for MockModel {}
 
 impl Model for MockModel {
-    fn extract_entities(&self, _text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
+    fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
+        if self.validate && !self.entities.is_empty() {
+            self.validate_entities(text)?;
+        }
         Ok(self.entities.clone())
     }
 

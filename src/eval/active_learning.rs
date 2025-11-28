@@ -4,10 +4,22 @@
 //!
 //! # Sampling Strategies
 //!
-//! - **Uncertainty Sampling**: Low-confidence predictions
-//! - **Diversity Sampling**: Examples different from existing data
-//! - **Query-by-Committee**: High model disagreement
-//! - **Hybrid**: Combine multiple signals
+//! - **Uncertainty Sampling**: Low-confidence predictions (requires confidence scores)
+//! - **Diversity Sampling**: Examples most different from each other (requires embeddings)
+//! - **Query-by-Committee**: High model disagreement (requires multiple model predictions)
+//! - **Hybrid**: Combine uncertainty and committee signals
+//!
+//! # Strategy Requirements and Fallbacks
+//!
+//! Each strategy has specific data requirements. When requirements aren't met,
+//! the strategy falls back as follows:
+//!
+//! | Strategy | Requires | Falls back to |
+//! |----------|----------|---------------|
+//! | Uncertainty | `confidence` | Always works (uses 0.5 if missing) |
+//! | Diversity | `embedding` | Uncertainty (with warning) |
+//! | QueryByCommittee | `committee_predictions` (≥2) | Uncertainty (with warning) |
+//! | Hybrid | Both confidence and committee | Uncertainty if committee missing |
 //!
 //! # Example
 //!
@@ -43,7 +55,7 @@ pub struct Candidate {
     pub predicted_types: Vec<String>,
     /// Optional: multiple model predictions for committee sampling
     pub committee_predictions: Vec<Vec<String>>,
-    /// Optional: embedding for diversity sampling
+    /// Optional: embedding for diversity sampling (required for Diversity strategy)
     pub embedding: Option<Vec<f64>>,
 }
 
@@ -76,20 +88,34 @@ impl Candidate {
         self.embedding = Some(embedding);
         self
     }
+    
+    /// Check if this candidate has valid committee predictions (≥2 models).
+    pub fn has_committee(&self) -> bool {
+        self.committee_predictions.len() >= 2
+    }
+    
+    /// Check if this candidate has an embedding.
+    pub fn has_embedding(&self) -> bool {
+        self.embedding.is_some()
+    }
 }
 
 /// Sampling strategy for active learning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SamplingStrategy {
-    /// Select examples with lowest model confidence
+    /// Select examples with lowest model confidence.
+    /// Always works - uses confidence field directly.
     Uncertainty,
-    /// Select examples most different from existing data
+    /// Select examples most different from existing data.
+    /// **Requires embeddings** - falls back to Uncertainty if missing.
     Diversity,
-    /// Select examples where model committee disagrees most
+    /// Select examples where model committee disagrees most.
+    /// **Requires committee_predictions with ≥2 models** - falls back to Uncertainty.
     QueryByCommittee,
-    /// Combine uncertainty and diversity
+    /// Combine uncertainty and committee disagreement (0.7 uncertainty + 0.3 committee).
+    /// Falls back to pure Uncertainty if no committee data.
     Hybrid,
-    /// Random baseline
+    /// Random baseline (deterministic given seed).
     Random,
 }
 
@@ -102,8 +128,12 @@ pub struct SelectionResult {
     pub total_candidates: usize,
     /// Strategy used
     pub strategy: SamplingStrategy,
+    /// Actual strategy used (may differ if fallback occurred)
+    pub actual_strategy: SamplingStrategy,
     /// Score statistics
     pub score_stats: ScoreStats,
+    /// Warnings about strategy fallbacks or data issues
+    pub warnings: Vec<String>,
 }
 
 /// Statistics about selection scores.
@@ -163,8 +193,9 @@ impl ActiveLearner {
         }
 
         let k = k.min(candidates.len());
+        let (actual_strategy, _warnings) = self.resolve_strategy(candidates);
 
-        match self.strategy {
+        match actual_strategy {
             SamplingStrategy::Uncertainty => self.select_by_uncertainty(candidates, k),
             SamplingStrategy::Diversity => self.select_by_diversity(candidates, k),
             SamplingStrategy::QueryByCommittee => self.select_by_committee(candidates, k),
@@ -173,9 +204,10 @@ impl ActiveLearner {
         }
     }
 
-    /// Select with detailed results.
+    /// Select with detailed results including warnings about fallbacks.
     pub fn select_with_scores(&self, candidates: &[Candidate], k: usize) -> SelectionResult {
-        let scores = self.compute_scores(candidates);
+        let (actual_strategy, warnings) = self.resolve_strategy(candidates);
+        let scores = self.compute_scores_with_strategy(candidates, actual_strategy);
 
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
@@ -195,17 +227,61 @@ impl ActiveLearner {
             selected,
             total_candidates: candidates.len(),
             strategy: self.strategy,
+            actual_strategy,
             score_stats: ScoreStats {
                 mean_selected,
                 mean_all,
                 max_score: all_scores.first().copied().unwrap_or(0.0),
                 min_score: all_scores.last().copied().unwrap_or(0.0),
             },
+            warnings,
         }
     }
-
-    fn compute_scores(&self, candidates: &[Candidate]) -> Vec<f64> {
+    
+    /// Resolve the actual strategy to use, considering data availability.
+    fn resolve_strategy(&self, candidates: &[Candidate]) -> (SamplingStrategy, Vec<String>) {
+        let mut warnings = Vec::new();
+        
         match self.strategy {
+            SamplingStrategy::Diversity => {
+                let has_all_embeddings = candidates.iter().all(|c| c.has_embedding());
+                if !has_all_embeddings {
+                    let missing = candidates.iter().filter(|c| !c.has_embedding()).count();
+                    warnings.push(format!(
+                        "Diversity sampling requires embeddings: {}/{} candidates missing embeddings. Falling back to Uncertainty.",
+                        missing, candidates.len()
+                    ));
+                    return (SamplingStrategy::Uncertainty, warnings);
+                }
+            }
+            SamplingStrategy::QueryByCommittee => {
+                let has_all_committees = candidates.iter().all(|c| c.has_committee());
+                if !has_all_committees {
+                    let missing = candidates.iter().filter(|c| !c.has_committee()).count();
+                    warnings.push(format!(
+                        "Query-by-Committee requires committee predictions (≥2 models): {}/{} candidates missing. Falling back to Uncertainty.",
+                        missing, candidates.len()
+                    ));
+                    return (SamplingStrategy::Uncertainty, warnings);
+                }
+            }
+            SamplingStrategy::Hybrid => {
+                let has_any_committees = candidates.iter().any(|c| c.has_committee());
+                if !has_any_committees {
+                    warnings.push(
+                        "Hybrid mode has no committee data. Using pure Uncertainty.".to_string()
+                    );
+                    // Still use Hybrid, but it will effectively be Uncertainty
+                }
+            }
+            _ => {}
+        }
+        
+        (self.strategy, warnings)
+    }
+
+    fn compute_scores_with_strategy(&self, candidates: &[Candidate], strategy: SamplingStrategy) -> Vec<f64> {
+        match strategy {
             SamplingStrategy::Uncertainty => {
                 candidates.iter().map(|c| 1.0 - c.confidence).collect()
             }
@@ -213,15 +289,9 @@ impl ActiveLearner {
                 candidates.iter().map(|c| self.committee_disagreement(c)).collect()
             }
             SamplingStrategy::Diversity => {
-                // For pure diversity, use embedding distances
-                // Without embeddings, fall back to uncertainty
-                candidates.iter().map(|c| {
-                    if c.embedding.is_some() {
-                        0.5 // Placeholder - real diversity needs pairwise comparison
-                    } else {
-                        1.0 - c.confidence
-                    }
-                }).collect()
+                // For compute_scores, we return uncertainty-weighted diversity
+                // The actual diversity selection uses greedy farthest-point
+                self.compute_diversity_scores(candidates)
             }
             SamplingStrategy::Hybrid => {
                 let uncertainty: Vec<f64> = candidates.iter().map(|c| 1.0 - c.confidence).collect();
@@ -244,6 +314,57 @@ impl ActiveLearner {
             }
         }
     }
+    
+    /// Compute diversity scores based on embedding distances.
+    /// 
+    /// Uses average distance to all other candidates as the diversity score.
+    /// Higher scores indicate more diverse (distant) candidates.
+    fn compute_diversity_scores(&self, candidates: &[Candidate]) -> Vec<f64> {
+        let n = candidates.len();
+        if n == 0 {
+            return Vec::new();
+        }
+        
+        // Compute pairwise distances and use mean distance as diversity score
+        let mut scores = vec![0.0; n];
+        
+        for i in 0..n {
+            let emb_i = match &candidates[i].embedding {
+                Some(e) => e,
+                None => {
+                    // No embedding - use uncertainty as fallback
+                    scores[i] = 1.0 - candidates[i].confidence;
+                    continue;
+                }
+            };
+            
+            let mut total_dist = 0.0;
+            let mut count = 0;
+            
+            for j in 0..n {
+                if i == j {
+                    continue;
+                }
+                if let Some(emb_j) = &candidates[j].embedding {
+                    total_dist += self.embedding_distance(emb_i, emb_j);
+                    count += 1;
+                }
+            }
+            
+            scores[i] = if count > 0 { total_dist / count as f64 } else { 0.0 };
+        }
+        
+        // Normalize scores to [0, 1]
+        let max_score = scores.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let min_score = scores.iter().cloned().fold(f64::INFINITY, f64::min);
+        let range = max_score - min_score;
+        
+        if range > 0.0 {
+            scores.iter_mut().for_each(|s| *s = (*s - min_score) / range);
+        }
+        
+        scores
+    }
 
     fn select_by_uncertainty<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
         let mut indexed: Vec<(usize, f64)> = candidates
@@ -259,18 +380,19 @@ impl ActiveLearner {
     }
 
     fn select_by_diversity<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
-        // Greedy diversity selection using embeddings
-        // If no embeddings, fall back to uncertainty
-
+        // Greedy farthest-point sampling using embeddings.
+        // This maximizes the minimum distance between selected points.
+        
+        // Verify embeddings exist (should have been checked by resolve_strategy)
         let has_embeddings = candidates.iter().all(|c| c.embedding.is_some());
         if !has_embeddings {
             return self.select_by_uncertainty(candidates, k);
         }
 
-        let mut selected_indices = Vec::new();
+        let mut selected_indices = Vec::with_capacity(k);
         let mut remaining: HashSet<usize> = (0..candidates.len()).collect();
 
-        // Start with most uncertain
+        // Start with the most uncertain candidate (combines uncertainty with diversity)
         let first_idx = candidates
             .iter()
             .enumerate()
@@ -281,20 +403,20 @@ impl ActiveLearner {
         selected_indices.push(first_idx);
         remaining.remove(&first_idx);
 
-        // Greedily add most diverse
+        // Greedily add candidate that maximizes minimum distance to selected set
         while selected_indices.len() < k && !remaining.is_empty() {
             let mut best_idx = 0;
             let mut best_min_dist = f64::NEG_INFINITY;
 
             for &idx in &remaining {
-                // Find minimum distance to any selected
+                let emb_idx = candidates[idx].embedding.as_ref().unwrap();
+                
+                // Find minimum distance to any already-selected candidate
                 let min_dist = selected_indices
                     .iter()
                     .map(|&sel_idx| {
-                        self.embedding_distance(
-                            candidates[idx].embedding.as_ref().unwrap(),
-                            candidates[sel_idx].embedding.as_ref().unwrap(),
-                        )
+                        let emb_sel = candidates[sel_idx].embedding.as_ref().unwrap();
+                        self.embedding_distance(emb_idx, emb_sel)
                     })
                     .min_by(|a, b| a.partial_cmp(b).unwrap())
                     .unwrap_or(0.0);
@@ -326,14 +448,14 @@ impl ActiveLearner {
     }
 
     fn select_hybrid<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
-        let scores = self.compute_scores(candidates);
+        let scores = self.compute_scores_with_strategy(candidates, SamplingStrategy::Hybrid);
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         indexed.iter().take(k).map(|(i, _)| &candidates[*i]).collect()
     }
 
     fn select_random<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
-        let scores = self.compute_scores(candidates);
+        let scores = self.compute_scores_with_strategy(candidates, SamplingStrategy::Random);
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         indexed.iter().take(k).map(|(i, _)| &candidates[*i]).collect()
@@ -341,10 +463,11 @@ impl ActiveLearner {
 
     fn committee_disagreement(&self, candidate: &Candidate) -> f64 {
         if candidate.committee_predictions.len() < 2 {
+            // No committee - fall back to uncertainty
             return 1.0 - candidate.confidence;
         }
 
-        // Count agreement on each entity type
+        // Count agreement on each entity type using vote entropy
         let all_types: HashSet<&String> = candidate
             .committee_predictions
             .iter()
@@ -358,20 +481,22 @@ impl ActiveLearner {
         let num_models = candidate.committee_predictions.len();
         let mut total_disagreement = 0.0;
 
-        for entity_type in all_types {
+        let num_types = all_types.len();
+        for entity_type in &all_types {
             let count = candidate
                 .committee_predictions
                 .iter()
-                .filter(|p| p.contains(entity_type))
+                .filter(|p| p.contains(*entity_type))
                 .count();
 
             // Disagreement is highest when count is closest to num_models/2
+            // Using variance of binary votes: p(1-p) where p = count/num_models
             let agreement_ratio = count as f64 / num_models as f64;
             let disagreement = 4.0 * agreement_ratio * (1.0 - agreement_ratio);
             total_disagreement += disagreement;
         }
 
-        total_disagreement / all_types.len() as f64
+        total_disagreement / num_types as f64
     }
 
     fn embedding_distance(&self, a: &[f64], b: &[f64]) -> f64 {
@@ -399,10 +524,13 @@ impl Default for ActiveLearner {
 // =============================================================================
 
 /// Estimate annotation budget needed for target performance.
+///
+/// This is a simple linear extrapolation based on observed learning rate.
+/// For more accurate estimates, use `LearningCurveAnalyzer`.
 pub fn estimate_budget(
     current_f1: f64,
     target_f1: f64,
-    current_samples: usize,
+    _current_samples: usize,
     f1_per_100_samples: f64,
 ) -> Option<usize> {
     if target_f1 <= current_f1 || f1_per_100_samples <= 0.0 {
@@ -460,6 +588,57 @@ mod tests {
 
         assert_eq!(selected[0].text, "Disagreement");
     }
+    
+    #[test]
+    fn test_diversity_sampling_with_embeddings() {
+        // Create candidates with embeddings at different points
+        let candidates = vec![
+            Candidate::new("Near origin", 0.5).with_embedding(vec![0.0, 0.0]),
+            Candidate::new("Far positive", 0.5).with_embedding(vec![10.0, 10.0]),
+            Candidate::new("Far negative", 0.5).with_embedding(vec![-10.0, -10.0]),
+            Candidate::new("Near origin 2", 0.5).with_embedding(vec![0.1, 0.1]),
+        ];
+        
+        let learner = ActiveLearner::new(SamplingStrategy::Diversity);
+        let selected = learner.select(&candidates, 3);
+        
+        // Should select diverse points, not clustered ones
+        assert_eq!(selected.len(), 3);
+        let texts: Vec<&str> = selected.iter().map(|c| c.text.as_str()).collect();
+        assert!(texts.contains(&"Far positive"));
+        assert!(texts.contains(&"Far negative"));
+    }
+    
+    #[test]
+    fn test_diversity_fallback_without_embeddings() {
+        let candidates = vec![
+            Candidate::new("No embedding 1", 0.9),
+            Candidate::new("No embedding 2", 0.3), // Most uncertain
+        ];
+        
+        let learner = ActiveLearner::new(SamplingStrategy::Diversity);
+        let result = learner.select_with_scores(&candidates, 1);
+        
+        // Should fall back to uncertainty
+        assert_eq!(result.actual_strategy, SamplingStrategy::Uncertainty);
+        assert!(!result.warnings.is_empty());
+        assert_eq!(result.selected[0].0, "No embedding 2");
+    }
+    
+    #[test]
+    fn test_committee_fallback_without_predictions() {
+        let candidates = vec![
+            Candidate::new("No committee 1", 0.9),
+            Candidate::new("No committee 2", 0.3),
+        ];
+        
+        let learner = ActiveLearner::new(SamplingStrategy::QueryByCommittee);
+        let result = learner.select_with_scores(&candidates, 1);
+        
+        // Should fall back to uncertainty
+        assert_eq!(result.actual_strategy, SamplingStrategy::Uncertainty);
+        assert!(!result.warnings.is_empty());
+    }
 
     #[test]
     fn test_select_with_scores() {
@@ -475,6 +654,7 @@ mod tests {
         assert_eq!(result.selected.len(), 2);
         assert_eq!(result.total_candidates, 3);
         assert!(result.score_stats.mean_selected > result.score_stats.mean_all);
+        assert!(result.warnings.is_empty());
     }
 
     #[test]
@@ -491,4 +671,3 @@ mod tests {
         assert!(selected.is_empty());
     }
 }
-

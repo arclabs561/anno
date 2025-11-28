@@ -37,23 +37,55 @@ pub struct NERQueryMetrics {
     pub tokens_per_second: f64,
 }
 
+/// Averaging mode for NER metrics.
+///
+/// Following seqeval conventions:
+/// - Micro: Calculate metrics globally by counting total TP, FP, FN (default, recommended)
+/// - Macro: Calculate metrics per test case, then average (gives equal weight to each case)
+/// - Weighted: Like macro, but weighted by support (number of expected entities per case)
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum AveragingMode {
+    /// Calculate globally: total_correct / total_predicted (default, standard for NER)
+    #[default]
+    Micro,
+    /// Average per-case metrics (equal weight to each test case, regardless of size)
+    Macro,
+    /// Average per-case metrics weighted by support (number of expected entities)
+    Weighted,
+}
+
 /// Aggregated NER evaluation metrics with statistical measures.
 ///
 /// Provides mean, standard deviation, and confidence intervals
 /// for comprehensive analysis.
+///
+/// # Micro vs Macro Averaging
+///
+/// By default, we compute **micro-averaged** metrics (total_correct / total_found),
+/// which is the standard for NER evaluation and matches seqeval's default.
+///
+/// Macro-averaging (average of per-case metrics) can inflate scores when test
+/// cases have different sizes. A test case with 1 entity getting 100% F1 shouldn't
+/// boost overall metrics as much as a case with 100 entities getting 50% F1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NERAggregateMetrics {
-    /// Mean precision (type-safe, bounded 0.0-1.0)
+    /// Micro-averaged precision (total_correct / total_found)
     pub precision: MetricValue,
-    /// Mean recall (type-safe, bounded 0.0-1.0)
+    /// Micro-averaged recall (total_correct / total_expected)
     pub recall: MetricValue,
-    /// Mean F1 score (type-safe, bounded 0.0-1.0)
+    /// Micro-averaged F1 score
     pub f1: MetricValue,
-    /// Precision standard deviation
+    /// Macro-averaged precision (for comparison)
+    pub macro_precision: MetricValue,
+    /// Macro-averaged recall (for comparison)
+    pub macro_recall: MetricValue,
+    /// Macro-averaged F1 (for comparison)
+    pub macro_f1: MetricValue,
+    /// Precision standard deviation (of per-case metrics)
     pub precision_std: f64,
-    /// Recall standard deviation
+    /// Recall standard deviation (of per-case metrics)
     pub recall_std: f64,
-    /// F1 standard deviation
+    /// F1 standard deviation (of per-case metrics)
     pub f1_std: f64,
     /// Precision 95% confidence interval (lower, upper)
     pub precision_ci_95: Option<(f64, f64)>,
@@ -61,7 +93,7 @@ pub struct NERAggregateMetrics {
     pub recall_ci_95: Option<(f64, f64)>,
     /// F1 95% confidence interval (lower, upper)
     pub f1_ci_95: Option<(f64, f64)>,
-    /// Per-entity-type aggregated metrics
+    /// Per-entity-type aggregated metrics (micro-averaged)
     pub per_type: HashMap<String, TypeMetrics>,
     /// Mean tokens per second
     pub tokens_per_second: f64,
@@ -448,90 +480,117 @@ impl NEREvaluator for StandardNEREvaluator {
             ));
         }
 
-        // Extract metric values
+        // Calculate totals for micro-averaging
+        let total_found: usize = query_metrics.iter().map(|m| m.found).sum();
+        let total_expected: usize = query_metrics.iter().map(|m| m.expected).sum();
+        let total_correct: usize = query_metrics.iter().map(|m| m.correct).sum();
+
+        // MICRO-averaged metrics (standard for NER, matches seqeval default)
+        // precision = total_correct / total_found
+        // recall = total_correct / total_expected
+        let micro_precision = if total_found > 0 {
+            total_correct as f64 / total_found as f64
+        } else {
+            0.0 // Note: seqeval would optionally warn here
+        };
+        let micro_recall = if total_expected > 0 {
+            total_correct as f64 / total_expected as f64
+        } else {
+            0.0
+        };
+        let micro_f1 = if micro_precision + micro_recall > 0.0 {
+            2.0 * micro_precision * micro_recall / (micro_precision + micro_recall)
+        } else {
+            0.0
+        };
+
+        // MACRO-averaged metrics (for comparison, equal weight per test case)
         let precisions: Vec<f64> = query_metrics.iter().map(|m| m.precision.get()).collect();
         let recalls: Vec<f64> = query_metrics.iter().map(|m| m.recall.get()).collect();
         let f1s: Vec<f64> = query_metrics.iter().map(|m| m.f1.get()).collect();
         let tokens_per_second: Vec<f64> =
             query_metrics.iter().map(|m| m.tokens_per_second).collect();
 
-        // Calculate means
-        let mean_precision = precisions.iter().sum::<f64>() / precisions.len() as f64;
-        let mean_recall = recalls.iter().sum::<f64>() / recalls.len() as f64;
-        let mean_f1 = f1s.iter().sum::<f64>() / f1s.len() as f64;
+        let macro_precision = precisions.iter().sum::<f64>() / precisions.len() as f64;
+        let macro_recall = recalls.iter().sum::<f64>() / recalls.len() as f64;
+        let macro_f1 = f1s.iter().sum::<f64>() / f1s.len() as f64;
         let mean_tokens_per_second =
             tokens_per_second.iter().sum::<f64>() / tokens_per_second.len() as f64;
 
-        // Validate means are finite
-        if !mean_precision.is_finite()
-            || !mean_recall.is_finite()
-            || !mean_f1.is_finite()
+        // Validate metrics are finite
+        if !micro_precision.is_finite()
+            || !micro_recall.is_finite()
+            || !micro_f1.is_finite()
             || !mean_tokens_per_second.is_finite()
         {
             return Err(Error::InvalidInput(format!(
                 "Invalid aggregate metric values: precision={}, recall={}, f1={}, tps={}",
-                mean_precision, mean_recall, mean_f1, mean_tokens_per_second
+                micro_precision, micro_recall, micro_f1, mean_tokens_per_second
             )));
         }
 
-        // Calculate standard deviations
-        let precision_std = calculate_std_dev(&precisions, mean_precision);
-        let recall_std = calculate_std_dev(&recalls, mean_recall);
-        let f1_std = calculate_std_dev(&f1s, mean_f1);
+        // Calculate standard deviations (of per-case metrics, for variability analysis)
+        let precision_std = calculate_std_dev(&precisions, macro_precision);
+        let recall_std = calculate_std_dev(&recalls, macro_recall);
+        let f1_std = calculate_std_dev(&f1s, macro_f1);
 
-        // Calculate 95% confidence intervals
-        let precision_ci_95 = calculate_ci_95(&precisions, mean_precision, precision_std);
-        let recall_ci_95 = calculate_ci_95(&recalls, mean_recall, recall_std);
-        let f1_ci_95 = calculate_ci_95(&f1s, mean_f1, f1_std);
+        // Calculate 95% confidence intervals (based on per-case variability)
+        let precision_ci_95 = calculate_ci_95(&precisions, macro_precision, precision_std);
+        let recall_ci_95 = calculate_ci_95(&recalls, macro_recall, recall_std);
+        let f1_ci_95 = calculate_ci_95(&f1s, macro_f1, f1_std);
 
-        // Aggregate per-type metrics
-        let mut per_type_aggregated: HashMap<String, Vec<TypeMetrics>> = HashMap::new();
+        // Aggregate per-type metrics using MICRO-averaging
+        let mut per_type_totals: HashMap<String, (usize, usize, usize)> = HashMap::new();
         for metric in query_metrics {
             for (type_name, type_metric) in &metric.per_type {
-                per_type_aggregated
-                    .entry(type_name.clone())
-                    .or_default()
-                    .push(type_metric.clone());
+                let entry = per_type_totals.entry(type_name.clone()).or_insert((0, 0, 0));
+                entry.0 += type_metric.found;
+                entry.1 += type_metric.expected;
+                entry.2 += type_metric.correct;
             }
         }
 
         let mut per_type = HashMap::new();
-        for (type_name, type_metrics_list) in per_type_aggregated {
-            let type_precisions: Vec<f64> = type_metrics_list.iter().map(|m| m.precision).collect();
-            let type_recalls: Vec<f64> = type_metrics_list.iter().map(|m| m.recall).collect();
-            let type_f1s: Vec<f64> = type_metrics_list.iter().map(|m| m.f1).collect();
-
-            let mean_type_precision =
-                type_precisions.iter().sum::<f64>() / type_precisions.len() as f64;
-            let mean_type_recall = type_recalls.iter().sum::<f64>() / type_recalls.len() as f64;
-            let mean_type_f1 = type_f1s.iter().sum::<f64>() / type_f1s.len() as f64;
-
-            let total_found: usize = type_metrics_list.iter().map(|m| m.found).sum();
-            let total_expected: usize = type_metrics_list.iter().map(|m| m.expected).sum();
-            let total_correct: usize = type_metrics_list.iter().map(|m| m.correct).sum();
+        for (type_name, (type_found, type_expected, type_correct)) in per_type_totals {
+            // Micro-averaged per-type metrics
+            let type_precision = if type_found > 0 {
+                type_correct as f64 / type_found as f64
+            } else {
+                0.0
+            };
+            let type_recall = if type_expected > 0 {
+                type_correct as f64 / type_expected as f64
+            } else {
+                0.0
+            };
+            let type_f1 = if type_precision + type_recall > 0.0 {
+                2.0 * type_precision * type_recall / (type_precision + type_recall)
+            } else {
+                0.0
+            };
 
             per_type.insert(
                 type_name,
                 TypeMetrics {
-                    precision: mean_type_precision,
-                    recall: mean_type_recall,
-                    f1: mean_type_f1,
-                    found: total_found,
-                    expected: total_expected,
-                    correct: total_correct,
+                    precision: type_precision,
+                    recall: type_recall,
+                    f1: type_f1,
+                    found: type_found,
+                    expected: type_expected,
+                    correct: type_correct,
                 },
             );
         }
 
-        // Calculate totals
-        let total_found: usize = query_metrics.iter().map(|m| m.found).sum();
-        let total_expected: usize = query_metrics.iter().map(|m| m.expected).sum();
-        let total_correct: usize = query_metrics.iter().map(|m| m.correct).sum();
-
         Ok(NERAggregateMetrics {
-            precision: MetricValue::new(mean_precision),
-            recall: MetricValue::new(mean_recall),
-            f1: MetricValue::new(mean_f1),
+            // Primary metrics: micro-averaged (standard for NER)
+            precision: MetricValue::new(micro_precision),
+            recall: MetricValue::new(micro_recall),
+            f1: MetricValue::new(micro_f1),
+            // Secondary metrics: macro-averaged (for comparison)
+            macro_precision: MetricValue::new(macro_precision),
+            macro_recall: MetricValue::new(macro_recall),
+            macro_f1: MetricValue::new(macro_f1),
             precision_std,
             recall_std,
             f1_std,

@@ -62,6 +62,56 @@ pub struct AnnotatedExample {
     pub difficulty: Difficulty,
 }
 
+impl AnnotatedExample {
+    /// Create a simple annotated example from text and entity tuples.
+    ///
+    /// This is a convenience constructor primarily for doctests and simple examples.
+    /// Entity positions are computed by finding each entity text within the input text.
+    ///
+    /// # Arguments
+    ///
+    /// * `text` - The input text
+    /// * `entities` - List of (entity_text, entity_type) tuples where entity_type is
+    ///                a string like "PER", "ORG", "LOC", etc.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anno::eval::synthetic::AnnotatedExample;
+    ///
+    /// let example = AnnotatedExample::new(
+    ///     "John works at Google.",
+    ///     vec![("John", "PER"), ("Google", "ORG")],
+    /// );
+    /// assert_eq!(example.entities.len(), 2);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if an entity text is not found in the input text.
+    #[must_use]
+    pub fn new(text: impl Into<String>, entities: Vec<(&str, &str)>) -> Self {
+        let text = text.into();
+        let gold_entities = entities
+            .into_iter()
+            .map(|(entity_text, entity_type_str)| {
+                let start = text
+                    .find(entity_text)
+                    .unwrap_or_else(|| panic!("Entity '{}' not found in text '{}'", entity_text, text));
+                let entity_type = crate::EntityType::from_label(entity_type_str);
+                GoldEntity::new(entity_text, entity_type, start)
+            })
+            .collect();
+
+        Self {
+            text,
+            entities: gold_entities,
+            domain: Domain::News,
+            difficulty: Difficulty::Easy,
+        }
+    }
+}
+
 /// Domain classification for examples
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Domain {
