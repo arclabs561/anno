@@ -238,15 +238,15 @@ impl CodeNERPrompt {
     /// Render the user prompt for the given input text.
     #[must_use]
     pub fn render(&self, input_text: &str) -> String {
-        let mut parts = vec![];
-
         // Function signature with schema
-        parts.push("```python".to_string());
-        parts.push("def extract_entities(text: str) -> list[dict]:".to_string());
-        parts.push(self.schema.render_docstring());
-        parts.push("    pass".to_string());
-        parts.push("```".to_string());
-        parts.push("".to_string());
+        let mut parts = vec![
+            "```python".to_string(),
+            "def extract_entities(text: str) -> list[dict]:".to_string(),
+            self.schema.render_docstring(),
+            "    pass".to_string(),
+            "```".to_string(),
+            String::new(),
+        ];
 
         // Demonstrations
         if !self.demonstrations.is_empty() {
@@ -338,9 +338,8 @@ pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedEntity>, ParseErro
 /// Extract JSON array from potentially messy LLM output.
 fn extract_json_array(text: &str) -> Result<String, ParseError> {
     // Try direct parse first
-    if text.trim().starts_with('[') {
-        if let Some(end) = text.rfind(']') {
-            let start = text.find('[').unwrap();
+    if let (Some(start), Some(end)) = (text.find('['), text.rfind(']')) {
+        if end > start {
             return Ok(text[start..=end].to_string());
         }
     }
