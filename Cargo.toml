@@ -109,11 +109,19 @@ name = "candle"
 required-features = ["candle"]
 
 [[example]]
+name = "gliner_candle"
+required-features = ["candle"]
+
+[[example]]
 name = "download_models"
 required-features = ["network"]
 
 [[example]]
 name = "eval"
+required-features = ["eval"]
+
+[[example]]
+name = "eval_basic"
 required-features = ["eval"]
 
 [[example]]

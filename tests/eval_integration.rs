@@ -10,11 +10,11 @@
 #![cfg(feature = "eval-advanced")]
 
 use anno::eval::{
-    Difficulty,
     compare_datasets, compute_stats, estimate_difficulty,
     interpret_curve, DriftConfig, DriftDetector,
     PredictionWithConfidence, ThresholdAnalyzer,
 };
+use anno::eval::dataset_comparison::EstimatedDifficulty;
 use anno::eval::synthetic::{all_datasets, Domain};
 use anno::eval::harness::{EvalConfig, EvalHarness};
 use anno::{Model, PatternNER};
@@ -276,7 +276,7 @@ fn test_difficulty_estimation() {
     // Should return a valid difficulty level
     assert!(matches!(
         difficulty.difficulty,
-        Difficulty::Easy | Difficulty::Medium | Difficulty::Hard | Difficulty::VeryHard
+        EstimatedDifficulty::Easy | EstimatedDifficulty::Medium | EstimatedDifficulty::Hard | EstimatedDifficulty::VeryHard
     ));
     
     assert!(difficulty.score >= 0.0 && difficulty.score <= 1.0);

@@ -1,7 +1,6 @@
 //! CLI tool for quick NER evaluation.
 //!
-//! Usage:
-//!   anno-eval [OPTIONS] <COMMAND>
+//! Usage: `anno-eval <COMMAND> [OPTIONS]`
 //!
 //! Commands:
 //!   quick    Run quick evaluation with synthetic data

@@ -16,8 +16,10 @@ cargo run --example quickstart --features eval
 | `quickstart` | eval | Entry point - evaluate PatternNER on custom data |
 | `bert` | onnx | BERT NER demo - standard named entity recognition |
 | `candle` | candle | Candle architecture - pure Rust ML backend |
+| `gliner_candle` | candle | GLiNER with Candle backend |
 | `download_models` | network | Utility - pre-download models for offline use |
 | `eval` | eval | Evaluation framework - synthetic + real datasets |
+| `eval_basic` | eval | Basic evaluation with custom test data |
 | `coref` | eval | Coreference resolution metrics (MUC, B³, CEAF, LEA) |
 | `bias` | eval-bias | Bias analysis - gender, demographic, temporal |
 | `benchmark` | eval-full | Comprehensive quality metrics + bias + robustness |
