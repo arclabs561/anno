@@ -85,6 +85,12 @@ pub mod stacked;
 pub mod statistical;
 pub mod w2ner;
 
+// LLM-based NER prompting (CodeNER-style)
+pub mod llm_prompt;
+
+// Demonstration selection for few-shot NER (CMAS-inspired)
+pub mod demonstration;
+
 // GLiNER via ONNX (uses same feature as other ONNX models)
 // Note: gline-rs crate not yet published to crates.io
 

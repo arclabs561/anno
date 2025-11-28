@@ -91,7 +91,6 @@ mod candle_ner {
 #[cfg(feature = "candle")]
 mod gliner_candle {
     use anno::backends::gliner_candle::GLiNERCandle;
-    use anno::DynamicLabels;
     use anno::Model;
 
     /// Test GLiNERCandle with real model - requires network and candle feature.
@@ -183,6 +182,7 @@ mod gliner_candle {
 
 #[cfg(feature = "candle")]
 mod comparison {
+    #[allow(unused_imports)]  // Used conditionally in onnx block
     use anno::Model;
 
     /// Compare Candle vs ONNX backends on the same inputs.

@@ -5,8 +5,12 @@
 //! - Threshold analysis
 //! - Dataset comparison
 //! - Harness integration
+//!
+//! Requires `eval-advanced` feature.
+#![cfg(feature = "eval-advanced")]
 
 use anno::eval::{
+    Difficulty,
     compare_datasets, compute_stats, estimate_difficulty,
     interpret_curve, DriftConfig, DriftDetector,
     PredictionWithConfidence, ThresholdAnalyzer,
@@ -270,11 +274,10 @@ fn test_difficulty_estimation() {
     let difficulty = estimate_difficulty(&stats);
 
     // Should return a valid difficulty level
-    matches!(difficulty.difficulty, 
-        anno::eval::Difficulty::Easy | 
-        anno::eval::Difficulty::Medium | 
-        anno::eval::Difficulty::Hard | 
-        anno::eval::Difficulty::VeryHard);
+    assert!(matches!(
+        difficulty.difficulty,
+        Difficulty::Easy | Difficulty::Medium | Difficulty::Hard | Difficulty::VeryHard
+    ));
     
     assert!(difficulty.score >= 0.0 && difficulty.score <= 1.0);
 }
