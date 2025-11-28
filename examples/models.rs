@@ -7,7 +7,7 @@
 //! - Batch processing
 //! - Confidence calibration
 //!
-//! Run: cargo run --features "eval,onnx,network" --example 62_model_showcase
+//! Run: cargo run --features "onnx" --example models
 
 use anno::{Model, PatternNER, StatisticalNER, StackedNER};
 use std::time::Instant;
@@ -16,9 +16,8 @@ use std::time::Instant;
 use anno::{BertNEROnnx, GLiNEROnnx, ZeroShotNER};
 
 fn main() -> anno::Result<()> {
-    println!("╔═══════════════════════════════════════════════════════════════════════╗");
-    println!("║                      Model Capability Showcase                         ║");
-    println!("╚═══════════════════════════════════════════════════════════════════════╝\n");
+    println!("Model Capability Showcase");
+    println!("=========================\n");
 
     let test_texts = [
         "Elon Musk founded SpaceX in 2002 and later acquired Twitter for $44 billion.",
@@ -28,74 +27,68 @@ fn main() -> anno::Result<()> {
         "Patient presented with severe headache and was prescribed 400mg ibuprofen.",
     ];
 
-    // =========================================================================
     // PART 1: Standard Model Trait
-    // =========================================================================
-    println!("═══════════════════════════════════════════════════════════════════════");
     println!("PART 1: Standard Model Trait (extract_entities)");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("------------------------------------------------\n");
 
     // Pattern NER
-    println!("─── PatternNER ───");
+    println!("[PatternNER]");
     let pattern = PatternNER::new();
     run_model_test(&pattern, &test_texts[0..2]);
 
     // Statistical NER
-    println!("─── StatisticalNER ───");
+    println!("[StatisticalNER]");
     let statistical = StatisticalNER::new();
     run_model_test(&statistical, &test_texts[0..2]);
 
     // Stacked NER
-    println!("─── StackedNER ───");
+    println!("[StackedNER]");
     let stacked = StackedNER::default();
     run_model_test(&stacked, &test_texts[0..2]);
 
     #[cfg(feature = "onnx")]
     {
         // BERT NER
-        println!("─── BertNER-ONNX ───");
+        println!("[BertNER-ONNX]");
         match BertNEROnnx::new("protectai/bert-base-NER-onnx") {
             Ok(bert) => run_model_test(&bert, &test_texts[0..2]),
             Err(e) => println!("  Skipped: {}\n", e),
         }
 
         // GLiNER (via Model trait - uses default labels)
-        println!("─── GLiNER-ONNX (Model trait) ───");
+        println!("[GLiNER-ONNX (Model trait)]");
         match GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
             Ok(gliner) => run_model_test(&gliner, &test_texts[0..2]),
             Err(e) => println!("  Skipped: {}\n", e),
         }
     }
 
-    // =========================================================================
     // PART 2: Zero-Shot NER with Custom Types
-    // =========================================================================
     #[cfg(feature = "onnx")]
     {
-        println!("\n═══════════════════════════════════════════════════════════════════════");
-        println!("PART 2: Zero-Shot NER (Custom Entity Types)");
-        println!("═══════════════════════════════════════════════════════════════════════\n");
+        println!("\nPART 2: Zero-Shot NER (Custom Entity Types)");
+        println!("--------------------------------------------\n");
 
         match GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
             Ok(gliner) => {
                 // Business domain
-                println!("─── Business Domain ───");
+                println!("[Business Domain]");
                 let business_types = ["company", "person", "money", "product"];
                 run_zero_shot_test(&gliner, test_texts[0], &business_types);
                 run_zero_shot_test(&gliner, test_texts[3], &business_types);
 
                 // Academic domain
-                println!("─── Academic Domain ───");
+                println!("[Academic Domain]");
                 let academic_types = ["researcher", "institution", "technology", "publication"];
                 run_zero_shot_test(&gliner, test_texts[1], &academic_types);
 
                 // Historical domain
-                println!("─── Historical Domain ───");
+                println!("[Historical Domain]");
                 let historical_types = ["treaty", "date", "location", "historical event"];
                 run_zero_shot_test(&gliner, test_texts[2], &historical_types);
 
                 // Medical domain
-                println!("─── Medical Domain ───");
+                println!("[Medical Domain]");
                 let medical_types = ["symptom", "medication", "dosage", "patient"];
                 run_zero_shot_test(&gliner, test_texts[4], &medical_types);
             }
@@ -103,14 +96,11 @@ fn main() -> anno::Result<()> {
         }
     }
 
-    // =========================================================================
     // PART 3: Zero-Shot NER with Natural Language Descriptions
-    // =========================================================================
     #[cfg(feature = "onnx")]
     {
-        println!("\n═══════════════════════════════════════════════════════════════════════");
-        println!("PART 3: Zero-Shot NER (Natural Language Descriptions)");
-        println!("═══════════════════════════════════════════════════════════════════════\n");
+        println!("\nPART 3: Zero-Shot NER (Natural Language Descriptions)");
+        println!("------------------------------------------------------\n");
 
         match GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
             Ok(gliner) => {
@@ -149,14 +139,11 @@ fn main() -> anno::Result<()> {
         }
     }
 
-    // =========================================================================
     // PART 4: Performance Comparison
-    // =========================================================================
     #[cfg(feature = "onnx")]
     {
-        println!("\n═══════════════════════════════════════════════════════════════════════");
-        println!("PART 4: Performance Comparison");
-        println!("═══════════════════════════════════════════════════════════════════════\n");
+        println!("\nPART 4: Performance Comparison");
+        println!("-------------------------------\n");
 
         let benchmark_text = "Apple Inc. CEO Tim Cook announced new products at the Cupertino headquarters.";
         let iterations = 10;
@@ -212,19 +199,16 @@ fn main() -> anno::Result<()> {
         }
     }
 
-    // =========================================================================
     // PART 5: Entity Type Coverage
-    // =========================================================================
-    println!("\n═══════════════════════════════════════════════════════════════════════");
-    println!("PART 5: Entity Type Coverage");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("\nPART 5: Entity Type Coverage");
+    println!("----------------------------\n");
 
-    println!("─── PatternNER Types ───");
+    println!("[PatternNER Types]");
     for t in PatternNER::new().supported_types() {
         println!("  {}", t.as_label());
     }
 
-    println!("\n─── StatisticalNER Types ───");
+    println!("\n[StatisticalNER Types]");
     for t in StatisticalNER::new().supported_types() {
         println!("  {}", t.as_label());
     }
@@ -232,14 +216,14 @@ fn main() -> anno::Result<()> {
     #[cfg(feature = "onnx")]
     {
         if let Ok(bert) = BertNEROnnx::new("protectai/bert-base-NER-onnx") {
-            println!("\n─── BertNER-ONNX Types ───");
+            println!("\n[BertNER-ONNX Types]");
             for t in bert.supported_types() {
                 println!("  {}", t.as_label());
             }
         }
 
         if let Ok(gliner) = GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
-            println!("\n─── GLiNER-ONNX Default Types ───");
+            println!("\n[GLiNER-ONNX Default Types]");
             for t in gliner.supported_types().iter().take(7) {
                 println!("  {}", t.as_label());
             }
@@ -247,9 +231,8 @@ fn main() -> anno::Result<()> {
         }
     }
 
-    println!("\n═══════════════════════════════════════════════════════════════════════");
-    println!("Summary");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("\nSummary");
+    println!("-------\n");
 
     println!("Available backends:");
     println!("  [x] PatternNER     - Regex patterns (dates, emails, money, etc.)");

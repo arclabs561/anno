@@ -3,7 +3,7 @@
 //! This example demonstrates high-quality NER using BERT with ONNX Runtime.
 //!
 //! Run with:
-//!   cargo run --example bert_ner_demo --features onnx
+//!   cargo run --example bert --features onnx
 //!
 //! # Entity Types
 //!
@@ -88,6 +88,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(not(feature = "onnx"))]
 fn main() {
     println!("This example requires the 'onnx' feature.");
-    println!("Run with: cargo run --example bert_ner_demo --features onnx");
+    println!("Run with: cargo run --example bert --features onnx");
 }
 

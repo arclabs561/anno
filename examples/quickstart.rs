@@ -2,7 +2,7 @@
 //!
 //! This is the recommended way to evaluate an NER model.
 //!
-//! Run: cargo run --example quick_eval
+//! Run: cargo run --example quickstart
 
 use anno::eval::{ReportBuilder, SimpleGoldEntity, TestCase};
 use anno::PatternNER;

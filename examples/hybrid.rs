@@ -3,7 +3,7 @@
 //! Key insight: ML models miss structured patterns, Pattern models miss named entities.
 //! Solution: Combine them intelligently.
 //!
-//! Run: cargo run --features "eval,onnx,network" --example 64_hybrid_eval
+//! Run: cargo run --features "onnx" --example hybrid
 
 use anno::{Entity, Model, HybridNER, PatternNER};
 use std::collections::HashSet;
@@ -12,9 +12,8 @@ use std::collections::HashSet;
 use anno::{BertNEROnnx, GLiNEROnnx};
 
 fn main() -> anno::Result<()> {
-    println!("╔═══════════════════════════════════════════════════════════════════════╗");
-    println!("║                    Hybrid Model Evaluation                             ║");
-    println!("╚═══════════════════════════════════════════════════════════════════════╝\n");
+    println!("Hybrid Model Evaluation");
+    println!("=======================\n");
 
     let test_cases = [
         // ML models excel at these
@@ -40,12 +39,11 @@ fn main() -> anno::Result<()> {
     #[cfg(feature = "onnx")]
     let gliner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1").ok();
 
-    println!("═══════════════════════════════════════════════════════════════════════");
     println!("Entity Extraction Comparison");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("----------------------------\n");
 
     for (text, category) in &test_cases {
-        println!("─── {} ───", category);
+        println!("[{}]", category);
         println!("  Text: \"{}\"\n", text);
 
         // Pattern only
@@ -83,9 +81,8 @@ fn main() -> anno::Result<()> {
     }
 
     // Summary comparison
-    println!("═══════════════════════════════════════════════════════════════════════");
     println!("Coverage Analysis");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("-----------------\n");
 
     let mut total_pattern = 0;
     let mut total_ml = 0;
@@ -112,7 +109,7 @@ fn main() -> anno::Result<()> {
     #[cfg(feature = "onnx")]
     println!("  Combined:       {:2} entities", total_combined);
 
-    println!("\n─── Complementary Strengths ───");
+    println!("\nComplementary Strengths:");
     println!();
     println!("  PatternNER excels at:");
     println!("    - Dates (March 15, 2024)");
@@ -132,9 +129,8 @@ fn main() -> anno::Result<()> {
     println!("    - Higher recall without sacrificing precision");
     println!("    - Robust handling of diverse entity types");
 
-    println!("\n═══════════════════════════════════════════════════════════════════════");
-    println!("Recommended Usage");
-    println!("═══════════════════════════════════════════════════════════════════════\n");
+    println!("\nRecommended Usage");
+    println!("-----------------\n");
 
     println!("For production use, consider:");
     println!();

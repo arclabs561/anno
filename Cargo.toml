@@ -93,62 +93,49 @@ unwrap_used = "warn"
 # =============================================================================
 # EXAMPLES with required features
 # =============================================================================
+# Examples - Run with: cargo run --example <name> --features <required-features>
+# =============================================================================
+
 [[example]]
-name = "01_quickstart"
+name = "quickstart"
 required-features = ["eval"]
 
 [[example]]
-name = "10_bert_onnx"
+name = "bert"
 required-features = ["onnx"]
 
 [[example]]
-name = "11_candle_gliner"
+name = "candle"
 required-features = ["candle"]
 
 [[example]]
-name = "12_download_models"
+name = "download_models"
 required-features = ["network"]
 
 [[example]]
-name = "20_eval_basic"
+name = "eval"
 required-features = ["eval"]
 
 [[example]]
-name = "21_eval_coref"
+name = "coref"
 required-features = ["eval"]
 
 [[example]]
-name = "30_bias_analysis"
+name = "bias"
 required-features = ["eval-bias"]
 
 [[example]]
-name = "40_benchmark_backend"
-required-features = ["eval", "onnx"]
-
-[[example]]
-name = "41_benchmark_fewnerd"
-required-features = ["eval", "onnx", "network"]
-
-[[example]]
-name = "42_benchmark_full"
-required-features = ["eval-full", "onnx"]
-
-[[example]]
-name = "43_benchmark_rigorous"
-required-features = ["eval", "onnx", "network"]
-
-[[example]]
-name = "44_benchmark_dataset"
-required-features = ["eval", "onnx", "network"]
-
-[[example]]
-name = "50_comprehensive_bench"
-required-features = ["eval-full", "onnx"]
-
-[[example]]
-name = "51_comprehensive_eval"
-required-features = ["eval-full", "onnx"]
-
-[[example]]
-name = "52_quality_bench"
+name = "benchmark"
 required-features = ["eval-full"]
+
+[[example]]
+name = "advanced"
+required-features = ["eval"]
+
+[[example]]
+name = "models"
+required-features = ["onnx"]
+
+[[example]]
+name = "hybrid"
+required-features = ["onnx"]

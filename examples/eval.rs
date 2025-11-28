@@ -6,13 +6,13 @@
 //!
 //! ```bash
 //! # Synthetic only (fast, no downloads)
-//! cargo run --example ner_eval
+//! cargo run --example eval
 //!
 //! # Include real datasets (requires network)
-//! cargo run --example ner_eval --features network
+//! cargo run --example eval --features network
 //!
 //! # With ML backends
-//! cargo run --example ner_eval --features "onnx,network"
+//! cargo run --example eval --features "onnx,network"
 //! ```
 //!
 //! ## Output

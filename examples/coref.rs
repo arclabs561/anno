@@ -8,7 +8,7 @@
 //! - BLANC (rand index)
 //! - CoNLL F1 (average of MUC, B³, CEAFe)
 //!
-//! Run with: `cargo run --example coref_bench`
+//! Run with: `cargo run --example coref`
 
 use anno::eval::coref::{CorefChain, CorefDocument, Mention, MentionType};
 use anno::eval::coref_loader::{adversarial_coref_examples, synthetic_coref_dataset};

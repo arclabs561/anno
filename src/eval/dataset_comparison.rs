@@ -29,7 +29,7 @@
 //! println!("Vocabulary overlap: {:.1}%", comparison.vocab_overlap * 100.0);
 //! ```
 
-use crate::eval::synthetic::{AnnotatedExample, Difficulty, Domain};
+use crate::eval::synthetic::AnnotatedExample;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 

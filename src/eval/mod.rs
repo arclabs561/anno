@@ -403,8 +403,8 @@ pub use ensemble::{
 
 #[cfg(feature = "eval-advanced")]
 pub use dataset_comparison::{
-    compare_datasets, compute_stats, estimate_difficulty, DatasetComparison, DatasetStats,
-    Difficulty, DifficultyEstimate, LengthStats,
+    compare_datasets, compute_stats, estimate_difficulty, DatasetComparison,
+    DatasetStats as ComparisonStats, DifficultyEstimate, LengthStats,
 };
 
 #[cfg(feature = "eval-advanced")]

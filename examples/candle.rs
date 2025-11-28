@@ -7,7 +7,7 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo run --example candle_gliner_demo --features candle
+//! cargo run --example candle --features candle
 //! ```
 
 use anno::{Model, PatternNER, StatisticalNER};

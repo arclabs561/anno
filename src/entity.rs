@@ -17,12 +17,13 @@
 //!
 //! ```text
 //! Mention
-//! ├── Entity (single span) ─────────────────────────────────────────────┐
-//! │   ├── Named (ML): Person, Organization, Location                    │
-//! │   ├── Temporal (Pattern): Date, Time                                │
-//! │   ├── Numeric (Pattern): Money, Percent, Quantity, Cardinal, Ordinal│
-//! │   └── Contact (Pattern): Email, Url, Phone                          │
-//! └── Relation (connects entities) ─────────────────────────────────────┘
+//! ├── Entity (single span)
+//! │   ├── Named (ML): Person, Organization, Location
+//! │   ├── Temporal (Pattern): Date, Time
+//! │   ├── Numeric (Pattern): Money, Percent, Quantity, Cardinal, Ordinal
+//! │   └── Contact (Pattern): Email, Url, Phone
+//! │
+//! └── Relation (connects entities)
 //!     └── Trigger text: "CEO of", "located in", "born on"
 //! ```
 //!

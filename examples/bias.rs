@@ -3,7 +3,7 @@
 //! Demonstrates how to check for length bias using pattern-based entities.
 //! For demographic bias on names, use an ML-based model that detects PERSON.
 //!
-//! Run: cargo run --example bias_check
+//! Run: cargo run --example bias
 
 use anno::eval::length_bias::create_length_varied_dataset;
 use anno::Model;

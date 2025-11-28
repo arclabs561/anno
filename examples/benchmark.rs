@@ -1,10 +1,10 @@
 //! Quality benchmark comparing NER backends on synthetic and real datasets.
 //!
 //! Run with:
-//!   cargo run --example quality_bench                         # Zero-dep backends, synthetic only
-//!   cargo run --example quality_bench --features onnx         # + BERT ONNX backend
-//!   cargo run --example quality_bench --features network      # + real dataset evaluation
-//!   cargo run --example quality_bench --features onnx,network # Full evaluation
+//!   cargo run --example benchmark                         # Zero-dep backends, synthetic only
+//!   cargo run --example benchmark --features onnx         # + BERT ONNX backend
+//!   cargo run --example benchmark --features network      # + real dataset evaluation
+//!   cargo run --example benchmark --features onnx,network # Full evaluation
 //!
 //! Shows:
 //! - Per-backend quality metrics (F1, Precision, Recall)
@@ -46,8 +46,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Dataset: {} examples, {} entities",
         stats.total_examples, stats.total_entities
     );
-    println!("Domains: {:?}", stats.domains);
-    println!("Difficulties: {:?}\n", stats.difficulties);
+    println!("Domains: {:?}", stats.examples_per_domain.keys().collect::<Vec<_>>());
+    println!("Difficulties: {:?}\n", stats.examples_per_difficulty.keys().collect::<Vec<_>>());
 
     // Configure evaluation
     let config = EvalConfig {

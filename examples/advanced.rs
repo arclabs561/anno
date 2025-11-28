@@ -2,7 +2,7 @@
 //!
 //! Tests all the new evaluation infrastructure.
 //!
-//! Run: cargo run --features eval --example 60_advanced_eval
+//! Run: cargo run --features eval --example advanced
 
 use anno::eval::{
     evaluate_discontinuous_gold_vs_gold, evaluate_relations_gold_vs_gold,

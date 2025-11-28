@@ -110,6 +110,28 @@ All evaluation modules have:
 - Property tests for invariants
 - Integration tests in `tests/advanced_trait_tests.rs`
 
+### Model Performance (Curated Test Cases)
+
+| Model | Recall | Notes |
+|-------|--------|-------|
+| GLiNER-ONNX | 66.7% | Best overall, zero-shot flexibility |
+| BertNER-ONNX | 59.3% | Strong on named entities |
+| StackedNER | 48.1% | Best non-ML model |
+| PatternNER | 25.9% | Excellent on structured patterns (100% on emails/phones) |
+| StatisticalNER | 22.2% | Capitalization heuristics only |
+
+**Key Finding**: Hybrid approaches (Pattern + ML) provide best coverage:
+- ML models miss structured patterns (DATE, TIME, EMAIL, PHONE)
+- Pattern models miss named entities (PER, ORG, LOC)
+- Combined: GLiNER+Pattern achieves highest entity coverage
+
+**Examples** (from `examples/62_model_showcase.rs`, `examples/63_model_evaluation.rs`):
+```bash
+cargo run --features "eval,onnx,network" --example 62_model_showcase
+cargo run --features "eval,onnx,network" --example 63_model_evaluation
+cargo run --features "eval,onnx,network" --example 64_hybrid_eval
+```
+
 ## Current State Analysis
 
 ### 1. VisualCapable Trait (Critical Gap)
