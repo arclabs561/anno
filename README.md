@@ -9,15 +9,16 @@ Named entity recognition with multiple backends. Also: coreference metrics, eval
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![MSRV](https://img.shields.io/badge/MSRV-1.75-blue)](https://blog.rust-lang.org/2023/12/28/Rust-1.75.0.html)
 
-## The Problem NER Solves
+## What NER Does
 
-Text is unstructured. You have strings like:
+Named Entity Recognition converts unstructured text into structured entity spans:
 
+**Input:**
 ```
 "John Smith joined Apple Inc. in San Francisco on January 15, 2024 for $150,000"
 ```
 
-You need structure:
+**Output:**
 
 | Entity | Type | Position |
 |--------|------|----------|
@@ -27,8 +28,7 @@ You need structure:
 | January 15, 2024 | DATE | 49-65 |
 | $150,000 | MONEY | 70-78 |
 
-Without NER, you're doing regex for every entity type you care about. With NER, you get
-structured extraction from arbitrary text.
+NER extracts typed spans from free text—persons, organizations, locations, dates, monetary values, and domain-specific entities.
 
 ## Quick Start
 

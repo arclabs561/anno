@@ -212,6 +212,7 @@ pub mod coref;
 pub mod coref_loader;
 pub mod coref_metrics;
 pub mod coref_resolver;
+pub mod dataset;
 pub mod datasets;
 pub mod evaluator;
 pub mod harness;
@@ -273,6 +274,9 @@ pub mod threshold_analysis;
 // Re-exports
 #[allow(deprecated)]
 pub use datasets::{GoldEntity, GroundTruthEntity};
+
+// Dataset API re-exports (new structured dataset interface)
+pub use dataset::{AnnotatedExample, DatasetStats, Difficulty, Domain, NERDataset};
 pub use evaluator::*;
 pub use harness::{
     BackendAggregateResult, BackendDatasetResult, BackendRegistry, DatasetStatsSummary,

@@ -137,6 +137,14 @@ impl std::fmt::Display for ConfusionMatrix {
 // =============================================================================
 
 /// Categories of NER errors.
+///
+/// Note: This type overlaps with [`super::error_analysis::ErrorCategory`].
+/// The mapping is:
+/// - `TypeMismatch` ↔ `ErrorCategory::TypeError`
+/// - `BoundaryError` ↔ `ErrorCategory::BoundaryError`
+/// - `BoundaryAndType` ↔ `ErrorCategory::PartialMatch`
+/// - `Spurious` ↔ `ErrorCategory::FalsePositive`
+/// - `Missed` ↔ `ErrorCategory::FalseNegative`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErrorType {
     /// Correct span, wrong type
@@ -149,6 +157,22 @@ pub enum ErrorType {
     Spurious,
     /// Ground truth entity with no prediction
     Missed,
+}
+
+#[cfg(feature = "eval-advanced")]
+impl ErrorType {
+    /// Convert to the equivalent [`super::error_analysis::ErrorCategory`].
+    #[must_use]
+    pub fn to_error_category(self) -> super::error_analysis::ErrorCategory {
+        use super::error_analysis::ErrorCategory;
+        match self {
+            ErrorType::TypeMismatch => ErrorCategory::TypeError,
+            ErrorType::BoundaryError => ErrorCategory::BoundaryError,
+            ErrorType::BoundaryAndType => ErrorCategory::PartialMatch,
+            ErrorType::Spurious => ErrorCategory::FalsePositive,
+            ErrorType::Missed => ErrorCategory::FalseNegative,
+        }
+    }
 }
 
 /// A single NER error instance.

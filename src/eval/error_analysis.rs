@@ -113,7 +113,15 @@ pub struct EntityInfo {
     pub span: (usize, usize),
 }
 
-/// Error category.
+/// Error category for NER analysis.
+///
+/// Note: This type overlaps with [`super::analysis::ErrorType`].
+/// The mapping is:
+/// - `TypeError` ↔ `ErrorType::TypeMismatch`
+/// - `BoundaryError` ↔ `ErrorType::BoundaryError`
+/// - `PartialMatch` ↔ `ErrorType::BoundaryAndType`
+/// - `FalsePositive` ↔ `ErrorType::Spurious`
+/// - `FalseNegative` ↔ `ErrorType::Missed`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ErrorCategory {
     /// Correct type but wrong boundaries
@@ -126,6 +134,21 @@ pub enum ErrorCategory {
     FalseNegative,
     /// Both boundary and type are wrong but overlapping
     PartialMatch,
+}
+
+impl ErrorCategory {
+    /// Convert to the equivalent [`super::analysis::ErrorType`].
+    #[must_use]
+    pub fn to_error_type(self) -> super::analysis::ErrorType {
+        use super::analysis::ErrorType;
+        match self {
+            ErrorCategory::TypeError => ErrorType::TypeMismatch,
+            ErrorCategory::BoundaryError => ErrorType::BoundaryError,
+            ErrorCategory::PartialMatch => ErrorType::BoundaryAndType,
+            ErrorCategory::FalsePositive => ErrorType::Spurious,
+            ErrorCategory::FalseNegative => ErrorType::Missed,
+        }
+    }
 }
 
 /// Comprehensive error analysis report.
