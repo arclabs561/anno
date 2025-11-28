@@ -39,7 +39,7 @@ mod zero_shot_ner {
             use anno::GLiNEROnnx;
             use anno::ZeroShotNER;
 
-            let model = match GLiNEROnnx::from_pretrained("urchade/gliner_small-v2.1") {
+            let model = match GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
                 Ok(m) => m,
                 Err(e) => {
                     println!("Skipping GLiNER test: {}", e);
@@ -75,7 +75,7 @@ mod zero_shot_ner {
             use anno::GLiNEROnnx;
             use anno::ZeroShotNER;
 
-            let model = match GLiNEROnnx::from_pretrained("urchade/gliner_small-v2.1") {
+            let model = match GLiNEROnnx::new("onnx-community/gliner_small-v2.1") {
                 Ok(m) => m,
                 Err(e) => {
                     println!("Skipping GLiNER test: {}", e);
@@ -254,7 +254,7 @@ mod discontinuous_ner {
             use anno::DiscontinuousNER;
             use anno::W2NER;
 
-            let model = match W2NER::from_pretrained("ljvmiranda921/w2ner-conll2003") {
+            let model = match W2NER::from_pretrained("ljynlp/w2ner-bert-base") {
                 Ok(m) => m,
                 Err(e) => {
                     println!("Skipping W2NER test: {}", e);

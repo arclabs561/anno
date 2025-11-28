@@ -73,10 +73,10 @@ fn test_resolver_metrics_integration() {
     let conll_f1_score = conll_f1(&pred_chains, &gold_chains);
 
     // Sanity checks
-    assert!(muc_p >= 0.0 && muc_p <= 1.0, "MUC precision out of range");
-    assert!(muc_r >= 0.0 && muc_r <= 1.0, "MUC recall out of range");
-    assert!(b3_p >= 0.0 && b3_p <= 1.0, "B3 precision out of range");
-    assert!(conll_f1_score >= 0.0 && conll_f1_score <= 1.0, "CoNLL F1 out of range");
+    assert!((0.0..=1.0).contains(&muc_p), "MUC precision out of range");
+    assert!((0.0..=1.0).contains(&muc_r), "MUC recall out of range");
+    assert!((0.0..=1.0).contains(&b3_p), "B3 precision out of range");
+    assert!((0.0..=1.0).contains(&conll_f1_score), "CoNLL F1 out of range");
 
     // With our simple resolver, we should get decent scores on this easy case
     // Note: The resolver groups by entity type + name matching
@@ -392,7 +392,7 @@ fn test_metrics_on_complex_scenario() {
     // We won't get perfect scores because we're missing "the company"
     // But metrics should be computable and reasonable
     assert!(muc_f1 > 0.0, "Should have some correct links");
-    assert!(conll >= 0.0 && conll <= 1.0, "CoNLL should be valid");
+    assert!((0.0..=1.0).contains(&conll), "CoNLL should be valid");
 }
 
 #[test]

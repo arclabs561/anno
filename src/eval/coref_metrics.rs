@@ -1577,8 +1577,7 @@ mod tests {
 
         /// Generate a chain with 1-5 mentions
         fn arb_chain() -> impl Strategy<Value = CorefChain> {
-            proptest::collection::vec(arb_mention(), 1..5)
-                .prop_map(|mentions| CorefChain::new(mentions))
+            proptest::collection::vec(arb_mention(), 1..5).prop_map(CorefChain::new)
         }
 
         /// Generate a clustering with 1-4 chains
@@ -1623,7 +1622,7 @@ mod tests {
                     eval.conll_f1,
                 ] {
                     prop_assert!(
-                        score >= 0.0 && score <= 1.0,
+                        (0.0..=1.0).contains(&score),
                         "Score {} out of bounds [0, 1]", score
                     );
                 }

@@ -210,9 +210,8 @@ fn test_per_type_metrics() {
 
     // Check that we have metrics for the types we expected
     // (PatternNER should detect these types)
-    let type_keys: Vec<_> = metrics.per_type.keys().collect();
     assert!(
-        type_keys.len() >= 1,
+        !metrics.per_type.is_empty(),
         "Should have at least one type in per_type metrics"
     );
 }
