@@ -24,9 +24,9 @@ Task hierarchy:
 |------|--------|-------------|
 | **NER** | Mature | Extract entity mentions with type labels |
 | **Pattern Extraction** | Mature | Regex-based structured entities (dates, money, emails) |
-| **Coreference** | Metrics only | Link mentions to same real-world entity |
+| **Coreference** | Metrics + Resolver | Link mentions to same real-world entity |
 | **Relation Extraction** | Traits only | Extract (head, relation, tail) triples |
-| **Discontinuous NER** | Stub | Handle non-contiguous entity spans |
+| **Discontinuous NER** | Stable | Handle non-contiguous spans (W2NER) |
 
 ### Future Tasks (Designed but not implemented)
 
@@ -117,7 +117,7 @@ trait Lexicon {
 | Level | Meaning | Examples |
 |-------|---------|----------|
 | **Mature** | Battle-tested, stable API | PatternNER, StatisticalNER, StackedNER, Evaluation framework |
-| **Stable** | Works, API may evolve | GLiNER, NuNER, W2NER (ONNX), BIO adapter, TypeMapper |
+| **Stable** | Works, API may evolve | GLiNER, NuNER, W2NER, Coref metrics+resolver, BIO adapter, TypeMapper |
 | **Experimental** | Functional, limited testing | Candle backend, LLM prompting, Demonstration selection |
 | **Stub** | Traits/types only | RelationExtractor (traits), Event Extraction (types) |
 
