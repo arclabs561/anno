@@ -17,7 +17,7 @@
 //! // Offsets are computed automatically from template positions
 //! ```
 
-use crate::eval::report::{GoldEntity, TestCase};
+use crate::eval::report::{SimpleGoldEntity, TestCase};
 use std::collections::HashMap;
 
 /// A template for generating test cases with automatic offset computation.
@@ -160,7 +160,7 @@ pub fn generate_test_cases(templates: &[Template]) -> Vec<TestCase> {
             text = format!("{}{}{}", before, value, after);
             
             // Record entity
-            entities.push(GoldEntity {
+            entities.push(SimpleGoldEntity {
                 text: value.clone(),
                 entity_type: entity_type.to_string(),
                 start: adjusted_start,

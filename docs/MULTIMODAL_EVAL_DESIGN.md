@@ -9,14 +9,106 @@ a concrete implementation roadmap.
 | Trait | Definition | Implementation | Unit Tests | E2E/Eval | Status |
 |-------|------------|----------------|------------|----------|--------|
 | `Model` | `lib.rs` | All backends | Extensive | Harness | Mature |
-| `ZeroShotNER` | `inference.rs` | GLiNER (ONNX) | Basic | Missing | Stable |
-| `RelationExtractor` | `inference.rs` | Heuristic only | Integration | Missing | Stub |
-| `DiscontinuousNER` | `inference.rs` | W2NER | Property tests | Missing | Stable |
-| `VisualCapable` | `lib.rs` | None | `ImageFormat` only | None | Stub |
+| `ZeroShotNER` | `inference.rs` | GLiNER (ONNX) | Basic | **Added** | Stable |
+| `RelationExtractor` | `inference.rs` | Heuristic only | Integration | **Added** | Stub |
+| `DiscontinuousNER` | `inference.rs` | W2NER | Property tests | **Added** | Stable |
+| `VisualCapable` | `lib.rs` | None | `ImageFormat` only | **Added** | Scaffold |
 | `BiEncoder` | `inference.rs` | None | None | None | Design only |
 | `TextEncoder` | `inference.rs` | None | None | None | Design only |
 | `LabelEncoder` | `inference.rs` | None | None | None | Design only |
 | `LateInteraction` | `inference.rs` | DotProduct, MaxSim | Property tests | None | Partial |
+
+**Update (Nov 2024)**: Evaluation modules and synthetic datasets have been added for
+discontinuous NER, relation extraction, and visual NER. See [Implemented Evaluation Modules](#implemented-evaluation-modules).
+
+## Implemented Evaluation Modules
+
+The following evaluation infrastructure has been added:
+
+### Discontinuous NER Evaluation (`eval/discontinuous.rs`)
+
+```rust
+pub fn evaluate_discontinuous_ner(
+    gold: &[DiscontinuousGold],
+    pred: &[DiscontinuousEntity],
+    config: &DiscontinuousEvalConfig,
+) -> DiscontinuousNERMetrics;
+```
+
+**Metrics**:
+- Exact F1 (all spans must match exactly)
+- Entity Boundary F1 (head and tail tokens correct)
+- Partial Span F1 (overlap-based matching)
+- Per-type breakdown
+
+**Synthetic Data** (`eval/dataset/synthetic/discontinuous.rs`):
+- Easy: "X and Y Z" coordination patterns
+- Medium: Multiple coordinations
+- Hard: Nested and complex structures
+- Biomedical domain (left/right ventricle, etc.)
+- Legal domain (paragraphs, sections)
+
+### Relation Extraction Evaluation (`eval/relation.rs`)
+
+```rust
+pub fn evaluate_relations(
+    gold: &[RelationGold],
+    pred: &[RelationPrediction],
+    config: &RelationEvalConfig,
+) -> RelationMetrics;
+```
+
+**Metrics**:
+- Boundary F1 (Rel): Entity spans + relation type
+- Strict F1 (Rel+): Exact span + type match
+- Per-relation breakdown
+
+**Synthetic Data** (`eval/dataset/synthetic/relations.rs`):
+- FOUNDED, WORKS_FOR, LOCATED_IN, CEO_OF relations
+- Business, scientific, biographical domains
+- Easy (single relation), Medium (multiple), Hard (implicit)
+
+### Visual NER Evaluation (`eval/visual.rs`)
+
+```rust
+pub fn evaluate_visual_ner(
+    gold: &[VisualGold],
+    pred: &[VisualPrediction],
+    config: &VisualEvalConfig,
+) -> VisualNERMetrics;
+```
+
+**Metrics**:
+- Text F1 (text content match, ignoring boxes)
+- Box IoU (Intersection-over-Union of bounding boxes)
+- End-to-End F1 (correct text AND box)
+- Per-type breakdown
+
+**Synthetic Data**: Invoice, receipt, and document examples with bounding boxes.
+
+### Advanced Evaluator Infrastructure (`eval/advanced_evaluator.rs`)
+
+Unified evaluator interface for all task types:
+
+```rust
+pub fn evaluator_for_task(task: &EvalTask) -> Box<dyn TaskEvaluator>;
+
+// Unified results enum
+pub enum EvalResults {
+    NER { ... },
+    Discontinuous(DiscontinuousNERMetrics),
+    Relation(RelationMetrics),
+    Coreference { ... },
+    Event { ... },
+}
+```
+
+### Test Coverage
+
+All evaluation modules have:
+- Unit tests for metric calculations
+- Property tests for invariants
+- Integration tests in `tests/advanced_trait_tests.rs`
 
 ## Current State Analysis
 
@@ -99,19 +191,20 @@ being fully implemented.
 **Status**: Well-documented with research references, but no implementations.
 Only `DotProductInteraction` and `MaxSimInteraction` have basic implementations.
 
-## Evaluation Framework Gaps
+## Evaluation Framework Coverage
 
-### EvalTask Coverage
+### EvalTask Coverage (Updated)
 
 | Task | Defined | Metrics | Synthetic Data | Benchmark |
 |------|---------|---------|----------------|-----------|
 | `NER` | Yes | Full | Yes | CoNLL, WikiGold |
 | `Coreference` | Yes | Full | Yes | GAP |
-| `RelationExtraction` | Yes | None | None | None |
-| `DiscontinuousNER` | Yes | None | None | None |
-| `EventExtraction` | Yes | None | None | None |
+| `RelationExtraction` | Yes | **Full** | **Yes** | DocRED (planned) |
+| `DiscontinuousNER` | Yes | **Full** | **Yes** | CADEC (planned) |
+| `EventExtraction` | Yes | Stub | None | None |
+| Visual NER | **Yes** | **Full** | **Yes** | FUNSD (planned) |
 
-### Missing Evaluation Components
+### Remaining Evaluation Gaps
 
 1. **Relation Extraction Metrics**
    - Boundary evaluation (Rel): entity boundaries + relation type

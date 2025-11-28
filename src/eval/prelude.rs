@@ -21,7 +21,7 @@
 
 // Unified evaluation report (recommended entry point)
 pub use super::report::{
-    CoreMetrics, EvalReport, GoldEntity as ReportGoldEntity, Priority, Recommendation,
+    CoreMetrics, EvalReport, SimpleGoldEntity, Priority, Recommendation,
     ReportBuilder, TestCase, TypeMetrics as ReportTypeMetrics,
 };
 

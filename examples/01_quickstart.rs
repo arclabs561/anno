@@ -4,8 +4,7 @@
 //!
 //! Run: cargo run --example quick_eval
 
-use anno::eval::{ReportBuilder, TestCase};
-use anno::eval::report::GoldEntity;
+use anno::eval::{ReportBuilder, SimpleGoldEntity, TestCase};
 use anno::PatternNER;
 
 fn main() {
@@ -28,13 +27,13 @@ fn main() {
         TestCase {
             text: "Send invoice to alice@company.com by March 15".into(),
             gold_entities: vec![
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "alice@company.com".into(),
                     entity_type: "EMAIL".into(),
                     start: 16,
                     end: 33,
                 },
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "March 15".into(),
                     entity_type: "DATE".into(),
                     start: 37,
@@ -45,13 +44,13 @@ fn main() {
         TestCase {
             text: "Meeting at 2:30 PM, budget $50,000".into(),
             gold_entities: vec![
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "2:30 PM".into(),
                     entity_type: "TIME".into(),
                     start: 11,
                     end: 18,
                 },
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "$50,000".into(),
                     entity_type: "MONEY".into(),
                     start: 27,

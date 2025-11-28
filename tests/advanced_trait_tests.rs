@@ -20,6 +20,7 @@ use anno::{DiscontinuousEntity, Entity, EntityType};
 // =============================================================================
 
 mod zero_shot_ner {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

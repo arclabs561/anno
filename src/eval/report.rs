@@ -246,12 +246,17 @@ pub struct TestCase {
     /// Input text
     pub text: String,
     /// Gold standard entities
-    pub gold_entities: Vec<GoldEntity>,
+    pub gold_entities: Vec<SimpleGoldEntity>,
 }
 
-/// Gold standard entity for evaluation.
+/// Simplified gold entity for report generation.
+///
+/// This is a simplified version with string-based entity types,
+/// designed for report generation where type normalization is handled externally.
+///
+/// For evaluation code, use [`super::datasets::GoldEntity`] instead.
 #[derive(Debug, Clone)]
-pub struct GoldEntity {
+pub struct SimpleGoldEntity {
     /// Entity text
     pub text: String,
     /// Entity type label (e.g., "PER", "ORG", "DATE")
@@ -565,13 +570,13 @@ fn default_synthetic_cases() -> Vec<TestCase> {
         TestCase {
             text: "Meeting on January 15, 2024 at 3:00 PM".into(),
             gold_entities: vec![
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "January 15, 2024".into(),
                     entity_type: "DATE".into(),
                     start: 11,
                     end: 27,
                 },
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "3:00 PM".into(),
                     entity_type: "TIME".into(),
                     start: 31,
@@ -582,13 +587,13 @@ fn default_synthetic_cases() -> Vec<TestCase> {
         TestCase {
             text: "Contact: user@example.com or call 555-1234".into(),
             gold_entities: vec![
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "user@example.com".into(),
                     entity_type: "EMAIL".into(),
                     start: 9,
                     end: 25,
                 },
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "555-1234".into(),
                     entity_type: "PHONE".into(),
                     start: 34,
@@ -599,7 +604,7 @@ fn default_synthetic_cases() -> Vec<TestCase> {
         TestCase {
             text: "Invoice total: $1,234.56 USD".into(),
             gold_entities: vec![
-                GoldEntity {
+                SimpleGoldEntity {
                     text: "$1,234.56".into(),
                     entity_type: "MONEY".into(),
                     start: 15,
@@ -697,13 +702,13 @@ mod tests {
             TestCase {
                 text: "John Smith works at Google".into(),
                 gold_entities: vec![
-                    GoldEntity {
+                    SimpleGoldEntity {
                         text: "John Smith".into(),
                         entity_type: "PER".into(),
                         start: 0,
                         end: 10,
                     },
-                    GoldEntity {
+                    SimpleGoldEntity {
                         text: "Google".into(),
                         entity_type: "ORG".into(),
                         start: 20,

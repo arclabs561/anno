@@ -206,6 +206,7 @@ pub use bio_adapter::BioScheme;
 // Basic P/R/F1, datasets, coreference metrics
 // =============================================================================
 pub mod advanced_evaluator;
+pub mod advanced_harness;
 pub mod analysis;
 pub mod benchmark;
 pub mod bio_adapter;
@@ -229,6 +230,7 @@ pub mod synthetic;
 pub mod synthetic_gen;
 pub mod types;
 pub mod validation;
+pub mod visual;
 
 // =============================================================================
 // BIAS MODULES (available with `eval-bias` feature)
@@ -318,6 +320,19 @@ pub use relation::{
 pub use advanced_evaluator::{
     evaluator_for_task, DiscontinuousEvaluator, EvalResults as AdvancedEvalResults,
     RelationEvaluator, TaskEvaluator,
+};
+
+// Visual/multimodal NER evaluation
+pub use visual::{
+    evaluate_visual_ner, synthetic_visual_examples, BoundingBox, VisualEvalConfig, VisualGold,
+    VisualNERMetrics, VisualPrediction, VisualTypeMetrics,
+};
+
+// Advanced harness for specialized tasks
+pub use advanced_harness::{
+    evaluate_discontinuous_gold_vs_gold, evaluate_discontinuous_synthetic,
+    evaluate_relations_gold_vs_gold, evaluate_relations_synthetic, evaluate_visual_gold_vs_gold,
+    synthetic_dataset_stats, AdvancedTaskResults, ModelResult, SyntheticDatasetStats,
 };
 
 // =============================================================================
@@ -418,7 +433,7 @@ pub use threshold_analysis::{
 // Unified evaluation report (always available - uses what's enabled)
 pub use report::{
     BiasSummary, CalibrationSummary, CoreMetrics, DataQualitySummary, DemographicBiasMetrics,
-    ErrorSummary, EvalReport, GenderBiasMetrics, GoldEntity as ReportGoldEntity,
+    ErrorSummary, EvalReport, GenderBiasMetrics, SimpleGoldEntity,
     LengthBiasMetrics, Priority, Recommendation, RecommendationCategory, ReportBuilder,
     TestCase, TypeMetrics as ReportTypeMetrics,
 };
