@@ -32,13 +32,28 @@
 //!
 //! ## Feature Flags
 //!
+//! ### Evaluation Framework (tiered)
+//!
 //! ```toml
-//! [dependencies]
-//! anno = "0.2"                           # PatternNER, StatisticalNER only
-//! anno = { version = "0.2", features = ["onnx"] }   # + BERT, GLiNER, NuNER
-//! anno = { version = "0.2", features = ["candle"] } # + Pure Rust inference
+//! anno = "0.2"                                      # Includes eval (P/R/F1)
+//! anno = { version = "0.2", features = ["eval-bias"] }      # + bias analysis
+//! anno = { version = "0.2", features = ["eval-advanced"] }  # + calibration, robustness
+//! anno = { version = "0.2", features = ["eval-full"] }      # Everything in eval
+//! ```
+//!
+//! ### ML Backends
+//!
+//! ```toml
+//! anno = { version = "0.2", features = ["onnx"] }   # BERT, GLiNER, NuNER via ONNX
+//! anno = { version = "0.2", features = ["candle"] } # Pure Rust inference
 //! anno = { version = "0.2", features = ["candle", "metal"] } # + Apple GPU
 //! anno = { version = "0.2", features = ["candle", "cuda"] }  # + NVIDIA GPU
+//! ```
+//!
+//! ### Everything
+//!
+//! ```toml
+//! anno = { version = "0.2", features = ["full"] }   # All features enabled
 //! ```
 //!
 //! ## Zero-Shot NER (Custom Entity Types)

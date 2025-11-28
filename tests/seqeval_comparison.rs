@@ -172,11 +172,11 @@ fn test_per_type_micro_averaging() {
     
     let per_p = 6.0 / 8.0;  // 75%
     let per_r = 6.0 / 10.0; // 60%
-    let per_f1 = f1(per_p, per_r);
+    let _per_f1 = f1(per_p, per_r);
     
     let org_p = 3.0 / 10.0; // 30%
     let org_r = 3.0 / 5.0;  // 60%
-    let org_f1 = f1(org_p, org_r);
+    let _org_f1 = f1(org_p, org_r);
     
     // Overall micro (across types)
     let total_correct = 6 + 3;
@@ -185,7 +185,7 @@ fn test_per_type_micro_averaging() {
     
     let overall_p = total_correct as f64 / total_pred as f64;
     let overall_r = total_correct as f64 / total_gold as f64;
-    let overall_f1 = f1(overall_p, overall_r);
+    let _overall_f1 = f1(overall_p, overall_r);
     
     // Verify calculation
     assert!((overall_p - 0.5).abs() < 0.01, "Overall P should be 50%");

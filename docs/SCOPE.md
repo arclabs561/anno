@@ -116,16 +116,21 @@ trait Lexicon {
 
 | Level | Meaning | Examples |
 |-------|---------|----------|
-| **Mature** | Battle-tested, stable API | NER, PatternNER, StackedNER |
-| **Stable** | Works, API may evolve | Evaluation, synthetic datasets, TypeMapper |
-| **Experimental** | Functional, limited testing | ONNX backends, Candle backend, coref metrics |
-| **Stub** | Traits/types only | RelationExtractor, DiscontinuousNER, W2NER |
+| **Mature** | Battle-tested, stable API | PatternNER, StatisticalNER, StackedNER, Evaluation framework |
+| **Stable** | Works, API may evolve | GLiNER, NuNER, W2NER (ONNX), BIO adapter, TypeMapper |
+| **Experimental** | Functional, limited testing | Candle backend, LLM prompting, Demonstration selection |
+| **Stub** | Traits/types only | RelationExtractor (traits), Event Extraction (types) |
 
 ## Roadmap
 
-### v0.2 (Near-term)
-- [ ] Full W2NER decoder implementation
-- [ ] Coreference model integration (via ONNX)
+### v0.2 (Current - Released)
+- [x] W2NER decoder implementation (ONNX backend with from_pretrained, grid decoding)
+- [x] NuNER zero-shot token NER (ONNX backend with BIO decoding)
+- [x] GLiNER span-based zero-shot NER (ONNX backend)
+- [x] Coreference metrics (MUC, B³, CEAF-e/m, LEA, BLANC, CoNLL F1)
+- [x] Rule-based coreference resolver (gender-aware, neopronoun support)
+- [x] LLM prompting for NER (CodeNER-style prompts)
+- [x] CMAS demonstration selection for few-shot learning
 - [x] Improved synthetic dataset (115+ examples with strict offset validation)
 - [x] Stratified evaluation harness with TypeMapper support
 - [x] TypeMapper for domain-specific dataset normalization
@@ -133,6 +138,9 @@ trait Lexicon {
 - [x] Lexicon trait and HashMapLexicon implementation
 - [x] ExtractionMethod refinement (Pattern/Neural/Lexicon/SoftLexicon/GatedEnsemble)
 - [x] Sealed Model trait pattern for API stability
+- [x] Comprehensive bias analysis (gender, demographic, temporal, length)
+- [x] Advanced evaluation (calibration, robustness, OOD detection, active learning)
+- [x] BIO/IOB/IOBES adapter for sequence labeling compatibility
 
 ### v0.3 (Medium-term)
 - [ ] Relation extraction with joint models

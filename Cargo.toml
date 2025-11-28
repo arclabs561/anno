@@ -20,6 +20,9 @@ chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
 once_cell = "1"
 
+# Robustness module needs rand (optional, only with eval-advanced)
+rand = { version = "0.9", optional = true }
+
 # Networking (optional)
 ureq = { version = "2", optional = true }
 dirs = { version = "5", optional = true }
@@ -38,17 +41,44 @@ candle-transformers = { version = "0.9", optional = true }
 criterion = "0.5"
 proptest = "1"
 tempfile = "3"
+rand = "0.9"
 
 [features]
+# Minimal by default - users opt-in to what they need
 default = []
+
+# === Evaluation Framework (tiered) ===
+# Core evaluation: P/R/F1, GoldEntity, basic metrics
+eval = []
+# Bias analysis: gender, demographic, temporal, length bias evaluation
+eval-bias = ["eval"]
+# Advanced analysis: calibration, robustness, OOD, active learning, etc.
+eval-advanced = ["eval", "dep:rand"]
+# Everything in eval
+eval-full = ["eval", "eval-bias", "eval-advanced"]
+
+# === Networking ===
 network = ["dep:ureq", "dep:dirs"]
+
+# === ML Backends ===
 onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub", "dep:ndarray"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub"]
+
 # GPU acceleration for Candle (opt-in)
 metal = ["candle", "candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
 cuda = ["candle", "candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
 # gliner = ["dep:gliner", "dep:hf-hub"] # Not yet published
-full = ["onnx", "candle", "network"]
+
+# Everything
+full = ["eval-full", "onnx", "candle", "network"]
+
+# =============================================================================
+# CLI BINARY
+# =============================================================================
+[[bin]]
+name = "anno-eval"
+path = "src/bin/anno_eval.rs"
+required-features = ["eval"]
 
 [[bench]]
 name = "ner"
@@ -59,3 +89,66 @@ missing_docs = "warn"
 
 [lints.clippy]
 unwrap_used = "warn"
+
+# =============================================================================
+# EXAMPLES with required features
+# =============================================================================
+[[example]]
+name = "01_quickstart"
+required-features = ["eval"]
+
+[[example]]
+name = "10_bert_onnx"
+required-features = ["onnx"]
+
+[[example]]
+name = "11_candle_gliner"
+required-features = ["candle"]
+
+[[example]]
+name = "12_download_models"
+required-features = ["network"]
+
+[[example]]
+name = "20_eval_basic"
+required-features = ["eval"]
+
+[[example]]
+name = "21_eval_coref"
+required-features = ["eval"]
+
+[[example]]
+name = "30_bias_analysis"
+required-features = ["eval-bias"]
+
+[[example]]
+name = "40_benchmark_backend"
+required-features = ["eval", "onnx"]
+
+[[example]]
+name = "41_benchmark_fewnerd"
+required-features = ["eval", "onnx", "network"]
+
+[[example]]
+name = "42_benchmark_full"
+required-features = ["eval-full", "onnx"]
+
+[[example]]
+name = "43_benchmark_rigorous"
+required-features = ["eval", "onnx", "network"]
+
+[[example]]
+name = "44_benchmark_dataset"
+required-features = ["eval", "onnx", "network"]
+
+[[example]]
+name = "50_comprehensive_bench"
+required-features = ["eval-full", "onnx"]
+
+[[example]]
+name = "51_comprehensive_eval"
+required-features = ["eval-full", "onnx"]
+
+[[example]]
+name = "52_quality_bench"
+required-features = ["eval-full"]

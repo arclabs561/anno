@@ -38,6 +38,12 @@
 
 use std::collections::HashMap;
 
+/// Entity annotation: (text, entity_type, start, end).
+pub type EntityAnnotation<'a> = (&'a str, &'a str, usize, usize);
+
+/// Batch of demonstrations: (text, entities) pairs.
+pub type DemoBatch<'a> = Vec<(&'a str, Vec<EntityAnnotation<'a>>)>;
+
 /// Configuration for helpfulness scoring.
 #[derive(Debug, Clone)]
 pub struct HelpfulnessConfig {
@@ -157,7 +163,7 @@ impl DemonstrationBank {
     }
 
     /// Add multiple demonstrations at once.
-    pub fn add_all(&mut self, demos: Vec<(&str, Vec<(&str, &str, usize, usize)>)>) {
+    pub fn add_all(&mut self, demos: DemoBatch<'_>) {
         for (text, entities) in demos {
             self.add(text, entities);
         }

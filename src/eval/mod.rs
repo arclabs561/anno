@@ -195,44 +195,80 @@ pub enum CorefMetric {
 
 /// Evaluation mode for NER (re-exported from modes).
 pub use modes::EvalMode;
+/// Evaluation configuration for modes (overlap thresholds, etc).
+/// Note: This is separate from `harness::EvalConfig` for benchmarks.
+pub use modes::EvalConfig as ModeConfig;
+/// BIO tagging scheme for sequence labeling.
+pub use bio_adapter::BioScheme;
 
-// Submodules
-pub mod active_learning;
+// =============================================================================
+// CORE MODULES (always available with `eval` feature)
+// Basic P/R/F1, datasets, coreference metrics
+// =============================================================================
 pub mod analysis;
 pub mod benchmark;
-pub mod calibration;
+pub mod bio_adapter;
 pub mod coref;
 pub mod coref_loader;
 pub mod coref_metrics;
 pub mod coref_resolver;
 pub mod datasets;
-pub mod dataset_comparison;
-pub mod dataset_quality;
-pub mod demographic_bias;
-pub mod drift;
-pub mod ensemble;
-pub mod error_analysis;
 pub mod evaluator;
-pub mod few_shot;
-pub mod gender_bias;
 pub mod harness;
-pub mod learning_curve;
-pub mod length_bias;
 pub mod loader;
-pub mod long_tail;
 pub mod metrics;
 pub mod modes;
-pub mod ood_detection;
 pub mod prelude;
 pub mod report;
-pub mod robustness;
 pub mod sampling;
 pub mod synthetic;
 pub mod synthetic_gen;
-pub mod temporal_bias;
-pub mod threshold_analysis;
 pub mod types;
 pub mod validation;
+
+// =============================================================================
+// BIAS MODULES (available with `eval-bias` feature)
+// Gender, demographic, temporal, and length bias analysis
+// =============================================================================
+#[cfg(feature = "eval-bias")]
+pub mod demographic_bias;
+#[cfg(feature = "eval-bias")]
+pub mod gender_bias;
+#[cfg(feature = "eval-bias")]
+pub mod length_bias;
+#[cfg(feature = "eval-bias")]
+pub mod temporal_bias;
+
+// =============================================================================
+// ADVANCED MODULES (available with `eval-advanced` feature)
+// Calibration, robustness, active learning, specialized analysis
+// =============================================================================
+#[cfg(feature = "eval-advanced")]
+pub mod active_learning;
+#[cfg(feature = "eval-advanced")]
+pub mod calibration;
+#[cfg(feature = "eval-advanced")]
+pub mod dataset_comparison;
+#[cfg(feature = "eval-advanced")]
+pub mod dataset_quality;
+#[cfg(feature = "eval-advanced")]
+pub mod drift;
+#[cfg(feature = "eval-advanced")]
+pub mod ensemble;
+#[cfg(feature = "eval-advanced")]
+pub mod error_analysis;
+#[cfg(feature = "eval-advanced")]
+pub mod few_shot;
+#[cfg(feature = "eval-advanced")]
+pub mod learning_curve;
+#[cfg(feature = "eval-advanced")]
+pub mod long_tail;
+#[cfg(feature = "eval-advanced")]
+pub mod ood_detection;
+#[cfg(feature = "eval-advanced")]
+pub mod robustness;
+#[cfg(feature = "eval-advanced")]
+pub mod threshold_analysis;
 
 // Re-exports
 #[allow(deprecated)]
@@ -259,96 +295,102 @@ pub use coref_metrics::{
 // Coreference resolution
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
 
-// Gender bias evaluation
+// =============================================================================
+// BIAS MODULE RE-EXPORTS (eval-bias feature)
+// =============================================================================
+#[cfg(feature = "eval-bias")]
 pub use gender_bias::{
     create_comprehensive_bias_templates, create_neopronoun_templates, create_winobias_templates,
     occupation_stereotype, GenderBiasEvaluator, GenderBiasResults, OccupationBiasMetrics,
     PronounGender, StereotypeType, WinoBiasExample,
 };
 
-// Demographic bias evaluation (ethnicity, region, script)
+#[cfg(feature = "eval-bias")]
 pub use demographic_bias::{
     create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
     DemographicBiasResults, Ethnicity, Gender, LocationExample, LocationType, NameExample,
     NameFrequency, NameResult, Region, RegionalBiasResults, Script,
 };
 
-// Temporal bias evaluation (names by decade)
+#[cfg(feature = "eval-bias")]
 pub use temporal_bias::{
     create_temporal_name_dataset, Decade, TemporalBiasEvaluator, TemporalBiasResults,
     TemporalGender, TemporalNameExample,
 };
 
-// Entity length bias evaluation
+#[cfg(feature = "eval-bias")]
 pub use length_bias::{
     create_length_varied_dataset, EntityLengthEvaluator, LengthBiasResults, LengthBucket,
     LengthTestExample, WordCountBucket,
 };
 
-// Confidence calibration
+// =============================================================================
+// ADVANCED MODULE RE-EXPORTS (eval-advanced feature)
+// =============================================================================
+#[cfg(feature = "eval-advanced")]
 pub use calibration::{
     calibration_grade, confidence_gap_grade, CalibrationEvaluator, CalibrationResults,
     ReliabilityBin, ThresholdMetrics,
 };
 
-// Robustness testing
+#[cfg(feature = "eval-advanced")]
 pub use robustness::{
     robustness_grade, Perturbation, PerturbationMetrics, RobustnessEvaluator, RobustnessResults,
 };
 
-// Out-of-distribution detection
+#[cfg(feature = "eval-advanced")]
 pub use ood_detection::{
     ood_rate_grade, OODAnalysisResults, OODConfig, OODDetector, OODStatus, VocabCoverageStats,
 };
 
-// Dataset quality metrics
+#[cfg(feature = "eval-advanced")]
 pub use dataset_quality::{
     check_leakage, entity_imbalance_ratio, DatasetQualityAnalyzer, DifficultyMetrics,
     QualityReport, ReliabilityMetrics, ValidityMetrics,
 };
 
-// Learning curve analysis
+#[cfg(feature = "eval-advanced")]
 pub use learning_curve::{
     suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis,
     LearningCurveAnalyzer, SampleEfficiencyMetrics,
 };
 
-// Ensemble disagreement analysis
+#[cfg(feature = "eval-advanced")]
 pub use ensemble::{
     agreement_grade, kappa_interpretation, DisagreementDetail, EnsembleAnalysisResults,
     EnsembleAnalyzer, ModelPrediction, SingleExampleAnalysis,
 };
 
-// Dataset comparison (cross-domain analysis)
+#[cfg(feature = "eval-advanced")]
 pub use dataset_comparison::{
     compare_datasets, compute_stats, estimate_difficulty, DatasetComparison, DatasetStats,
     Difficulty, DifficultyEstimate, LengthStats,
 };
 
-// Drift detection (production monitoring)
+#[cfg(feature = "eval-advanced")]
 pub use drift::{
     ConfidenceDrift, DistributionDrift, DriftConfig, DriftDetector, DriftReport, DriftWindow,
     VocabularyDrift,
 };
 
-// Active learning for annotation selection
+#[cfg(feature = "eval-advanced")]
 pub use active_learning::{
     estimate_budget, ActiveLearner, Candidate, SamplingStrategy, ScoreStats, SelectionResult,
 };
 
-// Error analysis and categorization
+#[cfg(feature = "eval-advanced")]
 pub use error_analysis::{
     EntityInfo, ErrorAnalyzer, ErrorCategory, ErrorInstance, ErrorPattern, ErrorReport,
     PredictedEntity, TypeErrorStats,
 };
 
-// Threshold analysis (precision-recall curves)
+#[cfg(feature = "eval-advanced")]
 pub use threshold_analysis::{
     format_threshold_table, interpret_curve, PredictionWithConfidence, ThresholdAnalyzer,
     ThresholdCurve, ThresholdPoint,
 };
 
-// Unified evaluation report (recommended entry point)
+// Unified evaluation report (always available - uses what's enabled)
 pub use report::{
     BiasSummary, CalibrationSummary, CoreMetrics, DataQualitySummary, DemographicBiasMetrics,
     ErrorSummary, EvalReport, GenderBiasMetrics, GoldEntity as ReportGoldEntity,
@@ -356,13 +398,13 @@ pub use report::{
     TestCase, TypeMetrics as ReportTypeMetrics,
 };
 
-// Few-shot learning evaluation
+#[cfg(feature = "eval-advanced")]
 pub use few_shot::{
     FewShotEvaluator, FewShotGold, FewShotPrediction, FewShotResults, FewShotTask,
     FewShotTaskResults, SupportExample, simulate_few_shot_task,
 };
 
-// Long-tail entity evaluation
+#[cfg(feature = "eval-advanced")]
 pub use long_tail::{
     EntityFrequency, FrequencyBucket, FrequencySplit, LongTailAnalyzer, LongTailResults,
     TypePerformance, format_long_tail_results,

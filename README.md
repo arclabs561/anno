@@ -52,27 +52,56 @@ for e in entities {
 
 ## Feature Flags
 
+### NER Backends
+
 | Feature | Description | Dependencies | Compile Time |
 |---------|-------------|--------------|--------------|
-| *(none)* | `PatternNER` + `StatisticalNER` + `StackedNER` | Zero | ~5s |
-| `network` | Dataset downloading and caching | `ureq`, `dirs` | +3s |
+| *(default)* | `PatternNER` + `StatisticalNER` + `StackedNER` | Zero | ~5s |
 | `onnx` | BERT and GLiNER models via ONNX | `ort`, `tokenizers` | +40s |
 | `candle` | Pure Rust ML (Metal/CUDA) | `candle-*` | +60s |
-| `full` | All features | All | ~90s |
+| `network` | Dataset downloading and caching | `ureq`, `dirs` | +3s |
+
+### Evaluation Framework (tiered, opt-in)
+
+| Feature | Description | Includes |
+|---------|-------------|----------|
+| `eval` | Core P/R/F1, coreference metrics, BIO adapter | — |
+| `eval-bias` | Gender, demographic, temporal bias | + eval |
+| `eval-advanced` | Calibration, robustness, active learning | + eval |
+| `eval-full` | All evaluation modules | eval + eval-bias + eval-advanced |
+
+### Combined
+
+| Feature | Description |
+|---------|-------------|
+| `full` | All features (eval-full + onnx + candle + network) |
 
 ```bash
-# Zero dependencies (default)
+# Minimal (PatternNER + StackedNER only, ~5s compile)
 cargo add anno
+
+# With evaluation framework
+cargo add anno --features eval
 
 # With ML backends
 cargo add anno --features onnx
 
-# With dataset downloading
-cargo add anno --features network
+# With bias analysis
+cargo add anno --features eval-bias
 
 # Everything
 cargo add anno --features full
 ```
+
+### Feature Matrix
+
+| Use Case | Features | Compile Time |
+|----------|----------|--------------|
+| Pattern extraction only | `default` | ~5s |
+| + NER evaluation | `eval` | ~8s |
+| + Bias analysis | `eval-bias` | ~10s |
+| + ML backend (BERT) | `eval,onnx` | ~50s |
+| Full research setup | `full` | ~90s |
 
 ## Backends
 
@@ -135,11 +164,55 @@ let entities = model.extract_entities("John works at Apple", None)?;
 | **Type** | Any | Exact | Type classification |
 
 ```rust
-use anno::eval::modes::{EvalMode, MultiModeResults};
+use anno::eval::modes::{EvalMode, MultiModeResults, EvalConfig, evaluate_with_config};
 
 let results = MultiModeResults::compute(&predicted, &gold);
 println!("Strict F1: {:.1}%", results.strict.f1 * 100.0);
 println!("Partial F1: {:.1}%", results.partial.f1 * 100.0);
+
+// Partial mode with minimum overlap threshold (e.g., 50%)
+let config = EvalConfig::new().with_min_overlap(0.5);
+let strict_partial = evaluate_with_config(&predicted, &gold, EvalMode::Partial, &config);
+```
+
+### BIO Tag Adapter
+
+Convert between BIO-tagged sequences and entity spans:
+
+```rust
+use anno::eval::bio_adapter::{bio_to_entities, validate_bio_sequence, BioScheme};
+
+let tokens = ["John", "Smith", "works", "at", "Apple"];
+let tags = ["B-PER", "I-PER", "O", "O", "B-ORG"];
+
+// Convert to entities
+let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2)?;
+assert_eq!(entities[0].text, "John Smith");
+
+// Validate sequence
+let errors = validate_bio_sequence(&tags, BioScheme::IOB2);
+assert!(errors.is_empty()); // Valid sequence
+```
+
+### CLI Tool
+
+Quick evaluation from command line (with `--features eval`):
+
+```bash
+# Build CLI
+cargo install --path . --features eval
+
+# Quick evaluation
+anno-eval quick
+
+# Validate BIO sequence
+anno-eval bio validate "B-PER I-PER O B-ORG"
+
+# Repair invalid sequence
+anno-eval bio repair "O I-PER I-PER O"
+
+# Calculate span overlap IoU
+anno-eval overlap 0 10 5 15
 ```
 
 ### Coreference Metrics
@@ -196,33 +269,51 @@ mapper.add("TITLE", anno::EntityType::custom("WORK_OF_ART", anno::EntityCategory
 
 ### Comprehensive Evaluation Framework
 
-Beyond basic F1 metrics, `anno` provides production-grade evaluation tools:
+Beyond basic F1 metrics, `anno` provides specialized evaluation tools (requires feature flags):
 
 ```rust
-use anno::eval::{
-    CalibrationEvaluator,           // Confidence reliability
-    GenderBiasEvaluator,            // WinoBias-style tests
-    RobustnessEvaluator,            // Perturbation testing
-    OODDetector,                    // Out-of-distribution detection
-    DriftDetector,                  // Production monitoring
-    ThresholdAnalyzer,              // Precision-recall curves
-    compare_datasets,               // Cross-domain analysis
-};
+// With eval-bias feature:
+use anno::eval::{GenderBiasEvaluator, DemographicBiasEvaluator};
+
+// With eval-advanced feature:
+use anno::eval::{CalibrationEvaluator, RobustnessEvaluator, ThresholdAnalyzer};
 ```
 
-| Module | Purpose | Example Metric |
-|--------|---------|---------------|
-| **Calibration** | Confidence reliability | ECE, Brier score |
-| **Gender Bias** | Pro/anti-stereotype gaps | WinoBias accuracy gap |
-| **Demographic Bias** | Ethnicity/region fairness | Parity gap |
-| **Robustness** | Perturbation tolerance | F1 under typos |
-| **OOD Detection** | Domain shift detection | Vocab coverage |
-| **Drift Detection** | Production monitoring | Confidence drift |
-| **Threshold Analysis** | Operating point selection | AUC-PR |
-| **Dataset Comparison** | Transfer learning feasibility | Type divergence |
-| **Error Analysis** | Failure categorization | Boundary vs type errors |
+| Module | Feature | Purpose |
+|--------|---------|---------|
+| **Calibration** | `eval-advanced` | Confidence reliability (ECE, Brier) |
+| **Gender Bias** | `eval-bias` | WinoBias-style tests |
+| **Demographic Bias** | `eval-bias` | Ethnicity/region fairness |
+| **Robustness** | `eval-advanced` | Perturbation tolerance |
+| **Error Analysis** | `eval-advanced` | Boundary vs type errors |
+| **Threshold Analysis** | `eval-advanced` | Precision-recall curves |
 
-See `examples/quality_bench.rs` for a comprehensive demo.
+## Examples
+
+Examples are organized by complexity:
+
+```bash
+# Getting Started
+cargo run --example 01_quickstart            # Basic evaluation
+cargo run --example 10_bert_onnx -F onnx     # ML backend
+
+# Evaluation
+cargo run --example 20_eval_basic            # P/R/F1 metrics
+cargo run --example 30_bias_analysis -F eval-bias  # Bias testing
+
+# Benchmarking
+cargo run --example 40_benchmark_backend -F onnx   # Backend comparison
+cargo run --example 52_quality_bench -F eval-full  # Comprehensive
+```
+
+| Range | Category | Key Examples |
+|-------|----------|--------------|
+| 01-09 | Getting Started | `01_quickstart` |
+| 10-19 | ML Backends | `10_bert_onnx`, `11_candle_gliner` |
+| 20-29 | Evaluation | `20_eval_basic`, `21_eval_coref` |
+| 30-39 | Bias Analysis | `30_bias_analysis` |
+| 40-49 | Benchmarking | `40_benchmark_backend`, `42_benchmark_full` |
+| 50-59 | Comprehensive | `52_quality_bench` |
 
 ## Advanced Usage
 

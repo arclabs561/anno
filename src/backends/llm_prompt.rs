@@ -45,6 +45,12 @@
 use crate::EntityType;
 use std::collections::HashMap;
 
+/// Entity annotation for demonstrations: (text, entity_type, start, end).
+pub type DemoEntity<'a> = (&'a str, &'a str, usize, usize);
+
+/// Full demonstration: (text, list of entity annotations).
+pub type DemoExample<'a> = (&'a str, Vec<DemoEntity<'a>>);
+
 /// BIO tagging schema for NER.
 ///
 /// Defines the entity types and their descriptions for prompting.
@@ -197,10 +203,7 @@ impl CodeNERPrompt {
 
     /// Add few-shot demonstrations.
     #[must_use]
-    pub fn with_demonstrations(
-        mut self,
-        demos: Vec<(&str, Vec<(&str, &str, usize, usize)>)>,
-    ) -> Self {
+    pub fn with_demonstrations(mut self, demos: Vec<DemoExample<'_>>) -> Self {
         self.demonstrations = demos
             .into_iter()
             .map(|(text, entities)| Demonstration::new(text, entities))
@@ -302,24 +305,24 @@ pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedEntity>, ParseErro
         let text = item
             .get("text")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ParseError::MissingField(i, "text"))?
+            .ok_or(ParseError::MissingField(i, "text"))?
             .to_string();
 
         let entity_type = item
             .get("type")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| ParseError::MissingField(i, "type"))?
+            .ok_or(ParseError::MissingField(i, "type"))?
             .to_string();
 
         let start = item
             .get("start")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| ParseError::MissingField(i, "start"))? as usize;
+            .ok_or(ParseError::MissingField(i, "start"))? as usize;
 
         let end = item
             .get("end")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| ParseError::MissingField(i, "end"))? as usize;
+            .ok_or(ParseError::MissingField(i, "end"))? as usize;
 
         let confidence = item.get("confidence").and_then(|v| v.as_f64());
 

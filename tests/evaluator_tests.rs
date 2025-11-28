@@ -183,3 +183,106 @@ fn test_micro_vs_macro_averaging() {
     assert_eq!(aggregate.total_expected, 101);
     assert_eq!(aggregate.total_correct, 51);
 }
+
+/// Test per-entity-type metrics are tracked correctly.
+#[test]
+fn test_per_type_metrics() {
+    let evaluator = StandardNEREvaluator::new();
+    let model = PatternNER::new();
+
+    // Text with multiple entity types
+    let text = "Meeting on January 15, 2025 costs $500. Email: test@example.com";
+    let ground_truth = vec![
+        GoldEntity::with_span("January 15, 2025", EntityType::Date, 11, 27),
+        GoldEntity::with_span("$500", EntityType::Money, 34, 38),
+        GoldEntity::with_span("test@example.com", EntityType::Email, 47, 63),
+    ];
+
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &ground_truth, None)
+        .unwrap();
+
+    // Should have per-type breakdown
+    assert!(
+        !metrics.per_type.is_empty(),
+        "Should have per-type metrics"
+    );
+
+    // Check that we have metrics for the types we expected
+    // (PatternNER should detect these types)
+    let type_keys: Vec<_> = metrics.per_type.keys().collect();
+    assert!(
+        type_keys.len() >= 1,
+        "Should have at least one type in per_type metrics"
+    );
+}
+
+/// Test evaluation with mixed correct/incorrect predictions.
+#[test]
+fn test_mixed_predictions() {
+    let evaluator = StandardNEREvaluator::new();
+    let model = PatternNER::new();
+
+    // PatternNER will find $100 but not "John" (requires ML)
+    let text = "John paid $100";
+    let ground_truth = vec![
+        GoldEntity::with_span("John", EntityType::Person, 0, 4),  // Won't be found
+        GoldEntity::with_span("$100", EntityType::Money, 10, 14), // Will be found
+    ];
+
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &ground_truth, None)
+        .unwrap();
+
+    // Should have partial recall (found money but not person)
+    assert!(
+        metrics.recall.get() > 0.0 && metrics.recall.get() < 1.0,
+        "Recall should be partial (0 < R < 1)"
+    );
+    assert!(metrics.expected == 2, "Should expect 2 entities");
+}
+
+/// Test evaluation with all false positives.
+#[test]
+fn test_false_positives_only() {
+    let evaluator = StandardNEREvaluator::new();
+    let model = PatternNER::new();
+
+    // PatternNER will find $100 but we don't expect it
+    let text = "Payment: $100";
+    let ground_truth: Vec<GoldEntity> = vec![]; // Expect nothing
+
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &ground_truth, None)
+        .unwrap();
+
+    // Model will find $100 but it's not in gold
+    assert_eq!(metrics.expected, 0);
+    // Precision should be 0 (false positive)
+    assert!(metrics.found > 0, "Should find entities");
+    assert_eq!(metrics.precision.get(), 0.0, "Precision should be 0");
+}
+
+/// Test evaluation with all false negatives.
+#[test]
+fn test_false_negatives_only() {
+    let evaluator = StandardNEREvaluator::new();
+    let model = PatternNER::new();
+
+    // Expect a person entity that PatternNER can't find
+    let text = "John Smith is here";
+    let ground_truth = vec![GoldEntity::with_span(
+        "John Smith",
+        EntityType::Person,
+        0,
+        10,
+    )];
+
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &ground_truth, None)
+        .unwrap();
+
+    // PatternNER can't find Person entities
+    assert_eq!(metrics.expected, 1);
+    assert_eq!(metrics.recall.get(), 0.0, "Recall should be 0");
+}

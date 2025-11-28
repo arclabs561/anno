@@ -4,7 +4,7 @@
 //!
 //! Run: cargo run --example quick_eval
 
-use anno::eval::{EvalReport, ReportBuilder, TestCase};
+use anno::eval::{ReportBuilder, TestCase};
 use anno::eval::report::GoldEntity;
 use anno::PatternNER;
 
