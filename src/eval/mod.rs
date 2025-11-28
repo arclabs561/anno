@@ -199,6 +199,7 @@ pub use modes::EvalMode;
 // Submodules
 pub mod analysis;
 pub mod benchmark;
+pub mod calibration;
 pub mod coref;
 pub mod coref_loader;
 pub mod coref_metrics;
@@ -212,6 +213,7 @@ pub mod length_bias;
 pub mod loader;
 pub mod metrics;
 pub mod modes;
+pub mod robustness;
 pub mod sampling;
 pub mod synthetic;
 pub mod temporal_bias;
@@ -267,6 +269,17 @@ pub use temporal_bias::{
 pub use length_bias::{
     create_length_varied_dataset, EntityLengthEvaluator, LengthBiasResults, LengthBucket,
     LengthTestExample, WordCountBucket,
+};
+
+// Confidence calibration
+pub use calibration::{
+    calibration_grade, confidence_gap_grade, CalibrationEvaluator, CalibrationResults,
+    ReliabilityBin, ThresholdMetrics,
+};
+
+// Robustness testing
+pub use robustness::{
+    robustness_grade, Perturbation, PerturbationMetrics, RobustnessEvaluator, RobustnessResults,
 };
 
 // Analysis re-exports

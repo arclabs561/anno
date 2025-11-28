@@ -84,6 +84,10 @@ pub enum Domain {
     Travel,
     Food,
     RealEstate,
+    /// Cybersecurity: CVEs, malware, threat actors, attack types
+    Cybersecurity,
+    /// Multilingual: Non-English text with native scripts
+    Multilingual,
 }
 
 /// Difficulty level for examples
@@ -1748,6 +1752,269 @@ pub fn real_estate_dataset() -> Vec<AnnotatedExample> {
 }
 
 // ============================================================================
+// Cybersecurity Dataset
+// ============================================================================
+
+/// Cybersecurity domain: CVEs, malware, threat actors, attack types
+pub fn cybersecurity_dataset() -> Vec<AnnotatedExample> {
+    vec![
+        AnnotatedExample {
+            text: "CVE-2024-3094 affects XZ Utils versions 5.6.0 and 5.6.1.".into(),
+            entities: vec![
+                entity("CVE-2024-3094", EntityType::custom("CVE", crate::EntityCategory::Misc), 0),
+                entity("XZ Utils", EntityType::custom("SOFTWARE", crate::EntityCategory::Misc), 22),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The Lazarus Group targeted Sony Pictures in the 2014 attack.".into(),
+            entities: vec![
+                entity("Lazarus Group", EntityType::Organization, 4),
+                entity("Sony Pictures", EntityType::Organization, 27),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Microsoft patched CVE-2023-23397 in Outlook on March 14, 2023.".into(),
+            entities: vec![
+                entity("Microsoft", EntityType::Organization, 0),
+                entity("CVE-2023-23397", EntityType::custom("CVE", crate::EntityCategory::Misc), 18),
+                entity("Outlook", EntityType::custom("SOFTWARE", crate::EntityCategory::Misc), 36),
+                entity("March 14, 2023", EntityType::Date, 47),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "WannaCry ransomware exploited EternalBlue to infect 200,000 systems.".into(),
+            entities: vec![
+                entity("WannaCry", EntityType::custom("MALWARE", crate::EntityCategory::Misc), 0),
+                entity("EternalBlue", EntityType::custom("EXPLOIT", crate::EntityCategory::Misc), 30),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "CISA issued an advisory for Log4Shell (CVE-2021-44228) on December 10.".into(),
+            entities: vec![
+                entity("CISA", EntityType::Organization, 0),
+                entity("Log4Shell", EntityType::custom("VULNERABILITY", crate::EntityCategory::Misc), 28),
+                entity("CVE-2021-44228", EntityType::custom("CVE", crate::EntityCategory::Misc), 39),
+                entity("December 10", EntityType::Date, 58),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "APT29 (Cozy Bear) breached SolarWinds using SUNBURST malware.".into(),
+            entities: vec![
+                entity("APT29", EntityType::custom("THREAT_ACTOR", crate::EntityCategory::Organization), 0),
+                entity("Cozy Bear", EntityType::custom("THREAT_ACTOR", crate::EntityCategory::Organization), 7),
+                entity("SolarWinds", EntityType::Organization, 27),
+                entity("SUNBURST", EntityType::custom("MALWARE", crate::EntityCategory::Misc), 44),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Cisco Talos discovered the BlackCat/ALPHV ransomware variant.".into(),
+            entities: vec![
+                entity("Cisco Talos", EntityType::Organization, 0),
+                entity("BlackCat", EntityType::custom("MALWARE", crate::EntityCategory::Misc), 27),
+                entity("ALPHV", EntityType::custom("MALWARE", crate::EntityCategory::Misc), 36),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "The FBI attributed the Colonial Pipeline attack to DarkSide.".into(),
+            entities: vec![
+                entity("FBI", EntityType::Organization, 4),
+                entity("Colonial Pipeline", EntityType::Organization, 23),
+                entity("DarkSide", EntityType::custom("THREAT_ACTOR", crate::EntityCategory::Organization), 51),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "CrowdStrike reported Fancy Bear targeting NATO in 2024.".into(),
+            entities: vec![
+                entity("CrowdStrike", EntityType::Organization, 0),
+                entity("Fancy Bear", EntityType::custom("THREAT_ACTOR", crate::EntityCategory::Organization), 21),
+                entity("NATO", EntityType::Organization, 42),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Mandiant tracked UNC2452 behind the SolarWinds compromise.".into(),
+            entities: vec![
+                entity("Mandiant", EntityType::Organization, 0),
+                entity("UNC2452", EntityType::custom("THREAT_ACTOR", crate::EntityCategory::Organization), 17),
+                entity("SolarWinds", EntityType::Organization, 36),
+            ],
+            domain: Domain::Cybersecurity,
+            difficulty: Difficulty::Medium,
+        },
+    ]
+}
+
+// ============================================================================
+// Multilingual Dataset (Native Scripts)
+// ============================================================================
+
+/// Multilingual examples with native scripts (Chinese, Japanese, Russian, Arabic, Korean)
+pub fn multilingual_dataset() -> Vec<AnnotatedExample> {
+    vec![
+        // === Chinese (Simplified) ===
+        AnnotatedExample {
+            text: "华为公司在深圳成立于1987年。".into(),
+            entities: vec![
+                entity("华为公司", EntityType::Organization, 0),
+                entity("深圳", EntityType::Location, 5),
+                entity("1987年", EntityType::Date, 10),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "习近平主席访问了北京大学。".into(),
+            entities: vec![
+                entity("习近平", EntityType::Person, 0),
+                entity("北京大学", EntityType::Organization, 8),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "腾讯以$400亿收购了上海的一家公司。".into(),
+            entities: vec![
+                entity("腾讯", EntityType::Organization, 0),
+                entity("$400亿", EntityType::Money, 3),
+                entity("上海", EntityType::Location, 11),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Hard,
+        },
+
+        // === Japanese ===
+        AnnotatedExample {
+            text: "トヨタ自動車は2024年3月に名古屋で発表した。".into(),
+            entities: vec![
+                entity("トヨタ自動車", EntityType::Organization, 0),
+                entity("2024年3月", EntityType::Date, 7),
+                entity("名古屋", EntityType::Location, 15),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "山田太郎氏がソニーの新CEOに就任した。".into(),
+            entities: vec![
+                entity("山田太郎", EntityType::Person, 0),
+                entity("ソニー", EntityType::Organization, 6),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "東京オリンピックは2021年に開催された。".into(),
+            entities: vec![
+                entity("東京", EntityType::Location, 0),
+                entity("2021年", EntityType::Date, 9),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Easy,
+        },
+
+        // === Russian (Cyrillic) ===
+        AnnotatedExample {
+            text: "Газпром объявил о сделке на $50 млрд в Москве.".into(),
+            entities: vec![
+                entity("Газпром", EntityType::Organization, 0),
+                entity("$50 млрд", EntityType::Money, 28),
+                entity("Москве", EntityType::Location, 39),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Владимир Путин встретился с Сергеем Лавровым в Кремле.".into(),
+            entities: vec![
+                entity("Владимир Путин", EntityType::Person, 0),
+                entity("Сергеем Лавровым", EntityType::Person, 28),
+                entity("Кремле", EntityType::Location, 47),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Яндекс открыл офис в Санкт-Петербурге 15 марта 2024.".into(),
+            entities: vec![
+                entity("Яндекс", EntityType::Organization, 0),
+                entity("Санкт-Петербурге", EntityType::Location, 21),
+                entity("15 марта 2024", EntityType::Date, 38),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Arabic ===
+        AnnotatedExample {
+            text: "أعلنت شركة أرامكو السعودية عن أرباح بقيمة $100 مليار.".into(),
+            entities: vec![
+                entity("أرامكو السعودية", EntityType::Organization, 11),
+                entity("$100 مليار", EntityType::Money, 42),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "زار محمد بن سلمان القاهرة في يناير 2024.".into(),
+            entities: vec![
+                entity("محمد بن سلمان", EntityType::Person, 4),
+                entity("القاهرة", EntityType::Location, 18),
+                entity("يناير 2024", EntityType::Date, 29),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+
+        // === Korean (Hangul) ===
+        AnnotatedExample {
+            text: "삼성전자가 서울에서 신제품을 발표했다.".into(),
+            entities: vec![
+                entity("삼성전자", EntityType::Organization, 0),
+                entity("서울", EntityType::Location, 6),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "윤석열 대통령이 2024년 3월 도쿄를 방문했다.".into(),
+            entities: vec![
+                entity("윤석열", EntityType::Person, 0),
+                entity("2024년 3월", EntityType::Date, 9),
+                entity("도쿄", EntityType::Location, 18),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "현대자동차는 $10억 투자를 발표했다.".into(),
+            entities: vec![
+                entity("현대자동차", EntityType::Organization, 0),
+                entity("$10억", EntityType::Money, 7),
+            ],
+            domain: Domain::Multilingual,
+            difficulty: Difficulty::Medium,
+        },
+    ]
+}
+
+// ============================================================================
 // Conversational Dataset
 // ============================================================================
 
@@ -2391,6 +2658,8 @@ pub fn all_datasets() -> Vec<AnnotatedExample> {
     all.extend(historical_dataset());
     all.extend(food_dataset());
     all.extend(real_estate_dataset());
+    all.extend(cybersecurity_dataset());
+    all.extend(multilingual_dataset());
     all.extend(conversational_dataset());
     all.extend(extended_quality_dataset());
     all.extend(globally_diverse_dataset());
