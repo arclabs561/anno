@@ -284,7 +284,7 @@ proptest! {
     ) {
         let entities: Vec<Entity> = (0..num_entities)
             .map(|i| Entity::new(
-                &format!("Entity{}", i),
+                format!("Entity{}", i),
                 EntityType::Person,
                 i * 10,
                 i * 10 + 5,
@@ -399,11 +399,9 @@ fn end_to_end_span_extraction_flow() {
 
     assert_eq!(registry.len(), 2);
 
-    // 2. Create span candidates
-    let _candidates = vec![
-        SpanCandidate::new(0, 0, 2),  // "John Smith"
-        SpanCandidate::new(0, 3, 4),  // "Apple"
-    ];
+    // 2. Create span candidates (illustrative - normally from span detection)
+    // SpanCandidate::new(0, 0, 2)  // "John Smith"
+    // SpanCandidate::new(0, 3, 4)  // "Apple"
 
     // 3. Create interaction
     let interaction = DotProductInteraction::new();

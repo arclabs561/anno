@@ -47,7 +47,7 @@ fn test_aggregate_metrics() {
     let evaluator = StandardNEREvaluator::new();
     let model = PatternNER::new();
 
-    let test_cases = vec![
+    let test_cases = [
         (
             "Meeting on January 15, 2025",
             vec![GoldEntity::with_span(
