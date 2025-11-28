@@ -72,7 +72,7 @@ impl AnnotatedExample {
     ///
     /// * `text` - The input text
     /// * `entities` - List of (entity_text, entity_type) tuples where entity_type is
-    ///                a string like "PER", "ORG", "LOC", etc.
+    ///   a string like "PER", "ORG", "LOC", etc.
     ///
     /// # Example
     ///

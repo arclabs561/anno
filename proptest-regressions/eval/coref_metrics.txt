@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d803f727d23bf5ceacfa39c3ba134e223f755c892ad2696e0df3373e3630ff7e # shrinks to chains = [CorefChain { mentions: [Mention { text: "m0_1", start: 0, end: 1, head_start: None, head_end: None, entity_type: None, mention_type: None }, Mention { text: "m48_16", start: 48, end: 64, head_start: None, head_end: None, entity_type: None, mention_type: None }], cluster_id: None, entity_type: None }, CorefChain { mentions: [Mention { text: "m48_16", start: 48, end: 64, head_start: None, head_end: None, entity_type: None, mention_type: None }], cluster_id: None, entity_type: None }]

@@ -255,7 +255,7 @@ impl ErrorAnalyzer {
                 let overlap = self.compute_overlap(p.start, p.end, g.start, g.end);
 
                 // Prefer exact matches, then type matches, then highest overlap
-                let dominated = best_match.map_or(false, |(_, best_overlap, best_exact, best_type)| {
+                let dominated = best_match.is_some_and(|(_, best_overlap, best_exact, best_type)| {
                     if exact_boundary && !best_exact { return false; }
                     if !exact_boundary && best_exact { return true; }
                     if type_match && !best_type { return false; }

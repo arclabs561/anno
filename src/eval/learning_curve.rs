@@ -247,7 +247,7 @@ impl LearningCurveAnalyzer {
 
         // Saturation = 1 - (recent_rate / initial_rate)
         let saturation = 1.0 - (recent_improvement / initial_improvement).min(1.0);
-        saturation.max(0.0).min(1.0)
+        saturation.clamp(0.0, 1.0)
     }
 
     fn fit_power_law(&self) -> Option<CurveFitParams> {

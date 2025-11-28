@@ -341,11 +341,11 @@ impl ActiveLearner {
             let mut total_dist = 0.0;
             let mut count = 0;
             
-            for j in 0..n {
+            for (j, candidate) in candidates.iter().enumerate() {
                 if i == j {
                     continue;
                 }
-                if let Some(emb_j) = &candidates[j].embedding {
+                if let Some(emb_j) = &candidate.embedding {
                     total_dist += self.embedding_distance(emb_i, emb_j);
                     count += 1;
                 }

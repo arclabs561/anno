@@ -28,6 +28,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Entity annotation: (entity_text, start_offset, end_offset)
+pub type EntityAnnotation = (String, usize, usize);
+
+/// Annotated example: (full_text, list of entity annotations)
+pub type AnnotatedText = (String, Vec<EntityAnnotation>);
+
 // =============================================================================
 // Data Structures
 // =============================================================================
@@ -317,7 +323,7 @@ impl FewShotEvaluator {
 /// Takes a dataset and creates K support examples + M query examples.
 pub fn simulate_few_shot_task(
     entity_type: &str,
-    all_examples: &[(String, Vec<(String, usize, usize)>)],  // (text, [(entity_text, start, end)])
+    all_examples: &[AnnotatedText],
     k: usize,
     max_queries: usize,
 ) -> Option<(FewShotTask, Vec<FewShotGold>)> {
@@ -335,9 +341,9 @@ pub fn simulate_few_shot_task(
     // Split into support (first K) and query (rest)
     let support: Vec<_> = matching
         .drain(..k)
-        .map(|(text, entities)| {
-            let (entity_text, start, end) = entities.first().unwrap();
-            SupportExample::new(text, entity_text.clone(), *start, *end)
+        .filter_map(|(text, entities)| {
+            let (entity_text, start, end) = entities.first()?;
+            Some(SupportExample::new(text, entity_text.clone(), *start, *end))
         })
         .collect();
 

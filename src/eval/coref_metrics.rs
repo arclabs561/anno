@@ -1558,5 +1558,161 @@ mod tests {
         let (_, _, blanc_f1) = blanc_score(&pred, &gold);
         assert!(blanc_f1 < 0.5, "BLANC should penalize under-clustering, got {}", blanc_f1);
     }
+
+    // =========================================================================
+    // Proptest-Based Property Tests
+    // =========================================================================
+
+    mod proptests {
+        use super::*;
+        use proptest::prelude::*;
+
+        /// Generate a random mention (text, start, end)
+        fn arb_mention() -> impl Strategy<Value = Mention> {
+            (0usize..100, 1usize..20).prop_map(|(start, len)| {
+                let text = format!("m{}_{}", start, len);
+                Mention::new(text, start, start + len)
+            })
+        }
+
+        /// Generate a chain with 1-5 mentions
+        fn arb_chain() -> impl Strategy<Value = CorefChain> {
+            proptest::collection::vec(arb_mention(), 1..5)
+                .prop_map(|mentions| CorefChain::new(mentions))
+        }
+
+        /// Generate a clustering with 1-4 chains
+        fn arb_clustering() -> impl Strategy<Value = Vec<CorefChain>> {
+            proptest::collection::vec(arb_chain(), 1..4)
+        }
+
+        /// Generate a clustering with unique mentions (no overlap across chains)
+        fn arb_unique_clustering() -> impl Strategy<Value = Vec<CorefChain>> {
+            // Generate unique chain of unique mentions
+            (1usize..4).prop_flat_map(|num_chains| {
+                proptest::collection::vec(
+                    proptest::collection::vec(1usize..20, 1..5),
+                    num_chains..=num_chains
+                )
+            }).prop_map(|chain_lens| {
+                let mut offset = 0usize;
+                chain_lens.into_iter().map(|lens| {
+                    let mentions: Vec<_> = lens.iter().map(|&len| {
+                        let m = Mention::new(format!("m{}", offset), offset, offset + len);
+                        offset += len + 10; // Ensure no overlap
+                        m
+                    }).collect();
+                    CorefChain::new(mentions)
+                }).collect()
+            })
+        }
+
+        proptest! {
+            /// All metrics should be bounded in [0, 1]
+            #[test]
+            fn prop_metrics_bounded(pred in arb_clustering(), gold in arb_clustering()) {
+                let eval = CorefEvaluation::compute(&pred, &gold);
+                
+                // Check all scores are in [0, 1]
+                for score in [
+                    eval.muc.precision, eval.muc.recall, eval.muc.f1,
+                    eval.b_cubed.precision, eval.b_cubed.recall, eval.b_cubed.f1,
+                    eval.ceaf_e.precision, eval.ceaf_e.recall, eval.ceaf_e.f1,
+                    eval.lea.precision, eval.lea.recall, eval.lea.f1,
+                    eval.blanc.precision, eval.blanc.recall, eval.blanc.f1,
+                    eval.conll_f1,
+                ] {
+                    prop_assert!(
+                        score >= 0.0 && score <= 1.0,
+                        "Score {} out of bounds [0, 1]", score
+                    );
+                }
+            }
+
+            /// F1 should be harmonic mean of precision and recall
+            #[test]
+            fn prop_f1_harmonic_mean(pred in arb_clustering(), gold in arb_clustering()) {
+                let eval = CorefEvaluation::compute(&pred, &gold);
+                
+                for (name, scores) in [
+                    ("MUC", eval.muc),
+                    ("B³", eval.b_cubed),
+                    ("CEAFe", eval.ceaf_e),
+                    ("LEA", eval.lea),
+                    ("BLANC", eval.blanc),
+                ] {
+                    if scores.precision + scores.recall > 1e-10 {
+                        let expected = 2.0 * scores.precision * scores.recall 
+                            / (scores.precision + scores.recall);
+                        prop_assert!(
+                            (scores.f1 - expected).abs() < 0.001,
+                            "{} F1 should be harmonic mean: expected {:.4}, got {:.4}",
+                            name, expected, scores.f1
+                        );
+                    } else {
+                        // If P + R = 0, F1 should be 0
+                        prop_assert!(
+                            scores.f1.abs() < 0.001,
+                            "{} F1 should be 0 when P+R=0, got {}", name, scores.f1
+                        );
+                    }
+                }
+            }
+
+            /// CoNLL F1 is average of MUC, B³, CEAFe
+            #[test]
+            fn prop_conll_is_average(pred in arb_clustering(), gold in arb_clustering()) {
+                let eval = CorefEvaluation::compute(&pred, &gold);
+                let expected = (eval.muc.f1 + eval.b_cubed.f1 + eval.ceaf_e.f1) / 3.0;
+                
+                prop_assert!(
+                    (eval.conll_f1 - expected).abs() < 0.001,
+                    "CoNLL F1 should be (MUC + B³ + CEAFe)/3: expected {:.4}, got {:.4}",
+                    expected, eval.conll_f1
+                );
+            }
+
+            /// Perfect match should always yield F1 = 1.0
+            #[test]
+            fn prop_perfect_match_one(chains in arb_unique_clustering()) {
+                // Filter to non-trivial chains (at least one non-singleton)
+                let has_non_singleton = chains.iter().any(|c| c.mentions.len() > 1);
+                
+                if has_non_singleton {
+                    let eval = CorefEvaluation::compute(&chains, &chains);
+                    
+                    // All F1 scores should be 1.0
+                    prop_assert!(
+                        (eval.muc.f1 - 1.0).abs() < 0.001,
+                        "MUC F1 for perfect match should be 1.0, got {}", eval.muc.f1
+                    );
+                    prop_assert!(
+                        (eval.b_cubed.f1 - 1.0).abs() < 0.001,
+                        "B³ F1 for perfect match should be 1.0, got {}", eval.b_cubed.f1
+                    );
+                    prop_assert!(
+                        (eval.ceaf_e.f1 - 1.0).abs() < 0.001,
+                        "CEAFe F1 for perfect match should be 1.0, got {}", eval.ceaf_e.f1
+                    );
+                    prop_assert!(
+                        (eval.conll_f1 - 1.0).abs() < 0.001,
+                        "CoNLL F1 for perfect match should be 1.0, got {}", eval.conll_f1
+                    );
+                }
+            }
+
+            /// Empty input handling: no crashes, scores should be 0 or NaN-safe
+            #[test]
+            fn prop_empty_handling(gold in arb_clustering()) {
+                // Empty predictions
+                let eval = CorefEvaluation::compute(&[], &gold);
+                prop_assert!(eval.conll_f1.is_finite(), "Empty pred should not produce NaN");
+                
+                // Empty gold
+                let eval = CorefEvaluation::compute(&gold, &[]);
+                prop_assert!(eval.conll_f1.is_finite(), "Empty gold should not produce NaN");
+            }
+        }
+    }
 }
 

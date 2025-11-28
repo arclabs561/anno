@@ -311,10 +311,8 @@ impl RobustnessEvaluator {
                 let mut result = String::new();
                 for (i, word) in words.iter().enumerate() {
                     result.push_str(word);
-                    if i < words.len() - 1 {
-                        if rng.gen_f64() > self.intensity {
-                            result.push(' ');
-                        }
+                    if i < words.len() - 1 && rng.gen_f64() > self.intensity {
+                        result.push(' ');
                     }
                 }
                 result
@@ -449,13 +447,13 @@ impl RobustnessEvaluator {
         let (worst, _) = aggregated
             .iter()
             .filter(|(k, _)| k.as_str() != "None")
-            .min_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap())
+            .min_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
         let (best, _) = aggregated
             .iter()
-            .max_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap())
+            .max_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
