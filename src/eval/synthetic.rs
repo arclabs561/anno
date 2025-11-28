@@ -2975,6 +2975,250 @@ pub fn globally_diverse_dataset() -> Vec<AnnotatedExample> {
 // Aggregate Functions
 // ============================================================================
 
+/// Hard examples for underrepresented domains
+/// 
+/// Adds complex/challenging examples to domains that were lacking Hard difficulty.
+pub fn hard_domain_examples() -> Vec<AnnotatedExample> {
+    vec![
+        // === Technical (Hard) ===
+        AnnotatedExample {
+            text: "The CVE-2024-1234 vulnerability in OpenSSL 3.0.x affects nginx, Apache, and HAProxy.".into(),
+            entities: vec![
+                entity("OpenSSL", EntityType::Organization, 35),
+                entity("nginx", EntityType::Organization, 57),
+                entity("Apache", EntityType::Organization, 64),
+                entity("HAProxy", EntityType::Organization, 76),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "kubectl apply -f deployment.yaml deployed pods to us-east-1a and eu-west-2b.".into(),
+            entities: vec![
+                entity("us-east-1a", EntityType::Location, 50),
+                entity("eu-west-2b", EntityType::Location, 65),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Hard,
+        },
+        // === Travel (Hard) ===
+        AnnotatedExample {
+            text: "Connecting via FRA (Frankfurt) to SIN (Singapore) then SYD (Sydney) on LH/SQ codeshare.".into(),
+            entities: vec![
+                entity("FRA", EntityType::Location, 15),
+                entity("Frankfurt", EntityType::Location, 20),
+                entity("SIN", EntityType::Location, 34),
+                entity("Singapore", EntityType::Location, 39),
+                entity("SYD", EntityType::Location, 55),
+                entity("Sydney", EntityType::Location, 60),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Qantas QF1 departs 21:35 AEST, arrives LHR 05:25 GMT+0.".into(),
+            entities: vec![
+                entity("Qantas", EntityType::Organization, 0),
+                entity("21:35", EntityType::Date, 19),
+                entity("LHR", EntityType::Location, 39),
+                entity("05:25", EntityType::Date, 43),
+            ],
+            domain: Domain::Travel,
+            difficulty: Difficulty::Hard,
+        },
+        // === Entertainment (Hard) ===
+        AnnotatedExample {
+            text: "Director Christopher Nolan's Oppenheimer starring Cillian Murphy won at both the Oscars and BAFTAs.".into(),
+            entities: vec![
+                entity("Christopher Nolan", EntityType::Person, 9),
+                entity("Cillian Murphy", EntityType::Person, 50),
+                entity("Oscars", EntityType::Organization, 81),
+                entity("BAFTAs", EntityType::Organization, 92),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Taylor Swift's Eras Tour grossed $2.2B, surpassing Elton John's Farewell Yellow Brick Road.".into(),
+            entities: vec![
+                entity("Taylor Swift", EntityType::Person, 0),
+                entity("$2.2B", EntityType::Money, 33),
+                entity("Elton John", EntityType::Person, 51),
+            ],
+            domain: Domain::Entertainment,
+            difficulty: Difficulty::Hard,
+        },
+        // === Weather (Hard) ===
+        AnnotatedExample {
+            text: "Hurricane Helene made landfall in Florida's Big Bend at 140 mph, Cat 4.".into(),
+            entities: vec![
+                entity("Florida", EntityType::Location, 34),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "The ECMWF and GFS models diverge on Typhoon Yagi's track toward Vietnam/China border.".into(),
+            entities: vec![
+                entity("ECMWF", EntityType::Organization, 4),
+                entity("GFS", EntityType::Organization, 14),
+                entity("Vietnam", EntityType::Location, 64),
+                entity("China", EntityType::Location, 72),
+            ],
+            domain: Domain::Weather,
+            difficulty: Difficulty::Hard,
+        },
+        // === Historical (Hard) ===
+        AnnotatedExample {
+            text: "The Treaty of Westphalia (1648) ended the Thirty Years' War involving the Holy Roman Empire.".into(),
+            entities: vec![
+                entity("Westphalia", EntityType::Location, 14),
+                entity("1648", EntityType::Date, 26),
+                entity("Holy Roman Empire", EntityType::Organization, 74),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Archduke Franz Ferdinand's assassination in Sarajevo on 28 June 1914 triggered WWI.".into(),
+            entities: vec![
+                entity("Franz Ferdinand", EntityType::Person, 9),
+                entity("Sarajevo", EntityType::Location, 44),
+                entity("28 June 1914", EntityType::Date, 56),
+            ],
+            domain: Domain::Historical,
+            difficulty: Difficulty::Hard,
+        },
+        // === Conversational (Hard) ===
+        AnnotatedExample {
+            text: "So I told Mike, you know Mike from accounting at Johnson & Johnson, about the $50K budget issue.".into(),
+            entities: vec![
+                entity("Mike", EntityType::Person, 10),
+                entity("Mike", EntityType::Person, 25),
+                entity("Johnson & Johnson", EntityType::Organization, 49),
+                entity("$50K", EntityType::Money, 78),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Wait, is it the Amazon rainforest or Amazon the company that Jeff was talking about?".into(),
+            entities: vec![
+                entity("Amazon", EntityType::Location, 16),
+                entity("Amazon", EntityType::Organization, 37),
+                entity("Jeff", EntityType::Person, 61),
+            ],
+            domain: Domain::Conversational,
+            difficulty: Difficulty::Hard,
+        },
+        // === Academic (Hard) ===
+        AnnotatedExample {
+            text: "Prof. Hinton (U of Toronto) and Prof. LeCun (NYU/Meta) shared the 2018 Turing Award with Bengio.".into(),
+            entities: vec![
+                entity("Hinton", EntityType::Person, 6),
+                entity("U of Toronto", EntityType::Organization, 14),
+                entity("LeCun", EntityType::Person, 38),
+                entity("NYU", EntityType::Organization, 45),
+                entity("Meta", EntityType::Organization, 49),
+                entity("Bengio", EntityType::Person, 89),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "The Nature paper by Zhang et al. from Tsinghua/Berkeley challenges findings from MIT's CSAIL.".into(),
+            entities: vec![
+                entity("Zhang", EntityType::Person, 20),
+                entity("Tsinghua", EntityType::Organization, 38),
+                entity("Berkeley", EntityType::Organization, 47),
+                entity("MIT", EntityType::Organization, 81),
+                entity("CSAIL", EntityType::Organization, 87),
+            ],
+            domain: Domain::Academic,
+            difficulty: Difficulty::Hard,
+        },
+        // === RealEstate (Hard) ===
+        AnnotatedExample {
+            text: "The 432 Park Ave penthouse sold for $190M, making it NYC's priciest ever after One57.".into(),
+            entities: vec![
+                entity("432 Park Ave", EntityType::Location, 4),
+                entity("$190M", EntityType::Money, 36),
+                entity("NYC", EntityType::Location, 53),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "CBRE reports Blackstone's $17B acquisition includes properties in LA, SF, and Seattle.".into(),
+            entities: vec![
+                entity("CBRE", EntityType::Organization, 0),
+                entity("Blackstone", EntityType::Organization, 13),
+                entity("$17B", EntityType::Money, 26),
+                entity("LA", EntityType::Location, 66),
+                entity("SF", EntityType::Location, 70),
+                entity("Seattle", EntityType::Location, 78),
+            ],
+            domain: Domain::RealEstate,
+            difficulty: Difficulty::Hard,
+        },
+        // === Ecommerce (Hard) ===
+        AnnotatedExample {
+            text: "The Temu/Shein price war sees items at $0.99 vs Amazon's $4.99, affecting Walmart too.".into(),
+            entities: vec![
+                entity("Temu", EntityType::Organization, 4),
+                entity("Shein", EntityType::Organization, 9),
+                entity("$0.99", EntityType::Money, 39),
+                entity("Amazon", EntityType::Organization, 48),
+                entity("$4.99", EntityType::Money, 57),
+                entity("Walmart", EntityType::Organization, 74),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "Stripe processed $1T GMV in 2023, up 25% YoY, competing with Adyen and Square (Block).".into(),
+            entities: vec![
+                entity("Stripe", EntityType::Organization, 0),
+                entity("$1T", EntityType::Money, 17),
+                entity("2023", EntityType::Date, 28),
+                entity("25%", EntityType::Percent, 37),
+                entity("Adyen", EntityType::Organization, 61),
+                entity("Square", EntityType::Organization, 71),
+                entity("Block", EntityType::Organization, 79),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Hard,
+        },
+        // === Sports (Hard) ===
+        AnnotatedExample {
+            text: "PSG's Mbappé (€180M release clause) to Real Madrid vs. staying for 2024 Paris Olympics.".into(),
+            entities: vec![
+                entity("PSG", EntityType::Organization, 0),
+                entity("Mbappé", EntityType::Person, 6),
+                entity("€180M", EntityType::Money, 14),
+                entity("Real Madrid", EntityType::Organization, 39),
+                entity("2024", EntityType::Date, 67),
+                entity("Paris", EntityType::Location, 72),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Hard,
+        },
+        AnnotatedExample {
+            text: "The Lakers-Celtics finals: LeBron vs. Tatum, LA vs. Boston, purple/gold vs. green/white.".into(),
+            entities: vec![
+                entity("Lakers", EntityType::Organization, 4),
+                entity("Celtics", EntityType::Organization, 11),
+                entity("LeBron", EntityType::Person, 27),
+                entity("Tatum", EntityType::Person, 38),
+                entity("LA", EntityType::Location, 45),
+                entity("Boston", EntityType::Location, 52),
+            ],
+            domain: Domain::Sports,
+            difficulty: Difficulty::Hard,
+        },
+    ]
+}
+
 /// Get all synthetic datasets combined
 #[must_use]
 pub fn all_datasets() -> Vec<AnnotatedExample> {
@@ -3002,6 +3246,7 @@ pub fn all_datasets() -> Vec<AnnotatedExample> {
     all.extend(conversational_dataset());
     all.extend(extended_quality_dataset());
     all.extend(globally_diverse_dataset());
+    all.extend(hard_domain_examples());
     all
 }
 
