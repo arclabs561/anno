@@ -304,6 +304,15 @@ impl CandleNER {
     pub fn model_name(&self) -> &str {
         &self.model_name
     }
+
+    /// Get device as a string.
+    pub fn device(&self) -> String {
+        match &self.device {
+            Device::Cpu => "cpu".to_string(),
+            Device::Metal(_) => "metal".to_string(),
+            Device::Cuda(_) => "cuda".to_string(),
+        }
+    }
 }
 
 #[cfg(feature = "candle")]

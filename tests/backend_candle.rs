@@ -77,7 +77,7 @@ mod candle_ner {
 
         // Device should be one of: "cpu", "metal", "cuda"
         assert!(
-            device == "cpu" || device == "metal" || device.starts_with("cuda"),
+            device == "cpu" || device == "metal" || device == "cuda",
             "Unknown device: {}",
             device
         );
@@ -134,7 +134,7 @@ mod gliner_candle {
             println!("Input: {}", text);
             println!("Labels: {:?}", labels);
 
-            match ner.extract_with_labels(text, labels, None) {
+            match ner.extract(text, labels, 0.5) {
                 Ok(entities) => {
                     for e in &entities {
                         println!(
@@ -170,7 +170,7 @@ mod gliner_candle {
         println!("GLiNERCandle using device: {}", device);
 
         assert!(
-            device == "cpu" || device == "metal" || device.starts_with("cuda"),
+            device == "cpu" || device == "metal" || device == "cuda",
             "Unknown device: {}",
             device
         );

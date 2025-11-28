@@ -396,7 +396,11 @@ impl ActiveLearner {
         let first_idx = candidates
             .iter()
             .enumerate()
-            .min_by(|a, b| a.1.confidence.partial_cmp(&b.1.confidence).unwrap())
+            .min_by(|a, b| {
+                a.1.confidence
+                    .partial_cmp(&b.1.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(i, _)| i)
             .unwrap_or(0);
 
@@ -409,16 +413,19 @@ impl ActiveLearner {
             let mut best_min_dist = f64::NEG_INFINITY;
 
             for &idx in &remaining {
-                let emb_idx = candidates[idx].embedding.as_ref().unwrap();
+                // Skip candidates without embeddings
+                let Some(emb_idx) = candidates[idx].embedding.as_ref() else {
+                    continue;
+                };
                 
                 // Find minimum distance to any already-selected candidate
                 let min_dist = selected_indices
                     .iter()
-                    .map(|&sel_idx| {
-                        let emb_sel = candidates[sel_idx].embedding.as_ref().unwrap();
-                        self.embedding_distance(emb_idx, emb_sel)
+                    .filter_map(|&sel_idx| {
+                        let emb_sel = candidates[sel_idx].embedding.as_ref()?;
+                        Some(self.embedding_distance(emb_idx, emb_sel))
                     })
-                    .min_by(|a, b| a.partial_cmp(b).unwrap())
+                    .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .unwrap_or(0.0);
 
                 if min_dist > best_min_dist {

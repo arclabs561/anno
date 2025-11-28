@@ -558,9 +558,13 @@ impl GLiNERCandle {
         }
     }
 
-    /// Get device.
-    pub fn device(&self) -> &Device {
-        &self.device
+    /// Get device as a string.
+    pub fn device(&self) -> String {
+        match &self.device {
+            Device::Cpu => "cpu".to_string(),
+            Device::Metal(_) => "metal".to_string(),
+            Device::Cuda(_) => "cuda".to_string(),
+        }
     }
 
     /// Get model name.
