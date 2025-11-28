@@ -223,6 +223,7 @@ pub mod long_tail;
 pub mod metrics;
 pub mod modes;
 pub mod ood_detection;
+pub mod report;
 pub mod robustness;
 pub mod sampling;
 pub mod synthetic;
@@ -343,6 +344,14 @@ pub use error_analysis::{
 pub use threshold_analysis::{
     format_threshold_table, interpret_curve, PredictionWithConfidence, ThresholdAnalyzer,
     ThresholdCurve, ThresholdPoint,
+};
+
+// Unified evaluation report (recommended entry point)
+pub use report::{
+    BiasSummary, CalibrationSummary, CoreMetrics, DataQualitySummary, DemographicBiasMetrics,
+    ErrorSummary, EvalReport, GenderBiasMetrics, GoldEntity as ReportGoldEntity,
+    LengthBiasMetrics, Priority, Recommendation, RecommendationCategory, ReportBuilder,
+    TestCase, TypeMetrics as ReportTypeMetrics,
 };
 
 // Few-shot learning evaluation
