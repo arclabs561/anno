@@ -229,6 +229,15 @@ impl AnnotatedExample {
         }
     }
 
+    /// Convenience constructor from text and entity tuples (alias for `from_tuples`).
+    ///
+    /// This is the same as `from_tuples` but with the shorter name commonly used
+    /// in test code.
+    #[must_use]
+    pub fn simple(text: impl Into<String>, entities: Vec<(&str, &str)>) -> Self {
+        Self::from_tuples(text, entities)
+    }
+
     /// Create with explicit domain and difficulty.
     pub fn with_metadata(
         text: impl Into<String>,

@@ -29,16 +29,27 @@
 //! Each domain module provides a `dataset()` function returning `Vec<AnnotatedExample>`.
 
 mod biomedical;
+pub mod discontinuous;
 mod entertainment;
 mod financial;
 mod legal;
 mod misc;
 mod news;
+pub mod relations;
 mod scientific;
 mod social_media;
 mod specialized;
 
 pub use biomedical::dataset as biomedical_dataset;
+pub use discontinuous::{
+    dataset as discontinuous_dataset, stats as discontinuous_stats,
+    Difficulty as DiscontinuousDifficulty, DiscontinuousExample, DiscontinuousStats,
+    Domain as DiscontinuousDomain,
+};
+pub use relations::{
+    dataset as relations_dataset, stats as relations_stats,
+    Difficulty as RelationDifficulty, Domain as RelationDomain, RelationExample, RelationStats,
+};
 pub use entertainment::dataset as entertainment_dataset;
 pub use financial::dataset as financial_dataset;
 pub use legal::dataset as legal_dataset;

@@ -1642,14 +1642,19 @@ impl HandshakingMatrix {
     }
 
     /// Decode entities from handshaking matrix.
+    ///
+    /// In W2NER convention, cell (i, j) represents a span where:
+    /// - j is the start token index
+    /// - i is the end token index (inclusive, so we add 1 for exclusive end)
     pub fn decode_entities<'a>(&self, registry: &'a SemanticRegistry) -> Vec<(SpanCandidate, &'a LabelDefinition, f32)> {
         let mut entities = Vec::new();
 
         for cell in &self.cells {
             if let Some(label) = registry.labels.get(cell.label_idx as usize) {
                 if label.category == LabelCategory::Entity {
+                    // W2NER: j=start, i=end (inclusive), so span is [j, i+1)
                     entities.push((
-                        SpanCandidate::new(0, cell.i, cell.j + 1),
+                        SpanCandidate::new(0, cell.j, cell.i + 1),
                         label,
                         cell.score,
                     ));

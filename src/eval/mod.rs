@@ -205,6 +205,7 @@ pub use bio_adapter::BioScheme;
 // CORE MODULES (always available with `eval` feature)
 // Basic P/R/F1, datasets, coreference metrics
 // =============================================================================
+pub mod advanced_evaluator;
 pub mod analysis;
 pub mod benchmark;
 pub mod bio_adapter;
@@ -214,12 +215,14 @@ pub mod coref_metrics;
 pub mod coref_resolver;
 pub mod dataset;
 pub mod datasets;
+pub mod discontinuous;
 pub mod evaluator;
 pub mod harness;
 pub mod loader;
 pub mod metrics;
 pub mod modes;
 pub mod prelude;
+pub mod relation;
 pub mod report;
 pub mod sampling;
 pub mod synthetic;
@@ -298,6 +301,24 @@ pub use coref_metrics::{
 
 // Coreference resolution
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
+
+// Discontinuous NER evaluation
+pub use discontinuous::{
+    evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold,
+    DiscontinuousNERMetrics, TypeMetrics as DiscontinuousTypeMetrics,
+};
+
+// Relation extraction evaluation
+pub use relation::{
+    evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics,
+    RelationPrediction, RelationTypeMetrics,
+};
+
+// Advanced evaluators for specialized tasks
+pub use advanced_evaluator::{
+    evaluator_for_task, DiscontinuousEvaluator, EvalResults as AdvancedEvalResults,
+    RelationEvaluator, TaskEvaluator,
+};
 
 // =============================================================================
 // BIAS MODULE RE-EXPORTS (eval-bias feature)

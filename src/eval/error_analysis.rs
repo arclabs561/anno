@@ -115,7 +115,7 @@ pub struct EntityInfo {
 
 /// Error category for NER analysis.
 ///
-/// Note: This type overlaps with [`super::analysis::ErrorType`].
+/// Note: This type overlaps with `ErrorType` in the `analysis` module.
 /// The mapping is:
 /// - `TypeError` ↔ `ErrorType::TypeMismatch`
 /// - `BoundaryError` ↔ `ErrorType::BoundaryError`

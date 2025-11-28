@@ -29,7 +29,7 @@
 //! println!("Vocabulary overlap: {:.1}%", comparison.vocab_overlap * 100.0);
 //! ```
 
-use crate::eval::synthetic::AnnotatedExample;
+use crate::eval::synthetic::{AnnotatedExample, Difficulty, Domain};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -412,10 +412,10 @@ pub fn estimate_difficulty(stats: &DatasetStats) -> DifficultyEstimate {
     }
 
     let difficulty = match score {
-        s if s < 0.2 => Difficulty::Easy,
-        s if s < 0.4 => Difficulty::Medium,
-        s if s < 0.6 => Difficulty::Hard,
-        _ => Difficulty::VeryHard,
+        s if s < 0.2 => EstimatedDifficulty::Easy,
+        s if s < 0.4 => EstimatedDifficulty::Medium,
+        s if s < 0.6 => EstimatedDifficulty::Hard,
+        _ => EstimatedDifficulty::VeryHard,
     };
 
     DifficultyEstimate {
@@ -425,16 +425,19 @@ pub fn estimate_difficulty(stats: &DatasetStats) -> DifficultyEstimate {
     }
 }
 
-/// Difficulty level.
+/// Estimated difficulty level based on heuristics.
+///
+/// Note: This is distinct from [`super::dataset::Difficulty`] which is
+/// manually assigned. This enum represents automatically estimated difficulty.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Difficulty {
+pub enum EstimatedDifficulty {
     /// Simple examples with common entities
     Easy,
     /// Moderate complexity
     Medium,
     /// Complex examples requiring context
     Hard,
-    /// Very challenging examples
+    /// Very challenging examples (highest estimated difficulty)
     VeryHard,
 }
 
@@ -442,7 +445,7 @@ pub enum Difficulty {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DifficultyEstimate {
     /// Overall difficulty
-    pub difficulty: Difficulty,
+    pub difficulty: EstimatedDifficulty,
     /// Numeric score (0-1, higher = harder)
     pub score: f64,
     /// Contributing factors

@@ -138,8 +138,8 @@ impl std::fmt::Display for ConfusionMatrix {
 
 /// Categories of NER errors.
 ///
-/// Note: This type overlaps with [`super::error_analysis::ErrorCategory`].
-/// The mapping is:
+/// Note: This type overlaps with `ErrorCategory` in the `error_analysis` module
+/// (available with the `eval-advanced` feature). The mapping is:
 /// - `TypeMismatch` ↔ `ErrorCategory::TypeError`
 /// - `BoundaryError` ↔ `ErrorCategory::BoundaryError`
 /// - `BoundaryAndType` ↔ `ErrorCategory::PartialMatch`
