@@ -205,14 +205,17 @@ pub mod coref_loader;
 pub mod coref_metrics;
 pub mod coref_resolver;
 pub mod datasets;
+pub mod dataset_quality;
 pub mod demographic_bias;
 pub mod evaluator;
 pub mod gender_bias;
 pub mod harness;
+pub mod learning_curve;
 pub mod length_bias;
 pub mod loader;
 pub mod metrics;
 pub mod modes;
+pub mod ood_detection;
 pub mod robustness;
 pub mod sampling;
 pub mod synthetic;
@@ -280,6 +283,23 @@ pub use calibration::{
 // Robustness testing
 pub use robustness::{
     robustness_grade, Perturbation, PerturbationMetrics, RobustnessEvaluator, RobustnessResults,
+};
+
+// Out-of-distribution detection
+pub use ood_detection::{
+    ood_rate_grade, OODAnalysisResults, OODConfig, OODDetector, OODStatus, VocabCoverageStats,
+};
+
+// Dataset quality metrics
+pub use dataset_quality::{
+    check_leakage, entity_imbalance_ratio, DatasetQualityAnalyzer, DifficultyMetrics,
+    QualityReport, ReliabilityMetrics, ValidityMetrics,
+};
+
+// Learning curve analysis
+pub use learning_curve::{
+    suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis,
+    LearningCurveAnalyzer, SampleEfficiencyMetrics,
 };
 
 // Analysis re-exports

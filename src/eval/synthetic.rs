@@ -711,6 +711,121 @@ pub fn adversarial_dataset() -> Vec<AnnotatedExample> {
             domain: Domain::News,
             difficulty: Difficulty::Adversarial,
         },
+        // Entity at very start
+        AnnotatedExample {
+            text: "Microsoft announced earnings.".into(),
+            entities: vec![entity("Microsoft", EntityType::Organization, 0)],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Entity at very end
+        AnnotatedExample {
+            text: "The CEO is Tim Cook".into(),
+            entities: vec![entity("Tim Cook", EntityType::Person, 11)],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Multiple adjacent entities
+        AnnotatedExample {
+            text: "John Smith Mary Jones met in Paris France.".into(),
+            entities: vec![
+                entity("John Smith", EntityType::Person, 0),
+                entity("Mary Jones", EntityType::Person, 11),
+                entity("Paris", EntityType::Location, 29),
+                entity("France", EntityType::Location, 35),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Same text, different types
+        AnnotatedExample {
+            text: "Washington visited Washington to meet Washington.".into(),
+            entities: vec![
+                entity("Washington", EntityType::Person, 0),
+                entity("Washington", EntityType::Location, 19),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Very long entity
+        AnnotatedExample {
+            text: "The International Business Machines Corporation announced results.".into(),
+            entities: vec![entity("International Business Machines Corporation", EntityType::Organization, 4)],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Single character entity
+        AnnotatedExample {
+            text: "X Corp filed a lawsuit.".into(),
+            entities: vec![entity("X Corp", EntityType::Organization, 0)],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Hyphenated name
+        AnnotatedExample {
+            text: "Mary-Jane Watson works at Stark-Industries.".into(),
+            entities: vec![
+                entity("Mary-Jane Watson", EntityType::Person, 0),
+                entity("Stark-Industries", EntityType::Organization, 26),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Possessive form
+        AnnotatedExample {
+            text: "Tesla's Elon Musk spoke at Google's headquarters.".into(),
+            entities: vec![
+                entity("Tesla", EntityType::Organization, 0),
+                entity("Elon Musk", EntityType::Person, 8),
+                entity("Google", EntityType::Organization, 27),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Numeric in name
+        AnnotatedExample {
+            text: "7-Eleven partnered with 3M Corporation.".into(),
+            entities: vec![
+                entity("7-Eleven", EntityType::Organization, 0),
+                entity("3M Corporation", EntityType::Organization, 24),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // All caps
+        AnnotatedExample {
+            text: "NASA and IBM announced a partnership with MIT.".into(),
+            entities: vec![
+                entity("NASA", EntityType::Organization, 0),
+                entity("IBM", EntityType::Organization, 9),
+                entity("MIT", EntityType::Organization, 42),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Abbreviation vs full name
+        AnnotatedExample {
+            text: "The UN (United Nations) met in NYC (New York City).".into(),
+            entities: vec![
+                entity("UN", EntityType::Organization, 4),
+                entity("United Nations", EntityType::Organization, 8),
+                entity("NYC", EntityType::Location, 31),
+                entity("New York City", EntityType::Location, 36),
+            ],
+            domain: Domain::Politics,
+            difficulty: Difficulty::Adversarial,
+        },
+        // Code-mixed text (English-Spanish)
+        AnnotatedExample {
+            text: "María went to Los Angeles para visitar a Juan.".into(),
+            entities: vec![
+                entity("María", EntityType::Person, 0),
+                entity("Los Angeles", EntityType::Location, 14),
+                entity("Juan", EntityType::Person, 41),
+            ],
+            domain: Domain::SocialMedia,
+            difficulty: Difficulty::Adversarial,
+        },
     ]
 }
 
@@ -848,6 +963,87 @@ pub fn structured_dataset() -> Vec<AnnotatedExample> {
                 entity("2pm", EntityType::Date, 21),
                 entity_url("https://events.co/webinar", 42),
                 entity("$99", EntityType::Money, 74),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Medium,
+        },
+        // === More Email Examples ===
+        AnnotatedExample {
+            text: "Send inquiries to support@company.com or sales@company.com.".into(),
+            entities: vec![
+                entity_email("support@company.com", 18),
+                entity_email("sales@company.com", 41),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The CEO's email is john.doe@enterprise.org for direct contact.".into(),
+            entities: vec![
+                entity_email("john.doe@enterprise.org", 19),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "Contact hr-department@bigcorp.co.uk for job applications.".into(),
+            entities: vec![
+                entity_email("hr-department@bigcorp.co.uk", 8),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        // === More Phone Examples ===
+        AnnotatedExample {
+            text: "Call us at +1-800-555-0199 or (212) 555-1234 for support.".into(),
+            entities: vec![
+                entity_phone("+1-800-555-0199", 11),
+                entity_phone("(212) 555-1234", 30),
+            ],
+            domain: Domain::Ecommerce,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Emergency: 911. Non-emergency: 555-123-4567.".into(),
+            entities: vec![
+                entity_phone("911", 11),
+                entity_phone("555-123-4567", 31),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "International: +44 20 7946 0958 or +81-3-1234-5678.".into(),
+            entities: vec![
+                entity_phone("+44 20 7946 0958", 15),
+                entity_phone("+81-3-1234-5678", 35),
+            ],
+            domain: Domain::News,
+            difficulty: Difficulty::Hard,
+        },
+        // === More URL Examples ===
+        AnnotatedExample {
+            text: "Visit https://www.example.com or http://docs.example.org/api for more.".into(),
+            entities: vec![
+                entity_url("https://www.example.com", 6),
+                entity_url("http://docs.example.org/api", 33),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Easy,
+        },
+        AnnotatedExample {
+            text: "The API endpoint is https://api.service.io/v2/users?page=1&limit=100.".into(),
+            entities: vec![
+                entity_url("https://api.service.io/v2/users?page=1&limit=100", 20),
+            ],
+            domain: Domain::Technical,
+            difficulty: Difficulty::Medium,
+        },
+        AnnotatedExample {
+            text: "Docs at https://github.com/org/repo#readme, issues at https://github.com/org/repo/issues.".into(),
+            entities: vec![
+                entity_url("https://github.com/org/repo#readme", 8),
+                entity_url("https://github.com/org/repo/issues", 54),
             ],
             domain: Domain::Technical,
             difficulty: Difficulty::Medium,

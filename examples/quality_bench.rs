@@ -15,13 +15,18 @@
 //! - Gender bias evaluation (WinoBias-style)
 //! - Demographic bias evaluation (ethnicity, region, script)
 
+use anno::eval::calibration::{calibration_grade, CalibrationEvaluator};
+use anno::eval::dataset_quality::check_leakage;
 use anno::eval::demographic_bias::{
     create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
 };
 use anno::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 use anno::eval::harness::{EvalConfig, EvalHarness};
+use anno::eval::learning_curve::{DataPoint, LearningCurveAnalyzer};
 use anno::eval::length_bias::{create_length_varied_dataset, EntityLengthEvaluator};
-use anno::eval::synthetic::dataset_stats;
+use anno::eval::ood_detection::{ood_rate_grade, OODDetector};
+use anno::eval::robustness::{robustness_grade, RobustnessEvaluator};
+use anno::eval::synthetic::{dataset_stats, all_datasets};
 use anno::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
 use anno::eval::MetricWithVariance;
 use anno::eval::SimpleCorefResolver;
@@ -451,8 +456,143 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         println!("{:<16} {:>11.1}%", freq, rate * 100.0);
     }
 
-    // --- Bias Summary ---
-    println!("\n--- Bias Summary ---\n");
+    // --- Robustness Testing ---
+    println!("\n--- Robustness Testing ---\n");
+    
+    // Create test cases with some DATE entities PatternNER can handle
+    let robustness_cases: Vec<(String, Vec<anno::Entity>)> = vec![
+        (
+            "Meeting on January 15, 2024.".to_string(),
+            vec![anno::Entity::new("January 15, 2024", anno::EntityType::Date, 11, 27, 0.95)],
+        ),
+        (
+            "Cost: $500.00 total.".to_string(),
+            vec![anno::Entity::new("$500.00", anno::EntityType::Money, 6, 13, 0.95)],
+        ),
+    ];
+
+    let robustness_eval = RobustnessEvaluator::default();
+    let robustness_results = robustness_eval.evaluate(&ner, &robustness_cases);
+
+    println!(
+        "Baseline F1: {:.1}%",
+        robustness_results.baseline_f1 * 100.0
+    );
+    println!(
+        "Avg Perturbed F1: {:.1}%",
+        robustness_results.avg_perturbed_f1 * 100.0
+    );
+    println!(
+        "Robustness Score: {:.1}% ({})",
+        robustness_results.robustness_score * 100.0,
+        robustness_grade(robustness_results.robustness_score)
+    );
+    println!("Worst perturbation: {}", robustness_results.worst_perturbation);
+
+    // --- OOD Detection Demo ---
+    println!("\n--- OOD Detection ---\n");
+
+    let training_entities = vec![
+        "John Smith", "Jane Doe", "Google", "Microsoft", "New York", "London",
+    ];
+    let ood_detector = OODDetector::default().fit(&training_entities);
+
+    let test_entities: Vec<(&str, Option<f64>)> = vec![
+        ("John Smith", Some(0.95)),      // In-distribution
+        ("Jane Doe", Some(0.90)),        // In-distribution  
+        ("Xiangjun Chen", Some(0.45)),   // OOD (unfamiliar name pattern)
+        ("山田太郎", Some(0.30)),          // OOD (different script)
+    ];
+
+    let ood_results = ood_detector.analyze(&test_entities);
+    println!(
+        "OOD Rate: {:.1}% ({})",
+        ood_results.ood_rate * 100.0,
+        ood_rate_grade(ood_results.ood_rate)
+    );
+    println!("Vocab Coverage: {:.1}%", ood_results.vocab_stats.coverage_ratio * 100.0);
+    if !ood_results.sample_ood_entities.is_empty() {
+        println!("Sample OOD entities: {:?}", ood_results.sample_ood_entities);
+    }
+
+    // --- Dataset Quality Demo ---
+    println!("\n--- Dataset Quality Metrics ---\n");
+
+    // Quick leakage check using synthetic data
+    let all_examples = all_datasets();
+    let (train_texts, test_texts): (Vec<_>, Vec<_>) = all_examples
+        .iter()
+        .enumerate()
+        .partition(|(i, _)| *i % 5 != 0); // 80/20 split
+
+    let train_strs: Vec<_> = train_texts.iter().map(|(_, e)| e.text.as_str()).collect();
+    let test_strs: Vec<_> = test_texts.iter().map(|(_, e)| e.text.as_str()).collect();
+    
+    let (leaked, leak_ratio) = check_leakage(&train_strs, &test_strs);
+    println!("Train/Test Leakage Check:");
+    println!("  Leaked samples: {} ({:.1}%)", leaked, leak_ratio * 100.0);
+    println!("  Status: {}", if leaked == 0 { "Clean" } else { "Warning!" });
+
+    // --- Calibration Demo ---
+    println!("\n--- Calibration Demo ---\n");
+
+    // Simulated predictions with confidence scores
+    let predictions = vec![
+        (0.95, true),   // High confidence, correct
+        (0.88, true),   // High confidence, correct
+        (0.75, true),   // Medium confidence, correct
+        (0.60, false),  // Low confidence, incorrect (good calibration)
+        (0.55, false),  // Low confidence, incorrect (good calibration)
+        (0.92, false),  // High confidence, incorrect (overconfident!)
+    ];
+
+    let cal_results = CalibrationEvaluator::compute(&predictions);
+    println!("Expected Calibration Error (ECE): {:.3}", cal_results.ece);
+    println!(
+        "Calibration Grade: {}",
+        calibration_grade(cal_results.ece)
+    );
+    println!(
+        "Confidence Gap: {:.1}% (correct: {:.0}%, incorrect: {:.0}%)",
+        cal_results.confidence_gap * 100.0,
+        cal_results.avg_confidence_correct * 100.0,
+        cal_results.avg_confidence_incorrect * 100.0
+    );
+
+    // --- Learning Curve Demo ---
+    println!("\n--- Learning Curve Analysis ---\n");
+
+    // Simulated learning curve data
+    let learning_data = vec![
+        DataPoint { train_size: 100, f1: 0.55, precision: 0.58, recall: 0.52 },
+        DataPoint { train_size: 500, f1: 0.72, precision: 0.75, recall: 0.69 },
+        DataPoint { train_size: 1000, f1: 0.80, precision: 0.82, recall: 0.78 },
+        DataPoint { train_size: 2000, f1: 0.84, precision: 0.85, recall: 0.83 },
+        DataPoint { train_size: 5000, f1: 0.87, precision: 0.88, recall: 0.86 },
+    ];
+
+    let curve_analyzer = LearningCurveAnalyzer::new(learning_data);
+    let curve_analysis = curve_analyzer.analyze();
+
+    println!(
+        "Data Efficiency: {:.2}% F1 per 100 samples",
+        curve_analysis.efficiency.f1_per_100_samples
+    );
+    println!(
+        "Saturation Level: {:.0}%",
+        curve_analysis.efficiency.saturation_level * 100.0
+    );
+    println!(
+        "More data would help: {}",
+        if curve_analysis.more_data_would_help() { "Yes" } else { "No (saturated)" }
+    );
+
+    if let Some(samples) = curve_analysis.samples_for_target(0.90) {
+        println!("Estimated samples for 90% F1: ~{}", samples);
+    }
+
+    // --- Summary ---
+    println!("\n--- Summary ---\n");
     println!("Note: PatternNER only detects structured entities (DATE/MONEY/etc.),");
     println!("not PERSON/LOCATION, so demographic/temporal bias results will be 0%.");
     println!("For meaningful bias evaluation, use ML backends:");
@@ -462,6 +602,17 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("  - Character-based models (ELMo-style) show least demographic bias");
     println!("  - Debiased embeddings do NOT help resolve NER bias");
     println!("  - Entity length bias correlates with training data distribution");
+
+    println!("\nEvaluation modules available:");
+    println!("  - Gender bias (WinoBias-style coreference)");
+    println!("  - Demographic bias (ethnicity, region, script)");
+    println!("  - Temporal bias (names by decade)");
+    println!("  - Entity length bias");
+    println!("  - Robustness testing (perturbations)");
+    println!("  - Calibration metrics (ECE, confidence gap)");
+    println!("  - OOD detection (vocabulary coverage)");
+    println!("  - Dataset quality (leakage, redundancy)");
+    println!("  - Learning curve analysis");
 
     Ok(())
 }
@@ -517,6 +668,8 @@ fn run_real_dataset_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         DatasetId::WikiGold,
         DatasetId::Wnut17,
         DatasetId::CoNLL2003Sample,
+        DatasetId::BC5CDR,          // Biomedical (chemicals, diseases)
+        DatasetId::MitRestaurant,   // Domain-specific (food/location)
     ];
 
     println!(
