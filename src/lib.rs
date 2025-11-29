@@ -1,34 +1,50 @@
 //! # anno
 //!
-//! NER for Rust.
+//! Information extraction for Rust: NER, coreference resolution, and evaluation.
 //!
 //! - **NER**: Multiple backends (Pattern, BERT, GLiNER, NuNER, W2NER)
-//! - **Coreference**: Metrics (MUC, B³, CEAF, LEA)
-//! - **Evaluation**: Benchmarking against standard datasets
+//! - **Coreference**: Resolution (rule-based, T5-based) and metrics (MUC, B³, CEAF, LEA, BLANC)
+//! - **Evaluation**: Comprehensive benchmarking framework with bias analysis
 //!
 //! ## Quick Start - Automatic Backend Selection
 //!
 //! ```rust,ignore
 //! use anno::{auto, Model};
 //!
-//! // Automatically picks the best available backend
+//! // Automatically picks GLiNER (ONNX) → BERT (ONNX) → Candle → Pattern
 //! let model = auto()?;
 //! let entities = model.extract_entities("Steve Jobs founded Apple", None)?;
 //! ```
 //!
+//! Or use the `NERExtractor` for more control:
+//!
+//! ```rust,ignore
+//! use anno::backends::extractor::NERExtractor;
+//!
+//! // Best available (GLiNER if onnx feature enabled)
+//! let extractor = NERExtractor::best_available();
+//!
+//! // Explicit speed/quality tradeoffs
+//! let fast = NERExtractor::fast();           // GLiNER small or patterns
+//! let quality = NERExtractor::best_quality(); // GLiNER large
+//! ```
+//!
 //! ## NER Backends
 //!
-//! | Backend | Feature | Quality | Zero-Shot | Speed | Status |
-//! |---------|---------|---------|-----------|-------|--------|
+//! | Backend | Feature | CoNLL-03* | Zero-Shot | Speed | Status |
+//! |---------|---------|-----------|-----------|-------|--------|
 //! | `PatternNER` | always | N/A | No | ~400ns | ✅ Complete |
-//! | `StatisticalNER` | always | ~65% F1 | No | ~50μs | ✅ Complete |
+//! | `HeuristicNER` | always | ~65% F1 | No | ~50μs | ✅ Complete |
 //! | `StackedNER` | always | varies | No | varies | ✅ Complete |
 //! | `BertNEROnnx` | `onnx` | ~86% F1 | No | ~50ms | ✅ Complete |
-//! | `GLiNEROnnx` | `onnx` | ~86% F1 | **Yes** | ~100ms | ✅ Complete |
+//! | `GLiNEROnnx` | `onnx` | ~90% F1 | **Yes** | ~100ms | ✅ Complete |
 //! | `NuNER` | `onnx` | ~86% F1 | **Yes** | ~100ms | ✅ Complete |
 //! | `W2NER` | `onnx` | ~85% F1 | No | ~150ms | ✅ Complete |
 //! | `CandleNER` | `candle` | ~86% F1 | No | varies | ✅ Complete |
-//! | `GLiNERCandle` | `candle` | ~86% F1 | **Yes** | varies | ✅ Complete |
+//! | `GLiNERCandle` | `candle` | ~90% F1 | **Yes** | varies | ✅ Complete |
+//!
+//! *CoNLL-03 is the standard supervised NER benchmark. For zero-shot cross-domain
+//! benchmarks (CrossNER), expect ~60% F1. See [`DEFAULT_GLINER2_MODEL`] docs for details.
 //!
 //! ## Feature Flags
 //!
@@ -49,6 +65,18 @@
 //! anno = { version = "0.2", features = ["candle", "metal"] } # + Apple GPU
 //! anno = { version = "0.2", features = ["candle", "cuda"] }  # + NVIDIA GPU
 //! ```
+//!
+//! ### Discourse Analysis
+//!
+//! ```toml
+//! anno = { version = "0.2", features = ["discourse"] }  # Abstract anaphora, events
+//! ```
+//!
+//! Enables:
+//! - Event extraction (ACE-style triggers)
+//! - Shell noun detection ("this problem", "the fact that...")
+//! - Discourse-aware coreference resolution
+//! - Abstract anaphora evaluation
 //!
 //! ### Everything
 //!
@@ -98,10 +126,18 @@
 #![warn(missing_docs)]
 
 pub mod backends;
+#[cfg(feature = "discourse")]
+pub mod discourse;
 mod entity;
 mod error;
 pub mod eval;
+pub mod graph;
+pub mod grounded;
+/// Language detection and classification utilities.
+pub mod lang;
 pub mod offset;
+pub mod schema;
+pub mod similarity;
 pub mod types;
 
 // =============================================================================
@@ -122,7 +158,7 @@ mod sealed {
 
     // Implement Sealed for all built-in backends
     impl Sealed for super::PatternNER {}
-    impl Sealed for super::StatisticalNER {}
+    impl Sealed for super::HeuristicNER {}
     impl Sealed for super::StackedNER {}
     impl Sealed for super::HybridNER {}
     impl Sealed for super::NuNER {}
@@ -146,8 +182,17 @@ mod sealed {
     impl Sealed for super::backends::gliner_candle::GLiNERCandle {}
 
     #[cfg(feature = "candle")]
-    impl<E: super::backends::encoder_candle::TextEncoder + 'static> Sealed 
-        for super::backends::gliner_pipeline::GLiNERPipeline<E> {}
+    impl<E: super::backends::encoder_candle::TextEncoder + 'static> Sealed
+        for super::backends::gliner_pipeline::GLiNERPipeline<E>
+    {
+    }
+
+    // GLiNER2 multi-task model
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::gliner2::GLiNER2Onnx {}
+
+    #[cfg(feature = "candle")]
+    impl Sealed for super::backends::gliner2::GLiNER2Candle {}
 }
 
 /// A mock NER model for testing purposes.
@@ -297,11 +342,19 @@ pub mod prelude {
     //!     println!("{}: {}", e.entity_type.as_label(), e.text);
     //! }
     //! ```
-    pub use crate::entity::{Entity, EntityCategory, EntityType, ExtractionMethod, Provenance, TypeMapper};
+    pub use crate::entity::{
+        Entity, EntityCategory, EntityType, ExtractionMethod, Provenance, TypeMapper,
+    };
     pub use crate::error::{Error, Result};
     pub use crate::types::{Confidence, EntitySliceExt, Score};
     pub use crate::Model;
     pub use crate::{HybridConfig, HybridNER, MergeStrategy, MockModel, PatternNER, StackedNER};
+
+    // Schema harmonization (preferred over TypeMapper for multi-dataset work)
+    pub use crate::schema::{CanonicalType, CoarseType, DatasetSchema, SchemaMapper};
+
+    // Graph RAG integration
+    pub use crate::graph::{GraphDocument, GraphEdge, GraphExportFormat, GraphNode};
 
     // Evaluation helpers
     pub use crate::eval::datasets::GoldEntity;
@@ -316,40 +369,94 @@ pub mod prelude {
 
 // Re-exports
 pub use entity::{
-    DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod,
-    HashMapLexicon, HierarchicalConfidence, Lexicon, Provenance, RaggedBatch, Relation, Span,
-    SpanCandidate, TypeMapper, generate_filtered_candidates, generate_span_candidates,
+    generate_filtered_candidates, generate_span_candidates, DiscontinuousSpan, Entity,
+    EntityBuilder, EntityCategory, EntityType, EntityViewport, ExtractionMethod, HashMapLexicon,
+    HierarchicalConfidence, Lexicon, Provenance, RaggedBatch, Relation, Span, SpanCandidate,
+    TypeMapper, ValidationIssue,
 };
 pub use error::{Error, Result};
+
+// Grounded entity hierarchy (Signal → Track → Identity)
+// Research-aligned abstractions for unified detection across modalities
+pub use grounded::{
+    Corpus, GroundedDocument, Identity, IdentityId, IdentitySource, Location, Modality, Quantifier,
+    Signal, SignalId, SignalRef, Track, TrackId, TrackRef,
+};
+pub use lang::{detect_language, Language};
 pub use offset::{
-    OffsetMapping, SpanConverter, TextSpan, TokenSpan, bytes_to_chars, chars_to_bytes, is_ascii,
+    bytes_to_chars, chars_to_bytes, is_ascii, OffsetMapping, SpanConverter, TextSpan, TokenSpan,
+};
+
+// Discourse-level entities (abstract anaphora, event coreference)
+#[cfg(feature = "discourse")]
+pub use discourse::{
+    classify_shell_noun,
+    DiscourseReferent,
+    DiscourseScope,
+    EventCluster,
+    EventCorefResolver,
+    // Event extraction (NEW - fixes abstract anaphora detection)
+    EventExtractor,
+    EventExtractorConfig,
+    EventMention,
+    EventTriggerLexicon,
+    ReferentType,
+    ShellNoun,
+    ShellNounClass,
 };
 
 // Backend re-exports (always available)
 pub use backends::{
-    BackendType, ConflictStrategy, HybridConfig, HybridNER, MergeStrategy,
-    NERExtractor, NuNER, PatternNER, StackedNER, StatisticalNER,
-    W2NER, W2NERConfig, W2NERRelation,
+    AutoNER, BackendType, ConflictStrategy, HeuristicNER, HybridConfig, HybridNER, MergeStrategy,
+    NERExtractor, NuNER, PatternNER, StackedNER, W2NERConfig, W2NERRelation, W2NER,
 };
+
+// Backwards compatibility
+#[allow(deprecated)]
+pub use backends::StatisticalNER;
 
 // Inference abstractions (research-aligned traits)
 pub use backends::inference::{
+    cosine_similarity_f32,
+    two_stage_retrieval,
     // Core encoder traits
-    BiEncoder, DiscontinuousNER, LabelEncoder, RelationExtractor, TextEncoder, ZeroShotNER,
+    BiEncoder,
+    // Binary embeddings for fast blocking (two-stage retrieval)
+    BinaryBlocker,
+    BinaryHash,
+    // Coreference
+    CoreferenceCluster,
+    CoreferenceConfig,
     // Supporting types
-    DiscontinuousEntity, EncoderOutput, ExtractionWithRelations, RelationTriple, SpanLabelScore,
+    DiscontinuousEntity,
+    DiscontinuousNER,
     // Late interaction
-    DotProductInteraction, LateInteraction, MaxSimInteraction,
-    // Span representation
-    SpanRepConfig, SpanRepresentationLayer,
-    // Semantic registry
-    LabelCategory, LabelDefinition, ModalityHint, SemanticRegistry, SemanticRegistryBuilder,
+    DotProductInteraction,
+    EncoderOutput,
+    ExtractionWithRelations,
     // Handshaking matrix (W2NER-style)
     HandshakingMatrix,
-    // Coreference
-    CoreferenceCluster, CoreferenceConfig,
     // Modality
-    ImageFormat, ModalityInput, VisualPosition,
+    ImageFormat,
+    // Semantic registry
+    LabelCategory,
+    LabelDefinition,
+    LabelEncoder,
+    LateInteraction,
+    MaxSimInteraction,
+    ModalityHint,
+    ModalityInput,
+    RelationExtractor,
+    RelationTriple,
+    SemanticRegistry,
+    SemanticRegistryBuilder,
+    SpanLabelScore,
+    // Span representation
+    SpanRepConfig,
+    SpanRepresentationLayer,
+    TextEncoder,
+    VisualPosition,
+    ZeroShotNER,
 };
 
 // Backwards compatibility aliases (deprecated)
@@ -357,7 +464,19 @@ pub use backends::inference::{
 pub use backends::{CompositeNER, LayeredNER, RuleBasedNER, TieredNER};
 
 #[cfg(feature = "onnx")]
-pub use backends::{BertNEROnnx, GLiNEROnnx};
+pub use backends::{BertNERConfig, BertNEROnnx, GLiNERConfig, GLiNEROnnx};
+
+#[cfg(feature = "onnx")]
+pub use backends::{CorefCluster, T5Coref, T5CorefConfig};
+
+#[cfg(feature = "async-inference")]
+pub use backends::{batch_extract, batch_extract_limited, AsyncNER, IntoAsync};
+
+#[cfg(feature = "session-pool")]
+pub use backends::{GLiNERPool, PoolConfig, SessionPool};
+
+// Warmup utilities (always available)
+pub use backends::{warmup_model, warmup_with_callback, WarmupConfig, WarmupResult};
 
 #[cfg(feature = "candle")]
 pub use backends::CandleNER;
@@ -365,11 +484,64 @@ pub use backends::CandleNER;
 /// Default BERT ONNX model (reliable, widely tested).
 pub const DEFAULT_BERT_ONNX_MODEL: &str = "protectai/bert-base-NER-onnx";
 
-/// Default GLiNER model (zero-shot NER).
+/// Default GLiNER model (zero-shot NER) - well-tested, reliable.
+///
+/// GLiNER v2.1 small is the stable, well-tested version for pure NER tasks.
+/// For higher accuracy, use `GLINER_MEDIUM_MODEL` or `GLINER_LARGE_MODEL`.
 pub const DEFAULT_GLINER_MODEL: &str = "onnx-community/gliner_small-v2.1";
 
+/// GLiNER small model - fastest inference (~1.6x faster than medium).
+/// Use when speed is critical and some accuracy loss is acceptable.
+pub const GLINER_SMALL_MODEL: &str = "onnx-community/gliner_small-v2.1";
+
+/// GLiNER medium model - balanced speed/accuracy (recommended default).
+pub const GLINER_MEDIUM_MODEL: &str = "onnx-community/gliner_medium-v2.1";
+
+/// GLiNER large model - highest accuracy, slower inference.
+/// Use when maximum accuracy is required and resources allow.
+pub const GLINER_LARGE_MODEL: &str = "onnx-community/gliner_large-v2.1";
+
+/// Default GLiNER2 model (multi-task: NER + classification + relations).
+///
+/// GLiNER2 from Fastino Labs (EMNLP 2025, arxiv:2507.18546) supports:
+/// - Named entity recognition (CrossNER F1: 0.590)
+/// - Text classification (multi-label supported)
+/// - Structured data extraction (hierarchical JSON)
+///
+/// **Why this model?**
+/// - Same original author as GLiNER (Urchade Zaratiana)
+/// - Official EMNLP 2025 publication
+/// - 15x more community adoption than alternatives
+/// - Dedicated `gliner2` Python library
+/// - Apache 2.0 license, CPU-first design
+///
+/// **Alternatives:**
+/// - `knowledgator/gliner-multitask-large-v0.5`: Higher NER F1 (0.6276),
+///   but different authors, less maintained
+/// - `fastino/gliner2-large-v1`: Higher accuracy, larger (340M params)
+///
+/// For pure NER, prefer [`DEFAULT_GLINER_MODEL`] instead.
+pub const DEFAULT_GLINER2_MODEL: &str = "fastino/gliner2-base-v1";
+
 /// Default Candle model (BERT-based NER).
+/// Note: dslim/bert-base-NER only has vocab.txt, not tokenizer.json.
+/// For Candle, consider using a model with tokenizer.json or use BertNEROnnx instead.
 pub const DEFAULT_CANDLE_MODEL: &str = "dslim/bert-base-NER";
+
+/// Alternative Candle model with tokenizer.json (if available).
+/// Falls back to DEFAULT_CANDLE_MODEL if not found.
+pub const ALTERNATIVE_CANDLE_MODEL: &str = "dbmdz/bert-large-cased-finetuned-conll03-english";
+
+/// Default GLiNER model for Candle backend (safetensors format).
+/// Note: Most GLiNER models don't have safetensors, so GLiNERCandle may not work.
+/// Use GLiNEROnnx (ONNX version) instead, which works with all GLiNER models.
+/// This constant is kept for compatibility but may not work with most models.
+/// Default GLiNER Candle model.
+///
+/// Tries models with safetensors format first:
+/// 1. knowledgator/modern-gliner-bi-large-v1.0 (has safetensors)
+/// 2. knowledgator/gliner-x-small (may need conversion)
+pub const DEFAULT_GLINER_CANDLE_MODEL: &str = "knowledgator/modern-gliner-bi-large-v1.0";
 
 /// Default NuNER model (token-based zero-shot).
 pub const DEFAULT_NUNER_MODEL: &str = "deepanwa/NuNerZero_onnx";
@@ -383,7 +555,7 @@ pub const DEFAULT_NUNER_MODEL: &str = "deepanwa/NuNerZero_onnx";
 pub enum UseCase {
     /// Best quality regardless of speed (prefer ML backends).
     BestQuality,
-    /// Fast inference, acceptable quality (prefer patterns + statistical).
+    /// Fast inference, acceptable quality (prefer patterns + heuristic).
     Fast,
     /// Zero-shot NER with custom entity types (GLiNER/NuNER).
     ZeroShot,
@@ -400,7 +572,7 @@ pub enum UseCase {
 /// 1. GLiNEROnnx (if `onnx` feature) - best quality, zero-shot
 /// 2. BertNEROnnx (if `onnx` feature) - high quality, fixed types
 /// 3. CandleNER (if `candle` feature) - pure Rust, GPU capable
-/// 4. StackedNER (always) - pattern + statistical fallback
+/// 4. StackedNER (always) - pattern + heuristic fallback
 ///
 /// # Example
 ///
@@ -449,7 +621,8 @@ pub fn auto_for(use_case: UseCase) -> Result<Box<dyn Model>> {
             }
             Err(Error::FeatureNotAvailable(
                 "Zero-shot NER requires the 'onnx' feature. \
-                 Build with: cargo build --features onnx".to_string()
+                 Build with: cargo build --features onnx"
+                    .to_string(),
             ))
         }
         UseCase::NestedEntities => {
@@ -469,7 +642,9 @@ pub fn auto_for(use_case: UseCase) -> Result<Box<dyn Model>> {
             }
             #[cfg(feature = "candle")]
             {
-                if let Ok(model) = backends::candle::CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL) {
+                if let Ok(model) =
+                    backends::candle::CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL)
+                {
                     return Ok(Box::new(model));
                 }
             }
@@ -494,7 +669,7 @@ pub fn auto_for(use_case: UseCase) -> Result<Box<dyn Model>> {
 pub fn available_backends() -> Vec<(&'static str, bool)> {
     let mut backends = vec![
         ("PatternNER", true),
-        ("StatisticalNER", true),
+        ("HeuristicNER", true),
         ("StackedNER", true),
         ("HybridNER", true),
     ];
@@ -660,17 +835,16 @@ pub trait StreamingCapable: Model {
     ///
     /// The `offset` is added to all entity positions to maintain
     /// correct positions within the full document.
-    fn extract_entities_streaming(
-        &self,
-        chunk: &str,
-        offset: usize,
-    ) -> Result<Vec<Entity>> {
+    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
         let entities = self.extract_entities(chunk, None)?;
-        Ok(entities.into_iter().map(|mut e| {
-            e.start += offset;
-            e.end += offset;
-            e
-        }).collect())
+        Ok(entities
+            .into_iter()
+            .map(|mut e| {
+                e.start += offset;
+                e.end += offset;
+                e
+            })
+            .collect())
     }
 
     /// Recommended chunk size for streaming extraction.

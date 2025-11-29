@@ -5,12 +5,11 @@
 //! Run: cargo run --features eval --example advanced
 
 use anno::eval::{
-    evaluate_discontinuous_gold_vs_gold, evaluate_relations_gold_vs_gold,
-    evaluate_visual_gold_vs_gold, synthetic_dataset_stats,
-    DiscontinuousEvalConfig, RelationEvalConfig, VisualEvalConfig,
-    evaluate_discontinuous_ner, evaluate_relations, evaluate_visual_ner,
-    DiscontinuousGold, RelationGold, RelationPrediction, VisualGold, VisualPrediction,
-    BoundingBox,
+    evaluate_discontinuous_gold_vs_gold, evaluate_discontinuous_ner, evaluate_relations,
+    evaluate_relations_gold_vs_gold, evaluate_visual_gold_vs_gold, evaluate_visual_ner,
+    synthetic_dataset_stats, BoundingBox, DiscontinuousEvalConfig, DiscontinuousGold,
+    RelationEvalConfig, RelationGold, RelationPrediction, VisualEvalConfig, VisualGold,
+    VisualPrediction,
 };
 use anno::DiscontinuousEntity;
 
@@ -37,35 +36,43 @@ fn main() {
     let disc_baseline = evaluate_discontinuous_gold_vs_gold();
     println!("Perfect prediction baseline:");
     println!("  Exact F1: {:.1}%", disc_baseline.exact_f1 * 100.0);
-    println!("  Boundary F1: {:.1}%", disc_baseline.entity_boundary_f1 * 100.0);
-    println!("  Partial F1: {:.1}%", disc_baseline.partial_span_f1 * 100.0);
+    println!(
+        "  Boundary F1: {:.1}%",
+        disc_baseline.entity_boundary_f1 * 100.0
+    );
+    println!(
+        "  Partial F1: {:.1}%",
+        disc_baseline.partial_span_f1 * 100.0
+    );
     println!();
 
     // Test with imperfect predictions
-    let gold = vec![
-        DiscontinuousGold::new(
-            vec![(0, 8), (25, 33)],  // "New York" + "airports"
-            "LOC",
-            "New York airports",
-        ),
-    ];
-    
+    let gold = vec![DiscontinuousGold::new(
+        vec![(0, 8), (25, 33)], // "New York" + "airports"
+        "LOC",
+        "New York airports",
+    )];
+
     // Partial match - only got first span
-    let pred_partial = vec![
-        DiscontinuousEntity {
-            spans: vec![(0, 8)],  // Only "New York"
-            text: "New York".to_string(),
-            entity_type: "LOC".to_string(),
-            confidence: 0.9,
-        },
-    ];
-    
+    let pred_partial = vec![DiscontinuousEntity {
+        spans: vec![(0, 8)], // Only "New York"
+        text: "New York".to_string(),
+        entity_type: "LOC".to_string(),
+        confidence: 0.9,
+    }];
+
     let config = DiscontinuousEvalConfig::default();
     let partial_metrics = evaluate_discontinuous_ner(&gold, &pred_partial, &config);
     println!("Partial match (missing span):");
     println!("  Exact F1: {:.1}%", partial_metrics.exact_f1 * 100.0);
-    println!("  Boundary F1: {:.1}%", partial_metrics.entity_boundary_f1 * 100.0);
-    println!("  Partial F1: {:.1}%", partial_metrics.partial_span_f1 * 100.0);
+    println!(
+        "  Boundary F1: {:.1}%",
+        partial_metrics.entity_boundary_f1 * 100.0
+    );
+    println!(
+        "  Partial F1: {:.1}%",
+        partial_metrics.partial_span_f1 * 100.0
+    );
     println!();
 
     // ==========================================================================
@@ -81,31 +88,34 @@ fn main() {
     println!();
 
     // Test with imperfect predictions
-    let gold_rel = vec![
-        RelationGold::new(
-            (0, 10), "PER", "Steve Jobs",
-            (19, 24), "ORG", "Apple",
-            "FOUNDED",
-        ),
-    ];
-    
+    let gold_rel = vec![RelationGold::new(
+        (0, 10),
+        "PER",
+        "Steve Jobs",
+        (19, 24),
+        "ORG",
+        "Apple",
+        "FOUNDED",
+    )];
+
     // Wrong relation type
-    let pred_wrong_type = vec![
-        RelationPrediction {
-            head_span: (0, 10),
-            head_type: "PER".to_string(),
-            tail_span: (19, 24),
-            tail_type: "ORG".to_string(),
-            relation_type: "WORKS_FOR".to_string(),  // Wrong!
-            confidence: 0.8,
-        },
-    ];
-    
+    let pred_wrong_type = vec![RelationPrediction {
+        head_span: (0, 10),
+        head_type: "PER".to_string(),
+        tail_span: (19, 24),
+        tail_type: "ORG".to_string(),
+        relation_type: "WORKS_FOR".to_string(), // Wrong!
+        confidence: 0.8,
+    }];
+
     let rel_config = RelationEvalConfig::default();
     let wrong_type_metrics = evaluate_relations(&gold_rel, &pred_wrong_type, &rel_config);
     println!("Wrong relation type:");
     println!("  Strict F1: {:.1}%", wrong_type_metrics.strict_f1 * 100.0);
-    println!("  Boundary F1: {:.1}%", wrong_type_metrics.boundary_f1 * 100.0);
+    println!(
+        "  Boundary F1: {:.1}%",
+        wrong_type_metrics.boundary_f1 * 100.0
+    );
     println!();
 
     // ==========================================================================
@@ -122,24 +132,20 @@ fn main() {
     println!();
 
     // Test with shifted bounding box
-    let gold_vis = vec![
-        VisualGold::new(
-            "Invoice #12345",
-            "DOCUMENT_ID",
-            BoundingBox::new(0.1, 0.05, 0.4, 0.1),
-        ),
-    ];
-    
+    let gold_vis = vec![VisualGold::new(
+        "Invoice #12345",
+        "DOCUMENT_ID",
+        BoundingBox::new(0.1, 0.05, 0.4, 0.1),
+    )];
+
     // Prediction with slightly shifted box
-    let pred_shifted = vec![
-        VisualPrediction {
-            text: "Invoice #12345".to_string(),
-            entity_type: "DOCUMENT_ID".to_string(),
-            bbox: BoundingBox::new(0.15, 0.05, 0.45, 0.1),  // Shifted right
-            confidence: 0.95,
-        },
-    ];
-    
+    let pred_shifted = vec![VisualPrediction {
+        text: "Invoice #12345".to_string(),
+        entity_type: "DOCUMENT_ID".to_string(),
+        bbox: BoundingBox::new(0.15, 0.05, 0.45, 0.1), // Shifted right
+        confidence: 0.95,
+    }];
+
     let vis_config = VisualEvalConfig::default();
     let shifted_metrics = evaluate_visual_ner(&gold_vis, &pred_shifted, &vis_config);
     println!("Shifted bounding box:");
@@ -160,4 +166,3 @@ fn main() {
     println!("Try running with actual models:");
     println!("  cargo test --test advanced_trait_tests -- --ignored");
 }
-

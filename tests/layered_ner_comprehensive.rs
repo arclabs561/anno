@@ -3,7 +3,7 @@
 //! This file explores the nuances of each layer and their interactions:
 //!
 //! - **PatternNER**: Format-based detection with regex
-//! - **StatisticalNER**: Heuristic-based named entity detection
+//! - **HeuristicNER**: Heuristic-based named entity detection
 //! - **StackedNER**: Combined extraction with priority merging
 //!
 //! # Design Nuances
@@ -31,7 +31,7 @@
 //! for overlapping spans. This prevents statistical NER from incorrectly
 //! classifying something that's clearly a date or email.
 
-use anno::{EntityType, Model, PatternNER, StatisticalNER, StackedNER};
+use anno::{EntityType, HeuristicNER, Model, PatternNER, StackedNER};
 
 // =============================================================================
 // PATTERN NER: FORMAT-BASED DETECTION
@@ -100,7 +100,10 @@ mod pattern_ner {
             ];
             for case in cases {
                 let e = extract(case);
-                let emails: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Email).collect();
+                let emails: Vec<_> = e
+                    .iter()
+                    .filter(|e| e.entity_type == EntityType::Email)
+                    .collect();
                 assert!(emails.is_empty(), "Should not match: {}", case);
             }
         }
@@ -154,7 +157,10 @@ mod pattern_ner {
         fn url_not_ftp() {
             // FTP is not matched (only http/https)
             let e = extract("Download from ftp://files.example.com");
-            let urls: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Url).collect();
+            let urls: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Url)
+                .collect();
             assert!(urls.is_empty());
         }
     }
@@ -193,7 +199,7 @@ mod pattern_ner {
                 "February 28",
                 "March 1st, 2024",
                 "December 25th",
-                "april 1",  // lowercase month
+                "april 1", // lowercase month
             ];
             for case in cases {
                 let e = extract(case);
@@ -230,13 +236,16 @@ mod pattern_ner {
         fn date_not_invalid_numbers() {
             // These should NOT be dates
             let cases = [
-                "version 1.2.3",  // version number, not date
+                "version 1.2.3", // version number, not date
                 "192.168.1.1",   // IP address (might match EU date though)
             ];
             for case in cases {
                 let e = extract(case);
                 // Check confidence or specific match
-                let dates: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Date).collect();
+                let dates: Vec<_> = e
+                    .iter()
+                    .filter(|e| e.entity_type == EntityType::Date)
+                    .collect();
                 // Note: Some false positives are expected with EU date format
                 if !dates.is_empty() {
                     // If matched, should have lower confidence
@@ -355,11 +364,11 @@ mod pattern_ner {
             // 12h with AM/PM should have higher confidence than 24h
             let e12 = extract("Meeting at 3:30 PM");
             let e24 = extract("Meeting at 15:30");
-            
+
             // Both should match
             assert!(!e12.is_empty());
             assert!(!e24.is_empty());
-            
+
             // 12h should have higher or equal confidence
             assert!(e12[0].confidence >= e24[0].confidence);
         }
@@ -480,7 +489,8 @@ mod pattern_ner {
             assert_eq!(e.len(), 2);
             // Verify spans work with Unicode (char offsets, not byte offsets)
             for entity in &e {
-                let extracted: String = text.chars()
+                let extracted: String = text
+                    .chars()
                     .skip(entity.start)
                     .take(entity.end - entity.start)
                     .collect();
@@ -503,7 +513,7 @@ mod pattern_ner {
             let e = extract(text);
 
             let has = |ty: EntityType| e.iter().any(|e| e.entity_type == ty);
-            
+
             assert!(has(EntityType::Date));
             assert!(has(EntityType::Time));
             assert!(has(EntityType::Money));
@@ -522,11 +532,13 @@ mod statistical_ner {
     use super::*;
 
     fn extract(text: &str) -> Vec<anno::Entity> {
-        StatisticalNER::new().extract_entities(text, None).unwrap()
+        HeuristicNER::new().extract_entities(text, None).unwrap()
     }
 
     fn extract_with_threshold(text: &str, threshold: f64) -> Vec<anno::Entity> {
-        StatisticalNER::with_threshold(threshold).extract_entities(text, None).unwrap()
+        HeuristicNER::with_threshold(threshold)
+            .extract_entities(text, None)
+            .unwrap()
     }
 
     // =========================================================================
@@ -539,7 +551,10 @@ mod statistical_ner {
         #[test]
         fn person_with_title_mr() {
             let e = extract("Mr. Smith said hello.");
-            let persons: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Person).collect();
+            let persons: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Person)
+                .collect();
             assert!(!persons.is_empty(), "Should find person with Mr. prefix");
         }
 
@@ -549,16 +564,25 @@ mod statistical_ner {
             // "Dr." prefix should help identify Johnson as person
             // Note: single-word names at sentence start may be filtered
             // Check that SOME entity is found
-            let persons: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Person).collect();
+            let persons: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Person)
+                .collect();
             // Heuristic may not always work - check we find something
-            assert!(!e.is_empty() || persons.is_empty(), "Should find entity or nothing: {:?}", e);
+            assert!(
+                !e.is_empty() || persons.is_empty(),
+                "Should find entity or nothing: {:?}",
+                e
+            );
         }
 
         #[test]
         fn person_two_word_name() {
             let e = extract("Steve Jobs founded Apple.");
             // Should find Steve Jobs as a two-word name
-            let has_multi_word = e.iter().any(|e| e.text.contains(" ") || e.text == "Steve" || e.text == "Steve Jobs");
+            let has_multi_word = e
+                .iter()
+                .any(|e| e.text.contains(" ") || e.text == "Steve" || e.text == "Steve Jobs");
             assert!(has_multi_word, "Should find Steve Jobs");
         }
 
@@ -566,7 +590,10 @@ mod statistical_ner {
         fn person_common_first_name() {
             let e = extract("According to John, the project is on track.");
             // "John" is a common first name
-            let persons: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Person).collect();
+            let persons: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Person)
+                .collect();
             assert!(!persons.is_empty(), "Should find John as person");
         }
 
@@ -593,7 +620,10 @@ mod statistical_ner {
         fn person_with_honorific_suffix() {
             let e = extract("Robert Smith Jr. attended the meeting.");
             // "Jr." is a person suffix
-            let _persons: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Person).collect();
+            let _persons: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Person)
+                .collect();
             // May or may not classify correctly, but should find something
             assert!(!e.is_empty());
         }
@@ -609,8 +639,14 @@ mod statistical_ner {
         #[test]
         fn org_with_inc_suffix() {
             let e = extract("He works at Apple Inc.");
-            let orgs: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Organization).collect();
-            assert!(!orgs.is_empty(), "Should find organization with Inc. suffix");
+            let orgs: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Organization)
+                .collect();
+            assert!(
+                !orgs.is_empty(),
+                "Should find organization with Inc. suffix"
+            );
         }
 
         #[test]
@@ -618,9 +654,16 @@ mod statistical_ner {
             let e = extract("Microsoft Corp. announced earnings.");
             // "Corp." suffix should strongly signal organization
             // But sentence-initial position may affect detection
-            let orgs: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Organization).collect();
+            let orgs: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Organization)
+                .collect();
             let any_entity = !e.is_empty();
-            assert!(any_entity || orgs.is_empty(), "Should find some entity or none: {:?}", e);
+            assert!(
+                any_entity || orgs.is_empty(),
+                "Should find some entity or none: {:?}",
+                e
+            );
         }
 
         #[test]
@@ -634,7 +677,10 @@ mod statistical_ner {
         fn org_university() {
             let e = extract("She graduated from Harvard University.");
             // "University" is an org suffix
-            let _orgs: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Organization).collect();
+            let _orgs: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Organization)
+                .collect();
             // May classify as org
             assert!(!e.is_empty());
         }
@@ -673,14 +719,20 @@ mod statistical_ner {
         #[test]
         fn location_with_in_prefix() {
             let e = extract("The conference is in Paris.");
-            let locs: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Location).collect();
+            let locs: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Location)
+                .collect();
             assert!(!locs.is_empty(), "Should find location after 'in'");
         }
 
         #[test]
         fn location_with_from_prefix() {
             let e = extract("She traveled from Tokyo.");
-            let locs: Vec<_> = e.iter().filter(|e| e.entity_type == EntityType::Location).collect();
+            let locs: Vec<_> = e
+                .iter()
+                .filter(|e| e.entity_type == EntityType::Location)
+                .collect();
             assert!(!locs.is_empty());
         }
 
@@ -716,10 +768,10 @@ mod statistical_ner {
         fn high_threshold_filters_weak() {
             // With default threshold (0.5), may find entities
             let default = extract("Maybe John or something.");
-            
+
             // With high threshold (0.9), should filter weak signals
             let strict = extract_with_threshold("Maybe John or something.", 0.9);
-            
+
             // Strict should have fewer or equal entities
             assert!(strict.len() <= default.len());
         }
@@ -728,7 +780,7 @@ mod statistical_ner {
         fn low_threshold_more_permissive() {
             let strict = extract_with_threshold("The Project started.", 0.8);
             let permissive = extract_with_threshold("The Project started.", 0.3);
-            
+
             // Permissive should have at least as many
             assert!(permissive.len() >= strict.len());
         }
@@ -808,7 +860,7 @@ mod statistical_ner {
             let e = extract("Mr. Johnson said hello.");
             if !e.is_empty() {
                 let prov = e[0].provenance.as_ref().unwrap();
-                assert_eq!(prov.source.as_ref(), "statistical");
+                assert_eq!(prov.source.as_ref(), "heuristic");
                 assert!(prov.pattern.is_some()); // Contains classification reason
             }
         }
@@ -860,11 +912,14 @@ mod tiered_ner {
         fn statistical_fills_gaps() {
             // Statistical should find named entities that patterns don't
             let e = extract("Steve Jobs in California.");
-            
+
             // Should have at least one named entity type
-            let has_named = e.iter().any(|e| 
-                matches!(e.entity_type, EntityType::Person | EntityType::Organization | EntityType::Location)
-            );
+            let has_named = e.iter().any(|e| {
+                matches!(
+                    e.entity_type,
+                    EntityType::Person | EntityType::Organization | EntityType::Location
+                )
+            });
             assert!(has_named, "Should find named entities: {:?}", e);
         }
     }
@@ -883,7 +938,7 @@ mod tiered_ner {
                 "Cost $100 for Mr. Smith in London.",
                 "The CEO at Apple Inc. announced 25% growth.",
             ];
-            
+
             for text in texts {
                 let e = extract(text);
                 for i in 0..e.len() {
@@ -922,26 +977,32 @@ mod tiered_ner {
                 
                 The expansion is expected to increase revenue by 25%.
             "#;
-            
+
             let e = extract(text);
-            
+
             // Pattern entities (must have)
             let has_date = e.iter().any(|e| e.entity_type == EntityType::Date);
             let has_money = e.iter().any(|e| e.entity_type == EntityType::Money);
             let has_email = e.iter().any(|e| e.entity_type == EntityType::Email);
             let has_phone = e.iter().any(|e| e.entity_type == EntityType::Phone);
             let has_percent = e.iter().any(|e| e.entity_type == EntityType::Percent);
-            
+
             assert!(has_date, "Should find date");
             assert!(has_money, "Should find money");
             assert!(has_email, "Should find email");
             assert!(has_phone, "Should find phone");
             assert!(has_percent, "Should find percent");
-            
+
             // At least one named entity (statistical layer)
-            let named_count = e.iter().filter(|e| 
-                matches!(e.entity_type, EntityType::Person | EntityType::Organization | EntityType::Location)
-            ).count();
+            let named_count = e
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e.entity_type,
+                        EntityType::Person | EntityType::Organization | EntityType::Location
+                    )
+                })
+                .count();
             assert!(named_count >= 1, "Should find at least one named entity");
         }
 
@@ -949,10 +1010,10 @@ mod tiered_ner {
         fn business_news_format() {
             let text = "Apple Inc. CEO Tim Cook announced $10 billion investment in Austin, Texas.";
             let e = extract(text);
-            
+
             // Should have money
             assert!(e.iter().any(|e| e.entity_type == EntityType::Money));
-            
+
             // Should have some entities
             assert!(!e.is_empty());
         }
@@ -966,9 +1027,9 @@ mod tiered_ner {
                 Email: jane.smith@acme.com
                 Phone: +1 (555) 123-4567
             "#;
-            
+
             let e = extract(text);
-            
+
             assert!(e.iter().any(|e| e.entity_type == EntityType::Email));
             assert!(e.iter().any(|e| e.entity_type == EntityType::Phone));
         }
@@ -1007,7 +1068,7 @@ mod tiered_ner {
         fn supported_types_combined() {
             let ner = StackedNER::new();
             let types = ner.supported_types();
-            
+
             // Should include both pattern and statistical types
             assert!(types.contains(&EntityType::Date));
             assert!(types.contains(&EntityType::Money));
@@ -1045,7 +1106,7 @@ mod proptests {
 
         #[test]
         fn statistical_ner_never_panics(text in ".*") {
-            let ner = StatisticalNER::new();
+            let ner = HeuristicNER::new();
             let _ = ner.extract_entities(&text, None);
         }
 
@@ -1138,8 +1199,10 @@ mod regressions {
     #[test]
     fn month_names_are_dates() {
         let ner = PatternNER::new();
-        let e = ner.extract_entities("January 15, 2024 was the deadline.", None).unwrap();
-        
+        let e = ner
+            .extract_entities("January 15, 2024 was the deadline.", None)
+            .unwrap();
+
         // Should be a Date, not a Person
         let date = e.iter().find(|e| e.text.contains("January"));
         assert!(date.is_some());
@@ -1149,14 +1212,10 @@ mod regressions {
     /// Ensure common company names with suffixes are orgs
     #[test]
     fn company_suffixes_are_orgs() {
-        let ner = StatisticalNER::new();
-        
-        let cases = [
-            "Apple Inc.",
-            "Google LLC",
-            "Microsoft Corporation",
-        ];
-        
+        let ner = HeuristicNER::new();
+
+        let cases = ["Apple Inc.", "Google LLC", "Microsoft Corporation"];
+
         for case in cases {
             let e = ner.extract_entities(case, None).unwrap();
             if !e.is_empty() {
@@ -1172,8 +1231,13 @@ mod regressions {
     #[test]
     fn url_special_chars() {
         let ner = PatternNER::new();
-        let e = ner.extract_entities("API: https://api.example.com/v1/users?page=1&limit=10#section", None).unwrap();
-        
+        let e = ner
+            .extract_entities(
+                "API: https://api.example.com/v1/users?page=1&limit=10#section",
+                None,
+            )
+            .unwrap();
+
         assert!(!e.is_empty());
         let url = &e[0];
         assert_eq!(url.entity_type, EntityType::Url);
@@ -1184,14 +1248,14 @@ mod regressions {
     #[test]
     fn phone_separators() {
         let ner = PatternNER::new();
-        
+
         let cases = [
             "555-123-4567",
             "555.123.4567",
             "555 123 4567",
             "(555) 123-4567",
         ];
-        
+
         for case in cases {
             let e = ner.extract_entities(case, None).unwrap();
             assert!(!e.is_empty(), "Should match: {}", case);
@@ -1199,4 +1263,3 @@ mod regressions {
         }
     }
 }
-

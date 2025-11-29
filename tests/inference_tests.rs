@@ -9,8 +9,8 @@
 #![allow(dead_code)] // Strategy generators used in #[ignore] tests
 
 use anno::backends::inference::{
-    resolve_coreferences, CoreferenceConfig, DotProductInteraction,
-    HandshakingMatrix, LabelCategory, LateInteraction, SemanticRegistry,
+    resolve_coreferences, CoreferenceConfig, DotProductInteraction, HandshakingMatrix,
+    LabelCategory, LateInteraction, SemanticRegistry,
 };
 // Re-exported from lib.rs
 use anno::{Entity, EntityType, RaggedBatch, SpanCandidate};
@@ -22,7 +22,15 @@ use proptest::prelude::*;
 
 /// Generate a valid hidden dimension (power of 2 for efficiency, typical values).
 fn hidden_dim_strategy() -> impl Strategy<Value = usize> {
-    prop_oneof![Just(64), Just(128), Just(256), Just(384), Just(512), Just(768), Just(1024)]
+    prop_oneof![
+        Just(64),
+        Just(128),
+        Just(256),
+        Just(384),
+        Just(512),
+        Just(768),
+        Just(1024)
+    ]
 }
 
 /// Generate a normalized embedding vector.
@@ -796,7 +804,8 @@ fn fuzz_single_element() {
     let e1 = Entity::new("Test", EntityType::Person, 0, 4, 0.9);
     let e2 = Entity::new("Test", EntityType::Person, 10, 14, 0.9);
     let embeddings2 = vec![0.5f32; 128]; // 2 entities × 64 dim
-    let clusters2 = resolve_coreferences(&[e1, e2], &embeddings2, 64, &CoreferenceConfig::default());
+    let clusters2 =
+        resolve_coreferences(&[e1, e2], &embeddings2, 64, &CoreferenceConfig::default());
     // With string match enabled (default), identical names cluster
     assert_eq!(clusters2.len(), 1);
     assert_eq!(clusters2[0].members.len(), 2);
@@ -834,7 +843,7 @@ fn fuzz_extreme_confidence() {
     let e1 = Entity::new("Test", EntityType::Person, 0, 4, 0.0);
     let e2 = Entity::new("Test", EntityType::Person, 0, 4, 1.0);
     let e3 = Entity::new("Test", EntityType::Person, 0, 4, -0.1); // Should clamp to 0
-    let e4 = Entity::new("Test", EntityType::Person, 0, 4, 1.5);  // Should clamp to 1
+    let e4 = Entity::new("Test", EntityType::Person, 0, 4, 1.5); // Should clamp to 1
 
     assert_eq!(e1.confidence, 0.0);
     assert_eq!(e2.confidence, 1.0);
@@ -855,7 +864,11 @@ fn fuzz_large_handshaking_matrix() {
             let row = (i / (size * num_labels)) as f32;
             let col = ((i / num_labels) % size) as f32;
             // Higher scores on diagonal
-            if (row - col).abs() < 2.0 { 0.8 } else { 0.1 }
+            if (row - col).abs() < 2.0 {
+                0.8
+            } else {
+                0.1
+            }
         })
         .collect();
 
@@ -890,4 +903,3 @@ fn fuzz_late_interaction_edge_cases() {
     let scores = interaction.compute_similarity(&small, 1, &small, 1, 64);
     assert!(scores[0].is_finite());
 }
-

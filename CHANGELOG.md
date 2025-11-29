@@ -1,10 +1,34 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **GLiNER2**: Multi-task extraction (NER + classification + relations) via ONNX or Candle
+- **Coreference Resolution**: T5-based coreference resolver (`T5Coref`) and rule-based resolver (`SimpleCorefResolver`)
+- **Graph RAG**: `GraphDocument` for exporting entities and relations to Neo4j/NetworkX
+- **Grounded Entity Representation**: Signal → Track → Identity hierarchy for multimodal NER
+- **Task Evaluation System**: Comprehensive task-dataset-backend evaluation framework
+- **Backend Factory**: Dynamic backend creation based on feature flags
+- **Discourse Analysis**: Abstract anaphora resolution, event extraction, shell noun detection
+- **CLI Tools**: `anno` and `anno-eval` binaries for command-line usage
+- **Justfile**: Task runner with common development commands
+
+### Changed
+- Updated README to reflect coreference resolution capabilities (not just NER)
+- Library description now emphasizes "Information extraction: NER, coreference resolution, and evaluation"
+- Fixed `task_evaluator.rs` to handle `eval-advanced` feature gate correctly
+- Improved documentation across all modules
+
+### Fixed
+- Compilation error in `task_evaluator.rs` when `eval-advanced` feature not enabled
+- Clippy warnings for double `#[must_use]` attributes
+- Error conversion for HuggingFace API errors (`From<ApiError>` implementation)
+
 ## [0.2.0] - 2025-11-27
 
 ### Added
 - **StackedNER**: Composable layered extraction with conflict strategies
-- **StatisticalNER**: Zero-dependency heuristic NER for Person/Org/Location
+- **HeuristicNER**: Zero-dependency heuristic NER for Person/Org/Location
 - **ConflictStrategy**: Priority, LongestSpan, HighestConf, Union
 - **EvalMode**: SemEval-style evaluation (Strict, Exact, Partial, Type)
 - **Coreference metrics**: MUC, B³, CEAF-e, CEAF-m, LEA, BLANC, CoNLL F1

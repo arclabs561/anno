@@ -6,7 +6,7 @@
 //! - Malformed input (invalid spans, overlapping)
 //! - Adversarial cases (injection attempts, format strings)
 
-use anno::{Entity, EntityBuilder, EntityType, Model, PatternNER, StatisticalNER};
+use anno::{Entity, EntityBuilder, EntityType, HeuristicNER, Model, PatternNER};
 use proptest::prelude::*;
 
 // =============================================================================
@@ -37,7 +37,7 @@ fn unicode_rtl_text() {
 
 #[test]
 fn unicode_cjk_text() {
-    let ner = StatisticalNER::new();
+    let ner = HeuristicNER::new();
     let text = "日本東京 is a beautiful city. Visit Tokyo!";
     let entities = ner.extract_entities(text, None).unwrap();
 
@@ -82,11 +82,27 @@ fn unicode_surrogate_pairs() {
     // Entity offsets are CHARACTER offsets (not byte offsets)
     let char_count = text.chars().count();
     for e in &entities {
-        assert!(e.start <= char_count, "Start {} beyond char count {} for {}", e.start, char_count, e.text);
-        assert!(e.end <= char_count, "End {} beyond char count {} for {}", e.end, char_count, e.text);
+        assert!(
+            e.start <= char_count,
+            "Start {} beyond char count {} for {}",
+            e.start,
+            char_count,
+            e.text
+        );
+        assert!(
+            e.end <= char_count,
+            "End {} beyond char count {} for {}",
+            e.end,
+            char_count,
+            e.text
+        );
         // Verify extracted text matches
         let extracted: String = text.chars().skip(e.start).take(e.end - e.start).collect();
-        assert_eq!(extracted, e.text, "Text mismatch for entity at {}..{}", e.start, e.end);
+        assert_eq!(
+            extracted, e.text,
+            "Text mismatch for entity at {}..{}",
+            e.start, e.end
+        );
     }
 }
 
@@ -100,7 +116,7 @@ fn empty_text_input() {
     let entities = ner.extract_entities("", None).unwrap();
     assert!(entities.is_empty());
 
-    let ner2 = StatisticalNER::new();
+    let ner2 = HeuristicNER::new();
     let entities2 = ner2.extract_entities("", None).unwrap();
     assert!(entities2.is_empty());
 }
@@ -264,10 +280,10 @@ proptest! {
         prop_assert!(result.is_ok());
     }
 
-    /// StatisticalNER should never panic on arbitrary input.
+    /// HeuristicNER should never panic on arbitrary input.
     #[test]
     fn statistical_ner_never_panics(text in ".{0,200}") {
-        let ner = StatisticalNER::new();
+        let ner = HeuristicNER::new();
         let result = ner.extract_entities(&text, None);
         prop_assert!(result.is_ok());
     }
@@ -396,7 +412,13 @@ fn coreference_same_text_different_types() {
 
     // "Apple" as Organization vs "Apple" as Product - should NOT cluster
     let e1 = Entity::new("Apple", EntityType::Organization, 0, 5, 0.9);
-    let e2 = Entity::new("Apple", EntityType::Other("Product".to_string()), 20, 25, 0.9);
+    let e2 = Entity::new(
+        "Apple",
+        EntityType::Other("Product".to_string()),
+        20,
+        25,
+        0.9,
+    );
 
     let embeddings = vec![0.5f32; 128];
     let config = CoreferenceConfig::default();
@@ -428,4 +450,3 @@ fn coreference_pronoun_resolution() {
     // With identical embeddings and low threshold, should cluster
     assert!(!clusters.is_empty());
 }
-

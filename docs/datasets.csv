@@ -1,0 +1,74 @@
+category,dataset,function_or_id,entity_types,examples,entities,tokens_approx,difficulty,source,format,languages,notes
+# Synthetic datasets - built-in, no network required
+synthetic_core,News,news_dataset(),PER/ORG/LOC/DATE,15,~45,~300,Easy-Hard,built-in,AnnotatedExample,en,Reuters-style news
+synthetic_core,Biomedical,biomedical_dataset(),PER/ORG/LOC/GENE/DISEASE,12,~35,~250,Medium-Hard,built-in,AnnotatedExample,en,Clinical/research text
+synthetic_core,Financial,financial_dataset(),PER/ORG/LOC/MONEY/PERCENT,10,~30,~200,Medium,built-in,AnnotatedExample,en,Earnings/market reports
+synthetic_core,Legal,legal_dataset(),PER/ORG/LOC/DATE,8,~25,~200,Medium-Hard,built-in,AnnotatedExample,en,Court/contract language
+synthetic_core,Scientific,scientific_dataset(),PER/ORG/LOC,8,~20,~180,Medium,built-in,AnnotatedExample,en,Research papers
+synthetic_core,Entertainment,entertainment_dataset(),PER/ORG/LOC/DATE,8,~25,~180,Easy-Medium,built-in,AnnotatedExample,en,Media/celebrity news
+synthetic_core,Social Media,social_media_dataset(),PER/ORG/LOC/URL/EMAIL,10,~30,~200,Medium-Hard,built-in,AnnotatedExample,en,Informal/noisy text
+# Industry-specific synthetic
+synthetic_industry,Technology,technology_dataset(),PER/ORG/LOC/MONEY/QUANTITY,6,~25,~150,Medium,built-in,AnnotatedExample,en,AI/tech companies
+synthetic_industry,Healthcare,healthcare_dataset(),PER/ORG/LOC/DATE/QUANTITY,5,~20,~120,Medium,built-in,AnnotatedExample,en,Hospital/pharma
+synthetic_industry,Manufacturing,manufacturing_dataset(),PER/ORG/LOC/MONEY/DATE,5,~20,~120,Medium,built-in,AnnotatedExample,en,Semiconductor/industrial
+synthetic_industry,Automotive,automotive_dataset(),PER/ORG/LOC/MONEY/PERCENT/QUANTITY,5,~22,~120,Medium,built-in,AnnotatedExample,en,EV/vehicle industry
+synthetic_industry,Energy,energy_dataset(),ORG/LOC/MONEY/PERCENT/DATE,4,~18,~100,Medium,built-in,AnnotatedExample,en,Energy/climate
+synthetic_industry,Aerospace,aerospace_dataset(),PER/ORG/LOC/MONEY/DATE/QUANTITY,4,~18,~100,Medium,built-in,AnnotatedExample,en,Defense/space
+# Specialized domains
+synthetic_specialized,Sports,sports_dataset(),PER/ORG/LOC,8,~25,~180,Medium,built-in,AnnotatedExample,en,Athletes/teams
+synthetic_specialized,Politics,politics_dataset(),PER/ORG/LOC,6,~20,~140,Medium,built-in,AnnotatedExample,en,Government/elections
+synthetic_specialized,E-commerce,ecommerce_dataset(),ORG/MONEY,5,~12,~100,Easy,built-in,AnnotatedExample,en,Products/prices
+synthetic_specialized,Travel,travel_dataset(),ORG/LOC,5,~15,~100,Medium,built-in,AnnotatedExample,en,Airlines/destinations
+synthetic_specialized,Weather,weather_dataset(),LOC/DATE,4,~10,~80,Easy,built-in,AnnotatedExample,en,Forecasts
+synthetic_specialized,Academic,academic_dataset(),PER/ORG/LOC,5,~15,~100,Medium,built-in,AnnotatedExample,en,Universities/research
+synthetic_specialized,Food,food_dataset(),ORG/LOC,5,~12,~80,Easy,built-in,AnnotatedExample,en,Restaurants/cuisine
+synthetic_specialized,Real Estate,real_estate_dataset(),ORG/LOC/MONEY,5,~15,~100,Medium,built-in,AnnotatedExample,en,Properties/prices
+synthetic_specialized,Cybersecurity,cybersecurity_dataset(),ORG,5,~12,~100,Hard,built-in,AnnotatedExample,en,CVEs/vendors
+# Multilingual/diversity
+synthetic_multilingual,Multilingual,multilingual_dataset(),PER/ORG/LOC,8,~25,~200,Medium-Hard,built-in,AnnotatedExample,de/fr/es/ja/zh/ar,Mixed scripts
+synthetic_multilingual,Globally Diverse,globally_diverse_dataset(),PER/ORG/LOC,7,~20,~160,Medium,built-in,AnnotatedExample,en,African/Asian/LatAm names
+# Utility/testing
+synthetic_utility,Adversarial,adversarial_dataset(),PER/ORG/LOC,20,~60,~400,Hard,built-in,AnnotatedExample,en,Edge cases/ambiguity
+synthetic_utility,Structured,structured_dataset(),PER/ORG/LOC,10,~30,~200,Medium,built-in,AnnotatedExample,en,Tables/lists
+synthetic_utility,Conversational,conversational_dataset(),PER/ORG,8,~20,~150,Medium,built-in,AnnotatedExample,en,Dialog/chat
+synthetic_utility,Historical,historical_dataset(),PER/ORG/LOC,6,~18,~140,Hard,built-in,AnnotatedExample,en,Archaic text
+# Real NER datasets - require eval-advanced to download
+real_ner,WikiGold,DatasetId::WikiGold,PER/ORG/LOC/MISC,145,~1.8k,~40k,Mixed,Wikipedia,CoNLL,en,Hand-annotated Wikipedia
+real_ner,WNUT-17,DatasetId::Wnut17,PER/ORG/LOC/PRODUCT/CREATIVE/GROUP,~5k,~3k,~65k,Hard,Twitter/Reddit,CoNLL,en,Emerging/rare entities
+real_ner,MIT Movie,DatasetId::MitMovie,~12 slot types,~10k,~15k,~80k,Medium,Query logs,BIO,en,Movie domain queries
+real_ner,MIT Restaurant,DatasetId::MitRestaurant,~8 slot types,~10k,~12k,~70k,Medium,Query logs,BIO,en,Restaurant queries
+real_ner,CoNLL-2003 Sample,DatasetId::CoNLL2003Sample,PER/ORG/LOC/MISC,~1k,~1.5k,~20k,Mixed,Reuters news,CoNLL,en,Standard benchmark (sample)
+real_ner,OntoNotes Sample,DatasetId::OntoNotesSample,18 types,~1k,~2k,~25k,Mixed,Mixed genres,CoNLL,en,Broadcast/web/newswire
+real_ner,MultiNERD,DatasetId::MultiNERD,15 types,~50k,~150k,~1M,Mixed,Wikipedia,JSONL,10 langs,Multi-domain multilingual
+real_ner,BC5CDR,DatasetId::BC5CDR,Chemical/Disease,~1.5k docs,~29k,~200k,Hard,PubMed abstracts,XML,en,Chemical-disease relations
+real_ner,NCBI Disease,DatasetId::NCBIDisease,Disease mentions,793 abstracts,~6k,~180k,Hard,PubMed,TXT,en,Disease name normalization
+# GLiNER paper biomedical benchmark datasets
+real_biomedical,GENIA,DatasetId::GENIA,DNA/RNA/protein/cell,~2k abstracts,~36k,~500k,Hard,MEDLINE,TXT,en,Molecular biology (GLiNER benchmark)
+real_biomedical,AnatEM,DatasetId::AnatEM,12 anatomy types,~1.2k docs,~14k,~180k,Hard,PubMed,JSONL,en,Anatomical entities (GLiNER benchmark)
+real_biomedical,BC2GM,DatasetId::BC2GM,GENE,~20k sentences,~24k,~250k,Hard,MEDLINE,JSONL,en,Gene mention (GLiNER benchmark)
+real_biomedical,BC4CHEMD,DatasetId::BC4CHEMD,Chemical,~88k sentences,~84k,~900k,Hard,PubMed,JSONL,en,Chemical mentions (GLiNER benchmark)
+# GLiNER paper social media benchmark datasets
+real_social,TweetNER7,DatasetId::TweetNER7,7 types,~11k tweets,~15k,~180k,Hard,Twitter,JSONL,en,Temporal NER (GLiNER benchmark)
+real_social,BroadTwitterCorpus,DatasetId::BroadTwitterCorpus,PER/LOC/ORG,~6k tweets,~8k,~80k,Medium,Twitter,CoNLL,en,Diverse social (GLiNER benchmark)
+# GLiNER paper specialized domain datasets
+real_specialized,FabNER,DatasetId::FabNER,12 manufacturing types,~10k sentences,~12k,~150k,Hard,Scientific,TXT,en,Manufacturing domain (GLiNER benchmark)
+# Few-shot / cross-domain
+real_ner,FewNERD,DatasetId::FewNERD,66 fine-grained,~190k,~490k,~4.6M,Hard,Wikipedia,TXT,en,Few-shot NER benchmark
+real_ner,CrossNER,DatasetId::CrossNER,Domain-specific,~5k,~12k,~120k,Medium,5 domains,TXT,en,Domain adaptation benchmark
+real_ner,UniversalNER,DatasetId::UniversalNERBench,Open types,~10k,varies,~200k,Mixed,43 datasets,JSON,en,Universal schema
+# Multilingual real datasets
+real_multilingual,WikiANN,DatasetId::WikiANN,PER/LOC/ORG,~20k/lang,varies,varies,Mixed,Wikipedia,JSONL,282 langs,Largest multilingual NER
+real_multilingual,MultiCoNER,DatasetId::MultiCoNER,6 coarse + 33 fine,~15k,~40k,~300k,Hard,Mixed sources,CoNLL,12 langs,Complex/ambiguous entities
+real_multilingual,MultiCoNER v2,DatasetId::MultiCoNERv2,36 types,~15k,~45k,~350k,Hard,Mixed sources,CoNLL,12 langs,Adds medical entities
+# GLiNER paper multilingual benchmark datasets
+real_multilingual,WikiNeural,DatasetId::WikiNeural,PER/LOC/ORG/MISC,varies,varies,varies,Mixed,Wikipedia,CoNLL,9 langs,Silver NER data (GLiNER benchmark)
+real_multilingual,PolyglotNER,DatasetId::PolyglotNER,PER/LOC/ORG,varies,varies,varies,Mixed,Wikipedia/Freebase,TXT,40 langs,Massive multilingual (GLiNER benchmark)
+# Gold-standard multilingual benchmark
+real_multilingual,UniversalNER,DatasetId::UniversalNER,PER/LOC/ORG,19 datasets,~10k,varies,Mixed,UD Treebanks,CoNLLU,13 langs,Gold-standard cross-lingual (NAACL 2024)
+# Relation extraction
+real_relation,DocRED,DatasetId::DocRED,96 relation types,~5k docs,~132k,~1M,Hard,Wikipedia,JSON,en,Document-level RE
+real_relation,ReTACRED,DatasetId::ReTACRED,40 relations,~91k,~180k,~2M,Medium,TAC KBP,JSON,en,Cleaned TACRED
+# Coreference
+real_coref,GAP,DatasetId::GAP,Pronoun resolution,4454,~9k,~70k,Medium,Wikipedia,TSV,en,Gender-balanced
+real_coref,PreCo,DatasetId::PreCo,Full coreference,~38k docs,~500k mentions,~12M,Hard,Reading comp,JSON,en,Large-scale coref
+real_coref,LitBank,DatasetId::LitBank,Literary entities,100 excerpts,~30k,~210k,Hard,Public domain lit,ZIP,en,Nested entities + coref

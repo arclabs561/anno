@@ -1,37 +1,39 @@
 //! Quality benchmark comparing NER backends on synthetic and real datasets.
 //!
 //! Run with:
-//!   cargo run --example benchmark                         # Zero-dep backends, synthetic only
-//!   cargo run --example benchmark --features onnx         # + BERT ONNX backend
-//!   cargo run --example benchmark --features network      # + real dataset evaluation
-//!   cargo run --example benchmark --features onnx,network # Full evaluation
+//!   cargo run --example benchmark                              # Zero-dep backends, synthetic only
+//!   cargo run --example benchmark --features onnx              # + BERT ONNX backend
+//!   cargo run --example benchmark --features eval-advanced     # + real dataset evaluation
+//!   cargo run --example benchmark --features onnx,eval-advanced # Full evaluation
 //!
 //! Shows:
 //! - Per-backend quality metrics (F1, Precision, Recall)
 //! - Per-difficulty breakdown (Easy/Medium/Hard/Adversarial)
 //! - Per-domain breakdown (News/Financial/Technical/etc.)
 //! - Variance across domains using MetricWithVariance
-//! - Real dataset evaluation (WikiGold, WNUT-17, CoNLL-2003) when network feature enabled
+//! - Real dataset evaluation (WikiGold, WNUT-17, CoNLL-2003) when eval-advanced feature enabled
 //! - Gender bias evaluation (WinoBias-style)
 //! - Demographic bias evaluation (ethnicity, region, script)
 
 use anno::eval::calibration::{calibration_grade, CalibrationEvaluator};
+use anno::eval::dataset_comparison::{compare_datasets, estimate_difficulty};
 use anno::eval::dataset_quality::check_leakage;
 use anno::eval::demographic_bias::{
     create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
 };
+use anno::eval::drift::{DriftConfig, DriftDetector};
 use anno::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 use anno::eval::harness::{EvalConfig, EvalHarness};
 use anno::eval::learning_curve::{DataPoint, LearningCurveAnalyzer};
 use anno::eval::length_bias::{create_length_varied_dataset, EntityLengthEvaluator};
 use anno::eval::ood_detection::{ood_rate_grade, OODDetector};
 use anno::eval::robustness::{robustness_grade, RobustnessEvaluator};
-use anno::eval::synthetic::{dataset_stats, all_datasets};
-use anno::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
-use anno::eval::threshold_analysis::{interpret_curve, PredictionWithConfidence, ThresholdAnalyzer};
-use anno::eval::dataset_comparison::{compare_datasets, estimate_difficulty};
-use anno::eval::drift::{DriftConfig, DriftDetector};
 use anno::eval::synthetic::Domain;
+use anno::eval::synthetic::{all_datasets, dataset_stats};
+use anno::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
+use anno::eval::threshold_analysis::{
+    interpret_curve, PredictionWithConfidence, ThresholdAnalyzer,
+};
 use anno::eval::MetricWithVariance;
 use anno::eval::SimpleCorefResolver;
 use anno::PatternNER;
@@ -46,8 +48,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Dataset: {} examples, {} entities",
         stats.total_examples, stats.total_entities
     );
-    println!("Domains: {:?}", stats.examples_per_domain.keys().collect::<Vec<_>>());
-    println!("Difficulties: {:?}\n", stats.examples_per_difficulty.keys().collect::<Vec<_>>());
+    println!(
+        "Domains: {:?}",
+        stats.examples_per_domain.keys().collect::<Vec<_>>()
+    );
+    println!(
+        "Difficulties: {:?}\n",
+        stats.examples_per_difficulty.keys().collect::<Vec<_>>()
+    );
 
     // Configure evaluation
     let config = EvalConfig {
@@ -95,7 +103,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // === Per-type metrics for best backend ===
     // Find StackedNER and show per-type breakdown from its per_dataset results
-    if let Some(stacked) = results.backends.iter().find(|b| b.backend_name == "StackedNER") {
+    if let Some(stacked) = results
+        .backends
+        .iter()
+        .find(|b| b.backend_name == "StackedNER")
+    {
         if let Some(dataset_result) = stacked.per_dataset.first() {
             println!("\n=== Per-Type Metrics (StackedNER) ===\n");
             print_per_type_metrics(&dataset_result.per_type);
@@ -166,7 +178,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .map(|r| (domain, r))
             })
             .collect();
-        domain_results.sort_by(|a, b| b.1.f1.partial_cmp(&a.1.f1).unwrap_or(std::cmp::Ordering::Equal));
+        domain_results.sort_by(|a, b| {
+            b.1.f1
+                .partial_cmp(&a.1.f1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for (domain, result) in &domain_results {
             println!(
@@ -201,7 +217,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:<20} {:>8} {:>10}", "Type", "Count", "Percent");
     println!("{}", "-".repeat(40));
 
-    let mut sorted_types: Vec<_> = results.dataset_stats.entity_type_distribution.iter().collect();
+    let mut sorted_types: Vec<_> = results
+        .dataset_stats
+        .entity_type_distribution
+        .iter()
+        .collect();
     sorted_types.sort_by(|a, b| b.1.cmp(a.1));
 
     let total: usize = sorted_types.iter().map(|(_, c)| **c).sum();
@@ -219,14 +239,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find best backend
     if let Some(best) = results.backends.iter().max_by(|a, b| {
-        a.f1.mean.partial_cmp(&b.f1.mean).unwrap_or(std::cmp::Ordering::Equal)
+        a.f1.mean
+            .partial_cmp(&b.f1.mean)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }) {
-        println!("Best backend: {} (F1: {:.1}%)", best.backend_name, best.f1.mean * 100.0);
+        println!(
+            "Best backend: {} (F1: {:.1}%)",
+            best.backend_name,
+            best.f1.mean * 100.0
+        );
     }
 
     println!("\nKey observations:");
     println!("  - PatternNER: High precision on DATE/MONEY/PERCENT/EMAIL/URL/PHONE");
-    println!("  - StatisticalNER: Baseline for PER/ORG/LOC (heuristic-based)");
+    println!("  - HeuristicNER: Baseline for PER/ORG/LOC (heuristic-based)");
     println!("  - StackedNER: Best zero-dependency option");
 
     #[cfg(not(feature = "onnx"))]
@@ -248,15 +274,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // === Real Dataset Evaluation ===
-    #[cfg(feature = "network")]
+    #[cfg(feature = "eval-advanced")]
     {
         println!("\n=== Real Dataset Evaluation ===\n");
         run_real_dataset_evaluation()?;
     }
-    #[cfg(not(feature = "network"))]
+    #[cfg(not(feature = "eval-advanced"))]
     {
         println!("\n=== Real Dataset Evaluation ===\n");
-        println!("Skipped (requires --features network)");
+        println!("Skipped (requires --features eval-advanced)");
         println!("Real datasets: WikiGold, WNUT-17, CoNLL-2003");
     }
 
@@ -304,11 +330,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         let mut pronouns: Vec<_> = gender_results.per_pronoun.iter().collect();
         pronouns.sort_by(|a, b| a.0.cmp(b.0));
         for (pronoun, accuracy) in pronouns {
-            println!(
-                "  {:<8}: {:.1}%",
-                pronoun,
-                accuracy * 100.0
-            );
+            println!("  {:<8}: {:.1}%", pronoun, accuracy * 100.0);
         }
     }
 
@@ -331,49 +353,43 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let has_location_data = location_results.by_region.values().any(|&v| v > 0.0);
 
     if has_name_data {
-    println!("Name Recognition by Ethnicity:");
-    println!(
-        "{:<20} {:>12}",
-        "Ethnicity", "Recognition"
-    );
-    println!("{}", "-".repeat(34));
+        println!("Name Recognition by Ethnicity:");
+        println!("{:<20} {:>12}", "Ethnicity", "Recognition");
+        println!("{}", "-".repeat(34));
 
-    let mut ethnicity_sorted: Vec<_> = name_results.by_ethnicity.iter().collect();
-    ethnicity_sorted.sort_by(|a, b| a.0.cmp(b.0));
-    for (ethnicity, rate) in ethnicity_sorted {
-        println!("{:<20} {:>11.1}%", ethnicity, rate * 100.0);
-    }
+        let mut ethnicity_sorted: Vec<_> = name_results.by_ethnicity.iter().collect();
+        ethnicity_sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (ethnicity, rate) in ethnicity_sorted {
+            println!("{:<20} {:>11.1}%", ethnicity, rate * 100.0);
+        }
 
-    println!(
-        "\nEthnicity Parity Gap: {:.1}% (lower is better)",
-        name_results.ethnicity_parity_gap * 100.0
-    );
-    println!(
-        "Script Bias Gap: {:.1}% (Latin vs non-Latin)",
-        name_results.script_bias_gap * 100.0
-    );
+        println!(
+            "\nEthnicity Parity Gap: {:.1}% (lower is better)",
+            name_results.ethnicity_parity_gap * 100.0
+        );
+        println!(
+            "Script Bias Gap: {:.1}% (Latin vs non-Latin)",
+            name_results.script_bias_gap * 100.0
+        );
     } else {
         println!("Name Recognition: [SKIPPED - PatternNER cannot detect PERSON]");
     }
 
     if has_location_data {
-    println!("\nLocation Recognition by Region:");
-    println!(
-        "{:<20} {:>12}",
-        "Region", "Recognition"
-    );
-    println!("{}", "-".repeat(34));
+        println!("\nLocation Recognition by Region:");
+        println!("{:<20} {:>12}", "Region", "Recognition");
+        println!("{}", "-".repeat(34));
 
-    let mut region_sorted: Vec<_> = location_results.by_region.iter().collect();
-    region_sorted.sort_by(|a, b| a.0.cmp(b.0));
-    for (region, rate) in region_sorted {
-        println!("{:<20} {:>11.1}%", region, rate * 100.0);
-    }
+        let mut region_sorted: Vec<_> = location_results.by_region.iter().collect();
+        region_sorted.sort_by(|a, b| a.0.cmp(b.0));
+        for (region, rate) in region_sorted {
+            println!("{:<20} {:>11.1}%", region, rate * 100.0);
+        }
 
-    println!(
-        "\nRegional Parity Gap: {:.1}% (lower is better)",
-        location_results.regional_parity_gap * 100.0
-    );
+        println!(
+            "\nRegional Parity Gap: {:.1}% (lower is better)",
+            location_results.regional_parity_gap * 100.0
+        );
     } else {
         println!("\nLocation Recognition: [SKIPPED - PatternNER cannot detect LOCATION]");
     }
@@ -385,43 +401,41 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let temporal_evaluator = TemporalBiasEvaluator::default();
     let temporal_results = temporal_evaluator.evaluate(&ner, &temporal_names);
 
-    let has_temporal_data = temporal_results.historical_rate > 0.0 || temporal_results.modern_rate > 0.0;
+    let has_temporal_data =
+        temporal_results.historical_rate > 0.0 || temporal_results.modern_rate > 0.0;
 
     if has_temporal_data {
-    println!(
-        "{:<20} {:>12}",
-        "Time Period", "Recognition"
-    );
-    println!("{}", "-".repeat(34));
-    println!(
-        "{:<20} {:>11.1}%",
-        "Historical (pre-1950)",
-        temporal_results.historical_rate * 100.0
-    );
-    println!(
-        "{:<20} {:>11.1}%",
-        "Modern (post-2000)",
-        temporal_results.modern_rate * 100.0
-    );
-    println!(
-        "{:<20} {:>11.1}%",
-        "Classic names",
-        temporal_results.classic_rate * 100.0
-    );
-    println!(
-        "{:<20} {:>11.1}%",
-        "Trendy names",
-        temporal_results.trendy_rate * 100.0
-    );
+        println!("{:<20} {:>12}", "Time Period", "Recognition");
+        println!("{}", "-".repeat(34));
+        println!(
+            "{:<20} {:>11.1}%",
+            "Historical (pre-1950)",
+            temporal_results.historical_rate * 100.0
+        );
+        println!(
+            "{:<20} {:>11.1}%",
+            "Modern (post-2000)",
+            temporal_results.modern_rate * 100.0
+        );
+        println!(
+            "{:<20} {:>11.1}%",
+            "Classic names",
+            temporal_results.classic_rate * 100.0
+        );
+        println!(
+            "{:<20} {:>11.1}%",
+            "Trendy names",
+            temporal_results.trendy_rate * 100.0
+        );
 
-    println!(
-        "\nHistorical-Modern Gap: {:.1}% (lower is better)",
-        temporal_results.historical_modern_gap * 100.0
-    );
-    println!(
-        "Temporal Parity Gap: {:.1}% (max gap across decades)",
-        temporal_results.temporal_parity_gap * 100.0
-    );
+        println!(
+            "\nHistorical-Modern Gap: {:.1}% (lower is better)",
+            temporal_results.historical_modern_gap * 100.0
+        );
+        println!(
+            "Temporal Parity Gap: {:.1}% (max gap across decades)",
+            temporal_results.temporal_parity_gap * 100.0
+        );
     } else {
         println!("[SKIPPED - PatternNER cannot detect PERSON entities]");
     }
@@ -433,10 +447,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let length_evaluator = EntityLengthEvaluator::default();
     let length_results = length_evaluator.evaluate(&ner, &length_examples);
 
-    println!(
-        "{:<16} {:>12}",
-        "Length Bucket", "Recognition"
-    );
+    println!("{:<16} {:>12}", "Length Bucket", "Recognition");
     println!("{}", "-".repeat(30));
 
     let mut char_sorted: Vec<_> = length_results.by_char_bucket.iter().collect();
@@ -454,7 +465,9 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         length_results.short_vs_long_gap * 100.0
     );
 
-    if length_results.avg_recognized_char_length > 0.0 || length_results.avg_missed_char_length > 0.0 {
+    if length_results.avg_recognized_char_length > 0.0
+        || length_results.avg_missed_char_length > 0.0
+    {
         println!(
             "Avg recognized entity length: {:.1} chars",
             length_results.avg_recognized_char_length
@@ -468,10 +481,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     // --- Name Frequency Bias ---
     println!("\n--- Name Frequency Bias ---\n");
 
-    println!(
-        "{:<16} {:>12}",
-        "Frequency", "Recognition"
-    );
+    println!("{:<16} {:>12}", "Frequency", "Recognition");
     println!("{}", "-".repeat(30));
 
     let mut freq_sorted: Vec<_> = name_results.by_frequency.iter().collect();
@@ -482,16 +492,28 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Robustness Testing ---
     println!("\n--- Robustness Testing ---\n");
-    
+
     // Create test cases with some DATE entities PatternNER can handle
     let robustness_cases: Vec<(String, Vec<anno::Entity>)> = vec![
         (
             "Meeting on January 15, 2024.".to_string(),
-            vec![anno::Entity::new("January 15, 2024", anno::EntityType::Date, 11, 27, 0.95)],
+            vec![anno::Entity::new(
+                "January 15, 2024",
+                anno::EntityType::Date,
+                11,
+                27,
+                0.95,
+            )],
         ),
         (
             "Cost: $500.00 total.".to_string(),
-            vec![anno::Entity::new("$500.00", anno::EntityType::Money, 6, 13, 0.95)],
+            vec![anno::Entity::new(
+                "$500.00",
+                anno::EntityType::Money,
+                6,
+                13,
+                0.95,
+            )],
         ),
     ];
 
@@ -511,7 +533,10 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         robustness_results.robustness_score * 100.0,
         robustness_grade(robustness_results.robustness_score)
     );
-    println!("Worst perturbation: {}", robustness_results.worst_perturbation);
+    println!(
+        "Worst perturbation: {}",
+        robustness_results.worst_perturbation
+    );
 
     // --- OOD Detection Demo ---
     println!("\n--- OOD Detection ---\n");
@@ -520,15 +545,20 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("    For embedding-based OOD detection, use ML backends.\n");
 
     let training_entities = vec![
-        "John Smith", "Jane Doe", "Google", "Microsoft", "New York", "London",
+        "John Smith",
+        "Jane Doe",
+        "Google",
+        "Microsoft",
+        "New York",
+        "London",
     ];
     let ood_detector = OODDetector::default().fit(&training_entities);
 
     let test_entities: Vec<(&str, Option<f64>)> = vec![
-        ("John Smith", Some(0.95)),      // In-distribution (exact match)
-        ("Jane Doe", Some(0.90)),        // In-distribution (exact match)
-        ("Xiangjun Chen", Some(0.45)),   // OOD (unfamiliar tokens)
-        ("山田太郎", Some(0.30)),          // OOD (different script)
+        ("John Smith", Some(0.95)),    // In-distribution (exact match)
+        ("Jane Doe", Some(0.90)),      // In-distribution (exact match)
+        ("Xiangjun Chen", Some(0.45)), // OOD (unfamiliar tokens)
+        ("山田太郎", Some(0.30)),      // OOD (different script)
     ];
 
     let ood_results = ood_detector.analyze(&test_entities);
@@ -537,7 +567,10 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         ood_results.ood_rate * 100.0,
         ood_rate_grade(ood_results.ood_rate)
     );
-    println!("Vocab Coverage: {:.1}%", ood_results.vocab_stats.coverage_ratio * 100.0);
+    println!(
+        "Vocab Coverage: {:.1}%",
+        ood_results.vocab_stats.coverage_ratio * 100.0
+    );
     if !ood_results.sample_ood_entities.is_empty() {
         println!("Sample OOD entities: {:?}", ood_results.sample_ood_entities);
     }
@@ -558,44 +591,44 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     let train_strs: Vec<_> = train_texts.iter().map(|(_, e)| e.text.as_str()).collect();
     let test_strs: Vec<_> = test_texts.iter().map(|(_, e)| e.text.as_str()).collect();
-    
+
     let (leaked, leak_ratio) = check_leakage(&train_strs, &test_strs);
     println!("Train/Test Leakage Check:");
     println!("  Leaked samples: {} ({:.1}%)", leaked, leak_ratio * 100.0);
-    println!("  Status: {}", if leaked == 0 { "Clean" } else { "Warning!" });
+    println!(
+        "  Status: {}",
+        if leaked == 0 { "Clean" } else { "Warning!" }
+    );
 
     // --- Calibration Demo ---
     println!("\n--- Calibration Demo ---\n");
     println!("⚠️  IMPORTANT: Calibration metrics are only meaningful for probabilistic");
     println!("    confidence scores (e.g., softmax outputs from neural models).");
     println!("    PatternNER outputs hardcoded values (0.95) - NOT calibrated.");
-    println!("    StatisticalNER outputs heuristic scores - NOT calibrated.");
+    println!("    HeuristicNER outputs heuristic scores - NOT calibrated.");
     println!("    Use ExtractionMethod::is_calibrated() to check.\n");
 
     // Simulated predictions - demonstrating what neural model output looks like
     println!("Demo using simulated neural model outputs:");
     let predictions = vec![
-        (0.95, true),   // High confidence, correct
-        (0.88, true),   // High confidence, correct
-        (0.75, true),   // Medium confidence, correct
-        (0.60, false),  // Low confidence, incorrect (good calibration)
-        (0.55, false),  // Low confidence, incorrect (good calibration)
-        (0.92, false),  // High confidence, incorrect (overconfident!)
+        (0.95, true),  // High confidence, correct
+        (0.88, true),  // High confidence, correct
+        (0.75, true),  // Medium confidence, correct
+        (0.60, false), // Low confidence, incorrect (good calibration)
+        (0.55, false), // Low confidence, incorrect (good calibration)
+        (0.92, false), // High confidence, incorrect (overconfident!)
     ];
 
     let cal_results = CalibrationEvaluator::compute(&predictions);
     println!("Expected Calibration Error (ECE): {:.3}", cal_results.ece);
-    println!(
-        "Calibration Grade: {}",
-        calibration_grade(cal_results.ece)
-    );
+    println!("Calibration Grade: {}", calibration_grade(cal_results.ece));
     println!(
         "Confidence Gap: {:.1}% (correct: {:.0}%, incorrect: {:.0}%)",
         cal_results.confidence_gap * 100.0,
         cal_results.avg_confidence_correct * 100.0,
         cal_results.avg_confidence_incorrect * 100.0
     );
-    
+
     println!("\nTo run calibration on real predictions:");
     println!("  cargo run --example quality_bench --features onnx");
 
@@ -606,11 +639,36 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simulated learning curve data (typical NER model behavior)
     let learning_data = vec![
-        DataPoint { train_size: 100, f1: 0.55, precision: 0.58, recall: 0.52 },
-        DataPoint { train_size: 500, f1: 0.72, precision: 0.75, recall: 0.69 },
-        DataPoint { train_size: 1000, f1: 0.80, precision: 0.82, recall: 0.78 },
-        DataPoint { train_size: 2000, f1: 0.84, precision: 0.85, recall: 0.83 },
-        DataPoint { train_size: 5000, f1: 0.87, precision: 0.88, recall: 0.86 },
+        DataPoint {
+            train_size: 100,
+            f1: 0.55,
+            precision: 0.58,
+            recall: 0.52,
+        },
+        DataPoint {
+            train_size: 500,
+            f1: 0.72,
+            precision: 0.75,
+            recall: 0.69,
+        },
+        DataPoint {
+            train_size: 1000,
+            f1: 0.80,
+            precision: 0.82,
+            recall: 0.78,
+        },
+        DataPoint {
+            train_size: 2000,
+            f1: 0.84,
+            precision: 0.85,
+            recall: 0.83,
+        },
+        DataPoint {
+            train_size: 5000,
+            f1: 0.87,
+            precision: 0.88,
+            recall: 0.86,
+        },
     ];
 
     let curve_analyzer = LearningCurveAnalyzer::new(learning_data);
@@ -626,29 +684,33 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!(
         "More data would help: {}",
-        if curve_analysis.more_data_would_help() { "Yes" } else { "No (saturated)" }
+        if curve_analysis.more_data_would_help() {
+            "Yes"
+        } else {
+            "No (saturated)"
+        }
     );
 
     if let Some(samples) = curve_analysis.samples_for_target(0.90) {
         println!("Estimated samples for 90% F1: ~{}", samples);
     }
-    
+
     println!("\nNote: Extrapolation assumes log-linear learning curve.");
     println!("      Real gains depend on data quality and diversity.");
 
     // === Threshold Analysis (Precision-Recall Curves) ===
     println!("\n=== Threshold Analysis ===\n");
-    
+
     // Simulate predictions with varying confidence levels
     let simulated_predictions = vec![
         PredictionWithConfidence::new("John Smith", "PER", 0.95, true),
         PredictionWithConfidence::new("Google", "ORG", 0.92, true),
         PredictionWithConfidence::new("New York", "LOC", 0.88, true),
-        PredictionWithConfidence::new("maybe-person", "PER", 0.45, false),  // FP
+        PredictionWithConfidence::new("maybe-person", "PER", 0.45, false), // FP
         PredictionWithConfidence::new("Apple", "ORG", 0.78, true),
-        PredictionWithConfidence::new("random", "PER", 0.35, false),  // FP
+        PredictionWithConfidence::new("random", "PER", 0.35, false), // FP
         PredictionWithConfidence::new("London", "LOC", 0.85, true),
-        PredictionWithConfidence::new("unclear", "ORG", 0.55, false),  // FP
+        PredictionWithConfidence::new("unclear", "ORG", 0.55, false), // FP
         PredictionWithConfidence::new("Microsoft", "ORG", 0.91, true),
         PredictionWithConfidence::new("Paris", "LOC", 0.82, true),
     ];
@@ -656,17 +718,23 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let threshold_analyzer = ThresholdAnalyzer::new(10);
     let curve = threshold_analyzer.analyze(&simulated_predictions);
 
-    println!("Total predictions: {}, Correct: {}", curve.total_predictions, curve.total_correct);
+    println!(
+        "Total predictions: {}, Correct: {}",
+        curve.total_predictions, curve.total_correct
+    );
     println!("Optimal threshold: {:.2}", curve.optimal_threshold);
     println!("  F1 at optimal: {:.1}%", curve.optimal_f1 * 100.0);
-    println!("  Precision: {:.1}%, Recall: {:.1}%", 
-        curve.optimal_precision * 100.0, curve.optimal_recall * 100.0);
+    println!(
+        "  Precision: {:.1}%, Recall: {:.1}%",
+        curve.optimal_precision * 100.0,
+        curve.optimal_recall * 100.0
+    );
     println!("AUC-PR: {:.3}", curve.auc_pr);
-    
+
     if let Some(t) = curve.high_precision_threshold {
         println!("High-precision (>=95%) threshold: {:.2}", t);
     }
-    
+
     println!("\nInsights:");
     for insight in interpret_curve(&curve) {
         println!("  - {}", insight);
@@ -674,42 +742,62 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // === Dataset Comparison (Cross-Domain Analysis) ===
     println!("\n=== Dataset Comparison ===\n");
-    
+
     // Compare different synthetic dataset domains
     let all_data = all_datasets();
-    let news_data: Vec<_> = all_data.iter()
+    let news_data: Vec<_> = all_data
+        .iter()
         .filter(|e| matches!(e.domain, Domain::News))
         .cloned()
         .collect();
-    let tech_data: Vec<_> = all_data.iter()
+    let tech_data: Vec<_> = all_data
+        .iter()
         .filter(|e| matches!(e.domain, Domain::Technical))
         .cloned()
         .collect();
-    
+
     if !news_data.is_empty() && !tech_data.is_empty() {
         let comparison = compare_datasets(&news_data, &tech_data);
-        
+
         println!("Comparing News vs Technical domains:");
-        println!("  News: {} examples, {} entities", 
-            comparison.stats_a.num_examples, comparison.stats_a.num_entities);
-        println!("  Tech: {} examples, {} entities",
-            comparison.stats_b.num_examples, comparison.stats_b.num_entities);
-        println!("  Type divergence: {:.3} (0=identical, 1=disjoint)", comparison.type_divergence);
-        println!("  Vocabulary overlap: {:.1}%", comparison.vocab_overlap * 100.0);
-        println!("  Entity overlap: {:.1}%", comparison.entity_text_overlap * 100.0);
-        println!("  Estimated domain gap: {:.2}", comparison.estimated_domain_gap);
-        
+        println!(
+            "  News: {} examples, {} entities",
+            comparison.stats_a.num_examples, comparison.stats_a.num_entities
+        );
+        println!(
+            "  Tech: {} examples, {} entities",
+            comparison.stats_b.num_examples, comparison.stats_b.num_entities
+        );
+        println!(
+            "  Type divergence: {:.3} (0=identical, 1=disjoint)",
+            comparison.type_divergence
+        );
+        println!(
+            "  Vocabulary overlap: {:.1}%",
+            comparison.vocab_overlap * 100.0
+        );
+        println!(
+            "  Entity overlap: {:.1}%",
+            comparison.entity_text_overlap * 100.0
+        );
+        println!(
+            "  Estimated domain gap: {:.2}",
+            comparison.estimated_domain_gap
+        );
+
         if !comparison.recommendations.is_empty() {
             println!("\nRecommendations:");
             for rec in &comparison.recommendations {
                 println!("  - {}", rec);
             }
         }
-        
+
         // Show difficulty estimate for news domain
         let news_difficulty = estimate_difficulty(&comparison.stats_a);
-        println!("\nNews domain difficulty: {:?} (score: {:.2})", 
-            news_difficulty.difficulty, news_difficulty.score);
+        println!(
+            "\nNews domain difficulty: {:?} (score: {:.2})",
+            news_difficulty.difficulty, news_difficulty.score
+        );
         if !news_difficulty.factors.is_empty() {
             for factor in &news_difficulty.factors {
                 println!("  - {}", factor);
@@ -719,7 +807,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // === Drift Detection Demo ===
     println!("\n=== Drift Detection Demo ===\n");
-    
+
     let mut drift_detector = DriftDetector::new(DriftConfig {
         min_samples: 10,
         window_size: 10,
@@ -727,33 +815,37 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         confidence_drift_threshold: 0.1,
         ..Default::default()
     });
-    
+
     // Simulate first window: high confidence, consistent types
     for i in 0..10 {
         drift_detector.log_prediction(i as u64, 0.92, "PER", "John Smith");
     }
-    
+
     // Simulate second window: lower confidence, new vocabulary
     for i in 10..20 {
         drift_detector.log_prediction(i as u64, 0.65, "PER", "Xiangjun Wei");
     }
-    
+
     let drift_report = drift_detector.analyze();
     println!("Drift detected: {}", drift_report.drift_detected);
     println!("Summary: {}", drift_report.summary);
-    
+
     if drift_report.confidence_drift.is_significant {
-        println!("  Confidence drift: {:.2} -> {:.2} (change: {:.2})",
+        println!(
+            "  Confidence drift: {:.2} -> {:.2} (change: {:.2})",
             drift_report.confidence_drift.baseline_mean,
             drift_report.confidence_drift.current_mean,
-            drift_report.confidence_drift.drift_amount);
+            drift_report.confidence_drift.drift_amount
+        );
     }
-    
+
     if drift_report.vocabulary_drift.is_significant {
-        println!("  Vocabulary drift: {:.1}% new tokens",
-            drift_report.vocabulary_drift.new_token_rate * 100.0);
+        println!(
+            "  Vocabulary drift: {:.1}% new tokens",
+            drift_report.vocabulary_drift.new_token_rate * 100.0
+        );
     }
-    
+
     if !drift_report.recommendations.is_empty() {
         println!("\nRecommendations:");
         for rec in &drift_report.recommendations {
@@ -792,7 +884,11 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
 fn print_per_type_metrics(per_type: &HashMap<String, anno::eval::TypeMetrics>) {
     let mut sorted_types: Vec<_> = per_type.iter().collect();
-    sorted_types.sort_by(|a, b| b.1.f1.partial_cmp(&a.1.f1).unwrap_or(std::cmp::Ordering::Equal));
+    sorted_types.sort_by(|a, b| {
+        b.1.f1
+            .partial_cmp(&a.1.f1)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     println!(
         "{:<3} {:<14} {:>8} {:>10} {:>8} {:>12}",
@@ -827,11 +923,11 @@ fn print_per_type_metrics(per_type: &HashMap<String, anno::eval::TypeMetrics>) {
 }
 
 /// Run evaluation on real NER datasets
-#[cfg(feature = "network")]
+#[cfg(feature = "eval-advanced")]
 fn run_real_dataset_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     use anno::eval::datasets::GoldEntity;
-    use anno::eval::loader::{DatasetId, DatasetLoader};
     use anno::eval::evaluate_ner_model;
+    use anno::eval::loader::{DatasetId, DatasetLoader};
     use anno::StackedNER;
 
     let loader = DatasetLoader::new()?;
@@ -841,8 +937,8 @@ fn run_real_dataset_evaluation() -> Result<(), Box<dyn std::error::Error>> {
         DatasetId::WikiGold,
         DatasetId::Wnut17,
         DatasetId::CoNLL2003Sample,
-        DatasetId::BC5CDR,          // Biomedical (chemicals, diseases)
-        DatasetId::MitRestaurant,   // Domain-specific (food/location)
+        DatasetId::BC5CDR,        // Biomedical (chemicals, diseases)
+        DatasetId::MitRestaurant, // Domain-specific (food/location)
     ];
 
     println!(
@@ -890,7 +986,9 @@ fn run_real_dataset_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\nNote: StackedNER (zero-dep) has limited accuracy on real datasets.");
-    println!("For better results, use: cargo run --example quality_bench --features onnx,network");
+    println!(
+        "For better results, use: cargo run --example quality_bench --features onnx,eval-advanced"
+    );
 
     Ok(())
 }

@@ -4,6 +4,10 @@
 *.html
 !docs/**/*.html
 
+# Cache directories
+.anno_cache/
+.cache/
+
 # Proptest regressions (keep these in source control per proptest docs)
 # *.proptest-regressions
 
@@ -15,3 +19,11 @@
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+.cargo/
+mutants.out*/
+test_fixes

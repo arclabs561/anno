@@ -1,142 +1,249 @@
 # anno
 
-Named entity recognition for Rust.
+Information extraction for Rust: NER, coreference resolution, and evaluation.
 
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Extracts structured information from text: names, companies, places, dates, money, emails.
+Extract entities, resolve coreference, and evaluate models. Supports regex patterns (dates, money, emails), transformer models (BERT, GLiNER), and coreference resolution (rule-based and T5-based).
 
-## The Simplest Thing That Works
+All backends implement the same `Model` trait. You can swap between a 400ns regex matcher and a 50ms BERT model without changing calling code.
 
-```rust
-use anno::{PatternNER, Model};
+Dual-licensed under MIT or Apache-2.0.
 
-let ner = PatternNER::new();
-let entities = ner.extract_entities("Call me at 555-1234 on Jan 15", None)?;
+### Documentation
 
-for e in &entities {
-    println!("{}: {}", e.entity_type.as_label(), e.text);
-}
-// PHONE: 555-1234
-// DATE: Jan 15
+https://docs.rs/anno
+
+### Usage
+
+```
+cargo add anno
 ```
 
-This extracts dates, times, money, emails, URLs, and phone numbers. No ML, no model downloads, compiles in 5 seconds.
+### Example: basic extraction
 
-**But it won't find "John Smith" or "Apple Inc."** — those require context, not patterns.
+This example shows how to extract entity spans from text. Each entity includes the matched text, its type, and character offsets:
 
-## If You Need Names and Companies
+```rust
+use anno::{Model, PatternNER};
+
+let ner = PatternNER::new();
+let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
+
+for e in &entities {
+    println!("{}: \"{}\" [{}, {})", e.entity_type.as_label(), e.text, e.start, e.end);
+}
+```
+
+This prints:
+
+```
+EMAIL: "alice@acme.com" [8, 22)
+DATE: "Jan 15" [26, 32)
+```
+
+`PatternNER` detects structured entities via regex: dates, times, money, percentages, emails, URLs, phone numbers. It won't find "John Smith" or "Apple Inc." — those require context, not patterns.
+
+### Example: named entity recognition
+
+For person names, organizations, and locations, use `StackedNER` which combines patterns with heuristics:
 
 ```rust
 use anno::StackedNER;
 
 let ner = StackedNER::default();
-let entities = ner.extract_entities("Sarah Chen joined Microsoft", None)?;
-// PER: Sarah Chen
-// ORG: Microsoft
+let entities = ner.extract_entities("Sarah Chen joined Microsoft in Seattle", None)?;
 ```
 
-`StackedNER` combines patterns with statistical heuristics. It's fast (~100μs) and dependency-free, but accuracy varies by domain.
+This prints:
 
-**For production accuracy**, add `--features onnx` and use a real model:
+```
+PER: "Sarah Chen" [0, 10)
+ORG: "Microsoft" [18, 27)
+LOC: "Seattle" [31, 38)
+```
+
+This requires no model downloads and runs in ~100μs, but accuracy varies by domain. For higher quality, enable the `onnx` feature and use a transformer model:
 
 ```rust
 use anno::BertNEROnnx;
 
 let ner = BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)?;
-let entities = ner.extract_entities("Elon Musk founded SpaceX in 2002", None)?;
+let entities = ner.extract_entities("Marie Curie discovered radium in 1898", None)?;
 ```
 
-This downloads a ~400MB model on first run and gets ~86% F1 on standard benchmarks.
+This downloads a ~400MB model on first run.
 
-## Installation
+### Example: zero-shot NER
 
-```bash
-cargo add anno                    # Patterns only (~5s compile)
-cargo add anno --features onnx    # + BERT/GLiNER models (~50s compile)
-cargo add anno --features eval    # + Evaluation framework
-```
-
-## Which Backend Do I Use?
-
-| I need to extract... | Use this | Speed |
-|---------------------|----------|-------|
-| Dates, money, emails, URLs | `PatternNER` | ~400ns |
-| Names, companies (good enough) | `StackedNER` | ~100μs |
-| Names, companies (production) | `BertNEROnnx` | ~50ms |
-| Custom types like "disease" or "gene" | `GLiNEROnnx` | ~100ms |
-
-`GLiNEROnnx` is special — it extracts whatever entity types you specify at runtime:
+A limitation of supervised NER models is they only recognize entity types seen during training. GLiNER uses a bi-encoder architecture that lets you specify entity types at inference time:
 
 ```rust
 use anno::GLiNEROnnx;
 
 let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+
+// Extract domain-specific entities without retraining
 let entities = ner.extract(
-    "Patient has diabetes, prescribed metformin",
-    &["disease", "medication"],  // you define these
-    0.5
+    "Patient presents with diabetes, prescribed metformin 500mg",
+    &["disease", "medication", "dosage"],
+    0.5,  // confidence threshold
 )?;
 ```
 
-## Evaluating Accuracy
+This is slower (~100ms) but handles arbitrary entity schemas.
 
-If you're benchmarking or need metrics:
+### Example: multi-task extraction with GLiNER2
 
-```bash
-cargo add anno --features eval
-```
+**GLiNER2** (July 2025) extends GLiNER with multi-task capabilities. Extract entities, classify text, and extract hierarchical structures in a single forward pass:
 
 ```rust
-use anno::eval::{ReportBuilder, TestCase, SimpleGoldEntity};
+use anno::backends::gliner2::{GLiNER2, TaskSchema};
 
-let report = ReportBuilder::new("MyModel")
-    .with_test_data(my_test_cases)
-    .build(&model);
+let model = GLiNER2::from_pretrained(anno::DEFAULT_GLINER2_MODEL)?;
+// Or use: "fastino/gliner2-base-v1" (default) or "knowledgator/gliner-multitask-large-v0.5"
 
-println!("{}", report.summary());
-// Precision: 85.2%  Recall: 78.1%  F1: 81.5%
+let schema = TaskSchema::new()
+    .with_entities(&["person", "organization", "product"])
+    .with_classification("sentiment", &["positive", "negative", "neutral"], false); // false = single-label
+
+let result = model.extract("Apple announced iPhone 15", &schema)?;
+// result.entities: [Apple/organization, iPhone 15/product]
+// result.classifications["sentiment"].labels: ["positive"]
 ```
 
-See [docs/EVALUATION.md](docs/EVALUATION.md) for:
-- Evaluation modes (strict, partial, type-only)
-- Coreference metrics (MUC, B³, CEAF, LEA)
-- Bias analysis (gender, demographic)
-- Standard datasets (CoNLL-2003, WikiGold, etc.)
+GLiNER2 achieves competitive zero-shot F1 with GPT-4o while being 2.6× faster and running locally.
 
-## Feature Flags
+### Example: Graph RAG integration
 
-| Feature | What it adds | Compile time |
-|---------|--------------|--------------|
-| *(default)* | `PatternNER`, `StackedNER` | ~5s |
-| `onnx` | BERT, GLiNER, NuNER models | +45s |
-| `candle` | Pure Rust ML (Metal/CUDA) | +60s |
-| `eval` | Metrics, datasets, analysis | +3s |
-| `eval-bias` | Gender/demographic bias tests | +2s |
-| `eval-advanced` | Calibration, robustness | +2s |
-| `full` | Everything | ~90s |
+Export entities and relations to knowledge graphs for RAG applications:
 
-## Performance
+```rust
+use anno::graph::GraphDocument;
+use anno::Entity;
 
-Apple M3 Max, single thread:
+// From NER extraction
+let entities = ner.extract_entities(text, None)?;
+// Relations would come from a relation extraction model
+// let relations = relation_model.extract_relations(text, &entities)?;
 
-| Backend | Latency | Throughput |
-|---------|---------|------------|
-| PatternNER | 0.4μs | 2.5M chars/sec |
-| StackedNER | 100μs | 10K chars/sec |
-| BertNEROnnx | 50ms | 20 chars/sec |
+// Build graph document (deduplicates via coreference if provided)
+let graph = GraphDocument::from_extraction(&entities, &[], None);
 
-Pattern extraction is CPU-bound. ML inference is model-bound — batch multiple texts or use GPU for throughput.
+// Export to Neo4j Cypher
+println!("{}", graph.to_cypher());
 
-## More Documentation
+// Or NetworkX JSON for Python
+println!("{}", graph.to_networkx_json());
+```
 
-- [API Reference](https://docs.rs/anno) — All types and methods
-- [docs/SCOPE.md](docs/SCOPE.md) — Architecture, trait hierarchy, roadmap
-- [docs/EVALUATION.md](docs/EVALUATION.md) — Metrics, datasets, bias testing
-- [examples/](examples/) — Runnable code for each backend
+### Example: grounded entity representation
 
-## License
+The `grounded` module provides a research-aligned hierarchy for entity representation that unifies text NER and visual detection:
+
+```rust
+use anno::grounded::{GroundedDocument, Signal, Track, Identity, Location};
+
+// Create a document with the Signal → Track → Identity hierarchy
+let mut doc = GroundedDocument::new("doc1", "Marie Curie won the Nobel Prize. She was a physicist.");
+
+// Level 1: Signals (raw detections)
+let s1 = doc.add_signal(Signal::new(0, Location::text(0, 12), "Marie Curie", "Person", 0.95));
+let s2 = doc.add_signal(Signal::new(1, Location::text(38, 41), "She", "Person", 0.88));
+
+// Level 2: Tracks (within-document coreference)
+let mut track = Track::new(0, "Marie Curie");
+track.add_signal(s1, 0);
+track.add_signal(s2, 1);
+let track_id = doc.add_track(track);
+
+// Level 3: Identities (knowledge base linking)
+let identity = Identity::from_kb(0, "Marie Curie", "wikidata", "Q7186");
+let identity_id = doc.add_identity(identity);
+doc.link_track_to_identity(track_id, identity_id);
+
+// Traverse the hierarchy
+for signal in doc.signals() {
+    if let Some(identity) = doc.identity_for_signal(signal.id) {
+        println!("{} → {}", signal.surface, identity.canonical_name);
+    }
+}
+```
+
+The same `Location` type works for text spans, bounding boxes, and other modalities. See `examples/grounded.rs` for a complete walkthrough.
+
+### When should I use which backend?
+
+| Backend | Use Case | Latency | Accuracy | Feature |
+|---------|----------|---------|----------|---------|
+| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always |
+| `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always |
+| `StackedNER` | Composable layered extraction | ~100μs | varies | always |
+| `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` |
+| `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` |
+| `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` |
+| `W2NER` | Nested/discontinuous NER | ~150ms | ~85% | `onnx` |
+| `CandleNER` | Pure Rust BERT NER | varies | ~86% | `candle` |
+| `GLiNERCandle` | Pure Rust zero-shot NER | varies | ~90% | `candle` |
+| **`GLiNER2`** | Multi-task (NER + classification) | ~130ms | ~92% | `onnx`/`candle` |
+
+*Pattern accuracy on structured entities only
+
+**For new projects**, start with `GLiNER2` — it's the most capable option with unified multi-task support.
+
+### Evaluation
+
+This library includes an evaluation framework for measuring precision, recall, and F1 with different matching semantics (strict, partial, type-only). It also implements coreference metrics (MUC, B³, CEAF, LEA) for systems that resolve mentions to entities.
+
+```rust
+use anno::{Model, PatternNER};
+use anno::eval::report::ReportBuilder;
+
+let model = PatternNER::new();
+let report = ReportBuilder::new("PatternNER")
+    .with_core_metrics(true)
+    .with_error_analysis(true)
+    .build(&model);
+println!("{}", report.summary());
+```
+
+See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bias analysis, and dataset support.
+
+### Related projects
+
+[rust-bert](https://github.com/guillaume-be/rust-bert) provides full transformer implementations via tch-rs (requires libtorch). It covers many NLP tasks beyond NER.
+
+[gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine with excellent documentation. If you only need GLiNER, it may be simpler.
+
+**What this library adds**:
+- Unified `Model` trait across regex, heuristics, and ML backends
+- Zero-dependency baselines (`PatternNER`, `HeuristicNER`, `StackedNER`) for fast iteration
+- Coreference resolution (rule-based and T5-based) with comprehensive metrics
+- Evaluation framework with SemEval modes and coreference metrics (MUC, B³, CEAF, LEA, BLANC)
+- Multiple ONNX backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) behind one interface
+- Pure Rust inference via Candle (optional Metal/CUDA support)
+
+The ONNX backends are integration work — similar inference code to gline-rs and rust-bert's ONNX mode. The evaluation framework and zero-dependency baselines are the parts that don't exist elsewhere.
+
+### Feature flags
+
+| Feature | What it enables |
+|---------|-----------------|
+| *(default)* | `PatternNER`, `HeuristicNER`, `StackedNER`, `GraphDocument`, `SchemaMapper` |
+| `onnx` | BERT, GLiNER, GLiNER2, NuNER, W2NER via ONNX Runtime |
+| `candle` | Pure Rust inference (`CandleNER`, `GLiNERCandle`, `GLiNER2Candle`) with optional Metal/CUDA |
+| `eval` | Core metrics (P/R/F1), datasets, evaluation framework |
+| `eval-bias` | Gender, demographic, temporal, length bias analysis |
+| `eval-advanced` | Calibration, robustness, OOD detection, dataset download |
+| `discourse` | Event extraction, shell nouns, abstract anaphora |
+| `full` | Everything |
+
+### Minimum Rust version policy
+
+This crate's minimum supported rustc version is 1.75.0.
+
+### License
 
 MIT OR Apache-2.0

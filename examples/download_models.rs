@@ -22,7 +22,10 @@
 //! |-------|------|---------|----------|
 //! | `protectai/bert-base-NER-onnx` | ~400MB | ONNX | Traditional NER |
 //! | `onnx-community/gliner_small-v2.1` | ~150MB | ONNX | Zero-shot NER |
+//! | `deepanwa/NuNerZero_onnx` | ~150MB | ONNX | Token-based zero-shot |
+//! | `ljynlp/w2ner-bert-base` | ~400MB | ONNX | Nested/discontinuous entities |
 //! | `dslim/bert-base-NER` | ~400MB | Candle | Rust-native NER |
+//! | `onnx-community/gliner_small-v2.1` | ~150MB | Candle | GLiNER Candle (zero-shot) |
 //!
 //! # Cache Location
 //!
@@ -46,14 +49,33 @@ use std::time::Instant;
 const ONNX_MODELS: &[(&str, &str)] = &[
     ("protectai/bert-base-NER-onnx", "Traditional BERT NER"),
     ("onnx-community/gliner_small-v2.1", "GLiNER zero-shot NER"),
+    ("deepanwa/NuNerZero_onnx", "NuNER token-based zero-shot"),
+    ("ljynlp/w2ner-bert-base", "W2NER nested entities"),
     // Uncomment for more models:
     // ("onnx-community/gliner-multitask-large-v0.5", "GLiNER + relations"),
+    // ("onnx-community/gliner_medium-v2.1", "GLiNER medium (higher accuracy)"),
+    // ("onnx-community/gliner_large-v2.1", "GLiNER large (best accuracy)"),
 ];
 
 /// Models to download for Candle backend
 #[cfg(feature = "candle")]
 const CANDLE_MODELS: &[(&str, &str)] = &[
-    ("dslim/bert-base-NER", "BERT NER (Candle)"),
+    (
+        "dslim/bert-base-NER",
+        "BERT NER (Candle) - supports vocab.txt",
+    ),
+    (
+        "dbmdz/bert-large-cased-finetuned-conll03-english",
+        "BERT NER alternative",
+    ),
+    (
+        "knowledgator/modern-gliner-bi-large-v1.0",
+        "GLiNER Candle (zero-shot, may have safetensors)",
+    ),
+    (
+        "knowledgator/gliner-x-small",
+        "GLiNER Candle alternative (may need conversion)",
+    ),
     ("answerdotai/ModernBERT-base", "ModernBERT encoder"),
     // Uncomment for more:
     // ("microsoft/deberta-v3-base", "DeBERTa v3 encoder"),
@@ -61,7 +83,7 @@ const CANDLE_MODELS: &[(&str, &str)] = &[
 
 fn main() {
     println!("=== Anno Model Downloader ===\n");
-    
+
     let start = Instant::now();
     #[allow(unused_mut)] // Used conditionally by feature flags
     let mut downloaded = 0;
@@ -115,12 +137,12 @@ fn main() {
     println!("Downloaded: {}", downloaded);
     println!("Failed: {}", failed);
     println!("Time: {:.1}s", elapsed.as_secs_f64());
-    
+
     if downloaded > 0 {
         println!("\nModels cached in: ~/.cache/huggingface/hub/");
         println!("You can now use anno offline!");
     }
-    
+
     #[cfg(not(any(feature = "onnx", feature = "candle")))]
     {
         println!("\nNo ML features enabled!");
@@ -131,36 +153,39 @@ fn main() {
 #[cfg(feature = "onnx")]
 fn download_onnx_model(model_id: &str, description: &str) -> Result<(), String> {
     use hf_hub::api::sync::Api;
-    
+
     print!("  {} ({})... ", model_id, description);
     let start = Instant::now();
-    
+
     let api = Api::new().map_err(|e| format!("API init: {}", e))?;
     let repo = api.model(model_id.to_string());
-    
+
     // Download model files
-    let files = ["model.onnx", "onnx/model.onnx", "tokenizer.json", "config.json"];
+    let files = [
+        "model.onnx",
+        "onnx/model.onnx",
+        "tokenizer.json",
+        "config.json",
+    ];
     let mut found_model = false;
-    
+
     for file in files {
         match repo.get(file) {
             Ok(path) => {
                 if file.contains("model.onnx") {
                     found_model = true;
-                    let size = std::fs::metadata(&path)
-                        .map(|m| m.len())
-                        .unwrap_or(0);
+                    let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
                     print!("{:.1}MB ", size as f64 / 1_000_000.0);
                 }
             }
             Err(_) => continue, // Some files optional
         }
     }
-    
+
     if !found_model {
         return Err("model.onnx not found".to_string());
     }
-    
+
     println!("OK ({:.1}s)", start.elapsed().as_secs_f64());
     Ok(())
 }
@@ -168,37 +193,34 @@ fn download_onnx_model(model_id: &str, description: &str) -> Result<(), String> 
 #[cfg(feature = "candle")]
 fn download_candle_model(model_id: &str, description: &str) -> Result<(), String> {
     use hf_hub::api::sync::Api;
-    
+
     print!("  {} ({})... ", model_id, description);
     let start = Instant::now();
-    
+
     let api = Api::new().map_err(|e| format!("API init: {}", e))?;
     let repo = api.model(model_id.to_string());
-    
+
     // Download model files (safetensors preferred)
     let weight_files = ["model.safetensors", "pytorch_model.bin"];
     let mut found_weights = false;
-    
+
     for file in weight_files {
         if let Ok(path) = repo.get(file) {
             found_weights = true;
-            let size = std::fs::metadata(&path)
-                .map(|m| m.len())
-                .unwrap_or(0);
+            let size = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
             print!("{:.1}MB ", size as f64 / 1_000_000.0);
             break;
         }
     }
-    
+
     // Also get tokenizer and config
     let _ = repo.get("tokenizer.json");
     let _ = repo.get("config.json");
-    
+
     if !found_weights {
         return Err("weights not found".to_string());
     }
-    
+
     println!("OK ({:.1}s)", start.elapsed().as_secs_f64());
     Ok(())
 }
-

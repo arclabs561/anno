@@ -27,11 +27,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading BERT NER model...");
     let start = Instant::now();
     let model = BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)?;
-    println!("Model loaded in {:.1}s: {}\n", start.elapsed().as_secs_f64(), model.model_name());
+    println!(
+        "Model loaded in {:.1}s: {}\n",
+        start.elapsed().as_secs_f64(),
+        model.model_name()
+    );
 
     // Test texts covering different entity types
     let test_texts = [
-        ("Tech News", "Elon Musk announced that Tesla will open a new factory in Berlin, Germany."),
+        ("Tech News", "Jensen Huang announced that Nvidia will open a new research center in Tokyo, Japan."),
         ("Politics", "President Biden met with Chancellor Scholz at the White House on Monday."),
         ("Sports", "Lionel Messi led Argentina to victory in the World Cup final in Qatar."),
         ("Business", "Microsoft acquired Activision Blizzard for $69 billion, pending FTC approval."),
@@ -58,10 +62,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for e in &entities {
                         println!(
                             "  {:?}: \"{}\" (chars {}-{}, {:.1}% conf)",
-                            e.entity_type, e.text, e.start, e.end, e.confidence * 100.0
+                            e.entity_type,
+                            e.text,
+                            e.start,
+                            e.end,
+                            e.confidence * 100.0
                         );
                     }
-                    println!("  [{} entities in {:.1}ms]\n", entities.len(), elapsed.as_secs_f64() * 1000.0);
+                    println!(
+                        "  [{} entities in {:.1}ms]\n",
+                        entities.len(),
+                        elapsed.as_secs_f64() * 1000.0
+                    );
                 }
             }
             Err(e) => {
@@ -90,4 +102,3 @@ fn main() {
     println!("This example requires the 'onnx' feature.");
     println!("Run with: cargo run --example bert --features onnx");
 }
-

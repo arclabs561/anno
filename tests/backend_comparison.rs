@@ -79,26 +79,28 @@ fn test_pattern_ner_basic() {
     // Should extract structured entities
     let text = "Meeting at 3:30 PM on Jan 15. Cost $50.";
     let entities = ner.extract_entities(text, None).unwrap();
-    
+
     // Debug: print what we found
     eprintln!("Input: {}", text);
     for e in &entities {
         eprintln!("  Found: {:?} - '{}'", e.entity_type, e.text);
     }
-    
+
     assert!(!entities.is_empty(), "Should find entities");
 
     // Should find date and money at minimum
     let types: Vec<_> = entities.iter().map(|e| &e.entity_type).collect();
     assert!(
         types.iter().any(|t| matches!(t, anno::EntityType::Date)),
-        "Should find date. Found: {:?}", types
+        "Should find date. Found: {:?}",
+        types
     );
     assert!(
         types.iter().any(|t| matches!(t, anno::EntityType::Money)),
-        "Should find money. Found: {:?}", types
+        "Should find money. Found: {:?}",
+        types
     );
-    
+
     // Time is extracted separately - may or may not be present depending on regex
     let has_time = types.iter().any(|t| matches!(t, anno::EntityType::Time));
     eprintln!("  Time found: {}", has_time);
@@ -187,7 +189,10 @@ fn test_backend_comparison_on_synthetic() {
     let datasets = all_datasets();
     let texts: Vec<String> = datasets.iter().map(|ex| ex.text.clone()).collect();
 
-    println!("\n=== Backend Comparison on {} Synthetic Examples ===\n", texts.len());
+    println!(
+        "\n=== Backend Comparison on {} Synthetic Examples ===\n",
+        texts.len()
+    );
 
     // Create available backends
     let backends: Vec<BackendInfo> = vec![BackendInfo::new("pattern", PatternNER::new())];
@@ -200,7 +205,10 @@ fn test_backend_comparison_on_synthetic() {
     }
 
     // Print results
-    println!("{:<15} {:>10} {:>12} {:>15}", "Backend", "Entities", "Time (ms)", "Entities/sec");
+    println!(
+        "{:<15} {:>10} {:>12} {:>15}",
+        "Backend", "Entities", "Time (ms)", "Entities/sec"
+    );
     println!("{}", "-".repeat(55));
 
     for result in &results {
@@ -267,7 +275,7 @@ fn test_ml_backend_comparison() {
 }
 
 #[test]
-#[ignore] // Requires onnx feature and network
+#[ignore] // Requires onnx feature and network for model download
 #[cfg(feature = "onnx")]
 fn test_gliner_backend() {
     use anno::GLiNEROnnx;
@@ -283,7 +291,7 @@ fn test_gliner_backend() {
 
         let texts = vec![
             "Steve Jobs founded Apple in Cupertino.",
-            "Elon Musk is the CEO of Tesla and SpaceX.",
+            "Satya Nadella is the CEO of Microsoft and Azure.",
             "The Eiffel Tower is located in Paris, France.",
         ];
 
@@ -300,4 +308,3 @@ fn test_gliner_backend() {
         println!("GLiNER not available: {:?}", result.err());
     }
 }
-

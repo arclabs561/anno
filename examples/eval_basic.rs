@@ -1,373 +1,126 @@
-//! NER Evaluation Suite
+//! Basic evaluation example - evaluating Pattern and Statistical NER backends.
 //!
-//! Comprehensive evaluation of NER backends on both synthetic and real datasets.
+//! Run with: cargo run --example eval_basic --features eval
 //!
-//! ## Quick Start
-//!
-//! ```bash
-//! # Synthetic only (fast, no downloads)
-//! cargo run --example ner_eval
-//!
-//! # Include real datasets (requires network)
-//! cargo run --example ner_eval --features network
-//!
-//! # With ML backends
-//! cargo run --example ner_eval --features "onnx,network"
-//! ```
-//!
-//! ## Output
-//!
-//! - Per-backend F1/Precision/Recall
-//! - Per-entity-type breakdown
-//! - Statistical significance testing
-//! - Error analysis (confusion matrix)
+//! This example shows:
+//! - How to use the BackendEvaluator to test NER backends
+//! - How to generate markdown/HTML reports
+//! - How to access per-domain and per-entity-type metrics
 
-use anno::eval::analysis::{compare_ner_systems, ConfusionMatrix, ErrorAnalysis};
-#[cfg(feature = "network")]
-use anno::eval::loader::{DatasetId, DatasetLoader};
-use anno::eval::synthetic::{all_datasets, Difficulty};
-use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{Model, PatternNER, StackedNER, StatisticalNER};
-use std::collections::HashMap;
-use std::time::Instant;
-
-// =============================================================================
-// Backend Registry
-// =============================================================================
-
-struct Backend {
-    name: &'static str,
-    model: Box<dyn Model>,
-}
-
-fn create_backends() -> Vec<Backend> {
-    #[allow(unused_mut)]
-    let mut backends = vec![
-        Backend {
-            name: "PatternNER",
-            model: Box::new(PatternNER::new()),
-        },
-        Backend {
-            name: "StatisticalNER",
-            model: Box::new(StatisticalNER::new()),
-        },
-        Backend {
-            name: "StackedNER",
-            model: Box::new(StackedNER::new()),
-        },
-    ];
-
-    #[cfg(feature = "onnx")]
-    {
-        use anno::BertNEROnnx;
-        if let Ok(bert) = BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL) {
-            backends.push(Backend {
-                name: "BertNEROnnx",
-                model: Box::new(bert),
-            });
-        }
-    }
-
-    backends
-}
-
-// =============================================================================
-// Synthetic Evaluation
-// =============================================================================
-
-fn evaluate_synthetic(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
-    println!("\n=== Synthetic Dataset Evaluation ===\n");
-
-    let datasets = all_datasets();
-    let test_cases: Vec<(String, Vec<GoldEntity>)> = datasets
-        .iter()
-        .filter(|ex| !ex.text.is_empty())
-        .map(|ex| (ex.text.clone(), ex.entities.clone()))
-        .collect();
-
-    println!("Dataset: {} examples", test_cases.len());
-
-    // Group by difficulty
-    let by_difficulty: HashMap<Difficulty, Vec<_>> = datasets
-        .iter()
-        .fold(HashMap::new(), |mut acc, ex| {
-            acc.entry(ex.difficulty).or_default().push(ex);
-            acc
-        });
-
-    println!("  Easy: {}", by_difficulty.get(&Difficulty::Easy).map_or(0, |v| v.len()));
-    println!("  Medium: {}", by_difficulty.get(&Difficulty::Medium).map_or(0, |v| v.len()));
-    println!("  Hard: {}", by_difficulty.get(&Difficulty::Hard).map_or(0, |v| v.len()));
-    println!("  Adversarial: {}", by_difficulty.get(&Difficulty::Adversarial).map_or(0, |v| v.len()));
-    println!();
-
-    let mut all_f1_scores: HashMap<String, Vec<f64>> = HashMap::new();
-
-    for backend in backends {
-        let start = Instant::now();
-        let result = evaluate_ner_model(backend.model.as_ref(), &test_cases);
-        let elapsed = start.elapsed();
-
-        match result {
-            Ok(metrics) => {
-                println!(
-                    "{:15} F1={:5.1}%  P={:5.1}%  R={:5.1}%  ({:.0}ms)",
-                    backend.name,
-                    metrics.f1 * 100.0,
-                    metrics.precision * 100.0,
-                    metrics.recall * 100.0,
-                    elapsed.as_millis()
-                );
-
-                // Compute per-example F1 for significance testing
-                // (simplified: use per-type F1s as proxy for variance)
-                let per_type_f1s: Vec<f64> = metrics.per_type.values()
-                    .map(|t| t.f1)
-                    .filter(|&f| f > 0.0)
-                    .collect();
-                
-                if per_type_f1s.is_empty() {
-                    all_f1_scores
-                        .entry(backend.name.to_string())
-                        .or_default()
-                        .push(metrics.f1);
-                } else {
-                    all_f1_scores
-                        .entry(backend.name.to_string())
-                        .or_default()
-                        .extend(per_type_f1s);
-                }
-            }
-            Err(e) => {
-                println!("{:15} ERROR: {}", backend.name, e);
-            }
-        }
-    }
-
-    all_f1_scores
-}
-
-// =============================================================================
-// Real Dataset Evaluation
-// =============================================================================
-
-#[cfg(feature = "network")]
-fn evaluate_real_datasets(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
-    println!("\n=== Real Dataset Evaluation ===\n");
-
-    let loader = match DatasetLoader::new() {
-        Ok(l) => l,
-        Err(e) => {
-            println!("Failed to create loader: {}", e);
-            return HashMap::new();
-        }
-    };
-
-    let dataset_ids = DatasetId::all_ner();
-    let mut all_f1_scores: HashMap<String, Vec<f64>> = HashMap::new();
-
-    for &id in dataset_ids {
-        print!("Loading {:20} ... ", id.name());
-
-        let dataset = match loader.load_or_download(id) {
-            Ok(d) => d,
-            Err(e) => {
-                println!("SKIP ({})", e);
-                continue;
-            }
-        };
-
-        println!("{} sentences, {} entities", dataset.len(), dataset.entity_count());
-
-        let test_cases = dataset.to_test_cases();
-
-        for backend in backends {
-            match evaluate_ner_model(backend.model.as_ref(), &test_cases) {
-                Ok(metrics) => {
-                    println!(
-                        "  {:15} F1={:5.1}%  P={:5.1}%  R={:5.1}%",
-                        backend.name,
-                        metrics.f1 * 100.0,
-                        metrics.precision * 100.0,
-                        metrics.recall * 100.0
-                    );
-
-                    all_f1_scores
-                        .entry(backend.name.to_string())
-                        .or_default()
-                        .push(metrics.f1);
-                }
-                Err(e) => {
-                    println!("  {:15} ERROR: {}", backend.name, e);
-                }
-            }
-        }
-        println!();
-    }
-
-    all_f1_scores
-}
-
-#[cfg(not(feature = "network"))]
-fn evaluate_real_datasets(_backends: &[Backend]) -> HashMap<String, Vec<f64>> {
-    println!("\n=== Real Dataset Evaluation ===\n");
-    println!("Skipped (enable 'network' feature to download datasets)\n");
-    HashMap::new()
-}
-
-// =============================================================================
-// Statistical Analysis
-// =============================================================================
-
-fn significance_analysis(f1_scores: &HashMap<String, Vec<f64>>) {
-    println!("\n=== Statistical Significance ===\n");
-
-    let names: Vec<&String> = f1_scores.keys().collect();
-    if names.len() < 2 {
-        println!("Need at least 2 backends for comparison\n");
-        return;
-    }
-
-    // Compare each pair
-    for i in 0..names.len() {
-        for j in (i + 1)..names.len() {
-            let name_a = names[i];
-            let name_b = names[j];
-
-            let scores_a = &f1_scores[name_a];
-            let scores_b = &f1_scores[name_b];
-
-            // Align lengths (take min)
-            let n = scores_a.len().min(scores_b.len());
-            if n < 2 {
-                continue;
-            }
-
-            let test = compare_ner_systems(
-                name_a,
-                &scores_a[..n],
-                name_b,
-                &scores_b[..n],
-            );
-
-            let sig = if test.significant_01 {
-                "**"
-            } else if test.significant_05 {
-                "*"
-            } else {
-                ""
-            };
-
-            println!(
-                "{} vs {}: diff={:+.1}% {}",
-                name_a,
-                name_b,
-                test.difference * 100.0,
-                sig
-            );
-        }
-    }
-    println!("\n* p<0.05, ** p<0.01");
-}
-
-// =============================================================================
-// Error Analysis Demo
-// =============================================================================
-
-fn error_analysis_demo(backends: &[Backend]) {
-    println!("\n=== Error Analysis Sample ===\n");
-
-    let sample_texts = vec![
-        "Dr. Sarah Johnson, CEO of Microsoft, announced the $5 billion deal in New York.",
-        "The meeting is scheduled for January 15, 2025 at 3:00 PM.",
-        "Contact john.doe@example.com or call +1-555-123-4567 for details.",
-    ];
-
-    // Create ground truth for sample
-    let sample_gold: Vec<(String, Vec<GoldEntity>)> = sample_texts
-        .iter()
-        .map(|&text| {
-            let mut entities = vec![];
-            // Add known entities (simplified for demo)
-            if text.contains("Sarah Johnson") {
-                entities.push(GoldEntity::new("Sarah Johnson", anno::EntityType::Person, 4));
-            }
-            if text.contains("Microsoft") {
-                entities.push(GoldEntity::new("Microsoft", anno::EntityType::Organization, 29));
-            }
-            if text.contains("New York") {
-                entities.push(GoldEntity::new("New York", anno::EntityType::Location, 71));
-            }
-            (text.to_string(), entities)
-        })
-        .collect();
-
-    // Pick one backend for demo
-    if let Some(backend) = backends.iter().find(|b| b.name == "StackedNER") {
-        let mut confusion = ConfusionMatrix::new();
-
-        for (text, gold) in &sample_gold {
-            if let Ok(predicted) = backend.model.extract_entities(text, None) {
-                let analysis = ErrorAnalysis::analyze(text, &predicted, gold);
-
-                // Build confusion matrix
-                for pred in &predicted {
-                    let pred_type = pred.entity_type.as_label();
-                    if let Some(g) = gold.iter().find(|g| {
-                        pred.start < g.end && pred.end > g.start
-                    }) {
-                        let gold_type = g.entity_type.as_label();
-                        confusion.add(pred_type, gold_type);
-                    }
-                }
-
-                if !analysis.errors.is_empty() {
-                    println!("Text: \"{}...\"", &text[..text.len().min(50)]);
-                    println!("{}", analysis.summary());
-                }
-            }
-        }
-
-        if !confusion.types().is_empty() {
-            println!("Confusion Matrix:\n{}", confusion);
-
-            let confused = confusion.most_confused(3);
-            if !confused.is_empty() {
-                println!("Most confused pairs:");
-                for (pred, actual, count) in confused {
-                    println!("  {} -> {} ({}x)", pred, actual, count);
-                }
-            }
-        }
-    }
-}
-
-// =============================================================================
-// Main
-// =============================================================================
+use anno::eval::backend_eval::{BackendEvaluator, EvalConfig};
 
 fn main() {
-    println!("NER Evaluation Suite");
-    println!("====================");
+    println!("═══════════════════════════════════════════════════════════════════");
+    println!("                     NER Backend Evaluation");
+    println!("═══════════════════════════════════════════════════════════════════\n");
 
-    let backends = create_backends();
-    println!("\nBackends: {}", backends.iter().map(|b| b.name).collect::<Vec<_>>().join(", "));
+    // =========================================================================
+    // 1. Quick evaluation on a subset of data
+    // =========================================================================
+    println!("1. Quick evaluation (50 examples)...\n");
 
-    // Synthetic evaluation (always runs)
-    let mut all_scores = evaluate_synthetic(&backends);
+    let config = EvalConfig {
+        include_pattern: true,
+        include_heuristic: true,
+        include_stacked: true,
+        include_gliner: true, // Requires --features onnx
+        max_examples: 50,
+        ..Default::default()
+    };
 
-    // Real dataset evaluation (requires network feature)
-    let real_scores = evaluate_real_datasets(&backends);
-    for (name, scores) in real_scores {
-        all_scores.entry(name).or_default().extend(scores);
+    let evaluator = BackendEvaluator::with_config(config);
+    let report = evaluator.run_comprehensive();
+
+    println!("Evaluated {} examples\n", report.total_examples);
+
+    // Print overall results
+    println!("┌─────────────────┬───────────┬────────┬────────┐");
+    println!("│ Backend         │ Precision │ Recall │ F1     │");
+    println!("├─────────────────┼───────────┼────────┼────────┤");
+    for backend in &report.backends {
+        println!(
+            "│ {:15} │ {:7.1}%  │ {:6.1}% │ {:6.1}% │",
+            backend.name,
+            backend.overall.precision * 100.0,
+            backend.overall.recall * 100.0,
+            backend.overall.f1 * 100.0,
+        );
+    }
+    println!("└─────────────────┴───────────┴────────┴────────┘\n");
+
+    // =========================================================================
+    // 2. Domain-specific evaluation
+    // =========================================================================
+    println!("2. Technology domain evaluation...\n");
+
+    let tech_evaluator = BackendEvaluator::with_config(EvalConfig {
+        include_pattern: true,
+        include_heuristic: false,
+        include_stacked: false,
+        ..Default::default()
+    });
+
+    let tech_report = tech_evaluator.run_technology();
+
+    if let Some(backend) = tech_report.backends.first() {
+        println!(
+            "Technology dataset ({} examples):",
+            tech_report.total_examples
+        );
+        println!("  Pattern NER F1: {:.1}%\n", backend.overall.f1 * 100.0);
     }
 
-    // Statistical analysis
-    significance_analysis(&all_scores);
+    // =========================================================================
+    // 3. Healthcare domain evaluation
+    // =========================================================================
+    println!("3. Healthcare domain evaluation...\n");
 
-    // Error analysis demo
-    error_analysis_demo(&backends);
+    let health_report = tech_evaluator.run_healthcare();
 
-    println!("\n=== Done ===");
+    if let Some(backend) = health_report.backends.first() {
+        println!(
+            "Healthcare dataset ({} examples):",
+            health_report.total_examples
+        );
+        println!("  Pattern NER F1: {:.1}%\n", backend.overall.f1 * 100.0);
+    }
+
+    // =========================================================================
+    // 4. Per-entity-type breakdown
+    // =========================================================================
+    println!("4. Per-entity-type breakdown...\n");
+
+    if let Some(backend) = report.backends.first() {
+        println!("Entity type performance for {}:", backend.name);
+
+        let mut types: Vec<_> = backend.by_entity_type.iter().collect();
+        types.sort_by(|a, b| b.1.f1.partial_cmp(&a.1.f1).unwrap());
+
+        for (entity_type, metrics) in types.iter().take(8) {
+            let bar = "█".repeat((metrics.f1 * 20.0) as usize);
+            println!("  {:12} {:5.1}% {}", entity_type, metrics.f1 * 100.0, bar);
+        }
+    }
+
+    println!("\n═══════════════════════════════════════════════════════════════════");
+    println!("                        Evaluation Complete");
+    println!("═══════════════════════════════════════════════════════════════════\n");
+
+    // =========================================================================
+    // 5. Generate reports
+    // =========================================================================
+    println!("Generating reports...\n");
+
+    // Markdown report
+    let md = report.to_markdown();
+    println!("Markdown report preview (first 500 chars):");
+    println!("─────────────────────────────────────────────");
+    println!("{}", &md[..md.len().min(500)]);
+    println!("─────────────────────────────────────────────\n");
+
+    // You can save reports to files:
+    // std::fs::write("eval_report.md", &md).unwrap();
+    // std::fs::write("eval_report.html", report.to_html()).unwrap();
+
+    println!("Done! To save full reports, uncomment the file writes in the example.");
 }
-

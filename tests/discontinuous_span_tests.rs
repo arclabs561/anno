@@ -148,10 +148,7 @@ fn test_entity_with_discontinuous_span() {
         .build();
 
     assert!(entity.is_discontinuous());
-    assert_eq!(
-        entity.discontinuous_segments(),
-        Some(vec![0..6, 15..19])
-    );
+    assert_eq!(entity.discontinuous_segments(), Some(vec![0..6, 15..19]));
     // start/end should be updated to bounding range
     assert_eq!(entity.start, 0);
     assert_eq!(entity.end, 19);
@@ -331,4 +328,79 @@ proptest! {
         prop_assert_eq!(is_disc, has_multiple,
             "is_discontinuous={} but num_segments={}", is_disc, span.num_segments());
     }
+}
+
+// =============================================================================
+// Mutation Testing Targets - Tests for previously missed mutants
+// =============================================================================
+
+#[test]
+fn test_discontinuous_span_to_span_contiguous() {
+    // Test that to_span() returns Some for contiguous spans
+    let contiguous = DiscontinuousSpan::contiguous(10, 20);
+    let span = contiguous.to_span();
+
+    assert!(
+        span.is_some(),
+        "Contiguous span should convert to Some(Span)"
+    );
+    let span = span.unwrap();
+    // Use text_offsets() to get the start/end
+    let offsets = span.text_offsets();
+    assert!(offsets.is_some(), "Text span should have offsets");
+    let (start, end) = offsets.unwrap();
+    assert_eq!(start, 10);
+    assert_eq!(end, 20);
+}
+
+#[test]
+fn test_discontinuous_span_to_span_discontinuous() {
+    // Test that to_span() returns Some for discontinuous spans (uses bounding range)
+    let disc = DiscontinuousSpan::new(vec![0..5, 10..15]);
+    let span = disc.to_span();
+
+    // For discontinuous spans, to_span() uses bounding_range, so it should still work
+    assert!(
+        span.is_some(),
+        "Discontinuous span should use bounding range"
+    );
+    let span = span.unwrap();
+    let offsets = span.text_offsets();
+    assert!(offsets.is_some(), "Text span should have offsets");
+    let (start, end) = offsets.unwrap();
+    assert_eq!(start, 0);
+    assert_eq!(end, 15);
+}
+
+#[test]
+fn test_span_is_empty() {
+    use anno::Span;
+
+    // Empty span (start == end)
+    let empty_span = Span::text(0, 0);
+    assert!(
+        empty_span.is_empty(),
+        "Span with start==end should be empty"
+    );
+
+    // Non-empty span
+    let non_empty = Span::text(0, 5);
+    assert!(
+        !non_empty.is_empty(),
+        "Span with start<end should not be empty"
+    );
+
+    // Visual span - bbox spans always return len() == 0, so is_empty() returns true
+    // This is by design: len() is for text spans, bbox spans use area/coordinates
+    let visual_span = Span::bbox(0.0, 0.0, 0.5, 0.5);
+    // Note: bbox spans return len() == 0, so is_empty() returns true
+    // This is expected behavior - bbox spans don't have a "length" concept
+    assert!(
+        visual_span.is_empty(),
+        "Bbox span len() returns 0, so is_empty() is true"
+    );
+
+    // Zero-area bbox
+    let empty_visual = Span::bbox(0.0, 0.0, 0.0, 0.0);
+    assert!(empty_visual.is_empty(), "Zero-area bbox should be empty");
 }

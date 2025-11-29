@@ -12,7 +12,13 @@ use anno::{Entity, EntityType, Model, PatternNER};
 
 #[test]
 fn test_partial_match_metrics_exact() {
-    let predicted = vec![Entity::new("January 15, 2025", EntityType::Date, 0, 16, 0.9)];
+    let predicted = vec![Entity::new(
+        "January 15, 2025",
+        EntityType::Date,
+        0,
+        16,
+        0.9,
+    )];
 
     let ground_truth = vec![GoldEntity::with_span(
         "January 15, 2025",

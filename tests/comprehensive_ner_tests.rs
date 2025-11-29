@@ -2,13 +2,13 @@
 //!
 //! This file contains extensive tests for all NER backends:
 //! - PatternNER: Format-based structured entity extraction
-//! - StatisticalNER: Heuristic-based named entity extraction  
+//! - HeuristicNER: Heuristic-based named entity extraction  
 //! - StackedNER: Combined Pattern + Statistical
 //! - StackedNER: Arbitrary backend composition with conflict strategies
 
 use anno::{
-    backends::stacked::ConflictStrategy,
-    Entity, EntityType, Model, PatternNER, StackedNER, StatisticalNER,
+    backends::stacked::ConflictStrategy, Entity, EntityType, HeuristicNER, Model, PatternNER,
+    StackedNER,
 };
 
 // =============================================================================
@@ -37,9 +37,7 @@ fn spans_valid(entities: &[Entity], text: &str) -> bool {
     // Use chars().skip().take() to extract the substring.
     let char_count = text.chars().count();
     entities.iter().all(|e| {
-        e.start <= e.end 
-        && e.end <= char_count
-        && {
+        e.start <= e.end && e.end <= char_count && {
             let extracted: String = text.chars().skip(e.start).take(e.end - e.start).collect();
             extracted == e.text
         }
@@ -75,7 +73,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Money Tests
     // -------------------------------------------------------------------------
-    
+
     mod money {
         use super::*;
 
@@ -158,7 +156,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Date Tests
     // -------------------------------------------------------------------------
-    
+
     mod dates {
         use super::*;
 
@@ -202,8 +200,18 @@ mod pattern_ner {
         #[test]
         fn all_months() {
             let months = [
-                "January", "February", "March", "April", "May", "June",
-                "July", "August", "September", "October", "November", "December"
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
             ];
             for month in months {
                 let text = format!("{} 1, 2024", month);
@@ -222,7 +230,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Time Tests
     // -------------------------------------------------------------------------
-    
+
     mod times {
         use super::*;
 
@@ -272,7 +280,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Percentage Tests
     // -------------------------------------------------------------------------
-    
+
     mod percentages {
         use super::*;
 
@@ -311,7 +319,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Email Tests
     // -------------------------------------------------------------------------
-    
+
     mod emails {
         use super::*;
 
@@ -350,7 +358,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // URL Tests
     // -------------------------------------------------------------------------
-    
+
     mod urls {
         use super::*;
 
@@ -394,7 +402,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Phone Tests
     // -------------------------------------------------------------------------
-    
+
     mod phones {
         use super::*;
 
@@ -438,7 +446,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Edge Cases
     // -------------------------------------------------------------------------
-    
+
     mod edge_cases {
         use super::*;
 
@@ -537,7 +545,7 @@ mod pattern_ner {
     // -------------------------------------------------------------------------
     // Provenance Tests
     // -------------------------------------------------------------------------
-    
+
     mod provenance {
         use super::*;
 
@@ -568,17 +576,17 @@ mod pattern_ner {
 // STATISTICAL NER TESTS
 // =============================================================================
 
-mod statistical_ner {
+mod heuristic_ner {
     use super::*;
 
     fn extract(text: &str) -> Vec<Entity> {
-        StatisticalNER::new().extract_entities(text, None).unwrap()
+        HeuristicNER::new().extract_entities(text, None).unwrap()
     }
 
     // -------------------------------------------------------------------------
     // Person Detection
     // -------------------------------------------------------------------------
-    
+
     mod persons {
         use super::*;
 
@@ -637,7 +645,7 @@ mod statistical_ner {
     // -------------------------------------------------------------------------
     // Organization Detection
     // -------------------------------------------------------------------------
-    
+
     mod organizations {
         use super::*;
 
@@ -690,7 +698,7 @@ mod statistical_ner {
     // -------------------------------------------------------------------------
     // Location Detection
     // -------------------------------------------------------------------------
-    
+
     mod locations {
         use super::*;
 
@@ -735,7 +743,7 @@ mod statistical_ner {
     // -------------------------------------------------------------------------
     // Edge Cases
     // -------------------------------------------------------------------------
-    
+
     mod edge_cases {
         use super::*;
 
@@ -755,9 +763,11 @@ mod statistical_ner {
         fn stop_words_filtered() {
             let e = extract("The And But Or");
             // Stop words should not be entities
-            assert!(e.is_empty() || e.iter().all(|e| 
-                !["The", "And", "But", "Or"].contains(&e.text.as_str())
-            ));
+            assert!(
+                e.is_empty()
+                    || e.iter()
+                        .all(|e| !["The", "And", "But", "Or"].contains(&e.text.as_str()))
+            );
         }
 
         #[test]
@@ -798,26 +808,26 @@ mod statistical_ner {
     // -------------------------------------------------------------------------
     // Threshold Tests
     // -------------------------------------------------------------------------
-    
+
     mod threshold {
         use super::*;
 
         #[test]
         fn high_threshold_fewer_entities() {
-            let low = StatisticalNER::with_threshold(0.3)
+            let low = HeuristicNER::with_threshold(0.3)
                 .extract_entities("John Smith at Apple in Paris", None)
                 .unwrap();
-            let high = StatisticalNER::with_threshold(0.9)
+            let high = HeuristicNER::with_threshold(0.9)
                 .extract_entities("John Smith at Apple in Paris", None)
                 .unwrap();
-            
+
             // Higher threshold should produce fewer or equal entities
             assert!(high.len() <= low.len());
         }
 
         #[test]
         fn zero_threshold_all_candidates() {
-            let e = StatisticalNER::with_threshold(0.0)
+            let e = HeuristicNER::with_threshold(0.0)
                 .extract_entities("Mr. Smith at Apple Inc. in Paris", None)
                 .unwrap();
             // Should find at least some entities
@@ -840,7 +850,7 @@ mod tiered_ner {
     // -------------------------------------------------------------------------
     // Layer Integration
     // -------------------------------------------------------------------------
-    
+
     mod layers {
         use super::*;
 
@@ -851,7 +861,7 @@ mod tiered_ner {
         }
 
         #[test]
-        fn statistical_layer_works() {
+        fn heuristic_layer_works() {
             let e = extract("Mr. Smith is here");
             assert!(has_type(&e, EntityType::Person));
         }
@@ -861,7 +871,7 @@ mod tiered_ner {
             let e = extract("Dr. Smith charges $200/hr");
             // Money should always be found by pattern layer
             assert!(has_type(&e, EntityType::Money));
-            // Person detection depends on statistical layer
+            // Person detection depends on heuristic layer
             // At least one entity should be found
             assert!(!e.is_empty());
         }
@@ -872,11 +882,13 @@ mod tiered_ner {
             // "January" should be part of date, not a person
             assert!(has_type(&e, EntityType::Date));
             // Should not have January as Person
-            assert!(!e.iter().any(|e| e.text == "January" && e.entity_type == EntityType::Person));
+            assert!(!e
+                .iter()
+                .any(|e| e.text == "January" && e.entity_type == EntityType::Person));
         }
 
         #[test]
-        fn statistical_fills_gaps() {
+        fn heuristic_fills_gaps() {
             let e = extract("$100 for John in Paris");
             assert!(has_type(&e, EntityType::Money));
             // May also find Person/Location
@@ -886,7 +898,7 @@ mod tiered_ner {
     // -------------------------------------------------------------------------
     // Complex Documents
     // -------------------------------------------------------------------------
-    
+
     mod documents {
         use super::*;
 
@@ -902,9 +914,9 @@ mod tiered_ner {
                 
                 The expansion is expected to increase revenue by 25%.
             "#;
-            
+
             let e = extract(text);
-            
+
             // Pattern entities
             assert!(has_type(&e, EntityType::Date));
             assert!(has_type(&e, EntityType::Money));
@@ -929,9 +941,9 @@ mod tiered_ner {
                 Dr. John Smith
                 Phone: (555) 987-6543
             "#;
-            
+
             let e = extract(text);
-            
+
             assert!(has_type(&e, EntityType::Email));
             assert!(has_type(&e, EntityType::Date));
             assert!(has_type(&e, EntityType::Time));
@@ -946,9 +958,9 @@ mod tiered_ner {
                 CEO Tim Cook said the company expects 15% growth next quarter.
                 The stock rose 5% in after-hours trading.
             "#;
-            
+
             let e = extract(text);
-            
+
             assert!(has_type(&e, EntityType::Money));
             assert!(has_type(&e, EntityType::Date));
             assert!(has_type(&e, EntityType::Percent));
@@ -959,7 +971,7 @@ mod tiered_ner {
     // -------------------------------------------------------------------------
     // Invariants
     // -------------------------------------------------------------------------
-    
+
     mod invariants {
         use super::*;
 
@@ -970,7 +982,7 @@ mod tiered_ner {
                 "Meeting on January 15, 2024 at 3pm with Mr. Jones",
                 "Contact: (555) 123-4567 or email@test.com",
             ];
-            
+
             for text in texts {
                 let e = extract(text);
                 assert!(no_overlaps(&e), "Overlaps in: {}", text);
@@ -985,11 +997,8 @@ mod tiered_ner {
 
         #[test]
         fn spans_valid() {
-            let texts = [
-                "Price: $100 USD",
-                "Contact: test@email.com",
-            ];
-            
+            let texts = ["Price: $100 USD", "Contact: test@email.com"];
+
             for text in texts {
                 let e = extract(text);
                 assert!(super::spans_valid(&e, text), "Invalid spans in: {}", text);
@@ -1000,12 +1009,8 @@ mod tiered_ner {
         fn pattern_only_spans_valid() {
             // Test pattern-only extraction for guaranteed valid spans
             let ner = StackedNER::pattern_only();
-            let texts = [
-                "Price: $100",
-                "Email: test@example.com",
-                "Date: 2024-01-15",
-            ];
-            
+            let texts = ["Price: $100", "Email: test@example.com", "Date: 2024-01-15"];
+
             for text in texts {
                 let e = ner.extract_entities(text, None).unwrap();
                 assert!(super::spans_valid(&e, text), "Invalid spans in: {}", text);
@@ -1028,7 +1033,7 @@ mod tiered_ner {
     // -------------------------------------------------------------------------
     // Configuration Tests
     // -------------------------------------------------------------------------
-    
+
     mod config {
         use super::*;
 
@@ -1036,18 +1041,19 @@ mod tiered_ner {
         fn pattern_only() {
             let ner = StackedNER::pattern_only();
             let e = ner.extract_entities("$100 for Dr. Smith", None).unwrap();
-            
+
             // Should find money
             assert!(has_type(&e, EntityType::Money));
-            // Should NOT find person (no statistical layer)
+            // Should NOT find person (no heuristic layer)
             assert!(!has_type(&e, EntityType::Person));
         }
 
         #[test]
+        #[allow(deprecated)]
         fn custom_threshold() {
-            let ner = StackedNER::with_statistical_threshold(0.9);
+            let ner = StackedNER::with_statistical_threshold(0.9); // deprecated
             let _e = ner.extract_entities("John Smith at Apple", None).unwrap();
-            // High threshold = fewer statistical entities
+            // High threshold = fewer heuristic entities
         }
     }
 }
@@ -1062,7 +1068,7 @@ mod layered_ner {
     // -------------------------------------------------------------------------
     // Builder Tests
     // -------------------------------------------------------------------------
-    
+
     mod builder {
         use super::*;
 
@@ -1075,10 +1081,8 @@ mod layered_ner {
 
         #[test]
         fn single_layer() {
-            let ner = StackedNER::builder()
-                .layer(PatternNER::new())
-                .build();
-            
+            let ner = StackedNER::builder().layer(PatternNER::new()).build();
+
             let e = ner.extract_entities("$100", None).unwrap();
             assert!(has_type(&e, EntityType::Money));
         }
@@ -1087,9 +1091,9 @@ mod layered_ner {
         fn two_layers() {
             let ner = StackedNER::builder()
                 .layer(PatternNER::new())
-                .layer(StatisticalNER::new())
+                .layer(HeuristicNER::new())
                 .build();
-            
+
             assert_eq!(ner.num_layers(), 2);
         }
 
@@ -1097,12 +1101,12 @@ mod layered_ner {
         fn layer_names() {
             let ner = StackedNER::builder()
                 .layer(PatternNER::new())
-                .layer(StatisticalNER::new())
+                .layer(HeuristicNER::new())
                 .build();
-            
+
             let names = ner.layer_names();
             assert!(names.contains(&"pattern"));
-            assert!(names.contains(&"statistical"));
+            assert!(names.contains(&"heuristic"));
         }
 
         #[test]
@@ -1111,7 +1115,7 @@ mod layered_ner {
                 .layer(PatternNER::new())
                 .strategy(ConflictStrategy::LongestSpan)
                 .build();
-            
+
             assert!(matches!(ner.strategy(), ConflictStrategy::LongestSpan));
         }
     }
@@ -1119,10 +1123,10 @@ mod layered_ner {
     // -------------------------------------------------------------------------
     // Conflict Strategy Tests
     // -------------------------------------------------------------------------
-    
+
     mod conflict_strategies {
         use super::*;
-        use anno::{Entity, EntityType, MockModel, HierarchicalConfidence, Span};
+        use anno::{Entity, EntityType, HierarchicalConfidence, MockModel, Span};
 
         fn mock_model(name: &'static str, entities: Vec<Entity>) -> MockModel {
             MockModel::new(name).with_entities(entities)
@@ -1142,17 +1146,22 @@ mod layered_ner {
                 hierarchical_confidence: None::<HierarchicalConfidence>,
                 visual_span: None::<Span>,
                 discontinuous_span: None,
+                valid_from: None,
+                valid_until: None,
+                viewport: None,
             }
         }
 
         #[test]
         fn priority_first_wins() {
-            let layer1 = mock_model("l1", vec![
-                mock_entity("New York", 0, EntityType::Location, 0.8),
-            ]);
-            let layer2 = mock_model("l2", vec![
-                mock_entity("New York City", 0, EntityType::Location, 0.9),
-            ]);
+            let layer1 = mock_model(
+                "l1",
+                vec![mock_entity("New York", 0, EntityType::Location, 0.8)],
+            );
+            let layer2 = mock_model(
+                "l2",
+                vec![mock_entity("New York City", 0, EntityType::Location, 0.9)],
+            );
 
             let ner = StackedNER::builder()
                 .layer(layer1)
@@ -1167,12 +1176,14 @@ mod layered_ner {
 
         #[test]
         fn longest_span_wins() {
-            let layer1 = mock_model("l1", vec![
-                mock_entity("New York", 0, EntityType::Location, 0.8),
-            ]);
-            let layer2 = mock_model("l2", vec![
-                mock_entity("New York City", 0, EntityType::Location, 0.7),
-            ]);
+            let layer1 = mock_model(
+                "l1",
+                vec![mock_entity("New York", 0, EntityType::Location, 0.8)],
+            );
+            let layer2 = mock_model(
+                "l2",
+                vec![mock_entity("New York City", 0, EntityType::Location, 0.7)],
+            );
 
             let ner = StackedNER::builder()
                 .layer(layer1)
@@ -1187,12 +1198,14 @@ mod layered_ner {
 
         #[test]
         fn highest_confidence_wins() {
-            let layer1 = mock_model("l1", vec![
-                mock_entity("Apple", 0, EntityType::Organization, 0.6),
-            ]);
-            let layer2 = mock_model("l2", vec![
-                mock_entity("Apple", 0, EntityType::Organization, 0.95),
-            ]);
+            let layer1 = mock_model(
+                "l1",
+                vec![mock_entity("Apple", 0, EntityType::Organization, 0.6)],
+            );
+            let layer2 = mock_model(
+                "l2",
+                vec![mock_entity("Apple", 0, EntityType::Organization, 0.95)],
+            );
 
             let ner = StackedNER::builder()
                 .layer(layer1)
@@ -1207,12 +1220,8 @@ mod layered_ner {
 
         #[test]
         fn union_keeps_all() {
-            let layer1 = mock_model("l1", vec![
-                mock_entity("John", 0, EntityType::Person, 0.8),
-            ]);
-            let layer2 = mock_model("l2", vec![
-                mock_entity("John", 0, EntityType::Person, 0.9),
-            ]);
+            let layer1 = mock_model("l1", vec![mock_entity("John", 0, EntityType::Person, 0.8)]);
+            let layer2 = mock_model("l2", vec![mock_entity("John", 0, EntityType::Person, 0.9)]);
 
             let ner = StackedNER::builder()
                 .layer(layer1)
@@ -1233,8 +1242,14 @@ mod layered_ner {
                 ConflictStrategy::HighestConf,
             ] {
                 let ner = StackedNER::builder()
-                    .layer(mock_model("l1", vec![mock_entity("John", 0, EntityType::Person, 0.8)]))
-                    .layer(mock_model("l2", vec![mock_entity("Paris", 8, EntityType::Location, 0.9)]))
+                    .layer(mock_model(
+                        "l1",
+                        vec![mock_entity("John", 0, EntityType::Person, 0.8)],
+                    ))
+                    .layer(mock_model(
+                        "l2",
+                        vec![mock_entity("Paris", 8, EntityType::Location, 0.9)],
+                    ))
                     .strategy(strategy)
                     .build();
 
@@ -1245,15 +1260,18 @@ mod layered_ner {
 
         #[test]
         fn three_layer_cascade() {
-            let layer1 = mock_model("pattern", vec![
-                mock_entity("$100", 0, EntityType::Money, 0.95),
-            ]);
-            let layer2 = mock_model("statistical", vec![
-                mock_entity("John", 9, EntityType::Person, 0.7),
-            ]);
-            let layer3 = mock_model("ml", vec![
-                mock_entity("John Smith", 9, EntityType::Person, 0.9),
-            ]);
+            let layer1 = mock_model(
+                "pattern",
+                vec![mock_entity("$100", 0, EntityType::Money, 0.95)],
+            );
+            let layer2 = mock_model(
+                "heuristic",
+                vec![mock_entity("John", 9, EntityType::Person, 0.7)],
+            );
+            let layer3 = mock_model(
+                "ml",
+                vec![mock_entity("John Smith", 9, EntityType::Person, 0.9)],
+            );
 
             let ner = StackedNER::builder()
                 .layer(layer1)
@@ -1280,7 +1298,7 @@ mod integration {
     #[test]
     fn all_backends_available() {
         assert!(PatternNER::new().is_available());
-        assert!(StatisticalNER::new().is_available());
+        assert!(HeuristicNER::new().is_available());
         assert!(StackedNER::new().is_available());
     }
 
@@ -1288,7 +1306,7 @@ mod integration {
     fn model_trait_consistency() {
         let backends: Vec<Box<dyn Model>> = vec![
             Box::new(PatternNER::new()),
-            Box::new(StatisticalNER::new()),
+            Box::new(HeuristicNER::new()),
             Box::new(StackedNER::new()),
         ];
 
@@ -1297,7 +1315,7 @@ mod integration {
             assert!(!backend.name().is_empty());
             assert!(!backend.description().is_empty());
             assert!(!backend.supported_types().is_empty());
-            
+
             // Should not panic on empty input
             let _ = backend.extract_entities("", None);
         }
@@ -1306,9 +1324,9 @@ mod integration {
     #[test]
     fn consistent_output_format() {
         let text = "$100 for Dr. Smith in Paris";
-        
+
         let pattern_e = PatternNER::new().extract_entities(text, None).unwrap();
-        let stat_e = StatisticalNER::new().extract_entities(text, None).unwrap();
+        let stat_e = HeuristicNER::new().extract_entities(text, None).unwrap();
         let tiered_e = StackedNER::new().extract_entities(text, None).unwrap();
 
         // All should produce valid entities
@@ -1325,10 +1343,10 @@ mod integration {
     fn deterministic_output() {
         let text = "Meeting on 2024-01-15 at 3:00 PM with Dr. Smith about $500";
         let ner = StackedNER::new();
-        
+
         let e1 = ner.extract_entities(text, None).unwrap();
         let e2 = ner.extract_entities(text, None).unwrap();
-        
+
         // Same input = same output
         assert_eq!(e1.len(), e2.len());
         for (a, b) in e1.iter().zip(e2.iter()) {
@@ -1356,8 +1374,8 @@ mod proptests {
         }
 
         #[test]
-        fn statistical_never_panics(text in ".*") {
-            let _ = StatisticalNER::new().extract_entities(&text, None);
+        fn heuristic_never_panics(text in ".*") {
+            let _ = HeuristicNER::new().extract_entities(&text, None);
         }
 
         #[test]
@@ -1402,4 +1420,3 @@ mod proptests {
         }
     }
 }
-

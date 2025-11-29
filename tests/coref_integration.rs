@@ -27,7 +27,11 @@ fn test_resolver_produces_evaluable_chains() {
     let chains = resolver.resolve_to_chains(&entities);
 
     // Should have 2 chains: John cluster and Apple cluster
-    assert!(chains.len() >= 2, "Expected at least 2 chains, got {}", chains.len());
+    assert!(
+        chains.len() >= 2,
+        "Expected at least 2 chains, got {}",
+        chains.len()
+    );
 
     // The John chain should have 3 mentions
     let john_chain = chains
@@ -35,7 +39,10 @@ fn test_resolver_produces_evaluable_chains() {
         .find(|c| c.mentions.iter().any(|m| m.text == "John Smith"))
         .expect("Should have a John Smith chain");
 
-    assert!(john_chain.len() >= 2, "John chain should have at least 2 mentions");
+    assert!(
+        john_chain.len() >= 2,
+        "John chain should have at least 2 mentions"
+    );
 }
 
 #[test]
@@ -76,7 +83,10 @@ fn test_resolver_metrics_integration() {
     assert!((0.0..=1.0).contains(&muc_p), "MUC precision out of range");
     assert!((0.0..=1.0).contains(&muc_r), "MUC recall out of range");
     assert!((0.0..=1.0).contains(&b3_p), "B3 precision out of range");
-    assert!((0.0..=1.0).contains(&conll_f1_score), "CoNLL F1 out of range");
+    assert!(
+        (0.0..=1.0).contains(&conll_f1_score),
+        "CoNLL F1 out of range"
+    );
 
     // With our simple resolver, we should get decent scores on this easy case
     // Note: The resolver groups by entity type + name matching
@@ -221,8 +231,10 @@ fn test_config_affects_resolution() {
     let lenient_chains = lenient_resolver.resolve_to_chains(&entities);
 
     // Lenient should merge (fuzzy matching on), strict might not
-    let lenient_non_singletons: Vec<_> =
-        lenient_chains.iter().filter(|c| !c.is_singleton()).collect();
+    let lenient_non_singletons: Vec<_> = lenient_chains
+        .iter()
+        .filter(|c| !c.is_singleton())
+        .collect();
     let strict_non_singletons: Vec<_> =
         strict_chains.iter().filter(|c| !c.is_singleton()).collect();
 
@@ -240,9 +252,7 @@ fn test_config_affects_resolution() {
 #[test]
 fn test_pronoun_without_antecedent() {
     // Pronoun with no preceding entity should become a singleton
-    let entities = vec![
-        Entity::new("he", EntityType::Person, 0, 2, 0.8),
-    ];
+    let entities = vec![Entity::new("he", EntityType::Person, 0, 2, 0.8)];
 
     let resolver = SimpleCorefResolver::default();
     let chains = resolver.resolve_to_chains(&entities);
@@ -306,10 +316,10 @@ fn test_already_resolved_entities() {
     // Entities that already have canonical_id should keep it
     let mut entity1 = Entity::new("John", EntityType::Person, 0, 4, 0.9);
     entity1.canonical_id = Some(999);
-    
+
     let mut entity2 = Entity::new("John", EntityType::Person, 20, 24, 0.9);
     entity2.canonical_id = Some(999);
-    
+
     let entity3 = Entity::new("John", EntityType::Person, 40, 44, 0.9);
 
     let entities = vec![entity1, entity2, entity3];
@@ -419,6 +429,8 @@ fn test_all_singletons_produces_valid_metrics() {
     let (muc_p, muc_r, muc_f1) = muc_score(&pred_chains, &gold_chains);
 
     // MUC on all singletons is degenerate (0/0), but should not panic
-    println!("All singletons: MUC P={:.2} R={:.2} F1={:.2}", muc_p, muc_r, muc_f1);
+    println!(
+        "All singletons: MUC P={:.2} R={:.2} F1={:.2}",
+        muc_p, muc_r, muc_f1
+    );
 }
-

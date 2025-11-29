@@ -5,11 +5,11 @@
 //! and should provide:
 //!
 //! - PatternNER (dates, money, email, phone, etc.)
-//! - StatisticalNER (basic named entity heuristics)
+//! - HeuristicNER (basic named entity heuristics)
 //! - StackedNER (combination of the above)
 //! - Basic eval module (always compiled, not feature-gated)
 
-use anno::{Entity, EntityType, Model, PatternNER, StackedNER, StatisticalNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
 
 // =============================================================================
 // PatternNER (always available)
@@ -58,9 +58,7 @@ fn test_pattern_ner_email() {
 #[test]
 fn test_pattern_ner_phone() {
     let model = PatternNER::new();
-    let entities = model
-        .extract_entities("Call 555-123-4567", None)
-        .unwrap();
+    let entities = model.extract_entities("Call 555-123-4567", None).unwrap();
 
     assert!(!entities.is_empty(), "Should find phone");
     assert!(
@@ -90,7 +88,9 @@ fn test_pattern_ner_percent() {
 
     assert!(!entities.is_empty(), "Should find percent");
     assert!(
-        entities.iter().any(|e| e.entity_type == EntityType::Percent),
+        entities
+            .iter()
+            .any(|e| e.entity_type == EntityType::Percent),
         "Should find PERCENT type"
     );
 }
@@ -122,24 +122,24 @@ fn test_pattern_ner_multiple_entities() {
 }
 
 // =============================================================================
-// StatisticalNER (always available)
+// HeuristicNER (always available)
 // =============================================================================
 
 #[test]
 fn test_statistical_ner_basic() {
-    let model = StatisticalNER::new();
+    let model = HeuristicNER::new();
     let entities = model
         .extract_entities("John Smith works at Apple Inc", None)
         .unwrap();
 
-    // StatisticalNER uses heuristics, may or may not find entities
+    // HeuristicNER uses heuristics, may or may not find entities
     // but should not panic - just verify it returned successfully
     let _ = entities;
 }
 
 #[test]
 fn test_statistical_ner_name() {
-    let model = StatisticalNER::new();
+    let model = HeuristicNER::new();
     let name = model.name();
     assert!(!name.is_empty());
 }
@@ -217,7 +217,7 @@ fn test_entity_type_label() {
 fn test_model_trait_name() {
     let pattern = PatternNER::new();
     let stacked = StackedNER::default();
-    let statistical = StatisticalNER::new();
+    let statistical = HeuristicNER::new();
 
     assert!(!pattern.name().is_empty());
     assert!(!stacked.name().is_empty());
@@ -266,9 +266,7 @@ fn test_no_entities() {
 fn test_unicode_text() {
     let model = PatternNER::new();
     // Should handle unicode without panicking
-    let entities = model
-        .extract_entities("会议在 $500 的价格", None)
-        .unwrap();
+    let entities = model.extract_entities("会议在 $500 的价格", None).unwrap();
     // May or may not find entities, but should not panic
     let _ = entities;
 }
@@ -307,5 +305,3 @@ fn test_bio_adapter_available() {
     let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
     assert_eq!(entities.len(), 1);
 }
-
-

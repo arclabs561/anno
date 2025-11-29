@@ -3,8 +3,8 @@
 //! Tests JSON roundtrip, schema stability, and format compatibility.
 
 use anno::{
-    Entity, EntityCategory, EntityType, ExtractionMethod, HierarchicalConfidence, Model, PatternNER,
-    Provenance, Span, StackedNER,
+    Entity, EntityCategory, EntityType, ExtractionMethod, HierarchicalConfidence, Model,
+    PatternNER, Provenance, Span, StackedNER,
 };
 
 // =============================================================================
@@ -35,6 +35,9 @@ mod entity_serde {
             hierarchical_confidence: Some(HierarchicalConfidence::new(0.9, 0.95, 0.92)),
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -65,7 +68,7 @@ mod entity_serde {
         let original = sample_entity();
         let json = serde_json::to_string(&original).unwrap();
         let restored: Entity = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(original.text, restored.text);
         assert_eq!(original.entity_type, restored.entity_type);
         assert_eq!(original.start, restored.start);
@@ -101,7 +104,7 @@ mod entity_serde {
             Entity::new("John", EntityType::Person, 0, 4, 0.9),
             Entity::new("$100", EntityType::Money, 10, 14, 0.95),
         ];
-        
+
         let json = serde_json::to_string(&entities).unwrap();
         let restored: Vec<Entity> = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.len(), 2);
@@ -129,7 +132,7 @@ mod entity_type_serde {
             EntityType::Url,
             EntityType::Phone,
         ];
-        
+
         for ty in types {
             let json = serde_json::to_string(&ty).unwrap();
             let restored: EntityType = serde_json::from_str(&json).unwrap();
@@ -139,7 +142,7 @@ mod entity_type_serde {
 
     #[test]
     fn custom_type() {
-        let ty = EntityType::Custom { 
+        let ty = EntityType::Custom {
             name: "ProductCode".to_string(),
             category: EntityCategory::Misc,
         };
@@ -177,7 +180,7 @@ mod provenance_serde {
 
         let json = serde_json::to_string(&prov).unwrap();
         let restored: Provenance = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(prov.source, restored.source);
     }
 
@@ -198,7 +201,7 @@ mod provenance_serde {
             ExtractionMethod::Ensemble,
             ExtractionMethod::Lexicon,
         ];
-        
+
         for method in methods {
             let json = serde_json::to_string(&method).unwrap();
             let restored: ExtractionMethod = serde_json::from_str(&json).unwrap();
@@ -219,7 +222,7 @@ mod confidence_serde {
         let conf = HierarchicalConfidence::new(0.9, 0.85, 0.88);
         let json = serde_json::to_string(&conf).unwrap();
         let restored: HierarchicalConfidence = serde_json::from_str(&json).unwrap();
-        
+
         assert!((conf.combined() - restored.combined()).abs() < 0.001);
     }
 }
@@ -267,10 +270,10 @@ mod extraction_results_serde {
         let entities = ner
             .extract_entities("Cost: $100 on 2024-01-15", None)
             .unwrap();
-        
+
         let json = serde_json::to_string(&entities).unwrap();
         let restored: Vec<Entity> = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(entities.len(), restored.len());
         for (orig, rest) in entities.iter().zip(restored.iter()) {
             assert_eq!(orig.text, rest.text);
@@ -291,10 +294,10 @@ mod extraction_results_serde {
         let ner = StackedNER::new();
         let text = "Dr. Smith charges $200/hr. Contact: smith@test.com";
         let entities = ner.extract_entities(text, None).unwrap();
-        
+
         let json = serde_json::to_string_pretty(&entities).unwrap();
         let restored: Vec<Entity> = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(entities.len(), restored.len());
     }
 }
@@ -338,4 +341,3 @@ mod schema_compatibility {
         assert!(entity.normalized.is_none());
     }
 }
-

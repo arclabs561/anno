@@ -9,7 +9,7 @@
 //!
 //! Run: cargo run --features "onnx" --example models
 
-use anno::{Model, PatternNER, StatisticalNER, StackedNER};
+use anno::{HeuristicNER, Model, PatternNER, StackedNER};
 use std::time::Instant;
 
 #[cfg(feature = "onnx")]
@@ -20,7 +20,7 @@ fn main() -> anno::Result<()> {
     println!("=========================\n");
 
     let test_texts = [
-        "Elon Musk founded SpaceX in 2002 and later acquired Twitter for $44 billion.",
+        "Marie Curie won Nobel Prizes in 1903 and 1911 for physics and chemistry.",
         "Dr. Sarah Chen at MIT published groundbreaking research on CRISPR gene editing.",
         "The Treaty of Versailles was signed on June 28, 1919 at the Palace of Versailles.",
         "Amazon's AWS revenue reached $80 billion, surpassing Microsoft Azure.",
@@ -37,8 +37,8 @@ fn main() -> anno::Result<()> {
     run_model_test(&pattern, &test_texts[0..2]);
 
     // Statistical NER
-    println!("[StatisticalNER]");
-    let statistical = StatisticalNER::new();
+    println!("[HeuristicNER]");
+    let statistical = HeuristicNER::new();
     run_model_test(&statistical, &test_texts[0..2]);
 
     // Stacked NER
@@ -145,10 +145,15 @@ fn main() -> anno::Result<()> {
         println!("\nPART 4: Performance Comparison");
         println!("-------------------------------\n");
 
-        let benchmark_text = "Apple Inc. CEO Tim Cook announced new products at the Cupertino headquarters.";
+        let benchmark_text =
+            "Apple Inc. CEO Tim Cook announced new products at the Cupertino headquarters.";
         let iterations = 10;
 
-        println!("Benchmark: {} iterations on text ({} chars)\n", iterations, benchmark_text.len());
+        println!(
+            "Benchmark: {} iterations on text ({} chars)\n",
+            iterations,
+            benchmark_text.len()
+        );
 
         // Pattern NER
         let pattern = PatternNER::new();
@@ -157,16 +162,22 @@ fn main() -> anno::Result<()> {
             let _ = pattern.extract_entities(benchmark_text, None);
         }
         let pattern_time = start.elapsed();
-        println!("  PatternNER:     {:>6.2}ms avg", pattern_time.as_secs_f64() * 1000.0 / iterations as f64);
+        println!(
+            "  PatternNER:     {:>6.2}ms avg",
+            pattern_time.as_secs_f64() * 1000.0 / iterations as f64
+        );
 
         // Statistical NER
-        let statistical = StatisticalNER::new();
+        let statistical = HeuristicNER::new();
         let start = Instant::now();
         for _ in 0..iterations {
             let _ = statistical.extract_entities(benchmark_text, None);
         }
         let stat_time = start.elapsed();
-        println!("  StatisticalNER: {:>6.2}ms avg", stat_time.as_secs_f64() * 1000.0 / iterations as f64);
+        println!(
+            "  HeuristicNER: {:>6.2}ms avg",
+            stat_time.as_secs_f64() * 1000.0 / iterations as f64
+        );
 
         // Stacked NER
         let stacked = StackedNER::default();
@@ -175,7 +186,10 @@ fn main() -> anno::Result<()> {
             let _ = stacked.extract_entities(benchmark_text, None);
         }
         let stacked_time = start.elapsed();
-        println!("  StackedNER:     {:>6.2}ms avg", stacked_time.as_secs_f64() * 1000.0 / iterations as f64);
+        println!(
+            "  StackedNER:     {:>6.2}ms avg",
+            stacked_time.as_secs_f64() * 1000.0 / iterations as f64
+        );
 
         // BERT NER
         if let Ok(bert) = BertNEROnnx::new("protectai/bert-base-NER-onnx") {
@@ -184,7 +198,10 @@ fn main() -> anno::Result<()> {
                 let _ = bert.extract_entities(benchmark_text, None);
             }
             let bert_time = start.elapsed();
-            println!("  BertNER-ONNX:   {:>6.2}ms avg", bert_time.as_secs_f64() * 1000.0 / iterations as f64);
+            println!(
+                "  BertNER-ONNX:   {:>6.2}ms avg",
+                bert_time.as_secs_f64() * 1000.0 / iterations as f64
+            );
         }
 
         // GLiNER
@@ -195,7 +212,10 @@ fn main() -> anno::Result<()> {
                 let _ = gliner.extract(benchmark_text, &labels, 0.5);
             }
             let gliner_time = start.elapsed();
-            println!("  GLiNER-ONNX:    {:>6.2}ms avg", gliner_time.as_secs_f64() * 1000.0 / iterations as f64);
+            println!(
+                "  GLiNER-ONNX:    {:>6.2}ms avg",
+                gliner_time.as_secs_f64() * 1000.0 / iterations as f64
+            );
         }
     }
 
@@ -208,8 +228,8 @@ fn main() -> anno::Result<()> {
         println!("  {}", t.as_label());
     }
 
-    println!("\n[StatisticalNER Types]");
-    for t in StatisticalNER::new().supported_types() {
+    println!("\n[HeuristicNER Types]");
+    for t in HeuristicNER::new().supported_types() {
         println!("  {}", t.as_label());
     }
 
@@ -236,7 +256,7 @@ fn main() -> anno::Result<()> {
 
     println!("Available backends:");
     println!("  [x] PatternNER     - Regex patterns (dates, emails, money, etc.)");
-    println!("  [x] StatisticalNER - Capitalization heuristics (PER, ORG, LOC)");
+    println!("  [x] HeuristicNER - Capitalization heuristics (PER, ORG, LOC)");
     println!("  [x] StackedNER     - Combined Pattern + Statistical");
     #[cfg(feature = "onnx")]
     println!("  [x] BertNER-ONNX   - BERT fine-tuned for NER");
@@ -296,4 +316,3 @@ fn run_zero_shot_test(model: &GLiNEROnnx, text: &str, types: &[&str]) {
     }
     println!();
 }
-

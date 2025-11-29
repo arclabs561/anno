@@ -203,10 +203,7 @@ fn test_per_type_metrics() {
         .unwrap();
 
     // Should have per-type breakdown
-    assert!(
-        !metrics.per_type.is_empty(),
-        "Should have per-type metrics"
-    );
+    assert!(!metrics.per_type.is_empty(), "Should have per-type metrics");
 
     // Check that we have metrics for the types we expected
     // (PatternNER should detect these types)
@@ -225,7 +222,7 @@ fn test_mixed_predictions() {
     // PatternNER will find $100 but not "John" (requires ML)
     let text = "John paid $100";
     let ground_truth = vec![
-        GoldEntity::with_span("John", EntityType::Person, 0, 4),  // Won't be found
+        GoldEntity::with_span("John", EntityType::Person, 0, 4), // Won't be found
         GoldEntity::with_span("$100", EntityType::Money, 10, 14), // Will be found
     ];
 

@@ -1,8 +1,6 @@
-# anno - Scope
+# Scope
 
-NER for Rust. Also: coreference metrics, relation traits.
-
-Task hierarchy:
+This crate does named entity recognition and related tasks. The hierarchy of what's implemented:
 
 ```
                     Knowledge Graphs
@@ -16,149 +14,110 @@ Task hierarchy:
                    Pattern Matching
 ```
 
-## Scope
+### What's implemented
 
-### Core Tasks (Implemented or In-Progress)
+| Task | Status |
+|------|--------|
+| Span detection + entity typing | Mature. Multiple backends. |
+| Pattern extraction (dates, money, etc.) | Mature. Regex-based. |
+| Coreference metrics | Stable. MUC, B³, CEAF, LEA, BLANC. |
+| Coreference resolution | Basic rule-based resolver. |
+| Discontinuous NER | Stable. W2NER-style grid decoding. |
+| Relation extraction | Traits defined, no models. |
 
-| Task | Status | Description |
-|------|--------|-------------|
-| **NER** | Mature | Extract entity mentions with type labels |
-| **Pattern Extraction** | Mature | Regex-based structured entities (dates, money, emails) |
-| **Coreference** | Metrics + Resolver | Link mentions to same real-world entity |
-| **Relation Extraction** | Traits only | Extract (head, relation, tail) triples |
-| **Discontinuous NER** | Stable | Handle non-contiguous spans (W2NER) |
+### What's not implemented
 
-### Future Tasks (Designed but not implemented)
+Event extraction, knowledge graph construction, nested NER (overlapping spans), and document-level coreference are out of scope for now.
 
-| Task | Description |
-|------|-------------|
-| **Event Extraction** | Triggers + arguments for event types |
-| **Knowledge Graphs** | Populate and query graph structures |
-| **Multi-modal NER** | Entity extraction from images/documents |
-| **Temporal NER** | Time expressions and temporal reasoning |
-| **Nested NER** | Overlapping entity spans |
-
-## Architecture
-
-### Trait Hierarchy
+### Trait hierarchy
 
 ```rust
-// Base: Text → Spans
+// Base trait - all backends implement this
 trait Model {
     fn extract_entities(&self, text: &str, lang: Option<&str>) -> Result<Vec<Entity>>;
 }
 
-// Zero-shot: Custom labels at runtime
+// Zero-shot: entity types specified at runtime
 trait ZeroShotNER: Model {
     fn extract_with_labels(&self, text: &str, labels: &[&str], threshold: f32) -> Result<Vec<Entity>>;
 }
 
-// Relation extraction
+// Relation extraction: joint entity + relation
 trait RelationExtractor: Model {
     fn extract_with_relations(&self, text: &str) -> Result<ExtractionWithRelations>;
 }
 
-// Coreference
+// Coreference: mention clustering
 trait CoreferenceResolver {
     fn resolve(&self, text: &str) -> Result<Vec<CorefChain>>;
 }
 
-// Discontinuous spans
+// Discontinuous spans (W2NER-style)
 trait DiscontinuousNER {
     fn extract_discontinuous(&self, text: &str, labels: &[&str]) -> Result<Vec<DiscontinuousEntity>>;
 }
-
-// Lexicon/Gazetteer (exact match)
-trait Lexicon {
-    fn lookup(&self, text: &str) -> Option<(EntityType, f64)>;
-    fn source(&self) -> &str;
-}
 ```
 
-### Knowledge Sources
+### Backend philosophy
 
-| Source | Purpose | When to Use |
-|--------|---------|-------------|
-| **TypeMapper** | Label normalization | Domain-specific datasets |
-| **Lexicon** | Exact entity lookup | Closed domains |
-| **SemanticRegistry** | Embedding-based lookup | Zero-shot NER |
+1. **Zero-dependency default**: `PatternNER` and `StackedNER` require no model downloads.
+2. **ONNX for production**: Cross-platform, widely tested, good performance.
+3. **Candle for pure Rust**: Metal/CUDA without Python dependencies.
 
-### Backend Philosophy
+### Research basis
 
-1. **Zero-dependency baseline**: Always works, no external models
-2. **ONNX for production**: Widely tested, cross-platform
-3. **Candle for pure Rust**: Metal/CUDA without Python
+| Paper | What we use |
+|-------|-------------|
+| GLiNER | Bi-encoder for zero-shot span classification |
+| W2NER | Word-word grid for discontinuous spans |
+| UniversalNER | Cross-domain type normalization |
 
-### Evaluation Philosophy
+### Ecosystem positioning
 
-1. **Task-specific metrics**: F1 for NER, MUC/B³/CEAF for coref
-2. **Multiple modes**: Strict, Exact, Partial, Type-only
-3. **Real datasets**: CoNLL-2003, WikiGold, WNUT-17, GAP, etc.
-4. **Stratified sampling**: Proportional entity type coverage
+Other Rust NER libraries:
+- [rust-bert](https://github.com/guillaume-be/rust-bert): Full transformer implementations via tch-rs, many NLP tasks
+- [gline-rs](https://github.com/fbilhaut/gline-rs): Focused GLiNER inference with detailed pipeline documentation
 
-## Research
+This library's niche:
+- Unified trait across regex/heuristics/ML (swap backends without code changes)
+- Zero-dependency baselines for fast iteration
+- Evaluation framework (unique in Rust NER)
+- Coreference metrics (MUC, B³, CEAF, LEA)
 
-| Paper | Concept | Implementation |
-|-------|---------|----------------|
-| GLiNER | Bi-encoder | `ZeroShotNER` |
-| W2NER | Word-word | `DiscontinuousNER` |
-| ModernBERT | RoPE | `TextEncoder` |
-| UniversalNER | Cross-domain | `TypeMapper` |
+The ONNX backends are integration work, not novel implementations.
 
-## Non-Goals
+### Non-goals
 
-- **Training**: We're inference-only. Use Python/JAX for training.
+- **Training**: This is inference-only. Train your models in Python.
 - **Tokenization**: We use HuggingFace tokenizers, not custom implementations.
-- **Document parsing**: PDF/HTML extraction is out of scope. Feed us text.
-- **LLM orchestration**: We don't wrap GPT-4 for extraction. Use dedicated tools.
+- **Document parsing**: Feed us text, not PDFs or HTML.
 
-## Maturity Levels
+### Maturity levels
 
-| Level | Meaning | Examples |
-|-------|---------|----------|
-| **Mature** | Battle-tested, stable API | PatternNER, StatisticalNER, StackedNER, Evaluation framework |
-| **Stable** | Works, API may evolve | GLiNER, NuNER, W2NER, Coref metrics+resolver, BIO adapter, TypeMapper |
-| **Experimental** | Functional, limited testing | Candle backend, LLM prompting, Demonstration selection |
-| **Stub** | Traits/types only | RelationExtractor (traits), Event Extraction (types) |
+| Level | Meaning |
+|-------|---------|
+| Mature | Stable API, well tested |
+| Stable | Works, API may evolve |
+| Experimental | Limited testing |
+| Stub | Types/traits only |
 
-## Roadmap
+**Mature**: PatternNER, StackedNER, evaluation framework.  
+**Stable**: GLiNER, NuNER, W2NER, coref metrics, BIO adapter.  
+**Experimental**: Candle backend, LLM prompting.  
+**Stub**: RelationExtractor trait.
 
-### v0.2 (Current - Released)
-- [x] W2NER decoder implementation (ONNX backend with from_pretrained, grid decoding)
-- [x] NuNER zero-shot token NER (ONNX backend with BIO decoding)
-- [x] GLiNER span-based zero-shot NER (ONNX backend)
-- [x] Coreference metrics (MUC, B³, CEAF-e/m, LEA, BLANC, CoNLL F1)
-- [x] Rule-based coreference resolver (gender-aware, neopronoun support)
-- [x] LLM prompting for NER (CodeNER-style prompts)
-- [x] CMAS demonstration selection for few-shot learning
-- [x] Improved synthetic dataset (115+ examples with strict offset validation)
-- [x] Stratified evaluation harness with TypeMapper support
-- [x] TypeMapper for domain-specific dataset normalization
-- [x] 5 new datasets (FewNERD, CrossNER, UniversalNER, DocRED, Re-TACRED)
-- [x] Lexicon trait and HashMapLexicon implementation
-- [x] ExtractionMethod refinement (Pattern/Neural/Lexicon/SoftLexicon/GatedEnsemble)
-- [x] Sealed Model trait pattern for API stability
-- [x] Comprehensive bias analysis (gender, demographic, temporal, length)
-- [x] Advanced evaluation (calibration, robustness, OOD detection, active learning)
-- [x] BIO/IOB/IOBES adapter for sequence labeling compatibility
+### Roadmap
 
-### v0.3 (Medium-term)
-- [ ] Relation extraction with joint models
-- [ ] Event extraction types and traits
-- [ ] Knowledge graph builder
-- [ ] Multi-document coreference
+**v0.2 (current)**: W2NER, NuNER, GLiNER, coreference metrics/resolver, bias analysis, calibration evaluation, BIO adapter, TypeMapper.
 
-### v0.4+ (Long-term)
-- [ ] Multi-modal NER (ColPali-style)
-- [ ] Incremental/streaming extraction
-- [ ] Active learning integration
-- [ ] Custom model fine-tuning export
+**v0.3**: Relation extraction models, event extraction types.
 
-## Contributing
+**v0.4+**: Multi-modal NER, streaming extraction.
 
-Focus areas for contributions:
-1. **More synthetic test data** - High-quality annotated examples
-2. **Dataset loaders** - New formats (BRAT, WebAnno, etc.)
-3. **Benchmark results** - Reproduce academic benchmarks
-4. **Documentation** - Usage examples, tutorials
+### Contributing
 
+Useful areas:
+- More annotated test data
+- Dataset loaders (BRAT, WebAnno formats)  
+- Benchmark reproductions
+- Documentation improvements

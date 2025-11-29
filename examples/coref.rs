@@ -101,9 +101,12 @@ fn main() {
             Mention::with_type("Obama", 67, 72, MentionType::Proper),
             Mention::with_type("his", 112, 115, MentionType::Pronoun),
         ]),
-        CorefChain::new(vec![
-            Mention::with_type("Michelle Obama", 97, 111, MentionType::Proper),
-        ]),
+        CorefChain::new(vec![Mention::with_type(
+            "Michelle Obama",
+            97,
+            111,
+            MentionType::Proper,
+        )]),
     ];
 
     // System 1: Correctly links all Obama mentions but misses 'his'
@@ -164,7 +167,7 @@ fn main() {
     println!("Mentions: {}", doc.mention_count());
     println!("Chains: {}", doc.chain_count());
     println!("Non-singleton chains: {}", doc.non_singleton_count());
-    
+
     // Show mention index
     let index = doc.mention_to_chain_index();
     println!("Mention -> Chain mapping: {:?}", index);
@@ -200,8 +203,14 @@ fn main() {
     println!("  Total mentions: {}", total_mentions);
     println!("  Total chains: {}", total_chains);
     println!("  Non-singleton chains: {}", non_singletons);
-    println!("  Avg mentions/doc: {:.1}", total_mentions as f64 / synthetic.len() as f64);
-    println!("  Avg chains/doc: {:.1}", total_chains as f64 / synthetic.len() as f64);
+    println!(
+        "  Avg mentions/doc: {:.1}",
+        total_mentions as f64 / synthetic.len() as f64
+    );
+    println!(
+        "  Avg chains/doc: {:.1}",
+        total_chains as f64 / synthetic.len() as f64
+    );
 
     // Perfect match on synthetic
     println!("\nPerfect match on synthetic data:");
@@ -210,46 +219,55 @@ fn main() {
         let eval = CorefEvaluation::compute(&doc.chains, &doc.chains);
         total_conll += eval.conll_f1;
     }
-    println!("  Avg CoNLL F1: {:.1}%", (total_conll / synthetic.len() as f64) * 100.0);
+    println!(
+        "  Avg CoNLL F1: {:.1}%",
+        (total_conll / synthetic.len() as f64) * 100.0
+    );
 
     // === Aggregate Evaluation Demo ===
     println!("\n=== Aggregate Evaluation with Confidence Intervals ===\n");
-    
+
     // Create pairs of (predicted, gold) for aggregate evaluation
     let doc_pairs: Vec<(&[CorefChain], &[CorefChain])> = synthetic
         .iter()
         .map(|doc| (doc.chains.as_slice(), doc.chains.as_slice()))
         .collect();
-    
+
     let aggregate = AggregateCorefEvaluation::compute(&doc_pairs);
     println!("{}", aggregate);
-    
+
     // Analysis methods
     let eval = CorefEvaluation::compute(&pred_realistic_1, &gold_realistic);
     println!("System 1 analysis:");
-    println!("  Average F1 across all metrics: {:.1}%", eval.average_f1() * 100.0);
-    println!("  F1 std dev across metrics: {:.1}%", eval.f1_std_dev() * 100.0);
+    println!(
+        "  Average F1 across all metrics: {:.1}%",
+        eval.average_f1() * 100.0
+    );
+    println!(
+        "  F1 std dev across metrics: {:.1}%",
+        eval.f1_std_dev() * 100.0
+    );
     println!("  Over-clustering: {}", eval.is_over_clustering());
     println!("  Under-clustering: {}", eval.is_under_clustering());
     println!("  Summary: {}", eval.summary_line());
 
     // === Statistical Significance Testing ===
     println!("\n=== Statistical Significance Testing ===\n");
-    
+
     // Simulate two systems evaluated on multiple documents
     // System A: slightly better coreference
     // System B: baseline
     let system_a_scores = vec![0.85, 0.82, 0.88, 0.79, 0.84, 0.86, 0.81, 0.87, 0.83, 0.85];
     let system_b_scores = vec![0.78, 0.76, 0.82, 0.74, 0.79, 0.80, 0.75, 0.81, 0.77, 0.79];
-    
+
     let test = SignificanceTest::paired_t_test(&system_a_scores, &system_b_scores);
     println!("Comparing System A vs System B:");
     println!("{}", test);
-    
+
     // Example with no significant difference
     let system_c_scores = vec![0.80, 0.82, 0.79, 0.81, 0.80, 0.83, 0.78, 0.82, 0.81, 0.80];
     let system_d_scores = vec![0.81, 0.80, 0.82, 0.79, 0.81, 0.80, 0.82, 0.79, 0.80, 0.81];
-    
+
     let test2 = SignificanceTest::paired_t_test(&system_c_scores, &system_d_scores);
     println!("Comparing System C vs System D (similar performance):");
     println!("{}", test2);
@@ -298,4 +316,3 @@ fn print_evaluation(name: &str, pred: &[CorefChain], gold: &[CorefChain]) {
     );
     println!("CoNLL:   F1={:5.1}%", eval.conll_f1 * 100.0);
 }
-

@@ -5,7 +5,7 @@
 //! - Arc<dyn Model> works correctly
 //! - No data races occur under concurrent load
 
-use anno::{Entity, EntityType, Model, PatternNER, StackedNER, StatisticalNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
 use std::sync::Arc;
 use std::thread;
 
@@ -22,7 +22,7 @@ fn pattern_ner_is_send_sync() {
 #[test]
 fn statistical_ner_is_send_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<StatisticalNER>();
+    assert_send_sync::<HeuristicNER>();
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn pattern_ner_concurrent_extraction() {
 
 #[test]
 fn statistical_ner_concurrent_extraction() {
-    let ner = Arc::new(StatisticalNER::new());
+    let ner = Arc::new(HeuristicNER::new());
     let texts = vec![
         "Dr. John Smith is here",
         "Apple Inc. announced profits",
@@ -183,7 +183,12 @@ fn concurrent_different_texts_same_model() {
         .map(|i| {
             let ner = Arc::clone(&ner);
             thread::spawn(move || {
-                let text = format!("Dr. Person{} charges ${}/hr on 2024-01-{:02}", i, i * 100, i + 1);
+                let text = format!(
+                    "Dr. Person{} charges ${}/hr on 2024-01-{:02}",
+                    i,
+                    i * 100,
+                    i + 1
+                );
                 let entities = ner.extract_entities(&text, None).unwrap();
                 (i, text, entities)
             })
@@ -196,7 +201,11 @@ fn concurrent_different_texts_same_model() {
     for (i, text, entities) in &results {
         // Should find at least money (pattern)
         let has_money = entities.iter().any(|e| e.entity_type == EntityType::Money);
-        assert!(has_money, "Thread {} text '{}' should have money: {:?}", i, text, entities);
+        assert!(
+            has_money,
+            "Thread {} text '{}' should have money: {:?}",
+            i, text, entities
+        );
     }
 }
 
@@ -208,7 +217,7 @@ fn concurrent_different_texts_same_model() {
 fn arc_dyn_model_concurrent() {
     let models: Vec<Arc<dyn Model + Send + Sync>> = vec![
         Arc::new(PatternNER::new()),
-        Arc::new(StatisticalNER::new()),
+        Arc::new(HeuristicNER::new()),
         Arc::new(StackedNER::new()),
     ];
 
@@ -229,15 +238,19 @@ fn arc_dyn_model_concurrent() {
     let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     // PatternNER should find money and date (guaranteed)
-    // StatisticalNER is heuristic - may or may not find
+    // HeuristicNER is heuristic - may or may not find
     // StackedNER combines both
-    
+
     // At minimum, pattern should find something
-    let pattern_found = results.iter().any(|(name, e)| *name == "pattern" && !e.is_empty());
+    let pattern_found = results
+        .iter()
+        .any(|(name, e)| *name == "pattern" && !e.is_empty());
     assert!(pattern_found, "PatternNER should find entities");
-    
+
     // Stacked should find something (includes pattern)
-    let stacked_found = results.iter().any(|(name, e)| name.starts_with("stacked") && !e.is_empty());
+    let stacked_found = results
+        .iter()
+        .any(|(name, e)| name.starts_with("stacked") && !e.is_empty());
     assert!(stacked_found, "StackedNER should find entities");
 }
 
@@ -324,4 +337,3 @@ fn stress_test_high_thread_count() {
         expected
     );
 }
-

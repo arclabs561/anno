@@ -5,7 +5,7 @@
 //!
 //! Run: cargo run --features "onnx" --example hybrid
 
-use anno::{Entity, Model, HybridNER, PatternNER};
+use anno::{Entity, HybridNER, Model, PatternNER};
 use std::collections::HashSet;
 
 #[cfg(feature = "onnx")]
@@ -18,16 +18,26 @@ fn main() -> anno::Result<()> {
     let test_cases = [
         // ML models excel at these
         ("Steve Jobs founded Apple in Cupertino.", "Named Entities"),
-        ("Barack Obama met with Angela Merkel in Berlin.", "Multi-word Names"),
-        
+        (
+            "Barack Obama met with Angela Merkel in Berlin.",
+            "Multi-word Names",
+        ),
         // Pattern models excel at these
-        ("Contact us at john@company.com or call (555) 123-4567.", "Contact Info"),
+        (
+            "Contact us at john@company.com or call (555) 123-4567.",
+            "Contact Info",
+        ),
         ("The deadline is March 15, 2024 at 3:00 PM.", "Temporal"),
         ("Total investment: $50 million USD.", "Financial"),
-        
         // Both need to work together
-        ("Apple CEO Tim Cook announced $3.2 billion in revenue on January 15.", "Mixed"),
-        ("Email support@tesla.com about the March 2024 earnings.", "Mixed"),
+        (
+            "Apple CEO Tim Cook announced $3.2 billion in revenue on January 15.",
+            "Mixed",
+        ),
+        (
+            "Email support@nvidia.com about the March 2024 earnings.",
+            "Mixed",
+        ),
     ];
 
     // Initialize models
@@ -60,7 +70,9 @@ fn main() -> anno::Result<()> {
         // GLiNER only
         #[cfg(feature = "onnx")]
         if let Some(ref gliner_model) = gliner {
-            let gliner_entities = gliner_model.extract_entities(text, None).unwrap_or_default();
+            let gliner_entities = gliner_model
+                .extract_entities(text, None)
+                .unwrap_or_default();
             println!("  GLiNER:         {}", format_entities(&gliner_entities));
         }
 
@@ -68,13 +80,20 @@ fn main() -> anno::Result<()> {
         #[cfg(feature = "onnx")]
         if let (Some(ref gliner_model), Some(ref _bert_model)) = (&gliner, &bert) {
             // Manual hybrid: combine GLiNER + Pattern
-            let ml_entities = gliner_model.extract_entities(text, None).unwrap_or_default();
+            let ml_entities = gliner_model
+                .extract_entities(text, None)
+                .unwrap_or_default();
             let combined = merge_entities(&pattern_entities, &ml_entities);
-            println!("  GLiNER+Pattern: {} [COMBINED]", format_entities(&combined));
+            println!(
+                "  GLiNER+Pattern: {} [COMBINED]",
+                format_entities(&combined)
+            );
         }
 
         // Basic hybrid from library
-        let basic_hybrid = hybrid_basic.extract_entities(text, None).unwrap_or_default();
+        let basic_hybrid = hybrid_basic
+            .extract_entities(text, None)
+            .unwrap_or_default();
         println!("  HybridNER:      {}", format_entities(&basic_hybrid));
 
         println!();
@@ -94,9 +113,11 @@ fn main() -> anno::Result<()> {
 
         #[cfg(feature = "onnx")]
         if let Some(ref gliner_model) = gliner {
-            let ml_entities = gliner_model.extract_entities(text, None).unwrap_or_default();
+            let ml_entities = gliner_model
+                .extract_entities(text, None)
+                .unwrap_or_default();
             total_ml += ml_entities.len();
-            
+
             let combined = merge_entities(&pattern_entities, &ml_entities);
             total_combined += combined.len();
         }
@@ -120,7 +141,7 @@ fn main() -> anno::Result<()> {
     println!();
     println!("  ML Models (BERT/GLiNER) excel at:");
     println!("    - Person names (Tim Cook, Angela Merkel)");
-    println!("    - Organization names (Apple, Tesla)");
+    println!("    - Organization names (Apple, Microsoft)");
     println!("    - Location names (Berlin, Cupertino)");
     println!("    - Multi-word entities (New York Times)");
     println!();
@@ -154,7 +175,13 @@ fn format_entities(entities: &[Entity]) -> String {
     }
     entities
         .iter()
-        .map(|e| format!("{}[{}]", e.text.trim_end_matches(|c: char| c.is_ascii_punctuation()), short_type(&e.entity_type.as_label())))
+        .map(|e| {
+            format!(
+                "{}[{}]",
+                e.text.trim_end_matches(|c: char| c.is_ascii_punctuation()),
+                short_type(&e.entity_type.as_label())
+            )
+        })
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -195,4 +222,3 @@ fn merge_entities(a: &[Entity], b: &[Entity]) -> Vec<Entity> {
     result.sort_by_key(|e| e.start);
     result
 }
-

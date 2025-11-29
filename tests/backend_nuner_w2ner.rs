@@ -4,8 +4,8 @@
 //! - NuNER: Token-based zero-shot NER (arbitrary-length entities)
 //! - W2NER: Word-word relation grids (nested/discontinuous entities)
 
-use anno::{Model, NuNER, W2NER, W2NERConfig, W2NERRelation};
 use anno::backends::inference::HandshakingMatrix;
+use anno::{Model, NuNER, W2NERConfig, W2NERRelation, W2NER};
 
 // =============================================================================
 // NuNER Tests
@@ -50,11 +50,15 @@ mod nuner {
     fn test_nuner_supported_types() {
         let ner = NuNER::new();
         let types = ner.supported_types();
-        
+
         // Default labels should map to these types
         assert!(types.iter().any(|t| matches!(t, anno::EntityType::Person)));
-        assert!(types.iter().any(|t| matches!(t, anno::EntityType::Organization)));
-        assert!(types.iter().any(|t| matches!(t, anno::EntityType::Location)));
+        assert!(types
+            .iter()
+            .any(|t| matches!(t, anno::EntityType::Organization)));
+        assert!(types
+            .iter()
+            .any(|t| matches!(t, anno::EntityType::Location)));
     }
 
     #[test]
@@ -132,7 +136,7 @@ mod w2ner {
 
         let ner = W2NER::with_config(config);
         let types = ner.supported_types();
-        
+
         // Custom types should map to Other
         assert_eq!(types.len(), 2);
     }
@@ -455,7 +459,7 @@ mod integration {
             let ner = match NuNER::from_pretrained("numind/NuNerZero") {
                 Ok(n) => n.with_labels(vec![
                     "person".to_string(),
-                    "organization".to_string(), 
+                    "organization".to_string(),
                     "location".to_string(),
                 ]),
                 Err(e) => {
@@ -464,7 +468,10 @@ mod integration {
                 }
             };
 
-            assert!(ner.is_available(), "NuNER should be available after loading");
+            assert!(
+                ner.is_available(),
+                "NuNER should be available after loading"
+            );
 
             let test_cases = [
                 "Steve Jobs founded Apple in California.",
@@ -478,7 +485,12 @@ mod integration {
                 match ner.extract_entities(text, None) {
                     Ok(entities) => {
                         for e in &entities {
-                            println!("  - {} ({}, {:.2})", e.text, e.entity_type.as_label(), e.confidence);
+                            println!(
+                                "  - {} ({}, {:.2})",
+                                e.text,
+                                e.entity_type.as_label(),
+                                e.confidence
+                            );
                         }
                         if entities.is_empty() {
                             println!("  (no entities found)");
@@ -513,7 +525,10 @@ mod integration {
                 }
             };
 
-            assert!(ner.is_available(), "W2NER should be available after loading");
+            assert!(
+                ner.is_available(),
+                "W2NER should be available after loading"
+            );
 
             let test_cases = [
                 "The European Union met with United States officials.",
@@ -529,7 +544,12 @@ mod integration {
                     Ok(entities) => {
                         println!("  Standard entities:");
                         for e in &entities {
-                            println!("    - {} ({}, {:.2})", e.text, e.entity_type.as_label(), e.confidence);
+                            println!(
+                                "    - {} ({}, {:.2})",
+                                e.text,
+                                e.entity_type.as_label(),
+                                e.confidence
+                            );
                         }
                         if entities.is_empty() {
                             println!("    (no entities found)");
@@ -544,8 +564,10 @@ mod integration {
                         if !entities.is_empty() {
                             println!("  Discontinuous entities:");
                             for e in &entities {
-                                println!("    - {} ({}, {:.2}) spans: {:?}", 
-                                    e.text, e.entity_type, e.confidence, e.spans);
+                                println!(
+                                    "    - {} ({}, {:.2}) spans: {:?}",
+                                    e.text, e.entity_type, e.confidence, e.spans
+                                );
                             }
                         }
                     }
@@ -603,4 +625,3 @@ mod proptests {
         }
     }
 }
-

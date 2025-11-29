@@ -10,7 +10,7 @@
 //! cargo run --example candle_gliner_demo --features candle
 //! ```
 
-use anno::{Model, PatternNER, StatisticalNER};
+use anno::{HeuristicNER, Model, PatternNER};
 
 #[cfg(feature = "candle")]
 use anno::backends::gliner_candle::GLiNERCandle;
@@ -21,7 +21,7 @@ fn main() -> anno::Result<()> {
 
     // Test texts
     let texts = [
-        "Elon Musk founded SpaceX in 2002 and Tesla in 2003.",
+        "Marie Curie discovered radium in 1898 and won the Nobel Prize in 1903.",
         "The Mona Lisa by Leonardo da Vinci is displayed at the Louvre in Paris.",
         "Tim Cook announced the iPhone 15 at Apple Park in September 2023.",
         "Amazon's headquarters in Seattle employs over 75,000 people.",
@@ -30,27 +30,35 @@ fn main() -> anno::Result<()> {
     // Pattern-based baseline
     println!("PatternNER (zero-dependency baseline)");
     println!("-------------------------------------\n");
-    
+
     let pattern_ner = PatternNER::new();
     for text in &texts {
         let entities = pattern_ner.extract_entities(text, None)?;
         println!("Text: {}", text);
-        println!("  Entities: {:?}", 
-            entities.iter().map(|e| (&e.text, &e.entity_type)).collect::<Vec<_>>()
+        println!(
+            "  Entities: {:?}",
+            entities
+                .iter()
+                .map(|e| (&e.text, &e.entity_type))
+                .collect::<Vec<_>>()
         );
         println!();
     }
 
     // Statistical baseline
-    println!("StatisticalNER (heuristic-based baseline)");
+    println!("HeuristicNER (heuristic-based baseline)");
     println!("-----------------------------------------\n");
-    
-    let statistical_ner = StatisticalNER::new();
+
+    let statistical_ner = HeuristicNER::new();
     for text in &texts {
         let entities = statistical_ner.extract_entities(text, None)?;
         println!("Text: {}", text);
-        println!("  Entities: {:?}",
-            entities.iter().map(|e| (&e.text, &e.entity_type)).collect::<Vec<_>>()
+        println!(
+            "  Entities: {:?}",
+            entities
+                .iter()
+                .map(|e| (&e.text, &e.entity_type))
+                .collect::<Vec<_>>()
         );
         println!();
     }
@@ -58,18 +66,19 @@ fn main() -> anno::Result<()> {
     // GLiNER Architecture Explanation
     println!("GLiNER Architecture (Bi-Encoder for Zero-Shot NER)");
     println!("--------------------------------------------------\n");
-    
+
     println!("GLiNER treats NER as a bi-encoder matching problem:\n");
-    println!(r#"
+    println!(
+        r#"
     ┌──────────────────────────────────────────────────────────────────┐
     │                         GLiNER Pipeline                          │
     ├──────────────────────────────────────────────────────────────────┤
     │                                                                  │
-    │  Input Text: "Elon Musk founded SpaceX"                          │
+    │  Input Text: "Marie Curie discovered radium"                     │
     │       │                                                          │
     │       ▼                                                          │
     │  ┌─────────────┐                                                 │
-    │  │  Tokenizer  │ → [CLS] Elon Musk founded SpaceX [SEP]          │
+    │  │  Tokenizer  │ → [CLS] Marie Curie discovered radium [SEP]     │
     │  └──────┬──────┘                                                 │
     │         │                                                        │
     │         ▼                                                        │
@@ -104,10 +113,11 @@ fn main() -> anno::Result<()> {
     │  └──────────────────────────────────────────────┘                │
     │                          │                                       │
     │                          ▼                                       │
-    │  Output: [(span="Elon Musk", label="person", score=0.95), ...]   │
+    │  Output: [(span="Marie Curie", label="person", score=0.95), ...] │
     │                                                                  │
     └──────────────────────────────────────────────────────────────────┘
-    "#);
+    "#
+    );
 
     // Encoder Variants
     println!("\nPluggable Encoder Architectures");
@@ -131,18 +141,50 @@ fn main() -> anno::Result<()> {
     println!("----------------\n");
 
     let models = [
-        ("onnx-community/gliner_small-v2.1", "DeBERTaV3", "Small", "109M", "Fast, CPU-friendly"),
-        ("onnx-community/gliner_medium-v2.1", "DeBERTaV3", "Medium", "183M", "Balanced"),
-        ("onnx-community/gliner_large-v2.1", "DeBERTaV3", "Large", "304M", "Accurate"),
-        ("knowledgator/modern-gliner-bi-base-v1.0", "ModernBERT", "Base", "149M", "8K context, fast"),
-        ("knowledgator/modern-gliner-bi-large-v1.0", "ModernBERT", "Large", "395M", "SOTA, 8K ctx"),
+        (
+            "onnx-community/gliner_small-v2.1",
+            "DeBERTaV3",
+            "Small",
+            "109M",
+            "Fast, CPU-friendly",
+        ),
+        (
+            "onnx-community/gliner_medium-v2.1",
+            "DeBERTaV3",
+            "Medium",
+            "183M",
+            "Balanced",
+        ),
+        (
+            "onnx-community/gliner_large-v2.1",
+            "DeBERTaV3",
+            "Large",
+            "304M",
+            "Accurate",
+        ),
+        (
+            "knowledgator/modern-gliner-bi-base-v1.0",
+            "ModernBERT",
+            "Base",
+            "149M",
+            "8K context, fast",
+        ),
+        (
+            "knowledgator/modern-gliner-bi-large-v1.0",
+            "ModernBERT",
+            "Large",
+            "395M",
+            "SOTA, 8K ctx",
+        ),
     ];
 
     println!("Model ID                                     Encoder     Size    Params  Notes");
     println!("-------------------------------------------  ----------  ------  ------  ------------------");
     for (model_id, encoder, size, params, notes) in models {
-        println!("{:43}  {:10}  {:6}  {:6}  {}",
-            model_id, encoder, size, params, notes);
+        println!(
+            "{:43}  {:10}  {:6}  {:6}  {}",
+            model_id, encoder, size, params, notes
+        );
     }
     println!();
 
@@ -156,17 +198,29 @@ fn main() -> anno::Result<()> {
         match anno::backends::gliner_candle::best_device() {
             Ok(device) => {
                 println!("✓ Device: {:?}", device);
-                println!("  - Metal (Apple Silicon): {}", 
-                    if cfg!(all(target_os = "macos", feature = "metal")) { "Enabled" } else { "Disabled" });
-                println!("  - CUDA (NVIDIA GPU): {}",
-                    if cfg!(feature = "cuda") { "Enabled" } else { "Disabled" });
+                println!(
+                    "  - Metal (Apple Silicon): {}",
+                    if cfg!(all(target_os = "macos", feature = "metal")) {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    }
+                );
+                println!(
+                    "  - CUDA (NVIDIA GPU): {}",
+                    if cfg!(feature = "cuda") {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    }
+                );
             }
             Err(e) => println!("✗ Device selection failed: {}", e),
         }
 
         println!("\nNote: Full GLiNER inference requires model weights.");
         println!("The architecture is implemented; weight loading is WIP.\n");
-        
+
         // Try to create model (will fail gracefully without network)
         println!("Attempting to initialize GLiNER-Candle (requires network)...");
         match GLiNERCandle::new("answerdotai/ModernBERT-base") {
@@ -216,7 +270,7 @@ fn main() -> anno::Result<()> {
 
     println!("Zero Dependencies:");
     println!("  - PatternNER     Regex patterns (dates, emails, etc.)");
-    println!("  - StatisticalNER Capitalization heuristics");
+    println!("  - HeuristicNER Capitalization heuristics");
     println!();
     println!("ONNX Runtime (cross-platform):");
     println!("  - BertNEROnnx    Standard BERT token classification");
@@ -231,4 +285,3 @@ fn main() -> anno::Result<()> {
 
     Ok(())
 }
-

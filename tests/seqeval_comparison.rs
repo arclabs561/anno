@@ -33,20 +33,23 @@ fn test_micro_averaging_matches_seqeval() {
     // Scenario: One correct prediction, one missed gold entity
     // Gold: [PER "John Smith"], [LOC "Paris"]
     // Pred: [PER "John Smith"]
-    // 
+    //
     // Micro precision: 1/1 = 100%
     // Micro recall: 1/2 = 50%
     // Micro F1: 2 * 1.0 * 0.5 / (1.0 + 0.5) = 66.67%
-    
+
     let gold_count = 2;
     let pred_count = 1;
     let correct_count = 1;
-    
+
     let micro_precision = correct_count as f64 / pred_count as f64;
     let micro_recall = correct_count as f64 / gold_count as f64;
     let micro_f1 = f1(micro_precision, micro_recall);
-    
-    assert!((micro_precision - 1.0).abs() < 0.001, "Precision should be 1.0");
+
+    assert!(
+        (micro_precision - 1.0).abs() < 0.001,
+        "Precision should be 1.0"
+    );
     assert!((micro_recall - 0.5).abs() < 0.001, "Recall should be 0.5");
     assert!((micro_f1 - 0.6667).abs() < 0.001, "F1 should be ~0.667");
 }
@@ -68,7 +71,7 @@ fn test_macro_vs_micro_difference() {
     let case1_p = case1_correct as f64 / case1_pred as f64;
     let case1_r = case1_correct as f64 / case1_gold as f64;
     let case1_f1 = f1(case1_p, case1_r);
-    
+
     // Case 2 metrics
     let case2_correct = 50;
     let case2_pred = 100;
@@ -76,10 +79,10 @@ fn test_macro_vs_micro_difference() {
     let case2_p = case2_correct as f64 / case2_pred as f64;
     let case2_r = case2_correct as f64 / case2_gold as f64;
     let case2_f1 = f1(case2_p, case2_r);
-    
+
     // Macro average (WRONG for NER)
     let macro_f1 = (case1_f1 + case2_f1) / 2.0;
-    
+
     // Micro average (CORRECT for NER)
     let total_correct = case1_correct + case2_correct;
     let total_pred = case1_pred + case2_pred;
@@ -87,15 +90,21 @@ fn test_macro_vs_micro_difference() {
     let micro_p = total_correct as f64 / total_pred as f64;
     let micro_r = total_correct as f64 / total_gold as f64;
     let micro_f1 = f1(micro_p, micro_r);
-    
+
     // Verify macro gives inflated 75%
-    assert!((macro_f1 - 0.75).abs() < 0.01, 
-        "Macro F1 should be 75%, got {}", macro_f1);
-    
+    assert!(
+        (macro_f1 - 0.75).abs() < 0.01,
+        "Macro F1 should be 75%, got {}",
+        macro_f1
+    );
+
     // Verify micro gives realistic 50.5%
-    assert!((micro_f1 - 0.505).abs() < 0.01, 
-        "Micro F1 should be ~50.5%, got {}", micro_f1);
-    
+    assert!(
+        (micro_f1 - 0.505).abs() < 0.01,
+        "Micro F1 should be ~50.5%, got {}",
+        micro_f1
+    );
+
     // The difference is ~24.5 percentage points!
     let gap = (macro_f1 - micro_f1).abs();
     assert!(gap > 0.2, "Gap should be > 20%, got {:.1}%", gap * 100.0);
@@ -111,16 +120,19 @@ fn test_strict_mode_requires_exact_match() {
     // Gold: [PER "John Smith" 0-10]
     // Pred: [PER "John" 0-4] -- partial match, wrong boundary
     // Result: 0 correct (strict mode)
-    
+
     let gold_entity = ("John Smith", "PER", 0usize, 10usize);
     let pred_entity = ("John", "PER", 0usize, 4usize);
-    
+
     // In strict mode, this is NOT a match
-    let strict_match = gold_entity.2 == pred_entity.2 
+    let strict_match = gold_entity.2 == pred_entity.2
         && gold_entity.3 == pred_entity.3
         && gold_entity.1 == pred_entity.1;
-    
-    assert!(!strict_match, "Partial boundary should NOT match in strict mode");
+
+    assert!(
+        !strict_match,
+        "Partial boundary should NOT match in strict mode"
+    );
 }
 
 /// Verify type-only mode ignores boundaries.
@@ -129,10 +141,10 @@ fn test_type_mode_ignores_boundaries() {
     // Gold: [PER "John Smith" 0-10]
     // Pred: [PER "John" 0-4] -- different boundary, same type
     // Type mode: counts as match if any PER predicted in same region
-    
+
     let gold_type = "PER";
     let pred_type = "PER";
-    
+
     // Type-only comparison
     let type_match = gold_type == pred_type;
     assert!(type_match, "Same type should match in type-only mode");
@@ -150,14 +162,28 @@ fn test_zero_division_handling() {
     let pred_count = 0;
     let correct_count = 0;
     let gold_count = 2;
-    
+
     // Precision with no predictions should be 0 (not undefined/NaN)
-    let precision = if pred_count == 0 { 0.0 } else { correct_count as f64 / pred_count as f64 };
-    assert!(precision == 0.0, "Precision with no predictions should be 0.0");
-    
+    let precision = if pred_count == 0 {
+        0.0
+    } else {
+        correct_count as f64 / pred_count as f64
+    };
+    assert!(
+        precision == 0.0,
+        "Precision with no predictions should be 0.0"
+    );
+
     // Recall with predictions but no gold should be 0
-    let recall_no_gold = if gold_count == 0 { 0.0 } else { correct_count as f64 / gold_count as f64 };
-    assert!(recall_no_gold == 0.0, "Recall with no correct should be 0.0");
+    let recall_no_gold = if gold_count == 0 {
+        0.0
+    } else {
+        correct_count as f64 / gold_count as f64
+    };
+    assert!(
+        recall_no_gold == 0.0,
+        "Recall with no correct should be 0.0"
+    );
 }
 
 /// Verify per-type metrics are also micro-averaged.
@@ -169,24 +195,24 @@ fn test_zero_division_handling() {
 fn test_per_type_micro_averaging() {
     // Type PER: 10 gold, 8 pred, 6 correct
     // Type ORG: 5 gold, 10 pred, 3 correct
-    
-    let per_p = 6.0 / 8.0;  // 75%
+
+    let per_p = 6.0 / 8.0; // 75%
     let per_r = 6.0 / 10.0; // 60%
     let _per_f1 = f1(per_p, per_r);
-    
+
     let org_p = 3.0 / 10.0; // 30%
-    let org_r = 3.0 / 5.0;  // 60%
+    let org_r = 3.0 / 5.0; // 60%
     let _org_f1 = f1(org_p, org_r);
-    
+
     // Overall micro (across types)
     let total_correct = 6 + 3;
     let total_pred = 8 + 10;
     let total_gold = 10 + 5;
-    
+
     let overall_p = total_correct as f64 / total_pred as f64;
     let overall_r = total_correct as f64 / total_gold as f64;
     let _overall_f1 = f1(overall_p, overall_r);
-    
+
     // Verify calculation
     assert!((overall_p - 0.5).abs() < 0.01, "Overall P should be 50%");
     assert!((overall_r - 0.6).abs() < 0.01, "Overall R should be 60%");
@@ -195,19 +221,21 @@ fn test_per_type_micro_averaging() {
 /// Integration test: run evaluation and verify output format.
 #[test]
 fn test_evaluator_output_format() {
-    use anno::PatternNER;
     use anno::Model;
-    
+    use anno::PatternNER;
+
     let model = PatternNER::new();
     let text = "Meeting on January 15 at 3:00 PM";
     let entities = model.extract_entities(text, None).unwrap();
-    
+
     // Verify we get entities with expected fields
     for entity in &entities {
         assert!(entity.start < entity.end, "Start should be before end");
         assert!(entity.end <= text.len(), "End should be within text");
         // Confidence should be in [0, 1]
-        assert!((0.0..=1.0).contains(&entity.confidence), "Confidence out of range");
+        assert!(
+            (0.0..=1.0).contains(&entity.confidence),
+            "Confidence out of range"
+        );
     }
 }
-

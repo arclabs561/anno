@@ -1,74 +1,110 @@
-# anno Examples
+# Examples
 
-Focused examples demonstrating core capabilities. Each serves a distinct purpose.
-
-## Quick Start
+### Running
 
 ```bash
-# Basic evaluation (no ML dependencies)
+# Pattern extraction (no model downloads)
+cargo run --example quickstart
+
+# With evaluation framework
 cargo run --example quickstart --features eval
-```
+cargo run --example eval_basic --features eval   # Simple backend comparison
+cargo run --example eval --features eval         # Full evaluation suite
 
-## Examples Overview
-
-| Example | Features | Purpose |
-|---------|----------|---------|
-| `quickstart` | eval | Entry point - evaluate PatternNER on custom data |
-| `bert` | onnx | BERT NER demo - standard named entity recognition |
-| `candle` | candle | Candle architecture - pure Rust ML backend |
-| `gliner_candle` | candle | GLiNER with Candle backend |
-| `download_models` | network | Utility - pre-download models for offline use |
-| `eval` | eval | Evaluation framework - synthetic + real datasets |
-| `eval_basic` | eval | Basic evaluation with custom test data |
-| `coref` | eval | Coreference resolution metrics (MUC, B³, CEAF, LEA) |
-| `bias` | eval-bias | Bias analysis - gender, demographic, temporal |
-| `benchmark` | eval-full | Comprehensive quality metrics + bias + robustness |
-| `advanced` | eval | Discontinuous NER, relation extraction, visual NER |
-| `models` | onnx | Model showcase - all backends + zero-shot NER |
-| `hybrid` | onnx | Hybrid evaluation - ML + pattern combined |
-
-## Running Examples
-
-```bash
-# Pattern-only (no downloads)
-cargo run --example quickstart --features eval
-cargo run --example eval --features eval
-
-# ML backends (requires model download)
+# Transformer models (downloads ~400MB on first run)
 cargo run --example bert --features onnx
 cargo run --example models --features onnx
 
 # Full benchmark suite
 cargo run --example benchmark --features eval-full
 
-# With real datasets
-cargo run --example benchmark --features "eval-full,network"
+# Discourse analysis (abstract anaphora, events)
+cargo run --example abstract_anaphora_eval --features discourse
+cargo run --example discourse_pipeline --features discourse
+
+# GLiNER2 multi-task extraction (NER, classification, relations)
+cargo run --example gliner2_multitask --features onnx
+
+# Production setup (async, session pooling)
+cargo run --example production --features production
+
+# Grounded entities (Signal → Track → Identity)
+cargo run --example grounded
 ```
 
-## Backend Comparison
+### What's here
 
-| Backend | Speed | Accuracy | Entity Types |
-|---------|-------|----------|--------------|
-| PatternNER | ~500ns | High* | DATE, MONEY, EMAIL, URL, PHONE |
-| StatisticalNER | ~50us | ~65% | PER, ORG, LOC |
-| StackedNER | ~60us | ~75% | Combined |
-| BertNEROnnx | ~20ms | ~86% | PER, ORG, LOC, MISC |
-| GLiNEROnnx | ~80ms | ~86% | Any (zero-shot) |
+| Example | Features | Description |
+|---------|----------|-------------|
+| `quickstart` | — | Basic span extraction with PatternNER |
+| `eval_basic` | eval | **Start here!** Simple backend comparison |
+| `eval` | eval | Full evaluation on synthetic and real datasets |
+| `bert` | onnx | BERT-based NER |
+| `models` | onnx | All backends including zero-shot GLiNER |
+| `coref` | eval | Coreference metrics (MUC, B³, CEAF, LEA) |
+| `bias` | eval-bias | Gender and demographic bias analysis |
+| `benchmark` | eval-full | Combined quality/bias/robustness evaluation |
+| `advanced` | eval | Discontinuous spans, relation extraction |
+| `hybrid` | onnx | Combining transformer + pattern backends |
+| `candle` | candle | Pure Rust inference backend |
+| `abstract_anaphora_eval` | discourse | Abstract anaphora resolution evaluation |
+| `discourse_pipeline` | discourse | Event extraction + shell noun analysis |
+| `gliner2_multitask` | onnx | Multi-task extraction: NER, classification, relations |
+| `production` | production | Async inference, session pooling, warmup |
+| `gliner_candle` | candle | GLiNER via pure Rust Candle backend |
+| `download_models` | onnx | Download and cache HuggingFace models |
+| `grounded` | — | Signal → Track → Identity entity hierarchy |
 
-\* High precision on structured patterns only
+### Available Synthetic Datasets
 
-## Zero-Shot NER
+The library includes 25+ synthetic datasets for testing and development:
 
-GLiNER supports custom entity types at inference time:
+**Core Domains:**
+- `news_dataset()` - News articles (CoNLL-2003 style)
+- `biomedical_dataset()` - Medical/clinical text
+- `financial_dataset()` - Finance and markets
+- `legal_dataset()` - Legal documents
+- `scientific_dataset()` - Research papers
+- `social_media_dataset()` - Tweets and posts
+
+**Industry-Specific:**
+- `technology_dataset()` - AI/tech companies
+- `healthcare_dataset()` - Medical entities
+- `manufacturing_dataset()` - Semiconductor/industrial
+- `automotive_dataset()` - EV/automotive
+- `energy_dataset()` - Energy/climate
+- `aerospace_dataset()` - Aerospace/defense
+
+**Specialized:**
+- `sports_dataset()`, `politics_dataset()`, `ecommerce_dataset()`
+- `travel_dataset()`, `weather_dataset()`, `food_dataset()`
+- `cybersecurity_dataset()`, `real_estate_dataset()`, `academic_dataset()`
+- `multilingual_dataset()`, `globally_diverse_dataset()`
 
 ```rust
-let gliner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
-let entities = gliner.extract_with_types(
-    "Patient has severe headache, prescribed 400mg ibuprofen",
-    &["symptom", "medication", "dosage"],
+use anno::eval::synthetic::{all_datasets, technology_dataset, Domain};
+
+// Get all datasets
+let all = all_datasets();  // ~200+ examples
+
+// Or specific domains
+let tech = technology_dataset();
+```
+
+### Zero-shot NER
+
+Standard NER models only recognize entity types from their training data. GLiNER lets you specify types at runtime:
+
+```rust
+use anno::GLiNEROnnx;
+
+let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+
+let entities = ner.extract(
+    "Patient presents with hypertension, prescribed lisinopril",
+    &["condition", "medication"],
     0.4,
 )?;
 ```
 
-See `models.rs` for comprehensive zero-shot examples.
-
+See `models.rs` for more examples.

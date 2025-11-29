@@ -10,8 +10,8 @@
 //! Run with: `cargo test --test advanced_trait_tests -- --ignored`
 
 use anno::eval::{
-    evaluate_discontinuous_ner, evaluate_relations, DiscontinuousEvalConfig,
-    DiscontinuousGold, RelationEvalConfig, RelationGold, RelationPrediction,
+    evaluate_discontinuous_ner, evaluate_relations, DiscontinuousEvalConfig, DiscontinuousGold,
+    RelationEvalConfig, RelationGold, RelationPrediction,
 };
 use anno::{DiscontinuousEntity, Entity, EntityType};
 
@@ -59,10 +59,7 @@ mod zero_shot_ner {
             }
 
             // Should find at least aspirin (drug) or headache (symptom/disease)
-            assert!(
-                !entities.is_empty(),
-                "Should find at least one entity"
-            );
+            assert!(!entities.is_empty(), "Should find at least one entity");
         }
     }
 
@@ -89,7 +86,9 @@ mod zero_shot_ner {
             ];
             let text = "Ibuprofen is commonly used to treat arthritis.";
 
-            let entities = model.extract_with_descriptions(text, descriptions, 0.5).unwrap();
+            let entities = model
+                .extract_with_descriptions(text, descriptions, 0.5)
+                .unwrap();
 
             println!("Zero-shot with descriptions:");
             for e in &entities {
@@ -143,17 +142,15 @@ mod relation_extractor {
 
     #[test]
     fn test_relation_extraction_evaluation() {
-        let gold = vec![
-            RelationGold::new(
-                (0, 10),
-                "PER",
-                "Steve Jobs",
-                (20, 25),
-                "ORG",
-                "Apple",
-                "FOUNDED",
-            ),
-        ];
+        let gold = vec![RelationGold::new(
+            (0, 10),
+            "PER",
+            "Steve Jobs",
+            (20, 25),
+            "ORG",
+            "Apple",
+            "FOUNDED",
+        )];
 
         let pred = vec![RelationPrediction {
             head_span: (0, 10),
@@ -213,11 +210,7 @@ mod discontinuous_ner {
     #[test]
     fn test_discontinuous_entity_evaluation() {
         let gold = vec![
-            DiscontinuousGold::new(
-                vec![(0, 8), (25, 33)],
-                "LOC",
-                "New York airports",
-            ),
+            DiscontinuousGold::new(vec![(0, 8), (25, 33)], "LOC", "New York airports"),
             DiscontinuousGold::contiguous(13, 24, "LOC", "Los Angeles"),
         ];
 
@@ -236,8 +229,7 @@ mod discontinuous_ner {
             },
         ];
 
-        let metrics =
-            evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
+        let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
 
         assert!(
             (metrics.exact_f1 - 1.0).abs() < 0.001,
@@ -344,8 +336,7 @@ mod bi_encoder {
         let span_embs = vec![0.1f32; 2 * 64];
         let label_embs = vec![0.1f32; 3 * 64];
 
-        let scores =
-            interaction.compute_similarity(&span_embs, 2, &label_embs, 3, 64);
+        let scores = interaction.compute_similarity(&span_embs, 2, &label_embs, 3, 64);
 
         assert_eq!(scores.len(), 6); // 2 spans x 3 labels
 
@@ -463,8 +454,7 @@ mod integration {
         ];
 
         // Evaluate
-        let metrics =
-            evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
+        let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
 
         // Check metrics
         assert!((metrics.exact_f1 - 1.0).abs() < 0.001);
@@ -539,4 +529,3 @@ mod proptests {
         }
     }
 }
-

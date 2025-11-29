@@ -7,12 +7,11 @@
 //! - Serialization roundtrips
 //! - Edge cases and boundary conditions
 
-use anno::{
-    Entity, EntityType, EntityCategory, Model, PatternNER, StackedNER, StatisticalNER,
-    DiscontinuousSpan, EntityBuilder, ExtractionMethod,
-    eval::GoldEntity,
-};
 use anno::backends::stacked::ConflictStrategy;
+use anno::{
+    eval::GoldEntity, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType,
+    ExtractionMethod, HeuristicNER, Model, PatternNER, StackedNER,
+};
 
 mod entity_types {
     use super::*;
@@ -31,7 +30,13 @@ mod entity_types {
         ];
 
         for (ty, expected_cat) in structured {
-            assert_eq!(ty.category(), expected_cat, "{:?} should have category {:?}", ty, expected_cat);
+            assert_eq!(
+                ty.category(),
+                expected_cat,
+                "{:?} should have category {:?}",
+                ty,
+                expected_cat
+            );
         }
     }
 
@@ -44,7 +49,13 @@ mod entity_types {
         ];
 
         for (ty, expected_cat) in named {
-            assert_eq!(ty.category(), expected_cat, "{:?} should have category {:?}", ty, expected_cat);
+            assert_eq!(
+                ty.category(),
+                expected_cat,
+                "{:?} should have category {:?}",
+                ty,
+                expected_cat
+            );
         }
     }
 
@@ -99,15 +110,17 @@ mod provenance_tracking {
     }
 
     #[test]
-    fn statistical_ner_includes_provenance() {
-        let ner = StatisticalNER::new();
-        let entities = ner.extract_entities("Dr. John Smith visited Boston.", None).unwrap();
+    fn heuristic_ner_includes_provenance() {
+        let ner = HeuristicNER::new();
+        let entities = ner
+            .extract_entities("Dr. John Smith visited Boston.", None)
+            .unwrap();
 
         for entity in &entities {
             if let Some(prov) = &entity.provenance {
-                // StatisticalNER uses heuristics (capitalization, context)
+                // HeuristicNER uses heuristics (capitalization, context)
                 assert_eq!(prov.method, ExtractionMethod::Heuristic);
-                assert!(prov.source.contains("statistical"));
+                assert!(prov.source.contains("heuristic"));
             }
         }
     }
@@ -115,16 +128,19 @@ mod provenance_tracking {
     #[test]
     fn stacked_ner_preserves_provenance() {
         let ner = StackedNER::default();
-        let entities = ner.extract_entities(
-            "Dr. Smith charges $100/hour. Email: smith@test.com",
-            None
-        ).unwrap();
+        let entities = ner
+            .extract_entities("Dr. Smith charges $100/hour. Email: smith@test.com", None)
+            .unwrap();
 
         // Should have entities from both backends
-        let pattern_entities: Vec<_> = entities.iter()
-            .filter(|e| e.provenance.as_ref()
-                .map(|p| matches!(p.method, ExtractionMethod::Pattern))
-                .unwrap_or(false))
+        let pattern_entities: Vec<_> = entities
+            .iter()
+            .filter(|e| {
+                e.provenance
+                    .as_ref()
+                    .map(|p| matches!(p.method, ExtractionMethod::Pattern))
+                    .unwrap_or(false)
+            })
             .collect();
 
         // Pattern should find $100 and email
@@ -139,7 +155,7 @@ mod conflict_resolution {
     fn priority_strategy_favors_first() {
         let ner = StackedNER::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::Priority)
             .build();
 
@@ -162,7 +178,7 @@ mod conflict_resolution {
     fn longest_span_prefers_longer() {
         let ner = StackedNER::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::LongestSpan)
             .build();
 
@@ -179,7 +195,7 @@ mod conflict_resolution {
     fn union_keeps_all() {
         let ner = StackedNER::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::Union)
             .build();
 
@@ -193,11 +209,13 @@ mod conflict_resolution {
     fn highest_conf_selects_best() {
         let ner = StackedNER::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::HighestConf)
             .build();
 
-        let entities = ner.extract_entities("Contact: john@example.com", None).unwrap();
+        let entities = ner
+            .extract_entities("Contact: john@example.com", None)
+            .unwrap();
 
         // Pattern NER typically has higher confidence for emails
         let email_entity = entities.iter().find(|e| e.entity_type == EntityType::Email);
@@ -291,10 +309,9 @@ mod serialization {
     #[test]
     fn batch_extraction_json_roundtrip() {
         let ner = StackedNER::default();
-        let entities = ner.extract_entities(
-            "Dr. Smith paid $100 on 2024-01-01",
-            None
-        ).unwrap();
+        let entities = ner
+            .extract_entities("Dr. Smith paid $100 on 2024-01-01", None)
+            .unwrap();
 
         let json = serde_json::to_string(&entities).unwrap();
         let parsed: Vec<Entity> = serde_json::from_str(&json).unwrap();
@@ -350,31 +367,32 @@ mod backend_composition {
     }
 
     #[test]
-    fn stacked_with_statistical_only() {
-        let ner = StackedNER::statistical_only();
+    #[allow(deprecated)]
+    fn stacked_with_heuristic_only() {
+        let ner = StackedNER::statistical_only(); // deprecated alias
         let _entities = ner.extract_entities("Dr. John Smith", None).unwrap();
 
-        // Should find at least something with statistical heuristics
+        // Should find at least something with heuristics
         // (though accuracy varies based on input)
     }
 
     #[test]
+    #[allow(deprecated)]
     fn stacked_builder_with_threshold() {
-        let ner = StackedNER::with_statistical_threshold(0.7);
+        let ner = StackedNER::with_statistical_threshold(0.7); // deprecated
         let _entities = ner.extract_entities("John Smith at MIT", None).unwrap();
 
         // Higher threshold means fewer, more confident extractions
     }
 
     #[test]
-    fn stacked_default_is_pattern_plus_statistical() {
+    fn stacked_default_is_pattern_plus_heuristic() {
         let ner = StackedNER::default();
 
         // Should handle both pattern-detectable and named entities
-        let entities = ner.extract_entities(
-            "Pay $50 to Dr. Smith by 2024-12-31",
-            None
-        ).unwrap();
+        let entities = ner
+            .extract_entities("Pay $50 to Dr. Smith by 2024-12-31", None)
+            .unwrap();
 
         // Should have at least money and date
         let has_money = entities.iter().any(|e| e.entity_type == EntityType::Money);
@@ -434,7 +452,9 @@ mod edge_cases {
 
         // Non-ASCII currencies and text
         let entities2 = ner.extract_entities("Price: €50 for café", None).unwrap();
-        let money2 = entities2.iter().find(|e| e.entity_type == EntityType::Money);
+        let money2 = entities2
+            .iter()
+            .find(|e| e.entity_type == EntityType::Money);
         assert!(money2.is_some());
     }
 
@@ -450,20 +470,24 @@ mod edge_cases {
         let entities = ner.extract_entities(&long_text, None).unwrap();
 
         // Should find many money entities
-        let money_count = entities.iter()
+        let money_count = entities
+            .iter()
             .filter(|e| e.entity_type == EntityType::Money)
             .count();
 
-        assert!(money_count >= 50, "Should find many money entities: {}", money_count);
+        assert!(
+            money_count >= 50,
+            "Should find many money entities: {}",
+            money_count
+        );
     }
 
     #[test]
     fn entities_sorted_by_position() {
         let ner = StackedNER::default();
-        let entities = ner.extract_entities(
-            "$100 on 2024-01-01 for john@test.com",
-            None
-        ).unwrap();
+        let entities = ner
+            .extract_entities("$100 on 2024-01-01 for john@test.com", None)
+            .unwrap();
 
         // Verify sorted by start position
         for i in 1..entities.len() {
@@ -479,12 +503,16 @@ mod edge_cases {
         let ner = PatternNER::new();
 
         // Email with special chars
-        let entities = ner.extract_entities("user+tag@sub.domain.co.uk", None).unwrap();
+        let entities = ner
+            .extract_entities("user+tag@sub.domain.co.uk", None)
+            .unwrap();
         let email = entities.iter().find(|e| e.entity_type == EntityType::Email);
         assert!(email.is_some());
 
         // URL with query params
-        let entities2 = ner.extract_entities("https://example.com/path?key=value&foo=bar", None).unwrap();
+        let entities2 = ner
+            .extract_entities("https://example.com/path?key=value&foo=bar", None)
+            .unwrap();
         let url = entities2.iter().find(|e| e.entity_type == EntityType::Url);
         assert!(url.is_some());
     }
@@ -531,7 +559,7 @@ mod performance {
         }
         let stacked_time = start_stacked.elapsed();
 
-        // Pattern should be comparable or faster (no statistical layer)
+        // Pattern should be comparable or faster (no heuristic layer)
         // This test just ensures both complete in reasonable time
         assert!(pattern_time.as_millis() < 3000);
         assert!(stacked_time.as_millis() < 5000);

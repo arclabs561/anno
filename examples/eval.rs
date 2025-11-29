@@ -8,11 +8,11 @@
 //! # Synthetic only (fast, no downloads)
 //! cargo run --example eval
 //!
-//! # Include real datasets (requires network)
-//! cargo run --example eval --features network
+//! # Include real datasets (requires eval-advanced)
+//! cargo run --example eval --features eval-advanced
 //!
 //! # With ML backends
-//! cargo run --example eval --features "onnx,network"
+//! cargo run --example eval --features "onnx,eval-advanced"
 //! ```
 //!
 //! ## Output
@@ -23,11 +23,11 @@
 //! - Error analysis (confusion matrix)
 
 use anno::eval::analysis::{compare_ner_systems, ConfusionMatrix, ErrorAnalysis};
-#[cfg(feature = "network")]
+#[cfg(feature = "eval-advanced")]
 use anno::eval::loader::{DatasetId, DatasetLoader};
 use anno::eval::synthetic::{all_datasets, Difficulty};
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{Model, PatternNER, StackedNER, StatisticalNER};
+use anno::{HeuristicNER, Model, PatternNER, StackedNER};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -48,8 +48,8 @@ fn create_backends() -> Vec<Backend> {
             model: Box::new(PatternNER::new()),
         },
         Backend {
-            name: "StatisticalNER",
-            model: Box::new(StatisticalNER::new()),
+            name: "HeuristicNER",
+            model: Box::new(HeuristicNER::new()),
         },
         Backend {
             name: "StackedNER",
@@ -88,17 +88,32 @@ fn evaluate_synthetic(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
     println!("Dataset: {} examples", test_cases.len());
 
     // Group by difficulty
-    let by_difficulty: HashMap<Difficulty, Vec<_>> = datasets
-        .iter()
-        .fold(HashMap::new(), |mut acc, ex| {
+    let by_difficulty: HashMap<Difficulty, Vec<_>> =
+        datasets.iter().fold(HashMap::new(), |mut acc, ex| {
             acc.entry(ex.difficulty).or_default().push(ex);
             acc
         });
 
-    println!("  Easy: {}", by_difficulty.get(&Difficulty::Easy).map_or(0, |v| v.len()));
-    println!("  Medium: {}", by_difficulty.get(&Difficulty::Medium).map_or(0, |v| v.len()));
-    println!("  Hard: {}", by_difficulty.get(&Difficulty::Hard).map_or(0, |v| v.len()));
-    println!("  Adversarial: {}", by_difficulty.get(&Difficulty::Adversarial).map_or(0, |v| v.len()));
+    println!(
+        "  Easy: {}",
+        by_difficulty.get(&Difficulty::Easy).map_or(0, |v| v.len())
+    );
+    println!(
+        "  Medium: {}",
+        by_difficulty
+            .get(&Difficulty::Medium)
+            .map_or(0, |v| v.len())
+    );
+    println!(
+        "  Hard: {}",
+        by_difficulty.get(&Difficulty::Hard).map_or(0, |v| v.len())
+    );
+    println!(
+        "  Adversarial: {}",
+        by_difficulty
+            .get(&Difficulty::Adversarial)
+            .map_or(0, |v| v.len())
+    );
     println!();
 
     let mut all_f1_scores: HashMap<String, Vec<f64>> = HashMap::new();
@@ -121,11 +136,13 @@ fn evaluate_synthetic(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
 
                 // Compute per-example F1 for significance testing
                 // (simplified: use per-type F1s as proxy for variance)
-                let per_type_f1s: Vec<f64> = metrics.per_type.values()
+                let per_type_f1s: Vec<f64> = metrics
+                    .per_type
+                    .values()
                     .map(|t| t.f1)
                     .filter(|&f| f > 0.0)
                     .collect();
-                
+
                 if per_type_f1s.is_empty() {
                     all_f1_scores
                         .entry(backend.name.to_string())
@@ -151,7 +168,7 @@ fn evaluate_synthetic(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
 // Real Dataset Evaluation
 // =============================================================================
 
-#[cfg(feature = "network")]
+#[cfg(feature = "eval-advanced")]
 fn evaluate_real_datasets(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
     println!("\n=== Real Dataset Evaluation ===\n");
 
@@ -177,7 +194,11 @@ fn evaluate_real_datasets(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
             }
         };
 
-        println!("{} sentences, {} entities", dataset.len(), dataset.entity_count());
+        println!(
+            "{} sentences, {} entities",
+            dataset.len(),
+            dataset.entity_count()
+        );
 
         let test_cases = dataset.to_test_cases();
 
@@ -208,10 +229,10 @@ fn evaluate_real_datasets(backends: &[Backend]) -> HashMap<String, Vec<f64>> {
     all_f1_scores
 }
 
-#[cfg(not(feature = "network"))]
+#[cfg(not(feature = "eval-advanced"))]
 fn evaluate_real_datasets(_backends: &[Backend]) -> HashMap<String, Vec<f64>> {
     println!("\n=== Real Dataset Evaluation ===\n");
-    println!("Skipped (enable 'network' feature to download datasets)\n");
+    println!("Skipped (enable 'eval-advanced' feature to download datasets)\n");
     HashMap::new()
 }
 
@@ -243,12 +264,7 @@ fn significance_analysis(f1_scores: &HashMap<String, Vec<f64>>) {
                 continue;
             }
 
-            let test = compare_ner_systems(
-                name_a,
-                &scores_a[..n],
-                name_b,
-                &scores_b[..n],
-            );
+            let test = compare_ner_systems(name_a, &scores_a[..n], name_b, &scores_b[..n]);
 
             let sig = if test.significant_01 {
                 "**"
@@ -290,10 +306,18 @@ fn error_analysis_demo(backends: &[Backend]) {
             let mut entities = vec![];
             // Add known entities (simplified for demo)
             if text.contains("Sarah Johnson") {
-                entities.push(GoldEntity::new("Sarah Johnson", anno::EntityType::Person, 4));
+                entities.push(GoldEntity::new(
+                    "Sarah Johnson",
+                    anno::EntityType::Person,
+                    4,
+                ));
             }
             if text.contains("Microsoft") {
-                entities.push(GoldEntity::new("Microsoft", anno::EntityType::Organization, 29));
+                entities.push(GoldEntity::new(
+                    "Microsoft",
+                    anno::EntityType::Organization,
+                    29,
+                ));
             }
             if text.contains("New York") {
                 entities.push(GoldEntity::new("New York", anno::EntityType::Location, 71));
@@ -313,9 +337,10 @@ fn error_analysis_demo(backends: &[Backend]) {
                 // Build confusion matrix
                 for pred in &predicted {
                     let pred_type = pred.entity_type.as_label();
-                    if let Some(g) = gold.iter().find(|g| {
-                        pred.start < g.end && pred.end > g.start
-                    }) {
+                    if let Some(g) = gold
+                        .iter()
+                        .find(|g| pred.start < g.end && pred.end > g.start)
+                    {
                         let gold_type = g.entity_type.as_label();
                         confusion.add(pred_type, gold_type);
                     }
@@ -351,12 +376,19 @@ fn main() {
     println!("====================");
 
     let backends = create_backends();
-    println!("\nBackends: {}", backends.iter().map(|b| b.name).collect::<Vec<_>>().join(", "));
+    println!(
+        "\nBackends: {}",
+        backends
+            .iter()
+            .map(|b| b.name)
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     // Synthetic evaluation (always runs)
     let mut all_scores = evaluate_synthetic(&backends);
 
-    // Real dataset evaluation (requires network feature)
+    // Real dataset evaluation (requires eval-advanced feature)
     let real_scores = evaluate_real_datasets(&backends);
     for (name, scores) in real_scores {
         all_scores.entry(name).or_default().extend(scores);
@@ -370,4 +402,3 @@ fn main() {
 
     println!("\n=== Done ===");
 }
-

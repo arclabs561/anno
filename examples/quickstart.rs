@@ -12,15 +12,15 @@ fn main() {
 
     // Create model
     let model = PatternNER::new();
-    
+
     // Option 1: Use built-in synthetic data (quick sanity check)
     println!("--- Evaluation on synthetic data ---\n");
     let report = ReportBuilder::new("PatternNER")
         .with_error_analysis(true)
         .build(&model);
-    
+
     println!("{}", report.summary());
-    
+
     // Option 2: Provide custom test data
     println!("\n--- Evaluation on custom data ---\n");
     let custom_tests = vec![
@@ -59,18 +59,17 @@ fn main() {
             ],
         },
     ];
-    
+
     let custom_report = ReportBuilder::new("PatternNER")
         .with_test_data(custom_tests)
         .with_error_analysis(true)
         .build(&model);
-    
+
     println!("{}", custom_report.summary());
-    
+
     // Option 3: Export as JSON for tooling
     if let Ok(json) = custom_report.to_json() {
         println!("\n--- JSON export (first 500 chars) ---\n");
         println!("{}...", &json[..json.len().min(500)]);
     }
 }
-

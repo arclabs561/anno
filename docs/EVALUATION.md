@@ -1,8 +1,8 @@
-# Evaluation Guide
+# Evaluation
 
-Comprehensive evaluation framework for NER and coreference resolution.
+This module provides tools for measuring NER and coreference system performance. NER evaluation is complicated by the question of what counts as a "match" — should the span boundaries be exact? Does the type need to match? This library implements the SemEval-2013 evaluation modes that let you answer these questions explicitly.
 
-## Quick Start
+### Basic usage
 
 ```rust
 use anno::eval::{ReportBuilder, TestCase, SimpleGoldEntity};
@@ -10,10 +10,10 @@ use anno::PatternNER;
 
 let model = PatternNER::new();
 
-// Option 1: Built-in synthetic data
+// Evaluate on built-in synthetic data
 let report = ReportBuilder::new("PatternNER").build(&model);
 
-// Option 2: Custom test data
+// Or provide your own test cases
 let tests = vec![
     TestCase {
         text: "Meeting on March 15".into(),
@@ -36,24 +36,30 @@ let report = ReportBuilder::new("PatternNER")
 println!("{}", report.summary());
 ```
 
-## Metrics
+### F1 score variants
 
-### F1 Score Variants
+NER evaluation typically reports F1, but there are different ways to aggregate:
 
-| Metric | Meaning | When to Use |
-|--------|---------|-------------|
-| **Micro F1** | Aggregate TP/FP/FN across all types | Overall performance |
-| **Macro F1** | Average F1 per type (equal weight) | Fairness to rare types |
-| **Weighted F1** | F1 weighted by type frequency | Realistic expectation |
+| Metric | Aggregation |
+|--------|-------------|
+| Micro F1 | Pools all entities together |
+| Macro F1 | Averages F1 per entity type (treats rare types equally) |
+| Weighted F1 | Averages F1 per type, weighted by support |
 
-### Evaluation Modes (SemEval-2013)
+Micro F1 is standard for overall performance. Macro F1 matters when you care about performance on rare entity types that would otherwise be swamped by common ones.
 
-| Mode | Boundary | Type | Use Case |
-|------|----------|------|----------|
-| **Strict** | Exact | Exact | CoNLL standard (default) |
-| **Exact** | Exact | Any | Boundary detection quality |
-| **Partial** | Overlap | Exact | Lenient evaluation |
-| **Type** | Any | Exact | Type classification only |
+### Evaluation modes
+
+The SemEval-2013 shared task defined four evaluation modes that control matching strictness:
+
+| Mode | Span matching | Type matching |
+|------|---------------|---------------|
+| Strict | Exact boundaries | Must match |
+| Exact | Exact boundaries | Ignored |
+| Partial | Overlap sufficient | Must match |
+| Type | Ignored | Must match |
+
+**Strict** is the standard for CoNLL-style evaluation. Use **Partial** when your application can tolerate boundary errors (e.g., "John" vs "John Smith" both referring to the same person). Use **Type** when you only care whether the system found *some* person entity, not the exact span.
 
 ```rust
 use anno::eval::modes::{EvalMode, MultiModeResults};
@@ -63,18 +69,18 @@ println!("Strict F1: {:.1}%", results.strict.f1 * 100.0);
 println!("Partial F1: {:.1}%", results.partial.f1 * 100.0);
 ```
 
-## Coreference Metrics
+### Coreference metrics
 
-For coreference resolution tasks (requires `eval` feature):
+Coreference evaluation measures how well a system links mentions to entities. The task is different from NER: given mentions like "John", "he", "the CEO", determine which refer to the same real-world entity.
 
-| Metric | Focus | Notes |
-|--------|-------|-------|
-| **MUC** | Links | Ignores singletons |
-| **B³** | Mentions | Per-mention scores |
-| **CEAF** | Entities | Optimal alignment |
-| **LEA** | Links+Entities | Entity-aware |
-| **BLANC** | Rand index | Best discriminative power |
-| **CoNLL F1** | Composite | Average of MUC, B³, CEAF-e |
+| Metric | Focus |
+|--------|-------|
+| MUC | Link-based. Counts missing/extra links. Ignores singletons. |
+| B³ | Mention-based. Each mention contributes to precision/recall. |
+| CEAF | Aligns predicted and gold clusters optimally, then scores. |
+| LEA | Link-based but entity-aware. Penalizes splitting entities. |
+| BLANC | Rand index over coreference/non-coreference decisions. |
+| CoNLL F1 | Average of MUC, B³, and CEAF-e. Standard for comparison. |
 
 ```rust
 use anno::eval::{CorefChain, Mention, conll_f1};
@@ -90,169 +96,197 @@ let pred = gold.clone();
 let (p, r, f1) = conll_f1(&gold, &pred);
 ```
 
-## BIO Tag Adapter
+### BIO sequence conversion
 
-Convert between BIO-tagged sequences and entity spans:
+Many NER datasets use BIO (Begin-Inside-Outside) sequence labels rather than span annotations. This library converts between them:
 
 ```rust
-use anno::eval::bio_adapter::{bio_to_entities, validate_bio_sequence, BioScheme};
+use anno::eval::bio_adapter::{bio_to_entities, BioScheme};
 
 let tokens = ["John", "Smith", "works", "at", "Apple"];
 let tags = ["B-PER", "I-PER", "O", "O", "B-ORG"];
 
 let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2)?;
-assert_eq!(entities[0].text, "John Smith");
-
-// Validate sequence
-let errors = validate_bio_sequence(&tags, BioScheme::IOB2);
+// entities[0].text == "John Smith"
 ```
 
-## Dataset Support
+### Datasets
 
-With `--features network`:
+With `--features eval-advanced`, you can load standard NER datasets:
 
 ```rust
 use anno::eval::loader::{DatasetLoader, DatasetId};
 
 let loader = DatasetLoader::new()?;
 let dataset = loader.load_or_download(DatasetId::WikiGold)?;
-println!("Loaded {} examples", dataset.sentences.len());
 ```
 
-| Dataset | Domain | Size | Entity Types |
-|---------|--------|------|--------------|
-| WikiGold | Wikipedia | ~3.5k | PER, LOC, ORG, MISC |
-| WNUT-17 | Social Media | ~2k | Emerging entities |
-| CoNLL-2003 | News | ~20k | PER, LOC, ORG, MISC |
-| MIT Movie | Movies | ~10k | Actor, Director, Genre |
-| MIT Restaurant | Food | ~8k | Cuisine, Location, Price |
-| BC5CDR | Biomedical | ~28k | Disease, Chemical |
-| FewNERD | Cross-domain | ~188k | 8 coarse + 66 fine types |
+| Dataset | Domain | Entities | GLiNER Paper |
+|---------|--------|----------|--------------|
+| CoNLL-2003 | News | PER, LOC, ORG, MISC | Yes |
+| WikiGold | Wikipedia | PER, LOC, ORG, MISC | No |
+| WNUT-17 | Social media | Emerging/novel entities | No |
+| MIT Movie | Film reviews | Actor, Director, Genre, etc. | Yes |
+| MIT Restaurant | Restaurants | Cuisine, Dish, Location, etc. | Yes |
+| BC5CDR | Biomedical | Disease, Chemical | Yes |
+| FewNERD | Cross-domain | 66 fine-grained types | No |
 
-### TypeMapper for Domain Datasets
+#### GLiNER Paper Benchmark Datasets (New)
 
-Domain datasets use different entity schemas. TypeMapper normalizes them:
+We now support the full GLiNER 20-dataset benchmark from arxiv:2311.08526:
+
+| Category | Datasets | Description |
+|----------|----------|-------------|
+| Biomedical | GENIA, AnatEM, BC2GM, BC4CHEMD, BC5CDR, NCBI Disease | PubMed/MEDLINE abstracts |
+| Social Media | TweetNER7, BroadTwitterCorpus | Twitter NER |
+| Specialized | FabNER, MIT Movie, MIT Restaurant | Domain-specific |
+| Multilingual | WikiANN, WikiNeural, PolyglotNER, MultiNERD | Cross-lingual evaluation |
 
 ```rust
-use anno::{TypeMapper, EntityType};
+// Load biomedical benchmark datasets
+let loader = DatasetLoader::new()?;
+for dataset_id in DatasetId::all_biomedical() {
+    let dataset = loader.load_or_download(*dataset_id)?;
+    println!("{}: {} entities", dataset_id.name(), dataset.entity_count());
+}
 
-// MIT Movie: "ACTOR" → Person, "DIRECTOR" → Person
-let mapper = TypeMapper::mit_movie();
-
-// Or custom mappings
-let mut mapper = TypeMapper::new();
-mapper.add("ACTOR", EntityType::Person);
-mapper.add("TITLE", EntityType::custom("WORK_OF_ART", EntityCategory::Creative));
-```
-
-## Bias Analysis
-
-With `--features eval-bias`:
-
-```rust
-use anno::eval::{GenderBiasEvaluator, DemographicBiasEvaluator};
-
-let evaluator = GenderBiasEvaluator::new();
-let results = evaluator.evaluate(&model)?;
-println!("Gender gap: {:.1}%", results.gap * 100.0);
-```
-
-| Module | Purpose |
-|--------|---------|
-| `GenderBiasEvaluator` | WinoBias-style occupation tests |
-| `DemographicBiasEvaluator` | Ethnicity/region fairness |
-| `TemporalBiasEvaluator` | Name popularity over time |
-| `LengthBiasEvaluator` | Entity length sensitivity |
-
-## Advanced Evaluation
-
-With `--features eval-advanced`:
-
-```rust
-use anno::eval::{CalibrationEvaluator, RobustnessEvaluator, ThresholdAnalyzer};
-
-// Confidence calibration (ECE, Brier score)
-let cal = CalibrationEvaluator::new();
-let results = cal.evaluate(&model, &test_data)?;
-
-// Perturbation robustness
-let rob = RobustnessEvaluator::new();
-let results = rob.evaluate(&model, &test_data)?;
-
-// Precision-recall curves
-let analyzer = ThresholdAnalyzer::new();
-let curve = analyzer.analyze(&predictions)?;
-```
-
-| Module | Purpose |
-|--------|---------|
-| `CalibrationEvaluator` | Confidence reliability |
-| `RobustnessEvaluator` | Perturbation tolerance |
-| `ErrorAnalyzer` | Boundary vs type errors |
-| `ThresholdAnalyzer` | P/R tradeoff curves |
-| `ActiveLearner` | Uncertainty sampling |
-| `LongTailAnalyzer` | Rare entity performance |
-
-## CLI Tool
-
-```bash
-cargo install --path . --features eval
-
-# Quick evaluation
-anno-eval quick
-
-# Validate BIO sequence
-anno-eval bio validate "B-PER I-PER O B-ORG"
-
-# Repair invalid sequence
-anno-eval bio repair "O I-PER I-PER O"
-
-# Calculate span overlap
-anno-eval overlap 0 10 5 15
-```
-
-## Statistical Significance
-
-```rust
-use anno::eval::analysis::compare_ner_systems;
-
-let test = compare_ner_systems(
-    "ModelA", &scores_a,
-    "ModelB", &scores_b,
-);
-
-if test.significant_05 {
-    println!("Difference is significant (p<0.05)");
+// Load social media benchmark datasets
+for dataset_id in DatasetId::all_social_media() {
+    let dataset = loader.load_or_download(*dataset_id)?;
 }
 ```
 
-## Error Analysis
+Different datasets use different entity schemas. `TypeMapper` normalizes them:
 
 ```rust
-use anno::eval::analysis::{ErrorAnalysis, ConfusionMatrix};
+use anno::TypeMapper;
 
-let analysis = ErrorAnalysis::analyze(&text, &predicted, &gold);
-println!("{}", analysis.summary());
-
-// Confusion matrix
-let mut matrix = ConfusionMatrix::new();
-// ... populate ...
-let confused = matrix.most_confused(3);
+// MIT Movie uses "ACTOR", our model uses "PER"
+let mapper = TypeMapper::mit_movie();
 ```
 
-## Feature Flag Summary
+### Bias analysis
 
-| Feature | Modules Added |
-|---------|---------------|
+With `--features eval-bias`, you can test for demographic biases:
+
+```rust
+use anno::eval::GenderBiasEvaluator;
+
+let evaluator = GenderBiasEvaluator::new();
+let results = evaluator.evaluate(&model)?;
+```
+
+This runs WinoBias-style tests that check whether the model performs equally on sentences with male vs female pronouns.
+
+### Calibration
+
+With `--features eval-advanced`, you can check whether confidence scores are calibrated:
+
+```rust
+use anno::eval::CalibrationEvaluator;
+
+let cal = CalibrationEvaluator::new();
+let results = cal.evaluate(&model, &test_data)?;
+```
+
+A well-calibrated model's 80% confidence predictions should be correct ~80% of the time. Miscalibration means the scores are useful for ranking but not as probabilities.
+
+### Feature flags
+
+| Feature | Modules |
+|---------|---------|
 | `eval` | Core metrics, BIO adapter, coreference, datasets |
 | `eval-bias` | Gender, demographic, temporal, length bias |
-| `eval-advanced` | Calibration, robustness, active learning, error analysis |
+| `eval-advanced` | Calibration, robustness, active learning |
 | `eval-full` | All of the above |
 
-## Research
+### Multilingual NER
 
-Based on evaluation methodologies from:
+The non-ML backends (`PatternNER`, `HeuristicNER`) have different multilingual capabilities:
+
+**PatternNER (regex-based)** works well across languages for structured entities:
+
+| Entity Type | Cross-lingual Support | Notes |
+|-------------|----------------------|-------|
+| ISO dates (2024-01-15) | Universal | Language-agnostic format |
+| Emails | Universal | Format-based detection |
+| URLs | Universal | Format-based detection |
+| Currency symbols ($, €, £, ¥) | Universal | Symbol + Unicode digits |
+| Arabic-Indic numerals | Supported | Rust regex `\d` is Unicode-aware |
+| Japanese dates (年月日) | Supported | 2024年1月15日 format |
+| Korean dates (년월일) | Supported | 2024년 1월 15일 format |
+| German months | Supported | Januar, Februar, März, etc. |
+| French months | Supported | janvier, février, mars, etc. |
+| Spanish months | Supported | enero, febrero, marzo, etc. |
+| Italian months | Supported | gennaio, febbraio, marzo, etc. |
+| Portuguese months | Supported | janeiro, fevereiro, março, etc. |
+| Dutch months | Supported | januari, februari, maart, etc. |
+| Russian months | Supported | января, февраля, марта, etc. |
+
+**HeuristicNER (heuristic-based)** is English-centric:
+
+| Language Category | Expected Performance | Challenge |
+|------------------|---------------------|-----------|
+| English | ~60-70% F1 | Reference implementation |
+| German, French, Spanish | ~40-50% F1 | Capitalization helps, context words English |
+| Russian, Greek | ~30-40% F1 | Different script, caps help |
+| Chinese, Japanese, Korean | ~0% F1 | No capitalization signal |
+| Arabic, Hebrew | ~0% F1 | RTL + no capitalization |
+
+For production multilingual NER, use the ML backends:
+- **GLiNER/NuNER**: Zero-shot NER works across languages with multilingual embeddings
+- **Fine-tuned BERT**: Language-specific models available for most major languages
+
+Multilingual evaluation datasets (all loadable via `DatasetLoader`):
+- **WikiANN (PAN-X)**: 282 languages, PER/LOC/ORG entities — `DatasetId::WikiANN`
+- **MultiCoNER**: 12 languages, 33 fine-grained entity types — `DatasetId::MultiCoNER`
+- **MultiCoNER v2**: 36 entity types including medical — `DatasetId::MultiCoNERv2`
+- **MultiNERD**: 15 entity types, Wikipedia-derived — `DatasetId::MultiNERD`
+- **WikiNeural**: 9 languages, silver NER data from Wikipedia (GLiNER benchmark) — `DatasetId::WikiNeural`
+- **PolyglotNER**: 40 languages, Wikipedia + Freebase (GLiNER benchmark) — `DatasetId::PolyglotNER`
+- **UniversalNER**: 13 languages, gold-standard cross-lingual annotations (NAACL 2024) — `DatasetId::UniversalNER`
+
+```rust
+use anno::eval::loader::{DatasetLoader, DatasetId};
+
+let loader = DatasetLoader::new()?;
+
+// Load WikiANN (English subset)
+let wikiann = loader.load_or_download(DatasetId::WikiANN)?;
+
+// Load MultiCoNER
+let multiconer = loader.load_or_download(DatasetId::MultiCoNER)?;
+```
+
+See `tests/multilingual_ner_tests.rs` for comprehensive cross-lingual test coverage.
+
+### A Note on Evaluation Standards
+
+**The SemEval-2013 metrics implemented here are legacy standards** useful for comparing to published work, but they have known limitations documented in 2023-2024 research:
+
+- **Benchmark noise**: 7-10% of labels in CoNLL-03/OntoNotes are incorrect
+- **False errors**: 47% of "errors" on CoNLL-03 are actually correct predictions penalized by annotation mistakes
+- **Single-score blindness**: F1 hides boundary vs type errors, rare entity performance, error severity
+
+See [`docs/EVALUATION_CRITIQUE.md`](EVALUATION_CRITIQUE.md) for:
+- Research citations on evaluation limitations
+- What `anno` does differently (dataset quality metrics, error taxonomy)
+- Recommended modern evaluation workflow
+
+For 2024+ evaluation, prefer:
+- `anno::eval::dataset_quality` — unseen entity ratio, ambiguity metrics
+- `anno::eval::error_analysis` — fine-grained error taxonomy
+- Synthetic datasets with verified annotations (no benchmark noise)
+
+### References
+
+**Legacy Standards (for comparison to published work)**
 - [SemEval-2013 Task 9](https://aclanthology.org/S13-2056/) — Evaluation modes
 - [CoNLL-2012](https://aclanthology.org/W12-4501/) — Coreference metrics
 - [WinoBias](https://arxiv.org/abs/1804.06876) — Gender bias evaluation
 
+**Modern Critiques (recommended reading)**
+- [CleanCoNLL](https://arxiv.org/abs/2310.16225) — 7% of CoNLL-03 labels corrected (EMNLP 2023)
+- [OntoNotes Errors](https://arxiv.org/abs/2406.19172) — 8% of entities corrected (2024)
+- [TMR](https://arxiv.org/abs/2103.12312) — Tough Mentions Recall (2021)
+- [Coref Measurement Modeling](https://arxiv.org/abs/2303.09092) — Generalization validity (ACL 2024)

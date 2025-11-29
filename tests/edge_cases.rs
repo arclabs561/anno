@@ -2,7 +2,7 @@
 //!
 //! Tests boundary conditions, unusual inputs, and potential failure modes.
 
-use anno::{Entity, EntityType, Model, PatternNER, StackedNER, StatisticalNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
 
 fn has_type(entities: &[Entity], ty: &EntityType) -> bool {
     entities.iter().any(|e| e.entity_type == *ty)
@@ -24,7 +24,7 @@ mod empty_input {
 
     #[test]
     fn statistical_empty_string() {
-        let ner = StatisticalNER::new();
+        let ner = HeuristicNER::new();
         let e = ner.extract_entities("", None).unwrap();
         assert!(e.is_empty());
     }
@@ -100,19 +100,27 @@ mod unicode {
         if !e.is_empty() {
             let entity = &e[0];
             // Entity offsets are CHARACTER offsets, extract using chars()
-            let extracted: String = text.chars()
+            let extracted: String = text
+                .chars()
                 .skip(entity.start)
                 .take(entity.end - entity.start)
                 .collect();
-            assert!(extracted.contains("$500") || extracted == "$500",
-                "Expected $500, got '{}' at char {}..{}", extracted, entity.start, entity.end);
+            assert!(
+                extracted.contains("$500") || extracted == "$500",
+                "Expected $500, got '{}' at char {}..{}",
+                extracted,
+                entity.start,
+                entity.end
+            );
         }
     }
 
     #[test]
     fn emoji_before_entity() {
         let ner = PatternNER::new();
-        let e = ner.extract_entities("🚀 Launch on 2024-01-15", None).unwrap();
+        let e = ner
+            .extract_entities("🚀 Launch on 2024-01-15", None)
+            .unwrap();
         assert!(has_type(&e, &EntityType::Date));
     }
 
@@ -127,9 +135,11 @@ mod unicode {
 
     #[test]
     fn statistical_with_accented_names() {
-        let ner = StatisticalNER::new();
+        let ner = HeuristicNER::new();
         // Accented names should still be detected as title case
-        let e = ner.extract_entities("Meeting with José García", None).unwrap();
+        let e = ner
+            .extract_entities("Meeting with José García", None)
+            .unwrap();
         // May or may not detect - heuristic system
         // Just verify no panic
         let _ = e.len(); // Just ensure extraction succeeded
@@ -177,8 +187,15 @@ mod long_input {
             .join(". ");
         let e = ner.extract_entities(&text, None).unwrap();
         // Should find most of the money amounts
-        let money_count = e.iter().filter(|e| e.entity_type == EntityType::Money).count();
-        assert!(money_count >= 90, "Should find most money entities: {}", money_count);
+        let money_count = e
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .count();
+        assert!(
+            money_count >= 90,
+            "Should find most money entities: {}",
+            money_count
+        );
     }
 
     #[test]
@@ -238,14 +255,19 @@ mod special_chars {
         let e = ner
             .extract_entities("$100\r\n2024-01-15\n$200\r$300", None)
             .unwrap();
-        let money_count = e.iter().filter(|e| e.entity_type == EntityType::Money).count();
+        let money_count = e
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .count();
         assert!(money_count >= 2);
     }
 
     #[test]
     fn tabs_in_text() {
         let ner = PatternNER::new();
-        let e = ner.extract_entities("Price:\t$100\tDate:\t2024-01-15", None).unwrap();
+        let e = ner
+            .extract_entities("Price:\t$100\tDate:\t2024-01-15", None)
+            .unwrap();
         assert!(has_type(&e, &EntityType::Money));
         assert!(has_type(&e, &EntityType::Date));
     }
@@ -295,7 +317,10 @@ mod boundaries {
     fn entities_separated_by_single_space() {
         let ner = PatternNER::new();
         let e = ner.extract_entities("$100 $200", None).unwrap();
-        let money_count = e.iter().filter(|e| e.entity_type == EntityType::Money).count();
+        let money_count = e
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Money)
+            .count();
         assert_eq!(money_count, 2);
     }
 
@@ -513,7 +538,7 @@ mod span_validity {
 
     #[test]
     fn statistical_spans_valid() {
-        let ner = StatisticalNER::new();
+        let ner = HeuristicNER::new();
         let texts = [
             "Dr. John Smith is here",
             "Apple Inc. announced",
@@ -539,4 +564,3 @@ mod span_validity {
         }
     }
 }
-

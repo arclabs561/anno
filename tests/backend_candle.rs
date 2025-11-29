@@ -27,7 +27,10 @@ mod candle_ner {
             }
         };
 
-        assert!(ner.is_available(), "CandleNER should be available after loading");
+        assert!(
+            ner.is_available(),
+            "CandleNER should be available after loading"
+        );
 
         let test_cases = [
             "Steve Jobs founded Apple in California.",
@@ -124,8 +127,8 @@ mod gliner_candle {
                 &["technology", "scientist", "university"],
             ),
             (
-                "Tesla Model 3 costs $35,000 and has 250 miles range.",
-                &["car_model", "price", "specification"],
+                "The MacBook Pro costs $1,999 and has M3 processor.",
+                &["product_model", "price", "specification"],
             ),
         ];
 
@@ -182,7 +185,7 @@ mod gliner_candle {
 
 #[cfg(feature = "candle")]
 mod comparison {
-    #[allow(unused_imports)]  // Used conditionally in onnx block
+    #[allow(unused_imports)] // Used conditionally in onnx block
     use anno::Model;
 
     /// Compare Candle vs ONNX backends on the same inputs.
@@ -231,8 +234,14 @@ mod comparison {
                 let candle_entities = candle.extract_entities(text, None).unwrap_or_default();
                 let onnx_entities = onnx.extract_entities(text, None).unwrap_or_default();
 
-                println!("  Candle: {:?}", candle_entities.iter().map(|e| &e.text).collect::<Vec<_>>());
-                println!("  ONNX:   {:?}", onnx_entities.iter().map(|e| &e.text).collect::<Vec<_>>());
+                println!(
+                    "  Candle: {:?}",
+                    candle_entities.iter().map(|e| &e.text).collect::<Vec<_>>()
+                );
+                println!(
+                    "  ONNX:   {:?}",
+                    onnx_entities.iter().map(|e| &e.text).collect::<Vec<_>>()
+                );
 
                 // They should find similar entities (not necessarily identical due to implementation differences)
                 println!(
@@ -248,4 +257,3 @@ mod comparison {
         println!("Skipping comparison (onnx feature not enabled)");
     }
 }
-

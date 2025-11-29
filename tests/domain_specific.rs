@@ -135,12 +135,7 @@ mod legal {
         // Should find organizations and/or persons
         let named_count = e
             .iter()
-            .filter(|e| {
-                matches!(
-                    e.entity_type,
-                    EntityType::Person | EntityType::Organization
-                )
-            })
+            .filter(|e| matches!(e.entity_type, EntityType::Person | EntityType::Organization))
             .count();
         assert!(named_count >= 1, "Should find legal parties: {:?}", e);
     }
@@ -261,7 +256,7 @@ mod news {
             Maria Garcia.
         "#;
         let e = ner.extract_entities(text, None).unwrap();
-        
+
         // Should find money
         assert!(has_type(&e, &EntityType::Money));
         // Should find percent
@@ -453,7 +448,7 @@ mod mixed {
             John
         "#;
         let e = ner.extract_entities(text, None).unwrap();
-        
+
         // Should find multiple entity types
         assert!(has_type(&e, &EntityType::Email));
         assert!(has_type(&e, &EntityType::Date));
@@ -490,7 +485,7 @@ mod mixed {
             Payment URL: https://pay.example.com/inv/2024001
         "#;
         let e = ner.extract_entities(text, None).unwrap();
-        
+
         assert!(count_type(&e, &EntityType::Date) >= 2);
         assert!(has_type(&e, &EntityType::Email));
         assert!(has_type(&e, &EntityType::Phone));
@@ -519,7 +514,7 @@ mod mixed {
             - Prof. Michael Brown, MIT
         "#;
         let e = ner.extract_entities(text, None).unwrap();
-        
+
         // Pattern entities
         assert!(count_type(&e, &EntityType::Money) >= 2);
         assert!(has_type(&e, &EntityType::Percent));
@@ -528,4 +523,3 @@ mod mixed {
         assert!(has_type(&e, &EntityType::Date));
     }
 }
-
