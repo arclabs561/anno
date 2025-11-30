@@ -68,36 +68,45 @@ struct ParsedTag {
 impl ParsedTag {
     fn parse(tag: &str) -> Self {
         if tag == "O" || tag == "o" {
-            return Self { prefix: 'O', entity_type: None };
+            return Self {
+                prefix: 'O',
+                entity_type: None,
+            };
         }
-        
+
         // Handle B-PER, I-LOC, etc.
         if tag.len() >= 2 && (tag.chars().nth(1) == Some('-') || tag.chars().nth(1) == Some('_')) {
             let prefix = tag.chars().next().unwrap_or('O').to_ascii_uppercase();
             let entity_type = tag[2..].to_string();
-            return Self { prefix, entity_type: Some(entity_type) };
+            return Self {
+                prefix,
+                entity_type: Some(entity_type),
+            };
         }
-        
+
         // Fallback: treat as O
-        Self { prefix: 'O', entity_type: None }
+        Self {
+            prefix: 'O',
+            entity_type: None,
+        }
     }
-    
+
     fn is_outside(&self) -> bool {
         self.prefix == 'O'
     }
-    
+
     fn is_begin(&self) -> bool {
         self.prefix == 'B'
     }
-    
+
     fn is_inside(&self) -> bool {
         self.prefix == 'I'
     }
-    
+
     fn is_end(&self) -> bool {
         self.prefix == 'E' || self.prefix == 'L'
     }
-    
+
     fn is_single(&self) -> bool {
         self.prefix == 'S' || self.prefix == 'U'
     }
@@ -139,7 +148,7 @@ pub fn bio_to_entities<S: AsRef<str>>(
             tags.len()
         )));
     }
-    
+
     // Compute character offsets for each token
     let mut offsets = Vec::with_capacity(tokens.len());
     let mut current_offset = 0;
@@ -148,27 +157,39 @@ pub fn bio_to_entities<S: AsRef<str>>(
         offsets.push((current_offset, current_offset + token_str.len()));
         current_offset += token_str.len() + 1; // +1 for space
     }
-    
+
     let mut entities = Vec::new();
     let mut current_entity: Option<(usize, String)> = None; // (start_idx, type)
-    
+
     for (i, tag_str) in tags.iter().enumerate() {
         let tag = ParsedTag::parse(tag_str.as_ref());
-        
+
         match scheme {
             BioScheme::IOB2 => {
                 if tag.is_begin() || tag.is_single() {
                     // Finish previous entity if any
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                     // Start new entity
                     current_entity = tag.entity_type.clone().map(|t| (i, t));
-                    
+
                     // Single-token entity in IOBES mode
                     if tag.is_single() {
                         if let Some((start_idx, entity_type)) = current_entity.take() {
-                            entities.push(build_entity(tokens, &offsets, start_idx, i, &entity_type));
+                            entities.push(build_entity(
+                                tokens,
+                                &offsets,
+                                start_idx,
+                                i,
+                                &entity_type,
+                            ));
                         }
                     }
                 } else if tag.is_inside() {
@@ -177,7 +198,13 @@ pub fn bio_to_entities<S: AsRef<str>>(
                         if tag.entity_type.as_ref() != Some(current_type) {
                             // Type mismatch - close current and start new
                             if let Some((start_idx, entity_type)) = current_entity.take() {
-                                entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                                entities.push(build_entity(
+                                    tokens,
+                                    &offsets,
+                                    start_idx,
+                                    i - 1,
+                                    &entity_type,
+                                ));
                             }
                             current_entity = tag.entity_type.clone().map(|t| (i, t));
                         }
@@ -193,7 +220,13 @@ pub fn bio_to_entities<S: AsRef<str>>(
                 } else if tag.is_outside() {
                     // Close any open entity
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                 }
             }
@@ -201,28 +234,53 @@ pub fn bio_to_entities<S: AsRef<str>>(
                 // IOB1: B only appears between adjacent same-type entities
                 if tag.is_begin() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                     current_entity = tag.entity_type.clone().map(|t| (i, t));
                 } else if tag.is_inside() {
-                    if current_entity.is_none() || 
-                       current_entity.as_ref().map(|(_, t)| t) != tag.entity_type.as_ref() {
+                    if current_entity.is_none()
+                        || current_entity.as_ref().map(|(_, t)| t) != tag.entity_type.as_ref()
+                    {
                         // New entity starts with I in IOB1
                         if let Some((start_idx, entity_type)) = current_entity.take() {
-                            entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                            entities.push(build_entity(
+                                tokens,
+                                &offsets,
+                                start_idx,
+                                i - 1,
+                                &entity_type,
+                            ));
                         }
                         current_entity = tag.entity_type.clone().map(|t| (i, t));
                     }
                 } else if tag.is_outside() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                 }
             }
             BioScheme::IOBES => {
                 if tag.is_begin() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                     current_entity = tag.entity_type.clone().map(|t| (i, t));
                 } else if tag.is_inside() {
@@ -233,14 +291,26 @@ pub fn bio_to_entities<S: AsRef<str>>(
                     }
                 } else if tag.is_single() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                     if let Some(t) = tag.entity_type.clone() {
                         entities.push(build_entity(tokens, &offsets, i, i, &t));
                     }
                 } else if tag.is_outside() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                 }
             }
@@ -259,18 +329,30 @@ pub fn bio_to_entities<S: AsRef<str>>(
                     }
                 } else if tag.is_outside() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i - 1, &entity_type));
+                        entities.push(build_entity(
+                            tokens,
+                            &offsets,
+                            start_idx,
+                            i - 1,
+                            &entity_type,
+                        ));
                     }
                 }
             }
         }
     }
-    
+
     // Close any remaining entity
     if let Some((start_idx, entity_type)) = current_entity {
-        entities.push(build_entity(tokens, &offsets, start_idx, tokens.len() - 1, &entity_type));
+        entities.push(build_entity(
+            tokens,
+            &offsets,
+            start_idx,
+            tokens.len() - 1,
+            &entity_type,
+        ));
     }
-    
+
     Ok(entities)
 }
 
@@ -287,10 +369,10 @@ fn build_entity<S: AsRef<str>>(
         .map(|t| t.as_ref())
         .collect::<Vec<_>>()
         .join(" ");
-    
+
     let char_start = offsets[start_idx].0;
     let char_end = offsets[end_idx].1;
-    
+
     Entity::new(
         &text,
         string_to_entity_type(entity_type),
@@ -333,10 +415,10 @@ pub fn entities_to_bio(
     scheme: BioScheme,
 ) -> Vec<String> {
     let mut tags = vec!["O".to_string(); tokens.len()];
-    
+
     for entity in entities {
         let type_label = entity.entity_type.as_label().to_uppercase();
-        
+
         // Find tokens that overlap with this entity
         let mut entity_tokens: Vec<usize> = Vec::new();
         for (i, &(tok_start, tok_end)) in tokens.iter().enumerate() {
@@ -344,11 +426,11 @@ pub fn entities_to_bio(
                 entity_tokens.push(i);
             }
         }
-        
+
         if entity_tokens.is_empty() {
             continue;
         }
-        
+
         match scheme {
             BioScheme::IOB2 => {
                 for (j, &tok_idx) in entity_tokens.iter().enumerate() {
@@ -362,8 +444,9 @@ pub fn entities_to_bio(
             BioScheme::IOB1 => {
                 // B only if previous token was same type
                 for (j, &tok_idx) in entity_tokens.iter().enumerate() {
-                    let needs_b = j == 0 && tok_idx > 0 && 
-                        tags[tok_idx - 1].ends_with(&format!("-{}", type_label));
+                    let needs_b = j == 0
+                        && tok_idx > 0
+                        && tags[tok_idx - 1].ends_with(&format!("-{}", type_label));
                     tags[tok_idx] = if needs_b {
                         format!("B-{}", type_label)
                     } else {
@@ -399,8 +482,12 @@ pub fn entities_to_bio(
                 let len = entity_tokens.len();
                 for (j, &tok_idx) in entity_tokens.iter().enumerate() {
                     // E only if next token is same type
-                    let needs_e = j == len - 1 && tok_idx + 1 < tokens.len() &&
-                        tags.get(tok_idx + 1).map(|t| t.ends_with(&format!("-{}", type_label))).unwrap_or(false);
+                    let needs_e = j == len - 1
+                        && tok_idx + 1 < tokens.len()
+                        && tags
+                            .get(tok_idx + 1)
+                            .map(|t| t.ends_with(&format!("-{}", type_label)))
+                            .unwrap_or(false);
                     tags[tok_idx] = if needs_e {
                         format!("E-{}", type_label)
                     } else {
@@ -410,61 +497,72 @@ pub fn entities_to_bio(
             }
         }
     }
-    
+
     tags
 }
 
 /// Validate BIO tag sequence for a given scheme.
 ///
 /// Returns errors for invalid transitions (e.g., O -> I in strict IOB2).
-/// 
+///
 /// Invalid transitions are a common issue in NER model outputs, particularly
 /// when not using CRF layers for constraint enforcement during training.
 pub fn validate_bio_sequence<S: AsRef<str>>(tags: &[S], scheme: BioScheme) -> Vec<String> {
     let mut errors = Vec::new();
-    let mut prev_tag = ParsedTag { prefix: 'O', entity_type: None };
-    
+    let mut prev_tag = ParsedTag {
+        prefix: 'O',
+        entity_type: None,
+    };
+
     for (i, tag_str) in tags.iter().enumerate() {
         let tag = ParsedTag::parse(tag_str.as_ref());
-        
+
         match scheme {
             BioScheme::IOB2 => {
                 // I must follow B or I of same type
                 if tag.is_inside() {
                     if prev_tag.is_outside() {
-                        errors.push(format!("Position {}: I-{} follows O (should be B-{})", 
-                            i, 
+                        errors.push(format!(
+                            "Position {}: I-{} follows O (should be B-{})",
+                            i,
                             tag.entity_type.as_deref().unwrap_or("?"),
-                            tag.entity_type.as_deref().unwrap_or("?")));
+                            tag.entity_type.as_deref().unwrap_or("?")
+                        ));
                     } else if tag.entity_type != prev_tag.entity_type {
-                        errors.push(format!("Position {}: I-{} follows {}-{} (type mismatch)",
+                        errors.push(format!(
+                            "Position {}: I-{} follows {}-{} (type mismatch)",
                             i,
                             tag.entity_type.as_deref().unwrap_or("?"),
                             prev_tag.prefix,
-                            prev_tag.entity_type.as_deref().unwrap_or("?")));
+                            prev_tag.entity_type.as_deref().unwrap_or("?")
+                        ));
                     }
                 }
             }
             BioScheme::IOBES => {
                 // E/L must follow B or I of same type
                 if tag.is_end() && !prev_tag.is_begin() && !prev_tag.is_inside() {
-                    errors.push(format!("Position {}: E-{} without preceding B or I", 
+                    errors.push(format!(
+                        "Position {}: E-{} without preceding B or I",
                         i,
-                        tag.entity_type.as_deref().unwrap_or("?")));
+                        tag.entity_type.as_deref().unwrap_or("?")
+                    ));
                 }
                 // I must follow B or I
                 if tag.is_inside() && !prev_tag.is_begin() && !prev_tag.is_inside() {
-                    errors.push(format!("Position {}: I-{} without preceding B or I",
+                    errors.push(format!(
+                        "Position {}: I-{} without preceding B or I",
                         i,
-                        tag.entity_type.as_deref().unwrap_or("?")));
+                        tag.entity_type.as_deref().unwrap_or("?")
+                    ));
                 }
             }
             _ => {} // IOB1, IOE1, IOE2 are more lenient
         }
-        
+
         prev_tag = tag;
     }
-    
+
     errors
 }
 
@@ -481,21 +579,21 @@ pub enum RepairStrategy {
 }
 
 /// Repair invalid BIO tag sequences.
-/// 
+///
 /// Production NER systems often produce invalid sequences (e.g., O followed by I).
 /// This function repairs such sequences according to the chosen strategy.
-/// 
+///
 /// # Strategies
-/// 
+///
 /// - `PromoteToBegin`: Convert orphan I tags to B tags (recommended)
 /// - `Discard`: Convert invalid tags to O
 /// - `Lenient`: Keep as-is (caller handles in parsing)
-/// 
+///
 /// # Example
-/// 
+///
 /// ```rust
 /// use anno::eval::bio_adapter::{repair_bio_sequence, RepairStrategy, BioScheme};
-/// 
+///
 /// let invalid = vec!["O", "I-PER", "I-PER", "O"];  // Invalid: O->I
 /// let repaired = repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);
 /// assert_eq!(repaired, vec!["O", "B-PER", "I-PER", "O"]);  // Fixed
@@ -508,20 +606,23 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
     if strategy == RepairStrategy::Lenient {
         return tags.iter().map(|t| t.as_ref().to_string()).collect();
     }
-    
+
     let mut result: Vec<String> = Vec::with_capacity(tags.len());
-    let mut prev_tag = ParsedTag { prefix: 'O', entity_type: None };
-    
+    let mut prev_tag = ParsedTag {
+        prefix: 'O',
+        entity_type: None,
+    };
+
     for tag_str in tags {
         let tag = ParsedTag::parse(tag_str.as_ref());
         let mut repaired = tag_str.as_ref().to_string();
-        
+
         match scheme {
             BioScheme::IOB2 => {
                 if tag.is_inside() {
-                    let needs_repair = prev_tag.is_outside() || 
-                        tag.entity_type != prev_tag.entity_type;
-                    
+                    let needs_repair =
+                        prev_tag.is_outside() || tag.entity_type != prev_tag.entity_type;
+
                     if needs_repair {
                         match strategy {
                             RepairStrategy::PromoteToBegin => {
@@ -538,7 +639,10 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
                 }
             }
             BioScheme::IOBES => {
-                if (tag.is_inside() || tag.is_end()) && !prev_tag.is_begin() && !prev_tag.is_inside() {
+                if (tag.is_inside() || tag.is_end())
+                    && !prev_tag.is_begin()
+                    && !prev_tag.is_inside()
+                {
                     match strategy {
                         RepairStrategy::PromoteToBegin => {
                             if let Some(ref t) = tag.entity_type {
@@ -555,78 +659,78 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
             }
             _ => {} // Other schemes more lenient
         }
-        
+
         prev_tag = ParsedTag::parse(&repaired);
         result.push(repaired);
     }
-    
+
     result
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_iob2_basic() {
         let tokens = ["John", "Smith", "works", "at", "Apple"];
         let tags = ["B-PER", "I-PER", "O", "O", "B-ORG"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].text, "John Smith");
         assert_eq!(entities[0].entity_type, EntityType::Person);
         assert_eq!(entities[1].text, "Apple");
         assert_eq!(entities[1].entity_type, EntityType::Organization);
     }
-    
+
     #[test]
     fn test_iob2_adjacent_same_type() {
         let tokens = ["John", "and", "Mary"];
         let tags = ["B-PER", "O", "B-PER"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].text, "John");
         assert_eq!(entities[1].text, "Mary");
     }
-    
+
     #[test]
     fn test_iob2_multi_token_org() {
         let tokens = ["The", "United", "Nations", "Security", "Council"];
         let tags = ["O", "B-ORG", "I-ORG", "I-ORG", "I-ORG"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "United Nations Security Council");
         assert_eq!(entities[0].entity_type, EntityType::Organization);
     }
-    
+
     #[test]
     fn test_iobes_single_token() {
         let tokens = ["John", "works", "here"];
         let tags = ["S-PER", "O", "O"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOBES).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "John");
     }
-    
+
     #[test]
     fn test_iobes_bie_sequence() {
         let tokens = ["New", "York", "City"];
         let tags = ["B-LOC", "I-LOC", "E-LOC"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOBES).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "New York City");
     }
-    
+
     #[test]
     fn test_validation_iob2() {
         // Invalid: O -> I
@@ -634,13 +738,13 @@ mod tests {
         let errors = validate_bio_sequence(&tags, BioScheme::IOB2);
         assert!(!errors.is_empty());
         assert!(errors[0].contains("follows O"));
-        
+
         // Valid: B -> I
         let tags = ["B-PER", "I-PER", "O"];
         let errors = validate_bio_sequence(&tags, BioScheme::IOB2);
         assert!(errors.is_empty());
     }
-    
+
     #[test]
     fn test_validation_type_mismatch() {
         // Invalid: I-LOC after B-PER
@@ -649,14 +753,15 @@ mod tests {
         assert!(!errors.is_empty());
         assert!(errors[0].contains("type mismatch"));
     }
-    
+
     #[test]
     fn test_repair_promote_to_begin() {
         let invalid = vec!["O", "I-PER", "I-PER", "O"];
-        let repaired = repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);
+        let repaired =
+            repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);
         assert_eq!(repaired, vec!["O", "B-PER", "I-PER", "O"]);
     }
-    
+
     #[test]
     fn test_repair_discard() {
         let invalid = vec!["O", "I-PER", "I-PER", "O"];
@@ -664,29 +769,30 @@ mod tests {
         // First I-PER becomes O (orphan), second I-PER also becomes O (no valid predecessor)
         assert_eq!(repaired, vec!["O", "O", "O", "O"]);
     }
-    
+
     #[test]
     fn test_repair_lenient() {
         let invalid = vec!["O", "I-PER", "I-PER", "O"];
         let repaired = repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::Lenient);
         assert_eq!(repaired, vec!["O", "I-PER", "I-PER", "O"]);
     }
-    
+
     #[test]
     fn test_repair_type_change() {
         // B-PER followed by I-LOC - type mismatch
         let invalid = vec!["B-PER", "I-LOC", "O"];
-        let repaired = repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);
+        let repaired =
+            repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);
         assert_eq!(repaired, vec!["B-PER", "B-LOC", "O"]);
     }
-    
+
     #[test]
     fn test_roundtrip() {
         let tokens = ["The", "United", "Nations", "met", "in", "New", "York"];
         let tags = ["O", "B-ORG", "I-ORG", "O", "O", "B-LOC", "I-LOC"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         // Create token offsets for roundtrip
         let mut offsets = Vec::new();
         let mut pos = 0;
@@ -694,193 +800,194 @@ mod tests {
             offsets.push((pos, pos + t.len()));
             pos += t.len() + 1;
         }
-        
+
         let recovered_tags = entities_to_bio(&offsets, &entities, BioScheme::IOB2);
-        
+
         assert_eq!(recovered_tags, tags);
     }
-    
+
     #[test]
     fn test_empty_input() {
         let tokens: [&str; 0] = [];
         let tags: [&str; 0] = [];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
         assert!(entities.is_empty());
     }
-    
+
     #[test]
     fn test_all_outside() {
         let tokens = ["The", "cat", "sat"];
         let tags = ["O", "O", "O"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
         assert!(entities.is_empty());
     }
-    
+
     #[test]
     fn test_mismatched_lengths() {
         let tokens = ["John", "Smith"];
         let tags = ["B-PER"];
-        
+
         let result = bio_to_entities(&tokens, &tags, BioScheme::IOB2);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn test_character_offsets() {
         let tokens = ["John", "Smith"];
         let tags = ["B-PER", "I-PER"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].start, 0);
         // "John" (4) + space (1) + "Smith" (5) = 10, but text is "John Smith"
         // start of "John" = 0, end of "Smith" = 4 + 1 + 5 = 10
         assert_eq!(entities[0].end, 10);
     }
-    
+
     #[test]
     fn test_iob1_scheme() {
         // In IOB1, B is only used when two same-type entities are adjacent
         let tokens = ["John", "Mary", "works"];
         // Both start with I in IOB1 (no adjacency issue)
         let tags = ["I-PER", "I-PER", "O"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB1).unwrap();
-        
+
         // In IOB1 with same types, I-I continues the entity
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "John Mary");
     }
-    
+
     #[test]
     fn test_custom_entity_types() {
         let tokens = ["CRISPR", "is", "a", "technology"];
         let tags = ["B-TECH", "O", "O", "O"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert!(matches!(entities[0].entity_type, EntityType::Custom { .. }));
     }
-    
+
     // =============================================================================
     // IOE Scheme Tests
     // =============================================================================
-    
+
     #[test]
     fn test_ioe2_basic() {
         // IOE2: E always ends an entity
         let tokens = ["New", "York", "City"];
         let tags = ["I-LOC", "I-LOC", "E-LOC"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOE2).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "New York City");
         assert_eq!(entities[0].entity_type, EntityType::Location);
     }
-    
+
     #[test]
     fn test_ioe2_multiple_entities() {
         let tokens = ["John", "works", "at", "Apple", "Inc"];
         let tags = ["E-PER", "O", "O", "I-ORG", "E-ORG"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOE2).unwrap();
-        
+
         assert_eq!(entities.len(), 2);
         assert_eq!(entities[0].text, "John");
         assert_eq!(entities[1].text, "Apple Inc");
     }
-    
+
     #[test]
     fn test_ioe1_basic() {
         // IOE1: E only appears when needed (similar to IOB1)
         let tokens = ["New", "York"];
         let tags = ["I-LOC", "I-LOC"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOE1).unwrap();
-        
+
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "New York");
     }
-    
+
     #[test]
     fn test_entities_to_bio_ioe2() {
         let _tokens = ["The", "Big", "Apple"];
         let entities = vec![Entity::new("Big Apple", EntityType::Location, 4, 14, 0.9)];
-        
+
         // Create token offsets: "The" (0-3), "Big" (4-7), "Apple" (8-13)
         let offsets = vec![(0, 3), (4, 7), (8, 13)];
-        
+
         let tags = entities_to_bio(&offsets, &entities, BioScheme::IOE2);
-        
+
         assert_eq!(tags[0], "O");
         // EntityType::Location.as_label() returns "LOC"
         assert_eq!(tags[1], "I-LOC");
         assert_eq!(tags[2], "E-LOC");
     }
-    
+
     // =============================================================================
     // Repair for Different Schemes
     // =============================================================================
-    
+
     #[test]
     fn test_repair_iobes_orphan_inside() {
         let invalid = vec!["O", "I-PER", "O"];
-        let repaired = repair_bio_sequence(&invalid, BioScheme::IOBES, RepairStrategy::PromoteToBegin);
+        let repaired =
+            repair_bio_sequence(&invalid, BioScheme::IOBES, RepairStrategy::PromoteToBegin);
         // Orphan I should become S (single) in IOBES
         assert_eq!(repaired, vec!["O", "S-PER", "O"]);
     }
-    
+
     #[test]
     fn test_repair_iobes_orphan_end() {
         let invalid = vec!["O", "E-PER", "O"];
-        let repaired = repair_bio_sequence(&invalid, BioScheme::IOBES, RepairStrategy::PromoteToBegin);
+        let repaired =
+            repair_bio_sequence(&invalid, BioScheme::IOBES, RepairStrategy::PromoteToBegin);
         // Orphan E should become S (single) in IOBES
         assert_eq!(repaired, vec!["O", "S-PER", "O"]);
     }
-    
+
     // =============================================================================
     // Roundtrip Tests for All Schemes
     // =============================================================================
-    
+
     #[test]
     fn test_roundtrip_iobes() {
         let tokens = ["The", "United", "Nations"];
         let tags = ["O", "B-ORG", "E-ORG"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOBES).unwrap();
-        
+
         let mut offsets = Vec::new();
         let mut pos = 0;
         for t in &tokens {
             offsets.push((pos, pos + t.len()));
             pos += t.len() + 1;
         }
-        
+
         let recovered = entities_to_bio(&offsets, &entities, BioScheme::IOBES);
         assert_eq!(recovered, tags);
     }
-    
+
     #[test]
     fn test_roundtrip_ioe2() {
         let tokens = ["Visit", "New", "York"];
         let tags = ["O", "I-LOC", "E-LOC"];
-        
+
         let entities = bio_to_entities(&tokens, &tags, BioScheme::IOE2).unwrap();
-        
+
         let mut offsets = Vec::new();
         let mut pos = 0;
         for t in &tokens {
             offsets.push((pos, pos + t.len()));
             pos += t.len() + 1;
         }
-        
+
         let recovered = entities_to_bio(&offsets, &entities, BioScheme::IOE2);
         assert_eq!(recovered, tags);
     }
 }
-

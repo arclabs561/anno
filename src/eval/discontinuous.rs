@@ -46,7 +46,11 @@ pub struct DiscontinuousGold {
 
 impl DiscontinuousGold {
     /// Create a new discontinuous gold entity.
-    pub fn new(spans: Vec<(usize, usize)>, entity_type: impl Into<String>, text: impl Into<String>) -> Self {
+    pub fn new(
+        spans: Vec<(usize, usize)>,
+        entity_type: impl Into<String>,
+        text: impl Into<String>,
+    ) -> Self {
         Self {
             spans,
             entity_type: entity_type.into(),
@@ -55,7 +59,12 @@ impl DiscontinuousGold {
     }
 
     /// Create a contiguous gold entity (single span).
-    pub fn contiguous(start: usize, end: usize, entity_type: impl Into<String>, text: impl Into<String>) -> Self {
+    pub fn contiguous(
+        start: usize,
+        end: usize,
+        entity_type: impl Into<String>,
+        text: impl Into<String>,
+    ) -> Self {
         Self {
             spans: vec![(start, end)],
             entity_type: entity_type.into(),
@@ -343,18 +352,37 @@ pub fn evaluate_discontinuous_ner(
     let per_type: HashMap<String, TypeMetrics> = type_stats
         .into_iter()
         .map(|(t, (gold_count, pred_count, exact, boundary))| {
-            let exact_p = if pred_count > 0 { exact as f64 / pred_count as f64 } else { 0.0 };
-            let exact_r = if gold_count > 0 { exact as f64 / gold_count as f64 } else { 0.0 };
-            let boundary_p = if pred_count > 0 { boundary as f64 / pred_count as f64 } else { 0.0 };
-            let boundary_r = if gold_count > 0 { boundary as f64 / gold_count as f64 } else { 0.0 };
+            let exact_p = if pred_count > 0 {
+                exact as f64 / pred_count as f64
+            } else {
+                0.0
+            };
+            let exact_r = if gold_count > 0 {
+                exact as f64 / gold_count as f64
+            } else {
+                0.0
+            };
+            let boundary_p = if pred_count > 0 {
+                boundary as f64 / pred_count as f64
+            } else {
+                0.0
+            };
+            let boundary_r = if gold_count > 0 {
+                boundary as f64 / gold_count as f64
+            } else {
+                0.0
+            };
 
-            (t, TypeMetrics {
-                exact_f1: f1_score(exact_p, exact_r),
-                boundary_f1: f1_score(boundary_p, boundary_r),
-                gold_count,
-                pred_count,
-                exact_matches: exact,
-            })
+            (
+                t,
+                TypeMetrics {
+                    exact_f1: f1_score(exact_p, exact_r),
+                    boundary_f1: f1_score(boundary_p, boundary_r),
+                    gold_count,
+                    pred_count,
+                    exact_matches: exact,
+                },
+            )
         })
         .collect();
 
@@ -418,12 +446,8 @@ fn boundaries_match(a: &[(usize, usize)], b: &[(usize, usize)]) -> bool {
 ///
 /// Uses Intersection over Union (IoU) across all spans.
 fn calculate_multi_span_overlap(a: &[(usize, usize)], b: &[(usize, usize)]) -> f64 {
-    let a_chars: std::collections::HashSet<usize> = a.iter()
-        .flat_map(|(s, e)| *s..*e)
-        .collect();
-    let b_chars: std::collections::HashSet<usize> = b.iter()
-        .flat_map(|(s, e)| *s..*e)
-        .collect();
+    let a_chars: std::collections::HashSet<usize> = a.iter().flat_map(|(s, e)| *s..*e).collect();
+    let b_chars: std::collections::HashSet<usize> = b.iter().flat_map(|(s, e)| *s..*e).collect();
 
     let intersection = a_chars.intersection(&b_chars).count();
     let union = a_chars.union(&b_chars).count();
@@ -450,17 +474,17 @@ mod tests {
 
     #[test]
     fn test_exact_match() {
-        let gold = vec![
-            DiscontinuousGold::new(vec![(0, 5), (10, 15)], "LOC", "test"),
-        ];
-        let pred = vec![
-            DiscontinuousEntity {
-                spans: vec![(0, 5), (10, 15)],
-                text: "test".to_string(),
-                entity_type: "LOC".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let gold = vec![DiscontinuousGold::new(
+            vec![(0, 5), (10, 15)],
+            "LOC",
+            "test",
+        )];
+        let pred = vec![DiscontinuousEntity {
+            spans: vec![(0, 5), (10, 15)],
+            text: "test".to_string(),
+            entity_type: "LOC".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
         assert!((metrics.exact_f1 - 1.0).abs() < 0.001);
@@ -468,18 +492,18 @@ mod tests {
 
     #[test]
     fn test_boundary_match() {
-        let gold = vec![
-            DiscontinuousGold::new(vec![(0, 5), (10, 15)], "LOC", "test"),
-        ];
+        let gold = vec![DiscontinuousGold::new(
+            vec![(0, 5), (10, 15)],
+            "LOC",
+            "test",
+        )];
         // Same boundaries but different internal span structure
-        let pred = vec![
-            DiscontinuousEntity {
-                spans: vec![(0, 3), (3, 5), (10, 15)],
-                text: "test".to_string(),
-                entity_type: "LOC".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let pred = vec![DiscontinuousEntity {
+            spans: vec![(0, 3), (3, 5), (10, 15)],
+            text: "test".to_string(),
+            entity_type: "LOC".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
         // Not exact match
@@ -509,17 +533,13 @@ mod tests {
 
     #[test]
     fn test_type_mismatch() {
-        let gold = vec![
-            DiscontinuousGold::new(vec![(0, 5)], "PER", "John"),
-        ];
-        let pred = vec![
-            DiscontinuousEntity {
-                spans: vec![(0, 5)],
-                text: "John".to_string(),
-                entity_type: "ORG".to_string(), // Wrong type
-                confidence: 0.9,
-            },
-        ];
+        let gold = vec![DiscontinuousGold::new(vec![(0, 5)], "PER", "John")];
+        let pred = vec![DiscontinuousEntity {
+            spans: vec![(0, 5)],
+            text: "John".to_string(),
+            entity_type: "ORG".to_string(), // Wrong type
+            confidence: 0.9,
+        }];
 
         let config = DiscontinuousEvalConfig {
             require_type_match: true,
@@ -531,17 +551,13 @@ mod tests {
 
     #[test]
     fn test_partial_overlap() {
-        let gold = vec![
-            DiscontinuousGold::new(vec![(0, 10)], "LOC", "test"),
-        ];
-        let pred = vec![
-            DiscontinuousEntity {
-                spans: vec![(5, 15)], // 50% overlap
-                text: "test".to_string(),
-                entity_type: "LOC".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let gold = vec![DiscontinuousGold::new(vec![(0, 10)], "LOC", "test")];
+        let pred = vec![DiscontinuousEntity {
+            spans: vec![(5, 15)], // 50% overlap
+            text: "test".to_string(),
+            entity_type: "LOC".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
         // Should have partial overlap score
@@ -563,4 +579,3 @@ mod tests {
         assert!(overlap < 1.0);
     }
 }
-

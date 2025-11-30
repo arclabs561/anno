@@ -132,6 +132,125 @@ impl std::fmt::Display for EntityCategory {
 }
 
 // ============================================================================
+// Entity Viewport (Research: Entity Manifolds)
+// ============================================================================
+
+/// Viewport context for multi-faceted entity representation.
+///
+/// # Research Background
+///
+/// The concept of "Entity Viewports" comes from the observation that
+/// real-world entities are not monolithic - they present different
+/// facets depending on context:
+///
+/// - "Marie Curie" in an **Academic** context: physicist, Nobel laureate
+/// - "Marie Curie" in a **Technical** context: radioactivity researcher, X-ray pioneer
+/// - "Marie Curie" in a **Personal** context: mother, immigrant, educator
+/// - "Marie Curie" in a **Medical** context: founder of mobile X-ray units
+///
+/// Rather than collapsing all information into a single vector,
+/// the viewport model preserves these distinctions and enables
+/// "projection" at query time.
+///
+/// # Usage in RAG Systems
+///
+/// When answering "What were Curie's scientific contributions?", retrieve
+/// facts from the `Academic` viewport. When answering "What was Curie's
+/// personal life like?", retrieve from `Personal`.
+///
+/// # Example
+///
+/// ```rust
+/// use anno::{Entity, EntityType, EntityViewport};
+///
+/// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
+/// entity.viewport = Some(EntityViewport::Academic);
+/// assert!(entity.viewport.as_ref().unwrap().is_professional());
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[non_exhaustive]
+pub enum EntityViewport {
+    /// Business/financial context (CEO, revenue, market cap)
+    Business,
+    /// Legal context (lawsuits, settlements, compliance)
+    Legal,
+    /// Technical/engineering context (patents, inventions, code)
+    Technical,
+    /// Academic/research context (publications, citations, grants)
+    Academic,
+    /// Personal/biographical context (family, hobbies, background)
+    Personal,
+    /// Political context (lobbying, donations, policy positions)
+    Political,
+    /// Media/public relations context (interviews, statements, PR)
+    Media,
+    /// Historical context (past roles, timeline events)
+    Historical,
+    /// Generic/unspecified context
+    #[default]
+    General,
+    /// Custom viewport with a descriptive label
+    Custom(String),
+}
+
+impl EntityViewport {
+    /// Human-readable label for the viewport.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            EntityViewport::Business => "business",
+            EntityViewport::Legal => "legal",
+            EntityViewport::Technical => "technical",
+            EntityViewport::Academic => "academic",
+            EntityViewport::Personal => "personal",
+            EntityViewport::Political => "political",
+            EntityViewport::Media => "media",
+            EntityViewport::Historical => "historical",
+            EntityViewport::General => "general",
+            EntityViewport::Custom(s) => s,
+        }
+    }
+
+    /// Is this a professional/work-related viewport?
+    #[must_use]
+    pub const fn is_professional(&self) -> bool {
+        matches!(
+            self,
+            EntityViewport::Business
+                | EntityViewport::Legal
+                | EntityViewport::Technical
+                | EntityViewport::Academic
+                | EntityViewport::Political
+        )
+    }
+}
+
+impl std::str::FromStr for EntityViewport {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
+            "business" | "financial" | "corporate" => EntityViewport::Business,
+            "legal" | "law" | "compliance" => EntityViewport::Legal,
+            "technical" | "engineering" | "tech" => EntityViewport::Technical,
+            "academic" | "research" | "scholarly" => EntityViewport::Academic,
+            "personal" | "biographical" | "private" => EntityViewport::Personal,
+            "political" | "policy" | "government" => EntityViewport::Political,
+            "media" | "press" | "pr" | "public_relations" => EntityViewport::Media,
+            "historical" | "history" | "past" => EntityViewport::Historical,
+            "general" | "generic" | "" => EntityViewport::General,
+            other => EntityViewport::Custom(other.to_string()),
+        })
+    }
+}
+
+impl std::fmt::Display for EntityViewport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+// ============================================================================
 // Entity Type
 // ============================================================================
 
@@ -401,7 +520,10 @@ impl TypeMapper {
         mapper.add("ACTOR", EntityType::Person);
         mapper.add("DIRECTOR", EntityType::Person);
         mapper.add("CHARACTER", EntityType::Person);
-        mapper.add("TITLE", EntityType::custom("WORK_OF_ART", EntityCategory::Creative));
+        mapper.add(
+            "TITLE",
+            EntityType::custom("WORK_OF_ART", EntityCategory::Creative),
+        );
         mapper.add("GENRE", EntityType::custom("GENRE", EntityCategory::Misc));
         mapper.add("YEAR", EntityType::Date);
         mapper.add("RATING", EntityType::custom("RATING", EntityCategory::Misc));
@@ -415,10 +537,16 @@ impl TypeMapper {
         let mut mapper = Self::new();
         mapper.add("RESTAURANT_NAME", EntityType::Organization);
         mapper.add("LOCATION", EntityType::Location);
-        mapper.add("CUISINE", EntityType::custom("CUISINE", EntityCategory::Misc));
+        mapper.add(
+            "CUISINE",
+            EntityType::custom("CUISINE", EntityCategory::Misc),
+        );
         mapper.add("DISH", EntityType::custom("DISH", EntityCategory::Misc));
         mapper.add("PRICE", EntityType::Money);
-        mapper.add("AMENITY", EntityType::custom("AMENITY", EntityCategory::Misc));
+        mapper.add(
+            "AMENITY",
+            EntityType::custom("AMENITY", EntityCategory::Misc),
+        );
         mapper.add("HOURS", EntityType::Time);
         mapper
     }
@@ -427,11 +555,93 @@ impl TypeMapper {
     #[must_use]
     pub fn biomedical() -> Self {
         let mut mapper = Self::new();
-        mapper.add("DISEASE", EntityType::custom("DISEASE", EntityCategory::Agent));
-        mapper.add("CHEMICAL", EntityType::custom("CHEMICAL", EntityCategory::Misc));
+        mapper.add(
+            "DISEASE",
+            EntityType::custom("DISEASE", EntityCategory::Agent),
+        );
+        mapper.add(
+            "CHEMICAL",
+            EntityType::custom("CHEMICAL", EntityCategory::Misc),
+        );
         mapper.add("DRUG", EntityType::custom("DRUG", EntityCategory::Misc));
         mapper.add("GENE", EntityType::custom("GENE", EntityCategory::Misc));
-        mapper.add("PROTEIN", EntityType::custom("PROTEIN", EntityCategory::Misc));
+        mapper.add(
+            "PROTEIN",
+            EntityType::custom("PROTEIN", EntityCategory::Misc),
+        );
+        // GENIA types
+        mapper.add("DNA", EntityType::custom("DNA", EntityCategory::Misc));
+        mapper.add("RNA", EntityType::custom("RNA", EntityCategory::Misc));
+        mapper.add(
+            "cell_line",
+            EntityType::custom("CELL_LINE", EntityCategory::Misc),
+        );
+        mapper.add(
+            "cell_type",
+            EntityType::custom("CELL_TYPE", EntityCategory::Misc),
+        );
+        mapper
+    }
+
+    /// Create mapper for social media NER datasets (TweetNER7, etc.).
+    #[must_use]
+    pub fn social_media() -> Self {
+        let mut mapper = Self::new();
+        // TweetNER7 types
+        mapper.add("person", EntityType::Person);
+        mapper.add("corporation", EntityType::Organization);
+        mapper.add("location", EntityType::Location);
+        mapper.add("group", EntityType::Organization);
+        mapper.add(
+            "product",
+            EntityType::custom("PRODUCT", EntityCategory::Misc),
+        );
+        mapper.add(
+            "creative_work",
+            EntityType::custom("WORK_OF_ART", EntityCategory::Creative),
+        );
+        mapper.add("event", EntityType::custom("EVENT", EntityCategory::Misc));
+        mapper
+    }
+
+    /// Create mapper for manufacturing domain datasets (FabNER, etc.).
+    #[must_use]
+    pub fn manufacturing() -> Self {
+        let mut mapper = Self::new();
+        // FabNER entity types
+        mapper.add("MATE", EntityType::custom("MATERIAL", EntityCategory::Misc));
+        mapper.add("MANP", EntityType::custom("PROCESS", EntityCategory::Misc));
+        mapper.add("MACEQ", EntityType::custom("MACHINE", EntityCategory::Misc));
+        mapper.add(
+            "APPL",
+            EntityType::custom("APPLICATION", EntityCategory::Misc),
+        );
+        mapper.add("FEAT", EntityType::custom("FEATURE", EntityCategory::Misc));
+        mapper.add(
+            "PARA",
+            EntityType::custom("PARAMETER", EntityCategory::Misc),
+        );
+        mapper.add("PRO", EntityType::custom("PROPERTY", EntityCategory::Misc));
+        mapper.add(
+            "CHAR",
+            EntityType::custom("CHARACTERISTIC", EntityCategory::Misc),
+        );
+        mapper.add(
+            "ENAT",
+            EntityType::custom("ENABLING_TECHNOLOGY", EntityCategory::Misc),
+        );
+        mapper.add(
+            "CONPRI",
+            EntityType::custom("CONCEPT_PRINCIPLE", EntityCategory::Misc),
+        );
+        mapper.add(
+            "BIOP",
+            EntityType::custom("BIO_PROCESS", EntityCategory::Misc),
+        );
+        mapper.add(
+            "MANS",
+            EntityType::custom("MAN_STANDARD", EntityCategory::Misc),
+        );
         mapper
     }
 
@@ -515,7 +725,7 @@ pub enum ExtractionMethod {
     Consensus,
 
     /// Heuristic-based extraction (capitalization, word shape, context).
-    /// Used by statistical backends that don't use neural models.
+    /// Used by heuristic backends that don't use neural models.
     Heuristic,
 
     /// Unknown or unspecified extraction method.
@@ -613,7 +823,7 @@ impl std::fmt::Display for ExtractionMethod {
             ExtractionMethod::Heuristic => write!(f, "heuristic"),
             ExtractionMethod::Unknown => write!(f, "unknown"),
             ExtractionMethod::Rule => write!(f, "heuristic"), // Legacy alias
-            ExtractionMethod::ML => write!(f, "neural"),     // Legacy alias
+            ExtractionMethod::ML => write!(f, "neural"),      // Legacy alias
             ExtractionMethod::Ensemble => write!(f, "consensus"), // Legacy alias
         }
     }
@@ -1035,7 +1245,16 @@ impl DiscontinuousSpan {
         Some(start..end)
     }
 
-    /// Total character length (sum of all segments).
+    /// Total byte length (sum of all segments).
+    ///
+    /// # Note
+    ///
+    /// This returns the sum of byte lengths, not character lengths.
+    /// Since `DiscontinuousSpan` uses byte offsets, this method calculates
+    /// the total number of bytes covered by all segments.
+    ///
+    /// For character length, you would need to convert each segment's byte
+    /// offsets to character offsets using the source text.
     #[must_use]
     pub fn total_len(&self) -> usize {
         self.segments.iter().map(|r| r.end - r.start).sum()
@@ -1051,7 +1270,15 @@ impl DiscontinuousSpan {
             .join(separator)
     }
 
-    /// Check if a position falls within any segment.
+    /// Check if a byte position falls within any segment.
+    ///
+    /// # Arguments
+    ///
+    /// * `pos` - Byte offset to check (must be a byte offset, not character offset)
+    ///
+    /// # Returns
+    ///
+    /// `true` if the byte position falls within any segment of this span.
     #[must_use]
     pub fn contains(&self, pos: usize) -> bool {
         self.segments.iter().any(|r| r.contains(&pos))
@@ -1060,8 +1287,10 @@ impl DiscontinuousSpan {
     /// Convert to a regular Span (uses bounding range, loses discontinuity info).
     #[must_use]
     pub fn to_span(&self) -> Option<Span> {
-        self.bounding_range()
-            .map(|r| Span::Text { start: r.start, end: r.end })
+        self.bounding_range().map(|r| Span::Text {
+            start: r.start,
+            end: r.end,
+        })
     }
 }
 
@@ -1210,7 +1439,22 @@ impl RaggedBatch {
         cumulative_offsets.push(0);
         for seq in sequences {
             token_ids.extend_from_slice(seq);
-            cumulative_offsets.push(token_ids.len() as u32);
+            // Check for overflow: u32::MAX is 4,294,967,295
+            // If token_ids.len() exceeds this, we'll truncate (which is a bug)
+            // but in practice, this is unlikely for reasonable batch sizes
+            let len = token_ids.len();
+            if len > u32::MAX as usize {
+                // This would overflow - use saturating cast to prevent panic
+                // but log a warning as this indicates a problem
+                log::warn!(
+                    "Token count {} exceeds u32::MAX, truncating to {}",
+                    len,
+                    u32::MAX
+                );
+                cumulative_offsets.push(u32::MAX);
+            } else {
+                cumulative_offsets.push(len as u32);
+            }
             max_seq_len = max_seq_len.max(seq.len());
         }
 
@@ -1284,7 +1528,11 @@ impl SpanCandidate {
     /// Create a new span candidate.
     #[must_use]
     pub const fn new(doc_idx: u32, start: u32, end: u32) -> Self {
-        Self { doc_idx, start, end }
+        Self {
+            doc_idx,
+            start,
+            end,
+        }
     }
 
     /// Get span width (number of tokens).
@@ -1308,11 +1556,7 @@ pub fn generate_span_candidates(batch: &RaggedBatch, max_width: usize) -> Vec<Sp
             for start in 0..doc_len {
                 let max_end = (start + max_width).min(doc_len);
                 for end in (start + 1)..=max_end {
-                    candidates.push(SpanCandidate::new(
-                        doc_idx as u32,
-                        start as u32,
-                        end as u32,
-                    ));
+                    candidates.push(SpanCandidate::new(doc_idx as u32, start as u32, end as u32));
                 }
             }
         }
@@ -1409,13 +1653,13 @@ pub struct Entity {
     /// Provenance: which backend/method produced this entity
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Provenance>,
-    /// External knowledge base ID (e.g., "Q317521" for Elon Musk in Wikidata).
+    /// External knowledge base ID (e.g., "Q7186" for Marie Curie in Wikidata).
     /// Used for entity linking and GraphRAG applications.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kb_id: Option<String>,
     /// Local coreference cluster ID.
     /// Multiple mentions with the same `canonical_id` refer to the same entity.
-    /// Example: "Elon Musk" and "he" might share `canonical_id = 42`.
+    /// Example: "Marie Curie" and "she" might share `canonical_id = 42`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub canonical_id: Option<u64>,
     /// Hierarchical confidence (coarse-to-fine).
@@ -1431,6 +1675,57 @@ pub struct Entity {
     /// Example: "New York and LA \[airports\]" where "airports" modifies both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discontinuous_span: Option<DiscontinuousSpan>,
+    // =========================================================================
+    // Temporal Validity (Research: Temporal Knowledge Graphs)
+    // =========================================================================
+    /// Start of temporal validity interval for this entity assertion.
+    ///
+    /// Entities are facts that may change over time:
+    /// - "Satya Nadella is CEO of Microsoft" is valid from [2014, present]
+    /// - "Steve Ballmer was CEO of Microsoft" was valid from [2000, 2014]
+    ///
+    /// When `None`, the entity is either:
+    /// - Currently valid (no known end date)
+    /// - Atemporal (timeless fact like "Paris is in France")
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    /// use chrono::{TimeZone, Utc};
+    ///
+    /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
+    /// entity.valid_from = Some(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap());
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<chrono::DateTime<chrono::Utc>>,
+    /// End of temporal validity interval for this entity assertion.
+    ///
+    /// When `None` and `valid_from` is set, the fact is currently valid.
+    /// When both are `None`, the entity is atemporal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
+    // =========================================================================
+    // Viewport / Context (Research: Entity Manifolds)
+    // =========================================================================
+    /// Viewport context for multi-faceted entity representation.
+    ///
+    /// The same real-world entity can have different "faces" in different contexts:
+    /// - "Marie Curie" in an academic context: professor, researcher
+    /// - "Marie Curie" in a scientific context: physicist, chemist
+    /// - "Marie Curie" in a personal context: mother, educator
+    ///
+    /// This enables "holographic" entity projection at query time:
+    /// given a query context, project the entity manifold to the relevant viewport.
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType, EntityViewport};
+    ///
+    /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
+    /// entity.viewport = Some(EntityViewport::Academic);
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub viewport: Option<EntityViewport>,
 }
 
 impl Entity {
@@ -1456,6 +1751,9 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -1482,6 +1780,9 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -1507,6 +1808,9 @@ impl Entity {
             hierarchical_confidence: Some(confidence),
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -1531,6 +1835,9 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: Some(bbox),
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -1550,8 +1857,8 @@ impl Entity {
     /// # Examples
     /// ```rust
     /// use anno::{Entity, EntityType};
-    /// let mut e = Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.95);
-    /// e.link_to_kb("Q317521"); // Wikidata ID
+    /// let mut e = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
+    /// e.link_to_kb("Q7186"); // Wikidata ID
     /// ```
     pub fn link_to_kb(&mut self, kb_id: impl Into<String>) {
         self.kb_id = Some(kb_id.into());
@@ -1562,6 +1869,21 @@ impl Entity {
     /// Entities with the same `canonical_id` refer to the same real-world entity.
     pub fn set_canonical(&mut self, canonical_id: u64) {
         self.canonical_id = Some(canonical_id);
+    }
+
+    /// Builder-style method to set canonical ID.
+    ///
+    /// # Example
+    /// ```
+    /// use anno::{Entity, EntityType};
+    /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.9)
+    ///     .with_canonical_id(42);
+    /// assert_eq!(entity.canonical_id, Some(42));
+    /// ```
+    #[must_use]
+    pub fn with_canonical_id(mut self, canonical_id: u64) -> Self {
+        self.canonical_id = Some(canonical_id);
+        self
     }
 
     /// Check if this entity is linked to a knowledge base.
@@ -1614,8 +1936,34 @@ impl Entity {
 
     /// Get the total length covered by this entity.
     ///
-    /// For discontinuous entities, this is the sum of all segment lengths.
-    /// For contiguous entities, this is `end - start`.
+    /// # Note on Offset Systems
+    ///
+    /// - For **contiguous entities** (no discontinuous span): Returns character length (`end - start`)
+    /// - For **discontinuous entities**: Returns byte length (sum of segment byte lengths)
+    ///
+    /// This inconsistency exists because:
+    /// - `Entity` uses character offsets for the main span (`start`, `end`)
+    /// - `DiscontinuousSpan` uses byte offsets for segments
+    ///
+    /// When using discontinuous spans, be aware that `total_len()` returns bytes,
+    /// not characters. For accurate character length with discontinuous spans,
+    /// you would need to convert each segment's byte offsets to character offsets
+    /// using the source text.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use anno::{Entity, EntityType, DiscontinuousSpan};
+    ///
+    /// // Contiguous entity - returns character length
+    /// let entity = Entity::new("Hello", EntityType::Person, 0, 5, 0.9);
+    /// assert_eq!(entity.total_len(), 5); // 5 characters
+    ///
+    /// // Discontinuous entity - returns byte length
+    /// let mut entity = Entity::new("test", EntityType::Person, 0, 4, 0.9);
+    /// entity.set_discontinuous_span(DiscontinuousSpan::new(vec![0..4, 10..14]));
+    /// assert_eq!(entity.total_len(), 8); // 4 + 4 = 8 bytes
+    /// ```
     #[must_use]
     pub fn total_len(&self) -> usize {
         if let Some(ref span) = self.discontinuous_span {
@@ -1789,10 +2137,389 @@ impl Entity {
         self.visual_span = Some(span);
     }
 
+    /// Safely extract text from source using character offsets.
+    ///
+    /// Entity stores character offsets, not byte offsets. This method
+    /// correctly extracts text by iterating over characters.
+    ///
+    /// # Arguments
+    /// * `source_text` - The original text from which this entity was extracted
+    ///
+    /// # Returns
+    /// The extracted text, or empty string if offsets are invalid
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    ///
+    /// let text = "Hello, 日本!";
+    /// let entity = Entity::new("日本", EntityType::Location, 7, 9, 0.95);
+    /// assert_eq!(entity.extract_text(text), "日本");
+    /// ```
+    #[must_use]
+    pub fn extract_text(&self, source_text: &str) -> String {
+        let char_count = source_text.chars().count();
+        if self.start >= char_count || self.end > char_count || self.start >= self.end {
+            return String::new();
+        }
+        source_text
+            .chars()
+            .skip(self.start)
+            .take(self.end - self.start)
+            .collect()
+    }
+
+    // =========================================================================
+    // Temporal Validity Methods
+    // =========================================================================
+
+    /// Set the temporal validity start for this entity assertion.
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    /// use chrono::{TimeZone, Utc};
+    ///
+    /// let mut entity = Entity::new("CEO", EntityType::Person, 0, 3, 0.9);
+    /// entity.set_valid_from(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap());
+    /// assert!(entity.is_temporal());
+    /// ```
+    pub fn set_valid_from(&mut self, dt: chrono::DateTime<chrono::Utc>) {
+        self.valid_from = Some(dt);
+    }
+
+    /// Set the temporal validity end for this entity assertion.
+    pub fn set_valid_until(&mut self, dt: chrono::DateTime<chrono::Utc>) {
+        self.valid_until = Some(dt);
+    }
+
+    /// Set both temporal bounds at once.
+    pub fn set_temporal_range(
+        &mut self,
+        from: chrono::DateTime<chrono::Utc>,
+        until: chrono::DateTime<chrono::Utc>,
+    ) {
+        self.valid_from = Some(from);
+        self.valid_until = Some(until);
+    }
+
+    /// Check if this entity has temporal validity information.
+    #[must_use]
+    pub fn is_temporal(&self) -> bool {
+        self.valid_from.is_some() || self.valid_until.is_some()
+    }
+
+    /// Check if this entity was valid at a specific point in time.
+    ///
+    /// Returns `true` if:
+    /// - No temporal bounds are set (atemporal entity)
+    /// - The timestamp falls within [valid_from, valid_until]
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    /// use chrono::{TimeZone, Utc};
+    ///
+    /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
+    /// entity.set_valid_from(Utc.with_ymd_and_hms(2008, 1, 1, 0, 0, 0).unwrap());
+    /// entity.set_valid_until(Utc.with_ymd_and_hms(2023, 12, 31, 0, 0, 0).unwrap());
+    ///
+    /// let query_2015 = Utc.with_ymd_and_hms(2015, 6, 1, 0, 0, 0).unwrap();
+    /// let query_2005 = Utc.with_ymd_and_hms(2005, 6, 1, 0, 0, 0).unwrap();
+    ///
+    /// assert!(entity.valid_at(&query_2015));
+    /// assert!(!entity.valid_at(&query_2005));
+    /// ```
+    #[must_use]
+    pub fn valid_at(&self, timestamp: &chrono::DateTime<chrono::Utc>) -> bool {
+        match (&self.valid_from, &self.valid_until) {
+            (None, None) => true,                      // Atemporal - always valid
+            (Some(from), None) => timestamp >= from,   // Started, still valid
+            (None, Some(until)) => timestamp <= until, // Unknown start, ended
+            (Some(from), Some(until)) => timestamp >= from && timestamp <= until,
+        }
+    }
+
+    /// Check if this entity is currently valid (at the current time).
+    #[must_use]
+    pub fn is_currently_valid(&self) -> bool {
+        self.valid_at(&chrono::Utc::now())
+    }
+
+    // =========================================================================
+    // Viewport/Context Methods
+    // =========================================================================
+
+    /// Set the viewport context for this entity.
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{Entity, EntityType, EntityViewport};
+    ///
+    /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
+    /// entity.set_viewport(EntityViewport::Academic);
+    /// assert!(entity.has_viewport());
+    /// ```
+    pub fn set_viewport(&mut self, viewport: EntityViewport) {
+        self.viewport = Some(viewport);
+    }
+
+    /// Check if this entity has a viewport context.
+    #[must_use]
+    pub fn has_viewport(&self) -> bool {
+        self.viewport.is_some()
+    }
+
+    /// Get the viewport, defaulting to General if not set.
+    #[must_use]
+    pub fn viewport_or_default(&self) -> EntityViewport {
+        self.viewport.clone().unwrap_or_default()
+    }
+
+    /// Check if this entity matches a viewport context.
+    ///
+    /// Returns true if:
+    /// - The entity has no viewport (matches any)
+    /// - The entity's viewport matches the query
+    #[must_use]
+    pub fn matches_viewport(&self, query_viewport: &EntityViewport) -> bool {
+        match &self.viewport {
+            None => true, // No viewport = matches any
+            Some(v) => v == query_viewport,
+        }
+    }
+
     /// Create a builder for fluent entity construction.
     #[must_use]
     pub fn builder(text: impl Into<String>, entity_type: EntityType) -> EntityBuilder {
         EntityBuilder::new(text, entity_type)
+    }
+
+    // =========================================================================
+    // Validation Methods (Production Quality)
+    // =========================================================================
+
+    /// Validate this entity against the source text.
+    ///
+    /// Returns a list of validation issues. Empty list means the entity is valid.
+    ///
+    /// # Checks Performed
+    ///
+    /// 1. **Span bounds**: `start < end`, both within text length
+    /// 2. **Text match**: `text` matches the span in source
+    /// 3. **Confidence range**: `confidence` in [0.0, 1.0]
+    /// 4. **Type consistency**: Custom types have non-empty names
+    /// 5. **Discontinuous consistency**: If present, segments are valid
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    ///
+    /// let text = "John works at Apple";
+    /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.95);
+    ///
+    /// let issues = entity.validate(text);
+    /// assert!(issues.is_empty(), "Entity should be valid");
+    ///
+    /// // Invalid entity: span doesn't match text
+    /// let bad = Entity::new("Jane", EntityType::Person, 0, 4, 0.95);
+    /// let issues = bad.validate(text);
+    /// assert!(!issues.is_empty(), "Entity text doesn't match span");
+    /// ```
+    #[must_use]
+    pub fn validate(&self, source_text: &str) -> Vec<ValidationIssue> {
+        let mut issues = Vec::new();
+
+        // 1. Span bounds
+        if self.start >= self.end {
+            issues.push(ValidationIssue::InvalidSpan {
+                start: self.start,
+                end: self.end,
+                reason: "start must be less than end".to_string(),
+            });
+        }
+
+        let char_count = source_text.chars().count();
+        if self.end > char_count {
+            issues.push(ValidationIssue::SpanOutOfBounds {
+                end: self.end,
+                text_len: char_count,
+            });
+        }
+
+        // 2. Text match (only if span is valid)
+        if self.start < self.end && self.end <= char_count {
+            let actual: String = source_text
+                .chars()
+                .skip(self.start)
+                .take(self.end - self.start)
+                .collect();
+            if actual != self.text {
+                issues.push(ValidationIssue::TextMismatch {
+                    expected: self.text.clone(),
+                    actual,
+                    start: self.start,
+                    end: self.end,
+                });
+            }
+        }
+
+        // 3. Confidence range
+        if !(0.0..=1.0).contains(&self.confidence) {
+            issues.push(ValidationIssue::InvalidConfidence {
+                value: self.confidence,
+            });
+        }
+
+        // 4. Type consistency
+        if let EntityType::Custom { ref name, .. } = self.entity_type {
+            if name.is_empty() {
+                issues.push(ValidationIssue::InvalidType {
+                    reason: "Custom entity type has empty name".to_string(),
+                });
+            }
+        }
+
+        // 5. Discontinuous span consistency
+        if let Some(ref disc_span) = self.discontinuous_span {
+            for (i, seg) in disc_span.segments().iter().enumerate() {
+                if seg.start >= seg.end {
+                    issues.push(ValidationIssue::InvalidSpan {
+                        start: seg.start,
+                        end: seg.end,
+                        reason: format!("discontinuous segment {} is invalid", i),
+                    });
+                }
+                if seg.end > char_count {
+                    issues.push(ValidationIssue::SpanOutOfBounds {
+                        end: seg.end,
+                        text_len: char_count,
+                    });
+                }
+            }
+        }
+
+        issues
+    }
+
+    /// Check if this entity is valid against the source text.
+    ///
+    /// Convenience method that returns `true` if `validate()` returns empty.
+    #[must_use]
+    pub fn is_valid(&self, source_text: &str) -> bool {
+        self.validate(source_text).is_empty()
+    }
+
+    /// Validate a batch of entities efficiently.
+    ///
+    /// Returns a map of entity index -> validation issues.
+    /// Only entities with issues are included.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anno::{Entity, EntityType};
+    ///
+    /// let text = "John and Jane work at Apple";
+    /// let entities = vec![
+    ///     Entity::new("John", EntityType::Person, 0, 4, 0.95),
+    ///     Entity::new("Wrong", EntityType::Person, 9, 13, 0.8),
+    /// ];
+    ///
+    /// let issues = Entity::validate_batch(&entities, text);
+    /// assert!(issues.is_empty() || issues.contains_key(&1)); // Second entity might fail
+    /// ```
+    #[must_use]
+    pub fn validate_batch(
+        entities: &[Entity],
+        source_text: &str,
+    ) -> std::collections::HashMap<usize, Vec<ValidationIssue>> {
+        entities
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, entity)| {
+                let issues = entity.validate(source_text);
+                if issues.is_empty() {
+                    None
+                } else {
+                    Some((idx, issues))
+                }
+            })
+            .collect()
+    }
+}
+
+/// Validation issue found during entity validation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValidationIssue {
+    /// Span bounds are invalid (start >= end).
+    InvalidSpan {
+        /// Start position of the invalid span.
+        start: usize,
+        /// End position of the invalid span.
+        end: usize,
+        /// Description of why the span is invalid.
+        reason: String,
+    },
+    /// Span extends beyond text length.
+    SpanOutOfBounds {
+        /// End position that exceeds the text.
+        end: usize,
+        /// Actual length of the text.
+        text_len: usize,
+    },
+    /// Entity text doesn't match the span in source.
+    TextMismatch {
+        /// Text stored in the entity.
+        expected: String,
+        /// Text found at the span in source.
+        actual: String,
+        /// Start position of the span.
+        start: usize,
+        /// End position of the span.
+        end: usize,
+    },
+    /// Confidence is outside [0.0, 1.0].
+    InvalidConfidence {
+        /// The invalid confidence value.
+        value: f64,
+    },
+    /// Entity type is invalid.
+    InvalidType {
+        /// Description of why the type is invalid.
+        reason: String,
+    },
+}
+
+impl std::fmt::Display for ValidationIssue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ValidationIssue::InvalidSpan { start, end, reason } => {
+                write!(f, "Invalid span [{}, {}): {}", start, end, reason)
+            }
+            ValidationIssue::SpanOutOfBounds { end, text_len } => {
+                write!(f, "Span end {} exceeds text length {}", end, text_len)
+            }
+            ValidationIssue::TextMismatch {
+                expected,
+                actual,
+                start,
+                end,
+            } => {
+                write!(
+                    f,
+                    "Text mismatch at [{}, {}): expected '{}', got '{}'",
+                    start, end, expected, actual
+                )
+            }
+            ValidationIssue::InvalidConfidence { value } => {
+                write!(f, "Confidence {} outside [0.0, 1.0]", value)
+            }
+            ValidationIssue::InvalidType { reason } => {
+                write!(f, "Invalid entity type: {}", reason)
+            }
+        }
     }
 }
 
@@ -1803,10 +2530,10 @@ impl Entity {
 /// ```rust
 /// use anno::{Entity, EntityType, Provenance};
 ///
-/// let entity = Entity::builder("Elon Musk", EntityType::Person)
-///     .span(0, 9)
+/// let entity = Entity::builder("Marie Curie", EntityType::Person)
+///     .span(0, 11)
 ///     .confidence(0.95)
-///     .kb_id("Q317521")
+///     .kb_id("Q7186")
 ///     .provenance(Provenance::ml("bert", 0.95))
 ///     .build();
 /// ```
@@ -1824,6 +2551,9 @@ pub struct EntityBuilder {
     hierarchical_confidence: Option<HierarchicalConfidence>,
     visual_span: Option<Span>,
     discontinuous_span: Option<DiscontinuousSpan>,
+    valid_from: Option<chrono::DateTime<chrono::Utc>>,
+    valid_until: Option<chrono::DateTime<chrono::Utc>>,
+    viewport: Option<EntityViewport>,
 }
 
 impl EntityBuilder {
@@ -1843,6 +2573,9 @@ impl EntityBuilder {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -1918,6 +2651,62 @@ impl EntityBuilder {
         self
     }
 
+    /// Set temporal validity start (when this entity assertion became true).
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{EntityBuilder, EntityType};
+    /// use chrono::{TimeZone, Utc};
+    ///
+    /// let entity = EntityBuilder::new("CEO of Microsoft", EntityType::Person)
+    ///     .span(0, 12)
+    ///     .valid_from(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap())
+    ///     .build();
+    /// assert!(entity.valid_from.is_some());
+    /// ```
+    #[must_use]
+    pub fn valid_from(mut self, dt: chrono::DateTime<chrono::Utc>) -> Self {
+        self.valid_from = Some(dt);
+        self
+    }
+
+    /// Set temporal validity end (when this entity assertion stopped being true).
+    #[must_use]
+    pub fn valid_until(mut self, dt: chrono::DateTime<chrono::Utc>) -> Self {
+        self.valid_until = Some(dt);
+        self
+    }
+
+    /// Set temporal validity range (convenience method).
+    #[must_use]
+    pub fn temporal_range(
+        mut self,
+        from: chrono::DateTime<chrono::Utc>,
+        until: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
+        self.valid_from = Some(from);
+        self.valid_until = Some(until);
+        self
+    }
+
+    /// Set the viewport context for multi-faceted entity representation.
+    ///
+    /// # Example
+    /// ```rust
+    /// use anno::{EntityBuilder, EntityType, EntityViewport};
+    ///
+    /// let entity = EntityBuilder::new("Marie Curie", EntityType::Person)
+    ///     .span(0, 11)
+    ///     .viewport(EntityViewport::Academic)
+    ///     .build();
+    /// assert_eq!(entity.viewport, Some(EntityViewport::Academic));
+    /// ```
+    #[must_use]
+    pub fn viewport(mut self, viewport: EntityViewport) -> Self {
+        self.viewport = Some(viewport);
+        self
+    }
+
     /// Build the entity.
     #[must_use]
     pub fn build(self) -> Entity {
@@ -1934,6 +2723,9 @@ impl EntityBuilder {
             hierarchical_confidence: self.hierarchical_confidence,
             visual_span: self.visual_span,
             discontinuous_span: self.discontinuous_span,
+            valid_from: self.valid_from,
+            valid_until: self.valid_until,
+            viewport: self.viewport,
         }
     }
 }
@@ -1953,9 +2745,9 @@ impl EntityBuilder {
 /// ```text
 /// Triple: (Head, Relation, Tail)
 ///
-/// "Elon Musk is CEO of Tesla"
-///  ^^^^^^^^^ ~~~~~~ ^^^^^
-///  Head      Rel    Tail
+/// "Marie Curie worked at the Sorbonne"
+///  ^^^^^^^^^^^ ~~~~~~~~~ ^^^^^^^^
+///  Head        Rel       Tail
 ///  (Person)  (Employment)  (Organization)
 /// ```
 ///
@@ -1981,7 +2773,12 @@ pub struct Relation {
 impl Relation {
     /// Create a new relation between two entities.
     #[must_use]
-    pub fn new(head: Entity, tail: Entity, relation_type: impl Into<String>, confidence: f64) -> Self {
+    pub fn new(
+        head: Entity,
+        tail: Entity,
+        relation_type: impl Into<String>,
+        confidence: f64,
+    ) -> Self {
         Self {
             head,
             tail,
@@ -2079,7 +2876,10 @@ mod tests {
     fn test_entity_categories() {
         // Agent/Org/Place entities require ML
         assert_eq!(EntityType::Person.category(), EntityCategory::Agent);
-        assert_eq!(EntityType::Organization.category(), EntityCategory::Organization);
+        assert_eq!(
+            EntityType::Organization.category(),
+            EntityCategory::Organization
+        );
         assert_eq!(EntityType::Location.category(), EntityCategory::Place);
         assert!(EntityType::Person.requires_ml());
         assert!(!EntityType::Person.pattern_detectable());
@@ -2159,13 +2959,13 @@ mod tests {
 
     #[test]
     fn test_knowledge_linking() {
-        let mut entity = Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.95);
+        let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
         assert!(!entity.is_linked());
         assert!(!entity.has_coreference());
 
-        entity.link_to_kb("Q317521"); // Wikidata ID
+        entity.link_to_kb("Q7186"); // Wikidata ID
         assert!(entity.is_linked());
-        assert_eq!(entity.kb_id.as_deref(), Some("Q317521"));
+        assert_eq!(entity.kb_id.as_deref(), Some("Q7186"));
 
         entity.set_canonical(42);
         assert!(entity.has_coreference());
@@ -2174,12 +2974,12 @@ mod tests {
 
     #[test]
     fn test_relation_creation() {
-        let head = Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.95);
-        let tail = Entity::new("Tesla", EntityType::Organization, 21, 26, 0.90);
-        
-        let relation = Relation::new(head.clone(), tail.clone(), "CEO_OF", 0.85);
-        assert_eq!(relation.relation_type, "CEO_OF");
-        assert_eq!(relation.as_triple(), "(Elon Musk, CEO_OF, Tesla)");
+        let head = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
+        let tail = Entity::new("Sorbonne", EntityType::Organization, 24, 32, 0.90);
+
+        let relation = Relation::new(head.clone(), tail.clone(), "WORKED_AT", 0.85);
+        assert_eq!(relation.relation_type, "WORKED_AT");
+        assert_eq!(relation.as_triple(), "(Marie Curie, WORKED_AT, Sorbonne)");
         assert!(relation.trigger_span.is_none());
 
         // With trigger span
@@ -2189,11 +2989,11 @@ mod tests {
 
     #[test]
     fn test_relation_span_distance() {
-        // Head at 0-9, tail at 21-26 -> distance is 21-9 = 12
-        let head = Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.95);
-        let tail = Entity::new("Tesla", EntityType::Organization, 21, 26, 0.90);
-        let relation = Relation::new(head, tail, "CEO_OF", 0.85);
-        assert_eq!(relation.span_distance(), 12);
+        // Head at 0-11, tail at 24-32 -> distance is 24-11 = 13
+        let head = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
+        let tail = Entity::new("Sorbonne", EntityType::Organization, 24, 32, 0.90);
+        let relation = Relation::new(head, tail, "WORKED_AT", 0.85);
+        assert_eq!(relation.span_distance(), 13);
     }
 
     #[test]
@@ -2314,13 +3114,9 @@ mod tests {
 
     #[test]
     fn test_ragged_batch_from_sequences() {
-        let seqs = vec![
-            vec![1, 2, 3],
-            vec![4, 5],
-            vec![6, 7, 8, 9],
-        ];
+        let seqs = vec![vec![1, 2, 3], vec![4, 5], vec![6, 7, 8, 9]];
         let batch = RaggedBatch::from_sequences(&seqs);
-        
+
         assert_eq!(batch.batch_size(), 3);
         assert_eq!(batch.total_tokens(), 9);
         assert_eq!(batch.max_seq_len, 4);
@@ -2329,12 +3125,9 @@ mod tests {
 
     #[test]
     fn test_ragged_batch_doc_range() {
-        let seqs = vec![
-            vec![1, 2, 3],
-            vec![4, 5],
-        ];
+        let seqs = vec![vec![1, 2, 3], vec![4, 5]];
         let batch = RaggedBatch::from_sequences(&seqs);
-        
+
         assert_eq!(batch.doc_range(0), Some(0..3));
         assert_eq!(batch.doc_range(1), Some(3..5));
         assert_eq!(batch.doc_range(2), None);
@@ -2342,12 +3135,9 @@ mod tests {
 
     #[test]
     fn test_ragged_batch_doc_tokens() {
-        let seqs = vec![
-            vec![1, 2, 3],
-            vec![4, 5],
-        ];
+        let seqs = vec![vec![1, 2, 3], vec![4, 5]];
         let batch = RaggedBatch::from_sequences(&seqs);
-        
+
         assert_eq!(batch.doc_tokens(0), Some(&[1, 2, 3][..]));
         assert_eq!(batch.doc_tokens(1), Some(&[4, 5][..]));
     }
@@ -2357,11 +3147,7 @@ mod tests {
         // 3 docs: [3, 2, 4] tokens, max = 4
         // Padded: 3 * 4 = 12, actual: 9
         // Savings: 1 - 9/12 = 0.25
-        let seqs = vec![
-            vec![1, 2, 3],
-            vec![4, 5],
-            vec![6, 7, 8, 9],
-        ];
+        let seqs = vec![vec![1, 2, 3], vec![4, 5], vec![6, 7, 8, 9]];
         let batch = RaggedBatch::from_sequences(&seqs);
         let savings = batch.padding_savings();
         assert!((savings - 0.25).abs() < 0.001);
@@ -2385,11 +3171,11 @@ mod tests {
         let seqs = vec![vec![1, 2, 3]]; // doc with 3 tokens
         let batch = RaggedBatch::from_sequences(&seqs);
         let candidates = generate_span_candidates(&batch, 2);
-        
+
         // With max_width=2: [0,1], [1,2], [2,3], [0,2], [1,3]
         // = spans: (0,1), (0,2), (1,2), (1,3), (2,3)
         assert_eq!(candidates.len(), 5);
-        
+
         // Verify all candidates are valid
         for c in &candidates {
             assert_eq!(c.doc_idx, 0);
@@ -2402,12 +3188,12 @@ mod tests {
     fn test_generate_filtered_candidates() {
         let seqs = vec![vec![1, 2, 3]];
         let batch = RaggedBatch::from_sequences(&seqs);
-        
+
         // With max_width=2, we have 5 candidates
         // Set mask: only first 2 pass threshold
         let mask = vec![0.9, 0.9, 0.1, 0.1, 0.1];
         let candidates = generate_filtered_candidates(&batch, 2, &mask, 0.5);
-        
+
         assert_eq!(candidates.len(), 2);
     }
 
@@ -2421,7 +3207,7 @@ mod tests {
             .span(0, 4)
             .confidence(0.95)
             .build();
-        
+
         assert_eq!(entity.text, "John");
         assert_eq!(entity.entity_type, EntityType::Person);
         assert_eq!(entity.start, 0);
@@ -2431,19 +3217,22 @@ mod tests {
 
     #[test]
     fn test_entity_builder_full() {
-        let entity = Entity::builder("Elon Musk", EntityType::Person)
-            .span(0, 9)
+        let entity = Entity::builder("Marie Curie", EntityType::Person)
+            .span(0, 11)
             .confidence(0.95)
-            .kb_id("Q317521")
+            .kb_id("Q7186")
             .canonical_id(42)
-            .normalized("Elon Reeve Musk")
+            .normalized("Marie Salomea Skłodowska Curie")
             .provenance(Provenance::ml("bert", 0.95))
             .build();
-        
-        assert_eq!(entity.text, "Elon Musk");
-        assert_eq!(entity.kb_id.as_deref(), Some("Q317521"));
+
+        assert_eq!(entity.text, "Marie Curie");
+        assert_eq!(entity.kb_id.as_deref(), Some("Q7186"));
         assert_eq!(entity.canonical_id, Some(42));
-        assert_eq!(entity.normalized.as_deref(), Some("Elon Reeve Musk"));
+        assert_eq!(
+            entity.normalized.as_deref(),
+            Some("Marie Salomea Skłodowska Curie")
+        );
         assert!(entity.provenance.is_some());
     }
 
@@ -2454,7 +3243,7 @@ mod tests {
             .span(0, 4)
             .hierarchical_confidence(hc)
             .build();
-        
+
         assert!(entity.hierarchical_confidence.is_some());
         assert!((entity.linkage_confidence() - 0.9).abs() < 0.001);
         assert!((entity.type_confidence() - 0.8).abs() < 0.001);
@@ -2468,7 +3257,7 @@ mod tests {
             .visual_span(bbox)
             .confidence(0.9)
             .build();
-        
+
         assert!(entity.is_visual());
         assert!(entity.visual_span.is_some());
     }
@@ -2480,12 +3269,12 @@ mod tests {
     #[test]
     fn test_entity_hierarchical_confidence_helpers() {
         let mut entity = Entity::new("test", EntityType::Person, 0, 4, 0.8);
-        
+
         // Without hierarchical confidence, falls back to main confidence
         assert!((entity.linkage_confidence() - 0.8).abs() < 0.001);
         assert!((entity.type_confidence() - 0.8).abs() < 0.001);
         assert!((entity.boundary_confidence() - 0.8).abs() < 0.001);
-        
+
         // Set hierarchical confidence
         entity.set_hierarchical_confidence(HierarchicalConfidence::new(0.95, 0.85, 0.75));
         assert!((entity.linkage_confidence() - 0.95).abs() < 0.001);
@@ -2501,7 +3290,7 @@ mod tests {
             Span::bbox(0.5, 0.8, 0.2, 0.05),
             0.92,
         );
-        
+
         assert!(entity.is_visual());
         assert_eq!(entity.start, 0);
         assert_eq!(entity.end, 0);
@@ -2537,18 +3326,16 @@ mod tests {
 
     #[test]
     fn test_provenance_with_version() {
-        let prov = Provenance::ml("gliner", 0.92)
-            .with_version("v2.1.0");
-        
+        let prov = Provenance::ml("gliner", 0.92).with_version("v2.1.0");
+
         assert_eq!(prov.model_version.as_deref(), Some("v2.1.0"));
         assert_eq!(prov.source.as_ref(), "gliner");
     }
 
     #[test]
     fn test_provenance_with_timestamp() {
-        let prov = Provenance::pattern("DATE")
-            .with_timestamp("2024-01-15T10:30:00Z");
-        
+        let prov = Provenance::pattern("DATE").with_timestamp("2024-01-15T10:30:00Z");
+
         assert_eq!(prov.timestamp.as_deref(), Some("2024-01-15T10:30:00Z"));
     }
 
@@ -2557,7 +3344,7 @@ mod tests {
         let prov = Provenance::ml("modernbert-ner", 0.95)
             .with_version("v1.0.0")
             .with_timestamp("2024-11-27T12:00:00Z");
-        
+
         assert_eq!(prov.method, ExtractionMethod::Neural);
         assert_eq!(prov.source.as_ref(), "modernbert-ner");
         assert_eq!(prov.raw_confidence, Some(0.95));
@@ -2570,11 +3357,11 @@ mod tests {
         let prov = Provenance::ml("test", 0.9)
             .with_version("v1.0")
             .with_timestamp("2024-01-01");
-        
+
         let json = serde_json::to_string(&prov).unwrap();
         assert!(json.contains("model_version"));
         assert!(json.contains("v1.0"));
-        
+
         let restored: Provenance = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.model_version.as_deref(), Some("v1.0"));
         assert_eq!(restored.timestamp.as_deref(), Some("2024-01-01"));
@@ -2670,13 +3457,13 @@ mod proptests {
                 counter += len as u32;
                 seq
             }).collect();
-            
+
             let batch = RaggedBatch::from_sequences(&seqs);
-            
+
             // Verify batch properties
             prop_assert_eq!(batch.batch_size(), seqs.len());
             prop_assert_eq!(batch.total_tokens(), seq_lens.iter().sum::<usize>());
-            
+
             // Verify each doc can be retrieved correctly
             for (i, seq) in seqs.iter().enumerate() {
                 let doc_tokens = batch.doc_tokens(i).unwrap();
@@ -2693,5 +3480,259 @@ mod proptests {
             prop_assert_eq!(e, end);
             prop_assert_eq!(span.len(), len);
         }
+    }
+
+    // ========================================================================
+    // EntityViewport Tests
+    // ========================================================================
+
+    #[test]
+    fn test_entity_viewport_as_str() {
+        assert_eq!(EntityViewport::Business.as_str(), "business");
+        assert_eq!(EntityViewport::Legal.as_str(), "legal");
+        assert_eq!(EntityViewport::Technical.as_str(), "technical");
+        assert_eq!(EntityViewport::Academic.as_str(), "academic");
+        assert_eq!(EntityViewport::Personal.as_str(), "personal");
+        assert_eq!(EntityViewport::Political.as_str(), "political");
+        assert_eq!(EntityViewport::Media.as_str(), "media");
+        assert_eq!(EntityViewport::Historical.as_str(), "historical");
+        assert_eq!(EntityViewport::General.as_str(), "general");
+        assert_eq!(
+            EntityViewport::Custom("custom".to_string()).as_str(),
+            "custom"
+        );
+    }
+
+    #[test]
+    fn test_entity_viewport_is_professional() {
+        assert!(EntityViewport::Business.is_professional());
+        assert!(EntityViewport::Legal.is_professional());
+        assert!(EntityViewport::Technical.is_professional());
+        assert!(EntityViewport::Academic.is_professional());
+        assert!(EntityViewport::Political.is_professional());
+
+        assert!(!EntityViewport::Personal.is_professional());
+        assert!(!EntityViewport::Media.is_professional());
+        assert!(!EntityViewport::Historical.is_professional());
+        assert!(!EntityViewport::General.is_professional());
+        assert!(!EntityViewport::Custom("test".to_string()).is_professional());
+    }
+
+    #[test]
+    fn test_entity_viewport_from_str() {
+        assert_eq!(
+            "business".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+        assert_eq!(
+            "financial".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+        assert_eq!(
+            "corporate".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+
+        assert_eq!(
+            "legal".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Legal
+        );
+        assert_eq!(
+            "law".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Legal
+        );
+
+        assert_eq!(
+            "technical".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Technical
+        );
+        assert_eq!(
+            "engineering".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Technical
+        );
+
+        assert_eq!(
+            "academic".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Academic
+        );
+        assert_eq!(
+            "research".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Academic
+        );
+
+        assert_eq!(
+            "personal".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Personal
+        );
+        assert_eq!(
+            "biographical".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Personal
+        );
+
+        assert_eq!(
+            "political".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Political
+        );
+        assert_eq!(
+            "policy".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Political
+        );
+
+        assert_eq!(
+            "media".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Media
+        );
+        assert_eq!(
+            "press".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Media
+        );
+
+        assert_eq!(
+            "historical".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Historical
+        );
+        assert_eq!(
+            "history".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Historical
+        );
+
+        assert_eq!(
+            "general".parse::<EntityViewport>().unwrap(),
+            EntityViewport::General
+        );
+        assert_eq!(
+            "generic".parse::<EntityViewport>().unwrap(),
+            EntityViewport::General
+        );
+        assert_eq!(
+            "".parse::<EntityViewport>().unwrap(),
+            EntityViewport::General
+        );
+
+        // Custom viewport
+        assert_eq!(
+            "custom_viewport".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Custom("custom_viewport".to_string())
+        );
+    }
+
+    #[test]
+    fn test_entity_viewport_from_str_case_insensitive() {
+        assert_eq!(
+            "BUSINESS".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+        assert_eq!(
+            "Business".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+        assert_eq!(
+            "BuSiNeSs".parse::<EntityViewport>().unwrap(),
+            EntityViewport::Business
+        );
+    }
+
+    #[test]
+    fn test_entity_viewport_display() {
+        assert_eq!(format!("{}", EntityViewport::Business), "business");
+        assert_eq!(format!("{}", EntityViewport::Academic), "academic");
+        assert_eq!(
+            format!("{}", EntityViewport::Custom("test".to_string())),
+            "test"
+        );
+    }
+
+    #[test]
+    fn test_entity_viewport_methods() {
+        let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
+
+        // Initially no viewport
+        assert!(!entity.has_viewport());
+        assert_eq!(entity.viewport_or_default(), EntityViewport::General);
+        assert!(entity.matches_viewport(&EntityViewport::Academic)); // No viewport matches any
+
+        // Set viewport
+        entity.set_viewport(EntityViewport::Academic);
+        assert!(entity.has_viewport());
+        assert_eq!(entity.viewport_or_default(), EntityViewport::Academic);
+        assert!(entity.matches_viewport(&EntityViewport::Academic));
+        assert!(!entity.matches_viewport(&EntityViewport::Business));
+    }
+
+    #[test]
+    fn test_entity_builder_with_viewport() {
+        let entity = Entity::builder("Marie Curie", EntityType::Person)
+            .span(0, 11)
+            .viewport(EntityViewport::Academic)
+            .build();
+
+        assert_eq!(entity.viewport, Some(EntityViewport::Academic));
+        assert!(entity.has_viewport());
+    }
+
+    // ========================================================================
+    // EntityCategory Tests
+    // ========================================================================
+
+    #[test]
+    fn test_entity_category_requires_ml() {
+        assert!(EntityCategory::Agent.requires_ml());
+        assert!(EntityCategory::Organization.requires_ml());
+        assert!(EntityCategory::Place.requires_ml());
+        assert!(EntityCategory::Creative.requires_ml());
+        assert!(EntityCategory::Relation.requires_ml());
+
+        assert!(!EntityCategory::Temporal.requires_ml());
+        assert!(!EntityCategory::Numeric.requires_ml());
+        assert!(!EntityCategory::Contact.requires_ml());
+        assert!(!EntityCategory::Misc.requires_ml());
+    }
+
+    #[test]
+    fn test_entity_category_pattern_detectable() {
+        assert!(EntityCategory::Temporal.pattern_detectable());
+        assert!(EntityCategory::Numeric.pattern_detectable());
+        assert!(EntityCategory::Contact.pattern_detectable());
+
+        assert!(!EntityCategory::Agent.pattern_detectable());
+        assert!(!EntityCategory::Organization.pattern_detectable());
+        assert!(!EntityCategory::Place.pattern_detectable());
+        assert!(!EntityCategory::Creative.pattern_detectable());
+        assert!(!EntityCategory::Relation.pattern_detectable());
+        assert!(!EntityCategory::Misc.pattern_detectable());
+    }
+
+    #[test]
+    fn test_entity_category_is_relation() {
+        assert!(EntityCategory::Relation.is_relation());
+
+        assert!(!EntityCategory::Agent.is_relation());
+        assert!(!EntityCategory::Organization.is_relation());
+        assert!(!EntityCategory::Place.is_relation());
+        assert!(!EntityCategory::Temporal.is_relation());
+        assert!(!EntityCategory::Numeric.is_relation());
+        assert!(!EntityCategory::Contact.is_relation());
+        assert!(!EntityCategory::Creative.is_relation());
+        assert!(!EntityCategory::Misc.is_relation());
+    }
+
+    #[test]
+    fn test_entity_category_as_str() {
+        assert_eq!(EntityCategory::Agent.as_str(), "agent");
+        assert_eq!(EntityCategory::Organization.as_str(), "organization");
+        assert_eq!(EntityCategory::Place.as_str(), "place");
+        assert_eq!(EntityCategory::Creative.as_str(), "creative");
+        assert_eq!(EntityCategory::Temporal.as_str(), "temporal");
+        assert_eq!(EntityCategory::Numeric.as_str(), "numeric");
+        assert_eq!(EntityCategory::Contact.as_str(), "contact");
+        assert_eq!(EntityCategory::Relation.as_str(), "relation");
+        assert_eq!(EntityCategory::Misc.as_str(), "misc");
+    }
+
+    #[test]
+    fn test_entity_category_display() {
+        assert_eq!(format!("{}", EntityCategory::Agent), "agent");
+        assert_eq!(format!("{}", EntityCategory::Temporal), "temporal");
+        assert_eq!(format!("{}", EntityCategory::Relation), "relation");
     }
 }

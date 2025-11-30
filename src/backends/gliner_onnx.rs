@@ -42,20 +42,71 @@ const TOKEN_SEP: u32 = 128003;
 /// Default max span width from GLiNER config
 const MAX_SPAN_WIDTH: usize = 12;
 
-/// GLiNER model for zero-shot NER.
+/// Configuration for GLiNER model loading.
 #[cfg(feature = "onnx")]
+#[derive(Debug, Clone)]
+pub struct GLiNERConfig {
+    /// Prefer quantized models (INT8) for faster CPU inference.
+    pub prefer_quantized: bool,
+    /// ONNX optimization level (1-3, default 3).
+    pub optimization_level: u8,
+    /// Number of threads for inference (0 = auto).
+    pub num_threads: usize,
+}
+
+#[cfg(feature = "onnx")]
+impl Default for GLiNERConfig {
+    fn default() -> Self {
+        Self {
+            prefer_quantized: true,
+            optimization_level: 3,
+            num_threads: 4,
+        }
+    }
+}
+
+/// GLiNER model for zero-shot NER.
+///
+/// Thread-safe with `Arc<Tokenizer>` for efficient sharing across threads.
+#[cfg(feature = "onnx")]
+#[derive(Debug)]
 pub struct GLiNEROnnx {
     session: std::sync::Mutex<ort::session::Session>,
-    tokenizer: tokenizers::Tokenizer,
+    /// Arc-wrapped tokenizer for cheap cloning across threads.
+    tokenizer: std::sync::Arc<tokenizers::Tokenizer>,
     model_name: String,
+    /// Whether a quantized model was loaded.
+    is_quantized: bool,
 }
 
 #[cfg(feature = "onnx")]
 impl GLiNEROnnx {
-    /// Create a new GLiNER model from HuggingFace.
+    /// Create a new GLiNER model from HuggingFace with default config.
     pub fn new(model_name: &str) -> Result<Self> {
+        Self::with_config(model_name, GLiNERConfig::default())
+    }
+
+    /// Create a new GLiNER model with custom configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `model_name` - HuggingFace model ID (e.g., "onnx-community/gliner_small-v2.1")
+    /// * `config` - Configuration for model loading
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = GLiNERConfig {
+    ///     prefer_quantized: true,  // Use INT8 model for 2-4x speedup
+    ///     optimization_level: 3,
+    ///     num_threads: 8,
+    /// };
+    /// let model = GLiNEROnnx::with_config("onnx-community/gliner_small-v2.1", config)?;
+    /// ```
+    pub fn with_config(model_name: &str, config: GLiNERConfig) -> Result<Self> {
         use hf_hub::api::sync::Api;
         use ort::execution_providers::CPUExecutionProvider;
+        use ort::session::builder::GraphOptimizationLevel;
         use ort::session::Session;
 
         let api = Api::new().map_err(|e| {
@@ -64,20 +115,62 @@ impl GLiNEROnnx {
 
         let repo = api.model(model_name.to_string());
 
-        // Download model and tokenizer
-        let model_path = repo
-            .get("onnx/model.onnx")
-            .or_else(|_| repo.get("model.onnx"))
-            .map_err(|e| Error::Retrieval(format!("Failed to download model.onnx: {}", e)))?;
+        // Download model - try quantized first if preferred
+        let (model_path, is_quantized) = if config.prefer_quantized {
+            // Try quantized variants first
+            if let Ok(path) = repo.get("onnx/model_quantized.onnx") {
+                log::info!("[GLiNER] Using quantized model (INT8)");
+                (path, true)
+            } else if let Ok(path) = repo.get("model_quantized.onnx") {
+                log::info!("[GLiNER] Using quantized model (INT8)");
+                (path, true)
+            } else if let Ok(path) = repo.get("onnx/model_int8.onnx") {
+                log::info!("[GLiNER] Using INT8 quantized model");
+                (path, true)
+            } else {
+                // Fall back to FP32
+                let path = repo
+                    .get("onnx/model.onnx")
+                    .or_else(|_| repo.get("model.onnx"))
+                    .map_err(|e| {
+                        Error::Retrieval(format!("Failed to download model.onnx: {}", e))
+                    })?;
+                log::info!("[GLiNER] Using FP32 model (quantized not available)");
+                (path, false)
+            }
+        } else {
+            let path = repo
+                .get("onnx/model.onnx")
+                .or_else(|_| repo.get("model.onnx"))
+                .map_err(|e| Error::Retrieval(format!("Failed to download model.onnx: {}", e)))?;
+            (path, false)
+        };
 
         let tokenizer_path = repo
             .get("tokenizer.json")
             .map_err(|e| Error::Retrieval(format!("Failed to download tokenizer.json: {}", e)))?;
 
-        let session = Session::builder()
+        // Build session with optimization settings
+        let opt_level = match config.optimization_level {
+            1 => GraphOptimizationLevel::Level1,
+            2 => GraphOptimizationLevel::Level2,
+            _ => GraphOptimizationLevel::Level3,
+        };
+
+        let mut builder = Session::builder()
             .map_err(|e| Error::Retrieval(format!("Failed to create ONNX session builder: {}", e)))?
+            .with_optimization_level(opt_level)
+            .map_err(|e| Error::Retrieval(format!("Failed to set optimization level: {}", e)))?
             .with_execution_providers([CPUExecutionProvider::default().build()])
-            .map_err(|e| Error::Retrieval(format!("Failed to set execution providers: {}", e)))?
+            .map_err(|e| Error::Retrieval(format!("Failed to set execution providers: {}", e)))?;
+
+        if config.num_threads > 0 {
+            builder = builder
+                .with_intra_threads(config.num_threads)
+                .map_err(|e| Error::Retrieval(format!("Failed to set threads: {}", e)))?;
+        }
+
+        let session = builder
             .commit_from_file(&model_path)
             .map_err(|e| Error::Retrieval(format!("Failed to load ONNX model: {}", e)))?;
 
@@ -95,9 +188,22 @@ impl GLiNEROnnx {
 
         Ok(Self {
             session: std::sync::Mutex::new(session),
-            tokenizer,
+            tokenizer: std::sync::Arc::new(tokenizer),
             model_name: model_name.to_string(),
+            is_quantized,
         })
+    }
+
+    /// Check if a quantized model was loaded.
+    #[must_use]
+    pub fn is_quantized(&self) -> bool {
+        self.is_quantized
+    }
+
+    /// Get a clone of the tokenizer Arc (cheap).
+    #[must_use]
+    pub fn tokenizer(&self) -> std::sync::Arc<tokenizers::Tokenizer> {
+        std::sync::Arc::clone(&self.tokenizer)
     }
 
     /// Get model name.
@@ -149,7 +255,13 @@ impl GLiNEROnnx {
 
         let batch_size = 1;
         let seq_len = input_ids.len();
-        let num_spans = num_text_words * MAX_SPAN_WIDTH;
+        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        let num_spans = num_text_words.checked_mul(MAX_SPAN_WIDTH).ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
+                num_text_words, MAX_SPAN_WIDTH
+            ))
+        })?;
 
         let input_ids_array = Array2::from_shape_vec((batch_size, seq_len), input_ids)
             .map_err(|e| Error::Parse(format!("Array error: {}", e)))?;
@@ -290,8 +402,24 @@ impl GLiNEROnnx {
     /// Shape: [num_words * max_width, 2] for span_idx
     /// Shape: [num_words * max_width] for span_mask
     fn make_span_tensors(&self, num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        let num_spans = num_words * MAX_SPAN_WIDTH;
-        let mut span_idx: Vec<i64> = vec![0; num_spans * 2];
+        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH).unwrap_or_else(|| {
+            log::warn!(
+                "Span count overflow: {} words * {} MAX_SPAN_WIDTH, using max",
+                num_words,
+                MAX_SPAN_WIDTH
+            );
+            usize::MAX
+        });
+        // Check for overflow in num_spans * 2
+        let span_idx_len = num_spans.checked_mul(2).unwrap_or_else(|| {
+            log::warn!(
+                "Span idx length overflow: {} spans * 2, using max",
+                num_spans
+            );
+            usize::MAX
+        });
+        let mut span_idx: Vec<i64> = vec![0; span_idx_len];
         let mut span_mask: Vec<bool> = vec![false; num_spans];
 
         for start in 0..num_words {
@@ -299,10 +427,44 @@ impl GLiNEROnnx {
             let actual_max_width = MAX_SPAN_WIDTH.min(remaining_width);
 
             for width in 0..actual_max_width {
-                let dim = start * MAX_SPAN_WIDTH + width;
-                span_idx[dim * 2] = start as i64; // start offset
-                span_idx[dim * 2 + 1] = (start + width) as i64; // end offset
-                span_mask[dim] = true;
+                // Check for overflow in dim calculation (same pattern as nuner.rs:399)
+                let dim = match start.checked_mul(MAX_SPAN_WIDTH) {
+                    Some(v) => match v.checked_add(width) {
+                        Some(d) => d,
+                        None => {
+                            log::warn!(
+                                "Dim calculation overflow: {} * {} + {}, skipping span",
+                                start,
+                                MAX_SPAN_WIDTH,
+                                width
+                            );
+                            continue;
+                        }
+                    },
+                    None => {
+                        log::warn!(
+                            "Dim calculation overflow: {} * {}, skipping span",
+                            start,
+                            MAX_SPAN_WIDTH
+                        );
+                        continue;
+                    }
+                };
+                // Check bounds before array access (dim * 2 could overflow or exceed span_idx_len)
+                if let Some(dim2) = dim.checked_mul(2) {
+                    if dim2 + 1 < span_idx_len && dim < num_spans {
+                        span_idx[dim2] = start as i64; // start offset
+                        span_idx[dim2 + 1] = (start + width) as i64; // end offset
+                        span_mask[dim] = true;
+                    } else {
+                        log::warn!(
+                            "Span idx access out of bounds: dim={}, dim*2={}, span_idx_len={}, num_spans={}, skipping",
+                            dim, dim2, span_idx_len, num_spans
+                        );
+                    }
+                } else {
+                    log::warn!("Dim * 2 overflow: dim={}, skipping span", dim);
+                }
             }
         }
 
@@ -392,13 +554,12 @@ impl GLiNEROnnx {
                             let score = 1.0 / (1.0 + (-logit).exp());
 
                             if score >= threshold {
-                                let span_words: Vec<&str> =
-                                    text_words[word_idx..=end_word].to_vec();
-                                let span_text = span_words.join(" ");
-
                                 let (char_start, char_end) = self.word_span_to_char_offsets(
                                     text, text_words, word_idx, end_word,
                                 );
+
+                                // Extract actual text from source to preserve original whitespace
+                                let span_text = extract_char_slice(text, char_start, char_end);
 
                                 let entity_type_str =
                                     entity_types.get(class_idx).unwrap_or(&"OTHER");
@@ -442,11 +603,11 @@ impl GLiNEROnnx {
                         let score = 1.0 / (1.0 + (-logit).exp());
 
                         if score >= threshold {
-                            let span_words: Vec<&str> = text_words[word_idx..=end_word].to_vec();
-                            let span_text = span_words.join(" ");
-
                             let (char_start, char_end) = self
                                 .word_span_to_char_offsets(text, text_words, word_idx, end_word);
+
+                            // Extract actual text from source to preserve original whitespace
+                            let span_text = extract_char_slice(text, char_start, char_end);
 
                             let entity_type_str = entity_types.get(class_idx).unwrap_or(&"OTHER");
                             let entity_type = Self::map_entity_type(entity_type_str);
@@ -464,7 +625,7 @@ impl GLiNEROnnx {
             }
         }
 
-        // Sort and deduplicate
+        // Sort by start position, then by descending span length, then by descending confidence
         entities.sort_by(|a, b| {
             a.start
                 .cmp(&b.start)
@@ -475,7 +636,41 @@ impl GLiNEROnnx {
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
         });
+
+        // Remove exact duplicates
         entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+
+        // Remove overlapping spans, keeping the highest confidence one
+        // This addresses the common issue where GLiNER detects both
+        // "The Department of Defense" and "Department of Defense"
+        let entities = remove_overlapping_spans(entities);
+
+        // Post-process: strip trailing punctuation from entity spans
+        let entities = entities
+            .into_iter()
+            .map(|mut e| {
+                // Strip trailing punctuation that shouldn't be part of entities
+                while e
+                    .text
+                    .ends_with(|c: char| matches!(c, '.' | ',' | ';' | ':' | '!' | '?'))
+                {
+                    e.text.pop();
+                    if e.end > e.start {
+                        e.end -= 1;
+                    }
+                }
+                // Also strip leading punctuation
+                while e
+                    .text
+                    .starts_with(|c: char| matches!(c, '.' | ',' | ';' | ':' | '!' | '?'))
+                {
+                    e.text.remove(0);
+                    e.start += 1;
+                }
+                e
+            })
+            .filter(|e| !e.text.is_empty() && e.start < e.end)
+            .collect();
 
         Ok(entities)
     }
@@ -494,6 +689,9 @@ impl GLiNEROnnx {
     }
 
     /// Convert word indices to character offsets.
+    ///
+    /// This function correctly handles Unicode text by converting byte offsets
+    /// to character offsets using the offset module's bytes_to_chars function.
     fn word_span_to_char_offsets(
         &self,
         text: &str,
@@ -501,28 +699,40 @@ impl GLiNEROnnx {
         start_word: usize,
         end_word: usize,
     ) -> (usize, usize) {
-        let mut char_pos = 0;
-        let mut start_char = 0;
-        let mut end_char = text.len();
+        let mut byte_pos = 0;
+        let mut start_byte = 0;
+        let mut end_byte = text.len();
 
         for (idx, word) in words.iter().enumerate() {
-            if let Some(pos) = text[char_pos..].find(word) {
-                let word_start = char_pos + pos;
-                let word_end = word_start + word.len();
+            // Search for the word in the remaining text (by bytes)
+            if let Some(pos) = text[byte_pos..].find(word) {
+                let word_start_byte = byte_pos + pos;
+                let word_end_byte = word_start_byte + word.len();
 
                 if idx == start_word {
-                    start_char = word_start;
+                    start_byte = word_start_byte;
                 }
                 if idx == end_word {
-                    end_char = word_end;
+                    end_byte = word_end_byte;
                     break;
                 }
-                char_pos = word_end;
+                byte_pos = word_end_byte;
             }
         }
 
-        (start_char, end_char)
+        // Convert byte offsets to character offsets
+        crate::offset::bytes_to_chars(text, start_byte, end_byte)
     }
+}
+
+/// Extract a substring by character offsets (not byte offsets).
+///
+/// This handles Unicode text correctly by iterating over characters.
+fn extract_char_slice(text: &str, char_start: usize, char_end: usize) -> String {
+    text.chars()
+        .skip(char_start)
+        .take(char_end.saturating_sub(char_start))
+        .collect()
 }
 
 // =============================================================================
@@ -532,8 +742,19 @@ impl GLiNEROnnx {
 /// Default entity types for zero-shot GLiNER when used via the Model trait.
 #[cfg(feature = "onnx")]
 const DEFAULT_GLINER_LABELS: &[&str] = &[
-    "person", "organization", "location", "date", "time", "money", "percent",
-    "product", "event", "facility", "work_of_art", "law", "language",
+    "person",
+    "organization",
+    "location",
+    "date",
+    "time",
+    "money",
+    "percent",
+    "product",
+    "event",
+    "facility",
+    "work_of_art",
+    "law",
+    "language",
 ];
 
 #[cfg(feature = "onnx")]
@@ -595,6 +816,7 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
 // =============================================================================
 
 #[cfg(not(feature = "onnx"))]
+#[derive(Debug)]
 pub struct GLiNEROnnx;
 
 #[cfg(not(feature = "onnx"))]
@@ -603,7 +825,8 @@ impl GLiNEROnnx {
     pub fn new(_model_name: &str) -> Result<Self> {
         Err(Error::InvalidInput(
             "GLiNER-ONNX requires the 'onnx' feature. \
-             Build with: cargo build --features onnx".to_string()
+             Build with: cargo build --features onnx"
+                .to_string(),
         ))
     }
 
@@ -620,7 +843,7 @@ impl GLiNEROnnx {
         _threshold: f32,
     ) -> Result<Vec<Entity>> {
         Err(Error::InvalidInput(
-            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+            "GLiNER-ONNX requires the 'onnx' feature".to_string(),
         ))
     }
 }
@@ -629,7 +852,7 @@ impl GLiNEROnnx {
 impl crate::Model for GLiNEROnnx {
     fn extract_entities(&self, _text: &str, _language: Option<&str>) -> crate::Result<Vec<Entity>> {
         Err(Error::InvalidInput(
-            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+            "GLiNER-ONNX requires the 'onnx' feature".to_string(),
         ))
     }
 
@@ -659,7 +882,7 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
         _threshold: f32,
     ) -> crate::Result<Vec<Entity>> {
         Err(Error::InvalidInput(
-            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+            "GLiNER-ONNX requires the 'onnx' feature".to_string(),
         ))
     }
 
@@ -670,7 +893,137 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
         _threshold: f32,
     ) -> crate::Result<Vec<Entity>> {
         Err(Error::InvalidInput(
-            "GLiNER-ONNX requires the 'onnx' feature".to_string()
+            "GLiNER-ONNX requires the 'onnx' feature".to_string(),
         ))
+    }
+}
+
+// =============================================================================
+// BatchCapable Trait Implementation
+// =============================================================================
+
+#[cfg(feature = "onnx")]
+impl crate::BatchCapable for GLiNEROnnx {
+    fn extract_entities_batch(
+        &self,
+        texts: &[&str],
+        _language: Option<&str>,
+    ) -> Result<Vec<Vec<Entity>>> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // GLiNER supports true batching with padded sequences
+        // For simplicity, we reuse the session efficiently with sequential calls
+        // The tokenizer and model weights stay cached
+        let default_types = DEFAULT_GLINER_LABELS;
+        let threshold = 0.5;
+
+        texts
+            .iter()
+            .map(|text| self.extract(text, default_types, threshold))
+            .collect()
+    }
+
+    fn optimal_batch_size(&self) -> Option<usize> {
+        Some(16)
+    }
+}
+
+#[cfg(not(feature = "onnx"))]
+impl crate::BatchCapable for GLiNEROnnx {
+    fn extract_entities_batch(
+        &self,
+        texts: &[&str],
+        _language: Option<&str>,
+    ) -> Result<Vec<Vec<Entity>>> {
+        Err(Error::InvalidInput(
+            "GLiNER-ONNX requires the 'onnx' feature".to_string(),
+        ))
+    }
+
+    fn optimal_batch_size(&self) -> Option<usize> {
+        None
+    }
+}
+
+// =============================================================================
+// StreamingCapable Trait Implementation
+// =============================================================================
+// Overlap Removal
+// =============================================================================
+
+/// Remove overlapping entity spans intelligently.
+///
+/// Strategy:
+/// 1. Prefer shorter spans when they have similar or higher confidence
+///    (e.g., prefer "Department of Defense" over "The Department of Defense")
+/// 2. For truly overlapping spans of similar length, keep highest confidence
+/// 3. Handle comma-separated entities (e.g., "IBM, NASA" should become "IBM" + "NASA")
+fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
+    if entities.len() <= 1 {
+        return entities;
+    }
+
+    // Sort by span length (shorter first), then by confidence descending
+    // This prefers shorter, more precise spans
+    entities.sort_by(|a, b| {
+        let len_a = a.end - a.start;
+        let len_b = b.end - b.start;
+        len_a.cmp(&len_b).then_with(|| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
+
+    let mut result: Vec<Entity> = Vec::with_capacity(entities.len());
+
+    for entity in entities {
+        // Check if this entity is FULLY CONTAINED by any already-kept entity
+        // If so, skip it (we already have a more precise version)
+        let is_superset_of_existing = result.iter().any(|kept| {
+            // Entity fully contains kept
+            entity.start <= kept.start && entity.end >= kept.end
+        });
+
+        if is_superset_of_existing {
+            // Skip - we have smaller, more precise entities
+            continue;
+        }
+
+        // Check if this entity overlaps (but doesn't contain) any kept entity
+        let overlaps_existing = result.iter().any(|kept| {
+            let entity_range = entity.start..entity.end;
+            let kept_range = kept.start..kept.end;
+            // Partial overlap (not full containment)
+            entity_range.start < kept_range.end && kept_range.start < entity_range.end
+        });
+
+        if !overlaps_existing {
+            result.push(entity);
+        }
+    }
+
+    // Re-sort by position for output
+    result.sort_by_key(|e| e.start);
+    result
+}
+
+// =============================================================================
+// StreamingCapable
+// =============================================================================
+
+#[cfg(feature = "onnx")]
+impl crate::StreamingCapable for GLiNEROnnx {
+    fn recommended_chunk_size(&self) -> usize {
+        4096 // Characters
+    }
+}
+
+#[cfg(not(feature = "onnx"))]
+impl crate::StreamingCapable for GLiNEROnnx {
+    fn recommended_chunk_size(&self) -> usize {
+        4096
     }
 }

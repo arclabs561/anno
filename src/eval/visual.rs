@@ -257,10 +257,16 @@ pub fn evaluate_visual_ner(
 
     // Initialize type stats
     for g in gold {
-        type_stats.entry(g.entity_type.clone()).or_insert((0, 0, 0, 0, 0)).0 += 1;
+        type_stats
+            .entry(g.entity_type.clone())
+            .or_insert((0, 0, 0, 0, 0))
+            .0 += 1;
     }
     for p in pred {
-        type_stats.entry(p.entity_type.clone()).or_insert((0, 0, 0, 0, 0)).1 += 1;
+        type_stats
+            .entry(p.entity_type.clone())
+            .or_insert((0, 0, 0, 0, 0))
+            .1 += 1;
     }
 
     // Match predictions to gold
@@ -318,19 +324,47 @@ pub fn evaluate_visual_ner(
     let num_gold = gold.len();
     let num_pred = pred.len();
 
-    let text_precision = if num_pred > 0 { text_matches as f64 / num_pred as f64 } else { 0.0 };
-    let text_recall = if num_gold > 0 { text_matches as f64 / num_gold as f64 } else { 0.0 };
+    let text_precision = if num_pred > 0 {
+        text_matches as f64 / num_pred as f64
+    } else {
+        0.0
+    };
+    let text_recall = if num_gold > 0 {
+        text_matches as f64 / num_gold as f64
+    } else {
+        0.0
+    };
     let text_f1 = f1(text_precision, text_recall);
 
-    let box_precision = if num_pred > 0 { box_matches as f64 / num_pred as f64 } else { 0.0 };
-    let box_recall = if num_gold > 0 { box_matches as f64 / num_gold as f64 } else { 0.0 };
+    let box_precision = if num_pred > 0 {
+        box_matches as f64 / num_pred as f64
+    } else {
+        0.0
+    };
+    let box_recall = if num_gold > 0 {
+        box_matches as f64 / num_gold as f64
+    } else {
+        0.0
+    };
     let box_f1 = f1(box_precision, box_recall);
 
-    let e2e_precision = if num_pred > 0 { e2e_matches as f64 / num_pred as f64 } else { 0.0 };
-    let e2e_recall = if num_gold > 0 { e2e_matches as f64 / num_gold as f64 } else { 0.0 };
+    let e2e_precision = if num_pred > 0 {
+        e2e_matches as f64 / num_pred as f64
+    } else {
+        0.0
+    };
+    let e2e_recall = if num_gold > 0 {
+        e2e_matches as f64 / num_gold as f64
+    } else {
+        0.0
+    };
     let e2e_f1 = f1(e2e_precision, e2e_recall);
 
-    let mean_iou = if iou_count > 0 { iou_sum / iou_count as f64 } else { 0.0 };
+    let mean_iou = if iou_count > 0 {
+        iou_sum / iou_count as f64
+    } else {
+        0.0
+    };
 
     // Per-type metrics
     let per_type: HashMap<_, _> = type_stats
@@ -424,37 +458,23 @@ pub fn synthetic_visual_examples() -> Vec<(String, Vec<VisualGold>)> {
     vec![
         (
             "Invoice #12345".to_string(),
-            vec![
-                VisualGold::new(
-                    "Invoice #12345",
-                    "DOCUMENT_ID",
-                    BoundingBox::new(0.1, 0.05, 0.4, 0.1),
-                ),
-            ],
+            vec![VisualGold::new(
+                "Invoice #12345",
+                "DOCUMENT_ID",
+                BoundingBox::new(0.1, 0.05, 0.4, 0.1),
+            )],
         ),
         (
             "Total: $1,234.56\nDate: 2024-01-15".to_string(),
             vec![
-                VisualGold::new(
-                    "$1,234.56",
-                    "MONEY",
-                    BoundingBox::new(0.5, 0.8, 0.7, 0.85),
-                ),
-                VisualGold::new(
-                    "2024-01-15",
-                    "DATE",
-                    BoundingBox::new(0.5, 0.7, 0.7, 0.75),
-                ),
+                VisualGold::new("$1,234.56", "MONEY", BoundingBox::new(0.5, 0.8, 0.7, 0.85)),
+                VisualGold::new("2024-01-15", "DATE", BoundingBox::new(0.5, 0.7, 0.7, 0.75)),
             ],
         ),
         (
             "Acme Corp\n123 Main St, City".to_string(),
             vec![
-                VisualGold::new(
-                    "Acme Corp",
-                    "ORG",
-                    BoundingBox::new(0.1, 0.1, 0.35, 0.15),
-                ),
+                VisualGold::new("Acme Corp", "ORG", BoundingBox::new(0.1, 0.1, 0.35, 0.15)),
                 VisualGold::new(
                     "123 Main St, City",
                     "ADDRESS",
@@ -506,17 +526,17 @@ mod tests {
 
     #[test]
     fn test_evaluate_perfect_match() {
-        let gold = vec![
-            VisualGold::new("Invoice", "DOC", BoundingBox::new(0.1, 0.1, 0.3, 0.15)),
-        ];
-        let pred = vec![
-            VisualPrediction {
-                text: "Invoice".to_string(),
-                entity_type: "DOC".to_string(),
-                bbox: BoundingBox::new(0.1, 0.1, 0.3, 0.15),
-                confidence: 0.95,
-            },
-        ];
+        let gold = vec![VisualGold::new(
+            "Invoice",
+            "DOC",
+            BoundingBox::new(0.1, 0.1, 0.3, 0.15),
+        )];
+        let pred = vec![VisualPrediction {
+            text: "Invoice".to_string(),
+            entity_type: "DOC".to_string(),
+            bbox: BoundingBox::new(0.1, 0.1, 0.3, 0.15),
+            confidence: 0.95,
+        }];
 
         let config = VisualEvalConfig::default();
         let metrics = evaluate_visual_ner(&gold, &pred, &config);
@@ -527,17 +547,17 @@ mod tests {
 
     #[test]
     fn test_evaluate_text_only_match() {
-        let gold = vec![
-            VisualGold::new("Invoice", "DOC", BoundingBox::new(0.1, 0.1, 0.3, 0.15)),
-        ];
-        let pred = vec![
-            VisualPrediction {
-                text: "Invoice".to_string(),
-                entity_type: "DOC".to_string(),
-                bbox: BoundingBox::new(0.5, 0.5, 0.7, 0.6), // Different box
-                confidence: 0.95,
-            },
-        ];
+        let gold = vec![VisualGold::new(
+            "Invoice",
+            "DOC",
+            BoundingBox::new(0.1, 0.1, 0.3, 0.15),
+        )];
+        let pred = vec![VisualPrediction {
+            text: "Invoice".to_string(),
+            entity_type: "DOC".to_string(),
+            bbox: BoundingBox::new(0.5, 0.5, 0.7, 0.6), // Different box
+            confidence: 0.95,
+        }];
 
         let config = VisualEvalConfig::default();
         let metrics = evaluate_visual_ner(&gold, &pred, &config);
@@ -563,4 +583,3 @@ mod tests {
         }
     }
 }
-

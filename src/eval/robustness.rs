@@ -273,9 +273,10 @@ impl RobustnessEvaluator {
                     let mut chars = word.chars();
                     match chars.next() {
                         None => String::new(),
-                        Some(first) => {
-                            first.to_uppercase().chain(chars.flat_map(|c| c.to_lowercase())).collect()
-                        }
+                        Some(first) => first
+                            .to_uppercase()
+                            .chain(chars.flat_map(|c| c.to_lowercase()))
+                            .collect(),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -422,7 +423,8 @@ impl RobustnessEvaluator {
             .unwrap_or(0.0);
 
         for (name, metrics) in &by_perturbation {
-            let avg_precision = metrics.iter().map(|(p, _, _)| p).sum::<f64>() / metrics.len() as f64;
+            let avg_precision =
+                metrics.iter().map(|(p, _, _)| p).sum::<f64>() / metrics.len() as f64;
             let avg_recall = metrics.iter().map(|(_, r, _)| r).sum::<f64>() / metrics.len() as f64;
             let avg_f1 = metrics.iter().map(|(_, _, f)| f).sum::<f64>() / metrics.len() as f64;
             let relative_change = if baseline_f1 > 0.0 {
@@ -447,13 +449,21 @@ impl RobustnessEvaluator {
         let (worst, _) = aggregated
             .iter()
             .filter(|(k, _)| k.as_str() != "None")
-            .min_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| {
+                a.1.f1
+                    .partial_cmp(&b.1.f1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
         let (best, _) = aggregated
             .iter()
-            .max_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.1.f1
+                    .partial_cmp(&b.1.f1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
@@ -569,8 +579,7 @@ fn compute_simple_metrics(
 
     for pred in predicted {
         if gold.iter().any(|g| {
-            g.entity_type == pred.entity_type
-                && g.text.to_lowercase() == pred.text.to_lowercase()
+            g.entity_type == pred.entity_type && g.text.to_lowercase() == pred.text.to_lowercase()
         }) {
             correct += 1;
         }
@@ -678,4 +687,3 @@ mod tests {
         assert_eq!(robustness_grade(0.30), "Very poor robustness");
     }
 }
-

@@ -34,7 +34,7 @@
 //!     ])
 //!     .with_chain_of_thought(true);
 //!
-//! let rendered = prompt.render("Elon Musk leads Tesla.");
+//! let rendered = prompt.render("Marie Curie worked at the Sorbonne.");
 //! // Send `rendered` to your LLM API
 //! ```
 //!
@@ -98,7 +98,8 @@ impl BIOSchema {
     /// Set a custom description for an entity type.
     #[must_use]
     pub fn with_description(mut self, entity_type: EntityType, description: &str) -> Self {
-        self.descriptions.insert(entity_type, description.to_string());
+        self.descriptions
+            .insert(entity_type, description.to_string());
         self
     }
 
@@ -123,7 +124,9 @@ impl BIOSchema {
         }
 
         lines.push("    ".to_string());
-        lines.push("    Returns: List of entities with text, type, start, end positions.".to_string());
+        lines.push(
+            "    Returns: List of entities with text, type, start, end positions.".to_string(),
+        );
         lines.push("    \"\"\"".to_string());
 
         lines.join("\n")
@@ -526,4 +529,3 @@ That's all!
         assert!(rendered.contains("identify potential entity spans"));
     }
 }
-

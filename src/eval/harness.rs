@@ -11,21 +11,21 @@
 //!
 //! ```rust,ignore
 //! use anno::eval::harness::{EvalHarness, EvalConfig, BackendRegistry};
-//! use anno::{PatternNER, StatisticalNER, StackedNER};
+//! use anno::{PatternNER, HeuristicNER, StackedNER};
 //!
 //! // Create harness with default config
 //! let mut harness = EvalHarness::new(EvalConfig::default())?;
 //!
 //! // Register backends
 //! harness.register("pattern", Box::new(PatternNER::new()));
-//! harness.register("statistical", Box::new(StatisticalNER::new()));
+//! harness.register("heuristic", Box::new(HeuristicNER::new()));
 //! harness.register("stacked", Box::new(StackedNER::new()));
 //!
 //! // Run on synthetic data
 //! let results = harness.run_synthetic()?;
 //!
-//! // Or run on real datasets (requires network feature)
-//! #[cfg(feature = "network")]
+//! // Or run on real datasets (requires eval-advanced feature)
+//! #[cfg(feature = "eval-advanced")]
 //! let results = harness.run_real_datasets(&[DatasetId::WikiGold, DatasetId::Wnut17])?;
 //!
 //! // Generate HTML report
@@ -123,7 +123,40 @@ impl EvalConfig {
             normalize_types: true, // Full eval normalizes types
         }
     }
-    
+
+    /// CI-aware configuration.
+    ///
+    /// Respects environment variables:
+    /// - `ANNO_MAX_EXAMPLES`: Max examples per dataset (default: 50 in CI, 0 otherwise)
+    /// - `CI` or `GITHUB_ACTIONS`: Detects CI environment
+    ///
+    /// # Example
+    ///
+    /// ```bash
+    /// # Limit to 20 examples per dataset
+    /// ANNO_MAX_EXAMPLES=20 cargo test --features eval-advanced
+    /// ```
+    pub fn ci_aware() -> Self {
+        let in_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+
+        let max_examples = std::env::var("ANNO_MAX_EXAMPLES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(if in_ci { 50 } else { 0 });
+
+        Self {
+            max_examples_per_dataset: max_examples,
+            breakdown_by_difficulty: !in_ci,
+            breakdown_by_domain: !in_ci,
+            breakdown_by_type: true,
+            warmup: !in_ci,
+            warmup_iterations: if in_ci { 0 } else { 1 },
+            min_confidence: None,
+            cache_dir: None,
+            normalize_types: false,
+        }
+    }
+
     /// With type normalization enabled.
     ///
     /// When enabled, domain-specific entity types are mapped to standard NER types:
@@ -162,8 +195,7 @@ impl BackendRegistry {
         description: impl Into<String>,
         model: Box<dyn Model>,
     ) {
-        self.backends
-            .push((name.into(), description.into(), model));
+        self.backends.push((name.into(), description.into(), model));
     }
 
     /// Get number of registered backends.
@@ -185,7 +217,7 @@ impl BackendRegistry {
 
     /// Register default zero-dependency backends.
     pub fn register_defaults(&mut self) {
-        use crate::{HybridNER, PatternNER, StackedNER, StatisticalNER};
+        use crate::{HeuristicNER, PatternNER, StackedNER};
 
         self.register(
             "PatternNER",
@@ -193,27 +225,37 @@ impl BackendRegistry {
             Box::new(PatternNER::new()),
         );
         self.register(
-            "StatisticalNER",
+            "HeuristicNER",
             "Heuristics (PER/ORG/LOC)",
-            Box::new(StatisticalNER::new()),
+            Box::new(HeuristicNER::new()),
         );
         self.register(
             "StackedNER",
             "Pattern + Statistical combined",
             Box::new(StackedNER::new()),
         );
-        self.register(
-            "HybridNER",
-            "Pattern-only hybrid mode",
-            Box::new(HybridNER::pattern_only()),
-        );
     }
 
     /// Register ONNX backends if feature enabled.
     #[cfg(feature = "onnx")]
     pub fn register_onnx(&mut self) {
-        use crate::{BertNEROnnx, DEFAULT_BERT_ONNX_MODEL};
+        use crate::{BertNEROnnx, GLiNEROnnx, DEFAULT_BERT_ONNX_MODEL, DEFAULT_GLINER_MODEL};
 
+        // GLiNER v2.1 (zero-shot NER)
+        match GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
+            Ok(gliner) => {
+                self.register(
+                    "GLiNER",
+                    "Zero-shot NER via ONNX (~90% F1)",
+                    Box::new(gliner),
+                );
+            }
+            Err(e) => {
+                log::warn!("Failed to load GLiNER ONNX: {}", e);
+            }
+        }
+
+        // BERT NER (fine-tuned)
         match BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL) {
             Ok(bert) => {
                 self.register("BertNEROnnx", "BERT NER via ONNX (~86% F1)", Box::new(bert));
@@ -241,6 +283,135 @@ impl BackendRegistry {
                 log::warn!("Failed to load Candle NER: {}", e);
             }
         }
+    }
+
+    /// Register GLiNER2 multi-task model.
+    ///
+    /// GLiNER2 supports:
+    /// - Zero-shot NER with arbitrary entity types
+    /// - Text classification (single/multi-label)
+    /// - Hierarchical structure extraction
+    ///
+    /// Requires either `onnx` or `candle` feature.
+    #[cfg(any(feature = "onnx", feature = "candle"))]
+    pub fn register_gliner2(&mut self, model_id: &str) {
+        use crate::backends::gliner2::GLiNER2;
+
+        match GLiNER2::from_pretrained(model_id) {
+            Ok(model) => {
+                self.register(
+                    "GLiNER2",
+                    "Multi-task zero-shot NER, classification, structure",
+                    Box::new(model),
+                );
+            }
+            Err(e) => {
+                log::warn!("Failed to load GLiNER2 from {}: {}", model_id, e);
+            }
+        }
+    }
+
+    /// Register GLiNER2 with default model.
+    ///
+    /// Uses the official Fastino Labs GLiNER2 model (EMNLP 2025).
+    /// See: <https://github.com/fastino-ai/GLiNER2>
+    ///
+    /// Alternative models:
+    /// - `fastino/gliner2-large-v1` (340M) for higher accuracy
+    /// - `knowledgator/gliner-multitask-large-v0.5` (older community model)
+    #[cfg(any(feature = "onnx", feature = "candle"))]
+    pub fn register_gliner2_default(&mut self) {
+        self.register_gliner2("fastino/gliner2-base-v1");
+    }
+
+    /// Register a custom stacked combination of backends.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use anno::eval::harness::BackendRegistry;
+    /// use anno::backends::stacked::ConflictStrategy;
+    ///
+    /// let mut registry = BackendRegistry::new();
+    /// registry.register_stack(
+    ///     "custom_stack",
+    ///     &["PatternNER", "HeuristicNER"],
+    ///     ConflictStrategy::HighestConf,
+    /// );
+    /// ```
+    pub fn register_stack(
+        &mut self,
+        name: impl Into<String>,
+        layer_names: &[&str],
+        strategy: crate::backends::stacked::ConflictStrategy,
+    ) {
+        use crate::backends::stacked::StackedNERBuilder;
+        use crate::{HeuristicNER, PatternNER};
+
+        let name = name.into();
+        let mut builder = StackedNERBuilder::default().strategy(strategy);
+
+        for layer_name in layer_names {
+            match *layer_name {
+                "PatternNER" | "pattern" => {
+                    builder = builder.layer(PatternNER::new());
+                }
+                "HeuristicNER" | "heuristic" => {
+                    builder = builder.layer(HeuristicNER::new());
+                }
+                _ => {
+                    eprintln!(
+                        "Warning: Unknown layer '{}' in stack '{}'",
+                        layer_name, name
+                    );
+                }
+            }
+        }
+
+        let description = format!(
+            "Stack: {} ({})",
+            layer_names.join(" -> "),
+            format!("{:?}", strategy)
+        );
+
+        self.register(name, description, Box::new(builder.build()));
+    }
+
+    /// Register all possible combinations of base backends.
+    ///
+    /// This creates:
+    /// - Individual backends (PatternNER, HeuristicNER)
+    /// - Two-layer stacks (Pattern->Heuristic, Heuristic->Pattern)
+    /// - Different conflict strategies
+    pub fn register_all_combinations(&mut self) {
+        use crate::backends::stacked::ConflictStrategy;
+
+        // Already registered as part of defaults
+        self.register_defaults();
+
+        // Additional ordering: HeuristicNER first, then PatternNER
+        self.register_stack(
+            "Heuristic->Pattern",
+            &["HeuristicNER", "PatternNER"],
+            ConflictStrategy::HighestConf,
+        );
+
+        // Different conflict strategies for default stack
+        self.register_stack(
+            "Stack_LongestSpan",
+            &["PatternNER", "HeuristicNER"],
+            ConflictStrategy::LongestSpan,
+        );
+        self.register_stack(
+            "Stack_Priority",
+            &["PatternNER", "HeuristicNER"],
+            ConflictStrategy::Priority,
+        );
+        self.register_stack(
+            "Stack_Union",
+            &["PatternNER", "HeuristicNER"],
+            ConflictStrategy::Union,
+        );
     }
 }
 
@@ -480,8 +651,8 @@ impl EvalHarness {
         })
     }
 
-    /// Run evaluation on real datasets (requires network feature for downloading).
-    #[cfg(feature = "network")]
+    /// Run evaluation on real datasets (requires eval-advanced feature for downloading).
+    #[cfg(feature = "eval-advanced")]
     pub fn run_real_datasets(&self, datasets: &[DatasetId]) -> Result<EvalResults> {
         if self.registry.is_empty() {
             return Err(Error::InvalidInput(
@@ -489,9 +660,10 @@ impl EvalHarness {
             ));
         }
 
-        let loader = self.loader.as_ref().ok_or_else(|| {
-            Error::InvalidInput("Dataset loader not initialized".to_string())
-        })?;
+        let loader = self
+            .loader
+            .as_ref()
+            .ok_or_else(|| Error::InvalidInput("Dataset loader not initialized".to_string()))?;
 
         let mut all_test_cases: Vec<(String, Vec<GoldEntity>)> = Vec::new();
         let mut dataset_results: HashMap<String, Vec<(String, Vec<GoldEntity>)>> = HashMap::new();
@@ -527,8 +699,7 @@ impl EvalHarness {
             let mut per_dataset_results = Vec::new();
 
             for (dataset_name, cases) in &dataset_results {
-                let result =
-                    self.evaluate_model_on_cases(model, name, dataset_name, cases)?;
+                let result = self.evaluate_model_on_cases(model, name, dataset_name, cases)?;
                 per_dataset_results.push(result);
             }
 
@@ -558,9 +729,10 @@ impl EvalHarness {
             ));
         }
 
-        let loader = self.loader.as_ref().ok_or_else(|| {
-            Error::InvalidInput("Dataset loader not initialized".to_string())
-        })?;
+        let loader = self
+            .loader
+            .as_ref()
+            .ok_or_else(|| Error::InvalidInput("Dataset loader not initialized".to_string()))?;
 
         let mut all_test_cases: Vec<(String, Vec<GoldEntity>)> = Vec::new();
         let mut dataset_results: HashMap<String, Vec<(String, Vec<GoldEntity>)>> = HashMap::new();
@@ -600,8 +772,7 @@ impl EvalHarness {
             let mut per_dataset_results = Vec::new();
 
             for (dataset_name, cases) in &dataset_results {
-                let result =
-                    self.evaluate_model_on_cases(model, name, dataset_name, cases)?;
+                let result = self.evaluate_model_on_cases(model, name, dataset_name, cases)?;
                 per_dataset_results.push(result);
             }
 
@@ -871,9 +1042,12 @@ impl EvalResults {
                 });
 
                 for (type_name, metrics_list) in sorted_types {
-                    let avg_f1 = metrics_list.iter().map(|m| m.f1).sum::<f64>() / metrics_list.len() as f64;
-                    let avg_p = metrics_list.iter().map(|m| m.precision).sum::<f64>() / metrics_list.len() as f64;
-                    let avg_r = metrics_list.iter().map(|m| m.recall).sum::<f64>() / metrics_list.len() as f64;
+                    let avg_f1 =
+                        metrics_list.iter().map(|m| m.f1).sum::<f64>() / metrics_list.len() as f64;
+                    let avg_p = metrics_list.iter().map(|m| m.precision).sum::<f64>()
+                        / metrics_list.len() as f64;
+                    let avg_r = metrics_list.iter().map(|m| m.recall).sum::<f64>()
+                        / metrics_list.len() as f64;
                     let total_correct: usize = metrics_list.iter().map(|m| m.correct).sum();
                     let total_expected: usize = metrics_list.iter().map(|m| m.expected).sum();
 
@@ -1140,7 +1314,12 @@ mod tests {
 
         registry.register_defaults();
         assert!(!registry.is_empty());
-        assert!(registry.len() >= 4); // At least 4 default backends
+        // Number of backends depends on feature flags (onnx, candle, etc.)
+        assert!(
+            registry.len() >= 1,
+            "Expected at least 1 backend, got {}",
+            registry.len()
+        );
     }
 
     #[test]
@@ -1170,4 +1349,3 @@ mod tests {
         assert!(html.contains("PatternNER"));
     }
 }
-

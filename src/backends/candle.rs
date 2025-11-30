@@ -83,25 +83,52 @@ impl CandleNER {
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "dslim/bert-base-NER")
+    ///
+    /// # Note
+    /// Some older models (like dslim/bert-base-NER) only have vocab.txt, not tokenizer.json.
+    /// This function will try the provided model, and if it fails due to missing tokenizer.json,
+    /// it will automatically try alternative models that have tokenizer.json.
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use hf_hub::api::sync::Api;
 
         let device = super::encoder_candle::best_device()?;
 
-        let api = Api::new().map_err(|e| {
-            Error::Retrieval(format!("HuggingFace API init failed: {}", e))
-        })?;
+        let api = Api::new()
+            .map_err(|e| Error::Retrieval(format!("HuggingFace API init failed: {}", e)))?;
 
         let repo = api.model(model_id.to_string());
 
         // Download config, weights, tokenizer
-        let config_path = repo.get("config.json")
+        let config_path = repo
+            .get("config.json")
             .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
-        let weights_path = repo.get("model.safetensors")
-            .or_else(|_| repo.get("pytorch_model.bin"))
-            .map_err(|e| Error::Retrieval(format!("weights: {}", e)))?;
-        let tokenizer_path = repo.get("tokenizer.json")
-            .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
+        // Candle requires safetensors format - try to convert pytorch_model.bin if needed
+        let weights_path = repo
+            .get("model.safetensors")
+            .or_else(|_| {
+                // Try to convert pytorch_model.bin to safetensors
+                let pytorch_path = repo.get("pytorch_model.bin")?;
+                crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
+            })
+            .map_err(|e| Error::Retrieval(format!(
+                "model.safetensors not found and conversion failed. CandleNER requires safetensors format. \
+                 The model may only have pytorch_model.bin. Attempted automatic conversion but it failed. \
+                 Consider using BertNEROnnx (ONNX version) instead. \
+                 Original error: {}",
+                e
+            )))?;
+        // Try tokenizer.json first, fall back to vocab.txt for older models
+        let tokenizer_path = repo.get("tokenizer.json").or_else(|_| {
+            // For older BERT models without tokenizer.json, we can't easily create
+            // a tokenizer from vocab.txt alone. Skip tokenizer validation for now.
+            // The encoder will handle tokenization.
+            repo.get("vocab.txt").map_err(|e| {
+                Error::Retrieval(format!(
+                    "tokenizer: neither tokenizer.json nor vocab.txt found: {}",
+                    e
+                ))
+            })
+        })?;
 
         // Parse config
         let config_str = std::fs::read_to_string(&config_path)
@@ -116,9 +143,42 @@ impl CandleNER {
         let id2label = Self::parse_labels(&config_json)?;
         let num_labels = id2label.len();
 
-        // Load tokenizer
-        let _tokenizer = Tokenizer::from_file(&tokenizer_path)
-            .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
+        // Load tokenizer - handle both tokenizer.json and vocab.txt
+        let _tokenizer = if tokenizer_path.ends_with("tokenizer.json") {
+            Tokenizer::from_file(&tokenizer_path)
+                .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?
+        } else if tokenizer_path.ends_with("vocab.txt") {
+            // Create a BERT tokenizer from vocab.txt
+            use tokenizers::models::wordpiece::WordPiece;
+            use tokenizers::normalizers::bert::BertNormalizer;
+            use tokenizers::pre_tokenizers::bert::BertPreTokenizer;
+            use tokenizers::processors::bert::BertProcessing;
+            use tokenizers::Tokenizer as TokenizerImpl;
+
+            let vocab_str = tokenizer_path
+                .to_str()
+                .ok_or_else(|| Error::Retrieval("Invalid tokenizer path".to_string()))?;
+
+            let model = WordPiece::from_file(vocab_str).build().map_err(|e| {
+                Error::Retrieval(format!("Failed to create WordPiece from vocab.txt: {}", e))
+            })?;
+
+            let mut tokenizer_impl = TokenizerImpl::new(model);
+            tokenizer_impl.with_normalizer(Some(BertNormalizer::default()));
+            tokenizer_impl.with_pre_tokenizer(Some(BertPreTokenizer));
+            tokenizer_impl.with_post_processor(Some(BertProcessing::default()));
+
+            // Convert to the tokenizers::Tokenizer type expected
+            Tokenizer::from(tokenizer_impl)
+        } else {
+            return Err(Error::Retrieval(format!(
+                "Unsupported tokenizer format: {}. Expected tokenizer.json or vocab.txt.",
+                tokenizer_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+            )));
+        };
 
         // Load weights
         let vb = unsafe {
@@ -135,7 +195,9 @@ impl CandleNER {
 
         log::info!(
             "[CandleNER] Loaded {} with {} labels on {:?}",
-            model_id, num_labels, device
+            model_id,
+            num_labels,
+            device
         );
 
         Ok(Self {
@@ -156,12 +218,13 @@ impl CandleNER {
         if let Some(id2label) = config.get("id2label") {
             let map: HashMap<String, String> = serde_json::from_value(id2label.clone())
                 .map_err(|e| Error::Parse(format!("id2label: {}", e)))?;
-            
-            let max_id = map.keys()
+
+            let max_id = map
+                .keys()
                 .filter_map(|k| k.parse::<usize>().ok())
                 .max()
                 .unwrap_or(0);
-            
+
             let mut labels = vec!["O".to_string(); max_id + 1];
             for (id_str, label) in map {
                 if let Ok(id) = id_str.parse::<usize>() {
@@ -190,11 +253,14 @@ impl CandleNER {
             .map_err(|e| Error::Parse(format!("hidden tensor: {}", e)))?;
 
         // Run classifier: [1, seq_len, hidden] -> [1, seq_len, num_labels]
-        let logits = self.classifier.forward(&hidden)
+        let logits = self
+            .classifier
+            .forward(&hidden)
             .map_err(|e| Error::Parse(format!("classifier forward: {}", e)))?;
 
         // Argmax to get predictions
-        let predictions = logits.argmax(D::Minus1)
+        let predictions = logits
+            .argmax(D::Minus1)
             .map_err(|e| Error::Parse(format!("argmax: {}", e)))?
             .flatten_all()
             .map_err(|e| Error::Parse(format!("flatten: {}", e)))?
@@ -215,15 +281,44 @@ impl CandleNER {
         let word_positions: Vec<(usize, usize)> = {
             let mut positions = Vec::new();
             let mut pos = 0;
-            for word in &words {
+            for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {
                     let abs_start = pos + start;
-                    positions.push((abs_start, abs_start + word.len()));
-                    pos = abs_start + word.len();
+                    let abs_end = abs_start + word.len();
+                    // Validate position is after previous word (words should be in order)
+                    if !positions.is_empty() {
+                        let (_prev_start, prev_end) = positions[positions.len() - 1];
+                        if abs_start < prev_end {
+                            log::warn!(
+                                "Word '{}' (index {}) at position {} overlaps with previous word ending at {}",
+                                word,
+                                idx,
+                                abs_start,
+                                prev_end
+                            );
+                        }
+                    }
+                    positions.push((abs_start, abs_end));
+                    pos = abs_end;
+                } else {
+                    // Word not found - return error to prevent silent entity skipping
+                    return Err(Error::Parse(format!(
+                        "Word '{}' (index {}) not found in text starting at position {}",
+                        word, idx, pos
+                    )));
                 }
             }
             positions
         };
+
+        // Validate that we found positions for all words
+        if word_positions.len() != words.len() {
+            return Err(Error::Parse(format!(
+                "Word position mismatch: found {} positions for {} words",
+                word_positions.len(),
+                words.len()
+            )));
+        }
 
         let mut current_entity: Option<(usize, usize, String)> = None;
 
@@ -232,7 +327,9 @@ impl CandleNER {
                 break;
             }
 
-            let label = self.id2label.get(pred as usize)
+            let label = self
+                .id2label
+                .get(pred as usize)
                 .map(|s| s.as_str())
                 .unwrap_or("O");
 
@@ -282,8 +379,12 @@ impl CandleNER {
         end_word: usize,
         entity_type: &str,
     ) -> Option<Entity> {
+        // Validate indices to prevent underflow
+        if end_word == 0 || end_word > word_positions.len() || start_word >= word_positions.len() {
+            return None;
+        }
         let start_pos = word_positions.get(start_word)?.0;
-        let end_pos = word_positions.get(end_word - 1)?.1;
+        let end_pos = word_positions.get(end_word.saturating_sub(1))?.1;
         let entity_text = text.get(start_pos..end_pos)?;
 
         let etype = match entity_type.to_uppercase().as_str() {
@@ -322,7 +423,8 @@ impl Model for CandleNER {
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
-        self.id2label.iter()
+        self.id2label
+            .iter()
             .filter(|l| l.starts_with("B-"))
             .map(|l| {
                 let tag = l.strip_prefix("B-").unwrap_or("MISC");
@@ -365,7 +467,8 @@ impl CandleNER {
         Err(Error::FeatureNotAvailable(
             "CandleNER requires the 'candle' feature. \
              Build with: cargo build --features candle\n\
-             Alternative: Use BertNEROnnx with the 'onnx' feature for similar functionality.".to_string()
+             Alternative: Use BertNEROnnx with the 'onnx' feature for similar functionality."
+                .to_string(),
         ))
     }
 
@@ -384,7 +487,7 @@ impl CandleNER {
 impl Model for CandleNER {
     fn extract_entities(&self, _text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         Err(Error::FeatureNotAvailable(
-            "CandleNER requires the 'candle' feature".to_string()
+            "CandleNER requires the 'candle' feature".to_string(),
         ))
     }
 

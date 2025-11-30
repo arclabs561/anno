@@ -266,7 +266,9 @@ impl CorefChain {
     /// Check if chain contains a mention with given span.
     #[must_use]
     pub fn contains_span(&self, start: usize, end: usize) -> bool {
-        self.mentions.iter().any(|m| m.start == start && m.end == end)
+        self.mentions
+            .iter()
+            .any(|m| m.start == start && m.end == end)
     }
 
     /// Get first mention (usually the most salient/representative).
@@ -280,11 +282,42 @@ impl CorefChain {
     pub fn mention_spans(&self) -> HashSet<(usize, usize)> {
         self.mentions.iter().map(|m| m.span_id()).collect()
     }
+
+    /// Get the canonical (representative) mention for this chain.
+    ///
+    /// Prefers proper nouns over other mention types, then longest mention.
+    /// Falls back to first mention if no proper noun exists.
+    #[must_use]
+    pub fn canonical_mention(&self) -> Option<&Mention> {
+        // Prefer proper noun mentions
+        let proper = self
+            .mentions
+            .iter()
+            .filter(|m| m.mention_type == Some(MentionType::Proper))
+            .max_by_key(|m| m.text.len());
+
+        if proper.is_some() {
+            return proper;
+        }
+
+        // Fall back to longest mention (likely most informative)
+        self.mentions.iter().max_by_key(|m| m.text.len())
+    }
+
+    /// Get the canonical ID for this chain (cluster_id if set).
+    #[must_use]
+    pub fn canonical_id(&self) -> Option<u64> {
+        self.cluster_id
+    }
 }
 
 impl std::fmt::Display for CorefChain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mentions: Vec<String> = self.mentions.iter().map(|m| format!("\"{}\"", m.text)).collect();
+        let mentions: Vec<String> = self
+            .mentions
+            .iter()
+            .map(|m| format!("\"{}\"", m.text))
+            .collect();
         write!(f, "[{}]", mentions.join(", "))
     }
 }
@@ -322,7 +355,11 @@ impl CorefDocument {
 
     /// Create document with ID.
     #[must_use]
-    pub fn with_id(text: impl Into<String>, doc_id: impl Into<String>, chains: Vec<CorefChain>) -> Self {
+    pub fn with_id(
+        text: impl Into<String>,
+        doc_id: impl Into<String>,
+        chains: Vec<CorefChain>,
+    ) -> Self {
         Self {
             text: text.into(),
             doc_id: Some(doc_id.into()),
@@ -381,7 +418,12 @@ impl CorefDocument {
         Self {
             text: self.text.clone(),
             doc_id: self.doc_id.clone(),
-            chains: self.chains.iter().filter(|c| !c.is_singleton()).cloned().collect(),
+            chains: self
+                .chains
+                .iter()
+                .filter(|c| !c.is_singleton())
+                .cloned()
+                .collect(),
             includes_singletons: false,
         }
     }
@@ -503,10 +545,7 @@ mod tests {
     #[test]
     fn test_document() {
         let text = "John went to the store. He bought milk.";
-        let chain = CorefChain::new(vec![
-            Mention::new("John", 0, 4),
-            Mention::new("He", 24, 26),
-        ]);
+        let chain = CorefChain::new(vec![Mention::new("John", 0, 4), Mention::new("He", 24, 26)]);
         let doc = CorefDocument::new(text, vec![chain]);
 
         assert_eq!(doc.mention_count(), 2);
@@ -516,10 +555,7 @@ mod tests {
 
     #[test]
     fn test_mention_to_chain_index() {
-        let chain1 = CorefChain::new(vec![
-            Mention::new("John", 0, 4),
-            Mention::new("he", 20, 22),
-        ]);
+        let chain1 = CorefChain::new(vec![Mention::new("John", 0, 4), Mention::new("he", 20, 22)]);
         let chain2 = CorefChain::new(vec![
             Mention::new("Mary", 5, 9),
             Mention::new("she", 30, 33),
@@ -533,4 +569,3 @@ mod tests {
         assert_eq!(index.get(&(30, 33)), Some(&1));
     }
 }
-

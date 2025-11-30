@@ -302,8 +302,9 @@ mod tests {
 
     #[test]
     fn test_multi_seed_eval() {
-        let (mean, std, min, max) = multi_seed_eval(|seed| 0.8 + (seed as f64 % 10.0) / 100.0, &[1, 2, 3, 4, 5]);
-        
+        let (mean, std, min, max) =
+            multi_seed_eval(|seed| 0.8 + (seed as f64 % 10.0) / 100.0, &[1, 2, 3, 4, 5]);
+
         assert!(mean > 0.8);
         assert!(mean < 0.9);
         assert!(std >= 0.0);
@@ -311,4 +312,3 @@ mod tests {
         assert!(max >= mean);
     }
 }
-

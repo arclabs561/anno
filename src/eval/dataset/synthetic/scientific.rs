@@ -26,12 +26,12 @@ pub fn dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Hard,
         },
         AnnotatedExample {
-            text: "SpaceX launched Starship from Boca Chica, Texas on April 20, 2023.".into(),
+            text: "NASA launched Artemis from Cape Canaveral, Florida on November 16, 2022.".into(),
             entities: vec![
-                entity("SpaceX", EntityType::Organization, 0),
-                entity("Boca Chica", EntityType::Location, 30),
-                entity("Texas", EntityType::Location, 42),
-                entity("April 20, 2023", EntityType::Date, 51),
+                entity("NASA", EntityType::Organization, 0),
+                entity("Cape Canaveral", EntityType::Location, 27),
+                entity("Florida", EntityType::Location, 43),
+                entity("November 16, 2022", EntityType::Date, 54),
             ],
             domain: Domain::Scientific,
             difficulty: Difficulty::Medium,
@@ -106,4 +106,3 @@ mod tests {
         assert!(!dataset().is_empty());
     }
 }
-

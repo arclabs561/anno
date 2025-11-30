@@ -16,7 +16,7 @@
 //! ```rust,ignore
 //! use anno::eval::coref_loader::{CorefLoader, synthetic_coref_dataset};
 //!
-//! // Load GAP development set (requires network feature)
+//! // Load GAP development set (requires eval-advanced feature for download)
 //! let loader = CorefLoader::new().unwrap();
 //! let docs = loader.load_gap().unwrap();
 //!
@@ -167,9 +167,14 @@ impl PreCoDocument {
                 continue;
             }
 
-            let char_start = sent_tokens[start_tok].0;
-            let char_end = sent_tokens[end_tok.saturating_sub(1).max(start_tok)].1;
-            let mention_text = text[char_start..char_end].to_string();
+            // Note: sent_tokens stores byte offsets (from text.len())
+            let byte_start = sent_tokens[start_tok].0;
+            let byte_end = sent_tokens[end_tok.saturating_sub(1).max(start_tok)].1;
+            let mention_text = text[byte_start..byte_end].to_string();
+
+            // Convert byte offsets to character offsets for Mention (which expects char offsets)
+            let char_start = text[..byte_start].chars().count();
+            let char_end = char_start + mention_text.chars().count();
 
             let mention = Mention::new(mention_text, char_start, char_end);
             clusters.entry(cluster_id).or_default().push(mention);
@@ -228,9 +233,8 @@ impl CorefLoader {
             )));
         }
 
-        let content = fs::read_to_string(&cache_path).map_err(|e| {
-            Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e))
-        })?;
+        let content = fs::read_to_string(&cache_path)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
 
         parse_gap_tsv(&content)
     }
@@ -245,7 +249,7 @@ impl CorefLoader {
     pub fn is_cached(&self, id: DatasetId) -> bool {
         self.inner.is_cached(id)
     }
-    
+
     /// Get the underlying DatasetLoader.
     #[must_use]
     pub fn dataset_loader(&self) -> &super::loader::DatasetLoader {
@@ -343,33 +347,33 @@ pub fn parse_preco_json(content: &str) -> Result<Vec<PreCoDocument>> {
                 .unwrap_or_default();
 
             // Extract mentions
-            let mentions: Vec<(usize, usize, usize, usize)> = doc
-                .get("mention_clusters")
-                .and_then(|m| m.as_array())
-                .map(|clusters| {
-                    clusters
-                        .iter()
-                        .enumerate()
-                        .flat_map(|(cluster_id, cluster)| {
-                            cluster.as_array().into_iter().flatten().filter_map(
-                                move |mention| {
-                                    let arr = mention.as_array()?;
-                                    if arr.len() >= 3 {
-                                        Some((
-                                            arr[0].as_u64()? as usize,
-                                            arr[1].as_u64()? as usize,
-                                            arr[2].as_u64()? as usize,
-                                            cluster_id,
-                                        ))
-                                    } else {
-                                        None
-                                    }
-                                },
-                            )
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
+            let mentions: Vec<(usize, usize, usize, usize)> =
+                doc.get("mention_clusters")
+                    .and_then(|m| m.as_array())
+                    .map(|clusters| {
+                        clusters
+                            .iter()
+                            .enumerate()
+                            .flat_map(|(cluster_id, cluster)| {
+                                cluster.as_array().into_iter().flatten().filter_map(
+                                    move |mention| {
+                                        let arr = mention.as_array()?;
+                                        if arr.len() >= 3 {
+                                            Some((
+                                                arr[0].as_u64()? as usize,
+                                                arr[1].as_u64()? as usize,
+                                                arr[2].as_u64()? as usize,
+                                                cluster_id,
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    },
+                                )
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
 
             let id = doc
                 .get("id")
@@ -568,13 +572,13 @@ fn news_coref_examples() -> Vec<CorefDocument> {
             ],
         ),
         CorefDocument::with_id(
-            "Tesla announced record quarterly earnings. The electric vehicle maker exceeded expectations. Its stock rose 5% in after-hours trading.",
+            "Nvidia announced record quarterly earnings. The chipmaker exceeded expectations. Its stock rose 5% in after-hours trading.",
             "news_2",
             vec![
                 CorefChain::new(vec![
-                    Mention::new("Tesla", 0, 5),
-                    Mention::new("The electric vehicle maker", 43, 69),
-                    Mention::new("Its", 92, 95),
+                    Mention::new("Nvidia", 0, 6),
+                    Mention::new("The chipmaker", 44, 57),
+                    Mention::new("Its", 80, 83),
                 ]),
             ],
         ),
@@ -604,10 +608,7 @@ pub fn adversarial_coref_examples() -> Vec<(CorefDocument, CorefDocument, &'stat
             CorefDocument::new(
                 "John saw Mary. He waved.",
                 vec![
-                    CorefChain::new(vec![
-                        Mention::new("John", 0, 4),
-                        Mention::new("He", 15, 17),
-                    ]),
+                    CorefChain::new(vec![Mention::new("John", 0, 4), Mention::new("He", 15, 17)]),
                     CorefChain::singleton(Mention::new("Mary", 9, 13)),
                 ],
             ),
@@ -748,4 +749,3 @@ mod tests {
         assert!(!examples[0].coref_b);
     }
 }
-

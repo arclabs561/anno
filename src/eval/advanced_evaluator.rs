@@ -36,8 +36,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::discontinuous::{
-    evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold,
-    DiscontinuousNERMetrics,
+    evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold, DiscontinuousNERMetrics,
 };
 use super::relation::{
     evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics, RelationPrediction,
@@ -97,31 +96,56 @@ impl EvalResults {
     /// Format as a summary string.
     pub fn summary(&self) -> String {
         match self {
-            EvalResults::NER { precision, recall, f1, .. } => {
-                format!("NER: P={:.1}% R={:.1}% F1={:.1}%", precision * 100.0, recall * 100.0, f1 * 100.0)
+            EvalResults::NER {
+                precision,
+                recall,
+                f1,
+                ..
+            } => {
+                format!(
+                    "NER: P={:.1}% R={:.1}% F1={:.1}%",
+                    precision * 100.0,
+                    recall * 100.0,
+                    f1 * 100.0
+                )
             }
             EvalResults::Discontinuous(m) => {
                 format!(
                     "DiscontinuousNER: ExactF1={:.1}% BoundaryF1={:.1}% PartialF1={:.1}%",
-                    m.exact_f1 * 100.0, m.entity_boundary_f1 * 100.0, m.partial_span_f1 * 100.0
+                    m.exact_f1 * 100.0,
+                    m.entity_boundary_f1 * 100.0,
+                    m.partial_span_f1 * 100.0
                 )
             }
             EvalResults::Relation(m) => {
                 format!(
                     "RelationExtraction: StrictF1={:.1}% BoundaryF1={:.1}%",
-                    m.strict_f1 * 100.0, m.boundary_f1 * 100.0
+                    m.strict_f1 * 100.0,
+                    m.boundary_f1 * 100.0
                 )
             }
-            EvalResults::Coreference { conll_f1, muc_f1, b3_f1, ceaf_f1 } => {
+            EvalResults::Coreference {
+                conll_f1,
+                muc_f1,
+                b3_f1,
+                ceaf_f1,
+            } => {
                 format!(
                     "Coreference: CoNLL={:.1}% MUC={:.1}% B³={:.1}% CEAF={:.1}%",
-                    conll_f1 * 100.0, muc_f1 * 100.0, b3_f1 * 100.0, ceaf_f1 * 100.0
+                    conll_f1 * 100.0,
+                    muc_f1 * 100.0,
+                    b3_f1 * 100.0,
+                    ceaf_f1 * 100.0
                 )
             }
-            EvalResults::Event { trigger_f1, argument_f1 } => {
+            EvalResults::Event {
+                trigger_f1,
+                argument_f1,
+            } => {
                 format!(
                     "EventExtraction: TriggerF1={:.1}% ArgumentF1={:.1}%",
-                    trigger_f1 * 100.0, argument_f1 * 100.0
+                    trigger_f1 * 100.0,
+                    argument_f1 * 100.0
                 )
             }
         }
@@ -209,11 +233,7 @@ impl RelationEvaluator {
     }
 
     /// Evaluate predictions against gold standard.
-    pub fn evaluate(
-        &self,
-        gold: &[RelationGold],
-        pred: &[RelationPrediction],
-    ) -> RelationMetrics {
+    pub fn evaluate(&self, gold: &[RelationGold], pred: &[RelationPrediction]) -> RelationMetrics {
         evaluate_relations(gold, pred, &self.config)
     }
 }
@@ -234,9 +254,7 @@ pub fn evaluator_for_task(task: &EvalTask) -> Box<dyn TaskEvaluator> {
             relations.clone(),
             *require_entity_match,
         )),
-        EvalTask::Coreference { metrics } => {
-            Box::new(CorefTaskEvaluator::new(metrics.clone()))
-        }
+        EvalTask::Coreference { metrics } => Box::new(CorefTaskEvaluator::new(metrics.clone())),
         EvalTask::EventExtraction {
             event_types,
             argument_roles,
@@ -336,7 +354,9 @@ impl TaskEvaluator for DiscontinuousTaskEvaluator {
             .ok_or_else(|| crate::Error::InvalidInput("Expected Vec<DiscontinuousGold>".into()))?;
         let pred = pred
             .downcast_ref::<Vec<DiscontinuousEntity>>()
-            .ok_or_else(|| crate::Error::InvalidInput("Expected Vec<DiscontinuousEntity>".into()))?;
+            .ok_or_else(|| {
+                crate::Error::InvalidInput("Expected Vec<DiscontinuousEntity>".into())
+            })?;
 
         let metrics = self.evaluator.evaluate(gold, pred);
         Ok(EvalResults::Discontinuous(metrics))
@@ -470,9 +490,11 @@ mod tests {
     fn test_discontinuous_evaluator() {
         let evaluator = DiscontinuousEvaluator::new(vec!["LOC".into()]);
 
-        let gold = vec![
-            DiscontinuousGold::new(vec![(0, 8), (25, 33)], "LOC", "New York airports"),
-        ];
+        let gold = vec![DiscontinuousGold::new(
+            vec![(0, 8), (25, 33)],
+            "LOC",
+            "New York airports",
+        )];
 
         let pred = vec![DiscontinuousEntity {
             spans: vec![(0, 8), (25, 33)],
@@ -490,8 +512,12 @@ mod tests {
         let evaluator = RelationEvaluator::new(vec!["FOUNDED".into()], true);
 
         let gold = vec![RelationGold::new(
-            (0, 10), "PER", "Steve Jobs",
-            (20, 25), "ORG", "Apple",
+            (0, 10),
+            "PER",
+            "Steve Jobs",
+            (20, 25),
+            "ORG",
+            "Apple",
             "FOUNDED",
         )];
 
@@ -541,4 +567,3 @@ mod tests {
         assert!(summary.contains("85.0%"));
     }
 }
-

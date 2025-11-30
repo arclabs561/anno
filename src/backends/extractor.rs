@@ -7,12 +7,14 @@
 //!
 //! # Backend Selection Priority
 //!
-//! | Backend | Feature | F1 Score | Speed | Notes |
-//! |---------|---------|----------|-------|-------|
-//! | GLiNER (gline-rs) | `gliner` | ~92% | ~100ms | Zero-shot, SOTA |
-//! | BERT ONNX | `onnx` | ~86% | ~50ms | Reliable default |
-//! | Candle | `candle` | ~74% | ~50ms | Rust-native |
-//! | PatternNER | always | N/A | ~400ns | Structured only |
+//! | Backend | Feature | CoNLL-03 F1 | CrossNER F1 | Speed | Notes |
+//! |---------|---------|-------------|-------------|-------|-------|
+//! | GLiNER v2.1 | `onnx` | ~90%* | ~61% | ~100ms | Zero-shot, SOTA |
+//! | BERT ONNX | `onnx` | ~86% | N/A | ~50ms | Fixed 4 types |
+//! | Candle BERT | `candle` | ~74% | N/A | ~50ms | Rust-native |
+//! | PatternNER | always | N/A | N/A | ~400ns | Structured only |
+//!
+//! *CoNLL F1 from original GLiNER paper; CrossNER from arxiv:2507.18546
 //!
 //! # Design Philosophy (from hop)
 //!
@@ -28,13 +30,19 @@ use std::sync::Arc;
 pub mod defaults {
     /// BERT ONNX model (protectai, reliable).
     pub const BERT_ONNX: &str = "protectai/bert-base-NER-onnx";
-    
-    /// GLiNER model (zero-shot, SOTA).
+
+    /// GLiNER small model (~50M params, fastest).
     pub const GLINER_SMALL: &str = "onnx-community/gliner_small-v2.1";
-    
+
+    /// GLiNER medium model (~110M params, balanced) - default.
+    pub const GLINER_MEDIUM: &str = "onnx-community/gliner_medium-v2.1";
+
+    /// GLiNER large model (~340M params, most accurate).
+    pub const GLINER_LARGE: &str = "onnx-community/gliner_large-v2.1";
+
     /// GLiNER multitask model (relation extraction too).
     pub const GLINER_MULTITASK: &str = "onnx-community/gliner-multitask-large-v0.5";
-    
+
     /// Candle BERT model.
     pub const CANDLE_BERT: &str = "dslim/bert-base-NER";
 }
@@ -74,13 +82,13 @@ impl BackendType {
             BackendType::Pattern => "pattern",
         }
     }
-    
+
     /// Check if this backend requires network for model download.
     #[must_use]
     pub fn requires_network(&self) -> bool {
         !matches!(self, BackendType::Pattern)
     }
-    
+
     /// Check if this backend supports zero-shot NER.
     #[must_use]
     pub fn supports_zero_shot(&self) -> bool {
@@ -144,16 +152,22 @@ impl NERExtractor {
     /// Create the best available NER extractor.
     ///
     /// Tries backends in priority order:
-    /// 1. BERT ONNX (if `onnx` feature enabled) - reliable
-    /// 2. Candle (if `candle` feature enabled) - Rust-native
-    /// 3. PatternNER (always) - structured entities only
-    ///
-    /// Note: GLiNER support pending gline-rs crate publication.
+    /// 1. GLiNER (if `onnx` feature enabled) - zero-shot, best accuracy (~90% CoNLL F1)
+    /// 2. BERT ONNX (if `onnx` feature enabled) - reliable, fixed types (~86% F1)
+    /// 3. Candle (if `candle` feature enabled) - Rust-native (~74% F1)
+    /// 4. PatternNER (always) - structured entities only
     #[must_use]
     pub fn best_available() -> Self {
-        // Try BERT ONNX first (reliable)
+        // Try GLiNER first (best accuracy, zero-shot)
         #[cfg(feature = "onnx")]
         {
+            if let Ok(extractor) = Self::with_gliner(defaults::GLINER_SMALL) {
+                log::info!("[NER] Using GLiNER Small (~90% F1, zero-shot)");
+                return extractor;
+            }
+            log::warn!("[NER] GLiNER init failed, trying BERT ONNX");
+
+            // Fallback to BERT ONNX (reliable)
             if let Ok(extractor) = Self::with_bert_onnx(defaults::BERT_ONNX) {
                 log::info!("[NER] Using BERT ONNX (~86% F1)");
                 return extractor;
@@ -161,7 +175,7 @@ impl NERExtractor {
             log::warn!("[NER] BERT ONNX init failed, trying Candle");
         }
 
-        // Try Candle third (Rust-native)
+        // Try Candle (Rust-native)
         #[cfg(feature = "candle")]
         {
             if let Ok(extractor) = Self::with_candle(defaults::CANDLE_BERT) {
@@ -176,10 +190,56 @@ impl NERExtractor {
         Self::pattern_only()
     }
 
+    /// Create the fastest available NER extractor.
+    ///
+    /// Prioritizes speed over accuracy:
+    /// 1. GLiNER small (if `onnx` feature) - fast zero-shot
+    /// 2. PatternNER (always) - ~400ns per call
+    #[must_use]
+    pub fn fast() -> Self {
+        #[cfg(feature = "onnx")]
+        {
+            if let Ok(extractor) = Self::with_gliner(defaults::GLINER_SMALL) {
+                log::info!("[NER] Using GLiNER Small (fast mode)");
+                return extractor;
+            }
+        }
+        log::info!("[NER] Using PatternNER (structured entities only)");
+        Self::pattern_only()
+    }
+
+    /// Create the highest quality NER extractor.
+    ///
+    /// Prioritizes accuracy over speed:
+    /// 1. GLiNER large (if `onnx` feature) - highest accuracy
+    /// 2. GLiNER medium (if `onnx` feature) - fallback
+    /// 3. BERT ONNX (if `onnx` feature) - reliable
+    /// 4. PatternNER (always)
+    #[must_use]
+    pub fn best_quality() -> Self {
+        #[cfg(feature = "onnx")]
+        {
+            if let Ok(extractor) = Self::with_gliner(defaults::GLINER_LARGE) {
+                log::info!("[NER] Using GLiNER Large (best quality)");
+                return extractor;
+            }
+            if let Ok(extractor) = Self::with_gliner(defaults::GLINER_MEDIUM) {
+                log::info!("[NER] Using GLiNER Medium");
+                return extractor;
+            }
+            if let Ok(extractor) = Self::with_bert_onnx(defaults::BERT_ONNX) {
+                log::info!("[NER] Using BERT ONNX");
+                return extractor;
+            }
+        }
+        log::info!("[NER] Using PatternNER (structured entities only)");
+        Self::pattern_only()
+    }
+
     /// Create with BERT ONNX backend.
     ///
     /// Uses standard BERT models fine-tuned for NER with BIO tagging.
-    /// This is the **recommended default** - reliable and widely tested.
+    /// Reliable and widely tested, but limited to fixed entity types.
     ///
     /// # Arguments
     /// * `model_name` - HuggingFace model identifier (e.g., "protectai/bert-base-NER-onnx")
@@ -196,6 +256,29 @@ impl NERExtractor {
     /// Stub for when onnx feature is disabled.
     #[cfg(not(feature = "onnx"))]
     pub fn with_bert_onnx(_model_name: &str) -> Result<Self> {
+        Ok(Self::pattern_only())
+    }
+
+    /// Create with GLiNER backend (zero-shot NER).
+    ///
+    /// GLiNER is the **recommended backend** for best accuracy on named entities.
+    /// It supports zero-shot NER (any entity type without retraining).
+    ///
+    /// # Arguments
+    /// * `model_name` - HuggingFace model identifier (e.g., "onnx-community/gliner_small-v2.1")
+    #[cfg(feature = "onnx")]
+    pub fn with_gliner(model_name: &str) -> Result<Self> {
+        let gliner = crate::backends::GLiNEROnnx::new(model_name)?;
+        Ok(Self {
+            primary: Some(Arc::new(gliner)),
+            fallback: Arc::new(PatternNER::new()),
+            backend_type: BackendType::GLiNER,
+        })
+    }
+
+    /// Stub for when onnx feature is disabled.
+    #[cfg(not(feature = "onnx"))]
+    pub fn with_gliner(_model_name: &str) -> Result<Self> {
         Ok(Self::pattern_only())
     }
 
@@ -261,9 +344,11 @@ impl NERExtractor {
             if primary.is_available() {
                 if let Ok(ml_entities) = primary.extract_entities(text, language) {
                     // Keep only semantic entities from ML
-                    entities.extend(ml_entities.into_iter().filter(|e| {
-                        e.entity_type.requires_ml()
-                    }));
+                    entities.extend(
+                        ml_entities
+                            .into_iter()
+                            .filter(|e| e.entity_type.requires_ml()),
+                    );
                 }
             }
         }
@@ -368,12 +453,16 @@ mod tests {
         // best_available should never panic, always falls back to patterns
         let extractor = NERExtractor::best_available();
         assert!(extractor.is_available());
-        
+
         // Should extract pattern entities
         let text = "Meeting on 2024-01-15 cost $100.";
         let entities = extractor.extract(text, None).unwrap();
-        let has_date = entities.iter().any(|e| matches!(e.entity_type, EntityType::Date));
-        let has_money = entities.iter().any(|e| matches!(e.entity_type, EntityType::Money));
+        let has_date = entities
+            .iter()
+            .any(|e| matches!(e.entity_type, EntityType::Date));
+        let has_money = entities
+            .iter()
+            .any(|e| matches!(e.entity_type, EntityType::Money));
         assert!(has_date || has_money, "Should find pattern entities");
     }
 
@@ -383,7 +472,7 @@ mod tests {
         assert!(BackendType::BertOnnx.requires_network());
         assert!(BackendType::Candle.requires_network());
         assert!(!BackendType::Pattern.requires_network());
-        
+
         assert!(BackendType::GLiNER.supports_zero_shot());
         assert!(!BackendType::BertOnnx.supports_zero_shot());
         assert!(!BackendType::Candle.supports_zero_shot());
@@ -395,9 +484,8 @@ mod tests {
         let extractor = NERExtractor::pattern_only();
         let text = "Meeting at 3:30 PM cost $50.";
         let entities = extractor.extract_hybrid(text, None).unwrap();
-        
+
         // Should find pattern entities even without ML
         assert!(!entities.is_empty());
     }
 }
-

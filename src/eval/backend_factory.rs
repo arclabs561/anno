@@ -24,7 +24,6 @@ impl BackendFactory {
     /// - `pattern` / `PatternNER` - Pattern-based NER
     /// - `heuristic` / `HeuristicNER` - Heuristic NER
     /// - `stacked` / `StackedNER` - Stacked NER
-    /// - `hybrid` / `HybridNER` - Hybrid NER
     ///
     /// ## ONNX Feature Required
     /// - `bert_onnx` / `BertNEROnnx` - BERT ONNX NER
@@ -55,7 +54,6 @@ impl BackendFactory {
             "pattern" | "patternner" => Ok(Box::new(crate::PatternNER::new())),
             "heuristic" | "heuristicner" => Ok(Box::new(crate::HeuristicNER::new())),
             "stacked" | "stackedner" => Ok(Box::new(crate::StackedNER::default())),
-            "hybrid" | "hybridner" => Ok(Box::new(crate::HybridNER::pattern_only())),
 
             // ONNX backends
             #[cfg(feature = "onnx")]
@@ -199,7 +197,7 @@ impl BackendFactory {
 
             // Unknown backend
             _ => Err(crate::Error::InvalidInput(format!(
-                "Unknown backend: '{}'. Available: pattern, heuristic, stacked, hybrid{}",
+                "Unknown backend: '{}'. Available: pattern, heuristic, stacked{}",
                 backend_name,
                 if cfg!(feature = "onnx") {
                     ", bert_onnx, gliner_onnx, nuner, w2ner, gliner2"
@@ -214,7 +212,7 @@ impl BackendFactory {
     #[must_use]
     pub fn available_backends() -> Vec<&'static str> {
         #[allow(unused_mut)] // mut needed for extend/push calls
-        let mut backends = vec!["pattern", "heuristic", "stacked", "hybrid"];
+        let mut backends = vec!["pattern", "heuristic", "stacked"];
 
         #[cfg(feature = "onnx")]
         {

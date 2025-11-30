@@ -155,7 +155,7 @@ tests/
 │   └── type_test.rs            # Type system tests
 ├── backend/                    # Per-backend tests
 │   ├── pattern_test.rs         # PatternNER
-│   ├── statistical_test.rs     # StatisticalNER
+│   ├── heuristic_test.rs       # HeuristicNER
 │   ├── stacked_test.rs         # StackedNER
 │   ├── bert_onnx_test.rs       # BertNEROnnx
 │   └── gliner_test.rs          # GLiNER variants

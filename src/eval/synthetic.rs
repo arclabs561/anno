@@ -51,17 +51,24 @@ pub use super::dataset::synthetic::{
     // Domain-specific datasets
     academic_dataset,
     adversarial_dataset,
+    aerospace_dataset,
+    // Aggregate functions
+    all_datasets,
+    automotive_dataset,
     biomedical_dataset,
     conversational_dataset,
     cybersecurity_dataset,
     ecommerce_dataset,
+    energy_dataset,
     entertainment_dataset,
     financial_dataset,
     food_dataset,
     globally_diverse_dataset,
     hard_domain_examples,
+    healthcare_dataset,
     historical_dataset,
     legal_dataset,
+    manufacturing_dataset,
     multilingual_dataset,
     news_dataset,
     politics_dataset,
@@ -70,10 +77,9 @@ pub use super::dataset::synthetic::{
     social_media_dataset,
     sports_dataset,
     structured_dataset,
+    technology_dataset,
     travel_dataset,
     weather_dataset,
-    // Aggregate functions
-    all_datasets,
 };
 
 use std::collections::HashMap;

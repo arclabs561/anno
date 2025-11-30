@@ -1501,7 +1501,18 @@ impl SpanRepresentationLayer {
         let width_emb_dim = self.config.width_emb_dim;
         let max_width = self.config.max_width;
 
-        let mut span_embeddings = vec![0.0f32; candidates.len() * hidden_dim];
+        // Check for overflow in allocation
+        let total_elements = match candidates.len().checked_mul(hidden_dim) {
+            Some(v) => v,
+            None => {
+                log::warn!(
+                    "Span embedding allocation overflow: {} candidates * {} hidden_dim, returning empty",
+                    candidates.len(), hidden_dim
+                );
+                return vec![];
+            }
+        };
+        let mut span_embeddings = vec![0.0f32; total_elements];
 
         for (span_idx, candidate) in candidates.iter().enumerate() {
             // Get document token range
@@ -1510,25 +1521,88 @@ impl SpanRepresentationLayer {
                 None => continue,
             };
 
+            // Validate span before computing global indices
+            if candidate.end <= candidate.start {
+                log::warn!(
+                    "Invalid span candidate: end ({}) <= start ({})",
+                    candidate.end,
+                    candidate.start
+                );
+                continue;
+            }
+
             // Global token indices
             let start_global = doc_range.start + candidate.start as usize;
-            let end_global = doc_range.start + (candidate.end as usize).saturating_sub(1);
+            let end_global = doc_range.start + (candidate.end as usize) - 1; // Safe now that we validated
 
-            // Bounds check
-            if start_global * hidden_dim >= token_embeddings.len()
-                || end_global * hidden_dim >= token_embeddings.len()
+            // Bounds check - must ensure both start and end slices fit
+            // Use checked arithmetic to prevent overflow
+            let start_byte = match start_global.checked_mul(hidden_dim) {
+                Some(v) => v,
+                None => {
+                    log::warn!(
+                        "Token index overflow: start_global={} * hidden_dim={}",
+                        start_global,
+                        hidden_dim
+                    );
+                    continue;
+                }
+            };
+            let start_end_byte = match (start_global + 1).checked_mul(hidden_dim) {
+                Some(v) => v,
+                None => {
+                    log::warn!(
+                        "Token index overflow: (start_global+1)={} * hidden_dim={}",
+                        start_global + 1,
+                        hidden_dim
+                    );
+                    continue;
+                }
+            };
+            let end_byte = match end_global.checked_mul(hidden_dim) {
+                Some(v) => v,
+                None => {
+                    log::warn!(
+                        "Token index overflow: end_global={} * hidden_dim={}",
+                        end_global,
+                        hidden_dim
+                    );
+                    continue;
+                }
+            };
+            let end_end_byte = match (end_global + 1).checked_mul(hidden_dim) {
+                Some(v) => v,
+                None => {
+                    log::warn!(
+                        "Token index overflow: (end_global+1)={} * hidden_dim={}",
+                        end_global + 1,
+                        hidden_dim
+                    );
+                    continue;
+                }
+            };
+
+            if start_byte >= token_embeddings.len()
+                || start_end_byte > token_embeddings.len()
+                || end_byte >= token_embeddings.len()
+                || end_end_byte > token_embeddings.len()
             {
                 continue;
             }
 
             // Get start and end token embeddings
-            let start_emb =
-                &token_embeddings[start_global * hidden_dim..(start_global + 1) * hidden_dim];
-            let end_emb = &token_embeddings[end_global * hidden_dim..(end_global + 1) * hidden_dim];
+            let start_emb = &token_embeddings[start_byte..start_end_byte];
+            let end_emb = &token_embeddings[end_byte..end_end_byte];
 
             // Get width embedding
             let width = (candidate.width() as usize).min(max_width - 1);
-            let width_emb = &self.width_embeddings[width * width_emb_dim..(width + 1) * width_emb_dim];
+            let width_start = width * width_emb_dim;
+            let width_end = (width + 1) * width_emb_dim;
+            // Bounds check: ensure width embedding slice is valid
+            if width_end > self.width_embeddings.len() {
+                continue;
+            }
+            let width_emb = &self.width_embeddings[width_start..width_end];
 
             // Concatenate and project (simplified - no actual matmul)
             // In a real implementation, this would be a linear layer
@@ -1606,12 +1680,7 @@ impl HandshakingMatrix {
     /// # Arguments
     /// * `scores` - Dense [seq_len, seq_len, num_labels] scores
     /// * `threshold` - Minimum score to keep
-    pub fn from_dense(
-        scores: &[f32],
-        seq_len: usize,
-        num_labels: usize,
-        threshold: f32,
-    ) -> Self {
+    pub fn from_dense(scores: &[f32], seq_len: usize, num_labels: usize, threshold: f32) -> Self {
         let mut cells = Vec::new();
 
         for i in 0..seq_len {
@@ -1646,18 +1715,17 @@ impl HandshakingMatrix {
     /// In W2NER convention, cell (i, j) represents a span where:
     /// - j is the start token index
     /// - i is the end token index (inclusive, so we add 1 for exclusive end)
-    pub fn decode_entities<'a>(&self, registry: &'a SemanticRegistry) -> Vec<(SpanCandidate, &'a LabelDefinition, f32)> {
+    pub fn decode_entities<'a>(
+        &self,
+        registry: &'a SemanticRegistry,
+    ) -> Vec<(SpanCandidate, &'a LabelDefinition, f32)> {
         let mut entities = Vec::new();
 
         for cell in &self.cells {
             if let Some(label) = registry.labels.get(cell.label_idx as usize) {
                 if label.category == LabelCategory::Entity {
                     // W2NER: j=start, i=end (inclusive), so span is [j, i+1)
-                    entities.push((
-                        SpanCandidate::new(0, cell.j, cell.i + 1),
-                        label,
-                        cell.score,
-                    ));
+                    entities.push((SpanCandidate::new(0, cell.j, cell.i + 1), label, cell.score));
                 }
             }
         }
@@ -1734,8 +1802,8 @@ impl Default for CoreferenceConfig {
 ///
 /// # Example
 ///
-/// Input entities: ["Elon Musk", "He", "The CEO", "Musk"]
-/// Output clusters: [{0, 1, 2, 3}] with canonical_name = "Elon Musk"
+/// Input entities: ["Marie Curie", "She", "The scientist", "Curie"]
+/// Output clusters: [{0, 1, 2, 3}] with canonical_name = "Marie Curie"
 pub fn resolve_coreferences(
     entities: &[Entity],
     embeddings: &[f32], // [num_entities, hidden_dim]
@@ -1749,14 +1817,14 @@ pub fn resolve_coreferences(
 
     // Union-find for clustering
     let mut parent: Vec<usize> = (0..n).collect();
-    
+
     fn find(parent: &mut [usize], i: usize) -> usize {
         if parent[i] != i {
             parent[i] = find(parent, parent[i]);
         }
         parent[i]
     }
-    
+
     fn union(parent: &mut [usize], i: usize, j: usize) {
         let pi = find(parent, i);
         let pj = find(parent, j);
@@ -1772,10 +1840,7 @@ pub fn resolve_coreferences(
             if config.use_string_match {
                 let text_i = entities[i].text.to_lowercase();
                 let text_j = entities[j].text.to_lowercase();
-                if text_i == text_j
-                    || text_i.contains(&text_j)
-                    || text_j.contains(&text_i)
-                {
+                if text_i == text_j || text_i.contains(&text_j) || text_j.contains(&text_i) {
                     // Same entity type required
                     if entities[i].entity_type == entities[j].entity_type {
                         union(&mut parent, i, j);
@@ -1788,7 +1853,9 @@ pub fn resolve_coreferences(
             if let Some(max_dist) = config.max_distance {
                 let dist = if entities[i].end <= entities[j].start {
                     entities[j].start - entities[i].end
-                } else { entities[i].start.saturating_sub(entities[j].end) };
+                } else {
+                    entities[i].start.saturating_sub(entities[j].end)
+                };
                 if dist > max_dist {
                     continue;
                 }
@@ -1923,7 +1990,9 @@ pub fn extract_relations(
             // Check distance
             let distance = if head.end <= tail.start {
                 tail.start - head.end
-            } else { head.start.saturating_sub(tail.end) };
+            } else {
+                head.start.saturating_sub(tail.end)
+            };
 
             if distance > _config.max_span_distance {
                 continue;
@@ -1939,12 +2008,7 @@ pub fn extract_relations(
             let between_text = text.get(span_start..span_end).unwrap_or("");
 
             // Simple heuristic: check for common relation indicators
-            let relation_type = detect_relation_type(
-                head,
-                tail,
-                between_text,
-                &relation_labels,
-            );
+            let relation_type = detect_relation_type(head, tail, between_text, &relation_labels);
 
             if let Some((rel_type, confidence, trigger)) = relation_type {
                 let trigger_span = trigger.map(|(s, e)| (span_start + s, span_start + e));
@@ -1981,17 +2045,41 @@ fn detect_relation_type<'a>(
         triggers: &'static [&'static str],
         confidence: f64,
     }
-    
+
     let patterns: &[RelPattern] = &[
         // Employment relations
-        RelPattern { slug: "CEO_OF", triggers: &["ceo of", "chief executive", "leads", "founded"], confidence: 0.8 },
-        RelPattern { slug: "WORKS_FOR", triggers: &["works for", "works at", "employed by", "employee of"], confidence: 0.7 },
-        RelPattern { slug: "FOUNDED", triggers: &["founded", "co-founded", "started", "established"], confidence: 0.8 },
+        RelPattern {
+            slug: "CEO_OF",
+            triggers: &["ceo of", "chief executive", "leads", "founded"],
+            confidence: 0.8,
+        },
+        RelPattern {
+            slug: "WORKS_FOR",
+            triggers: &["works for", "works at", "employed by", "employee of"],
+            confidence: 0.7,
+        },
+        RelPattern {
+            slug: "FOUNDED",
+            triggers: &["founded", "co-founded", "started", "established"],
+            confidence: 0.8,
+        },
         // Location relations
-        RelPattern { slug: "LOCATED_IN", triggers: &["in", "at", "based in", "located in", "headquartered in"], confidence: 0.6 },
-        RelPattern { slug: "BORN_IN", triggers: &["born in", "native of", "from"], confidence: 0.7 },
+        RelPattern {
+            slug: "LOCATED_IN",
+            triggers: &["in", "at", "based in", "located in", "headquartered in"],
+            confidence: 0.6,
+        },
+        RelPattern {
+            slug: "BORN_IN",
+            triggers: &["born in", "native of", "from"],
+            confidence: 0.7,
+        },
         // Other
-        RelPattern { slug: "PART_OF", triggers: &["part of", "member of", "belongs to", "subsidiary of"], confidence: 0.7 },
+        RelPattern {
+            slug: "PART_OF",
+            triggers: &["part of", "member of", "belongs to", "subsidiary of"],
+            confidence: 0.7,
+        },
     ];
 
     for pattern in patterns {
@@ -2027,6 +2115,288 @@ fn detect_relation_type<'a>(
     }
 
     None
+}
+
+// =============================================================================
+// Binary Embeddings for Fast Blocking (Research: Hamming Distance)
+// =============================================================================
+
+/// Binary hash for fast approximate nearest neighbor search.
+///
+/// # Research Background
+///
+/// Binary embeddings enable sub-linear search via Hamming distance. Key insight
+/// from our research synthesis: **binary embeddings are for blocking, not primary
+/// retrieval**. The sign-rank limitation means they cannot represent all similarity
+/// relationships, but they excel at fast candidate filtering.
+///
+/// # Two-Stage Retrieval Pattern
+///
+/// ```text
+/// Query → [Binary Hash] → Hamming Filter (fast) → Candidates
+///                                                      ↓
+///                                              [Dense Similarity]
+///                                                      ↓
+///                                               Final Results
+/// ```
+///
+/// # Example
+///
+/// ```rust
+/// use anno::backends::inference::BinaryHash;
+///
+/// // Create hashes from embeddings
+/// let hash1 = BinaryHash::from_embedding(&[0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]);
+/// let hash2 = BinaryHash::from_embedding(&[0.15, -0.25, 0.35, -0.45, 0.55, -0.65, 0.75, -0.85]);
+///
+/// // Similar embeddings → low Hamming distance
+/// assert!(hash1.hamming_distance(&hash2) < 2);
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct BinaryHash {
+    /// Packed bits (each u64 holds 64 bits)
+    pub bits: Vec<u64>,
+    /// Original dimension (number of bits)
+    pub dim: usize,
+}
+
+impl BinaryHash {
+    /// Create from a dense embedding using sign function.
+    ///
+    /// Each positive value → 1, each negative/zero value → 0.
+    #[must_use]
+    pub fn from_embedding(embedding: &[f32]) -> Self {
+        let dim = embedding.len();
+        let num_u64s = dim.div_ceil(64);
+        let mut bits = vec![0u64; num_u64s];
+
+        for (i, &val) in embedding.iter().enumerate() {
+            if val > 0.0 {
+                let word_idx = i / 64;
+                let bit_idx = i % 64;
+                bits[word_idx] |= 1u64 << bit_idx;
+            }
+        }
+
+        Self { bits, dim }
+    }
+
+    /// Create from a dense f64 embedding.
+    #[must_use]
+    pub fn from_embedding_f64(embedding: &[f64]) -> Self {
+        let dim = embedding.len();
+        let num_u64s = dim.div_ceil(64);
+        let mut bits = vec![0u64; num_u64s];
+
+        for (i, &val) in embedding.iter().enumerate() {
+            if val > 0.0 {
+                let word_idx = i / 64;
+                let bit_idx = i % 64;
+                bits[word_idx] |= 1u64 << bit_idx;
+            }
+        }
+
+        Self { bits, dim }
+    }
+
+    /// Compute Hamming distance (number of differing bits).
+    ///
+    /// Uses POPCNT instruction when available for hardware acceleration.
+    #[must_use]
+    pub fn hamming_distance(&self, other: &Self) -> u32 {
+        self.bits
+            .iter()
+            .zip(other.bits.iter())
+            .map(|(a, b)| (a ^ b).count_ones())
+            .sum()
+    }
+
+    /// Compute normalized Hamming distance (0.0 to 1.0).
+    #[must_use]
+    pub fn hamming_distance_normalized(&self, other: &Self) -> f64 {
+        if self.dim == 0 {
+            return 0.0;
+        }
+        self.hamming_distance(other) as f64 / self.dim as f64
+    }
+
+    /// Convert Hamming distance to approximate cosine similarity.
+    ///
+    /// Based on the relationship: cos(θ) ≈ 1 - 2 * (hamming_distance / dim)
+    /// This is an approximation valid for random hyperplane hashing.
+    #[must_use]
+    pub fn approximate_cosine(&self, other: &Self) -> f64 {
+        1.0 - 2.0 * self.hamming_distance_normalized(other)
+    }
+}
+
+/// Blocker using binary embeddings for fast candidate filtering.
+///
+/// # Usage Pattern
+///
+/// 1. Pre-compute binary hashes for all entities in your KB
+/// 2. At query time, hash the query embedding
+/// 3. Find candidates within Hamming distance threshold
+/// 4. Run dense similarity only on candidates
+///
+/// # Example
+///
+/// ```rust
+/// use anno::backends::inference::{BinaryBlocker, BinaryHash};
+///
+/// let mut blocker = BinaryBlocker::new(8); // 8-bit Hamming threshold
+///
+/// // Add entities to the index
+/// let hash1 = BinaryHash::from_embedding(&vec![0.1; 768]);
+/// let hash2 = BinaryHash::from_embedding(&vec![-0.1; 768]);
+/// blocker.add(0, hash1);
+/// blocker.add(1, hash2);
+///
+/// // Query
+/// let query = BinaryHash::from_embedding(&vec![0.1; 768]);
+/// let candidates = blocker.query(&query);
+/// assert!(candidates.contains(&0)); // Similar to hash1
+/// ```
+#[derive(Debug, Clone)]
+pub struct BinaryBlocker {
+    /// Hamming distance threshold for candidates
+    pub threshold: u32,
+    /// Index of hashes by ID
+    index: Vec<(usize, BinaryHash)>,
+}
+
+impl BinaryBlocker {
+    /// Create a new blocker with the given threshold.
+    #[must_use]
+    pub fn new(threshold: u32) -> Self {
+        Self {
+            threshold,
+            index: Vec::new(),
+        }
+    }
+
+    /// Add an entity to the index.
+    pub fn add(&mut self, id: usize, hash: BinaryHash) {
+        self.index.push((id, hash));
+    }
+
+    /// Add multiple entities.
+    pub fn add_batch(&mut self, entries: impl IntoIterator<Item = (usize, BinaryHash)>) {
+        self.index.extend(entries);
+    }
+
+    /// Find candidate IDs within Hamming distance threshold.
+    #[must_use]
+    pub fn query(&self, query: &BinaryHash) -> Vec<usize> {
+        self.index
+            .iter()
+            .filter(|(_, hash)| hash.hamming_distance(query) <= self.threshold)
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
+    /// Find candidates with their distances.
+    #[must_use]
+    pub fn query_with_distance(&self, query: &BinaryHash) -> Vec<(usize, u32)> {
+        self.index
+            .iter()
+            .map(|(id, hash)| (*id, hash.hamming_distance(query)))
+            .filter(|(_, dist)| *dist <= self.threshold)
+            .collect()
+    }
+
+    /// Number of entries in the index.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.index.len()
+    }
+
+    /// Check if index is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.index.is_empty()
+    }
+
+    /// Clear the index.
+    pub fn clear(&mut self) {
+        self.index.clear();
+    }
+}
+
+/// Recommended two-stage retrieval using binary blocking + dense reranking.
+///
+/// # Research Context
+///
+/// This implements the pattern identified in our research synthesis:
+/// - Stage 1: Binary blocking for O(n) candidate filtering
+/// - Stage 2: Dense similarity for accurate ranking
+///
+/// The key insight is that binary embeddings have fundamental limitations
+/// (sign-rank theorem) but excel at fast filtering.
+///
+/// # Arguments
+///
+/// * `query_embedding` - Dense query embedding
+/// * `candidate_embeddings` - Dense embeddings of all candidates
+/// * `binary_threshold` - Hamming distance threshold for blocking
+/// * `top_k` - Number of final results to return
+///
+/// # Returns
+///
+/// Vector of (candidate_index, similarity_score) pairs, sorted by score descending.
+#[must_use]
+pub fn two_stage_retrieval(
+    query_embedding: &[f32],
+    candidate_embeddings: &[Vec<f32>],
+    binary_threshold: u32,
+    top_k: usize,
+) -> Vec<(usize, f32)> {
+    // Stage 1: Binary blocking
+    let query_hash = BinaryHash::from_embedding(query_embedding);
+
+    let candidate_hashes: Vec<BinaryHash> = candidate_embeddings
+        .iter()
+        .map(|e| BinaryHash::from_embedding(e))
+        .collect();
+
+    let mut blocker = BinaryBlocker::new(binary_threshold);
+    for (i, hash) in candidate_hashes.into_iter().enumerate() {
+        blocker.add(i, hash);
+    }
+
+    let candidates = blocker.query(&query_hash);
+
+    // Stage 2: Dense similarity on candidates only
+    let mut scored: Vec<(usize, f32)> = candidates
+        .into_iter()
+        .map(|idx| {
+            let sim = cosine_similarity_f32(query_embedding, &candidate_embeddings[idx]);
+            (idx, sim)
+        })
+        .collect();
+
+    // Sort by similarity descending
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.truncate(top_k);
+    scored
+}
+
+/// Compute cosine similarity between two f32 vectors.
+#[must_use]
+pub fn cosine_similarity_f32(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let norm_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let norm_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+
+    dot / (norm_a * norm_b)
 }
 
 // =============================================================================
@@ -2096,21 +2466,17 @@ mod tests {
     #[test]
     fn test_coreference_string_match() {
         let entities = vec![
-            Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.95),
-            Entity::new("Musk", EntityType::Person, 50, 54, 0.90),
+            Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95),
+            Entity::new("Curie", EntityType::Person, 50, 55, 0.90),
         ];
 
         let embeddings = vec![0.0f32; 2 * 768]; // Placeholder
-        let clusters = resolve_coreferences(
-            &entities,
-            &embeddings,
-            768,
-            &CoreferenceConfig::default(),
-        );
+        let clusters =
+            resolve_coreferences(&entities, &embeddings, 768, &CoreferenceConfig::default());
 
         assert_eq!(clusters.len(), 1);
         assert_eq!(clusters[0].members.len(), 2);
-        assert_eq!(clusters[0].canonical_name, "Elon Musk");
+        assert_eq!(clusters[0].canonical_name, "Marie Curie");
     }
 
     #[test]
@@ -2156,5 +2522,124 @@ mod tests {
         assert!(!relations.is_empty());
         assert_eq!(relations[0].relation_type, "FOUNDED");
     }
-}
 
+    // =========================================================================
+    // Binary Embedding Tests
+    // =========================================================================
+
+    #[test]
+    fn test_binary_hash_creation() {
+        let embedding = vec![0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8];
+        let hash = BinaryHash::from_embedding(&embedding);
+
+        assert_eq!(hash.dim, 8);
+        // Positive values at indices 0, 2, 4, 6 should be set
+        // bits[0] should have bits 0, 2, 4, 6 set = 0b01010101 = 85
+        assert_eq!(hash.bits[0], 85);
+    }
+
+    #[test]
+    fn test_hamming_distance_identical() {
+        let embedding = vec![0.1; 64];
+        let hash1 = BinaryHash::from_embedding(&embedding);
+        let hash2 = BinaryHash::from_embedding(&embedding);
+
+        assert_eq!(hash1.hamming_distance(&hash2), 0);
+    }
+
+    #[test]
+    fn test_hamming_distance_opposite() {
+        let embedding1 = vec![0.1; 64];
+        let embedding2 = vec![-0.1; 64];
+        let hash1 = BinaryHash::from_embedding(&embedding1);
+        let hash2 = BinaryHash::from_embedding(&embedding2);
+
+        assert_eq!(hash1.hamming_distance(&hash2), 64);
+    }
+
+    #[test]
+    fn test_hamming_distance_half() {
+        let embedding1 = vec![0.1; 64];
+        let mut embedding2 = vec![0.1; 64];
+        // Flip second half
+        for i in 32..64 {
+            embedding2[i] = -0.1;
+        }
+
+        let hash1 = BinaryHash::from_embedding(&embedding1);
+        let hash2 = BinaryHash::from_embedding(&embedding2);
+
+        assert_eq!(hash1.hamming_distance(&hash2), 32);
+    }
+
+    #[test]
+    fn test_binary_blocker() {
+        let mut blocker = BinaryBlocker::new(5);
+
+        // Add some hashes
+        let base_embedding = vec![0.1; 64];
+        let similar_embedding = {
+            let mut e = vec![0.1; 64];
+            e[0] = -0.1; // Flip 1 bit
+            e[1] = -0.1; // Flip 2 bits
+            e
+        };
+        let different_embedding = vec![-0.1; 64];
+
+        blocker.add(0, BinaryHash::from_embedding(&base_embedding));
+        blocker.add(1, BinaryHash::from_embedding(&similar_embedding));
+        blocker.add(2, BinaryHash::from_embedding(&different_embedding));
+
+        // Query with base
+        let query = BinaryHash::from_embedding(&base_embedding);
+        let candidates = blocker.query(&query);
+
+        assert!(candidates.contains(&0), "Should find exact match");
+        assert!(
+            candidates.contains(&1),
+            "Should find similar (2 bits different)"
+        );
+        assert!(
+            !candidates.contains(&2),
+            "Should NOT find opposite (64 bits different)"
+        );
+    }
+
+    #[test]
+    fn test_two_stage_retrieval() {
+        // Create embeddings
+        let query = vec![1.0, 0.0, 0.0, 0.0];
+        let candidates = vec![
+            vec![1.0, 0.0, 0.0, 0.0],  // Identical
+            vec![0.9, 0.1, 0.0, 0.0],  // Similar
+            vec![-1.0, 0.0, 0.0, 0.0], // Opposite
+            vec![0.0, 1.0, 0.0, 0.0],  // Orthogonal
+        ];
+
+        // Generous threshold to get candidates
+        let results = two_stage_retrieval(&query, &candidates, 4, 2);
+
+        assert!(!results.is_empty());
+        // First result should be exact match
+        assert_eq!(results[0].0, 0);
+        assert!((results[0].1 - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_approximate_cosine() {
+        let embedding1 = vec![0.1; 768];
+        let embedding2 = vec![0.1; 768];
+        let hash1 = BinaryHash::from_embedding(&embedding1);
+        let hash2 = BinaryHash::from_embedding(&embedding2);
+
+        // Identical → approximate cosine should be ~1.0
+        let approx = hash1.approximate_cosine(&hash2);
+        assert!((approx - 1.0).abs() < 0.001);
+
+        // Opposite → approximate cosine should be ~-1.0
+        let embedding3 = vec![-0.1; 768];
+        let hash3 = BinaryHash::from_embedding(&embedding3);
+        let approx_opp = hash1.approximate_cosine(&hash3);
+        assert!((approx_opp - (-1.0)).abs() < 0.001);
+    }
+}

@@ -20,7 +20,7 @@
 //! │                                                     │
 //! │  ~85-92% F1, requires features                      │
 //! ├─────────────────────────────────────────────────────┤
-//! │ Layer 2: StatisticalNER (zero deps)                 │
+//! │ Layer 2: HeuristicNER (zero deps)                   │
 //! │   Person/Org/Location via heuristics                │
 //! │   ~60-70% F1, always available                      │
 //! ├─────────────────────────────────────────────────────┤
@@ -36,7 +36,7 @@
 //! |---------|---------|-----------|--------|-------|-------|
 //! | `StackedNER` | - | No | No | Fast | Composable layers |
 //! | `PatternNER` | - | No | No | ~400ns | Structured only |
-//! | `StatisticalNER` | - | No | No | ~50μs | Heuristics |
+//! | `HeuristicNER` | - | No | No | ~50μs | Capitalization + context |
 //! | `GLiNER` | `onnx` | Yes | No | ~100ms | Span-based |
 //! | `NuNER` | `onnx` | Yes | No | ~100ms | Token-based |
 //! | `W2NER` | `onnx` | No | **Yes** | ~150ms | Grid-based |
@@ -44,7 +44,8 @@
 //!
 //! # When to Use What
 //!
-//! - **Simple NER**: `StackedNER::default()` - zero deps, good baseline
+//! - **Best accuracy**: `NERExtractor::best_available()` - uses GLiNER (~90% F1)
+//! - **Zero deps**: `StackedNER::default()` - no ML, good baseline
 //! - **Custom types**: `GLiNER` or `NuNER` - zero-shot, any entity type
 //! - **Nested entities**: `W2NER` - handles overlapping spans
 //! - **Structured data**: `PatternNER` - dates, emails, money
@@ -61,12 +62,12 @@
 //! Custom stack:
 //!
 //! ```rust
-//! use anno::{Model, PatternNER, StatisticalNER, StackedNER};
+//! use anno::{Model, PatternNER, HeuristicNER, StackedNER};
 //! use anno::backends::stacked::ConflictStrategy;
 //!
 //! let ner = StackedNER::builder()
 //!     .layer(PatternNER::new())
-//!     .layer(StatisticalNER::new())
+//!     .layer(HeuristicNER::new())
 //!     .strategy(ConflictStrategy::LongestSpan)
 //!     .build();
 //! ```
@@ -75,14 +76,15 @@
 pub mod catalog;
 pub mod encoder;
 pub mod extractor;
-pub mod hybrid;
+pub mod heuristic;
 pub mod inference;
 pub mod nuner;
 pub mod pattern;
 pub mod pattern_config;
+/// Language-aware routing for automatic backend selection.
+pub mod router;
 pub mod rule;
 pub mod stacked;
-pub mod statistical;
 pub mod w2ner;
 
 // LLM-based NER prompting (CodeNER-style)
@@ -114,14 +116,43 @@ pub mod gliner_candle;
 #[cfg(feature = "candle")]
 pub mod gliner_pipeline;
 
+// GLiNER2 multi-task extraction (ONNX or Candle)
+#[cfg(any(feature = "onnx", feature = "candle"))]
+pub mod gliner2;
+
+// Production infrastructure
+#[cfg(feature = "async-inference")]
+pub mod async_adapter;
+
+#[cfg(feature = "session-pool")]
+pub mod session_pool;
+
+// Model warmup for cold-start mitigation
+pub mod warmup;
+
+// T5-based coreference resolution
+#[cfg(feature = "onnx")]
+pub mod coref_t5;
+
 // Re-exports (always available)
 pub use extractor::{BackendType, NERExtractor};
-pub use hybrid::{HybridConfig, HybridNER, MergeStrategy};
+pub use heuristic::HeuristicNER;
 pub use nuner::NuNER;
 pub use pattern::PatternNER;
+pub use router::AutoNER;
 pub use stacked::{ConflictStrategy, StackedNER};
-pub use statistical::StatisticalNER;
-pub use w2ner::{W2NER, W2NERConfig, W2NERRelation};
+
+/// Backwards compatibility alias for `HeuristicNER`.
+///
+/// The name "StatisticalNER" was misleading since it doesn't use
+/// statistical/probabilistic methods like CRF or HMM - it uses
+/// capitalization and context heuristics.
+#[deprecated(
+    since = "0.3.0",
+    note = "Use HeuristicNER instead - StatisticalNER was misleading"
+)]
+pub type StatisticalNER = HeuristicNER;
+pub use w2ner::{W2NERConfig, W2NERRelation, W2NER};
 
 // Backwards compatibility
 #[allow(deprecated)]
@@ -145,3 +176,37 @@ pub use encoder_candle::{EncoderArchitecture, EncoderConfig};
 
 #[cfg(feature = "candle")]
 pub use gliner_candle::GLiNERCandle;
+
+// GLiNER2 multi-task model
+#[cfg(any(feature = "onnx", feature = "candle"))]
+pub use gliner2::{
+    ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
+    FieldType, GLiNER2, StructureTask, StructureValue, TaskSchema,
+};
+
+#[cfg(feature = "onnx")]
+pub use gliner2::GLiNER2Onnx;
+
+#[cfg(feature = "candle")]
+pub use gliner2::GLiNER2Candle;
+
+// Production infrastructure re-exports
+#[cfg(feature = "async-inference")]
+pub use async_adapter::{batch_extract, batch_extract_limited, AsyncNER, IntoAsync};
+
+#[cfg(feature = "session-pool")]
+pub use session_pool::{GLiNERPool, PoolConfig, SessionPool};
+
+// T5 coreference
+#[cfg(feature = "onnx")]
+pub use coref_t5::{CorefCluster, T5Coref, T5CorefConfig};
+
+// Config re-exports (for quantization control)
+#[cfg(feature = "onnx")]
+pub use gliner_onnx::GLiNERConfig;
+
+#[cfg(feature = "onnx")]
+pub use onnx::BertNERConfig;
+
+// Warmup utilities (always available)
+pub use warmup::{warmup_model, warmup_with_callback, WarmupConfig, WarmupResult};

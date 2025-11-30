@@ -1048,10 +1048,18 @@ impl Identity {
     /// this is a conversion from evaluation format. If you need proper TrackRefs,
     /// use `Corpus::resolve_inter_doc_coref()` instead.
     #[must_use]
+    /// Create an Identity from a CrossDocCluster (evaluation format).
+    ///
+    /// # Note on `source: None`
+    ///
+    /// The `source` field is set to `None` because `CrossDocCluster` only contains
+    /// `(doc_id, entity_idx)` pairs, not `track_id`s. Without track IDs, we cannot
+    /// create valid `TrackRef`s that would be needed for `IdentitySource::CrossDocCoref`.
+    ///
+    /// This is intentional: identities created from evaluation data don't have
+    /// the same provenance tracking as identities created through the normal
+    /// corpus resolution pipeline.
     pub fn from_cross_doc_cluster(cluster: &crate::eval::cdcr::CrossDocCluster) -> Self {
-        // Note: We cannot create valid TrackRefs from CrossDocCluster because
-        // it only has (doc_id, entity_idx) pairs, not track_ids.
-        // Setting source to None indicates this is a conversion from eval format.
         Self {
             id: cluster.id,
             canonical_name: cluster.canonical_name.clone(),
@@ -1065,7 +1073,7 @@ impl Identity {
             embedding: None,
             aliases: Vec::new(),
             confidence: cluster.confidence as f32,
-            source: None, // Cannot determine source from CDCR format
+            source: None, // Cannot determine source from CDCR format (no track_ids)
         }
     }
 
@@ -1304,8 +1312,12 @@ impl GroundedDocument {
     }
 
     /// Get a TrackRef for a track in this document.
+    ///
+    /// Returns `None` if the track doesn't exist in this document.
+    /// This validates that the track is still present (tracks can be removed).
     #[must_use]
     pub fn track_ref(&self, track_id: TrackId) -> Option<TrackRef> {
+        // Validate that the track actually exists
         if self.tracks.contains_key(&track_id) {
             Some(TrackRef {
                 doc_id: self.id.clone(),
@@ -3250,10 +3262,9 @@ impl Corpus {
                 let track_b = &track_data[j];
 
                 // Type check
-                if require_type_match
-                    && track_a.entity_type != track_b.entity_type {
-                        continue;
-                    }
+                if require_type_match && track_a.entity_type != track_b.entity_type {
+                    continue;
+                }
 
                 // String similarity (simple Jaccard on words)
                 let similarity =
@@ -3273,12 +3284,15 @@ impl Corpus {
         }
 
         // 4. Create identities for each cluster
+        // Note: Singleton clusters (clusters with only one track) still create identities.
+        // This allows tracking entities that appear only once across documents.
         let mut created_ids = Vec::new();
         for (_, member_indices) in cluster_map.iter() {
             if member_indices.is_empty() {
                 continue;
             }
 
+            // Safe: we just checked is_empty() above, so member_indices[0] is valid
             let first_idx = member_indices[0];
             let first_track = &track_data[first_idx];
 
@@ -3323,6 +3337,15 @@ impl Corpus {
             for (doc_id, track_id) in links {
                 if let Some(doc) = self.documents.get_mut(&doc_id) {
                     doc.link_track_to_identity(track_id, identity_id);
+                } else {
+                    // Document was removed or doesn't exist - this is a data consistency issue
+                    // Log warning but continue with other tracks
+                    log::warn!(
+                        "Document '{}' not found when linking track {} to identity {}",
+                        doc_id,
+                        track_id,
+                        identity_id
+                    );
                 }
             }
         }
@@ -3400,8 +3423,13 @@ impl Corpus {
 
                 existing_id
             } else {
-                // Identity ID exists in document but not in corpus - this is inconsistent
-                // Create new identity and update document's track reference
+                // Identity ID exists in document but not in corpus - this is inconsistent.
+                // This can happen if:
+                // 1. Document was added to corpus with pre-existing identities
+                // 2. Identity was removed from corpus but document still references it
+                //
+                // Fix: Create new identity and update ALL references in the document
+                // to ensure consistency between document and corpus state.
                 let new_id = self.next_identity_id;
                 self.next_identity_id += 1;
 
@@ -3422,6 +3450,8 @@ impl Corpus {
                 };
 
                 self.identities.insert(new_id, identity);
+                // Update the track's identity reference to point to the new identity
+                // This ensures document and corpus are consistent
                 doc.link_track_to_identity(track_ref.track_id, new_id);
                 new_id
             }
@@ -3466,7 +3496,16 @@ impl Corpus {
     }
 
     /// Simple string similarity using Jaccard on word sets.
+    /// Compute string similarity between two strings.
+    ///
+    /// Returns a value in [0.0, 1.0] where 1.0 is identical.
+    /// Uses the same algorithm as `crate::similarity::string_similarity` but returns f32
+    /// for consistency with corpus operations that use f32.
+    ///
+    /// Note: There may be minor precision differences due to f32 vs f64,
+    /// but these are negligible for similarity thresholds.
     fn string_similarity(a: &str, b: &str) -> f32 {
+        // Use the f32 version to avoid precision issues in threshold comparison
         crate::similarity::jaccard_word_similarity_f32(a, b)
     }
 }

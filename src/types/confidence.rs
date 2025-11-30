@@ -59,14 +59,14 @@
 //! NEVER DO THIS:
 //!
 //!   PatternNER says EMAIL with 0.98 confidence
-//!   StatisticalNER says ORG with 0.55 confidence
+//!   HeuristicNER says ORG with 0.55 confidence
 //!
 //!   "0.98 > 0.55, so EMAIL is more likely!"  ← WRONG!
 //!
 //! These scales are incompatible:
 //!
 //!   • PatternNER's 0.98 means "regex matched, nearly certain"
-//!   • StatisticalNER's 0.55 means "some features matched, unsure"
+//!   • HeuristicNER's 0.55 means "some features matched, unsure"
 //!
 //! Comparing them is like comparing °C to °F to Kelvin.
 //! Same name (confidence), different scales.
@@ -87,7 +87,7 @@
 //! │ Backend       │ When confidence is reliable                            │
 //! ├───────────────┼─────────────────────────────────────────────────────────┤
 //! │ PatternNER    │ Always (deterministic). 0.95+ means pattern matched.   │
-//! │ StatisticalNER│ Use as ranking within backend, not absolute truth.     │
+//! │ HeuristicNER│ Use as ranking within backend, not absolute truth.     │
 //! │ BERT-NER      │ Reasonably calibrated for in-domain data.              │
 //! │ GLiNER        │ Good for ranking, less calibrated for absolute probs.  │
 //! └───────────────┴─────────────────────────────────────────────────────────┘
@@ -394,4 +394,3 @@ mod tests {
         assert_eq!(Confidence::UNCERTAIN.get(), 0.5);
     }
 }
-

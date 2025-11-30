@@ -49,6 +49,14 @@ pub enum Error {
     #[cfg(feature = "candle")]
     #[error("Candle error: {0}")]
     Candle(#[from] candle_core::Error),
+
+    /// Corpus operation error.
+    #[error("Corpus error: {0}")]
+    Corpus(String),
+
+    /// Track reference error.
+    #[error("Track reference error: {0}")]
+    TrackRef(String),
 }
 
 impl Error {
@@ -90,5 +98,24 @@ impl Error {
     /// Create a retrieval error.
     pub fn retrieval(msg: impl Into<String>) -> Self {
         Error::Retrieval(msg.into())
+    }
+
+    /// Create a corpus error.
+    pub fn corpus(msg: impl Into<String>) -> Self {
+        Error::Corpus(msg.into())
+    }
+
+    /// Create a track reference error.
+    pub fn track_ref(msg: impl Into<String>) -> Self {
+        Error::TrackRef(msg.into())
+    }
+}
+
+/// Convert HuggingFace API errors to our Error type.
+/// Only available when hf-hub is in the dependency tree (onnx or candle features).
+#[cfg(any(feature = "onnx", feature = "candle"))]
+impl From<hf_hub::api::sync::ApiError> for Error {
+    fn from(err: hf_hub::api::sync::ApiError) -> Self {
+        Error::Retrieval(format!("{}", err))
     }
 }

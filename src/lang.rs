@@ -108,10 +108,9 @@ pub fn detect_language(text: &str) -> Language {
     }
 
     // If we detected CJK chars but classified as Chinese, check if Japanese specific chars exist
-    if max_idx == Language::Chinese as usize
-        && counts[Language::Japanese as usize] > 0 {
-            return Language::Japanese; // Japanese uses Kanji (Chinese chars) too
-        }
+    if max_idx == Language::Chinese as usize && counts[Language::Japanese as usize] > 0 {
+        return Language::Japanese; // Japanese uses Kanji (Chinese chars) too
+    }
 
     unsafe { std::mem::transmute(max_idx as u8) }
 }

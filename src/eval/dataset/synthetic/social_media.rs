@@ -8,10 +8,10 @@ use crate::EntityType;
 pub fn dataset() -> Vec<AnnotatedExample> {
     vec![
         AnnotatedExample {
-            text: "Just saw @elonmusk at Tesla HQ in Palo Alto!".into(),
+            text: "Just saw @satlonapatel at Nvidia HQ in Santa Clara!".into(),
             entities: vec![
-                entity("Tesla", EntityType::Organization, 22),
-                entity("Palo Alto", EntityType::Location, 34),
+                entity("Nvidia", EntityType::Organization, 26),
+                entity("Santa Clara", EntityType::Location, 39),
             ],
             domain: Domain::SocialMedia,
             difficulty: Difficulty::Medium,
@@ -109,4 +109,3 @@ mod tests {
         }
     }
 }
-

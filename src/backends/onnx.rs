@@ -40,22 +40,48 @@ use {
 /// Default BERT NER ONNX model (properly exported, reliable).
 pub const DEFAULT_BERT_NER_MODEL: &str = "protectai/bert-base-NER-onnx";
 
+/// Configuration for BERT NER model loading.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone)]
+pub struct BertNERConfig {
+    /// Prefer quantized models (INT8) for faster CPU inference.
+    pub prefer_quantized: bool,
+    /// ONNX optimization level (1-3, default 3).
+    pub optimization_level: u8,
+    /// Number of threads for inference (0 = auto).
+    pub num_threads: usize,
+}
+
+#[cfg(feature = "onnx")]
+impl Default for BertNERConfig {
+    fn default() -> Self {
+        Self {
+            prefer_quantized: true,
+            optimization_level: 3,
+            num_threads: 4,
+        }
+    }
+}
+
 /// BERT-based NER using ONNX Runtime.
 ///
 /// Uses standard BERT models fine-tuned for NER with BIO tagging scheme.
-/// This is more reliable than GLiNER ONNX since the models are properly exported.
+/// Thread-safe with `Arc<Tokenizer>` for efficient sharing.
 #[cfg(feature = "onnx")]
 pub struct BertNEROnnx {
     session: Mutex<Session>,
-    tokenizer: Tokenizer,
+    /// Arc-wrapped tokenizer for cheap cloning across threads.
+    tokenizer: std::sync::Arc<Tokenizer>,
     id_to_label: HashMap<usize, String>,
     label_to_entity_type: HashMap<String, EntityType>,
     model_name: String,
+    /// Whether a quantized model was loaded.
+    is_quantized: bool,
 }
 
 #[cfg(feature = "onnx")]
 impl BertNEROnnx {
-    /// Create a new BERT NER ONNX model.
+    /// Create a new BERT NER ONNX model with default config.
     ///
     /// # Arguments
     /// * `model_name` - HuggingFace model identifier (e.g., "protectai/bert-base-NER-onnx")
@@ -63,26 +89,69 @@ impl BertNEROnnx {
     /// # Returns
     /// BERT NER ONNX model instance
     pub fn new(model_name: &str) -> Result<Self> {
+        Self::with_config(model_name, BertNERConfig::default())
+    }
+
+    /// Create a new BERT NER ONNX model with custom configuration.
+    ///
+    /// # Arguments
+    /// * `model_name` - HuggingFace model identifier
+    /// * `config` - Configuration for model loading
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let config = BertNERConfig {
+    ///     prefer_quantized: true,  // Use INT8 model for 2-4x speedup
+    ///     optimization_level: 3,
+    ///     num_threads: 8,
+    /// };
+    /// let model = BertNEROnnx::with_config("protectai/bert-base-NER-onnx", config)?;
+    /// ```
+    pub fn with_config(model_name: &str, config: BertNERConfig) -> Result<Self> {
         let api = Api::new().map_err(|e| {
             Error::Retrieval(format!("Failed to initialize HuggingFace API: {}", e))
         })?;
 
-        // Download model.onnx
-        let model_path = api
-            .model(model_name.to_string())
-            .get("model.onnx")
-            .or_else(|_| api.model(model_name.to_string()).get("onnx/model.onnx"))
-            .map_err(|e| Error::Retrieval(format!("Failed to download model.onnx: {}", e)))?;
+        let repo = api.model(model_name.to_string());
+
+        // Download model - try quantized first if preferred
+        let (model_path, is_quantized) = if config.prefer_quantized {
+            if let Ok(path) = repo.get("model_quantized.onnx") {
+                log::info!("[BERT-NER] Using quantized model (INT8)");
+                (path, true)
+            } else if let Ok(path) = repo.get("onnx/model_quantized.onnx") {
+                log::info!("[BERT-NER] Using quantized model (INT8)");
+                (path, true)
+            } else if let Ok(path) = repo.get("model_int8.onnx") {
+                log::info!("[BERT-NER] Using INT8 quantized model");
+                (path, true)
+            } else {
+                // Fall back to FP32
+                let path = repo
+                    .get("model.onnx")
+                    .or_else(|_| repo.get("onnx/model.onnx"))
+                    .map_err(|e| {
+                        Error::Retrieval(format!("Failed to download model.onnx: {}", e))
+                    })?;
+                log::info!("[BERT-NER] Using FP32 model (quantized not available)");
+                (path, false)
+            }
+        } else {
+            let path = repo
+                .get("model.onnx")
+                .or_else(|_| repo.get("onnx/model.onnx"))
+                .map_err(|e| Error::Retrieval(format!("Failed to download model.onnx: {}", e)))?;
+            (path, false)
+        };
 
         // Download tokenizer.json
-        let tokenizer_path = api
-            .model(model_name.to_string())
+        let tokenizer_path = repo
             .get("tokenizer.json")
             .map_err(|e| Error::Retrieval(format!("Failed to download tokenizer.json: {}", e)))?;
 
         // Download config.json for label mapping
-        let config_path = api
-            .model(model_name.to_string())
+        let config_path = repo
             .get("config.json")
             .map_err(|e| Error::Retrieval(format!("Failed to download config.json: {}", e)))?;
 
@@ -100,23 +169,48 @@ impl BertNEROnnx {
         let id_to_label = Self::build_id_to_label(&config_json);
         let label_to_entity_type = Self::build_label_to_entity_type();
 
-        // Create ONNX session
-        let session = Session::builder()
+        // Build session with optimization settings
+        let opt_level = match config.optimization_level {
+            1 => GraphOptimizationLevel::Level1,
+            2 => GraphOptimizationLevel::Level2,
+            _ => GraphOptimizationLevel::Level3,
+        };
+
+        let mut builder = Session::builder()
             .map_err(|e| Error::Retrieval(format!("Failed to create session builder: {}", e)))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| Error::Retrieval(format!("Failed to set optimization level: {}", e)))?
-            .with_intra_threads(4)
-            .map_err(|e| Error::Retrieval(format!("Failed to set threads: {}", e)))?
+            .with_optimization_level(opt_level)
+            .map_err(|e| Error::Retrieval(format!("Failed to set optimization level: {}", e)))?;
+
+        if config.num_threads > 0 {
+            builder = builder
+                .with_intra_threads(config.num_threads)
+                .map_err(|e| Error::Retrieval(format!("Failed to set threads: {}", e)))?;
+        }
+
+        let session = builder
             .commit_from_file(&model_path)
             .map_err(|e| Error::Retrieval(format!("Failed to load ONNX model: {}", e)))?;
 
         Ok(Self {
             session: Mutex::new(session),
-            tokenizer,
+            tokenizer: std::sync::Arc::new(tokenizer),
             id_to_label,
             label_to_entity_type,
             model_name: model_name.to_string(),
+            is_quantized,
         })
+    }
+
+    /// Check if a quantized model was loaded.
+    #[must_use]
+    pub fn is_quantized(&self) -> bool {
+        self.is_quantized
+    }
+
+    /// Get a clone of the tokenizer Arc (cheap).
+    #[must_use]
+    pub fn tokenizer(&self) -> std::sync::Arc<Tokenizer> {
+        std::sync::Arc::clone(&self.tokenizer)
     }
 
     /// Build id_to_label mapping from config.
@@ -317,7 +411,12 @@ impl BertNEROnnx {
             let exp_sum: f32 = (0..num_labels)
                 .map(|i| (get_logit(token_idx, i) - max_val).exp())
                 .sum();
-            let confidence = (1.0_f32 / exp_sum) as f64; // exp(0) / exp_sum = 1/exp_sum
+            // Handle division by zero: if exp_sum == 0.0 or num_labels == 0, use fallback
+            let confidence = if exp_sum > 0.0 && num_labels > 0 {
+                (1.0_f32 / exp_sum) as f64 // exp(0) / exp_sum = 1/exp_sum
+            } else {
+                0.0 // Fallback for edge cases
+            };
 
             let label = self
                 .id_to_label
@@ -363,7 +462,8 @@ impl BertNEROnnx {
                     // Check if this B- tag should merge with previous entity
                     // This handles subword tokenization where "Biden" becomes ["B", "##iden"]
                     // and both tokens get B-PER labels
-                    let should_merge = if let Some((_, prev_end, ref prev_type, _)) = current_entity {
+                    let should_merge = if let Some((_, prev_end, ref prev_type, _)) = current_entity
+                    {
                         // Merge if: same type AND adjacent (no gap or only whitespace)
                         std::mem::discriminant(prev_type) == std::mem::discriminant(&entity_type)
                             && char_start <= prev_end + 1 // Adjacent or overlapping

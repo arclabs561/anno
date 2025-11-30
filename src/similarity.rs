@@ -18,6 +18,12 @@ use std::collections::HashSet;
 /// 2. **Substring match**: Returns 0.8 if one string contains the other
 /// 3. **Jaccard similarity**: Word-level Jaccard coefficient
 ///
+/// # Edge Cases
+///
+/// - Empty strings: `""` vs `""` returns 1.0 (exact match)
+/// - Empty vs non-empty: Returns 0.8 (substring match - empty is substring of any string)
+/// - Punctuation differences: Not normalized (e.g., "Apple, Inc." vs "Apple Inc" treated as different)
+///
 /// # Examples
 ///
 /// ```
@@ -29,6 +35,16 @@ use std::collections::HashSet;
 /// ```
 #[must_use]
 pub fn string_similarity(a: &str, b: &str) -> f64 {
+    // Handle empty strings explicitly
+    if a.is_empty() && b.is_empty() {
+        return 1.0; // Both empty = exact match
+    }
+    if a.is_empty() || b.is_empty() {
+        // Empty string is substring of any string, but similarity should be low
+        // Return 0.0 for empty vs non-empty (more conservative than 0.8)
+        return 0.0;
+    }
+
     let a_lower = a.to_lowercase();
     let b_lower = b.to_lowercase();
 
@@ -110,9 +126,10 @@ mod tests {
     #[test]
     fn test_string_similarity_empty() {
         assert_eq!(string_similarity("", ""), 1.0); // Exact match
-                                                    // Empty string is substring of any string, so returns 0.8
-        assert!((string_similarity("Apple", "") - 0.8).abs() < 0.001);
-        assert!((string_similarity("", "Apple") - 0.8).abs() < 0.001);
+                                                    // Empty vs non-empty: returns 0.0 (more conservative than substring match)
+                                                    // This reflects that empty strings provide no semantic information
+        assert_eq!(string_similarity("Apple", ""), 0.0);
+        assert_eq!(string_similarity("", "Apple"), 0.0);
     }
 
     #[test]

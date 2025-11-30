@@ -260,20 +260,19 @@ impl EntityLengthEvaluator {
         }
 
         // Convert counts to rates
-        let to_rate =
-            |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
-                counts
-                    .iter()
-                    .map(|(k, (correct, total))| {
-                        let rate = if *total > 0 {
-                            *correct as f64 / *total as f64
-                        } else {
-                            0.0
-                        };
-                        (k.clone(), rate)
-                    })
-                    .collect()
-            };
+        let to_rate = |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
+            counts
+                .iter()
+                .map(|(k, (correct, total))| {
+                    let rate = if *total > 0 {
+                        *correct as f64 / *total as f64
+                    } else {
+                        0.0
+                    };
+                    (k.clone(), rate)
+                })
+                .collect()
+        };
 
         let char_rates = to_rate(&by_char_bucket);
         let word_rates = to_rate(&by_word_bucket);
@@ -350,50 +349,152 @@ pub fn create_length_varied_dataset() -> Vec<LengthTestExample> {
     vec![
         // === PERSON entities by length ===
         // Very short (abbreviations, initials)
-        LengthTestExample::with_sentence("JFK", "JFK gave a famous speech in Berlin.", EntityType::Person),
-        LengthTestExample::with_sentence("FDR", "FDR led the country through World War II.", EntityType::Person),
+        LengthTestExample::with_sentence(
+            "JFK",
+            "JFK gave a famous speech in Berlin.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "FDR",
+            "FDR led the country through World War II.",
+            EntityType::Person,
+        ),
         // Short (typical names)
-        LengthTestExample::with_sentence("John Smith", "John Smith attended the meeting.", EntityType::Person),
-        LengthTestExample::with_sentence("Mary Johnson", "Mary Johnson won the award.", EntityType::Person),
+        LengthTestExample::with_sentence(
+            "John Smith",
+            "John Smith attended the meeting.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Mary Johnson",
+            "Mary Johnson won the award.",
+            EntityType::Person,
+        ),
         // Medium (names with middle name or title)
-        LengthTestExample::with_sentence("Dr. Martin Luther King", "Dr. Martin Luther King delivered a powerful speech.", EntityType::Person),
-        LengthTestExample::with_sentence("William Jefferson Clinton", "William Jefferson Clinton served as president.", EntityType::Person),
+        LengthTestExample::with_sentence(
+            "Dr. Martin Luther King",
+            "Dr. Martin Luther King delivered a powerful speech.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "William Jefferson Clinton",
+            "William Jefferson Clinton served as president.",
+            EntityType::Person,
+        ),
         // Long (full names with titles/suffixes)
-        LengthTestExample::with_sentence("His Royal Highness Prince William", "His Royal Highness Prince William visited the hospital.", EntityType::Person),
-        
+        LengthTestExample::with_sentence(
+            "His Royal Highness Prince William",
+            "His Royal Highness Prince William visited the hospital.",
+            EntityType::Person,
+        ),
         // === ORGANIZATION entities by length ===
         // Very short
-        LengthTestExample::with_sentence("IBM", "IBM announced new products.", EntityType::Organization),
-        LengthTestExample::with_sentence("MIT", "MIT published research findings.", EntityType::Organization),
-        LengthTestExample::with_sentence("NASA", "NASA launched a new satellite.", EntityType::Organization),
+        LengthTestExample::with_sentence(
+            "IBM",
+            "IBM announced new products.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "MIT",
+            "MIT published research findings.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "NASA",
+            "NASA launched a new satellite.",
+            EntityType::Organization,
+        ),
         // Short
-        LengthTestExample::with_sentence("Google Inc", "Google Inc acquired the startup.", EntityType::Organization),
-        LengthTestExample::with_sentence("Apple Computer", "Apple Computer revolutionized mobile phones.", EntityType::Organization),
+        LengthTestExample::with_sentence(
+            "Google Inc",
+            "Google Inc acquired the startup.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "Apple Computer",
+            "Apple Computer revolutionized mobile phones.",
+            EntityType::Organization,
+        ),
         // Medium
-        LengthTestExample::with_sentence("University of California", "University of California released the study.", EntityType::Organization),
-        LengthTestExample::with_sentence("World Health Organization", "World Health Organization issued guidelines.", EntityType::Organization),
+        LengthTestExample::with_sentence(
+            "University of California",
+            "University of California released the study.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "World Health Organization",
+            "World Health Organization issued guidelines.",
+            EntityType::Organization,
+        ),
         // Long
-        LengthTestExample::with_sentence("Massachusetts Institute of Technology", "Massachusetts Institute of Technology won the competition.", EntityType::Organization),
-        LengthTestExample::with_sentence("International Business Machines Corporation", "International Business Machines Corporation reported earnings.", EntityType::Organization),
+        LengthTestExample::with_sentence(
+            "Massachusetts Institute of Technology",
+            "Massachusetts Institute of Technology won the competition.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "International Business Machines Corporation",
+            "International Business Machines Corporation reported earnings.",
+            EntityType::Organization,
+        ),
         // Very long
-        LengthTestExample::with_sentence("United States Department of Health and Human Services", "United States Department of Health and Human Services announced the policy.", EntityType::Organization),
-        LengthTestExample::with_sentence("European Organization for Nuclear Research", "European Organization for Nuclear Research discovered the particle.", EntityType::Organization),
-        
+        LengthTestExample::with_sentence(
+            "United States Department of Health and Human Services",
+            "United States Department of Health and Human Services announced the policy.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "European Organization for Nuclear Research",
+            "European Organization for Nuclear Research discovered the particle.",
+            EntityType::Organization,
+        ),
         // === LOCATION entities by length ===
         // Very short
-        LengthTestExample::with_sentence("NYC", "NYC is known for its skyline.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "NYC",
+            "NYC is known for its skyline.",
+            EntityType::Location,
+        ),
         LengthTestExample::with_sentence("LA", "LA has beautiful weather.", EntityType::Location),
         // Short
-        LengthTestExample::with_sentence("New York", "New York is a bustling city.", EntityType::Location),
-        LengthTestExample::with_sentence("London", "London has many museums.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "New York",
+            "New York is a bustling city.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "London",
+            "London has many museums.",
+            EntityType::Location,
+        ),
         // Medium
-        LengthTestExample::with_sentence("San Francisco Bay Area", "San Francisco Bay Area is a tech hub.", EntityType::Location),
-        LengthTestExample::with_sentence("United Arab Emirates", "United Arab Emirates hosted the conference.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "San Francisco Bay Area",
+            "San Francisco Bay Area is a tech hub.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "United Arab Emirates",
+            "United Arab Emirates hosted the conference.",
+            EntityType::Location,
+        ),
         // Long
-        LengthTestExample::with_sentence("Democratic Republic of the Congo", "Democratic Republic of the Congo has vast resources.", EntityType::Location),
-        LengthTestExample::with_sentence("Saint Vincent and the Grenadines", "Saint Vincent and the Grenadines is in the Caribbean.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "Democratic Republic of the Congo",
+            "Democratic Republic of the Congo has vast resources.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "Saint Vincent and the Grenadines",
+            "Saint Vincent and the Grenadines is in the Caribbean.",
+            EntityType::Location,
+        ),
         // Very long
-        LengthTestExample::with_sentence("Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch", "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is a town in Wales.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch",
+            "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is a town in Wales.",
+            EntityType::Location,
+        ),
     ]
 }
 
@@ -419,7 +520,10 @@ mod tests {
         assert_eq!(WordCountBucket::from_count(1), WordCountBucket::SingleWord);
         assert_eq!(WordCountBucket::from_count(2), WordCountBucket::TwoWords);
         assert_eq!(WordCountBucket::from_count(3), WordCountBucket::ThreeWords);
-        assert_eq!(WordCountBucket::from_count(5), WordCountBucket::FourPlusWords);
+        assert_eq!(
+            WordCountBucket::from_count(5),
+            WordCountBucket::FourPlusWords
+        );
     }
 
     #[test]
@@ -472,4 +576,3 @@ mod tests {
         assert_eq!(example.word_bucket, WordCountBucket::TwoWords);
     }
 }
-

@@ -24,7 +24,7 @@ cargo add anno
 
 ### Example: basic extraction
 
-This example shows how to extract entity spans from text. Each entity includes the matched text, its type, and character offsets:
+Extract entity spans from text. Each entity includes the matched text, its type, and character offsets:
 
 ```rust
 use anno::{Model, PatternNER};
@@ -78,7 +78,7 @@ This downloads a ~400MB model on first run.
 
 ### Example: zero-shot NER
 
-A limitation of supervised NER models is they only recognize entity types seen during training. GLiNER uses a bi-encoder architecture that lets you specify entity types at inference time:
+Supervised NER models only recognize entity types seen during training. GLiNER uses a bi-encoder architecture that lets you specify entity types at inference time:
 
 ```rust
 use anno::GLiNEROnnx;
@@ -97,7 +97,7 @@ This is slower (~100ms) but handles arbitrary entity schemas.
 
 ### Example: multi-task extraction with GLiNER2
 
-**GLiNER2** (July 2025) extends GLiNER with multi-task capabilities. Extract entities, classify text, and extract hierarchical structures in a single forward pass:
+GLiNER2 extends GLiNER with multi-task capabilities. Extract entities, classify text, and extract hierarchical structures in a single forward pass:
 
 ```rust
 use anno::backends::gliner2::{GLiNER2, TaskSchema};
@@ -114,7 +114,7 @@ let result = model.extract("Apple announced iPhone 15", &schema)?;
 // result.classifications["sentiment"].labels: ["positive"]
 ```
 
-GLiNER2 achieves competitive zero-shot F1 with GPT-4o while being 2.6× faster and running locally.
+GLiNER2 supports zero-shot NER, text classification, and structured extraction. See the GLiNER2 paper (arxiv:2507.18546) for details.
 
 ### Example: Graph RAG integration
 
@@ -141,7 +141,7 @@ println!("{}", graph.to_networkx_json());
 
 ### Example: grounded entity representation
 
-The `grounded` module provides a research-aligned hierarchy for entity representation that unifies text NER and visual detection:
+The `grounded` module provides a hierarchy for entity representation that unifies text NER and visual detection:
 
 ```rust
 use anno::grounded::{GroundedDocument, Signal, Track, Identity, Location};
@@ -174,24 +174,27 @@ for signal in doc.signals() {
 
 The same `Location` type works for text spans, bounding boxes, and other modalities. See `examples/grounded.rs` for a complete walkthrough.
 
-### When should I use which backend?
+### Backend comparison
 
-| Backend | Use Case | Latency | Accuracy | Feature |
-|---------|----------|---------|----------|---------|
-| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always |
-| `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always |
-| `StackedNER` | Composable layered extraction | ~100μs | varies | always |
-| `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` |
-| `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` |
-| `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` |
-| `W2NER` | Nested/discontinuous NER | ~150ms | ~85% | `onnx` |
-| `CandleNER` | Pure Rust BERT NER | varies | ~86% | `candle` |
-| `GLiNERCandle` | Pure Rust zero-shot NER | varies | ~90% | `candle` |
-| **`GLiNER2`** | Multi-task (NER + classification) | ~130ms | ~92% | `onnx`/`candle` |
+| Backend | Use Case | Latency | Accuracy | Feature | Notes |
+|---------|----------|---------|----------|---------|-------|
+| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | |
+| `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always | |
+| `StackedNER` | Composable layered extraction | ~100μs | varies | always | |
+| `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` | |
+| `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` | |
+| `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` | |
+| `W2NER` | Nested/discontinuous NER | ~150ms | ~85% | `onnx` | Requires authentication |
+| `CandleNER` | Pure Rust BERT NER | varies | ~86% | `candle` | |
+| `GLiNERCandle` | Pure Rust zero-shot NER | varies | ~90% | `candle` | Requires PyTorch to safetensors conversion |
+| `GLiNER2` | Multi-task (NER + classification) | ~130ms | ~92% | `onnx`/`candle` | |
 
 *Pattern accuracy on structured entities only
 
-**For new projects**, start with `GLiNER2` — it's the most capable option with unified multi-task support.
+Known limitations:
+
+- W2NER: The default model (`ljynlp/w2ner-bert-base`) requires HuggingFace authentication. See `PROBLEMS.md` for alternatives.
+- GLiNERCandle: Most GLiNER models only provide PyTorch weights. Automatic conversion requires Python dependencies (`torch`, `safetensors`). Prefer `GLiNEROnnx` for production use.
 
 ### Evaluation
 
@@ -217,7 +220,8 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 [gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine with excellent documentation. If you only need GLiNER, it may be simpler.
 
-**What this library adds**:
+This library provides:
+
 - Unified `Model` trait across regex, heuristics, and ML backends
 - Zero-dependency baselines (`PatternNER`, `HeuristicNER`, `StackedNER`) for fast iteration
 - Coreference resolution (rule-based and T5-based) with comprehensive metrics

@@ -53,7 +53,12 @@ pub struct SupportExample {
 
 impl SupportExample {
     /// Create a new support example.
-    pub fn new(text: impl Into<String>, entity_text: impl Into<String>, start: usize, end: usize) -> Self {
+    pub fn new(
+        text: impl Into<String>,
+        entity_text: impl Into<String>,
+        start: usize,
+        end: usize,
+    ) -> Self {
         Self {
             text: text.into(),
             entity_text: entity_text.into(),
@@ -80,7 +85,7 @@ pub struct FewShotGold {
     /// Text being annotated
     pub text: String,
     /// Entity spans in the text
-    pub entities: Vec<(String, usize, usize)>,  // (entity_text, start, end)
+    pub entities: Vec<(String, usize, usize)>, // (entity_text, start, end)
 }
 
 /// Model prediction for few-shot evaluation.
@@ -89,7 +94,7 @@ pub struct FewShotPrediction {
     /// Text being annotated
     pub text: String,
     /// Predicted entity spans
-    pub predicted: Vec<(String, usize, usize, f64)>,  // (entity_text, start, end, confidence)
+    pub predicted: Vec<(String, usize, usize, f64)>, // (entity_text, start, end, confidence)
 }
 
 /// Results for a single few-shot task.
@@ -171,7 +176,11 @@ impl FewShotEvaluator {
         predictions: &[FewShotPrediction],
         gold: &[FewShotGold],
     ) -> FewShotTaskResults {
-        assert_eq!(predictions.len(), gold.len(), "Predictions and gold must have same length");
+        assert_eq!(
+            predictions.len(),
+            gold.len(),
+            "Predictions and gold must have same length"
+        );
 
         let mut total_correct = 0;
         let mut total_predicted = 0;
@@ -197,14 +206,16 @@ impl FewShotEvaluator {
             }
         }
 
+        // Standard behavior: precision = 0.0 when no predictions (matches seqeval)
         let precision = if total_predicted == 0 {
-            1.0
+            0.0
         } else {
             total_correct as f64 / total_predicted as f64
         };
 
+        // Standard behavior: recall = 0.0 when no gold (matches seqeval)
         let recall = if total_gold == 0 {
-            1.0
+            0.0
         } else {
             total_correct as f64 / total_gold as f64
         };
@@ -249,8 +260,18 @@ impl FewShotEvaluator {
         let total_predicted: usize = results.iter().map(|r| r.num_predicted).sum();
         let total_gold: usize = results.iter().map(|r| r.num_gold).sum();
 
-        let micro_precision = if total_predicted == 0 { 1.0 } else { total_correct as f64 / total_predicted as f64 };
-        let micro_recall = if total_gold == 0 { 1.0 } else { total_correct as f64 / total_gold as f64 };
+        // Standard behavior: precision = 0.0 when no predictions (matches seqeval)
+        let micro_precision = if total_predicted == 0 {
+            0.0
+        } else {
+            total_correct as f64 / total_predicted as f64
+        };
+        // Standard behavior: recall = 0.0 when no gold (matches seqeval)
+        let micro_recall = if total_gold == 0 {
+            0.0
+        } else {
+            total_correct as f64 / total_gold as f64
+        };
         let micro_f1 = if micro_precision + micro_recall == 0.0 {
             0.0
         } else {
@@ -286,7 +307,9 @@ impl FewShotEvaluator {
                     performance_by_k.last().map(|(k, _)| *k).unwrap_or(10)
                 ));
             } else if improvement < 0.05 {
-                insights.push("Minimal improvement with more examples - may need different approach".into());
+                insights.push(
+                    "Minimal improvement with more examples - may need different approach".into(),
+                );
             }
         }
 
@@ -299,7 +322,9 @@ impl FewShotEvaluator {
         }
 
         if macro_f1 < 0.3 {
-            insights.push("Low overall few-shot performance - consider pre-training on related data".into());
+            insights.push(
+                "Low overall few-shot performance - consider pre-training on related data".into(),
+            );
         }
 
         FewShotResults {
@@ -379,19 +404,15 @@ mod tests {
     fn test_perfect_predictions() {
         let evaluator = FewShotEvaluator::default();
 
-        let predictions = vec![
-            FewShotPrediction {
-                text: "Has diabetes".into(),
-                predicted: vec![("diabetes".into(), 4, 12, 0.95)],
-            },
-        ];
+        let predictions = vec![FewShotPrediction {
+            text: "Has diabetes".into(),
+            predicted: vec![("diabetes".into(), 4, 12, 0.95)],
+        }];
 
-        let gold = vec![
-            FewShotGold {
-                text: "Has diabetes".into(),
-                entities: vec![("diabetes".into(), 4, 12)],
-            },
-        ];
+        let gold = vec![FewShotGold {
+            text: "Has diabetes".into(),
+            entities: vec![("diabetes".into(), 4, 12)],
+        }];
 
         let results = evaluator.evaluate("DISEASE", 2, &predictions, &gold);
         assert!((results.f1 - 1.0).abs() < 0.01);
@@ -402,19 +423,15 @@ mod tests {
     fn test_no_predictions() {
         let evaluator = FewShotEvaluator::default();
 
-        let predictions = vec![
-            FewShotPrediction {
-                text: "Has diabetes".into(),
-                predicted: vec![],
-            },
-        ];
+        let predictions = vec![FewShotPrediction {
+            text: "Has diabetes".into(),
+            predicted: vec![],
+        }];
 
-        let gold = vec![
-            FewShotGold {
-                text: "Has diabetes".into(),
-                entities: vec![("diabetes".into(), 4, 12)],
-            },
-        ];
+        let gold = vec![FewShotGold {
+            text: "Has diabetes".into(),
+            entities: vec![("diabetes".into(), 4, 12)],
+        }];
 
         let results = evaluator.evaluate("DISEASE", 2, &predictions, &gold);
         assert!((results.recall).abs() < 0.01);
@@ -485,4 +502,3 @@ mod tests {
         assert!(!aggregated.failed_types.contains(&"EASY".to_string()));
     }
 }
-

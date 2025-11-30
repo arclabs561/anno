@@ -84,7 +84,7 @@ fn easy_coordination() -> Vec<DiscontinuousExample> {
             entities: vec![
                 // "New York airports" (discontinuous)
                 DiscontinuousGold::new(
-                    vec![(0, 8), (25, 33)],  // "New York" + "airports"
+                    vec![(0, 8), (25, 33)], // "New York" + "airports"
                     "LOC",
                     "New York airports",
                 ),
@@ -101,16 +101,8 @@ fn easy_coordination() -> Vec<DiscontinuousExample> {
         DiscontinuousExample {
             text: "Apple and Microsoft stocks rose sharply.".to_string(),
             entities: vec![
-                DiscontinuousGold::new(
-                    vec![(0, 5), (20, 26)],
-                    "ORG",
-                    "Apple stocks",
-                ),
-                DiscontinuousGold::new(
-                    vec![(10, 19), (20, 26)],
-                    "ORG",
-                    "Microsoft stocks",
-                ),
+                DiscontinuousGold::new(vec![(0, 5), (20, 26)], "ORG", "Apple stocks"),
+                DiscontinuousGold::new(vec![(10, 19), (20, 26)], "ORG", "Microsoft stocks"),
             ],
             difficulty: Difficulty::Easy,
             domain: Domain::General,
@@ -119,7 +111,7 @@ fn easy_coordination() -> Vec<DiscontinuousExample> {
             text: "John and Mary Smith attended the conference.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(0, 4), (14, 19)],  // "John" + "Smith"
+                    vec![(0, 4), (14, 19)], // "John" + "Smith"
                     "PER",
                     "John Smith",
                 ),
@@ -136,7 +128,7 @@ fn easy_coordination() -> Vec<DiscontinuousExample> {
             text: "The red and blue cars were parked outside.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(4, 7), (17, 21)],  // "red" + "cars"
+                    vec![(4, 7), (17, 21)], // "red" + "cars"
                     "MISC",
                     "red cars",
                 ),
@@ -158,21 +150,9 @@ fn medium_coordination() -> Vec<DiscontinuousExample> {
         DiscontinuousExample {
             text: "Paris, London, and Berlin museums are world-renowned.".to_string(),
             entities: vec![
-                DiscontinuousGold::new(
-                    vec![(0, 5), (27, 34)],
-                    "LOC",
-                    "Paris museums",
-                ),
-                DiscontinuousGold::new(
-                    vec![(7, 13), (27, 34)],
-                    "LOC",
-                    "London museums",
-                ),
-                DiscontinuousGold::new(
-                    vec![(19, 25), (27, 34)],
-                    "LOC",
-                    "Berlin museums",
-                ),
+                DiscontinuousGold::new(vec![(0, 5), (27, 34)], "LOC", "Paris museums"),
+                DiscontinuousGold::new(vec![(7, 13), (27, 34)], "LOC", "London museums"),
+                DiscontinuousGold::new(vec![(19, 25), (27, 34)], "LOC", "Berlin museums"),
             ],
             difficulty: Difficulty::Medium,
             domain: Domain::General,
@@ -181,7 +161,7 @@ fn medium_coordination() -> Vec<DiscontinuousExample> {
             text: "CEO and CFO positions at Google and Meta are highly competitive.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(0, 3), (14, 23)],  // "CEO" + "positions"
+                    vec![(0, 3), (14, 23)], // "CEO" + "positions"
                     "MISC",
                     "CEO positions",
                 ),
@@ -275,7 +255,7 @@ fn biomedical_domain() -> Vec<DiscontinuousExample> {
             text: "The left and right ventricle showed abnormal function.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(4, 8), (19, 28)],  // "left" + "ventricle"
+                    vec![(4, 8), (19, 28)], // "left" + "ventricle"
                     "ANATOMY",
                     "left ventricle",
                 ),
@@ -292,12 +272,12 @@ fn biomedical_domain() -> Vec<DiscontinuousExample> {
             text: "Pain in the upper and lower back was reported.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(12, 17), (28, 32)],  // "upper" + "back"
+                    vec![(12, 17), (28, 32)], // "upper" + "back"
                     "SYMPTOM",
                     "upper back",
                 ),
                 DiscontinuousGold::new(
-                    vec![(22, 27), (28, 32)],  // "lower" + "back"
+                    vec![(22, 27), (28, 32)], // "lower" + "back"
                     "SYMPTOM",
                     "lower back",
                 ),
@@ -308,16 +288,8 @@ fn biomedical_domain() -> Vec<DiscontinuousExample> {
         DiscontinuousExample {
             text: "Aspirin and ibuprofen tablets were administered.".to_string(),
             entities: vec![
-                DiscontinuousGold::new(
-                    vec![(0, 7), (20, 27)],
-                    "DRUG",
-                    "Aspirin tablets",
-                ),
-                DiscontinuousGold::new(
-                    vec![(12, 21), (20, 27)],
-                    "DRUG",
-                    "ibuprofen tablets",
-                ),
+                DiscontinuousGold::new(vec![(0, 7), (20, 27)], "DRUG", "Aspirin tablets"),
+                DiscontinuousGold::new(vec![(12, 21), (20, 27)], "DRUG", "ibuprofen tablets"),
             ],
             difficulty: Difficulty::Easy,
             domain: Domain::Biomedical,
@@ -326,7 +298,7 @@ fn biomedical_domain() -> Vec<DiscontinuousExample> {
             text: "Type 1 and type 2 diabetes mellitus require different treatments.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(0, 6), (18, 35)],  // "Type 1" + "diabetes mellitus"
+                    vec![(0, 6), (18, 35)], // "Type 1" + "diabetes mellitus"
                     "DISEASE",
                     "Type 1 diabetes mellitus",
                 ),
@@ -366,7 +338,7 @@ fn legal_domain() -> Vec<DiscontinuousExample> {
             text: "The plaintiff and defendant counsel filed motions.".to_string(),
             entities: vec![
                 DiscontinuousGold::new(
-                    vec![(4, 13), (28, 35)],  // "plaintiff" + "counsel"
+                    vec![(4, 13), (28, 35)], // "plaintiff" + "counsel"
                     "LEGAL_ROLE",
                     "plaintiff counsel",
                 ),
@@ -467,4 +439,3 @@ mod tests {
         assert!(s.discontinuous_entities > 0);
     }
 }
-

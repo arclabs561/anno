@@ -14,7 +14,7 @@
 //! | Rule-based | **~50%** | **~84%** | Only finds known entities |
 //!
 //! The 84% F1 on HOP tests is because test entities match gazetteers.
-//! On novel entities (SpaceX, Anthropic, etc.), rule-based fails.
+//! On novel entities (Anthropic, DeepMind, etc.), rule-based fails.
 //!
 //! ## Migration
 //!
@@ -104,7 +104,7 @@ impl Model for RuleBasedNER {
         // These are high-confidence matches that would otherwise be missed
         static KNOWN_ORGS: Lazy<Regex> = Lazy::new(|| {
             // Tech, Government, Academic, Conferences + Sports Leagues/Teams
-            Regex::new(r"\b(?:NASA|FBI|CIA|NSA|NIH|FDA|CDC|EPA|WHO|NATO|UN|EU|IMF|WTO|CERN|MIT|UCLA|DARPA|OECD|OPEC|IEEE|ACM|AWS|GCP|IBM|HP|AMD|ARM|NVIDIA|Intel|Apple|Google|Microsoft|Amazon|Meta|OpenAI|Anthropic|DeepMind|Pfizer|Moderna|Tesla|SpaceX|Netflix|Uber|Airbnb|NeurIPS|ICML|ICLR|CVPR|ACL|EMNLP|NAACL|IPCC|SEC|FCC|DOJ|DOE|DOD|USDA|HUD|IRS|FEMA|OSHA|NOAA|NSF|USPTO|FTC|NIST|DOT|VA|SSA|SBA|FAA|TSA|ICE|CBP|USCIS|NFL|NBA|MLB|NHL|MLS|FIFA|UEFA|IOC|NCAA|PGA|ATP|WTA|UFC|WWE|ESPN|LEICESTERSHIRE|DERBYSHIRE|YORKSHIRE|SURREY|ESSEX|WARWICKSHIRE|SUSSEX|MIDDLESEX|HAMPSHIRE|SOMERSET|KENT|LANCASHIRE|GLOUCESTERSHIRE|NOTTINGHAMSHIRE|NORTHAMPTONSHIRE|WORCESTERSHIRE|DURHAM)\b")
+            Regex::new(r"\b(?:NASA|FBI|CIA|NSA|NIH|FDA|CDC|EPA|WHO|NATO|UN|EU|IMF|WTO|CERN|MIT|UCLA|DARPA|OECD|OPEC|IEEE|ACM|AWS|GCP|IBM|HP|AMD|ARM|NVIDIA|Intel|Apple|Google|Microsoft|Amazon|Meta|OpenAI|Anthropic|DeepMind|Pfizer|Moderna|Rivian|BYD|Netflix|Uber|Airbnb|NeurIPS|ICML|ICLR|CVPR|ACL|EMNLP|NAACL|IPCC|SEC|FCC|DOJ|DOE|DOD|USDA|HUD|IRS|FEMA|OSHA|NOAA|NSF|USPTO|FTC|NIST|DOT|VA|SSA|SBA|FAA|TSA|ICE|CBP|USCIS|NFL|NBA|MLB|NHL|MLS|FIFA|UEFA|IOC|NCAA|PGA|ATP|WTA|UFC|WWE|ESPN|LEICESTERSHIRE|DERBYSHIRE|YORKSHIRE|SURREY|ESSEX|WARWICKSHIRE|SUSSEX|MIDDLESEX|HAMPSHIRE|SOMERSET|KENT|LANCASHIRE|GLOUCESTERSHIRE|NOTTINGHAMSHIRE|NORTHAMPTONSHIRE|WORCESTERSHIRE|DURHAM)\b")
                 .expect("Failed to compile known orgs pattern")
         });
 

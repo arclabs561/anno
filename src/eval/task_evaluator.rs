@@ -15,6 +15,8 @@
 
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
+#[cfg(feature = "eval-profiling")]
+use crate::eval::profiling;
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
@@ -183,6 +185,9 @@ impl TaskEvaluator {
             backends: backends_tested,
         };
 
+        #[cfg(feature = "eval-profiling")]
+        profiling::print_summary();
+
         Ok(ComprehensiveEvalResults { results, summary })
     }
 
@@ -306,7 +311,9 @@ impl TaskEvaluator {
 
         // Run task-specific evaluation
         match task {
-            Task::NER | Task::DiscontinuousNER => self.evaluate_ner_task(&*backend, dataset_data),
+            Task::NER | Task::DiscontinuousNER => {
+                self.evaluate_ner_task(backend_name, &*backend, dataset, dataset_data)
+            }
             Task::IntraDocCoref | Task::AbstractAnaphora => {
                 self.evaluate_coref_task(backend_name, dataset_data)
             }
@@ -327,41 +334,268 @@ impl TaskEvaluator {
     /// Evaluate NER task with actual inference.
     fn evaluate_ner_task(
         &self,
+        backend_name: &str,
         backend: &dyn Model,
+        dataset: DatasetId,
         dataset_data: &LoadedDataset,
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::ner_metrics::evaluate_entities;
 
-        let mut all_gold = Vec::new();
-        let mut all_predicted = Vec::new();
+        #[cfg(feature = "eval-profiling")]
+        profiling::start("evaluate_ner_task");
+
+        // Pre-allocate vectors with estimated capacity to reduce reallocations
+        let estimated_entities = dataset_data.sentences.len() * 3; // Rough estimate: ~3 entities per sentence
+        let mut all_gold = Vec::with_capacity(estimated_entities);
+        let mut all_predicted = Vec::with_capacity(estimated_entities);
         let mut total_chars = 0;
         let start_time = Instant::now();
 
-        // Process each sentence
-        for sentence in &dataset_data.sentences {
-            let text = sentence.text();
-            total_chars += text.chars().count();
+        // Extract dataset entity types and map to model-compatible labels
+        let dataset_labels = dataset.entity_types();
+        let mapped_labels = Self::map_dataset_labels_to_model(dataset_labels, backend_name);
 
-            // Extract gold entities from sentence
-            let gold_entities = sentence.entities();
-            all_gold.extend(gold_entities.iter().map(|g| {
-                let mut entity =
-                    Entity::new(g.text.clone(), g.entity_type.clone(), g.start, g.end, 1.0);
-                entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
-                entity
-            }));
+        // Check if this is a zero-shot backend that needs custom labels
+        let is_zero_shot = matches!(
+            backend_name.to_lowercase().as_str(),
+            "nuner" | "gliner_onnx" | "gliner_candle" | "gliner2"
+        );
 
-            // Run inference
-            match backend.extract_entities(&text, None) {
-                Ok(entities) => {
-                    all_predicted.extend(entities);
-                }
-                Err(e) => {
-                    // Log error but continue with other sentences
-                    eprintln!("Warning: Backend inference failed for sentence: {}", e);
+        // Process sentences (parallel if rayon is available, sequential otherwise)
+        let total_sentences = dataset_data.sentences.len();
+
+        #[cfg(feature = "eval-parallel")]
+        {
+            use rayon::prelude::*;
+            use std::cell::RefCell;
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            use std::sync::Arc;
+            use std::sync::Mutex;
+
+            // For parallel processing, use thread-local storage to cache backends per thread
+            // This avoids the need to share state across threads while still caching per thread
+            thread_local! {
+                static THREAD_CACHED_BACKEND: RefCell<Option<(String, Box<dyn std::any::Any>)>> = RefCell::new(None);
+            }
+
+            let backend_name_arc = Arc::new(backend_name.to_string());
+            let mapped_labels_arc = Arc::new(mapped_labels.clone());
+            let is_zero_shot_flag = is_zero_shot;
+
+            let progress_counter = AtomicUsize::new(0);
+            let last_progress_percent = Arc::new(Mutex::new(0));
+            let start_time_arc = Arc::new(Mutex::new(start_time));
+
+            let all_results: Vec<_> = dataset_data.sentences
+                .par_iter()
+                .enumerate()
+                .map(|(_idx, sentence)| {
+                    let text = sentence.text();
+                    let chars_count = text.chars().count();
+
+                    // Extract gold entities
+                    let gold_entities: Vec<Entity> = sentence.entities().iter().map(|g| {
+                        let mut entity = Entity::new(
+                            g.text.clone(),
+                            g.entity_type.clone(),
+                            g.start,
+                            g.end,
+                            1.0,
+                        );
+                        entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
+                        entity
+                    }).collect();
+
+                    // Run inference - use thread-local cached backend for zero-shot models
+                    let entities_result = if is_zero_shot_flag && !mapped_labels_arc.is_empty() {
+                        THREAD_CACHED_BACKEND.with(|cache| {
+                            let mut cached = cache.borrow_mut();
+                            // Check if we have a cached backend for this backend_name
+                            if let Some((ref cached_name, ref backend)) = *cached {
+                                if cached_name == backend_name_arc.as_str() {
+                                    // Use cached backend
+                                    return Self::extract_with_cached_backend(
+                                        backend_name_arc.as_str(),
+                                        backend.as_ref(),
+                                        &text,
+                                        &mapped_labels_arc
+                                    );
+                                }
+                            }
+                            // Create and cache new backend for this thread
+                            match Self::create_zero_shot_backend(backend_name_arc.as_str()) {
+                                Ok(new_backend) => {
+                                    let result = Self::extract_with_cached_backend(
+                                        backend_name_arc.as_str(),
+                                        new_backend.as_ref(),
+                                        &text,
+                                        &mapped_labels_arc
+                                    );
+                                    *cached = Some((backend_name_arc.to_string(), new_backend));
+                                    result
+                                }
+                                Err(e) => Err(e),
+                            }
+                        })
+                    } else {
+                        backend.extract_entities(&text, None)
+                    };
+
+                    // Update progress with time estimates
+                    let processed = progress_counter.fetch_add(1, Ordering::Relaxed) + 1;
+                    let current_percent = (processed * 100) / total_sentences;
+                    let mut last_percent = last_progress_percent.lock().unwrap();
+                    if current_percent >= *last_percent + 10 || processed % 10 == 0 {
+                        let elapsed = start_time_arc.lock().unwrap().elapsed();
+                        let elapsed_secs = elapsed.as_secs_f64();
+                        let rate = if elapsed_secs > 0.0 {
+                            processed as f64 / elapsed_secs
+                        } else {
+                            0.0
+                        };
+                        let remaining = if rate > 0.0 {
+                            ((total_sentences - processed) as f64 / rate) as u64
+                        } else {
+                            0
+                        };
+                        let remaining_str = if remaining > 0 {
+                            format!(" (~{}s remaining)", remaining)
+                        } else {
+                            String::new()
+                        };
+                        eprint!("\rProcessing: {}/{} sentences ({:.0}%) for backend '{}' on dataset '{}'{}\x1b[K",
+                            processed, total_sentences, current_percent, backend_name, dataset.to_string(), remaining_str);
+                        *last_percent = current_percent;
+                    }
+
+                    (chars_count, gold_entities, entities_result)
+                })
+                .collect();
+
+            // Final progress update with timing
+            let total_elapsed = start_time.elapsed();
+            let total_secs = total_elapsed.as_secs_f64();
+            let rate = if total_secs > 0.0 {
+                total_sentences as f64 / total_secs
+            } else {
+                0.0
+            };
+            eprint!("\rProcessing: {}/{} sentences (100.0%) for backend '{}' on dataset '{}' (completed in {:.1}s, {:.1} sentences/s)\x1b[K",
+                total_sentences, total_sentences, backend_name, dataset.to_string(), total_secs, rate);
+            eprintln!(); // Newline after progress
+
+            // Aggregate results
+            for (chars_count, gold_entities, entities_result) in all_results {
+                total_chars += chars_count;
+                all_gold.extend(gold_entities);
+
+                match entities_result {
+                    Ok(entities) => {
+                        all_predicted.extend(entities);
+                    }
+                    Err(e) => {
+                        eprintln!("\nWarning: Backend inference failed: {}", e);
+                    }
                 }
             }
         }
+
+        #[cfg(not(feature = "eval-parallel"))]
+        {
+            // For zero-shot backends, create a cached instance once to avoid recreating for each sentence
+            let zero_shot_backend: Option<Box<dyn std::any::Any>> =
+                if is_zero_shot && !mapped_labels.is_empty() {
+                    Some(Self::create_zero_shot_backend(backend_name)?)
+                } else {
+                    None
+                };
+
+            // Sequential processing (fallback when rayon not available)
+            for (idx, sentence) in dataset_data.sentences.iter().enumerate() {
+                // Progress reporting every 10% or every 10 sentences, whichever is more frequent
+                if idx % 10 == 0 || idx == total_sentences - 1 {
+                    let progress = ((idx + 1) as f64 / total_sentences as f64) * 100.0;
+                    let elapsed = start_time.elapsed();
+                    let elapsed_secs = elapsed.as_secs_f64();
+                    let rate = if elapsed_secs > 0.0 {
+                        (idx + 1) as f64 / elapsed_secs
+                    } else {
+                        0.0
+                    };
+                    let remaining = if rate > 0.0 {
+                        ((total_sentences - idx - 1) as f64 / rate) as u64
+                    } else {
+                        0
+                    };
+                    let remaining_str = if remaining > 0 {
+                        format!(" (~{}s remaining)", remaining)
+                    } else {
+                        String::new()
+                    };
+                    eprint!("\rProcessing: {}/{} sentences ({:.1}%) for backend '{}' on dataset '{}'{}\x1b[K",
+                        idx + 1, total_sentences, progress, backend_name, dataset.to_string(), remaining_str);
+                }
+
+                let text = sentence.text();
+                total_chars += text.chars().count();
+
+                #[cfg(feature = "eval-profiling")]
+                profiling::start("extract_gold_entities");
+                // Extract gold entities from sentence
+                let gold_entities = sentence.entities();
+                all_gold.extend(gold_entities.iter().map(|g| {
+                    let mut entity =
+                        Entity::new(g.text.clone(), g.entity_type.clone(), g.start, g.end, 1.0);
+                    entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
+                    entity
+                }));
+                #[cfg(feature = "eval-profiling")]
+                profiling::stop("extract_gold_entities");
+
+                #[cfg(feature = "eval-profiling")]
+                profiling::start("backend_inference");
+                // Run inference - use extract() for zero-shot models, extract_entities() for others
+                let entities = if let Some(ref cached) = zero_shot_backend {
+                    Self::extract_with_cached_backend(backend_name, cached, &text, &mapped_labels)
+                } else {
+                    backend.extract_entities(&text, None)
+                };
+                #[cfg(feature = "eval-profiling")]
+                profiling::stop("backend_inference");
+
+                match entities {
+                    Ok(entities) => {
+                        all_predicted.extend(entities);
+                    }
+                    Err(e) => {
+                        // Log error but continue with other sentences
+                        eprintln!(
+                            "\nWarning: Backend inference failed for sentence {}: {}",
+                            idx + 1,
+                            e
+                        );
+                    }
+                }
+            }
+
+            // Final progress update with timing
+            let total_elapsed = start_time.elapsed();
+            let total_secs = total_elapsed.as_secs_f64();
+            let rate = if total_secs > 0.0 {
+                total_sentences as f64 / total_secs
+            } else {
+                0.0
+            };
+            eprint!("\rProcessing: {}/{} sentences (100.0%) for backend '{}' on dataset '{}' (completed in {:.1}s, {:.1} sentences/s)\x1b[K",
+                total_sentences, total_sentences, backend_name, dataset.to_string(), total_secs, rate);
+            eprintln!(); // Newline after progress
+        }
+
+        #[cfg(feature = "eval-profiling")]
+        profiling::stop("evaluate_ner_task");
+
+        #[cfg(feature = "eval-profiling")]
+        profiling::start("compute_metrics");
 
         let elapsed = start_time.elapsed();
         let chars_per_second = if elapsed.as_secs_f64() > 0.0 {
@@ -372,6 +606,9 @@ impl TaskEvaluator {
 
         // Compute metrics
         let eval_results = evaluate_entities(&all_gold, &all_predicted);
+
+        #[cfg(feature = "eval-profiling")]
+        profiling::stop("compute_metrics");
         let summary = eval_results.summary();
 
         // Build metrics map
@@ -395,14 +632,231 @@ impl TaskEvaluator {
         Ok(metrics)
     }
 
+    /// Map dataset entity type labels to model-compatible labels.
+    ///
+    /// Handles common label variations (e.g., "PER" → "person", "PERSON" → "person").
+    /// Public for testing purposes.
+    pub(crate) fn map_dataset_labels_to_model(
+        dataset_labels: &[&str],
+        backend_name: &str,
+    ) -> Vec<String> {
+        dataset_labels
+            .iter()
+            .map(|label| {
+                // Normalize label to lowercase for matching
+                let normalized = label.to_lowercase();
+                match normalized.as_str() {
+                    // Person variations
+                    "per" | "person" => "person".to_string(),
+                    // Organization variations
+                    "org" | "organization" | "organisation" | "corporation" | "company" => {
+                        "organization".to_string()
+                    }
+                    // Location variations
+                    "loc" | "location" | "place" | "gpe" => "location".to_string(),
+                    // Other common types
+                    "misc" | "miscellaneous" => "misc".to_string(),
+                    "date" => "date".to_string(),
+                    "time" => "time".to_string(),
+                    "money" | "currency" => "money".to_string(),
+                    "percent" | "percentage" => "percent".to_string(),
+                    "product" => "product".to_string(),
+                    "event" => "event".to_string(),
+                    "facility" | "fac" => "facility".to_string(),
+                    "work_of_art" | "workofart" => "work_of_art".to_string(),
+                    "law" => "law".to_string(),
+                    "language" => "language".to_string(),
+                    "norp" => "norp".to_string(),
+                    // For NuNER, keep original if not mapped (it's zero-shot)
+                    _ if backend_name == "nuner" => label.to_lowercase(),
+                    // For other backends, try to map or use original
+                    _ => label.to_lowercase(),
+                }
+            })
+            .collect()
+    }
+
+    /// Create a zero-shot backend instance and cache it (wrapped in Any for type erasure).
+    ///
+    /// This avoids recreating the model for every sentence, which causes ONNX errors.
+    fn create_zero_shot_backend(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
+        match backend_name.to_lowercase().as_str() {
+            "nuner" => {
+                #[cfg(feature = "onnx")]
+                {
+                    use crate::backends::nuner::NuNER;
+                    use crate::DEFAULT_NUNER_MODEL;
+                    let nuner = NuNER::from_pretrained(DEFAULT_NUNER_MODEL)?;
+                    Ok(Box::new(nuner))
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "NuNER requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner_onnx" | "gliner" => {
+                #[cfg(feature = "onnx")]
+                {
+                    use crate::backends::gliner_onnx::GLiNEROnnx;
+                    use crate::DEFAULT_GLINER_MODEL;
+                    let gliner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
+                    Ok(Box::new(gliner))
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner2" => {
+                #[cfg(feature = "onnx")]
+                {
+                    use crate::backends::gliner2::GLiNER2Onnx;
+                    use crate::DEFAULT_GLINER2_MODEL;
+                    let gliner2 = GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?;
+                    Ok(Box::new(gliner2))
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER2 requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner_candle" => {
+                #[cfg(feature = "candle")]
+                {
+                    use crate::backends::gliner_candle::GLiNERCandle;
+                    use crate::DEFAULT_GLINER_MODEL;
+                    let gliner = GLiNERCandle::from_pretrained(DEFAULT_GLINER_MODEL)?;
+                    Ok(Box::new(gliner))
+                }
+                #[cfg(not(feature = "candle"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER Candle requires the 'candle' feature".to_string(),
+                    ))
+                }
+            }
+            _ => Err(crate::Error::InvalidInput(format!(
+                "Unknown zero-shot backend: {}",
+                backend_name
+            ))),
+        }
+    }
+
+    /// Extract entities using cached zero-shot backend instance.
+    #[allow(unused_variables)] // False positives - variables are used in feature-gated code
+    fn extract_with_cached_backend(
+        backend_name: &str,
+        cached: &dyn std::any::Any,
+        text: &str,
+        labels: &[String],
+    ) -> Result<Vec<Entity>> {
+        // Convert labels to &str slice
+        let label_strs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+
+        match backend_name.to_lowercase().as_str() {
+            "nuner" => {
+                #[cfg(feature = "onnx")]
+                {
+                    if let Some(nuner) = cached.downcast_ref::<crate::backends::nuner::NuNER>() {
+                        nuner.extract(text, &label_strs, 0.5)
+                    } else {
+                        Err(crate::Error::InvalidInput(
+                            "Failed to downcast cached NuNER backend".to_string(),
+                        ))
+                    }
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "NuNER requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner_onnx" | "gliner" => {
+                #[cfg(feature = "onnx")]
+                {
+                    if let Some(gliner) =
+                        cached.downcast_ref::<crate::backends::gliner_onnx::GLiNEROnnx>()
+                    {
+                        gliner.extract(text, &label_strs, 0.5)
+                    } else {
+                        Err(crate::Error::InvalidInput(
+                            "Failed to downcast cached GLiNER backend".to_string(),
+                        ))
+                    }
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner2" => {
+                #[cfg(feature = "onnx")]
+                {
+                    use crate::backends::gliner2::TaskSchema;
+                    if let Some(gliner2) =
+                        cached.downcast_ref::<crate::backends::gliner2::GLiNER2Onnx>()
+                    {
+                        let schema = TaskSchema::new().with_entities(&label_strs);
+                        let result = gliner2.extract(text, &schema)?;
+                        Ok(result.entities)
+                    } else {
+                        Err(crate::Error::InvalidInput(
+                            "Failed to downcast cached GLiNER2 backend".to_string(),
+                        ))
+                    }
+                }
+                #[cfg(not(feature = "onnx"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER2 requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner_candle" => {
+                #[cfg(feature = "candle")]
+                {
+                    if let Some(gliner) =
+                        cached.downcast_ref::<crate::backends::gliner_candle::GLiNERCandle>()
+                    {
+                        gliner.extract(text, &label_strs, 0.5)
+                    } else {
+                        Err(crate::Error::InvalidInput(
+                            "Failed to downcast cached GLiNER Candle backend".to_string(),
+                        ))
+                    }
+                }
+                #[cfg(not(feature = "candle"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER Candle requires the 'candle' feature".to_string(),
+                    ))
+                }
+            }
+            _ => Err(crate::Error::InvalidInput(format!(
+                "Unknown zero-shot backend: {}",
+                backend_name
+            ))),
+        }
+    }
+
     /// Evaluate coreference task.
     fn evaluate_coref_task(
         &self,
-        _backend_name: &str,
+        backend_name: &str,
         dataset_data: &LoadedDataset,
     ) -> Result<HashMap<String, f64>> {
-        use crate::eval::coref::entities_to_chains;
+        use crate::eval::coref::{entities_to_chains, CorefDocument};
         use crate::eval::coref_metrics::CorefEvaluation;
+        use crate::eval::coref_resolver::SimpleCorefResolver;
 
         // Try to load coreference documents if dataset supports it
         let gold_docs = if dataset_data.id.is_coreference() {
@@ -427,7 +881,7 @@ impl TaskEvaluator {
                         }
                     }
                     // Group entities by sentence for now (simplified)
-                    vec![crate::eval::coref::CorefDocument::new(
+                    vec![CorefDocument::new(
                         "",
                         entities_to_chains(&all_gold_entities),
                     )]
@@ -444,15 +898,30 @@ impl TaskEvaluator {
             return Ok(metrics);
         };
 
-        // For now, use a simple coreference resolver or extract from backend
-        // This is a placeholder - actual implementation would run the coreference resolver
-        let all_predicted_chains = Vec::new(); // Placeholder - TODO: run resolver
+        // Run coreference resolver on each document
+        let resolver = SimpleCorefResolver::default();
+        let mut all_predicted_chains = Vec::new();
         let mut all_gold_chains = Vec::new();
 
         for doc in &gold_docs {
+            // Collect gold chains from the document
             all_gold_chains.extend(doc.chains.clone());
-            // TODO: Run coreference resolver on doc.text to get predicted chains
-            // For now, create empty chains as placeholder
+
+            // Extract entities from the document text using the backend
+            let backend = BackendFactory::create(backend_name)?;
+            match backend.extract_entities(&doc.text, None) {
+                Ok(entities) => {
+                    // Resolve coreference on predicted entities
+                    let resolved_entities = resolver.resolve(&entities);
+                    // Convert resolved entities to chains
+                    let predicted_chains = entities_to_chains(&resolved_entities);
+                    all_predicted_chains.extend(predicted_chains);
+                }
+                Err(e) => {
+                    // Log error but continue with other documents
+                    eprintln!("Warning: Backend inference failed for document: {}", e);
+                }
+            }
         }
 
         // Compute coreference metrics
@@ -489,6 +958,19 @@ impl TaskEvaluator {
     }
 
     /// Evaluate relation extraction task.
+    ///
+    /// # Limitations
+    ///
+    /// Currently, relation extraction evaluation is not fully implemented because:
+    /// 1. Most datasets in `LoadedDataset` format don't include relation annotations
+    /// 2. Relation extraction requires specialized dataset formats (DocRED JSONL, TACRED, etc.)
+    /// 3. Backends need to implement relation extraction methods (not just entity extraction)
+    ///
+    /// This function returns metrics computed from empty relation lists, which will
+    /// show 0.0 precision/recall/F1. To properly evaluate relations:
+    /// - Add relation annotation parsing to `DatasetLoader`
+    /// - Implement relation extraction in backends (e.g., GLiNER2 supports this)
+    /// - Load relation-specific datasets (DocRED, TACRED, Re-TACRED)
     fn evaluate_relation_task(
         &self,
         backend_name: &str,
@@ -497,25 +979,20 @@ impl TaskEvaluator {
         use crate::eval::relation::{evaluate_relations, RelationEvalConfig};
 
         // Extract gold relations from dataset
-        // Note: This is a placeholder - actual implementation would need to
-        // parse relation annotations from the dataset format (e.g., DocRED JSONL)
+        // NOTE: Current dataset format doesn't include relation annotations.
+        // This requires dataset-specific parsing (DocRED JSONL, TACRED, etc.)
         let all_gold_relations = Vec::new();
         let all_predicted_relations = Vec::new();
 
+        // Extract entities for relation extraction (even if we can't extract relations yet)
+        let backend = BackendFactory::create(backend_name)?;
         for sentence in &dataset_data.sentences {
             let text = sentence.text();
-
-            // TODO: Extract gold relations from dataset format
-            // For now, create placeholder gold relations
-            // (Actual implementation would parse DocRED, TACRED, etc.)
-
-            // Run backend to get entities (needed for relation extraction)
-            let backend = BackendFactory::create(backend_name)?;
             match backend.extract_entities(&text, None) {
                 Ok(_predicted_entities) => {
-                    // TODO: Extract relations from backend output
-                    // For now, this is a placeholder - relation extraction backends
-                    // would need to implement a relation extraction method
+                    // Future: Extract relations from backend output
+                    // This requires backends to implement relation extraction methods
+                    // (e.g., GLiNER2 has extract_relations() but it's not in the Model trait)
                 }
                 Err(e) => {
                     eprintln!("Warning: Backend inference failed: {}", e);
@@ -599,24 +1076,131 @@ impl ComprehensiveEvalResults {
         // Group results by task
         let mut by_task: HashMap<Task, Vec<&TaskEvalResult>> = HashMap::new();
         for result in &self.results {
-            by_task
-                .entry(result.task)
-                .or_default()
-                .push(result);
+            by_task.entry(result.task).or_default().push(result);
         }
 
         for (task, results) in by_task {
             md.push_str(&format!("### {}\n\n", task.name()));
-            md.push_str("| Dataset | Backend | Success | Examples |\n");
-            md.push_str("|---------|---------|---------|----------|\n");
+
+            // Determine which metrics to show based on task
+            let show_metrics = match task {
+                Task::NER | Task::DiscontinuousNER => {
+                    md.push_str("| Dataset | Backend | Success | F1 | P | R | Examples |\n");
+                    md.push_str("|---------|---------|---------|----|----|----|----------|\n");
+                    true
+                }
+                Task::IntraDocCoref | Task::AbstractAnaphora => {
+                    md.push_str(
+                        "| Dataset | Backend | Success | CoNLL F1 | MUC F1 | B³ F1 | Examples |\n",
+                    );
+                    md.push_str(
+                        "|---------|---------|---------|----------|--------|-------|----------|\n",
+                    );
+                    true
+                }
+                Task::RelationExtraction => {
+                    md.push_str(
+                        "| Dataset | Backend | Success | Strict F1 | Boundary F1 | Examples |\n",
+                    );
+                    md.push_str(
+                        "|---------|---------|---------|------------|-------------|----------|\n",
+                    );
+                    true
+                }
+                _ => {
+                    md.push_str("| Dataset | Backend | Success | Examples |\n");
+                    md.push_str("|---------|---------|---------|----------|\n");
+                    false
+                }
+            };
+
             for result in results {
-                md.push_str(&format!(
-                    "| {:?} | {} | {} | {} |\n",
-                    result.dataset,
-                    result.backend,
-                    if result.success { "✓" } else { "✗" },
-                    result.num_examples
-                ));
+                if show_metrics && result.success {
+                    match task {
+                        Task::NER | Task::DiscontinuousNER => {
+                            let f1 = result.metrics.get("f1").map(|v| *v * 100.0).unwrap_or(0.0);
+                            let p = result
+                                .metrics
+                                .get("precision")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let r = result
+                                .metrics
+                                .get("recall")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            md.push_str(&format!(
+                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {:.1}% | {} |\n",
+                                result.dataset, result.backend, f1, p, r, result.num_examples
+                            ));
+                        }
+                        Task::IntraDocCoref | Task::AbstractAnaphora => {
+                            let conll = result
+                                .metrics
+                                .get("conll_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let muc = result
+                                .metrics
+                                .get("muc_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let b3 = result
+                                .metrics
+                                .get("b3_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            md.push_str(&format!(
+                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {:.1}% | {} |\n",
+                                result.dataset, result.backend, conll, muc, b3, result.num_examples
+                            ));
+                        }
+                        Task::RelationExtraction => {
+                            let strict = result
+                                .metrics
+                                .get("strict_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let boundary = result
+                                .metrics
+                                .get("boundary_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            md.push_str(&format!(
+                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {} |\n",
+                                result.dataset,
+                                result.backend,
+                                strict,
+                                boundary,
+                                result.num_examples
+                            ));
+                        }
+                        _ => {
+                            md.push_str(&format!(
+                                "| {:?} | {} | ✓ | {} |\n",
+                                result.dataset, result.backend, result.num_examples
+                            ));
+                        }
+                    }
+                } else {
+                    // Failed or no metrics
+                    let error_msg = result
+                        .error
+                        .as_ref()
+                        .map(|e| {
+                            // Truncate long error messages
+                            if e.len() > 50 {
+                                format!("{}...", &e[..47])
+                            } else {
+                                e.clone()
+                            }
+                        })
+                        .unwrap_or_else(|| "N/A".to_string());
+                    md.push_str(&format!(
+                        "| {:?} | {} | ✗ | {} |\n",
+                        result.dataset, result.backend, error_msg
+                    ));
+                }
             }
             md.push('\n');
         }

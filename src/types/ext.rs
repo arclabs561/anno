@@ -266,4 +266,3 @@ mod tests {
         assert!(entities.mean_confidence().is_none());
     }
 }
-

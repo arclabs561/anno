@@ -66,8 +66,10 @@
 //! - [W2NER Paper](https://arxiv.org/abs/2112.10070) (AAAI 2022)
 //! - [TPLinker](https://aclanthology.org/2020.coling-main.138/) (related approach)
 
+use crate::backends::inference::{
+    DiscontinuousEntity, DiscontinuousNER, HandshakingCell, HandshakingMatrix,
+};
 use crate::{Entity, EntityType, Model, Result};
-use crate::backends::inference::{DiscontinuousEntity, DiscontinuousNER, HandshakingMatrix, HandshakingCell};
 
 #[cfg(feature = "onnx")]
 use crate::Error;
@@ -125,11 +127,7 @@ impl Default for W2NERConfig {
     fn default() -> Self {
         Self {
             threshold: 0.5,
-            entity_labels: vec![
-                "PER".to_string(),
-                "ORG".to_string(),
-                "LOC".to_string(),
-            ],
+            entity_labels: vec!["PER".to_string(), "ORG".to_string(), "LOC".to_string()],
             allow_nested: true,
             allow_discontinuous: true,
             model_id: String::new(),
@@ -216,7 +214,24 @@ impl W2NER {
             let model_file = repo
                 .get("model.onnx")
                 .or_else(|_| repo.get("onnx/model.onnx"))
-                .map_err(|e| Error::Retrieval(format!("Failed to download model: {}", e)))?;
+                .map_err(|e| {
+                    let error_msg = format!("{}", e);
+                    // Check if it's an authentication error (401)
+                    if error_msg.contains("401") || error_msg.contains("Unauthorized") {
+                        Error::Retrieval(format!(
+                            "W2NER model '{}' requires HuggingFace authentication (401 Unauthorized). \
+                             This model may be private or gated. \
+                             To use W2NER: \
+                             1. Get access to the model on HuggingFace \
+                             2. Set HF_TOKEN environment variable with your HuggingFace token \
+                             3. Or use an alternative nested NER model. \
+                             Note: W2NER is currently not available in public benchmarks due to authentication requirements.",
+                            model_path
+                        ))
+                    } else {
+                        Error::Retrieval(format!("Failed to download W2NER model: {}", e))
+                    }
+                })?;
 
             let tokenizer_file = repo
                 .get("tokenizer.json")
@@ -303,7 +318,7 @@ impl W2NER {
             if relation == W2NERRelation::THW && cell.score >= self.config.threshold as f32 {
                 let tail = cell.i as usize;
                 let head = cell.j as usize;
-                
+
                 // Validate: head <= tail (head is start, tail is end)
                 if head <= tail && head < tokens.len() && tail < tokens.len() {
                     entities.push((head, tail + 1, cell.score as f64));
@@ -312,9 +327,7 @@ impl W2NER {
         }
 
         // Sort by start position, then by length (longer first for nested)
-        entities.sort_by(|a, b| {
-            a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0)))
-        });
+        entities.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0))));
 
         // Remove nested entities if not allowed
         if !self.config.allow_nested {
@@ -344,7 +357,8 @@ impl W2NER {
                 for rel in 0..num_relations {
                     let idx = i * seq_len * num_relations + j * num_relations + rel;
                     if let Some(&score) = grid.get(idx) {
-                        if score >= threshold && rel > 0 { // rel > 0 excludes "None"
+                        if score >= threshold && rel > 0 {
+                            // rel > 0 excludes "None"
                             cells.push(HandshakingCell {
                                 i: i as u32,
                                 j: j as u32,
@@ -396,11 +410,7 @@ impl W2NER {
 
     /// Run inference with ONNX model.
     #[cfg(feature = "onnx")]
-    pub fn extract_with_grid(
-        &self,
-        text: &str,
-        threshold: f32,
-    ) -> Result<Vec<Entity>> {
+    pub fn extract_with_grid(&self, text: &str, threshold: f32) -> Result<Vec<Entity>> {
         if text.is_empty() {
             return Ok(vec![]);
         }
@@ -409,9 +419,10 @@ impl W2NER {
             Error::Retrieval("Model not loaded. Call from_pretrained() first.".to_string())
         })?;
 
-        let tokenizer = self.tokenizer.as_ref().ok_or_else(|| {
-            Error::Retrieval("Tokenizer not loaded.".to_string())
-        })?;
+        let tokenizer = self
+            .tokenizer
+            .as_ref()
+            .ok_or_else(|| Error::Retrieval("Tokenizer not loaded.".to_string()))?;
 
         // Tokenize
         let words: Vec<&str> = text.split_whitespace().collect();
@@ -424,7 +435,11 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Tokenization failed: {}", e)))?;
 
         let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-        let attention_mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&x| x as i64).collect();
+        let attention_mask: Vec<i64> = encoding
+            .get_attention_mask()
+            .iter()
+            .map(|&x| x as i64)
+            .collect();
         let seq_len = input_ids.len();
 
         // Build tensors
@@ -442,7 +457,8 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         // Run inference
-        let mut session_guard = session.lock()
+        let mut session_guard = session
+            .lock()
             .map_err(|e| Error::Retrieval(format!("Session lock failed: {}", e)))?;
 
         let outputs = session_guard
@@ -453,10 +469,14 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Inference failed: {}", e)))?;
 
         // Decode grid output
-        let output = outputs.iter().next().map(|(_, v)| v)
+        let output = outputs
+            .iter()
+            .next()
+            .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output".to_string()))?;
 
-        let (_, data) = output.try_extract_tensor::<f32>()
+        let (_, data) = output
+            .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Extract failed: {}", e)))?;
         let grid: Vec<f32> = data.to_vec();
 
@@ -465,28 +485,62 @@ impl W2NER {
         let matrix = Self::grid_to_matrix(&grid, seq_len, num_relations, threshold);
 
         // Calculate word positions
+        // Note: This assumes words appear in order and don't overlap.
+        // If a word appears multiple times, this will find the first occurrence
+        // after the previous word. This is correct for tokenized input where
+        // words are in sequence, but may fail if words are out of order.
         let word_positions: Vec<(usize, usize)> = {
             let mut positions = Vec::new();
             let mut pos = 0;
-            for word in &words {
+            for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {
                     let abs_start = pos + start;
-                    positions.push((abs_start, abs_start + word.len()));
-                    pos = abs_start + word.len();
+                    let abs_end = abs_start + word.len();
+                    // Validate position is after previous word (words should be in order)
+                    if !positions.is_empty() {
+                        let (_prev_start, prev_end) = positions[positions.len() - 1];
+                        if abs_start < prev_end {
+                            log::warn!(
+                                "Word '{}' (index {}) at position {} overlaps with previous word ending at {}",
+                                word,
+                                idx,
+                                abs_start,
+                                prev_end
+                            );
+                        }
+                    }
+                    positions.push((abs_start, abs_end));
+                    pos = abs_end;
+                } else {
+                    // Word not found - return error to prevent silent entity skipping
+                    return Err(Error::Parse(format!(
+                        "Word '{}' (index {}) not found in text starting at position {}",
+                        word, idx, pos
+                    )));
                 }
             }
             positions
         };
 
+        // Validate that we found positions for all words
+        if word_positions.len() != words.len() {
+            return Err(Error::Parse(format!(
+                "Word position mismatch: found {} positions for {} words",
+                word_positions.len(),
+                words.len()
+            )));
+        }
+
         // Decode entities for each type
         let mut entities = Vec::new();
         for (type_idx, label) in self.config.entity_labels.iter().enumerate() {
             let spans = self.decode_from_matrix(&matrix, &words.to_vec(), type_idx);
-            
+
             for (start_word, end_word, score) in spans {
-                if let (Some(&(start_pos, _)), Some(&(_, end_pos))) = 
-                    (word_positions.get(start_word), word_positions.get(end_word.saturating_sub(1))) 
-                {
+                if let (Some(&(start_pos, _)), Some(&(_, end_pos))) = (
+                    word_positions.get(start_word),
+                    word_positions.get(end_word.saturating_sub(1)),
+                ) {
                     if let Some(entity_text) = text.get(start_pos..end_pos) {
                         entities.push(Entity::new(
                             entity_text,
@@ -528,7 +582,8 @@ impl Model for W2NER {
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
-        self.config.entity_labels
+        self.config
+            .entity_labels
             .iter()
             .map(|l| Self::map_label(l))
             .collect()
@@ -571,15 +626,16 @@ impl DiscontinuousNER for W2NER {
                 // W2NER naturally handles discontinuous entities
                 // For now, convert regular entities to discontinuous format
                 let entities = self.extract_with_grid(text, threshold)?;
-                
-                return Ok(entities.into_iter().map(|e| {
-                    DiscontinuousEntity {
+
+                return Ok(entities
+                    .into_iter()
+                    .map(|e| DiscontinuousEntity {
                         spans: vec![(e.start, e.end)],
                         text: e.text,
                         entity_type: e.entity_type.as_label().to_string(),
                         confidence: e.confidence as f32,
-                    }
-                }).collect());
+                    })
+                    .collect());
             }
         }
 
@@ -597,7 +653,7 @@ mod tests {
         assert_eq!(W2NERRelation::from_index(0), W2NERRelation::None);
         assert_eq!(W2NERRelation::from_index(1), W2NERRelation::NNW);
         assert_eq!(W2NERRelation::from_index(2), W2NERRelation::THW);
-        
+
         assert_eq!(W2NERRelation::None.to_index(), 0);
         assert_eq!(W2NERRelation::NNW.to_index(), 1);
         assert_eq!(W2NERRelation::THW.to_index(), 2);
@@ -616,17 +672,15 @@ mod tests {
     fn test_decode_simple_entity() {
         let w2ner = W2NER::new();
         let tokens = ["New", "York", "City"];
-        
+
         // THW marker: tail=2, head=0 (entity spans all 3 tokens)
         let matrix = HandshakingMatrix {
-            cells: vec![
-                HandshakingCell {
-                    i: 2, // tail
-                    j: 0, // head
-                    label_idx: W2NERRelation::THW.to_index() as u16,
-                    score: 0.9,
-                },
-            ],
+            cells: vec![HandshakingCell {
+                i: 2, // tail
+                j: 0, // head
+                label_idx: W2NERRelation::THW.to_index() as u16,
+                score: 0.9,
+            }],
             seq_len: 3,
             num_labels: 3,
         };
@@ -643,20 +697,22 @@ mod tests {
             allow_nested: true,
             ..Default::default()
         });
-        
+
         let tokens = ["University", "of", "California", "Berkeley"];
-        
+
         let matrix = HandshakingMatrix {
             cells: vec![
                 // Full entity: tail=3, head=0
                 HandshakingCell {
-                    i: 3, j: 0,
+                    i: 3,
+                    j: 0,
                     label_idx: W2NERRelation::THW.to_index() as u16,
                     score: 0.95,
                 },
                 // Nested: tail=2, head=2 (just "California")
                 HandshakingCell {
-                    i: 2, j: 2,
+                    i: 2,
+                    j: 2,
                     label_idx: W2NERRelation::THW.to_index() as u16,
                     score: 0.85,
                 },
@@ -672,10 +728,10 @@ mod tests {
     #[test]
     fn test_remove_nested() {
         let entities = vec![
-            (0, 4, 0.9),  // outer
-            (2, 3, 0.8),  // nested
+            (0, 4, 0.9), // outer
+            (2, 3, 0.8), // nested
         ];
-        
+
         let filtered = W2NER::remove_nested(&entities);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0], (0, 4, 0.9));
@@ -687,11 +743,15 @@ mod tests {
         let seq_len = 3;
         let num_rels = 3;
         let mut grid = vec![0.0f32; seq_len * seq_len * num_rels];
-        
+
         // Set THW at (2, 0) with score 0.9
-        let idx = 2 * seq_len * num_rels + 0 * num_rels + 2; // i=2, j=0, rel=THW
+        // Index formula: i * seq_len * num_rels + j * num_rels + rel_idx
+        let i = 2;
+        let j = 0;
+        let rel_thw = 2;
+        let idx = i * seq_len * num_rels + j * num_rels + rel_thw;
         grid[idx] = 0.9;
-        
+
         let matrix = W2NER::grid_to_matrix(&grid, seq_len, num_rels, 0.5);
         assert_eq!(matrix.cells.len(), 1);
         assert_eq!(matrix.cells[0].i, 2);
@@ -703,7 +763,10 @@ mod tests {
         assert_eq!(W2NER::map_label("PER"), EntityType::Person);
         assert_eq!(W2NER::map_label("org"), EntityType::Organization);
         assert_eq!(W2NER::map_label("GPE"), EntityType::Location);
-        assert_eq!(W2NER::map_label("CUSTOM"), EntityType::Other("CUSTOM".to_string()));
+        assert_eq!(
+            W2NER::map_label("CUSTOM"),
+            EntityType::Other("CUSTOM".to_string())
+        );
     }
 
     #[test]

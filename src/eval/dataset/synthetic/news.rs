@@ -1,7 +1,7 @@
 //! News domain synthetic data (CoNLL-2003 style).
 
-use super::super::types::{AnnotatedExample, Difficulty, Domain};
 use super::super::types::helpers::entity;
+use super::super::types::{AnnotatedExample, Difficulty, Domain};
 use crate::EntityType;
 
 /// News domain dataset (CoNLL-2003 style).
@@ -34,13 +34,13 @@ pub fn dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Medium,
         },
         AnnotatedExample {
-            text: "According to Reuters, Tesla's Elon Musk met with German Chancellor Olaf Scholz in Berlin.".into(),
+            text: "According to Reuters, Nvidia's Jensen Huang met with German Chancellor Olaf Scholz in Berlin.".into(),
             entities: vec![
                 entity("Reuters", EntityType::Organization, 13),
-                entity("Tesla", EntityType::Organization, 22),
-                entity("Elon Musk", EntityType::Person, 30),
-                entity("Olaf Scholz", EntityType::Person, 67),
-                entity("Berlin", EntityType::Location, 82),
+                entity("Nvidia", EntityType::Organization, 22),
+                entity("Jensen Huang", EntityType::Person, 31),
+                entity("Olaf Scholz", EntityType::Person, 71),
+                entity("Berlin", EntityType::Location, 86),
             ],
             domain: Domain::News,
             difficulty: Difficulty::Hard,
@@ -103,4 +103,3 @@ mod tests {
         }
     }
 }
-

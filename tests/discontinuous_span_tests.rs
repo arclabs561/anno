@@ -102,12 +102,84 @@ fn test_discontinuous_span_bounding_range() {
 
 #[test]
 fn test_discontinuous_span_total_len() {
-    // Test total_len method if it exists
+    // Test total_len method - returns BYTE length, not character length
     let span = DiscontinuousSpan::new(vec![0..10, 20..30, 40..50]);
 
-    // Total covered characters = 10 + 10 + 10 = 30
+    // Total covered BYTES = 10 + 10 + 10 = 30
+    // Note: This is byte length, not character length
+    // For Unicode text, byte length != character length
+    assert_eq!(span.total_len(), 30);
+
+    // Verify it matches manual calculation
     let total: usize = span.segments().iter().map(|r| r.end - r.start).sum();
-    assert_eq!(total, 30);
+    assert_eq!(span.total_len(), total);
+}
+
+#[test]
+fn test_discontinuous_span_total_len_unicode() {
+    // Test that total_len returns byte length even for Unicode
+    // "café" = 5 bytes (c=1, a=1, f=1, é=2)
+    let text = "café";
+    let span = DiscontinuousSpan::new(vec![0..1, 3..5]); // "c" + "é"
+
+    // total_len should return byte length: 1 + 2 = 3 bytes
+    assert_eq!(span.total_len(), 3);
+
+    // But character length would be: 1 + 1 = 2 characters
+    // This demonstrates the difference between byte and character length
+    let extracted = span.extract_text(text, "");
+    assert_eq!(extracted.chars().count(), 2); // "c" + "é" = 2 chars
+    assert_eq!(extracted.len(), 3); // But 3 bytes
+}
+
+#[test]
+fn test_discontinuous_span_contains_byte_offset() {
+    // Test that contains() uses byte offsets
+    let span = DiscontinuousSpan::new(vec![0..5, 10..15]);
+
+    // Test byte positions within segments
+    assert!(span.contains(2), "Byte 2 should be in first segment");
+    assert!(span.contains(12), "Byte 12 should be in second segment");
+
+    // Test byte positions outside segments
+    assert!(!span.contains(7), "Byte 7 should not be in any segment");
+    assert!(!span.contains(20), "Byte 20 should not be in any segment");
+
+    // Test boundaries
+    assert!(
+        span.contains(0),
+        "Byte 0 (start of first segment) should be contained"
+    );
+    assert!(
+        !span.contains(5),
+        "Byte 5 (end of first segment, exclusive) should not be contained"
+    );
+    assert!(
+        span.contains(10),
+        "Byte 10 (start of second segment) should be contained"
+    );
+    assert!(
+        !span.contains(15),
+        "Byte 15 (end of second segment, exclusive) should not be contained"
+    );
+}
+
+#[test]
+fn test_entity_total_len_offset_system_documentation() {
+    // Test that Entity::total_len() documents the offset system inconsistency
+    // Contiguous entity - returns character length
+    let entity = Entity::new("Hello", EntityType::Person, 0, 5, 0.9);
+    assert_eq!(entity.total_len(), 5); // 5 characters
+
+    // Discontinuous entity - returns byte length
+    let mut entity = Entity::new("test", EntityType::Person, 0, 4, 0.9);
+    entity.set_discontinuous_span(DiscontinuousSpan::new(vec![0..4, 10..14]));
+    assert_eq!(entity.total_len(), 8); // 4 + 4 = 8 bytes, not characters
+
+    // This demonstrates the inconsistency:
+    // - Contiguous: character length
+    // - Discontinuous: byte length
+    // This is documented in the Entity::total_len() docs
 }
 
 #[test]

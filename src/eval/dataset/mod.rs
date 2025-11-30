@@ -203,9 +203,7 @@ impl NERDataset {
         let test_cases = crate::eval::load_conll2003(path)?;
         let examples = test_cases
             .into_iter()
-            .map(|(text, entities)| {
-                AnnotatedExample::new(text, entities).with_domain(Domain::News)
-            })
+            .map(|(text, entities)| AnnotatedExample::new(text, entities).with_domain(Domain::News))
             .collect();
 
         Ok(Self {
@@ -396,7 +394,6 @@ impl NERDataset {
         self.examples.extend(other.examples);
     }
 
-
     // ========================================================================
     // Conversion
     // ========================================================================
@@ -582,7 +579,10 @@ mod tests {
     fn test_synthetic_not_empty() {
         let dataset = NERDataset::synthetic();
         assert!(!dataset.is_empty());
-        assert!(dataset.len() >= 50, "Should have substantial synthetic data");
+        assert!(
+            dataset.len() >= 50,
+            "Should have substantial synthetic data"
+        );
     }
 
     #[test]
@@ -659,4 +659,3 @@ mod tests {
         assert_eq!(dataset.len(), 2);
     }
 }
-

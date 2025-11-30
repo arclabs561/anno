@@ -122,7 +122,9 @@ impl Default for ThresholdAnalyzer {
 impl ThresholdAnalyzer {
     /// Create analyzer with custom number of points.
     pub fn new(num_points: usize) -> Self {
-        Self { num_points: num_points.max(5) }
+        Self {
+            num_points: num_points.max(5),
+        }
     }
 
     /// Analyze threshold effects on predictions.
@@ -158,7 +160,11 @@ impl ThresholdAnalyzer {
         let (_optimal_idx, optimal_point) = points
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.f1.partial_cmp(&b.1.f1).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.1.f1
+                    .partial_cmp(&b.1.f1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(i, p)| (i, p.clone()))
             .unwrap_or((0, points[0].clone()));
 
@@ -243,7 +249,11 @@ impl ThresholdAnalyzer {
 
         // Sort by recall (descending) for proper AUC computation
         let mut sorted: Vec<_> = points.iter().collect();
-        sorted.sort_by(|a, b| b.recall.partial_cmp(&a.recall).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            b.recall
+                .partial_cmp(&a.recall)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut auc = 0.0;
         for i in 1..sorted.len() {
@@ -423,4 +433,3 @@ mod tests {
         assert!(curve.auc_pr <= 1.0);
     }
 }
-

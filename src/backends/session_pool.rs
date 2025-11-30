@@ -353,7 +353,14 @@ impl GLiNERPool {
         // Build tensors
         let batch_size = 1;
         let seq_len = input_ids.len();
-        let num_spans = words.len() * MAX_SPAN_WIDTH;
+        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        let num_spans = words.len().checked_mul(MAX_SPAN_WIDTH).ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
+                words.len(),
+                MAX_SPAN_WIDTH
+            ))
+        })?;
 
         let input_ids_array = Array2::from_shape_vec((batch_size, seq_len), input_ids)
             .map_err(|e| Error::Parse(format!("Array error: {}", e)))?;
@@ -463,8 +470,24 @@ impl GLiNERPool {
 
     /// Generate span tensors.
     fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        let num_spans = num_words * MAX_SPAN_WIDTH;
-        let mut span_idx: Vec<i64> = vec![0; num_spans * 2];
+        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH).unwrap_or_else(|| {
+            log::warn!(
+                "Span count overflow: {} words * {} MAX_SPAN_WIDTH, using max",
+                num_words,
+                MAX_SPAN_WIDTH
+            );
+            usize::MAX
+        });
+        // Check for overflow in num_spans * 2
+        let span_idx_len = num_spans.checked_mul(2).unwrap_or_else(|| {
+            log::warn!(
+                "Span idx length overflow: {} spans * 2, using max",
+                num_spans
+            );
+            usize::MAX
+        });
+        let mut span_idx: Vec<i64> = vec![0; span_idx_len];
         let mut span_mask: Vec<bool> = vec![false; num_spans];
 
         for start in 0..num_words {
@@ -472,10 +495,44 @@ impl GLiNERPool {
             let actual_max = MAX_SPAN_WIDTH.min(remaining);
 
             for width in 0..actual_max {
-                let dim = start * MAX_SPAN_WIDTH + width;
-                span_idx[dim * 2] = start as i64;
-                span_idx[dim * 2 + 1] = (start + width) as i64;
-                span_mask[dim] = true;
+                // Check for overflow in dim calculation (same pattern as nuner.rs:399)
+                let dim = match start.checked_mul(MAX_SPAN_WIDTH) {
+                    Some(v) => match v.checked_add(width) {
+                        Some(d) => d,
+                        None => {
+                            log::warn!(
+                                "Dim calculation overflow: {} * {} + {}, skipping span",
+                                start,
+                                MAX_SPAN_WIDTH,
+                                width
+                            );
+                            continue;
+                        }
+                    },
+                    None => {
+                        log::warn!(
+                            "Dim calculation overflow: {} * {}, skipping span",
+                            start,
+                            MAX_SPAN_WIDTH
+                        );
+                        continue;
+                    }
+                };
+                // Check bounds before array access (dim * 2 could overflow or exceed span_idx_len)
+                if let Some(dim2) = dim.checked_mul(2) {
+                    if dim2 + 1 < span_idx_len && dim < num_spans {
+                        span_idx[dim2] = start as i64;
+                        span_idx[dim2 + 1] = (start + width) as i64;
+                        span_mask[dim] = true;
+                    } else {
+                        log::warn!(
+                            "Span idx access out of bounds: dim={}, dim*2={}, span_idx_len={}, num_spans={}, skipping",
+                            dim, dim2, span_idx_len, num_spans
+                        );
+                    }
+                } else {
+                    log::warn!("Dim * 2 overflow: dim={}, skipping span", dim);
+                }
             }
         }
 

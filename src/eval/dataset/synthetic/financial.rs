@@ -82,4 +82,3 @@ mod tests {
         assert!(!dataset().is_empty());
     }
 }
-

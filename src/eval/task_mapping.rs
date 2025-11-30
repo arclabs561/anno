@@ -227,7 +227,6 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "pattern" | "PatternNER" => &[Task::NER], // Only structured entities
         "heuristic" | "HeuristicNER" => &[Task::NER],
         "stacked" | "StackedNER" => &[Task::NER],
-        "hybrid" | "HybridNER" => &[Task::NER],
 
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],

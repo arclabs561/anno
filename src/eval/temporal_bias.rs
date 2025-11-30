@@ -206,7 +206,11 @@ impl TemporalBiasEvaluator {
     }
 
     /// Evaluate NER model for temporal bias.
-    pub fn evaluate(&self, model: &dyn Model, names: &[TemporalNameExample]) -> TemporalBiasResults {
+    pub fn evaluate(
+        &self,
+        model: &dyn Model,
+        names: &[TemporalNameExample],
+    ) -> TemporalBiasResults {
         let mut by_decade: HashMap<String, (usize, usize)> = HashMap::new();
         let mut by_gender: HashMap<String, (usize, usize)> = HashMap::new();
         let mut historical_count = (0usize, 0usize);
@@ -225,7 +229,7 @@ impl TemporalBiasEvaluator {
             // Check if name was recognized as PERSON
             let recognized = entities.iter().any(|e| {
                 e.entity_type == EntityType::Person
-                    && text[e.start..e.end].contains(&name.first_name)
+                    && e.extract_text(&text).contains(&name.first_name)
             });
 
             if recognized {
@@ -277,20 +281,19 @@ impl TemporalBiasEvaluator {
         }
 
         // Convert counts to rates
-        let to_rate =
-            |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
-                counts
-                    .iter()
-                    .map(|(k, (correct, total))| {
-                        let rate = if *total > 0 {
-                            *correct as f64 / *total as f64
-                        } else {
-                            0.0
-                        };
-                        (k.clone(), rate)
-                    })
-                    .collect()
-            };
+        let to_rate = |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
+            counts
+                .iter()
+                .map(|(k, (correct, total))| {
+                    let rate = if *total > 0 {
+                        *correct as f64 / *total as f64
+                    } else {
+                        0.0
+                    };
+                    (k.clone(), rate)
+                })
+                .collect()
+        };
 
         let count_to_rate = |c: (usize, usize)| -> f64 {
             if c.1 > 0 {
@@ -499,7 +502,9 @@ pub fn create_temporal_name_dataset() -> Vec<TemporalNameExample> {
                       last_names: &[&str]| {
         for (i, (first, gender)) in decade_names.iter().enumerate() {
             let last = last_names[i % last_names.len()];
-            names.push(TemporalNameExample::new(first, last, decade, *gender, false));
+            names.push(TemporalNameExample::new(
+                first, last, decade, *gender, false,
+            ));
         }
     };
 
@@ -564,7 +569,10 @@ mod tests {
     fn test_historical_vs_modern() {
         let names = create_temporal_name_dataset();
 
-        let historical = names.iter().filter(|n| n.peak_decade.is_historical()).count();
+        let historical = names
+            .iter()
+            .filter(|n| n.peak_decade.is_historical())
+            .count();
         let modern = names.iter().filter(|n| n.peak_decade.is_modern()).count();
 
         assert!(historical > 0, "Should have historical names");
@@ -613,4 +621,3 @@ mod tests {
         assert!(feminine > 20, "Should have substantial feminine names");
     }
 }
-

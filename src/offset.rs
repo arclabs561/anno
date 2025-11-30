@@ -346,7 +346,11 @@ impl OffsetMapping {
     /// - Assign B-PER to "play" (first token)
     /// - Assign I-PER to "##ing" (continuation)
     #[must_use]
-    pub fn char_span_to_tokens(&self, char_start: usize, char_end: usize) -> Option<(usize, usize)> {
+    pub fn char_span_to_tokens(
+        &self,
+        char_start: usize,
+        char_end: usize,
+    ) -> Option<(usize, usize)> {
         let mut first_token = None;
         let mut last_token = 0;
 
@@ -370,23 +374,33 @@ impl OffsetMapping {
 
     /// Convert token span to character span.
     #[must_use]
-    pub fn tokens_to_char_span(&self, token_start: usize, token_end: usize) -> Option<(usize, usize)> {
+    pub fn tokens_to_char_span(
+        &self,
+        token_start: usize,
+        token_end: usize,
+    ) -> Option<(usize, usize)> {
         if token_start >= token_end || token_end > self.offsets.len() {
             return None;
         }
 
         // Find first non-special token's start
+        // Make logic consistent - always skip special tokens (0, 0)
         let char_start = (token_start..token_end)
             .filter_map(|idx| {
                 let (s, e) = self.offsets.get(idx)?;
-                // Skip special tokens (0, 0) except for the first token
-                if *s == 0 && *e == 0 && idx != 0 {
+                // Skip special tokens (0, 0)
+                if *s == 0 && *e == 0 {
                     None
                 } else {
                     Some(*s)
                 }
             })
-            .next()?;
+            .next()
+            .or_else(|| {
+                // If all tokens are special, return the start of the first token's position
+                // (which is 0 for special tokens, but we need a fallback)
+                self.offsets.get(token_start).map(|(s, _)| *s)
+            })?;
 
         // Find last non-special token's end
         let char_end = (token_start..token_end)
@@ -424,25 +438,67 @@ impl OffsetMapping {
 
 /// Convert byte offsets to character offsets.
 ///
+/// Handles cases where byte offsets fall in the middle of multi-byte UTF-8 characters
+/// by mapping them to the containing character's start position.
+///
+/// # Arguments
+///
+/// * `text` - The source text
+/// * `byte_start` - Byte offset for the start (may be in middle of a character)
+/// * `byte_end` - Byte offset for the end (may be in middle of a character)
+///
+/// # Returns
+///
+/// A tuple `(char_start, char_end)` where:
+/// - `char_start` is the character index containing `byte_start`
+/// - `char_end` is the character index after the character containing `byte_end` (exclusive)
+///
+/// # Behavior
+///
+/// - If `byte_start` falls in the middle of a multi-byte character, it maps to that character's start
+/// - If `byte_end` falls in the middle of a multi-byte character, it maps to the next character (exclusive end)
+/// - If `byte_start` or `byte_end` are beyond the text length, they map to the end character index
+///
 /// Uses standard library's `char_indices()` for iteration.
 #[must_use]
 pub fn bytes_to_chars(text: &str, byte_start: usize, byte_end: usize) -> (usize, usize) {
+    if text.is_empty() {
+        return (0, 0);
+    }
+
     let mut char_start = 0;
     let mut found_start = false;
     let mut last_char_idx = 0;
+    let mut last_byte_idx = 0;
 
-    for (char_idx, (byte_idx, _ch)) in text.char_indices().enumerate() {
+    for (char_idx, (byte_idx, ch)) in text.char_indices().enumerate() {
         last_char_idx = char_idx;
-        
-        if byte_idx == byte_start {
-            char_start = char_idx;
-            found_start = true;
+        last_byte_idx = byte_idx;
+
+        // Check if byte_start falls within this character's byte range
+        let char_byte_end = byte_idx + ch.len_utf8();
+        if !found_start {
+            if byte_idx == byte_start {
+                // Exact match at character start
+                char_start = char_idx;
+                found_start = true;
+            } else if byte_idx < byte_start && byte_start < char_byte_end {
+                // byte_start is in the middle of this character - map to character start
+                char_start = char_idx;
+                found_start = true;
+            }
         }
+
+        // Check if byte_end falls within this character's byte range
         if byte_idx == byte_end {
+            // Exact match at character start - char_end is exclusive, so return this char index
+            // (meaning range is [char_start, char_idx), which includes chars up to but not including char_idx)
             return (char_start, char_idx);
-        }
-        if byte_idx > byte_end {
-            // byte_end is in the middle of a char - use current
+        } else if byte_idx < byte_end && byte_end < char_byte_end {
+            // byte_end is in the middle of this character - map to next character (exclusive)
+            return (char_start, char_idx + 1);
+        } else if byte_idx > byte_end {
+            // We've passed byte_end - use current character (exclusive end)
             return (char_start, char_idx);
         }
     }
@@ -450,7 +506,23 @@ pub fn bytes_to_chars(text: &str, byte_start: usize, byte_end: usize) -> (usize,
     // Handle end of string
     let char_count = last_char_idx + 1;
     if !found_start {
-        char_start = char_count;
+        // byte_start was beyond all characters or in the last character
+        if byte_start >= last_byte_idx {
+            // Check if byte_start is in the last character's range
+            if let Some(last_ch) = text.chars().last() {
+                let last_char_byte_end = last_byte_idx + last_ch.len_utf8();
+                if byte_start < last_char_byte_end {
+                    char_start = last_char_idx;
+                } else {
+                    char_start = char_count;
+                }
+            } else {
+                char_start = char_count;
+            }
+        } else {
+            // Shouldn't happen, but fallback
+            char_start = char_count;
+        }
     }
 
     (char_start, char_count)

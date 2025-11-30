@@ -146,41 +146,38 @@ impl SimpleCorefResolver {
 
         let mut resolved = entities.to_vec();
         let mut next_cluster_id: u64 = 0;
-        
+
         // Map from canonical form to cluster ID
         let mut canonical_to_cluster: HashMap<String, u64> = HashMap::new();
-        
+
         // Process entities in order
         for i in 0..resolved.len() {
             let entity = &resolved[i];
-            
+
             // Skip if already assigned
             if entity.canonical_id.is_some() {
                 continue;
             }
-            
+
             // Try to find a matching cluster
-            let cluster_id = self.find_matching_cluster(
-                entity,
-                &resolved[..i],
-                &canonical_to_cluster,
-            );
-            
+            let cluster_id =
+                self.find_matching_cluster(entity, &resolved[..i], &canonical_to_cluster);
+
             let cluster_id = cluster_id.unwrap_or_else(|| {
                 // Create new cluster
                 let id = next_cluster_id;
                 next_cluster_id += 1;
                 id
             });
-            
+
             // Assign cluster ID
             resolved[i].canonical_id = Some(cluster_id);
-            
+
             // Update canonical form mapping
             let canonical = self.canonical_form(&resolved[i].text, &resolved[i].entity_type);
             canonical_to_cluster.insert(canonical, cluster_id);
         }
-        
+
         resolved
     }
 
@@ -204,13 +201,13 @@ impl SimpleCorefResolver {
         if self.is_pronoun(&entity.text) {
             return self.resolve_pronoun(entity, previous);
         }
-        
+
         // Strategy 2: Exact canonical match
         let canonical = self.canonical_form(&entity.text, &entity.entity_type);
         if let Some(&cluster_id) = canonical_map.get(&canonical) {
             return Some(cluster_id);
         }
-        
+
         // Strategy 3: Substring/fuzzy matching
         if self.config.fuzzy_matching {
             for (other_canonical, &cluster_id) in canonical_map {
@@ -219,7 +216,7 @@ impl SimpleCorefResolver {
                 }
             }
         }
-        
+
         None
     }
 
@@ -235,21 +232,25 @@ impl SimpleCorefResolver {
     /// "Mary" is female or "John" is male.
     fn resolve_pronoun(&self, pronoun: &Entity, previous: &[Entity]) -> Option<u64> {
         let pronoun_gender = self.infer_gender(&pronoun.text);
-        
+
         // Look backwards for a compatible antecedent
-        for entity in previous.iter().rev().take(self.config.max_pronoun_distance * 10) {
+        for entity in previous
+            .iter()
+            .rev()
+            .take(self.config.max_pronoun_distance * 10)
+        {
             // Skip other pronouns
             if self.is_pronoun(&entity.text) {
                 continue;
             }
-            
+
             // Must be a person (for he/she) or compatible type
             if !self.pronoun_compatible(&pronoun.text, &entity.entity_type) {
                 continue;
             }
-            
+
             // Gender compatibility check
-            // 
+            //
             // Key insight: We only know gender from PRONOUNS, not from names.
             // So entity_gender will almost always be None (can't infer from "John" or "Mary").
             // This is intentional - it avoids encoding stereotypical assumptions.
@@ -258,7 +259,7 @@ impl SimpleCorefResolver {
             // - If pronoun is 'm' or 'f': compatible with any entity (we can't check name gender)
             // - If entity was a pronoun (already skipped above): would check gender match
             let entity_gender = self.infer_gender(&entity.text);
-            
+
             match (pronoun_gender, entity_gender) {
                 // Neutral pronoun: compatible with everything
                 (Some('n'), _) => {}
@@ -276,11 +277,11 @@ impl SimpleCorefResolver {
                 // Pronoun has no gender (shouldn't happen for pronouns): accept
                 (None, Some(_)) => {}
             }
-            
+
             // Found a compatible antecedent
             return entity.canonical_id;
         }
-        
+
         None
     }
 
@@ -318,7 +319,8 @@ impl SimpleCorefResolver {
     fn pronoun_compatible(&self, pronoun: &str, entity_type: &EntityType) -> bool {
         let lower = pronoun.to_lowercase();
         match entity_type {
-            EntityType::Person => matches!(lower.as_str(), 
+            EntityType::Person => matches!(
+                lower.as_str(),
                 // Traditional
                 "he" | "she" | "they" | "him" | "her" | "them" |
                 "his" | "hers" | "their" | "theirs" |
@@ -329,13 +331,12 @@ impl SimpleCorefResolver {
                 "ey" | "em" | "eir" | "eirs" | "emself" |
                 "fae" | "faer" | "faers" | "faeself"
             ),
-            EntityType::Organization => matches!(lower.as_str(),
+            EntityType::Organization => matches!(
+                lower.as_str(),
                 // Orgs use "it" or collective "they"
                 "it" | "they" | "its" | "their" | "theirs" | "itself" | "themselves"
             ),
-            EntityType::Location => matches!(lower.as_str(),
-                "it" | "its" | "itself"
-            ),
+            EntityType::Location => matches!(lower.as_str(), "it" | "its" | "itself"),
             _ => matches!(lower.as_str(), "it" | "its" | "itself"),
         }
     }
@@ -369,13 +370,13 @@ impl SimpleCorefResolver {
         match lower.as_str() {
             // Traditional masculine
             "he" | "him" | "his" | "himself" => Some('m'),
-            
+
             // Traditional feminine
             "she" | "her" | "hers" | "herself" => Some('f'),
-            
+
             // Singular "they" - gender-neutral, compatible with any antecedent
             "they" | "them" | "their" | "theirs" | "themselves" | "themself" => Some('n'),
-            
+
             // Neopronouns - all treated as neutral ('n')
             // xe/xem set
             "xe" | "xem" | "xyr" | "xyrs" | "xemself" => Some('n'),
@@ -385,7 +386,7 @@ impl SimpleCorefResolver {
             "ey" | "em" | "eir" | "eirs" | "emself" => Some('n'),
             // fae/faer set
             "fae" | "faer" | "faers" | "faeself" => Some('n'),
-            
+
             // Names and other text: NO gender inference
             // This is critical - assuming "Mary" → female encodes bias
             _ => None,
@@ -394,11 +395,8 @@ impl SimpleCorefResolver {
 
     /// Normalize text to canonical form for matching.
     fn canonical_form(&self, text: &str, entity_type: &EntityType) -> String {
-        let normalized = text
-            .to_lowercase()
-            .trim()
-            .to_string();
-        
+        let normalized = text.to_lowercase().trim().to_string();
+
         // Prefix with type to avoid "Apple" (company) matching "apple" (fruit)
         format!("{}:{}", entity_type.as_label(), normalized)
     }
@@ -408,32 +406,32 @@ impl SimpleCorefResolver {
         // Same type prefix required
         let (type1, text1) = name1.split_once(':').unwrap_or(("", name1));
         let (type2, text2) = name2.split_once(':').unwrap_or(("", name2));
-        
+
         if type1 != type2 {
             return false;
         }
-        
+
         // Exact match
         if text1 == text2 {
             return true;
         }
-        
+
         // Substring match (one is part of the other)
         if text1.contains(text2) || text2.contains(text1) {
             return true;
         }
-        
+
         // Last name match ("Smith" matches "John Smith")
         let words1: Vec<&str> = text1.split_whitespace().collect();
         let words2: Vec<&str> = text2.split_whitespace().collect();
-        
+
         if words1.len() > 1 && words2.len() == 1 && words1.last() == words2.first() {
             return true;
         }
         if words2.len() > 1 && words1.len() == 1 && words2.last() == words1.first() {
             return true;
         }
-        
+
         false
     }
 }
@@ -448,13 +446,13 @@ impl SimpleCorefResolver {
 pub trait CoreferenceResolver: Send + Sync {
     /// Resolve coreference, assigning canonical IDs to entities.
     fn resolve(&self, entities: &[Entity]) -> Vec<Entity>;
-    
+
     /// Resolve directly to chains.
     fn resolve_to_chains(&self, entities: &[Entity]) -> Vec<CorefChain> {
         let resolved = self.resolve(entities);
         super::coref::entities_to_chains(&resolved)
     }
-    
+
     /// Get resolver name.
     fn name(&self) -> &'static str;
 }
@@ -463,7 +461,7 @@ impl CoreferenceResolver for SimpleCorefResolver {
     fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
         self.resolve(entities)
     }
-    
+
     fn name(&self) -> &'static str {
         "simple-rule-based"
     }
@@ -482,17 +480,20 @@ mod tests {
     }
 
     fn org(text: &str, start: usize) -> Entity {
-        Entity::new(text, EntityType::Organization, start, start + text.len(), 0.9)
+        Entity::new(
+            text,
+            EntityType::Organization,
+            start,
+            start + text.len(),
+            0.9,
+        )
     }
 
     #[test]
     fn test_exact_match() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("John Smith", 0),
-            person("John Smith", 50),
-        ];
-        
+        let entities = vec![person("John Smith", 0), person("John Smith", 50)];
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(resolved[0].canonical_id, resolved[1].canonical_id);
     }
@@ -500,11 +501,8 @@ mod tests {
     #[test]
     fn test_substring_match() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("John Smith", 0),
-            person("Smith", 50),
-        ];
-        
+        let entities = vec![person("John Smith", 0), person("Smith", 50)];
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(resolved[0].canonical_id, resolved[1].canonical_id);
     }
@@ -512,11 +510,8 @@ mod tests {
     #[test]
     fn test_pronoun_resolution() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("John Smith", 0),
-            person("he", 50),
-        ];
-        
+        let entities = vec![person("John Smith", 0), person("he", 50)];
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(resolved[0].canonical_id, resolved[1].canonical_id);
     }
@@ -524,11 +519,8 @@ mod tests {
     #[test]
     fn test_different_entities() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("John Smith", 0),
-            person("Mary Jones", 50),
-        ];
-        
+        let entities = vec![person("John Smith", 0), person("Mary Jones", 50)];
+
         let resolved = resolver.resolve(&entities);
         assert_ne!(resolved[0].canonical_id, resolved[1].canonical_id);
     }
@@ -537,10 +529,10 @@ mod tests {
     fn test_type_matters() {
         let resolver = SimpleCorefResolver::default();
         let entities = vec![
-            person("Apple", 0),  // Person named Apple
-            org("Apple", 50),    // Apple Inc.
+            person("Apple", 0), // Person named Apple
+            org("Apple", 50),   // Apple Inc.
         ];
-        
+
         let resolved = resolver.resolve(&entities);
         // Different types should NOT match
         assert_ne!(resolved[0].canonical_id, resolved[1].canonical_id);
@@ -549,17 +541,13 @@ mod tests {
     #[test]
     fn test_resolve_to_chains() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("John", 0),
-            person("he", 20),
-            person("Mary", 40),
-        ];
-        
+        let entities = vec![person("John", 0), person("he", 20), person("Mary", 40)];
+
         let chains = resolver.resolve_to_chains(&entities);
-        
+
         // John + he in one chain, Mary singleton
         assert_eq!(chains.len(), 2);
-        
+
         let non_singletons: Vec<_> = chains.iter().filter(|c| !c.is_singleton()).collect();
         assert_eq!(non_singletons.len(), 1);
         assert_eq!(non_singletons[0].len(), 2);
@@ -573,10 +561,10 @@ mod tests {
     fn test_singular_they_resolves_to_any_person() {
         let resolver = SimpleCorefResolver::default();
         let entities = vec![
-            person("Alex", 0),  // Gender-ambiguous name
+            person("Alex", 0), // Gender-ambiguous name
             person("they", 20),
         ];
-        
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(
             resolved[0].canonical_id, resolved[1].canonical_id,
@@ -587,11 +575,8 @@ mod tests {
     #[test]
     fn test_neopronoun_xe_resolves() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("Jordan", 0),
-            person("xe", 30),
-        ];
-        
+        let entities = vec![person("Jordan", 0), person("xe", 30)];
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(
             resolved[0].canonical_id, resolved[1].canonical_id,
@@ -604,9 +589,9 @@ mod tests {
         let resolver = SimpleCorefResolver::default();
         let entities = vec![
             person("Sam", 0),
-            person("zir", 25),  // possessive of ze
+            person("zir", 25), // possessive of ze
         ];
-        
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(
             resolved[0].canonical_id, resolved[1].canonical_id,
@@ -617,11 +602,8 @@ mod tests {
     #[test]
     fn test_neopronoun_fae_resolves() {
         let resolver = SimpleCorefResolver::default();
-        let entities = vec![
-            person("River", 0),
-            person("faer", 30),
-        ];
-        
+        let entities = vec![person("River", 0), person("faer", 30)];
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(
             resolved[0].canonical_id, resolved[1].canonical_id,
@@ -632,14 +614,14 @@ mod tests {
     #[test]
     fn test_no_gender_inferred_from_names() {
         let resolver = SimpleCorefResolver::default();
-        
+
         // Even stereotypically "female" names should not block "he"
         // This is intentional: we don't assume gender from names
         let entities = vec![
             person("Mary", 0),
-            person("he", 20),  // Should still link - we don't know Mary's pronouns
+            person("he", 20), // Should still link - we don't know Mary's pronouns
         ];
-        
+
         let resolved = resolver.resolve(&entities);
         assert_eq!(
             resolved[0].canonical_id, resolved[1].canonical_id,
@@ -650,21 +632,581 @@ mod tests {
     #[test]
     fn test_all_neopronouns_recognized() {
         let resolver = SimpleCorefResolver::default();
-        
+
         // Test that all supported neopronouns are recognized
         let neopronouns = [
-            "xe", "xem", "xyr", "xyrs", "xemself",
-            "ze", "hir", "zir", "hirs", "zirs", "hirself", "zirself",
-            "ey", "em", "eir", "eirs", "emself",
-            "fae", "faer", "faers", "faeself",
+            "xe", "xem", "xyr", "xyrs", "xemself", "ze", "hir", "zir", "hirs", "zirs", "hirself",
+            "zirself", "ey", "em", "eir", "eirs", "emself", "fae", "faer", "faers", "faeself",
         ];
-        
+
         for pronoun in neopronouns {
             assert!(
                 resolver.is_pronoun(pronoun),
-                "Should recognize neopronoun: {}", pronoun
+                "Should recognize neopronoun: {}",
+                pronoun
             );
         }
     }
 }
 
+// =============================================================================
+// Discourse-Aware Coreference Resolution
+// =============================================================================
+
+#[cfg(feature = "discourse")]
+use crate::discourse::{
+    classify_shell_noun, DiscourseReferent, DiscourseScope, EventExtractor, EventMention,
+    ReferentType,
+};
+
+/// Configuration for discourse-aware coreference resolution.
+#[cfg(feature = "discourse")]
+#[derive(Debug, Clone)]
+pub struct DiscourseCorefConfig {
+    /// Base coreference config
+    pub base: CorefConfig,
+    /// Enable shell noun detection
+    pub detect_shell_nouns: bool,
+    /// Maximum sentences back to search for antecedent
+    pub max_sentence_distance: usize,
+    /// Prefer clause-level antecedents for "this"
+    pub prefer_clause_antecedent: bool,
+}
+
+#[cfg(feature = "discourse")]
+impl Default for DiscourseCorefConfig {
+    fn default() -> Self {
+        Self {
+            base: CorefConfig::default(),
+            detect_shell_nouns: true,
+            max_sentence_distance: 3,
+            prefer_clause_antecedent: true,
+        }
+    }
+}
+
+/// Discourse-aware coreference resolver.
+///
+/// Extends `SimpleCorefResolver` with:
+/// - **Event extraction** (NEW): Uses `EventExtractor` to detect event triggers
+/// - Shell noun detection ("this problem" → abstract antecedent)
+/// - Clause boundary awareness (prefer nearest clause for "this")
+/// - Event/proposition candidate generation
+///
+/// # Research Background
+///
+/// Based on insights from:
+/// - Kolhatkar & Hirst (2012): Shell noun resolution
+/// - Marasović et al. (2017): Neural abstract anaphora
+/// - Li & Ng (2022): dd-utt for discourse deixis
+/// - ACE 2005 event ontology for trigger detection
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use anno::eval::coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
+/// use anno::Entity;
+///
+/// let text = "Russia invaded Ukraine. This shocked the world.";
+/// let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+///
+/// // The resolver will:
+/// // 1. Extract events: "invaded" (conflict:attack)
+/// // 2. Detect "This" as a demonstrative
+/// // 3. Link "This" to the invasion event (not Russia or Ukraine)
+/// ```
+#[cfg(feature = "discourse")]
+#[derive(Debug, Clone)]
+pub struct DiscourseAwareResolver {
+    config: DiscourseCorefConfig,
+    base_resolver: SimpleCorefResolver,
+    scope: DiscourseScope,
+    text: String,
+    /// Extracted events from the text (NEW)
+    events: Vec<EventMention>,
+}
+
+#[cfg(feature = "discourse")]
+impl DiscourseAwareResolver {
+    /// Create a new discourse-aware resolver.
+    ///
+    /// Automatically extracts events from the text using `EventExtractor`.
+    #[must_use]
+    pub fn new(config: DiscourseCorefConfig, text: &str) -> Self {
+        let scope = DiscourseScope::analyze(text);
+
+        // NEW: Extract events from text
+        let extractor = EventExtractor::default();
+        let events = extractor.extract(text);
+
+        Self {
+            base_resolver: SimpleCorefResolver::new(config.base.clone()),
+            config,
+            scope,
+            text: text.to_string(),
+            events,
+        }
+    }
+
+    /// Get extracted events.
+    #[must_use]
+    pub fn events(&self) -> &[EventMention] {
+        &self.events
+    }
+
+    /// Find an event mention containing or near a character offset.
+    fn find_event_near(&self, offset: usize, max_distance: usize) -> Option<&EventMention> {
+        // First try events in the same clause
+        if let Some((clause_start, clause_end)) = self.scope.clause_at(offset) {
+            for event in &self.events {
+                if event.trigger_start >= clause_start && event.trigger_end <= clause_end {
+                    return Some(event);
+                }
+            }
+        }
+
+        // Fall back to nearest event within distance
+        self.events
+            .iter()
+            .filter(|e| {
+                let dist = if e.trigger_end <= offset {
+                    offset - e.trigger_end
+                } else {
+                    e.trigger_start.saturating_sub(offset)
+                };
+                dist <= max_distance
+            })
+            .min_by_key(|e| {
+                if e.trigger_end <= offset {
+                    offset - e.trigger_end
+                } else {
+                    e.trigger_start.saturating_sub(offset)
+                }
+            })
+    }
+
+    /// Resolve coreference with discourse awareness.
+    ///
+    /// First attempts standard entity coref, then handles abstract anaphora
+    /// by searching for clause/sentence-level antecedents.
+    #[must_use]
+    pub fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
+        // First pass: standard entity coref
+        let mut resolved = self.base_resolver.resolve(entities);
+
+        // Second pass: discourse-aware resolution for abstract anaphora
+        for (i, entity) in resolved.iter_mut().enumerate() {
+            if entity.canonical_id.is_some() {
+                continue; // Already resolved
+            }
+
+            // Check for demonstrative pronouns and shell nouns
+            if self.is_abstract_anaphor(&entity.text) {
+                if let Some(antecedent) = self.find_discourse_antecedent(entity) {
+                    // Assign a new cluster ID linking to the discourse referent
+                    // For now, we just mark it as resolved (actual linking would need
+                    // discourse referents to be first-class citizens)
+                    let cluster_id = 10000 + i as u64; // High ID to distinguish
+                    entity.canonical_id = Some(cluster_id);
+
+                    // Store the antecedent info in normalized field as a temporary solution
+                    // TODO: Make discourse referents first-class citizens with proper linking
+                    // This format allows later extraction of discourse reference information
+                    entity.normalized = Some(format!(
+                        "DISCOURSE_REF:{:?}@{}-{}",
+                        antecedent.referent_type, antecedent.start, antecedent.end
+                    ));
+                }
+            }
+        }
+
+        resolved
+    }
+
+    /// Check if a mention is an abstract anaphor (demonstrative or shell noun phrase).
+    fn is_abstract_anaphor(&self, text: &str) -> bool {
+        let lower = text.to_lowercase();
+
+        // Bare demonstratives
+        if matches!(lower.as_str(), "this" | "that" | "it") {
+            return true;
+        }
+
+        // Shell noun phrases: "this X" where X is a shell noun
+        let words: Vec<&str> = lower.split_whitespace().collect();
+        if words.len() >= 2 {
+            let det = words[0];
+            let noun = words
+                .last()
+                .expect("words has >= 2 elements")
+                .trim_matches(|c: char| !c.is_alphanumeric());
+
+            if matches!(det, "this" | "that" | "the" | "such")
+                && classify_shell_noun(noun).is_some()
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Find a discourse-level antecedent for an abstract anaphor.
+    ///
+    /// NEW: First checks for extracted events, then falls back to span heuristics.
+    pub fn find_discourse_antecedent(&self, anaphor: &Entity) -> Option<DiscourseReferent> {
+        // NEW: First, check if there's an extracted event in a preceding clause
+        // This is more accurate than span-based heuristics
+        if let Some(event) = self.find_event_near(anaphor.start, 200) {
+            // Found an event - create a discourse referent for it
+            // find_event_clause_span returns character offsets
+            let (clause_char_start, clause_char_end) = self.find_event_clause_span(event);
+
+            // Extract text using character offsets
+            let span_text: String = self
+                .text
+                .chars()
+                .skip(clause_char_start)
+                .take(clause_char_end.saturating_sub(clause_char_start))
+                .collect();
+
+            return Some(
+                DiscourseReferent::new(ReferentType::Event, clause_char_start, clause_char_end)
+                    .with_event(event.clone())
+                    .with_text(span_text)
+                    .with_confidence(0.85), // Higher confidence for extracted events
+            );
+        }
+
+        // Fallback: Original span-based approach
+        let candidates = self.scope.candidate_antecedent_spans(anaphor.start);
+
+        // For shell nouns, prefer matching type
+        let shell_class = if self.config.detect_shell_nouns {
+            let lower = anaphor.text.to_lowercase();
+            let last_word = lower.split_whitespace().last().map(|w| w.to_string());
+            last_word
+                .as_ref()
+                .and_then(|w| classify_shell_noun(w.trim_matches(|c: char| !c.is_alphanumeric())))
+        } else {
+            None
+        };
+
+        // Score candidates by distance and type match
+        for (start, end) in candidates
+            .into_iter()
+            .take(self.config.max_sentence_distance)
+        {
+            let span_text = self.scope.extract_span(&self.text, start, end);
+
+            // Skip empty or very short spans
+            if span_text.trim().len() < 3 {
+                continue;
+            }
+
+            // Infer referent type from span
+            let ref_type = self.infer_referent_type(span_text);
+
+            // If shell noun, check type compatibility
+            if let Some(class) = &shell_class {
+                let expected_types = class.typical_antecedent_types();
+                if !expected_types.contains(&ref_type) {
+                    continue; // Type mismatch
+                }
+            }
+
+            return Some(
+                DiscourseReferent::new(ref_type, start, end)
+                    .with_text(span_text)
+                    .with_confidence(0.7),
+            );
+        }
+
+        None
+    }
+
+    /// Find the clause span for an event mention.
+    ///
+    /// Returns character offsets (start, end) of the clause containing the event.
+    fn find_event_clause_span(&self, event: &EventMention) -> (usize, usize) {
+        // Try to get the clause containing the event (scope.clause_at returns char offsets)
+        if let Some((start, end)) = self.scope.clause_at(event.trigger_start) {
+            return (start, end);
+        }
+
+        // Fall back to sentence (scope.sentence_at returns char offsets)
+        if let Some((start, end)) = self.scope.sentence_at(event.trigger_start) {
+            return (start, end);
+        }
+
+        // Last resort: just the trigger span with some context
+        // Note: trigger_start/trigger_end are character offsets, so we need to use char count
+        let char_count = self.text.chars().count();
+        let context_before = event.trigger_start.saturating_sub(30);
+        let context_after = (event.trigger_end + 30).min(char_count);
+        (context_before, context_after)
+    }
+
+    /// Infer the referent type from span text.
+    ///
+    /// Uses extracted events when available (NEW), falls back to heuristics.
+    fn infer_referent_type(&self, text: &str) -> ReferentType {
+        let lower = text.to_lowercase();
+
+        // NEW: Check if span contains an extracted event trigger
+        // This is more reliable than pure heuristics
+        for event in &self.events {
+            // Check if event trigger is within this text span
+            if lower.contains(&event.trigger.to_lowercase()) {
+                // Use event type to determine referent type
+                if let Some(ref event_type) = event.trigger_type {
+                    if event_type.starts_with("conflict:")
+                        || event_type.starts_with("movement:")
+                        || event_type.starts_with("transaction:")
+                        || event_type.starts_with("justice:")
+                        || event_type.starts_with("personnel:")
+                        || event_type.starts_with("life:")
+                        || event_type.starts_with("disaster:")
+                        || event_type.starts_with("business:")
+                    {
+                        return ReferentType::Event;
+                    }
+                    if event_type.starts_with("economic:") {
+                        return ReferentType::Situation;
+                    }
+                }
+                return ReferentType::Event;
+            }
+        }
+
+        // Fallback heuristics (original logic)
+
+        // Look for event indicators (past tense verbs, action words)
+        let event_indicators = [
+            "ed ",
+            " was ",
+            " were ",
+            " had ",
+            " did ",
+            " happened",
+            " occurred",
+        ];
+        for ind in &event_indicators {
+            if lower.contains(ind) {
+                return ReferentType::Event;
+            }
+        }
+
+        // Look for fact indicators
+        let fact_indicators = [" is ", " are ", " equals ", " means "];
+        for ind in &fact_indicators {
+            if lower.contains(ind) {
+                return ReferentType::Fact;
+            }
+        }
+
+        // Look for proposition indicators (modals, subjunctive)
+        let prop_indicators = [" might ", " may ", " could ", " would ", " should ", " if "];
+        for ind in &prop_indicators {
+            if lower.contains(ind) {
+                return ReferentType::Proposition;
+            }
+        }
+
+        // Look for situation indicators (ongoing states)
+        let sit_indicators = [" while ", " as ", "ing ", " continues", " remains"];
+        for ind in &sit_indicators {
+            if lower.contains(ind) {
+                return ReferentType::Situation;
+            }
+        }
+
+        // Default to event for past-looking things
+        ReferentType::Event
+    }
+
+    /// Get discourse referents found for abstract anaphora.
+    #[must_use]
+    pub fn get_discourse_referents(&self, entities: &[Entity]) -> Vec<(Entity, DiscourseReferent)> {
+        let mut pairs = Vec::new();
+
+        for entity in entities {
+            if self.is_abstract_anaphor(&entity.text) {
+                if let Some(referent) = self.find_discourse_antecedent(entity) {
+                    pairs.push((entity.clone(), referent));
+                }
+            }
+        }
+
+        pairs
+    }
+}
+
+#[cfg(feature = "discourse")]
+impl CoreferenceResolver for DiscourseAwareResolver {
+    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
+        self.resolve(entities)
+    }
+
+    fn name(&self) -> &'static str {
+        "discourse-aware"
+    }
+}
+
+#[cfg(all(test, feature = "discourse"))]
+mod discourse_tests {
+    use super::*;
+
+    #[test]
+    fn test_shell_noun_detection() {
+        let text = "The company failed. This problem worried investors.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        assert!(resolver.is_abstract_anaphor("This problem"));
+        assert!(resolver.is_abstract_anaphor("this"));
+        assert!(!resolver.is_abstract_anaphor("John"));
+    }
+
+    #[test]
+    fn test_discourse_antecedent_finding() {
+        let text = "Russia invaded Ukraine. This shocked everyone.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        let anaphor = Entity::new("This", EntityType::Other("demo".into()), 24, 28, 0.8);
+        let referent = resolver.find_discourse_antecedent(&anaphor);
+
+        assert!(referent.is_some(), "Should find discourse antecedent");
+        let ref_unwrapped = referent.unwrap();
+        assert!(ref_unwrapped.is_abstract(), "Should be abstract referent");
+    }
+
+    #[test]
+    fn test_discourse_aware_resolution() {
+        let text = "The CEO resigned suddenly. This decision shocked the board.";
+        let config = DiscourseCorefConfig::default();
+        let resolver = DiscourseAwareResolver::new(config, text);
+
+        let entities = vec![
+            Entity::new("CEO", EntityType::Person, 4, 7, 0.9),
+            Entity::new(
+                "This decision",
+                EntityType::Other("shell".into()),
+                28,
+                41,
+                0.8,
+            ),
+            Entity::new("board", EntityType::Organization, 53, 58, 0.85),
+        ];
+
+        // Check that abstract anaphor detection works
+        assert!(
+            resolver.is_abstract_anaphor("This decision"),
+            "Should detect 'This decision' as abstract anaphor"
+        );
+
+        // Check discourse referent finding
+        let pairs = resolver.get_discourse_referents(&entities);
+        assert!(
+            !pairs.is_empty(),
+            "Should find discourse referents for shell nouns"
+        );
+
+        // Verify the referent is for the resignation event
+        let (anaphor, referent) = &pairs[0];
+        assert_eq!(anaphor.text, "This decision");
+        assert!(referent.is_abstract(), "Referent should be abstract");
+    }
+
+    // === NEW TESTS FOR EVENT EXTRACTION INTEGRATION ===
+
+    #[test]
+    fn test_event_extraction_integration() {
+        let text = "Russia invaded Ukraine in 2022. This caused a global crisis.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        // Should extract the "invaded" event
+        let events = resolver.events();
+        assert!(!events.is_empty(), "Should extract events from text");
+
+        let invasion_event = events.iter().find(|e| e.trigger == "invaded");
+        assert!(
+            invasion_event.is_some(),
+            "Should find 'invaded' event trigger"
+        );
+
+        let event = invasion_event.unwrap();
+        assert_eq!(event.trigger_type.as_deref(), Some("conflict:attack"));
+    }
+
+    #[test]
+    fn test_event_based_antecedent_finding() {
+        let text = "The earthquake struck at dawn. This destroyed thousands of homes.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        // Check events were extracted
+        let events = resolver.events();
+        assert!(
+            events.iter().any(|e| e.trigger == "struck"),
+            "Should extract 'struck' event"
+        );
+
+        // The anaphor "This" should link to the earthquake event
+        let anaphor = Entity::new("This", EntityType::Other("demo".into()), 31, 35, 0.8);
+        let referent = resolver.find_discourse_antecedent(&anaphor);
+
+        assert!(referent.is_some(), "Should find event antecedent");
+        let ref_unwrapped = referent.unwrap();
+        assert_eq!(ref_unwrapped.referent_type, ReferentType::Event);
+        assert!(
+            ref_unwrapped.event.is_some(),
+            "Should attach event mention to referent"
+        );
+    }
+
+    #[test]
+    fn test_multiple_events_nearest_preferred() {
+        let text = "Apple announced layoffs. Microsoft announced profits. This shocked analysts.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        // Should have 2 announcement events
+        let events = resolver.events();
+        let announcements: Vec<_> = events.iter().filter(|e| e.trigger == "announced").collect();
+        assert_eq!(announcements.len(), 2, "Should find 2 announcement events");
+
+        // "This" should prefer the nearest (Microsoft announcement)
+        let anaphor = Entity::new("This", EntityType::Other("demo".into()), 55, 59, 0.8);
+        let referent = resolver.find_discourse_antecedent(&anaphor);
+
+        assert!(referent.is_some(), "Should find antecedent");
+        // The referent text should be from the Microsoft sentence (nearest)
+        let ref_text = referent.unwrap().text.unwrap_or_default();
+        assert!(
+            ref_text.contains("Microsoft") || ref_text.contains("profits"),
+            "Should prefer nearest event: {}",
+            ref_text
+        );
+    }
+
+    #[test]
+    fn test_event_type_inference() {
+        // Use a simpler trigger that's definitely in the lexicon
+        let text = "The company fired 500 workers.";
+        let resolver = DiscourseAwareResolver::new(DiscourseCorefConfig::default(), text);
+
+        // Check event extraction (fired is in the lexicon)
+        let events = resolver.events();
+        assert!(
+            !events.is_empty(),
+            "Should extract firing event, got: {:?}",
+            events
+        );
+
+        // Test referent type inference uses event type
+        let ref_type = resolver.infer_referent_type(text);
+        assert_eq!(
+            ref_type,
+            ReferentType::Event,
+            "Should infer Event type from extracted event"
+        );
+    }
+}

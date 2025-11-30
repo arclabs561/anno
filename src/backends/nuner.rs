@@ -60,7 +60,7 @@
 //! let ner = NuNER::from_pretrained("deepanwa/NuNerZero_onnx")?;
 //!
 //! // Zero-shot extraction with custom labels
-//! let entities = ner.extract("Apple CEO Tim Cook announced...", 
+//! let entities = ner.extract("Apple CEO Tim Cook announced...",
 //!                            &["person", "organization", "product"], 0.5)?;
 //! ```
 //!
@@ -89,6 +89,10 @@ const TOKEN_ENT: u32 = 128002;
 #[cfg(feature = "onnx")]
 const TOKEN_SEP: u32 = 128003;
 
+/// Maximum span width for span-based inference (if model requires it)
+#[cfg(feature = "onnx")]
+const MAX_SPAN_WIDTH: usize = 12;
+
 /// NuNER Zero-shot NER model.
 ///
 /// Token-based variant of GLiNER that uses BIO tagging instead of span classification.
@@ -116,6 +120,9 @@ pub struct NuNER {
     model_id: String,
     /// Confidence threshold (0.0-1.0)
     threshold: f64,
+    /// Whether model requires span tensors (detected on load)
+    #[cfg(feature = "onnx")]
+    requires_span_tensors: bool,
     /// Default entity labels for Model trait
     default_labels: Vec<String>,
     /// ONNX session (when feature enabled)
@@ -136,6 +143,8 @@ impl NuNER {
         Self {
             model_id: "numind/NuNER_Zero".to_string(),
             threshold: 0.5,
+            #[cfg(feature = "onnx")]
+            requires_span_tensors: false, // Will be set when model is loaded
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -192,15 +201,22 @@ impl NuNER {
         let tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| Error::Retrieval(format!("Failed to load tokenizer: {}", e)))?;
 
+        let input_names: Vec<String> = session.inputs.iter().map(|i| i.name.clone()).collect();
         log::debug!(
             "[NuNER] Loaded model: {} with inputs: {:?}",
             model_id,
-            session.inputs.iter().map(|i| &i.name).collect::<Vec<_>>()
+            input_names
         );
+
+        // Check if model requires span tensors (some NuNER models use span-based inference)
+        let requires_span_tensors = input_names
+            .iter()
+            .any(|name| name == "span_mask" || name == "span_idx");
 
         Ok(Self {
             model_id: model_id.to_string(),
             threshold: 0.5,
+            requires_span_tensors,
             default_labels: vec![
                 "person".to_string(),
                 "organization".to_string(),
@@ -214,10 +230,9 @@ impl NuNER {
     /// Create with custom model identifier (for configuration only).
     #[must_use]
     pub fn with_model(model_id: impl Into<String>) -> Self {
-        Self {
-            model_id: model_id.into(),
-            ..Self::new()
-        }
+        let mut new = Self::new();
+        new.model_id = model_id.into();
+        new
     }
 
     /// Set confidence threshold.
@@ -270,9 +285,10 @@ impl NuNER {
             Error::Retrieval("Model not loaded. Call from_pretrained() first.".to_string())
         })?;
 
-        let tokenizer = self.tokenizer.as_ref().ok_or_else(|| {
-            Error::Retrieval("Tokenizer not loaded.".to_string())
-        })?;
+        let tokenizer = self
+            .tokenizer
+            .as_ref()
+            .ok_or_else(|| Error::Retrieval("Tokenizer not loaded.".to_string()))?;
 
         // Split text into words
         let text_words: Vec<&str> = text.split_whitespace().collect();
@@ -309,30 +325,154 @@ impl NuNER {
         let text_lengths_t = Tensor::from_array(text_lengths_array)
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
-        // Run inference (token mode - only 4 inputs)
+        // Always provide span tensors for NuNER models (they require them)
+        // The model will error if span_mask is missing, so we always generate it
+        let needs_span_tensors = true;
+
         let mut session_guard = session
             .lock()
             .map_err(|e| Error::Retrieval(format!("Failed to lock session: {}", e)))?;
 
-        let outputs = session_guard
-            .run(ort::inputs![
-                "input_ids" => input_ids_t.into_dyn(),
-                "attention_mask" => attention_mask_t.into_dyn(),
-                "words_mask" => words_mask_t.into_dyn(),
-                "text_lengths" => text_lengths_t.into_dyn(),
-            ])
-            .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?;
+        let outputs = if needs_span_tensors {
+            // Generate span tensors similar to GLiNER
+            // Use checked_mul to prevent overflow (same as gliner2.rs:2388)
+            let num_spans = match text_words.len().checked_mul(MAX_SPAN_WIDTH) {
+                Some(v) => v,
+                None => {
+                    return Err(Error::InvalidInput(format!(
+                        "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
+                        text_words.len(),
+                        MAX_SPAN_WIDTH
+                    )));
+                }
+            };
+            let (span_idx, span_mask) = NuNER::make_span_tensors(text_words.len());
+
+            use ndarray::Array2;
+            use ndarray::Array3;
+            let span_idx_array = Array3::from_shape_vec((1, num_spans, 2), span_idx)
+                .map_err(|e| Error::Parse(format!("Span idx array error: {}", e)))?;
+            let span_mask_array = Array2::from_shape_vec((1, num_spans), span_mask)
+                .map_err(|e| Error::Parse(format!("Span mask array error: {}", e)))?;
+
+            let span_idx_t = ort::value::Tensor::from_array(span_idx_array)
+                .map_err(|e| Error::Parse(format!("Span idx tensor error: {}", e)))?;
+            let span_mask_t = ort::value::Tensor::from_array(span_mask_array)
+                .map_err(|e| Error::Parse(format!("Span mask tensor error: {}", e)))?;
+
+            session_guard
+                .run(ort::inputs![
+                    "input_ids" => input_ids_t.into_dyn(),
+                    "attention_mask" => attention_mask_t.into_dyn(),
+                    "words_mask" => words_mask_t.into_dyn(),
+                    "text_lengths" => text_lengths_t.into_dyn(),
+                    "span_idx" => span_idx_t.into_dyn(),
+                    "span_mask" => span_mask_t.into_dyn(),
+                ])
+                .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?
+        } else {
+            // Token mode - only 4 inputs
+            session_guard
+                .run(ort::inputs![
+                    "input_ids" => input_ids_t.into_dyn(),
+                    "attention_mask" => attention_mask_t.into_dyn(),
+                    "words_mask" => words_mask_t.into_dyn(),
+                    "text_lengths" => text_lengths_t.into_dyn(),
+                ])
+                .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?
+        };
 
         // Decode BIO output to entities
-        let entities = self.decode_token_output(
-            &outputs,
-            text,
-            &text_words,
-            entity_types,
-            threshold,
-        )?;
+        let entities =
+            self.decode_token_output(&outputs, text, &text_words, entity_types, threshold)?;
 
         Ok(entities)
+    }
+
+    /// Generate span tensors for span-based inference (if model requires it).
+    ///
+    /// Similar to GLiNER's span tensor generation, creates all possible spans
+    /// up to MAX_SPAN_WIDTH words.
+    ///
+    /// Returns: (span_idx, span_mask)
+    /// - span_idx: [num_spans, 2] - (start, end) word indices for each span
+    /// - span_mask: [num_spans] - boolean mask indicating valid spans
+    #[cfg(feature = "onnx")]
+    pub(crate) fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
+        // Use checked_mul to prevent overflow (same as gliner2.rs:2388)
+        let num_spans = match num_words.checked_mul(MAX_SPAN_WIDTH) {
+            Some(v) => v,
+            None => {
+                // Overflow - return empty tensors (shouldn't happen in practice)
+                log::warn!(
+                    "Span count overflow: {} words * {} MAX_SPAN_WIDTH, returning empty tensors",
+                    num_words,
+                    MAX_SPAN_WIDTH
+                );
+                return (Vec::new(), Vec::new());
+            }
+        };
+        // Check for overflow in num_spans * 2
+        let span_idx_len = match num_spans.checked_mul(2) {
+            Some(v) => v,
+            None => {
+                log::warn!(
+                    "Span idx length overflow: {} spans * 2, returning empty tensors",
+                    num_spans
+                );
+                return (Vec::new(), Vec::new());
+            }
+        };
+        let mut span_idx: Vec<i64> = vec![0; span_idx_len];
+        let mut span_mask: Vec<bool> = vec![false; num_spans];
+
+        for start in 0..num_words {
+            let remaining_width = num_words - start;
+            let actual_max_width = MAX_SPAN_WIDTH.min(remaining_width);
+
+            for width in 0..actual_max_width {
+                // Check for overflow in dim calculation
+                let dim = match start.checked_mul(MAX_SPAN_WIDTH) {
+                    Some(v) => match v.checked_add(width) {
+                        Some(d) => d,
+                        None => {
+                            log::warn!(
+                                "Dim calculation overflow: {} * {} + {}, skipping span",
+                                start,
+                                MAX_SPAN_WIDTH,
+                                width
+                            );
+                            continue;
+                        }
+                    },
+                    None => {
+                        log::warn!(
+                            "Dim calculation overflow: {} * {}, skipping span",
+                            start,
+                            MAX_SPAN_WIDTH
+                        );
+                        continue;
+                    }
+                };
+                // Check bounds before array access (dim * 2 could overflow or exceed span_idx_len)
+                if let Some(dim2) = dim.checked_mul(2) {
+                    if dim2 + 1 < span_idx_len && dim < num_spans {
+                        span_idx[dim2] = start as i64; // start offset
+                        span_idx[dim2 + 1] = (start + width + 1) as i64; // end offset (exclusive)
+                        span_mask[dim] = true;
+                    } else {
+                        log::warn!(
+                            "Span idx access out of bounds: dim={}, dim*2={}, span_idx_len={}, num_spans={}, skipping",
+                            dim, dim2, span_idx_len, num_spans
+                        );
+                    }
+                } else {
+                    log::warn!("Dim * 2 overflow: dim={}, skipping span", dim);
+                }
+            }
+        }
+
+        (span_idx, span_mask)
     }
 
     /// Encode prompt for token mode (no span tensors).
@@ -423,26 +563,57 @@ impl NuNER {
         };
 
         if shape.len() < 3 {
-            return Err(Error::Parse(format!("Unexpected output shape: {:?}", shape)));
+            return Err(Error::Parse(format!(
+                "Unexpected output shape: {:?}",
+                shape
+            )));
         }
 
         let num_words = shape[1] as usize;
         let num_classes = shape[2] as usize;
 
         // Calculate word positions in original text
+        // Validate that all words are found to prevent silent failures
         let word_positions: Vec<(usize, usize)> = {
             let mut positions = Vec::new();
             let mut pos = 0;
-            for word in text_words {
+            for (idx, word) in text_words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {
                     let abs_start = pos + start;
                     let abs_end = abs_start + word.len();
+                    // Validate position is after previous word (words should be in order)
+                    if !positions.is_empty() {
+                        let (_prev_start, prev_end) = positions[positions.len() - 1];
+                        if abs_start < prev_end {
+                            log::warn!(
+                                "Word '{}' at position {} overlaps with previous word ending at {}",
+                                word,
+                                abs_start,
+                                prev_end
+                            );
+                        }
+                    }
                     positions.push((abs_start, abs_end));
                     pos = abs_end;
+                } else {
+                    // Word not found - return error to prevent silent entity skipping
+                    return Err(Error::Parse(format!(
+                        "Word '{}' (index {}) not found in text starting at position {}",
+                        word, idx, pos
+                    )));
                 }
             }
             positions
         };
+
+        // Validate that we found positions for all words
+        if word_positions.len() != text_words.len() {
+            return Err(Error::Parse(format!(
+                "Word position mismatch: found {} positions for {} words",
+                word_positions.len(),
+                text_words.len()
+            )));
+        }
 
         let mut entities = Vec::new();
         let mut current_entity: Option<(usize, usize, usize, f32)> = None; // (start_word, end_word, type_idx, score)
@@ -450,13 +621,16 @@ impl NuNER {
         // Process each word position
         for word_idx in 0..num_words.min(text_words.len()) {
             let base_idx = word_idx * num_classes;
-            
+
             // Find best class for this word
             let mut best_class = 0;
             let mut best_score = 0.0f32;
-            
+
             for class_idx in 0..num_classes {
-                let score = output_data.get(base_idx + class_idx).copied().unwrap_or(0.0);
+                let score = output_data
+                    .get(base_idx + class_idx)
+                    .copied()
+                    .unwrap_or(0.0);
                 if score > best_score {
                     best_score = score;
                     best_class = class_idx;
@@ -466,13 +640,25 @@ impl NuNER {
             // BIO decoding: class 0 = O, odd = B-type, even = I-type
             let is_begin = best_class > 0 && best_class % 2 == 1;
             let is_inside = best_class > 0 && best_class % 2 == 0;
-            let type_idx = if best_class > 0 { (best_class - 1) / 2 } else { 0 };
+            let type_idx = if best_class > 0 {
+                (best_class - 1) / 2
+            } else {
+                0
+            };
 
             if best_score >= threshold {
                 if is_begin {
                     // Flush previous entity
                     if let Some((start, end, etype, score)) = current_entity.take() {
-                        if let Some(e) = self.create_entity(text, &word_positions, start, end, etype, score, entity_types) {
+                        if let Some(e) = self.create_entity(
+                            text,
+                            &word_positions,
+                            start,
+                            end,
+                            etype,
+                            score,
+                            entity_types,
+                        ) {
                             entities.push(e);
                         }
                     }
@@ -490,7 +676,15 @@ impl NuNER {
             } else {
                 // Low confidence or O tag - flush current entity
                 if let Some((start, end, etype, score)) = current_entity.take() {
-                    if let Some(e) = self.create_entity(text, &word_positions, start, end, etype, score, entity_types) {
+                    if let Some(e) = self.create_entity(
+                        text,
+                        &word_positions,
+                        start,
+                        end,
+                        etype,
+                        score,
+                        entity_types,
+                    ) {
                         entities.push(e);
                     }
                 }
@@ -499,7 +693,15 @@ impl NuNER {
 
         // Flush final entity
         if let Some((start, end, etype, score)) = current_entity.take() {
-            if let Some(e) = self.create_entity(text, &word_positions, start, end, etype, score, entity_types) {
+            if let Some(e) = self.create_entity(
+                text,
+                &word_positions,
+                start,
+                end,
+                etype,
+                score,
+                entity_types,
+            ) {
                 entities.push(e);
             }
         }
@@ -519,9 +721,13 @@ impl NuNER {
         score: f32,
         entity_types: &[&str],
     ) -> Option<Entity> {
+        // Validate indices to prevent underflow
+        if end_word == 0 || end_word > word_positions.len() || start_word >= word_positions.len() {
+            return None;
+        }
         let start_pos = word_positions.get(start_word)?.0;
-        let end_pos = word_positions.get(end_word - 1)?.1;
-        
+        let end_pos = word_positions.get(end_word.saturating_sub(1))?.1;
+
         let entity_text = text.get(start_pos..end_pos)?;
         let label = entity_types.get(type_idx)?;
         let entity_type = Self::map_label_to_entity_type(label);
@@ -617,7 +823,7 @@ mod tests {
         let ner = NuNER::with_model("custom/model")
             .with_threshold(0.7)
             .with_labels(vec!["technology".to_string()]);
-        
+
         assert_eq!(ner.model_id(), "custom/model");
         assert!((ner.threshold() - 0.7).abs() < f64::EPSILON);
         assert_eq!(ner.default_labels.len(), 1);
@@ -625,10 +831,19 @@ mod tests {
 
     #[test]
     fn test_label_mapping() {
-        assert_eq!(NuNER::map_label_to_entity_type("person"), EntityType::Person);
+        assert_eq!(
+            NuNER::map_label_to_entity_type("person"),
+            EntityType::Person
+        );
         assert_eq!(NuNER::map_label_to_entity_type("PER"), EntityType::Person);
-        assert_eq!(NuNER::map_label_to_entity_type("organization"), EntityType::Organization);
-        assert_eq!(NuNER::map_label_to_entity_type("custom"), EntityType::Other("custom".to_string()));
+        assert_eq!(
+            NuNER::map_label_to_entity_type("organization"),
+            EntityType::Organization
+        );
+        assert_eq!(
+            NuNER::map_label_to_entity_type("custom"),
+            EntityType::Other("custom".to_string())
+        );
     }
 
     #[test]

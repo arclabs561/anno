@@ -82,13 +82,21 @@ impl CorefScores {
         } else {
             0.0
         };
-        Self { precision, recall, f1 }
+        Self {
+            precision,
+            recall,
+            f1,
+        }
     }
 
     /// Create from tuple.
     #[must_use]
     pub fn from_tuple((p, r, f1): (f64, f64, f64)) -> Self {
-        Self { precision: p, recall: r, f1 }
+        Self {
+            precision: p,
+            recall: r,
+            f1,
+        }
     }
 }
 
@@ -148,35 +156,36 @@ impl CorefEvaluation {
             self.blanc.f1,
         ]
     }
-    
+
     /// Average F1 across all metrics (similar to CoNLL but including LEA, BLANC, CEAFm).
     #[must_use]
     pub fn average_f1(&self) -> f64 {
         let scores = self.all_f1_scores();
         scores.iter().sum::<f64>() / scores.len() as f64
     }
-    
+
     /// Standard deviation of F1 scores across metrics.
     #[must_use]
     pub fn f1_std_dev(&self) -> f64 {
         let scores = self.all_f1_scores();
         let mean = self.average_f1();
-        let variance: f64 = scores.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / scores.len() as f64;
+        let variance: f64 =
+            scores.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / scores.len() as f64;
         variance.sqrt()
     }
-    
+
     /// Check if system is over-clustering (MUC recall > precision).
     #[must_use]
     pub fn is_over_clustering(&self) -> bool {
         self.muc.recall > self.muc.precision + 0.05
     }
-    
+
     /// Check if system is under-clustering (MUC precision > recall).
     #[must_use]
     pub fn is_under_clustering(&self) -> bool {
         self.muc.precision > self.muc.recall + 0.05
     }
-    
+
     /// Get a summary string for comparison tables.
     #[must_use]
     pub fn summary_line(&self) -> String {
@@ -195,18 +204,48 @@ impl CorefEvaluation {
 impl std::fmt::Display for CorefEvaluation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Coreference Evaluation Results:")?;
-        writeln!(f, "  MUC:     P={:.1}%  R={:.1}%  F1={:.1}%", 
-            self.muc.precision * 100.0, self.muc.recall * 100.0, self.muc.f1 * 100.0)?;
-        writeln!(f, "  B³:      P={:.1}%  R={:.1}%  F1={:.1}%",
-            self.b_cubed.precision * 100.0, self.b_cubed.recall * 100.0, self.b_cubed.f1 * 100.0)?;
-        writeln!(f, "  CEAFe:   P={:.1}%  R={:.1}%  F1={:.1}%",
-            self.ceaf_e.precision * 100.0, self.ceaf_e.recall * 100.0, self.ceaf_e.f1 * 100.0)?;
-        writeln!(f, "  CEAFm:   P={:.1}%  R={:.1}%  F1={:.1}%",
-            self.ceaf_m.precision * 100.0, self.ceaf_m.recall * 100.0, self.ceaf_m.f1 * 100.0)?;
-        writeln!(f, "  LEA:     P={:.1}%  R={:.1}%  F1={:.1}%",
-            self.lea.precision * 100.0, self.lea.recall * 100.0, self.lea.f1 * 100.0)?;
-        writeln!(f, "  BLANC:   P={:.1}%  R={:.1}%  F1={:.1}%",
-            self.blanc.precision * 100.0, self.blanc.recall * 100.0, self.blanc.f1 * 100.0)?;
+        writeln!(
+            f,
+            "  MUC:     P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.muc.precision * 100.0,
+            self.muc.recall * 100.0,
+            self.muc.f1 * 100.0
+        )?;
+        writeln!(
+            f,
+            "  B³:      P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.b_cubed.precision * 100.0,
+            self.b_cubed.recall * 100.0,
+            self.b_cubed.f1 * 100.0
+        )?;
+        writeln!(
+            f,
+            "  CEAFe:   P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.ceaf_e.precision * 100.0,
+            self.ceaf_e.recall * 100.0,
+            self.ceaf_e.f1 * 100.0
+        )?;
+        writeln!(
+            f,
+            "  CEAFm:   P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.ceaf_m.precision * 100.0,
+            self.ceaf_m.recall * 100.0,
+            self.ceaf_m.f1 * 100.0
+        )?;
+        writeln!(
+            f,
+            "  LEA:     P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.lea.precision * 100.0,
+            self.lea.recall * 100.0,
+            self.lea.f1 * 100.0
+        )?;
+        writeln!(
+            f,
+            "  BLANC:   P={:.1}%  R={:.1}%  F1={:.1}%",
+            self.blanc.precision * 100.0,
+            self.blanc.recall * 100.0,
+            self.blanc.f1 * 100.0
+        )?;
         writeln!(f, "  CoNLL:   F1={:.1}%", self.conll_f1 * 100.0)?;
         Ok(())
     }
@@ -324,8 +363,16 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
         prec_den += (pred_mentions.len() - 1) as f64;
     }
 
-    let precision = if prec_den > 0.0 { prec_num / prec_den } else { 0.0 };
-    let recall = if recall_den > 0.0 { recall_num / recall_den } else { 0.0 };
+    let precision = if prec_den > 0.0 {
+        prec_num / prec_den
+    } else {
+        0.0
+    };
+    let recall = if recall_den > 0.0 {
+        recall_num / recall_den
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -377,10 +424,12 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
             // Find predicted chain containing this mention
             if let Some(&pred_chain_idx) = pred_index.get(&span) {
                 let pred_chain = &predicted[pred_chain_idx];
-                
+
                 // Count overlap: mentions in both pred and gold chain
-                let pred_spans: HashSet<SpanId> = pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let gold_spans: HashSet<SpanId> = gold_chain.mentions.iter().map(|m| m.span_id()).collect();
+                let pred_spans: HashSet<SpanId> =
+                    pred_chain.mentions.iter().map(|m| m.span_id()).collect();
+                let gold_spans: HashSet<SpanId> =
+                    gold_chain.mentions.iter().map(|m| m.span_id()).collect();
                 let overlap = pred_spans.intersection(&gold_spans).count();
 
                 // Recall contribution: overlap / |gold_chain|
@@ -402,9 +451,11 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
             // Find gold chain containing this mention
             if let Some(&gold_chain_idx) = gold_index.get(&span) {
                 let gold_chain = &gold[gold_chain_idx];
-                
-                let pred_spans: HashSet<SpanId> = pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let gold_spans: HashSet<SpanId> = gold_chain.mentions.iter().map(|m| m.span_id()).collect();
+
+                let pred_spans: HashSet<SpanId> =
+                    pred_chain.mentions.iter().map(|m| m.span_id()).collect();
+                let gold_spans: HashSet<SpanId> =
+                    gold_chain.mentions.iter().map(|m| m.span_id()).collect();
                 let overlap = pred_spans.intersection(&gold_spans).count();
 
                 // Precision contribution: overlap / |pred_chain|
@@ -413,8 +464,16 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
         }
     }
 
-    let precision = if pred_count > 0 { precision_sum / pred_count as f64 } else { 0.0 };
-    let recall = if gold_count > 0 { recall_sum / gold_count as f64 } else { 0.0 };
+    let precision = if pred_count > 0 {
+        precision_sum / pred_count as f64
+    } else {
+        0.0
+    };
+    let recall = if gold_count > 0 {
+        recall_sum / gold_count as f64
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -503,12 +562,20 @@ fn greedy_assignment(
 #[must_use]
 pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
     let similarity = greedy_assignment(predicted, gold, ceaf_phi4);
-    
+
     let pred_mentions: usize = predicted.iter().map(|c| c.len()).sum();
     let gold_mentions: usize = gold.iter().map(|c| c.len()).sum();
 
-    let precision = if pred_mentions > 0 { similarity / pred_mentions as f64 } else { 0.0 };
-    let recall = if gold_mentions > 0 { similarity / gold_mentions as f64 } else { 0.0 };
+    let precision = if pred_mentions > 0 {
+        similarity / pred_mentions as f64
+    } else {
+        0.0
+    };
+    let recall = if gold_mentions > 0 {
+        similarity / gold_mentions as f64
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -608,9 +675,11 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
                 for j in (i + 1)..gold_mentions.len() {
                     let span_i = gold_mentions[i];
                     let span_j = gold_mentions[j];
-                    
+
                     // Check if both are in same predicted chain
-                    if let (Some(&pred_i), Some(&pred_j)) = (pred_index.get(&span_i), pred_index.get(&span_j)) {
+                    if let (Some(&pred_i), Some(&pred_j)) =
+                        (pred_index.get(&span_i), pred_index.get(&span_j))
+                    {
                         if pred_i == pred_j {
                             correct_links += 1;
                         }
@@ -667,8 +736,10 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
                 for j in (i + 1)..pred_mentions.len() {
                     let span_i = pred_mentions[i];
                     let span_j = pred_mentions[j];
-                    
-                    if let (Some(&gold_i), Some(&gold_j)) = (gold_index.get(&span_i), gold_index.get(&span_j)) {
+
+                    if let (Some(&gold_i), Some(&gold_j)) =
+                        (gold_index.get(&span_i), gold_index.get(&span_j))
+                    {
                         if gold_i == gold_j {
                             correct_links += 1;
                         }
@@ -685,8 +756,16 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
         }
     }
 
-    let precision = if prec_den > 0.0 { prec_num / prec_den } else { 0.0 };
-    let recall = if recall_den > 0.0 { recall_num / recall_den } else { 0.0 };
+    let precision = if prec_den > 0.0 {
+        prec_num / prec_den
+    } else {
+        0.0
+    };
+    let recall = if recall_den > 0.0 {
+        recall_num / recall_den
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -936,23 +1015,50 @@ impl AggregateCorefEvaluation {
 
 impl std::fmt::Display for AggregateCorefEvaluation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Aggregate Coreference Evaluation ({} documents):", self.num_documents)?;
-        writeln!(f, "  MUC:     F1={:.1}% ± {:.1}%",
-            self.mean.muc.f1 * 100.0, self.std_dev.muc * 100.0)?;
-        writeln!(f, "  B³:      F1={:.1}% ± {:.1}%",
-            self.mean.b_cubed.f1 * 100.0, self.std_dev.b_cubed * 100.0)?;
-        writeln!(f, "  CEAFe:   F1={:.1}% ± {:.1}%",
-            self.mean.ceaf_e.f1 * 100.0, self.std_dev.ceaf_e * 100.0)?;
-        writeln!(f, "  LEA:     F1={:.1}% ± {:.1}%",
-            self.mean.lea.f1 * 100.0, self.std_dev.lea * 100.0)?;
-        writeln!(f, "  BLANC:   F1={:.1}% ± {:.1}%",
-            self.mean.blanc.f1 * 100.0, self.std_dev.blanc * 100.0)?;
+        writeln!(
+            f,
+            "Aggregate Coreference Evaluation ({} documents):",
+            self.num_documents
+        )?;
+        writeln!(
+            f,
+            "  MUC:     F1={:.1}% ± {:.1}%",
+            self.mean.muc.f1 * 100.0,
+            self.std_dev.muc * 100.0
+        )?;
+        writeln!(
+            f,
+            "  B³:      F1={:.1}% ± {:.1}%",
+            self.mean.b_cubed.f1 * 100.0,
+            self.std_dev.b_cubed * 100.0
+        )?;
+        writeln!(
+            f,
+            "  CEAFe:   F1={:.1}% ± {:.1}%",
+            self.mean.ceaf_e.f1 * 100.0,
+            self.std_dev.ceaf_e * 100.0
+        )?;
+        writeln!(
+            f,
+            "  LEA:     F1={:.1}% ± {:.1}%",
+            self.mean.lea.f1 * 100.0,
+            self.std_dev.lea * 100.0
+        )?;
+        writeln!(
+            f,
+            "  BLANC:   F1={:.1}% ± {:.1}%",
+            self.mean.blanc.f1 * 100.0,
+            self.std_dev.blanc * 100.0
+        )?;
         let (ci_low, ci_high) = self.confidence_interval_95();
-        writeln!(f, "  CoNLL:   F1={:.1}% ± {:.1}% (95% CI: {:.1}%-{:.1}%)",
+        writeln!(
+            f,
+            "  CoNLL:   F1={:.1}% ± {:.1}% (95% CI: {:.1}%-{:.1}%)",
             self.mean.conll_f1 * 100.0,
             self.std_dev.conll * 100.0,
             ci_low * 100.0,
-            ci_high * 100.0)?;
+            ci_high * 100.0
+        )?;
         Ok(())
     }
 }
@@ -1008,9 +1114,13 @@ impl SignificanceTest {
     /// Significance test result with p-value
     #[must_use]
     pub fn paired_t_test(scores_a: &[f64], scores_b: &[f64]) -> Self {
-        assert_eq!(scores_a.len(), scores_b.len(), "Scores must have same length");
+        assert_eq!(
+            scores_a.len(),
+            scores_b.len(),
+            "Scores must have same length"
+        );
         let n = scores_a.len();
-        
+
         if n < 2 {
             return Self {
                 mean_a: scores_a.first().copied().unwrap_or(0.0),
@@ -1026,7 +1136,8 @@ impl SignificanceTest {
         }
 
         // Compute paired differences
-        let differences: Vec<f64> = scores_a.iter()
+        let differences: Vec<f64> = scores_a
+            .iter()
             .zip(scores_b.iter())
             .map(|(a, b)| a - b)
             .collect();
@@ -1036,9 +1147,11 @@ impl SignificanceTest {
         let mean_b = scores_b.iter().sum::<f64>() / n as f64;
 
         // Standard deviation of differences
-        let variance: f64 = differences.iter()
+        let variance: f64 = differences
+            .iter()
             .map(|&d| (d - mean_diff).powi(2))
-            .sum::<f64>() / (n - 1) as f64;
+            .sum::<f64>()
+            / (n - 1) as f64;
         let std_diff = variance.sqrt();
 
         // Standard error
@@ -1074,14 +1187,26 @@ impl SignificanceTest {
     fn approximate_p_value(t: f64, df: usize) -> f64 {
         // Critical values for common significance levels
         // For df >= 30, t-distribution ≈ normal
-        let critical_05 = if df >= 30 { 1.96 } else { Self::t_critical_05(df) };
-        let critical_01 = if df >= 30 { 2.576 } else { Self::t_critical_01(df) };
-        let critical_001 = if df >= 30 { 3.29 } else { Self::t_critical_001(df) };
+        let critical_05 = if df >= 30 {
+            1.96
+        } else {
+            Self::t_critical_05(df)
+        };
+        let critical_01 = if df >= 30 {
+            2.576
+        } else {
+            Self::t_critical_01(df)
+        };
+        let critical_001 = if df >= 30 {
+            3.29
+        } else {
+            Self::t_critical_001(df)
+        };
 
         // Rough p-value estimation
         if t < critical_05 {
             // p > 0.05
-            0.10 + (critical_05 - t) * 0.10  // Very rough approximation
+            0.10 + (critical_05 - t) * 0.10 // Very rough approximation
         } else if t < critical_01 {
             // 0.01 < p < 0.05
             0.05 - (t - critical_05) / (critical_01 - critical_05) * 0.04
@@ -1175,7 +1300,7 @@ impl std::fmt::Display for SignificanceTest {
         writeln!(f, "  Difference: {:+.1}%", self.difference * 100.0)?;
         writeln!(f, "  t-statistic: {:.3}", self.t_statistic)?;
         writeln!(f, "  p-value: {:.4}", self.p_value)?;
-        
+
         let sig = if self.significant_01 {
             "** (p < 0.01)"
         } else if self.significant_05 {
@@ -1184,7 +1309,7 @@ impl std::fmt::Display for SignificanceTest {
             "not significant"
         };
         writeln!(f, "  Significance: {}", sig)?;
-        
+
         if self.a_better_than_b() {
             writeln!(f, "  Conclusion: System A is significantly better")?;
         } else if self.b_better_than_a() {
@@ -1192,7 +1317,7 @@ impl std::fmt::Display for SignificanceTest {
         } else {
             writeln!(f, "  Conclusion: No significant difference")?;
         }
-        
+
         Ok(())
     }
 }
@@ -1221,8 +1346,8 @@ pub fn compare_systems(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::coref::Mention;
+    use super::*;
 
     // =========================================================================
     // Property-Based Tests
@@ -1240,7 +1365,12 @@ mod tests {
                 make_chain(&[("c", 4, 5), ("d", 6, 7)]),
             ],
             // Longer chain
-            vec![make_chain(&[("a", 0, 1), ("b", 2, 3), ("c", 4, 5), ("d", 6, 7)])],
+            vec![make_chain(&[
+                ("a", 0, 1),
+                ("b", 2, 3),
+                ("c", 4, 5),
+                ("d", 6, 7),
+            ])],
         ];
 
         for gold in test_cases {
@@ -1290,7 +1420,7 @@ mod tests {
 
         for (pred, gold) in scenarios {
             let eval = CorefEvaluation::compute(&pred, &gold);
-            
+
             // Check all scores are in [0, 1]
             for (name, score) in [
                 ("MUC P", eval.muc.precision),
@@ -1313,7 +1443,8 @@ mod tests {
                 assert!(
                     (0.0..=1.0).contains(&score),
                     "{} should be in [0, 1], got {}",
-                    name, score
+                    name,
+                    score
                 );
             }
         }
@@ -1339,12 +1470,14 @@ mod tests {
             ("BLANC", eval.blanc),
         ] {
             if scores.precision + scores.recall > 0.0 {
-                let expected_f1 = 2.0 * scores.precision * scores.recall 
-                    / (scores.precision + scores.recall);
+                let expected_f1 =
+                    2.0 * scores.precision * scores.recall / (scores.precision + scores.recall);
                 assert!(
                     (scores.f1 - expected_f1).abs() < 0.001,
                     "{} F1 should be harmonic mean: expected {:.4}, got {:.4}",
-                    name, expected_f1, scores.f1
+                    name,
+                    expected_f1,
+                    scores.f1
                 );
             }
         }
@@ -1368,7 +1501,8 @@ mod tests {
         assert!(
             (eval.conll_f1 - expected).abs() < 0.001,
             "CoNLL F1 should be avg of MUC, B³, CEAFe: expected {:.4}, got {:.4}",
-            expected, eval.conll_f1
+            expected,
+            eval.conll_f1
         );
     }
 
@@ -1398,13 +1532,15 @@ mod tests {
         assert!(
             (eval_over.b_cubed.f1 - eval_under.b_cubed.f1).abs() < 0.001,
             "B³ should be symmetric: over={:.4}, under={:.4}",
-            eval_over.b_cubed.f1, eval_under.b_cubed.f1
+            eval_over.b_cubed.f1,
+            eval_under.b_cubed.f1
         );
 
         assert!(
             (eval_over.ceaf_e.f1 - eval_under.ceaf_e.f1).abs() < 0.001,
             "CEAFe should be symmetric: over={:.4}, under={:.4}",
-            eval_over.ceaf_e.f1, eval_under.ceaf_e.f1
+            eval_over.ceaf_e.f1,
+            eval_under.ceaf_e.f1
         );
     }
 
@@ -1436,16 +1572,28 @@ mod tests {
         assert!((f1 - 1.0).abs() < 0.001, "B³ F1 should be 1.0, got {}", f1);
 
         let (_, _, f1) = ceaf_e_score(&pred, &gold);
-        assert!((f1 - 1.0).abs() < 0.001, "CEAFe F1 should be 1.0, got {}", f1);
+        assert!(
+            (f1 - 1.0).abs() < 0.001,
+            "CEAFe F1 should be 1.0, got {}",
+            f1
+        );
 
         let (_, _, f1) = lea_score(&pred, &gold);
         assert!((f1 - 1.0).abs() < 0.001, "LEA F1 should be 1.0, got {}", f1);
 
         let (_, _, f1) = blanc_score(&pred, &gold);
-        assert!((f1 - 1.0).abs() < 0.001, "BLANC F1 should be 1.0, got {}", f1);
+        assert!(
+            (f1 - 1.0).abs() < 0.001,
+            "BLANC F1 should be 1.0, got {}",
+            f1
+        );
 
         let conll = conll_f1(&pred, &gold);
-        assert!((conll - 1.0).abs() < 0.001, "CoNLL F1 should be 1.0, got {}", conll);
+        assert!(
+            (conll - 1.0).abs() < 0.001,
+            "CoNLL F1 should be 1.0, got {}",
+            conll
+        );
     }
 
     #[test]
@@ -1465,7 +1613,11 @@ mod tests {
     fn test_partial_match() {
         // Gold: [[John, he, him]]
         // Pred: [[John, he], [him]]  <- split one chain into two
-        let gold = vec![make_chain(&[("John", 0, 4), ("he", 20, 22), ("him", 40, 43)])];
+        let gold = vec![make_chain(&[
+            ("John", 0, 4),
+            ("he", 20, 22),
+            ("him", 40, 43),
+        ])];
         let pred = vec![
             make_chain(&[("John", 0, 4), ("he", 20, 22)]),
             make_chain(&[("him", 40, 43)]),
@@ -1473,10 +1625,18 @@ mod tests {
 
         let (_, _, muc_f1) = muc_score(&pred, &gold);
         // MUC should give partial credit
-        assert!(muc_f1 > 0.0 && muc_f1 < 1.0, "MUC F1 should be partial, got {}", muc_f1);
+        assert!(
+            muc_f1 > 0.0 && muc_f1 < 1.0,
+            "MUC F1 should be partial, got {}",
+            muc_f1
+        );
 
         let (_, _, b3_f1) = b_cubed_score(&pred, &gold);
-        assert!(b3_f1 > 0.0 && b3_f1 < 1.0, "B³ F1 should be partial, got {}", b3_f1);
+        assert!(
+            b3_f1 > 0.0 && b3_f1 < 1.0,
+            "B³ F1 should be partial, got {}",
+            b3_f1
+        );
     }
 
     #[test]
@@ -1490,10 +1650,16 @@ mod tests {
 
         // B³ and BLANC should give credit for singletons
         let (_, _, b3_f1) = b_cubed_score(&pred, &gold);
-        assert!((b3_f1 - 1.0).abs() < 0.001, "B³ should be 1.0 with singletons");
+        assert!(
+            (b3_f1 - 1.0).abs() < 0.001,
+            "B³ should be 1.0 with singletons"
+        );
 
         let (_, _, blanc_f1) = blanc_score(&pred, &gold);
-        assert!((blanc_f1 - 1.0).abs() < 0.001, "BLANC should be 1.0 with singletons");
+        assert!(
+            (blanc_f1 - 1.0).abs() < 0.001,
+            "BLANC should be 1.0 with singletons"
+        );
     }
 
     #[test]
@@ -1503,7 +1669,7 @@ mod tests {
 
         let eval = CorefEvaluation::compute(&pred, &gold);
         let display = format!("{}", eval);
-        
+
         assert!(display.contains("MUC"));
         assert!(display.contains("B³"));
         assert!(display.contains("CEAFe"));
@@ -1536,7 +1702,11 @@ mod tests {
 
         // BLANC should penalize this
         let (_, _, blanc_f1) = blanc_score(&pred, &gold);
-        assert!(blanc_f1 < 0.5, "BLANC should penalize over-clustering, got {}", blanc_f1);
+        assert!(
+            blanc_f1 < 0.5,
+            "BLANC should penalize over-clustering, got {}",
+            blanc_f1
+        );
     }
 
     #[test]
@@ -1552,11 +1722,19 @@ mod tests {
 
         // MUC recall should be 0 (no links recovered)
         let (_, r, _) = muc_score(&pred, &gold);
-        assert!(r.abs() < 0.001, "MUC recall should be 0 for under-clustering, got {}", r);
+        assert!(
+            r.abs() < 0.001,
+            "MUC recall should be 0 for under-clustering, got {}",
+            r
+        );
 
         // BLANC should also penalize
         let (_, _, blanc_f1) = blanc_score(&pred, &gold);
-        assert!(blanc_f1 < 0.5, "BLANC should penalize under-clustering, got {}", blanc_f1);
+        assert!(
+            blanc_f1 < 0.5,
+            "BLANC should penalize under-clustering, got {}",
+            blanc_f1
+        );
     }
 
     // =========================================================================
@@ -1588,22 +1766,31 @@ mod tests {
         /// Generate a clustering with unique mentions (no overlap across chains)
         fn arb_unique_clustering() -> impl Strategy<Value = Vec<CorefChain>> {
             // Generate unique chain of unique mentions
-            (1usize..4).prop_flat_map(|num_chains| {
-                proptest::collection::vec(
-                    proptest::collection::vec(1usize..20, 1..5),
-                    num_chains..=num_chains
-                )
-            }).prop_map(|chain_lens| {
-                let mut offset = 0usize;
-                chain_lens.into_iter().map(|lens| {
-                    let mentions: Vec<_> = lens.iter().map(|&len| {
-                        let m = Mention::new(format!("m{}", offset), offset, offset + len);
-                        offset += len + 10; // Ensure no overlap
-                        m
-                    }).collect();
-                    CorefChain::new(mentions)
-                }).collect()
-            })
+            (1usize..4)
+                .prop_flat_map(|num_chains| {
+                    proptest::collection::vec(
+                        proptest::collection::vec(1usize..20, 1..5),
+                        num_chains..=num_chains,
+                    )
+                })
+                .prop_map(|chain_lens| {
+                    let mut offset = 0usize;
+                    chain_lens
+                        .into_iter()
+                        .map(|lens| {
+                            let mentions: Vec<_> = lens
+                                .iter()
+                                .map(|&len| {
+                                    let m =
+                                        Mention::new(format!("m{}", offset), offset, offset + len);
+                                    offset += len + 10; // Ensure no overlap
+                                    m
+                                })
+                                .collect();
+                            CorefChain::new(mentions)
+                        })
+                        .collect()
+                })
         }
 
         proptest! {
@@ -1611,7 +1798,7 @@ mod tests {
             #[test]
             fn prop_metrics_bounded(pred in arb_clustering(), gold in arb_clustering()) {
                 let eval = CorefEvaluation::compute(&pred, &gold);
-                
+
                 // Check all scores are in [0, 1]
                 for score in [
                     eval.muc.precision, eval.muc.recall, eval.muc.f1,
@@ -1632,7 +1819,7 @@ mod tests {
             #[test]
             fn prop_f1_harmonic_mean(pred in arb_clustering(), gold in arb_clustering()) {
                 let eval = CorefEvaluation::compute(&pred, &gold);
-                
+
                 for (name, scores) in [
                     ("MUC", eval.muc),
                     ("B³", eval.b_cubed),
@@ -1641,7 +1828,7 @@ mod tests {
                     ("BLANC", eval.blanc),
                 ] {
                     if scores.precision + scores.recall > 1e-10 {
-                        let expected = 2.0 * scores.precision * scores.recall 
+                        let expected = 2.0 * scores.precision * scores.recall
                             / (scores.precision + scores.recall);
                         prop_assert!(
                             (scores.f1 - expected).abs() < 0.001,
@@ -1663,7 +1850,7 @@ mod tests {
             fn prop_conll_is_average(pred in arb_clustering(), gold in arb_clustering()) {
                 let eval = CorefEvaluation::compute(&pred, &gold);
                 let expected = (eval.muc.f1 + eval.b_cubed.f1 + eval.ceaf_e.f1) / 3.0;
-                
+
                 prop_assert!(
                     (eval.conll_f1 - expected).abs() < 0.001,
                     "CoNLL F1 should be (MUC + B³ + CEAFe)/3: expected {:.4}, got {:.4}",
@@ -1676,10 +1863,10 @@ mod tests {
             fn prop_perfect_match_one(chains in arb_unique_clustering()) {
                 // Filter to non-trivial chains (at least one non-singleton)
                 let has_non_singleton = chains.iter().any(|c| c.mentions.len() > 1);
-                
+
                 if has_non_singleton {
                     let eval = CorefEvaluation::compute(&chains, &chains);
-                    
+
                     // All F1 scores should be 1.0
                     prop_assert!(
                         (eval.muc.f1 - 1.0).abs() < 0.001,
@@ -1706,7 +1893,7 @@ mod tests {
                 // Empty predictions
                 let eval = CorefEvaluation::compute(&[], &gold);
                 prop_assert!(eval.conll_f1.is_finite(), "Empty pred should not produce NaN");
-                
+
                 // Empty gold
                 let eval = CorefEvaluation::compute(&gold, &[]);
                 prop_assert!(eval.conll_f1.is_finite(), "Empty gold should not produce NaN");
@@ -1714,4 +1901,3 @@ mod tests {
         }
     }
 }
-

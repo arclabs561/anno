@@ -123,6 +123,29 @@ impl GoldEntity {
         self.start < other.end && other.start < self.end
     }
 
+    /// Safely extract text from source using character offsets.
+    ///
+    /// GoldEntity stores character offsets, not byte offsets. This method
+    /// correctly extracts text by iterating over characters.
+    ///
+    /// # Arguments
+    /// * `source_text` - The original text from which this entity was extracted
+    ///
+    /// # Returns
+    /// The extracted text, or empty string if offsets are invalid
+    #[must_use]
+    pub fn extract_text(&self, source_text: &str) -> String {
+        let char_count = source_text.chars().count();
+        if self.start >= char_count || self.end > char_count || self.start >= self.end {
+            return String::new();
+        }
+        source_text
+            .chars()
+            .skip(self.start)
+            .take(self.end - self.start)
+            .collect()
+    }
+
     /// Check if spans match exactly.
     pub fn span_matches(&self, other: &Self) -> bool {
         self.start == other.start && self.end == other.end
@@ -276,32 +299,17 @@ pub fn load_hf_ner_dataset<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<G
 
 /// Map label string to EntityType.
 ///
+/// **Prefer `crate::schema::map_to_canonical()` for new code** - it handles
+/// more types correctly and preserves semantic distinctions.
+///
 /// Handles various label formats:
 /// - CoNLL: "PER", "ORG", "LOC", "MISC"
 /// - OpenNER: Standardized labels
 /// - MultiNERD: Extended labels (PER, ORG, LOC, ANIM, BIO, CEL, etc.)
 /// - Wikiann: "PER", "ORG", "LOC", "MISC"
 fn map_label_to_entity_type(label: &str) -> EntityType {
-    let label_upper = label.to_uppercase();
-
-    match label_upper.as_str() {
-        "PER" | "PERSON" | "PERS" => EntityType::Person,
-        "ORG" | "ORGANIZATION" | "ORGANISATION" => EntityType::Organization,
-        "LOC" | "LOCATION" | "GPE" | "GEO" => EntityType::Location,
-        "DATE" | "TIME" => EntityType::Date,
-        "MONEY" | "CURRENCY" => EntityType::Money,
-        "PERCENT" | "PERCENTAGE" => EntityType::Percent,
-        "MISC" | "MISCELLANEOUS" => EntityType::Other("misc".to_string()),
-        // MultiNERD extended types
-        "ANIM" | "ANIMAL" => EntityType::Other("animal".to_string()),
-        "BIO" | "BIOLOGICAL" => EntityType::Other("biological".to_string()),
-        "CEL" | "CELESTIAL" => EntityType::Other("celestial".to_string()),
-        "EVE" | "EVENT" => EntityType::Other("event".to_string()),
-        "PROD" | "PRODUCT" => EntityType::Other("product".to_string()),
-        "SPO" | "SPORT" => EntityType::Other("sport".to_string()),
-        // Default: preserve original label
-        _ => EntityType::Other(label.to_string()),
-    }
+    // Use the new canonical mapper for consistent semantics
+    crate::schema::map_to_canonical(label, None)
 }
 
 /// Auto-detect dataset format and load.
@@ -430,6 +438,7 @@ mod tests {
 
     #[test]
     fn test_map_label_to_entity_type() {
+        // Core types
         assert!(matches!(
             map_label_to_entity_type("PER"),
             EntityType::Person
@@ -442,13 +451,17 @@ mod tests {
             map_label_to_entity_type("LOC"),
             EntityType::Location
         ));
+
+        // MISC -> Other
         assert!(matches!(
             map_label_to_entity_type("MISC"),
             EntityType::Other(_)
         ));
+
+        // ANIM now preserves semantics as Custom type
         assert!(matches!(
             map_label_to_entity_type("ANIM"),
-            EntityType::Other(_)
+            EntityType::Custom { .. }
         ));
     }
 

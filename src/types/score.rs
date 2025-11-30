@@ -229,4 +229,3 @@ mod tests {
         assert_eq!(format!("{}", score), "85.6%");
     }
 }
-

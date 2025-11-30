@@ -279,7 +279,10 @@ impl DatasetQualityAnalyzer {
             (0, 0)
         } else {
             let counts: Vec<_> = type_counts.values().copied().collect();
-            (*counts.iter().max().unwrap_or(&0), *counts.iter().min().unwrap_or(&0))
+            (
+                *counts.iter().max().unwrap_or(&0),
+                *counts.iter().min().unwrap_or(&0),
+            )
         };
 
         let entity_imbalance = if min_count == 0 {
@@ -297,7 +300,11 @@ impl DatasetQualityAnalyzer {
         // Approximate entity tokens (rough estimate)
         let entity_tokens: usize = train_data
             .iter()
-            .flat_map(|(_, entities)| entities.iter().map(|(e, _)| e.as_ref().split_whitespace().count()))
+            .flat_map(|(_, entities)| {
+                entities
+                    .iter()
+                    .map(|(e, _)| e.as_ref().split_whitespace().count())
+            })
             .sum();
 
         let entity_null_rate = if total_tokens == 0 {
@@ -463,9 +470,8 @@ mod tests {
 
     #[test]
     fn test_leakage_detection() {
-        let train: Vec<(&str, Vec<(&str, &str)>)> = vec![
-            ("John works at Google.", vec![("John", "PER")]),
-        ];
+        let train: Vec<(&str, Vec<(&str, &str)>)> =
+            vec![("John works at Google.", vec![("John", "PER")])];
         let test: Vec<(&str, Vec<(&str, &str)>)> = vec![
             ("John works at Google.", vec![("John", "PER")]), // Leaked!
             ("Jane joined Microsoft.", vec![("Jane", "PER")]),
@@ -480,12 +486,14 @@ mod tests {
 
     #[test]
     fn test_unseen_entity_ratio() {
-        let train: Vec<(&str, Vec<(&str, &str)>)> = vec![
-            ("John works at Google.", vec![("John", "PER"), ("Google", "ORG")]),
-        ];
-        let test: Vec<(&str, Vec<(&str, &str)>)> = vec![
-            ("Jane joined Microsoft.", vec![("Jane", "PER"), ("Microsoft", "ORG")]),
-        ];
+        let train: Vec<(&str, Vec<(&str, &str)>)> = vec![(
+            "John works at Google.",
+            vec![("John", "PER"), ("Google", "ORG")],
+        )];
+        let test: Vec<(&str, Vec<(&str, &str)>)> = vec![(
+            "Jane joined Microsoft.",
+            vec![("Jane", "PER"), ("Microsoft", "ORG")],
+        )];
 
         let analyzer = DatasetQualityAnalyzer::default();
         let report = analyzer.analyze(&train, &test);
@@ -534,4 +542,3 @@ mod tests {
         assert!((ratio - 0.5).abs() < 0.01);
     }
 }
-

@@ -12,7 +12,7 @@
 //! use anno::W2NER;
 //!
 //! let mut harness = AdvancedEvalHarness::new();
-//! 
+//!
 //! // Register a discontinuous NER model
 //! harness.register_discontinuous("w2ner", Box::new(W2NER::new()));
 //!
@@ -28,8 +28,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use super::dataset::synthetic::{
-    discontinuous::dataset as discontinuous_dataset,
-    relations::dataset as relations_dataset,
+    discontinuous::dataset as discontinuous_dataset, relations::dataset as relations_dataset,
 };
 use super::discontinuous::{
     evaluate_discontinuous_ner, DiscontinuousEvalConfig, DiscontinuousGold, DiscontinuousNERMetrics,
@@ -38,8 +37,8 @@ use super::relation::{
     evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics, RelationPrediction,
 };
 use super::visual::{
-    evaluate_visual_ner, synthetic_visual_examples, VisualEvalConfig, VisualGold,
-    VisualNERMetrics, VisualPrediction,
+    evaluate_visual_ner, synthetic_visual_examples, VisualEvalConfig, VisualGold, VisualNERMetrics,
+    VisualPrediction,
 };
 
 // =============================================================================
@@ -127,10 +126,7 @@ pub fn evaluate_discontinuous_gold_vs_gold() -> DiscontinuousNERMetrics {
     let examples = discontinuous_dataset();
     let config = DiscontinuousEvalConfig::default();
 
-    let gold: Vec<DiscontinuousGold> = examples
-        .iter()
-        .flat_map(|ex| ex.entities.clone())
-        .collect();
+    let gold: Vec<DiscontinuousGold> = examples.iter().flat_map(|ex| ex.entities.clone()).collect();
 
     // Perfect prediction = gold
     let pred: Vec<DiscontinuousEntity> = gold
@@ -169,7 +165,7 @@ pub fn evaluate_relations_synthetic<M: RelationExtractor>(
 
         // Run model prediction
         let result = model.extract_with_relations(&example.text, labels, relations, threshold)?;
-        
+
         // Convert to predictions using entity indices
         for rel in &result.relations {
             if rel.head_idx < result.entities.len() && rel.tail_idx < result.entities.len() {
@@ -330,4 +326,3 @@ mod tests {
         assert!(stats.visual_entities > 0);
     }
 }
-

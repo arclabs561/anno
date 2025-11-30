@@ -3,10 +3,10 @@
 //! Provides trait-based evaluation matching the RetrievalEvaluator pattern
 //! for consistency and extensibility.
 
-use crate::{Error, Model, Result};
 use super::datasets::GoldEntity;
 use super::types::{GoalCheckResult, MetricValue};
 use super::TypeMetrics;
+use crate::{Error, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -511,11 +511,27 @@ impl NEREvaluator for StandardNEREvaluator {
         let tokens_per_second: Vec<f64> =
             query_metrics.iter().map(|m| m.tokens_per_second).collect();
 
-        let macro_precision = precisions.iter().sum::<f64>() / precisions.len() as f64;
-        let macro_recall = recalls.iter().sum::<f64>() / recalls.len() as f64;
-        let macro_f1 = f1s.iter().sum::<f64>() / f1s.len() as f64;
-        let mean_tokens_per_second =
-            tokens_per_second.iter().sum::<f64>() / tokens_per_second.len() as f64;
+        // Defensive checks for division by zero (shouldn't happen due to earlier check, but be safe)
+        let macro_precision = if precisions.is_empty() {
+            0.0
+        } else {
+            precisions.iter().sum::<f64>() / precisions.len() as f64
+        };
+        let macro_recall = if recalls.is_empty() {
+            0.0
+        } else {
+            recalls.iter().sum::<f64>() / recalls.len() as f64
+        };
+        let macro_f1 = if f1s.is_empty() {
+            0.0
+        } else {
+            f1s.iter().sum::<f64>() / f1s.len() as f64
+        };
+        let mean_tokens_per_second = if tokens_per_second.is_empty() {
+            0.0
+        } else {
+            tokens_per_second.iter().sum::<f64>() / tokens_per_second.len() as f64
+        };
 
         // Validate metrics are finite
         if !micro_precision.is_finite()
@@ -543,7 +559,9 @@ impl NEREvaluator for StandardNEREvaluator {
         let mut per_type_totals: HashMap<String, (usize, usize, usize)> = HashMap::new();
         for metric in query_metrics {
             for (type_name, type_metric) in &metric.per_type {
-                let entry = per_type_totals.entry(type_name.clone()).or_insert((0, 0, 0));
+                let entry = per_type_totals
+                    .entry(type_name.clone())
+                    .or_insert((0, 0, 0));
                 entry.0 += type_metric.found;
                 entry.1 += type_metric.expected;
                 entry.2 += type_metric.correct;

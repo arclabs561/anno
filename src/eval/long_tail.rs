@@ -204,14 +204,30 @@ impl LongTailAnalyzer {
             head,
             mid,
             tail,
-            head_coverage: if total > 0 { head_count as f64 / total_f64 } else { 0.0 },
-            mid_coverage: if total > 0 { mid_count as f64 / total_f64 } else { 0.0 },
-            tail_coverage: if total > 0 { tail_count as f64 / total_f64 } else { 0.0 },
+            head_coverage: if total > 0 {
+                head_count as f64 / total_f64
+            } else {
+                0.0
+            },
+            mid_coverage: if total > 0 {
+                mid_count as f64 / total_f64
+            } else {
+                0.0
+            },
+            tail_coverage: if total > 0 {
+                tail_count as f64 / total_f64
+            } else {
+                0.0
+            },
         }
     }
 
     /// Classify a single entity type into a bucket.
-    pub fn classify_type(&self, entity_type: &str, frequencies: &[EntityFrequency]) -> FrequencyBucket {
+    pub fn classify_type(
+        &self,
+        entity_type: &str,
+        frequencies: &[EntityFrequency],
+    ) -> FrequencyBucket {
         let split = self.split_by_frequency(frequencies);
 
         if split.head.contains(&entity_type.to_string()) {
@@ -266,9 +282,18 @@ impl LongTailAnalyzer {
             .collect();
 
         // Compute bucket averages
-        let head_types: Vec<_> = per_type.iter().filter(|t| t.bucket == FrequencyBucket::Head).collect();
-        let mid_types: Vec<_> = per_type.iter().filter(|t| t.bucket == FrequencyBucket::Mid).collect();
-        let tail_types: Vec<_> = per_type.iter().filter(|t| t.bucket == FrequencyBucket::Tail).collect();
+        let head_types: Vec<_> = per_type
+            .iter()
+            .filter(|t| t.bucket == FrequencyBucket::Head)
+            .collect();
+        let mid_types: Vec<_> = per_type
+            .iter()
+            .filter(|t| t.bucket == FrequencyBucket::Mid)
+            .collect();
+        let tail_types: Vec<_> = per_type
+            .iter()
+            .filter(|t| t.bucket == FrequencyBucket::Tail)
+            .collect();
 
         let head_f1 = if head_types.is_empty() {
             0.0
@@ -384,10 +409,22 @@ pub fn format_long_tail_results(results: &LongTailResults) -> String {
     output.push_str(&format!("  Head F1: {:.1}%\n", results.head_f1 * 100.0));
     output.push_str(&format!("  Mid F1:  {:.1}%\n", results.mid_f1 * 100.0));
     output.push_str(&format!("  Tail F1: {:.1}%\n", results.tail_f1 * 100.0));
-    output.push_str(&format!("  Head-Tail Gap: {:.1}%\n", results.head_tail_gap * 100.0));
-    output.push_str(&format!("  Gini Coefficient: {:.3}\n", results.gini_coefficient));
-    output.push_str(&format!("  Struggling types (F1<50%): {}\n", results.struggling_types));
-    output.push_str(&format!("  Failed types (F1=0%): {}\n", results.failed_types));
+    output.push_str(&format!(
+        "  Head-Tail Gap: {:.1}%\n",
+        results.head_tail_gap * 100.0
+    ));
+    output.push_str(&format!(
+        "  Gini Coefficient: {:.3}\n",
+        results.gini_coefficient
+    ));
+    output.push_str(&format!(
+        "  Struggling types (F1<50%): {}\n",
+        results.struggling_types
+    ));
+    output.push_str(&format!(
+        "  Failed types (F1=0%): {}\n",
+        results.failed_types
+    ));
 
     if !results.insights.is_empty() {
         output.push_str("\nInsights:\n");
@@ -478,8 +515,13 @@ mod tests {
 
         let analyzer = LongTailAnalyzer::new(0.33);
 
-        assert_eq!(analyzer.classify_type("A", &frequencies), FrequencyBucket::Head);
-        assert_eq!(analyzer.classify_type("C", &frequencies), FrequencyBucket::Tail);
+        assert_eq!(
+            analyzer.classify_type("A", &frequencies),
+            FrequencyBucket::Head
+        );
+        assert_eq!(
+            analyzer.classify_type("C", &frequencies),
+            FrequencyBucket::Tail
+        );
     }
 }
-

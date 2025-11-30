@@ -21,8 +21,8 @@
 
 // Unified evaluation report (recommended entry point)
 pub use super::report::{
-    CoreMetrics, EvalReport, SimpleGoldEntity, Priority, Recommendation,
-    ReportBuilder, TestCase, TypeMetrics as ReportTypeMetrics,
+    CoreMetrics, EvalReport, Priority, Recommendation, ReportBuilder, SimpleGoldEntity, TestCase,
+    TypeMetrics as ReportTypeMetrics,
 };
 
 // Synthetic data generation
@@ -39,7 +39,9 @@ pub use super::coref::{CorefChain, CorefDocument, Mention};
 pub use super::coref_resolver::SimpleCorefResolver;
 
 // Standard evaluator
-pub use super::evaluator::{AveragingMode, NERAggregateMetrics, NEREvaluator, StandardNEREvaluator};
+pub use super::evaluator::{
+    AveragingMode, NERAggregateMetrics, NEREvaluator, StandardNEREvaluator,
+};
 
 // Re-export Model trait for convenience
 pub use crate::Model;
@@ -69,4 +71,3 @@ pub use super::error_analysis::{ErrorAnalyzer, ErrorReport};
 pub use super::robustness::{RobustnessEvaluator, RobustnessResults};
 #[cfg(feature = "eval-advanced")]
 pub use super::threshold_analysis::{ThresholdAnalyzer, ThresholdCurve};
-

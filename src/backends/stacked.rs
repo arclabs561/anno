@@ -9,7 +9,7 @@
 //! │                    BACKEND SPECIALIZATION                           │
 //! ├─────────────────────────────────────────────────────────────────────┤
 //! │                                                                     │
-//! │  PatternNER                   StatisticalNER                        │
+//! │  PatternNER                   HeuristicNER                        │
 //! │  ───────────                  ──────────────                        │
 //! │  Uses: Regex patterns         Uses: Capitalization, context         │
 //! │  Good at: Structured data     Good at: Named entities               │
@@ -48,7 +48,7 @@
 //!         │
 //!         ▼
 //! ┌───────────────────────────────────────────────────────────────────┐
-//! │                   LAYER 2: StatisticalNER                         │
+//! │                   LAYER 2: HeuristicNER                         │
 //! │                                                                   │
 //! │   Scans for capitalized sequences + context:                      │
 //! │                                                                   │
@@ -142,17 +142,17 @@
 //! Custom composition:
 //!
 //! ```rust
-//! use anno::{Model, PatternNER, StatisticalNER, StackedNER};
+//! use anno::{Model, PatternNER, HeuristicNER, StackedNER};
 //! use anno::backends::stacked::ConflictStrategy;
 //!
 //! let ner = StackedNER::builder()
 //!     .layer(PatternNER::new())
-//!     .layer(StatisticalNER::new())
+//!     .layer(HeuristicNER::new())
 //!     .strategy(ConflictStrategy::LongestSpan)
 //!     .build();
 //! ```
 //!
-//! Pattern-only (no statistical):
+//! Pattern-only (no heuristic):
 //!
 //! ```rust
 //! use anno::{Model, StackedNER};
@@ -161,9 +161,9 @@
 //! let entities = ner.extract_entities("Cost: $100", None).unwrap();
 //! ```
 
-use crate::{Entity, EntityType, Model, Result};
+use super::heuristic::HeuristicNER;
 use super::pattern::PatternNER;
-use super::statistical::StatisticalNER;
+use crate::{Entity, EntityType, Model, Result};
 use std::sync::Arc;
 
 // =============================================================================
@@ -247,7 +247,7 @@ enum Resolution {
 ///
 /// `StackedNER::default()` creates a Pattern + Statistical configuration:
 /// - Layer 1: `PatternNER` (dates, money, emails, etc.)
-/// - Layer 2: `StatisticalNER` (person, org, location)
+/// - Layer 2: `HeuristicNER` (person, org, location)
 ///
 /// This provides solid NER coverage with zero ML dependencies.
 ///
@@ -260,12 +260,12 @@ enum Resolution {
 /// let ner = StackedNER::default();
 ///
 /// // Or build custom:
-/// use anno::{PatternNER, StatisticalNER};
+/// use anno::{PatternNER, HeuristicNER};
 /// use anno::backends::stacked::ConflictStrategy;
 ///
 /// let custom = StackedNER::builder()
 ///     .layer(PatternNER::new())
-///     .layer(StatisticalNER::new())
+///     .layer(HeuristicNER::new())
 ///     .strategy(ConflictStrategy::LongestSpan)
 ///     .build();
 /// ```
@@ -355,18 +355,27 @@ impl StackedNER {
         builder.build()
     }
 
-    /// Create with custom statistical threshold.
+    /// Create with custom heuristic threshold.
     ///
-    /// Higher threshold = fewer but higher confidence statistical entities.
+    /// Higher threshold = fewer but higher confidence heuristic entities.
+    /// Note: HeuristicNER does not currently support dynamic thresholding
+    /// in constructor, so this method ignores the parameter for now but maintains API compat.
     #[must_use]
-    pub fn with_statistical_threshold(threshold: f64) -> Self {
+    pub fn with_heuristic_threshold(_threshold: f64) -> Self {
         Self::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::with_threshold(threshold))
+            .layer(HeuristicNER::new())
             .build()
     }
 
-    /// Pattern-only configuration (no statistical layer).
+    /// Backwards compatibility alias.
+    #[deprecated(since = "0.3.0", note = "Use with_heuristic_threshold instead")]
+    #[must_use]
+    pub fn with_statistical_threshold(threshold: f64) -> Self {
+        Self::with_heuristic_threshold(threshold)
+    }
+
+    /// Pattern-only configuration (no heuristic layer).
     ///
     /// Extracts only structured entities: dates, times, money, percentages,
     /// emails, URLs, phone numbers.
@@ -375,34 +384,41 @@ impl StackedNER {
         Self::builder().layer(PatternNER::new()).build()
     }
 
-    /// Statistical-only configuration (no pattern layer).
+    /// Heuristic-only configuration (no pattern layer).
     ///
     /// Extracts only named entities: person, organization, location.
     #[must_use]
+    pub fn heuristic_only() -> Self {
+        Self::builder().layer(HeuristicNER::new()).build()
+    }
+
+    /// Backwards compatibility alias.
+    #[deprecated(since = "0.3.0", note = "Use heuristic_only instead")]
+    #[must_use]
     pub fn statistical_only() -> Self {
-        Self::builder().layer(StatisticalNER::new()).build()
+        Self::heuristic_only()
     }
 
     /// Add an ML backend as highest priority.
     ///
-    /// ML runs first, then Pattern fills structured gaps, then Statistical.
+    /// ML runs first, then Pattern fills structured gaps, then Heuristic.
     #[must_use]
     pub fn with_ml_first(ml_backend: Box<dyn Model + Send + Sync>) -> Self {
         Self::builder()
             .layer_boxed(ml_backend)
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .build()
     }
 
     /// Add an ML backend as fallback (lowest priority).
     ///
-    /// Pattern runs first (high precision), then Statistical, then ML.
+    /// Pattern runs first (high precision), then Heuristic, then ML.
     #[must_use]
     pub fn with_ml_fallback(ml_backend: Box<dyn Model + Send + Sync>) -> Self {
         Self::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .layer_boxed(ml_backend)
             .build()
     }
@@ -435,7 +451,7 @@ impl Default for StackedNER {
     fn default() -> Self {
         Self::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .build()
     }
 }
@@ -520,9 +536,36 @@ pub type TieredNER = StackedNER;
 #[deprecated(since = "0.2.0", note = "Use StackedNER instead")]
 pub type CompositeNER = StackedNER;
 
-// Capability markers: StackedNER combines pattern and statistical extraction
+// Capability markers: StackedNER combines pattern and heuristic extraction
 impl crate::StructuredEntityCapable for StackedNER {}
 impl crate::NamedEntityCapable for StackedNER {}
+
+// =============================================================================
+// BatchCapable and StreamingCapable Trait Implementations
+// =============================================================================
+
+impl crate::BatchCapable for StackedNER {
+    fn extract_entities_batch(
+        &self,
+        texts: &[&str],
+        language: Option<&str>,
+    ) -> Result<Vec<Vec<Entity>>> {
+        texts
+            .iter()
+            .map(|text| self.extract_entities(text, language))
+            .collect()
+    }
+
+    fn optimal_batch_size(&self) -> Option<usize> {
+        Some(32) // Combination of pattern + heuristic
+    }
+}
+
+impl crate::StreamingCapable for StackedNER {
+    fn recommended_chunk_size(&self) -> usize {
+        8_000 // Slightly smaller due to multi-layer processing
+    }
+}
 
 // =============================================================================
 // Tests
@@ -551,7 +594,7 @@ mod tests {
     }
 
     #[test]
-    fn test_default_finds_statistical() {
+    fn test_default_finds_heuristic() {
         let e = extract("Mr. Smith said hello");
         assert!(has_type(&e, &EntityType::Person));
     }
@@ -604,12 +647,12 @@ mod tests {
     fn test_builder_layer_names() {
         let ner = StackedNER::builder()
             .layer(PatternNER::new())
-            .layer(StatisticalNER::new())
+            .layer(HeuristicNER::new())
             .build();
 
         let names = ner.layer_names();
         assert!(names.contains(&"pattern"));
-        assert!(names.contains(&"statistical"));
+        assert!(names.contains(&"heuristic"));
     }
 
     #[test]
@@ -633,20 +676,33 @@ mod tests {
 
         // Should find money
         assert!(has_type(&e, &EntityType::Money));
-        // Should NOT find person (no statistical layer)
+        // Should NOT find person (no heuristic layer)
         assert!(!has_type(&e, &EntityType::Person));
     }
 
     #[test]
-    fn test_statistical_only() {
-        let ner = StackedNER::statistical_only();
-        // Use a name that StatisticalNER can detect (capitalized single word)
+    fn test_heuristic_only() {
+        let ner = StackedNER::heuristic_only();
+        // Use a name that HeuristicNER can detect (capitalized single word)
         let e = ner.extract_entities("$100 for John", None).unwrap();
 
-        // StatisticalNER uses heuristics - may or may not find person
+        // HeuristicNER uses heuristics - may or may not find person
         // The key test is that it does NOT find money (no pattern layer)
-        assert!(!has_type(&e, &EntityType::Money), 
-            "Should NOT find money without pattern layer: {:?}", e);
+        assert!(
+            !has_type(&e, &EntityType::Money),
+            "Should NOT find money without pattern layer: {:?}",
+            e
+        );
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn test_statistical_only_deprecated_alias() {
+        // Verify backwards compatibility
+        let ner = StackedNER::statistical_only();
+        let e = ner.extract_entities("John", None).unwrap();
+        // Just verify it doesn't panic
+        let _ = e;
     }
 
     // =========================================================================
@@ -683,6 +739,9 @@ mod tests {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
+            valid_from: None,
+            valid_until: None,
+            viewport: None,
         }
     }
 
@@ -754,14 +813,8 @@ mod tests {
 
     #[test]
     fn test_union_keeps_all() {
-        let layer1 = mock_model(
-            "l1",
-            vec![mock_entity("John", 0, EntityType::Person, 0.8)],
-        );
-        let layer2 = mock_model(
-            "l2",
-            vec![mock_entity("John", 0, EntityType::Person, 0.9)],
-        );
+        let layer1 = mock_model("l1", vec![mock_entity("John", 0, EntityType::Person, 0.8)]);
+        let layer2 = mock_model("l2", vec![mock_entity("John", 0, EntityType::Person, 0.9)]);
 
         let ner = StackedNER::builder()
             .layer(layer1)
@@ -841,7 +894,7 @@ mod tests {
         let ner = StackedNER::default();
         let types = ner.supported_types();
 
-        // Should include both pattern and statistical types
+        // Should include both pattern and heuristic types
         assert!(types.contains(&EntityType::Date));
         assert!(types.contains(&EntityType::Money));
         assert!(types.contains(&EntityType::Person));
@@ -849,4 +902,3 @@ mod tests {
         assert!(types.contains(&EntityType::Location));
     }
 }
-

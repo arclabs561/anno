@@ -193,23 +193,28 @@ pub enum CorefMetric {
     CoNLL,
 }
 
-/// Evaluation mode for NER (re-exported from modes).
-pub use modes::EvalMode;
+/// BIO tagging scheme for sequence labeling.
+pub use bio_adapter::BioScheme;
 /// Evaluation configuration for modes (overlap thresholds, etc).
 /// Note: This is separate from `harness::EvalConfig` for benchmarks.
 pub use modes::EvalConfig as ModeConfig;
-/// BIO tagging scheme for sequence labeling.
-pub use bio_adapter::BioScheme;
+/// Evaluation mode for NER (re-exported from modes).
+pub use modes::EvalMode;
 
 // =============================================================================
 // CORE MODULES (always available with `eval` feature)
 // Basic P/R/F1, datasets, coreference metrics
 // =============================================================================
+#[cfg(feature = "discourse")]
+pub mod abstract_anaphora;
 pub mod advanced_evaluator;
 pub mod advanced_harness;
 pub mod analysis;
+pub mod backend_eval;
+pub mod backend_factory;
 pub mod benchmark;
 pub mod bio_adapter;
+pub mod cdcr;
 pub mod coref;
 pub mod coref_loader;
 pub mod coref_metrics;
@@ -219,15 +224,22 @@ pub mod datasets;
 pub mod discontinuous;
 pub mod evaluator;
 pub mod harness;
+pub mod inter_doc_coref;
 pub mod loader;
 pub mod metrics;
 pub mod modes;
+pub mod ner_metrics;
 pub mod prelude;
 pub mod relation;
 pub mod report;
 pub mod sampling;
 pub mod synthetic;
 pub mod synthetic_gen;
+pub mod task_evaluator;
+
+#[cfg(feature = "eval-profiling")]
+pub mod profiling;
+pub mod task_mapping;
 pub mod types;
 pub mod validation;
 pub mod visual;
@@ -284,11 +296,13 @@ pub use datasets::{GoldEntity, GroundTruthEntity};
 pub use dataset::{AnnotatedExample, DatasetStats, Difficulty, Domain, NERDataset};
 pub use evaluator::*;
 pub use harness::{
-    BackendAggregateResult, BackendDatasetResult, BackendRegistry, DatasetStatsSummary,
-    EvalConfig, EvalHarness, EvalResults,
+    BackendAggregateResult, BackendDatasetResult, BackendRegistry, DatasetStatsSummary, EvalConfig,
+    EvalHarness, EvalResults,
 };
 pub use metrics::*;
-pub use types::{CorefChainStats, GoalCheck, GoalCheckResult, LabelShift, MetricValue, MetricWithVariance};
+pub use types::{
+    CorefChainStats, GoalCheck, GoalCheckResult, LabelShift, MetricValue, MetricWithVariance,
+};
 pub use validation::*;
 
 // Coreference re-exports
@@ -303,6 +317,37 @@ pub use coref_metrics::{
 
 // Coreference resolution
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
+#[cfg(feature = "discourse")]
+pub use coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
+
+// Cross-document coreference resolution (CDCR)
+pub use inter_doc_coref::InterDocCorefMetrics;
+
+pub use cdcr::{
+    comprehensive_cdcr_dataset,
+    financial_news_dataset,
+    political_news_dataset,
+    science_news_dataset,
+    sports_news_dataset,
+    // Domain-specific CDCR datasets
+    tech_news_dataset,
+    CDCRConfig,
+    CDCRMetrics,
+    CDCRResolver,
+    CrossDocCluster,
+    Document,
+    LSHBlocker,
+    MentionRef,
+};
+
+// Abstract anaphora research evaluation
+#[cfg(feature = "discourse")]
+pub use abstract_anaphora::{
+    AbstractAnaphoraDataset, AbstractAnaphoraEvaluator, AnaphorSpan, AnaphoraTestCase,
+    AnaphoraType, AntecedentSpan, CandidateRankingMetrics,
+    DatasetStats as AbstractAnaphoraDatasetStats, EvaluationResults as AbstractAnaphoraResults,
+    LeaAnalysis, ShellNounAnalysis,
+};
 
 // Discontinuous NER evaluation
 pub use discontinuous::{
@@ -312,8 +357,8 @@ pub use discontinuous::{
 
 // Relation extraction evaluation
 pub use relation::{
-    evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics,
-    RelationPrediction, RelationTypeMetrics,
+    evaluate_relations, RelationEvalConfig, RelationGold, RelationMetrics, RelationPrediction,
+    RelationTypeMetrics,
 };
 
 // Advanced evaluators for specialized tasks
@@ -369,8 +414,8 @@ pub use length_bias::{
 // =============================================================================
 #[cfg(feature = "eval-advanced")]
 pub use calibration::{
-    calibration_grade, confidence_gap_grade, CalibrationEvaluator, CalibrationResults,
-    ReliabilityBin, ThresholdMetrics,
+    calibration_grade, confidence_entropy, confidence_gap_grade, confidence_variance,
+    CalibrationEvaluator, CalibrationResults, EntropyFilter, ReliabilityBin, ThresholdMetrics,
 };
 
 #[cfg(feature = "eval-advanced")]
@@ -391,8 +436,8 @@ pub use dataset_quality::{
 
 #[cfg(feature = "eval-advanced")]
 pub use learning_curve::{
-    suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis,
-    LearningCurveAnalyzer, SampleEfficiencyMetrics,
+    suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis, LearningCurveAnalyzer,
+    SampleEfficiencyMetrics,
 };
 
 #[cfg(feature = "eval-advanced")]
@@ -433,21 +478,21 @@ pub use threshold_analysis::{
 // Unified evaluation report (always available - uses what's enabled)
 pub use report::{
     BiasSummary, CalibrationSummary, CoreMetrics, DataQualitySummary, DemographicBiasMetrics,
-    ErrorSummary, EvalReport, GenderBiasMetrics, SimpleGoldEntity,
-    LengthBiasMetrics, Priority, Recommendation, RecommendationCategory, ReportBuilder,
-    TestCase, TypeMetrics as ReportTypeMetrics,
+    ErrorSummary, EvalReport, GenderBiasMetrics, LengthBiasMetrics, Priority, Recommendation,
+    RecommendationCategory, ReportBuilder, SimpleGoldEntity, TestCase,
+    TypeMetrics as ReportTypeMetrics,
 };
 
 #[cfg(feature = "eval-advanced")]
 pub use few_shot::{
-    FewShotEvaluator, FewShotGold, FewShotPrediction, FewShotResults, FewShotTask,
-    FewShotTaskResults, SupportExample, simulate_few_shot_task,
+    simulate_few_shot_task, FewShotEvaluator, FewShotGold, FewShotPrediction, FewShotResults,
+    FewShotTask, FewShotTaskResults, SupportExample,
 };
 
 #[cfg(feature = "eval-advanced")]
 pub use long_tail::{
-    EntityFrequency, FrequencyBucket, FrequencySplit, LongTailAnalyzer, LongTailResults,
-    TypePerformance, format_long_tail_results,
+    format_long_tail_results, EntityFrequency, FrequencyBucket, FrequencySplit, LongTailAnalyzer,
+    LongTailResults, TypePerformance,
 };
 
 // Analysis re-exports
@@ -722,7 +767,7 @@ pub fn evaluate_ner_model_with_mapper(
     let mut query_metrics = Vec::new();
     for (i, (text, ground_truth)) in test_cases.iter().enumerate() {
         let test_case_id = format!("test_case_{}", i);
-        
+
         // Apply type normalization if mapper provided
         let normalized_truth: Vec<GoldEntity>;
         let truth_ref = if let Some(mapper) = type_mapper {
@@ -740,9 +785,8 @@ pub fn evaluate_ner_model_with_mapper(
         } else {
             ground_truth
         };
-        
-        let metrics =
-            evaluator.evaluate_test_case(model, text, truth_ref, Some(&test_case_id))?;
+
+        let metrics = evaluator.evaluate_test_case(model, text, truth_ref, Some(&test_case_id))?;
         query_metrics.push(metrics);
     }
 

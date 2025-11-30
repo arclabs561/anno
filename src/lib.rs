@@ -160,7 +160,6 @@ mod sealed {
     impl Sealed for super::PatternNER {}
     impl Sealed for super::HeuristicNER {}
     impl Sealed for super::StackedNER {}
-    impl Sealed for super::HybridNER {}
     impl Sealed for super::NuNER {}
     impl Sealed for super::W2NER {}
     impl Sealed for super::NERExtractor {}
@@ -348,7 +347,7 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     pub use crate::types::{Confidence, EntitySliceExt, Score};
     pub use crate::Model;
-    pub use crate::{HybridConfig, HybridNER, MergeStrategy, MockModel, PatternNER, StackedNER};
+    pub use crate::{MockModel, PatternNER, StackedNER};
 
     // Schema harmonization (preferred over TypeMapper for multi-dataset work)
     pub use crate::schema::{CanonicalType, CoarseType, DatasetSchema, SchemaMapper};
@@ -407,8 +406,8 @@ pub use discourse::{
 
 // Backend re-exports (always available)
 pub use backends::{
-    AutoNER, BackendType, ConflictStrategy, HeuristicNER, HybridConfig, HybridNER, MergeStrategy,
-    NERExtractor, NuNER, PatternNER, StackedNER, W2NERConfig, W2NERRelation, W2NER,
+    AutoNER, BackendType, ConflictStrategy, HeuristicNER, NERExtractor, NuNER, PatternNER,
+    StackedNER, W2NERConfig, W2NERRelation, W2NER,
 };
 
 // Backwards compatibility
@@ -546,6 +545,13 @@ pub const DEFAULT_GLINER_CANDLE_MODEL: &str = "knowledgator/modern-gliner-bi-lar
 /// Default NuNER model (token-based zero-shot).
 pub const DEFAULT_NUNER_MODEL: &str = "deepanwa/NuNerZero_onnx";
 
+/// Default W2NER model (nested/discontinuous NER).
+///
+/// **Note**: This model (`ljynlp/w2ner-bert-base`) currently requires authentication
+/// and returns 401 errors. See `PROBLEMS.md` for details and alternatives.
+/// The backend factory will skip W2NER if this model cannot be loaded.
+pub const DEFAULT_W2NER_MODEL: &str = "ljynlp/w2ner-bert-base";
+
 // =============================================================================
 // Automatic Backend Selection
 // =============================================================================
@@ -671,7 +677,6 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
         ("PatternNER", true),
         ("HeuristicNER", true),
         ("StackedNER", true),
-        ("HybridNER", true),
     ];
 
     #[cfg(feature = "onnx")]
@@ -719,7 +724,7 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
 /// If you need custom extraction logic, consider:
 ///
 /// - Using [`StackedNER::builder()`] to compose existing backends
-/// - Using [`HybridNER`] to combine pattern + ML backends
+/// - Using [`StackedNER`] to combine pattern + ML backends
 /// - Opening an issue if you need a backend that doesn't exist
 ///
 /// # For Testing

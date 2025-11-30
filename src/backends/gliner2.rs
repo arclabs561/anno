@@ -511,7 +511,17 @@ impl GLiNER2Onnx {
 
         let batch_size = 1;
         let seq_len = input_ids.len();
-        let num_spans = text_words.len() * MAX_SPAN_WIDTH;
+        // Use checked_mul to prevent overflow (same pattern as line 2388)
+        let num_spans = text_words
+            .len()
+            .checked_mul(MAX_SPAN_WIDTH)
+            .ok_or_else(|| {
+                Error::InvalidInput(format!(
+                    "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
+                    text_words.len(),
+                    MAX_SPAN_WIDTH
+                ))
+            })?;
 
         let input_ids_arr = Array2::from_shape_vec((batch_size, seq_len), input_ids)
             .map_err(|e| Error::Parse(format!("Array: {}", e)))?;
@@ -635,8 +645,24 @@ impl GLiNER2Onnx {
 
     /// Generate span tensors.
     fn make_span_tensors(&self, num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        let num_spans = num_words * MAX_SPAN_WIDTH;
-        let mut span_idx: Vec<i64> = vec![0; num_spans * 2];
+        // Use checked_mul to prevent overflow (same pattern as line 2388)
+        let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH).unwrap_or_else(|| {
+            log::warn!(
+                "Span count overflow: {} words * {} MAX_SPAN_WIDTH, using max",
+                num_words,
+                MAX_SPAN_WIDTH
+            );
+            usize::MAX
+        });
+        // Check for overflow in num_spans * 2
+        let span_idx_len = num_spans.checked_mul(2).unwrap_or_else(|| {
+            log::warn!(
+                "Span idx length overflow: {} spans * 2, using max",
+                num_spans
+            );
+            usize::MAX
+        });
+        let mut span_idx: Vec<i64> = vec![0; span_idx_len];
         let mut span_mask: Vec<bool> = vec![false; num_spans];
 
         for start in 0..num_words {
@@ -644,10 +670,44 @@ impl GLiNER2Onnx {
             let max_width = MAX_SPAN_WIDTH.min(remaining);
 
             for width in 0..max_width {
-                let dim = start * MAX_SPAN_WIDTH + width;
-                span_idx[dim * 2] = start as i64;
-                span_idx[dim * 2 + 1] = (start + width) as i64;
-                span_mask[dim] = true;
+                // Check for overflow in dim calculation (same pattern as nuner.rs:399)
+                let dim = match start.checked_mul(MAX_SPAN_WIDTH) {
+                    Some(v) => match v.checked_add(width) {
+                        Some(d) => d,
+                        None => {
+                            log::warn!(
+                                "Dim calculation overflow: {} * {} + {}, skipping span",
+                                start,
+                                MAX_SPAN_WIDTH,
+                                width
+                            );
+                            continue;
+                        }
+                    },
+                    None => {
+                        log::warn!(
+                            "Dim calculation overflow: {} * {}, skipping span",
+                            start,
+                            MAX_SPAN_WIDTH
+                        );
+                        continue;
+                    }
+                };
+                // Check bounds before array access (dim * 2 could overflow or exceed span_idx_len)
+                if let Some(dim2) = dim.checked_mul(2) {
+                    if dim2 + 1 < span_idx_len && dim < num_spans {
+                        span_idx[dim2] = start as i64;
+                        span_idx[dim2 + 1] = (start + width) as i64;
+                        span_mask[dim] = true;
+                    } else {
+                        log::warn!(
+                            "Span idx access out of bounds: dim={}, dim*2={}, span_idx_len={}, num_spans={}, skipping",
+                            dim, dim2, span_idx_len, num_spans
+                        );
+                    }
+                } else {
+                    log::warn!("Dim * 2 overflow: dim={}, skipping span", dim);
+                }
             }
         }
 
@@ -937,7 +997,17 @@ impl GLiNER2Onnx {
             let max_logit = logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
             let exp_logits: Vec<f32> = logits.iter().map(|&x| (x - max_logit).exp()).collect();
             let sum: f32 = exp_logits.iter().sum();
-            exp_logits.iter().map(|&x| x / sum).collect::<Vec<_>>()
+            // Handle division by zero: if sum is 0 (all logits are -inf), return uniform distribution
+            if sum > 0.0 {
+                exp_logits.iter().map(|&x| x / sum).collect::<Vec<_>>()
+            } else if logits.is_empty() {
+                // Edge case: empty logits, return empty probabilities
+                vec![]
+            } else {
+                // All logits are -inf, return uniform distribution
+                let uniform = 1.0 / logits.len() as f32;
+                vec![uniform; logits.len()]
+            }
         };
 
         let mut scores = HashMap::new();
@@ -1198,6 +1268,11 @@ impl SpanRepLayer {
             for span in spans_data {
                 let start = span[0] as usize;
                 let end = span[1] as usize;
+                // Validate span: end must be > start to prevent underflow
+                if end <= start {
+                    log::warn!("Invalid span: end ({}) <= start ({})", end, start);
+                    continue;
+                }
                 let width = end - start;
 
                 // Get start token embedding
@@ -1277,7 +1352,7 @@ impl CountPredictor {
         let (max_idx, _) = logits_vec
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or((1, &0.0));
 
         Ok(max_idx.max(1)) // At least 1 instance
@@ -1307,12 +1382,18 @@ impl GLiNER2Candle {
         // Determine device
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
 
-        // Load weights
+        // Load weights - try safetensors first, then convert pytorch if needed
         let weights_path = repo
             .get("model.safetensors")
             .or_else(|_| repo.get("gliner_model.safetensors"))
-            .or_else(|_| repo.get("pytorch_model.bin"))
-            .map_err(|e| Error::Retrieval(format!("weights: {}", e)))?;
+            .or_else(|_| {
+                // Try to convert pytorch_model.bin to safetensors
+                let pytorch_path = repo.get("pytorch_model.bin")?;
+                crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
+            })
+            .map_err(|e| {
+                Error::Retrieval(format!("weights not found and conversion failed: {}", e))
+            })?;
 
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(&[weights_path], DType::F32, &device)
@@ -1483,7 +1564,17 @@ impl GLiNER2Candle {
             let max_score = combined.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
             let exp_scores: Vec<f32> = combined.iter().map(|&s| (s - max_score).exp()).collect();
             let sum: f32 = exp_scores.iter().sum();
-            exp_scores.iter().map(|&e| e / sum).collect::<Vec<_>>()
+            // Handle division by zero: if sum is 0 (all logits are -inf), return uniform distribution
+            if sum > 0.0 {
+                exp_scores.iter().map(|&e| e / sum).collect::<Vec<_>>()
+            } else if combined.is_empty() {
+                // Edge case: empty scores, return empty probabilities
+                vec![]
+            } else {
+                // All scores are -inf, return uniform distribution
+                let uniform = 1.0 / combined.len() as f32;
+                vec![uniform; combined.len()]
+            }
         };
 
         let mut scores_map = HashMap::new();
@@ -1616,15 +1707,44 @@ impl GLiNER2Candle {
         let word_positions: Vec<(usize, usize)> = {
             let mut positions = Vec::new();
             let mut pos = 0;
-            for word in words {
+            for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = full_text[pos..].find(word) {
                     let abs_start = pos + start;
-                    positions.push((abs_start, abs_start + word.len()));
-                    pos = abs_start + word.len();
+                    let abs_end = abs_start + word.len();
+                    // Validate position is after previous word (words should be in order)
+                    if !positions.is_empty() {
+                        let (_prev_start, prev_end) = positions[positions.len() - 1];
+                        if abs_start < prev_end {
+                            log::warn!(
+                                "Word '{}' (index {}) at position {} overlaps with previous word ending at {}",
+                                word,
+                                idx,
+                                abs_start,
+                                prev_end
+                            );
+                        }
+                    }
+                    positions.push((abs_start, abs_end));
+                    pos = abs_end;
+                } else {
+                    // Word not found - return error to prevent silent entity skipping
+                    return Err(Error::Inference(format!(
+                        "Word '{}' (index {}) not found in text starting at position {}",
+                        word, idx, pos
+                    )));
                 }
             }
             positions
         };
+
+        // Validate that we found positions for all words
+        if word_positions.len() != words.len() {
+            return Err(Error::Inference(format!(
+                "Word position mismatch: found {} positions for {} words",
+                word_positions.len(),
+                words.len()
+            )));
+        }
 
         Ok((tensor, word_positions))
     }
@@ -1638,18 +1758,23 @@ impl GLiNER2Candle {
                 all_embeddings.extend(cached);
             } else {
                 let (embeddings, seq_len) = self.encoder.encode(label)?;
-                // Average pool
-                let avg: Vec<f32> = (0..self.hidden_size)
-                    .map(|i| {
-                        embeddings
-                            .iter()
-                            .skip(i)
-                            .step_by(self.hidden_size)
-                            .take(seq_len)
-                            .sum::<f32>()
-                            / seq_len as f32
-                    })
-                    .collect();
+                // Average pool - handle empty sequences
+                let avg: Vec<f32> = if seq_len == 0 {
+                    // Return zero vector for empty sequences
+                    vec![0.0f32; self.hidden_size]
+                } else {
+                    (0..self.hidden_size)
+                        .map(|i| {
+                            embeddings
+                                .iter()
+                                .skip(i)
+                                .step_by(self.hidden_size)
+                                .take(seq_len)
+                                .sum::<f32>()
+                                / seq_len as f32
+                        })
+                        .collect()
+                };
 
                 // Cache it
                 self.label_cache.insert(label.to_string(), avg.clone());
@@ -2322,7 +2447,12 @@ impl crate::BatchCapable for GLiNER2Onnx {
 
         // Pad sequences to max length
         let max_seq_len = seq_lens.iter().copied().max().unwrap_or(0);
-        let max_span_count = max_words * MAX_SPAN_WIDTH;
+        let max_span_count = max_words.checked_mul(MAX_SPAN_WIDTH).ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Span count overflow: max_words={} * MAX_SPAN_WIDTH={}",
+                max_words, MAX_SPAN_WIDTH
+            ))
+        })?;
 
         for i in 0..all_input_ids.len() {
             let pad_len = max_seq_len - all_input_ids[i].len();
@@ -2330,10 +2460,18 @@ impl crate::BatchCapable for GLiNER2Onnx {
             all_attention_masks[i].extend(std::iter::repeat(0i64).take(pad_len));
             all_words_masks[i].extend(std::iter::repeat(0i64).take(pad_len));
 
-            // Pad span tensors
-            let span_pad = max_span_count * 2 - all_span_idx[i].len();
+            // Pad span tensors - validate length first
+            if all_span_idx[i].len() > max_span_count * 2 {
+                return Err(Error::InvalidInput(format!(
+                    "Span index length {} exceeds expected max {} for text {}",
+                    all_span_idx[i].len(),
+                    max_span_count * 2,
+                    i
+                )));
+            }
+            let span_pad = (max_span_count * 2).saturating_sub(all_span_idx[i].len());
             all_span_idx[i].extend(std::iter::repeat(0i64).take(span_pad));
-            let mask_pad = max_span_count - all_span_masks[i].len();
+            let mask_pad = max_span_count.saturating_sub(all_span_masks[i].len());
             all_span_masks[i].extend(std::iter::repeat(false).take(mask_pad));
         }
 
@@ -2348,6 +2486,25 @@ impl crate::BatchCapable for GLiNER2Onnx {
         let words_mask_flat: Vec<i64> = all_words_masks.into_iter().flatten().collect();
         let span_idx_flat: Vec<i64> = all_span_idx.into_iter().flatten().collect();
         let span_mask_flat: Vec<bool> = all_span_masks.into_iter().flatten().collect();
+
+        // Validate lengths before array creation
+        let expected_input_len = batch_size * max_seq_len;
+        if input_ids_flat.len() != expected_input_len {
+            return Err(Error::Parse(format!(
+                "Input IDs length mismatch: expected {}, got {}",
+                expected_input_len,
+                input_ids_flat.len()
+            )));
+        }
+
+        let expected_span_len = batch_size * max_span_count * 2;
+        if span_idx_flat.len() != expected_span_len {
+            return Err(Error::Parse(format!(
+                "Span indices length mismatch: expected {}, got {}",
+                expected_span_len,
+                span_idx_flat.len()
+            )));
+        }
 
         let input_ids_arr = Array2::from_shape_vec((batch_size, max_seq_len), input_ids_flat)
             .map_err(|e| Error::Parse(format!("Array: {}", e)))?;

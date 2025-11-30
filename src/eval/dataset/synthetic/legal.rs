@@ -27,8 +27,9 @@ pub fn dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Medium,
         },
         AnnotatedExample {
-            text: "Judge Ketanji Brown Jackson was confirmed to the Supreme Court on April 7, 2022."
-                .into(),
+            text:
+                "Judge Ketanji Brown Jackson was confirmed to the Supreme Court on April 7, 2022."
+                    .into(),
             entities: vec![
                 entity("Ketanji Brown Jackson", EntityType::Person, 6),
                 entity("Supreme Court", EntityType::Organization, 49),
@@ -38,7 +39,8 @@ pub fn dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Medium,
         },
         AnnotatedExample {
-            text: "The FTC filed an antitrust case against Meta Platforms in Washington D.C.".into(),
+            text: "The FTC filed an antitrust case against Meta Platforms in Washington D.C."
+                .into(),
             entities: vec![
                 entity("FTC", EntityType::Organization, 4),
                 entity("Meta Platforms", EntityType::Organization, 40),
@@ -69,7 +71,8 @@ pub fn dataset() -> Vec<AnnotatedExample> {
             difficulty: Difficulty::Hard,
         },
         AnnotatedExample {
-            text: "The SEC charged Sam Bankman-Fried with securities fraud totaling $8 billion.".into(),
+            text: "The SEC charged Sam Bankman-Fried with securities fraud totaling $8 billion."
+                .into(),
             entities: vec![
                 entity("SEC", EntityType::Organization, 4),
                 entity("Sam Bankman-Fried", EntityType::Person, 16),
@@ -109,4 +112,3 @@ mod tests {
         assert!(!dataset().is_empty());
     }
 }
-

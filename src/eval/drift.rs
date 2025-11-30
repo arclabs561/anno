@@ -433,7 +433,8 @@ impl DriftDetector {
         increased.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         decreased.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        let is_significant = kl_div > self.config.distribution_drift_threshold || !new_types.is_empty();
+        let is_significant =
+            kl_div > self.config.distribution_drift_threshold || !new_types.is_empty();
 
         DistributionDrift {
             kl_divergence: kl_div,
@@ -495,13 +496,15 @@ impl DriftDetector {
                     "Confidence dropped by {:.1}%",
                     confidence.drift_amount.abs() * 100.0
                 ));
-                recommendations.push("Model may be encountering harder examples - consider retraining".into());
+                recommendations
+                    .push("Model may be encountering harder examples - consider retraining".into());
             } else {
                 issues.push(format!(
                     "Confidence increased by {:.1}%",
                     confidence.drift_amount * 100.0
                 ));
-                recommendations.push("Verify model isn't becoming overconfident on new patterns".into());
+                recommendations
+                    .push("Verify model isn't becoming overconfident on new patterns".into());
             }
         }
 
@@ -523,7 +526,8 @@ impl DriftDetector {
                 "{:.1}% new vocabulary",
                 vocabulary.new_token_rate * 100.0
             ));
-            recommendations.push("Significant vocabulary shift - consider domain adaptation".into());
+            recommendations
+                .push("Significant vocabulary shift - consider domain adaptation".into());
         }
 
         let summary = if drift_detected {
@@ -641,4 +645,3 @@ mod tests {
         assert!(report.summary.contains("Insufficient"));
     }
 }
-

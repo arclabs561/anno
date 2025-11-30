@@ -24,7 +24,7 @@
 //! │                                                                     │
 //! │  Zero Dependency (always available)                                 │
 //! │  ├─ PatternNER (regex) - structured entities                        │
-//! │  └─ StatisticalNER (heuristics) - Person/Org/Location               │
+//! │  └─ HeuristicNER (heuristics) - Person/Org/Location               │
 //! │                                                                     │
 //! └─────────────────────────────────────────────────────────────────────┘
 //! ```
@@ -34,9 +34,8 @@
 //! | Backend | Feature | Zero-Shot | Nested | Speed | Status |
 //! |---------|---------|-----------|--------|-------|--------|
 //! | `PatternNER` | - | No | No | ~400ns | ✅ Complete |
-//! | `StatisticalNER` | - | No | No | ~50μs | ✅ Complete |
+//! | `HeuristicNER` | - | No | No | ~50μs | ✅ Complete |
 //! | `StackedNER` | - | No | No | varies | ✅ Complete |
-//! | `HybridNER` | - | No | No | varies | ✅ Complete |
 //! | `BertNEROnnx` | `onnx` | No | No | ~50ms | ✅ Complete |
 //! | `GLiNEROnnx` | `onnx` | **Yes** | No | ~100ms | ✅ Complete |
 //! | `NuNER` | `onnx` | **Yes** | No | ~100ms | ✅ Complete |
@@ -252,9 +251,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER via manual ONNX implementation",
-        recommended_models: &[
-            "onnx-community/gliner_small-v2.1",
-        ],
+        recommended_models: &["onnx-community/gliner_small-v2.1"],
     },
     BackendInfo {
         name: "bert_onnx",
@@ -263,11 +260,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "BERT NER via ONNX Runtime (PER/ORG/LOC/MISC)",
-        recommended_models: &[
-            "protectai/bert-base-NER-onnx",
-        ],
+        recommended_models: &["protectai/bert-base-NER-onnx"],
     },
-    
     // =========================================================================
     // Work in Progress
     // =========================================================================
@@ -278,11 +272,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
-        recommended_models: &[
-            "answerdotai/ModernBERT-base",
-        ],
+        recommended_models: &["answerdotai/ModernBERT-base"],
     },
-    
     // =========================================================================
     // Planned Backends
     // =========================================================================
@@ -293,10 +284,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        recommended_models: &[
-            "numind/NuNER-v1.0",
-            "numind/NuNER-v2.0-4k",
-        ],
+        recommended_models: &["numind/NuNER-v1.0", "numind/NuNER-v2.0-4k"],
     },
     BackendInfo {
         name: "rust_bert",
@@ -322,7 +310,8 @@ impl BackendInfo {
     /// Get all stable backends.
     #[must_use]
     pub fn stable() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG.iter()
+        BACKEND_CATALOG
+            .iter()
             .filter(|b| b.status == BackendStatus::Stable)
             .collect()
     }
@@ -330,17 +319,13 @@ impl BackendInfo {
     /// Get all zero-shot capable backends.
     #[must_use]
     pub fn zero_shot() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG.iter()
-            .filter(|b| b.zero_shot)
-            .collect()
+        BACKEND_CATALOG.iter().filter(|b| b.zero_shot).collect()
     }
 
     /// Get all GPU-capable backends.
     #[must_use]
     pub fn with_gpu() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG.iter()
-            .filter(|b| b.gpu_support)
-            .collect()
+        BACKEND_CATALOG.iter().filter(|b| b.gpu_support).collect()
     }
 }
 
@@ -348,17 +333,21 @@ impl BackendInfo {
 pub fn print_catalog() {
     println!("NER Backend Catalog");
     println!("{}", "=".repeat(80));
-    println!("{:15} {:10} {:8} {:5} {:5} Description", 
-        "Name", "Feature", "Status", "0-shot", "GPU");
+    println!(
+        "{:15} {:10} {:8} {:5} {:5} Description",
+        "Name", "Feature", "Status", "0-shot", "GPU"
+    );
     println!("{}", "-".repeat(80));
-    
+
     for backend in BACKEND_CATALOG {
         let feature = backend.feature.unwrap_or("-");
         let zero_shot = if backend.zero_shot { "yes" } else { "no" };
         let gpu = if backend.gpu_support { "yes" } else { "no" };
-        
-        println!("{:15} {:10} {:8} {:5} {:5} {}",
-            backend.name, feature, backend.status, zero_shot, gpu, backend.description);
+
+        println!(
+            "{:15} {:10} {:8} {:5} {:5} {}",
+            backend.name, feature, backend.status, zero_shot, gpu, backend.description
+        );
     }
 }
 
@@ -387,4 +376,3 @@ mod tests {
         assert!(zero_shot.iter().all(|b| b.zero_shot));
     }
 }
-

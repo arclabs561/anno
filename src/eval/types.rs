@@ -373,14 +373,14 @@ impl GoalCheck {
 pub struct LabelShift {
     /// Fraction of eval types found in training data (exact string match).
     pub overlap_ratio: f64,
-    
+
     /// Familiarity score: semantic similarity weighted by frequency.
     /// Range: [0, 1]. Higher = more similar training/eval types.
     pub familiarity: f64,
-    
+
     /// Entity types in eval NOT present in training (true zero-shot).
     pub true_zero_shot_types: Vec<String>,
-    
+
     /// Qualitative difficulty: "low", "medium", "high".
     pub transfer_difficulty: String,
 }
@@ -661,12 +661,12 @@ mod tests {
     fn test_metric_with_variance_format() {
         let samples = vec![0.85, 0.87, 0.82, 0.88, 0.84];
         let m = MetricWithVariance::from_samples(&samples);
-        
+
         // Should format nicely
         let formatted = m.format_with_ci();
         assert!(formatted.contains("%"));
         assert!(formatted.contains("±"));
-        
+
         let range = m.format_with_range();
         assert!(range.contains("82.0%"));
         assert!(range.contains("88.0%"));

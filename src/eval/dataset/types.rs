@@ -486,4 +486,3 @@ mod tests {
         assert!(negative.is_negative());
     }
 }
-

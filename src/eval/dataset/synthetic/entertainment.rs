@@ -8,8 +8,9 @@ use crate::EntityType;
 pub fn dataset() -> Vec<AnnotatedExample> {
     vec![
         AnnotatedExample {
-            text: "Tom Hanks won an Oscar for his role in Forrest Gump directed by Robert Zemeckis."
-                .into(),
+            text:
+                "Tom Hanks won an Oscar for his role in Forrest Gump directed by Robert Zemeckis."
+                    .into(),
             entities: vec![
                 entity("Tom Hanks", EntityType::Person, 0),
                 entity("Robert Zemeckis", EntityType::Person, 64),
@@ -98,4 +99,3 @@ mod tests {
         assert!(!dataset().is_empty());
     }
 }
-

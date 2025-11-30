@@ -18,10 +18,10 @@
 //! use anno::eval::synthetic::AnnotatedExample;
 //!
 //! let dataset_a = vec![
-//!     AnnotatedExample::new("John works at Google.", vec![("John", "PER"), ("Google", "ORG")]),
+//!     AnnotatedExample::from_tuples("John works at Google.", vec![("John", "PER"), ("Google", "ORG")]),
 //! ];
 //! let dataset_b = vec![
-//!     AnnotatedExample::new("Paris is beautiful.", vec![("Paris", "LOC")]),
+//!     AnnotatedExample::from_tuples("Paris is beautiful.", vec![("Paris", "LOC")]),
 //! ];
 //!
 //! let comparison = compare_datasets(&dataset_a, &dataset_b);
@@ -136,7 +136,9 @@ pub fn compute_stats(examples: &[AnnotatedExample]) -> DatasetStats {
         // Collect entity stats
         for entity in &example.entities {
             total_entities += 1;
-            *type_counts.entry(entity.entity_type.to_string()).or_insert(0) += 1;
+            *type_counts
+                .entry(entity.entity_type.to_string())
+                .or_insert(0) += 1;
             entity_texts.insert(entity.text.to_lowercase());
 
             // Count tokens in entity
@@ -238,7 +240,8 @@ pub fn compare_datasets(a: &[AnnotatedExample], b: &[AnnotatedExample]) -> Datas
     };
 
     // Type distribution divergence (Jensen-Shannon)
-    let type_divergence = jensen_shannon_divergence(&stats_a.type_distribution, &stats_b.type_distribution);
+    let type_divergence =
+        jensen_shannon_divergence(&stats_a.type_distribution, &stats_b.type_distribution);
 
     // Types in one but not the other
     let types_a: HashSet<&String> = stats_a.type_distribution.keys().collect();
@@ -247,9 +250,8 @@ pub fn compare_datasets(a: &[AnnotatedExample], b: &[AnnotatedExample]) -> Datas
     let types_only_in_b: Vec<String> = types_b.difference(&types_a).map(|s| (*s).clone()).collect();
 
     // Estimated domain gap (heuristic)
-    let estimated_domain_gap = 0.4 * type_divergence
-        + 0.3 * (1.0 - vocab_overlap)
-        + 0.3 * (1.0 - entity_text_overlap);
+    let estimated_domain_gap =
+        0.4 * type_divergence + 0.3 * (1.0 - vocab_overlap) + 0.3 * (1.0 - entity_text_overlap);
 
     // Generate recommendations
     let recommendations = generate_recommendations(
@@ -453,6 +455,181 @@ pub struct DifficultyEstimate {
 }
 
 // =============================================================================
+// Discourse-Level Comparison
+// =============================================================================
+
+/// Statistics about discourse-level features in a dataset.
+///
+/// Useful for comparing datasets that contain abstract anaphora,
+/// event mentions, or coreference chains.
+#[cfg(feature = "discourse")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscourseStats {
+    /// Number of potential abstract anaphors ("this", "that", etc.)
+    pub abstract_anaphor_count: usize,
+    /// Number of event triggers detected
+    pub event_trigger_count: usize,
+    /// Number of shell nouns detected
+    pub shell_noun_count: usize,
+    /// Average sentence length
+    pub avg_sentence_length: f64,
+    /// Number of multi-sentence examples
+    pub multi_sentence_examples: usize,
+    /// Estimated discourse complexity (0-1)
+    pub discourse_complexity: f64,
+}
+
+/// Compute discourse-level statistics for a dataset.
+#[cfg(feature = "discourse")]
+pub fn compute_discourse_stats(examples: &[AnnotatedExample]) -> DiscourseStats {
+    use crate::discourse::{classify_shell_noun, DiscourseScope, EventExtractor};
+
+    if examples.is_empty() {
+        return DiscourseStats {
+            abstract_anaphor_count: 0,
+            event_trigger_count: 0,
+            shell_noun_count: 0,
+            avg_sentence_length: 0.0,
+            multi_sentence_examples: 0,
+            discourse_complexity: 0.0,
+        };
+    }
+
+    let extractor = EventExtractor::default();
+    let mut abstract_anaphor_count = 0;
+    let mut event_trigger_count = 0;
+    let mut shell_noun_count = 0;
+    let mut total_sentences = 0;
+    let mut multi_sentence_examples = 0;
+
+    // Abstract anaphor patterns
+    let anaphor_patterns = [
+        "this ", "that ", "these ", "those ", "this.", "that.", "this,", "that,", " it ", " it.",
+        " it,",
+    ];
+
+    for example in examples {
+        let text_lower = example.text.to_lowercase();
+
+        // Count abstract anaphors
+        for pattern in &anaphor_patterns {
+            abstract_anaphor_count += text_lower.matches(pattern).count();
+        }
+
+        // Count event triggers
+        let events = extractor.extract(&example.text);
+        event_trigger_count += events.len();
+
+        // Count shell nouns
+        for word in example.text.split_whitespace() {
+            let word_clean = word.trim_matches(|c: char| !c.is_alphabetic());
+            if classify_shell_noun(word_clean).is_some() {
+                shell_noun_count += 1;
+            }
+        }
+
+        // Analyze sentence structure
+        let scope = DiscourseScope::analyze(&example.text);
+        let num_sentences = scope.sentence_count().max(1);
+        total_sentences += num_sentences;
+
+        if num_sentences > 1 {
+            multi_sentence_examples += 1;
+        }
+    }
+
+    let avg_sentence_length = examples
+        .iter()
+        .map(|e| e.text.split_whitespace().count())
+        .sum::<usize>() as f64
+        / total_sentences.max(1) as f64;
+
+    // Estimate discourse complexity
+    let complexity = ((abstract_anaphor_count as f64 / examples.len() as f64).min(1.0) * 0.3
+        + (event_trigger_count as f64 / examples.len() as f64).min(1.0) * 0.3
+        + (shell_noun_count as f64 / examples.len() as f64 / 2.0).min(1.0) * 0.2
+        + (multi_sentence_examples as f64 / examples.len() as f64) * 0.2)
+        .clamp(0.0, 1.0);
+
+    DiscourseStats {
+        abstract_anaphor_count,
+        event_trigger_count,
+        shell_noun_count,
+        avg_sentence_length,
+        multi_sentence_examples,
+        discourse_complexity: complexity,
+    }
+}
+
+/// Extended comparison including discourse-level features.
+#[cfg(feature = "discourse")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtendedDatasetComparison {
+    /// Basic NER comparison
+    pub basic: DatasetComparison,
+    /// Discourse stats for dataset A
+    pub discourse_a: DiscourseStats,
+    /// Discourse stats for dataset B
+    pub discourse_b: DiscourseStats,
+    /// Discourse complexity difference
+    pub discourse_gap: f64,
+    /// Additional recommendations based on discourse analysis
+    pub discourse_recommendations: Vec<String>,
+}
+
+/// Compare datasets with extended discourse-level analysis.
+#[cfg(feature = "discourse")]
+pub fn compare_datasets_extended(
+    a: &[AnnotatedExample],
+    b: &[AnnotatedExample],
+) -> ExtendedDatasetComparison {
+    let basic = compare_datasets(a, b);
+    let discourse_a = compute_discourse_stats(a);
+    let discourse_b = compute_discourse_stats(b);
+
+    let discourse_gap = (discourse_a.discourse_complexity - discourse_b.discourse_complexity).abs();
+
+    let mut discourse_recommendations = Vec::new();
+
+    if discourse_gap > 0.3 {
+        discourse_recommendations.push(
+            "Significant discourse complexity difference - models may struggle with transfer"
+                .into(),
+        );
+    }
+
+    if discourse_a.event_trigger_count > 0 && discourse_b.event_trigger_count == 0 {
+        discourse_recommendations.push(
+            "Source has event triggers but target doesn't - event extraction may not transfer"
+                .into(),
+        );
+    }
+
+    if discourse_a.abstract_anaphor_count > discourse_b.abstract_anaphor_count * 2 {
+        discourse_recommendations
+            .push("Source has more abstract anaphora - coreference may not generalize".into());
+    }
+
+    if discourse_a.multi_sentence_examples > 0 && discourse_b.multi_sentence_examples == 0 {
+        discourse_recommendations
+            .push("Target is single-sentence only - cross-sentence phenomena won't appear".into());
+    }
+
+    if discourse_recommendations.is_empty() {
+        discourse_recommendations
+            .push("Discourse characteristics are similar between datasets".into());
+    }
+
+    ExtendedDatasetComparison {
+        basic,
+        discourse_a,
+        discourse_b,
+        discourse_gap,
+        discourse_recommendations,
+    }
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -462,7 +639,7 @@ mod tests {
 
     fn make_example(text: &str, entities: Vec<(&str, &str)>) -> AnnotatedExample {
         use crate::eval::datasets::GoldEntity;
-        use crate::eval::synthetic::{Domain, Difficulty};
+        use crate::eval::synthetic::{Difficulty, Domain};
         use crate::EntityType;
 
         let mut gold_entities = Vec::new();
@@ -497,8 +674,14 @@ mod tests {
     #[test]
     fn test_compute_stats_basic() {
         let examples = vec![
-            make_example("John works at Google.", vec![("John", "PER"), ("Google", "ORG")]),
-            make_example("Paris is in France.", vec![("Paris", "LOC"), ("France", "LOC")]),
+            make_example(
+                "John works at Google.",
+                vec![("John", "PER"), ("Google", "ORG")],
+            ),
+            make_example(
+                "Paris is in France.",
+                vec![("Paris", "LOC"), ("France", "LOC")],
+            ),
         ];
 
         let stats = compute_stats(&examples);
@@ -567,12 +750,10 @@ mod tests {
             make_example("John went home.", vec![("John", "PER")]),
         ];
 
-        let hard_examples = vec![
-            make_example(
-                "International Business Machines Corporation announced.",
-                vec![("International Business Machines Corporation", "ORG")],
-            ),
-        ];
+        let hard_examples = vec![make_example(
+            "International Business Machines Corporation announced.",
+            vec![("International Business Machines Corporation", "ORG")],
+        )];
 
         let easy_stats = compute_stats(&easy_examples);
         let hard_stats = compute_stats(&hard_examples);
@@ -582,5 +763,107 @@ mod tests {
 
         assert!(hard_diff.score >= easy_diff.score);
     }
-}
 
+    // =================================================================
+    // Discourse Statistics Tests
+    // =================================================================
+
+    #[test]
+    #[cfg(feature = "discourse")]
+    fn test_discourse_stats_empty() {
+        let stats = compute_discourse_stats(&[]);
+        assert_eq!(stats.abstract_anaphor_count, 0);
+        assert_eq!(stats.event_trigger_count, 0);
+        assert_eq!(stats.shell_noun_count, 0);
+    }
+
+    #[test]
+    #[cfg(feature = "discourse")]
+    fn test_discourse_stats_with_anaphors() {
+        let examples = vec![
+            make_example(
+                "Russia invaded Ukraine. This caused inflation.",
+                vec![("Russia", "LOC")],
+            ),
+            make_example(
+                "The merger was announced. That surprised investors.",
+                vec![],
+            ),
+        ];
+
+        let stats = compute_discourse_stats(&examples);
+
+        // Should detect "This" and "That" as abstract anaphors
+        assert!(
+            stats.abstract_anaphor_count >= 2,
+            "Should detect abstract anaphors"
+        );
+        // Should detect event triggers like "invaded", "announced"
+        assert!(
+            stats.event_trigger_count >= 2,
+            "Should detect event triggers"
+        );
+        // Both examples are multi-sentence
+        assert_eq!(stats.multi_sentence_examples, 2);
+    }
+
+    #[test]
+    #[cfg(feature = "discourse")]
+    fn test_discourse_stats_with_shell_nouns() {
+        let examples = vec![
+            make_example("This problem is serious.", vec![]),
+            make_example("The fact is clear.", vec![]),
+            make_example("The situation is complex.", vec![]),
+        ];
+
+        let stats = compute_discourse_stats(&examples);
+
+        // Should detect shell nouns: problem, fact, situation
+        assert!(stats.shell_noun_count >= 3, "Should detect shell nouns");
+    }
+
+    #[test]
+    #[cfg(feature = "discourse")]
+    fn test_extended_comparison() {
+        let simple = vec![make_example(
+            "John works at Google.",
+            vec![("John", "PER"), ("Google", "ORG")],
+        )];
+
+        let complex = vec![
+            make_example(
+                "Russia invaded Ukraine in 2022. This caused a global energy crisis. The situation remains tense.",
+                vec![("Russia", "LOC"), ("Ukraine", "LOC")]
+            ),
+        ];
+
+        let comparison = compare_datasets_extended(&simple, &complex);
+
+        // Complex should have higher discourse complexity
+        assert!(
+            comparison.discourse_b.discourse_complexity
+                > comparison.discourse_a.discourse_complexity,
+            "Complex dataset should have higher discourse complexity"
+        );
+
+        // Should have some discourse gap
+        assert!(comparison.discourse_gap > 0.0);
+    }
+
+    #[test]
+    #[cfg(feature = "discourse")]
+    fn test_discourse_complexity_bounds() {
+        let examples = vec![
+            make_example(
+                "This problem happened. That event occurred. This situation developed. The fact emerged.",
+                vec![]
+            ),
+        ];
+
+        let stats = compute_discourse_stats(&examples);
+
+        // Complexity should be bounded [0, 1]
+        assert!(stats.discourse_complexity >= 0.0);
+        assert!(stats.discourse_complexity <= 1.0);
+    }
+}

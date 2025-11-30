@@ -4,4 +4,4 @@
 #
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
-cc c22cdccb14a0160d196b3e6e845785bb3445439d3ad9d1bfe747173cc94fc04d # shrinks to labels = ["sbo", "sbo"]
+cc 858ea9feeb67bd45b524e822295a9aa2dc8bd89e4e18e0b431e9403c8fd6c787 # shrinks to text = "\t"

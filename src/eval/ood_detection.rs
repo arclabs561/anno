@@ -164,16 +164,16 @@ impl OODDetector {
     }
 
     /// Fit with entity types for distribution tracking.
-    pub fn fit_with_types(
-        mut self,
-        training_data: &[(impl AsRef<str>, impl AsRef<str>)],
-    ) -> Self {
+    pub fn fit_with_types(mut self, training_data: &[(impl AsRef<str>, impl AsRef<str>)]) -> Self {
         for (entity, entity_type) in training_data {
             let text = entity.as_ref();
             let etype = entity_type.as_ref();
 
             self.known_entities.insert(text.to_lowercase());
-            *self.type_distributions.entry(etype.to_string()).or_insert(0) += 1;
+            *self
+                .type_distributions
+                .entry(etype.to_string())
+                .or_insert(0) += 1;
 
             for ngram in self.extract_ngrams(text) {
                 self.train_ngrams.insert(ngram.clone());
@@ -398,11 +398,15 @@ mod tests {
 
         // Normal text
         let status = detector.check_ood("John Smith", None);
-        assert!(!status.flagged_by.contains(&"unusual_characters".to_string()));
+        assert!(!status
+            .flagged_by
+            .contains(&"unusual_characters".to_string()));
 
         // Text with zero-width space
         let status = detector.check_ood("John\u{200B}Smith", None);
-        assert!(status.flagged_by.contains(&"unusual_characters".to_string()));
+        assert!(status
+            .flagged_by
+            .contains(&"unusual_characters".to_string()));
     }
 
     #[test]
@@ -459,4 +463,3 @@ mod tests {
         assert_eq!(ood_rate_grade(0.60), "Very high OOD (major domain shift)");
     }
 }
-

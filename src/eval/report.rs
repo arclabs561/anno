@@ -35,31 +35,31 @@ use std::fmt;
 pub struct EvalReport {
     /// Model/system identifier
     pub model_name: String,
-    
+
     /// Timestamp of evaluation
     pub timestamp: String,
-    
+
     /// Core NER metrics (always present)
     pub core: CoreMetrics,
-    
+
     /// Per-entity-type breakdown
     pub per_type: HashMap<String, TypeMetrics>,
-    
+
     /// Error analysis (if enabled)
     pub errors: Option<ErrorSummary>,
-    
+
     /// Bias analysis (if enabled and applicable)
     pub bias: Option<BiasSummary>,
-    
+
     /// Data quality findings (if enabled)
     pub data_quality: Option<DataQualitySummary>,
-    
+
     /// Calibration analysis (if model provides confidence)
     pub calibration: Option<CalibrationSummary>,
-    
+
     /// Recommendations based on findings
     pub recommendations: Vec<Recommendation>,
-    
+
     /// Raw warnings/notes generated during evaluation
     pub warnings: Vec<String>,
 }
@@ -267,6 +267,31 @@ pub struct SimpleGoldEntity {
     pub end: usize,
 }
 
+impl SimpleGoldEntity {
+    /// Safely extract text from source using character offsets.
+    ///
+    /// SimpleGoldEntity stores character offsets, not byte offsets. This method
+    /// correctly extracts text by iterating over characters.
+    ///
+    /// # Arguments
+    /// * `source_text` - The original text from which this entity was extracted
+    ///
+    /// # Returns
+    /// The extracted text, or empty string if offsets are invalid
+    #[must_use]
+    pub fn extract_text(&self, source_text: &str) -> String {
+        let char_count = source_text.chars().count();
+        if self.start >= char_count || self.end > char_count || self.start >= self.end {
+            return String::new();
+        }
+        source_text
+            .chars()
+            .skip(self.start)
+            .take(self.end - self.start)
+            .collect()
+    }
+}
+
 impl ReportBuilder {
     /// Create a new report builder.
     pub fn new(model_name: &str) -> Self {
@@ -340,7 +365,7 @@ impl ReportBuilder {
 
         for case in &test_cases {
             let predictions = model.extract_entities(&case.text, None).unwrap_or_default();
-            
+
             total_gold += case.gold_entities.len();
             total_predicted += predictions.len();
 
@@ -351,7 +376,8 @@ impl ReportBuilder {
                 entry.0 += 1; // gold count
 
                 let matched = predictions.iter().any(|p| {
-                    p.start == gold.start && p.end == gold.end 
+                    p.start == gold.start
+                        && p.end == gold.end
                         && p.entity_type.as_label() == gold.entity_type
                 });
 
@@ -401,18 +427,33 @@ impl ReportBuilder {
         let mut per_type = HashMap::new();
         let mut type_f1s = Vec::new();
         for (type_name, (gold, pred, correct)) in &per_type_stats {
-            let p = if *pred > 0 { *correct as f64 / *pred as f64 } else { 0.0 };
-            let r = if *gold > 0 { *correct as f64 / *gold as f64 } else { 0.0 };
-            let f = if p + r > 0.0 { 2.0 * p * r / (p + r) } else { 0.0 };
+            let p = if *pred > 0 {
+                *correct as f64 / *pred as f64
+            } else {
+                0.0
+            };
+            let r = if *gold > 0 {
+                *correct as f64 / *gold as f64
+            } else {
+                0.0
+            };
+            let f = if p + r > 0.0 {
+                2.0 * p * r / (p + r)
+            } else {
+                0.0
+            };
             type_f1s.push(f);
-            per_type.insert(type_name.clone(), TypeMetrics {
-                precision: p,
-                recall: r,
-                f1: f,
-                support: *gold,
-                predicted: *pred,
-                correct: *correct,
-            });
+            per_type.insert(
+                type_name.clone(),
+                TypeMetrics {
+                    precision: p,
+                    recall: r,
+                    f1: f,
+                    support: *gold,
+                    predicted: *pred,
+                    correct: *correct,
+                },
+            );
         }
 
         // Generate recommendations
@@ -420,7 +461,10 @@ impl ReportBuilder {
             recommendations.push(Recommendation {
                 priority: Priority::High,
                 category: RecommendationCategory::Performance,
-                message: format!("F1 score ({:.1}%) is below acceptable threshold", f1 * 100.0),
+                message: format!(
+                    "F1 score ({:.1}%) is below acceptable threshold",
+                    f1 * 100.0
+                ),
                 estimated_impact: Some("Core functionality compromised".into()),
             });
         }
@@ -429,7 +473,8 @@ impl ReportBuilder {
             recommendations.push(Recommendation {
                 priority: Priority::Medium,
                 category: RecommendationCategory::Coverage,
-                message: "Recall significantly lower than precision - model is too conservative".into(),
+                message: "Recall significantly lower than precision - model is too conservative"
+                    .into(),
                 estimated_impact: Some("Missing many valid entities".into()),
             });
         }
@@ -456,9 +501,9 @@ impl ReportBuilder {
             core,
             per_type,
             errors,
-            bias: None,           // Bias analysis not yet integrated
-            data_quality: None,   // Data quality not yet integrated
-            calibration: None,    // Calibration not yet integrated
+            bias: None,         // Bias analysis not yet integrated
+            data_quality: None, // Data quality not yet integrated
+            calibration: None,  // Calibration not yet integrated
             recommendations,
             warnings,
         }
@@ -473,31 +518,41 @@ impl EvalReport {
     /// Generate a human-readable summary.
     pub fn summary(&self) -> String {
         let mut out = String::new();
-        
+
         out.push_str(&format!("=== Evaluation Report: {} ===\n", self.model_name));
         out.push_str(&format!("Generated: {}\n\n", self.timestamp));
-        
+
         // Core metrics
         out.push_str("## Core Metrics\n");
-        out.push_str(&format!("  Precision: {:.1}%\n", self.core.precision * 100.0));
+        out.push_str(&format!(
+            "  Precision: {:.1}%\n",
+            self.core.precision * 100.0
+        ));
         out.push_str(&format!("  Recall:    {:.1}%\n", self.core.recall * 100.0));
         out.push_str(&format!("  F1:        {:.1}%\n", self.core.f1 * 100.0));
-        out.push_str(&format!("  ({} correct / {} predicted / {} gold)\n\n", 
-            self.core.total_correct, self.core.total_predicted, self.core.total_gold));
-        
+        out.push_str(&format!(
+            "  ({} correct / {} predicted / {} gold)\n\n",
+            self.core.total_correct, self.core.total_predicted, self.core.total_gold
+        ));
+
         // Per-type breakdown
         if !self.per_type.is_empty() {
             out.push_str("## Per-Type Breakdown\n");
             let mut types: Vec<_> = self.per_type.iter().collect();
             types.sort_by(|a, b| b.1.support.cmp(&a.1.support));
             for (type_name, metrics) in types {
-                out.push_str(&format!("  {:12} P={:.0}% R={:.0}% F1={:.0}% (n={})\n",
-                    type_name, metrics.precision * 100.0, metrics.recall * 100.0,
-                    metrics.f1 * 100.0, metrics.support));
+                out.push_str(&format!(
+                    "  {:12} P={:.0}% R={:.0}% F1={:.0}% (n={})\n",
+                    type_name,
+                    metrics.precision * 100.0,
+                    metrics.recall * 100.0,
+                    metrics.f1 * 100.0,
+                    metrics.support
+                ));
             }
             out.push('\n');
         }
-        
+
         // Error summary
         if let Some(ref errors) = self.errors {
             out.push_str("## Error Analysis\n");
@@ -512,7 +567,7 @@ impl EvalReport {
             }
             out.push('\n');
         }
-        
+
         // Recommendations
         if !self.recommendations.is_empty() {
             out.push_str("## Recommendations\n");
@@ -526,7 +581,7 @@ impl EvalReport {
             }
             out.push('\n');
         }
-        
+
         // Warnings
         if !self.warnings.is_empty() {
             out.push_str("## Warnings\n");
@@ -534,7 +589,7 @@ impl EvalReport {
                 out.push_str(&format!("  - {}\n", warning));
             }
         }
-        
+
         out
     }
 
@@ -603,14 +658,12 @@ fn default_synthetic_cases() -> Vec<TestCase> {
         },
         TestCase {
             text: "Invoice total: $1,234.56 USD".into(),
-            gold_entities: vec![
-                SimpleGoldEntity {
-                    text: "$1,234.56".into(),
-                    entity_type: "MONEY".into(),
-                    start: 15,
-                    end: 24,
-                },
-            ],
+            gold_entities: vec![SimpleGoldEntity {
+                text: "$1,234.56".into(),
+                entity_type: "MONEY".into(),
+                start: 15,
+                end: 24,
+            }],
         },
     ]
 }
@@ -630,7 +683,7 @@ mod tests {
         let report = ReportBuilder::new("PatternNER")
             .with_error_analysis(true)
             .build(&model);
-        
+
         assert_eq!(report.model_name, "PatternNER");
         assert!(report.core.total_gold > 0);
     }
@@ -657,7 +710,7 @@ mod tests {
             recommendations: vec![],
             warnings: vec![],
         };
-        
+
         let summary = report.summary();
         assert!(summary.contains("TestModel"));
         assert!(summary.contains("85.0%")); // precision
@@ -686,7 +739,7 @@ mod tests {
             recommendations: vec![],
             warnings: vec![],
         };
-        
+
         let json = report.to_json().unwrap();
         assert!(json.contains("\"model_name\": \"TestModel\""));
         assert!(json.contains("\"f1\": 0.85"));
@@ -696,35 +749,36 @@ mod tests {
     fn test_recommendations_generated() {
         use crate::PatternNER;
         let model = PatternNER::new();
-        
+
         // Create test data that will result in low F1
-        let test_data = vec![
-            TestCase {
-                text: "John Smith works at Google".into(),
-                gold_entities: vec![
-                    SimpleGoldEntity {
-                        text: "John Smith".into(),
-                        entity_type: "PER".into(),
-                        start: 0,
-                        end: 10,
-                    },
-                    SimpleGoldEntity {
-                        text: "Google".into(),
-                        entity_type: "ORG".into(),
-                        start: 20,
-                        end: 26,
-                    },
-                ],
-            },
-        ];
-        
+        let test_data = vec![TestCase {
+            text: "John Smith works at Google".into(),
+            gold_entities: vec![
+                SimpleGoldEntity {
+                    text: "John Smith".into(),
+                    entity_type: "PER".into(),
+                    start: 0,
+                    end: 10,
+                },
+                SimpleGoldEntity {
+                    text: "Google".into(),
+                    entity_type: "ORG".into(),
+                    start: 20,
+                    end: 26,
+                },
+            ],
+        }];
+
         let report = ReportBuilder::new("PatternNER")
             .with_test_data(test_data)
             .build(&model);
-        
+
         // PatternNER can't detect PER/ORG, so F1 should be low
         // and recommendations should be generated
-        assert!(report.core.f1 < 0.5 || !report.recommendations.is_empty() || report.core.total_gold == 0);
+        assert!(
+            report.core.f1 < 0.5
+                || !report.recommendations.is_empty()
+                || report.core.total_gold == 0
+        );
     }
 }
-

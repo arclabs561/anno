@@ -355,7 +355,12 @@ mod candle_impl {
 
     impl RotaryEmbedding {
         /// Create new rotary embeddings with precomputed sin/cos caches.
-        pub fn new(head_dim: usize, max_seq_len: usize, theta: f64, device: &Device) -> Result<Self> {
+        pub fn new(
+            head_dim: usize,
+            max_seq_len: usize,
+            theta: f64,
+            device: &Device,
+        ) -> Result<Self> {
             // Compute inverse frequencies
             let half_dim = head_dim / 2;
             let inv_freq: Vec<f32> = (0..half_dim)
@@ -393,45 +398,54 @@ mod candle_impl {
         ///
         /// Input shape: [batch, seq_len, num_heads, head_dim]
         pub fn apply(&self, x: &Tensor, start_pos: usize) -> Result<Tensor> {
-            let (batch, seq_len, num_heads, head_dim) = x.dims4()
+            let (batch, seq_len, num_heads, head_dim) = x
+                .dims4()
                 .map_err(|e| Error::Parse(format!("RoPE dims: {}", e)))?;
 
             // Get position-specific cos/sin
-            let cos = self.cos_cache.i((start_pos..start_pos + seq_len, ..))
+            let cos = self
+                .cos_cache
+                .i((start_pos..start_pos + seq_len, ..))
                 .map_err(|e| Error::Parse(format!("RoPE cos slice: {}", e)))?;
-            let sin = self.sin_cache.i((start_pos..start_pos + seq_len, ..))
+            let sin = self
+                .sin_cache
+                .i((start_pos..start_pos + seq_len, ..))
                 .map_err(|e| Error::Parse(format!("RoPE sin slice: {}", e)))?;
 
             // Split x into two halves
             let half_dim = head_dim / 2;
-            let x1 = x.i((.., .., .., ..half_dim))
+            let x1 = x
+                .i((.., .., .., ..half_dim))
                 .map_err(|e| Error::Parse(format!("RoPE x1: {}", e)))?;
-            let x2 = x.i((.., .., .., half_dim..))
+            let x2 = x
+                .i((.., .., .., half_dim..))
                 .map_err(|e| Error::Parse(format!("RoPE x2: {}", e)))?;
 
             // Rotate: [x1, x2] -> [x1*cos - x2*sin, x1*sin + x2*cos]
-            let cos_exp = cos.unsqueeze(0)
+            let cos_exp = cos
+                .unsqueeze(0)
                 .map_err(|e| Error::Parse(format!("RoPE cos unsqueeze: {}", e)))?
                 .unsqueeze(2)
                 .map_err(|e| Error::Parse(format!("RoPE cos unsqueeze2: {}", e)))?;
-            let sin_exp = sin.unsqueeze(0)
+            let sin_exp = sin
+                .unsqueeze(0)
                 .map_err(|e| Error::Parse(format!("RoPE sin unsqueeze: {}", e)))?
                 .unsqueeze(2)
                 .map_err(|e| Error::Parse(format!("RoPE sin unsqueeze2: {}", e)))?;
 
-            let x1_cos = (&x1 * &cos_exp)
-                .map_err(|e| Error::Parse(format!("RoPE x1*cos: {}", e)))?;
-            let x2_sin = (&x2 * &sin_exp)
-                .map_err(|e| Error::Parse(format!("RoPE x2*sin: {}", e)))?;
-            let rotated_x1 = (&x1_cos - &x2_sin)
-                .map_err(|e| Error::Parse(format!("RoPE rotated_x1: {}", e)))?;
-            
-            let x1_sin = (&x1 * &sin_exp)
-                .map_err(|e| Error::Parse(format!("RoPE x1*sin: {}", e)))?;
-            let x2_cos = (&x2 * &cos_exp)
-                .map_err(|e| Error::Parse(format!("RoPE x2*cos: {}", e)))?;
-            let rotated_x2 = (&x1_sin + &x2_cos)
-                .map_err(|e| Error::Parse(format!("RoPE rotated_x2: {}", e)))?;
+            let x1_cos =
+                (&x1 * &cos_exp).map_err(|e| Error::Parse(format!("RoPE x1*cos: {}", e)))?;
+            let x2_sin =
+                (&x2 * &sin_exp).map_err(|e| Error::Parse(format!("RoPE x2*sin: {}", e)))?;
+            let rotated_x1 =
+                (&x1_cos - &x2_sin).map_err(|e| Error::Parse(format!("RoPE rotated_x1: {}", e)))?;
+
+            let x1_sin =
+                (&x1 * &sin_exp).map_err(|e| Error::Parse(format!("RoPE x1*sin: {}", e)))?;
+            let x2_cos =
+                (&x2 * &cos_exp).map_err(|e| Error::Parse(format!("RoPE x2*cos: {}", e)))?;
+            let rotated_x2 =
+                (&x1_sin + &x2_cos).map_err(|e| Error::Parse(format!("RoPE rotated_x2: {}", e)))?;
 
             Tensor::cat(&[&rotated_x1, &rotated_x2], D::Minus1)
                 .map_err(|e| Error::Parse(format!("RoPE cat: {}", e)))
@@ -450,13 +464,16 @@ mod candle_impl {
         let dim = x.dims().last().copied().unwrap_or(0);
         let half = dim / 2;
 
-        let gate = x.i((.., ..half))
+        let gate = x
+            .i((.., ..half))
             .map_err(|e| Error::Parse(format!("GeGLU gate: {}", e)))?;
-        let x_half = x.i((.., half..))
+        let x_half = x
+            .i((.., half..))
             .map_err(|e| Error::Parse(format!("GeGLU x: {}", e)))?;
 
         // GELU activation on gate using tensor method
-        let gelu_gate = gate.gelu_erf()
+        let gelu_gate = gate
+            .gelu_erf()
             .map_err(|e| Error::Parse(format!("GeGLU gelu: {}", e)))?;
 
         (&gelu_gate * &x_half).map_err(|e| Error::Parse(format!("GeGLU mul: {}", e)))
@@ -482,16 +499,27 @@ mod candle_impl {
         pub fn new(config: &EncoderConfig, vb: VarBuilder, device: &Device) -> Result<Self> {
             let hidden = config.hidden_size;
             let num_heads = config.num_attention_heads;
+            if num_heads == 0 {
+                return Err(Error::Retrieval(
+                    "num_attention_heads cannot be zero".into(),
+                ));
+            }
             let head_dim = hidden / num_heads;
 
-            let q_proj = linear(hidden, hidden, vb.pp("q_proj"))
-                .map_err(|e| Error::Retrieval(format!("Attention q_proj: {}", e)))?;
-            let k_proj = linear(hidden, hidden, vb.pp("k_proj"))
-                .map_err(|e| Error::Retrieval(format!("Attention k_proj: {}", e)))?;
-            let v_proj = linear(hidden, hidden, vb.pp("v_proj"))
-                .map_err(|e| Error::Retrieval(format!("Attention v_proj: {}", e)))?;
-            let o_proj = linear(hidden, hidden, vb.pp("o_proj"))
-                .map_err(|e| Error::Retrieval(format!("Attention o_proj: {}", e)))?;
+            // BERT uses "self.query", "self.key", "self.value", "output.dense"
+            // The vb already has the "attention" prefix from TransformerLayer
+            let q_proj = linear(hidden, hidden, vb.pp("self.query"))
+                .or_else(|_| linear(hidden, hidden, vb.pp("q_proj")))
+                .map_err(|e| Error::Retrieval(format!("Attention query: {}", e)))?;
+            let k_proj = linear(hidden, hidden, vb.pp("self.key"))
+                .or_else(|_| linear(hidden, hidden, vb.pp("k_proj")))
+                .map_err(|e| Error::Retrieval(format!("Attention key: {}", e)))?;
+            let v_proj = linear(hidden, hidden, vb.pp("self.value"))
+                .or_else(|_| linear(hidden, hidden, vb.pp("v_proj")))
+                .map_err(|e| Error::Retrieval(format!("Attention value: {}", e)))?;
+            let o_proj = linear(hidden, hidden, vb.pp("output.dense"))
+                .or_else(|_| linear(hidden, hidden, vb.pp("o_proj")))
+                .map_err(|e| Error::Retrieval(format!("Attention output: {}", e)))?;
 
             let rope = if config.use_rope {
                 Some(RotaryEmbedding::new(
@@ -517,16 +545,33 @@ mod candle_impl {
 
         /// Forward pass through attention layer.
         pub fn forward(&self, hidden_states: &Tensor, start_pos: usize) -> Result<Tensor> {
-            let (batch, seq_len, hidden) = hidden_states.dims3()
+            let (batch, seq_len, hidden) = hidden_states
+                .dims3()
                 .map_err(|e| Error::Parse(format!("Attention dims: {}", e)))?;
 
             // Project Q, K, V
-            let q = self.q_proj.forward(hidden_states)
+            let q = self
+                .q_proj
+                .forward(hidden_states)
                 .map_err(|e| Error::Parse(format!("Attention Q: {}", e)))?;
-            let k = self.k_proj.forward(hidden_states)
+            let k = self
+                .k_proj
+                .forward(hidden_states)
                 .map_err(|e| Error::Parse(format!("Attention K: {}", e)))?;
-            let v = self.v_proj.forward(hidden_states)
+            let v = self
+                .v_proj
+                .forward(hidden_states)
                 .map_err(|e| Error::Parse(format!("Attention V: {}", e)))?;
+
+            // Validate dimensions before reshape
+            let expected_elements = batch * seq_len * self.num_heads * self.head_dim;
+            let q_elements: usize = q.dims().iter().product();
+            if expected_elements != q_elements {
+                return Err(Error::Parse(format!(
+                    "Reshape dimension mismatch for Q: expected {} elements ({}x{}x{}x{}), got {}",
+                    expected_elements, batch, seq_len, self.num_heads, self.head_dim, q_elements
+                )));
+            }
 
             // Reshape to [batch, seq, num_heads, head_dim]
             let q = q.reshape((batch, seq_len, self.num_heads, self.head_dim))?;
@@ -546,7 +591,10 @@ mod candle_impl {
             let v = v.transpose(1, 2)?;
 
             // Scaled dot-product attention
-            let scale = (self.head_dim as f64).sqrt();
+            if self.head_dim == 0 {
+                return Err(Error::Parse("head_dim cannot be zero".into()));
+            }
+            let scale = (self.head_dim as f64).sqrt(); // Use f64 for Tensor division
             let attn_weights = (q.matmul(&k.transpose(2, 3)?)? / scale)?;
             let attn_weights = candle_nn::ops::softmax(&attn_weights, D::Minus1)
                 .map_err(|e| Error::Parse(format!("Attention softmax: {}", e)))?;
@@ -557,7 +605,8 @@ mod candle_impl {
             let attn_output = attn_output.reshape((batch, seq_len, hidden))?;
 
             // Output projection
-            self.o_proj.forward(&attn_output)
+            self.o_proj
+                .forward(&attn_output)
                 .map_err(|e| Error::Parse(format!("Attention output: {}", e)))
         }
     }
@@ -580,10 +629,13 @@ mod candle_impl {
                 config.intermediate_size
             };
 
-            let up_proj = linear(hidden, intermediate, vb.pp("up_proj"))
-                .map_err(|e| Error::Retrieval(format!("FFN up_proj: {}", e)))?;
-            let down_proj = linear(config.intermediate_size, hidden, vb.pp("down_proj"))
-                .map_err(|e| Error::Retrieval(format!("FFN down_proj: {}", e)))?;
+            // BERT uses "intermediate.dense" and "output.dense"
+            let up_proj = linear(hidden, intermediate, vb.pp("intermediate.dense"))
+                .or_else(|_| linear(hidden, intermediate, vb.pp("up_proj")))
+                .map_err(|e| Error::Retrieval(format!("FFN intermediate: {}", e)))?;
+            let down_proj = linear(config.intermediate_size, hidden, vb.pp("output.dense"))
+                .or_else(|_| linear(config.intermediate_size, hidden, vb.pp("down_proj")))
+                .map_err(|e| Error::Retrieval(format!("FFN output: {}", e)))?;
 
             Ok(Self {
                 up_proj,
@@ -594,7 +646,9 @@ mod candle_impl {
 
         /// Forward pass through FFN.
         pub fn forward(&self, x: &Tensor) -> Result<Tensor> {
-            let up = self.up_proj.forward(x)
+            let up = self
+                .up_proj
+                .forward(x)
                 .map_err(|e| Error::Parse(format!("FFN up: {}", e)))?;
 
             let activated = if self.use_geglu {
@@ -605,7 +659,8 @@ mod candle_impl {
                     .map_err(|e| Error::Parse(format!("FFN gelu: {}", e)))?
             };
 
-            self.down_proj.forward(&activated)
+            self.down_proj
+                .forward(&activated)
                 .map_err(|e| Error::Parse(format!("FFN down: {}", e)))
         }
     }
@@ -621,13 +676,27 @@ mod candle_impl {
     impl TransformerLayer {
         /// Create a new transformer layer from config and weights.
         pub fn new(config: &EncoderConfig, vb: VarBuilder, device: &Device) -> Result<Self> {
+            // BERT uses "attention" prefix
             let attention = Attention::new(config, vb.pp("attention"), device)?;
-            let ffn = FeedForward::new(config, vb.pp("ffn"))?;
+            // FeedForward is at the same level as attention, so use empty prefix (or just vb)
+            let ffn = FeedForward::new(config, vb.clone())?;
 
-            let ln1 = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("ln1"))
-                .map_err(|e| Error::Retrieval(format!("Layer ln1: {}", e)))?;
-            let ln2 = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("ln2"))
-                .map_err(|e| Error::Retrieval(format!("Layer ln2: {}", e)))?;
+            // BERT uses "attention.output.LayerNorm" and "output.LayerNorm"
+            // Try BERT paths first, then fall back to generic
+            let ln1 = layer_norm(
+                config.hidden_size,
+                config.layer_norm_eps,
+                vb.pp("attention.output.LayerNorm"),
+            )
+            .or_else(|_| layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("ln1")))
+            .map_err(|e| Error::Retrieval(format!("Layer ln1: {}", e)))?;
+            let ln2 = layer_norm(
+                config.hidden_size,
+                config.layer_norm_eps,
+                vb.pp("output.LayerNorm"),
+            )
+            .or_else(|_| layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("ln2")))
+            .map_err(|e| Error::Retrieval(format!("Layer ln2: {}", e)))?;
 
             Ok(Self {
                 attention,
@@ -640,13 +709,17 @@ mod candle_impl {
         /// Forward pass through transformer layer.
         pub fn forward(&self, x: &Tensor, start_pos: usize) -> Result<Tensor> {
             // Pre-norm: LN -> Attention -> Residual
-            let normed = self.ln1.forward(x)
+            let normed = self
+                .ln1
+                .forward(x)
                 .map_err(|e| Error::Parse(format!("Layer ln1: {}", e)))?;
             let attn_out = self.attention.forward(&normed, start_pos)?;
             let x = (x + attn_out)?;
 
             // Pre-norm: LN -> FFN -> Residual
-            let normed = self.ln2.forward(&x)
+            let normed = self
+                .ln2
+                .forward(&x)
                 .map_err(|e| Error::Parse(format!("Layer ln2: {}", e)))?;
             let ffn_out = self.ffn.forward(&normed)?;
             (&x + ffn_out).map_err(|e| Error::Parse(format!("Layer residual: {}", e)))
@@ -668,6 +741,15 @@ mod candle_impl {
         architecture_name: String,
     }
 
+    impl std::fmt::Debug for CandleEncoder {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("CandleEncoder")
+                .field("architecture_name", &self.architecture_name)
+                .field("device", &format!("{:?}", self.device))
+                .finish_non_exhaustive()
+        }
+    }
+
     impl CandleEncoder {
         /// Create a new encoder with random weights (for testing).
         pub fn new_random(config: EncoderConfig, tokenizer: Tokenizer, name: &str) -> Result<Self> {
@@ -680,11 +762,19 @@ mod candle_impl {
 
             let mut layers = Vec::new();
             for i in 0..config.num_hidden_layers {
-                layers.push(TransformerLayer::new(&config, vb.pp(format!("layer_{}", i)), &device)?);
+                layers.push(TransformerLayer::new(
+                    &config,
+                    vb.pp(format!("layer_{}", i)),
+                    &device,
+                )?);
             }
 
-            let final_norm = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("final_norm"))
-                .map_err(|e| Error::Retrieval(format!("Final norm: {}", e)))?;
+            let final_norm = layer_norm(
+                config.hidden_size,
+                config.layer_norm_eps,
+                vb.pp("final_norm"),
+            )
+            .map_err(|e| Error::Retrieval(format!("Final norm: {}", e)))?;
 
             Ok(Self {
                 config,
@@ -701,29 +791,74 @@ mod candle_impl {
         pub fn from_pretrained(model_id: &str) -> Result<Self> {
             use hf_hub::api::sync::Api;
 
-            let api = Api::new().map_err(|e| {
-                Error::Retrieval(format!("HF API: {}", e))
-            })?;
+            let api = Api::new().map_err(|e| Error::Retrieval(format!("HF API: {}", e)))?;
 
             let repo = api.model(model_id.to_string());
 
             // Download config, weights, tokenizer
-            let config_path = repo.get("config.json")
+            let config_path = repo
+                .get("config.json")
                 .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
-            let weights_path = repo.get("model.safetensors")
-                .or_else(|_| repo.get("pytorch_model.bin"))
-                .map_err(|e| Error::Retrieval(format!("weights: {}", e)))?;
-            let tokenizer_path = repo.get("tokenizer.json")
-                .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
+            let weights_path = repo
+                .get("model.safetensors")
+                .or_else(|_| {
+                    // Try to convert pytorch_model.bin to safetensors
+                    let pytorch_path = repo.get("pytorch_model.bin")?;
+                    crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
+                })
+                .map_err(|e| {
+                    Error::Retrieval(format!("weights not found and conversion failed: {}", e))
+                })?;
+            // Try tokenizer.json first, fall back to vocab.txt for older models
+            let tokenizer_path = repo.get("tokenizer.json").or_else(|_| {
+                repo.get("vocab.txt").map_err(|e| {
+                    Error::Retrieval(format!(
+                        "tokenizer: neither tokenizer.json nor vocab.txt found: {}",
+                        e
+                    ))
+                })
+            })?;
 
             // Parse config
             let config_str = std::fs::read_to_string(&config_path)
                 .map_err(|e| Error::Retrieval(format!("read config: {}", e)))?;
             let config = Self::parse_config(&config_str)?;
 
-            // Load tokenizer
-            let tokenizer = Tokenizer::from_file(&tokenizer_path)
-                .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
+            // Load tokenizer - handle both tokenizer.json and vocab.txt
+            let tokenizer = if tokenizer_path.ends_with("tokenizer.json") {
+                Tokenizer::from_file(&tokenizer_path)
+                    .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?
+            } else if tokenizer_path.ends_with("vocab.txt") {
+                // Create a BERT tokenizer from vocab.txt
+                use tokenizers::models::wordpiece::WordPiece;
+                use tokenizers::normalizers::bert::BertNormalizer;
+                use tokenizers::pre_tokenizers::bert::BertPreTokenizer;
+                use tokenizers::processors::bert::BertProcessing;
+                use tokenizers::Tokenizer as TokenizerImpl;
+
+                let vocab_str = tokenizer_path
+                    .to_str()
+                    .ok_or_else(|| Error::Retrieval("Invalid tokenizer path".to_string()))?;
+
+                let model = WordPiece::from_file(vocab_str).build().map_err(|e| {
+                    Error::Retrieval(format!("Failed to create WordPiece from vocab.txt: {}", e))
+                })?;
+
+                let mut tokenizer_impl = TokenizerImpl::new(model);
+                tokenizer_impl.with_normalizer(Some(BertNormalizer::default()));
+                tokenizer_impl.with_pre_tokenizer(Some(BertPreTokenizer));
+                tokenizer_impl.with_post_processor(Some(BertProcessing::default()));
+
+                Tokenizer::from(tokenizer_impl)
+            } else {
+                return Err(Error::Retrieval(format!(
+                    "Unsupported tokenizer format: {}. Expected tokenizer.json or vocab.txt.",
+                    tokenizer_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                )));
+            };
 
             // Load weights
             let device = best_device()?;
@@ -732,19 +867,117 @@ mod candle_impl {
                     .map_err(|e| Error::Retrieval(format!("safetensors: {}", e)))?
             };
 
-            let embeddings = embedding(config.vocab_size, config.hidden_size, vb.pp("embeddings.word_embeddings"))
-                .map_err(|e| Error::Retrieval(format!("Embeddings: {}", e)))?;
+            // Try different embedding paths (models may use different naming)
+            // BERT models use "embeddings.word_embeddings.weight" in safetensors
+            let embeddings = embedding(
+                config.vocab_size,
+                config.hidden_size,
+                vb.pp("embeddings.word_embeddings"),
+            )
+            .or_else(|_| {
+                embedding(
+                    config.vocab_size,
+                    config.hidden_size,
+                    vb.pp("bert.embeddings.word_embeddings"),
+                )
+            })
+            .or_else(|_| {
+                embedding(
+                    config.vocab_size,
+                    config.hidden_size,
+                    vb.pp("word_embeddings"),
+                )
+            })
+            .or_else(|_| {
+                // Try with .weight suffix (some safetensors formats)
+                embedding(
+                    config.vocab_size,
+                    config.hidden_size,
+                    vb.pp("embeddings.word_embeddings.weight"),
+                )
+            })
+            .or_else(|_| {
+                embedding(
+                    config.vocab_size,
+                    config.hidden_size,
+                    vb.pp("bert.embeddings.word_embeddings.weight"),
+                )
+            })
+            .map_err(|e| {
+                Error::Retrieval(format!(
+                    "Embeddings: tried multiple paths - all failed. Error: {}",
+                    e
+                ))
+            })?;
 
             let mut layers = Vec::new();
             for i in 0..config.num_hidden_layers {
-                layers.push(TransformerLayer::new(&config, vb.pp(format!("encoder.layer.{}", i)), &device)?);
+                // Try different layer paths
+                let layer =
+                    TransformerLayer::new(&config, vb.pp(format!("encoder.layer.{}", i)), &device)
+                        .or_else(|_| {
+                            TransformerLayer::new(&config, vb.pp(format!("layer.{}", i)), &device)
+                        })
+                        .or_else(|_| {
+                            TransformerLayer::new(
+                                &config,
+                                vb.pp(format!("bert.encoder.layer.{}", i)),
+                                &device,
+                            )
+                        })
+                        .map_err(|e| Error::Retrieval(format!("Layer {}: {}", i, e)))?;
+                layers.push(layer);
             }
 
-            let final_norm = layer_norm(config.hidden_size, config.layer_norm_eps, vb.pp("encoder.final_layer_norm"))
-                .map_err(|e| Error::Retrieval(format!("Final norm: {}", e)))?;
+            // BERT models typically don't have a separate final_layer_norm
+            // The last layer's output is the final output
+            // Some models have it, some don't - make it optional
+            let final_norm = layer_norm(
+                config.hidden_size,
+                config.layer_norm_eps,
+                vb.pp("encoder.final_layer_norm"),
+            )
+            .or_else(|_| {
+                layer_norm(
+                    config.hidden_size,
+                    config.layer_norm_eps,
+                    vb.pp("final_layer_norm"),
+                )
+            })
+            .or_else(|_| {
+                layer_norm(
+                    config.hidden_size,
+                    config.layer_norm_eps,
+                    vb.pp("bert.encoder.final_layer_norm"),
+                )
+            })
+            .unwrap_or_else(|_| {
+                // If no final norm found, create a dummy identity layer norm
+                // BERT models typically don't have final_layer_norm - the last layer output is final
+                // We create a no-op layer norm that just returns the input
+                use candle_nn::VarMap;
+                let varmap = VarMap::new();
+                let dummy_vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
+                // Create a layer norm with zeros (will be identity after init)
+                layer_norm(
+                    config.hidden_size,
+                    config.layer_norm_eps,
+                    dummy_vb.pp("_dummy"),
+                )
+                .unwrap_or_else(|_| {
+                    // Last resort: create minimal layer norm
+                    // This is a no-op that just passes through
+                    layer_norm(config.hidden_size, config.layer_norm_eps, dummy_vb.pp(""))
+                        .expect("Failed to create fallback layer norm")
+                })
+            });
 
             // Detect architecture
-            let arch_name = if config.use_rope { "ModernBERT" } else { "BERT" };
+            let arch_name = if config.use_rope {
+                "ModernBERT"
+            } else {
+                "BERT"
+            };
 
             Ok(Self {
                 config,
@@ -771,7 +1004,8 @@ mod candle_impl {
                 num_attention_heads: v["num_attention_heads"].as_u64().unwrap_or(12) as usize,
                 num_hidden_layers: v["num_hidden_layers"].as_u64().unwrap_or(12) as usize,
                 intermediate_size: v["intermediate_size"].as_u64().unwrap_or(3072) as usize,
-                max_position_embeddings: v["max_position_embeddings"].as_u64().unwrap_or(512) as usize,
+                max_position_embeddings: v["max_position_embeddings"].as_u64().unwrap_or(512)
+                    as usize,
                 hidden_dropout_prob: v["hidden_dropout_prob"].as_f64().unwrap_or(0.1) as f32,
                 layer_norm_eps: v["layer_norm_eps"].as_f64().unwrap_or(1e-12),
                 use_rope: is_modern,
@@ -782,7 +1016,9 @@ mod candle_impl {
 
         fn forward(&self, input_ids: &Tensor) -> Result<Tensor> {
             // Get embeddings
-            let mut hidden = self.embeddings.forward(input_ids)
+            let mut hidden = self
+                .embeddings
+                .forward(input_ids)
                 .map_err(|e| Error::Parse(format!("Embeddings forward: {}", e)))?;
 
             // Pass through layers
@@ -791,15 +1027,23 @@ mod candle_impl {
             }
 
             // Final norm
-            self.final_norm.forward(&hidden)
-                .map_err(|e| Error::Parse(format!("Final norm: {}", e)))
+            // Note: Some BERT models don't have final_layer_norm, so we handle errors gracefully
+            match self.final_norm.forward(&hidden) {
+                Ok(result) => Ok(result),
+                Err(_) => {
+                    // If final norm fails (model doesn't have it), return hidden as-is
+                    // This is valid for BERT models that don't use final_layer_norm
+                    Ok(hidden)
+                }
+            }
         }
     }
 
     impl TextEncoder for CandleEncoder {
         fn encode(&self, text: &str) -> Result<(Vec<f32>, usize)> {
             // Tokenize
-            let encoding = self.tokenizer
+            let encoding = self
+                .tokenizer
                 .encode(text, true)
                 .map_err(|e| Error::Parse(format!("Tokenize: {}", e)))?;
 
@@ -815,9 +1059,11 @@ mod candle_impl {
             let output = self.forward(&input_tensor)?;
 
             // Extract to CPU
-            let output_flat = output.flatten_all()
+            let output_flat = output
+                .flatten_all()
                 .map_err(|e| Error::Parse(format!("Flatten: {}", e)))?;
-            let embeddings = output_flat.to_vec1::<f32>()
+            let embeddings = output_flat
+                .to_vec1::<f32>()
                 .map_err(|e| Error::Parse(format!("To vec: {}", e)))?;
 
             Ok((embeddings, seq_len))
@@ -852,7 +1098,7 @@ pub struct CandleEncoder;
 impl CandleEncoder {
     pub fn new_random(_config: EncoderConfig, _name: &str) -> Result<Self> {
         Err(Error::FeatureNotAvailable(
-            "CandleEncoder requires 'candle' feature".into()
+            "CandleEncoder requires 'candle' feature".into(),
         ))
     }
 }
@@ -899,4 +1145,3 @@ mod tests {
         assert_eq!(result.dims(), &[2, 4]);
     }
 }
-

@@ -322,18 +322,19 @@ impl DemographicBiasEvaluator {
         for name_example in names {
             // Create test sentence
             let text = format!("{} attended the conference.", name_example.name);
-            
+
             // Extract entities
             let entities = model.extract_entities(&text, None).unwrap_or_default();
-            
+
             // Check if name was recognized as PERSON
             let recognized = entities.iter().any(|e| {
-                e.entity_type == EntityType::Person && 
-                text[e.start..e.end].contains(&name_example.first_name)
+                e.entity_type == EntityType::Person
+                    && e.extract_text(&text).contains(&name_example.first_name)
             });
-            
+
             let confidence = if recognized {
-                entities.iter()
+                entities
+                    .iter()
                     .find(|e| e.entity_type == EntityType::Person)
                     .map(|e| e.confidence)
             } else {
@@ -401,9 +402,14 @@ impl DemographicBiasEvaluator {
 
         // Convert counts to rates
         let to_rate = |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
-            counts.iter()
+            counts
+                .iter()
                 .map(|(k, (correct, total))| {
-                    let rate = if *total > 0 { *correct as f64 / *total as f64 } else { 0.0 };
+                    let rate = if *total > 0 {
+                        *correct as f64 / *total as f64
+                    } else {
+                        0.0
+                    };
                     (k.clone(), rate)
                 })
                 .collect()
@@ -417,10 +423,11 @@ impl DemographicBiasEvaluator {
 
         // Compute parity gaps
         let ethnicity_parity_gap = compute_max_gap(&ethnicity_rates);
-        
+
         // Script bias: compare Latin to non-Latin
         let latin_rate = script_rates.get("Latin").copied().unwrap_or(0.0);
-        let non_latin_rates: Vec<f64> = script_rates.iter()
+        let non_latin_rates: Vec<f64> = script_rates
+            .iter()
             .filter(|(k, _)| k.as_str() != "Latin")
             .map(|(_, v)| *v)
             .collect();
@@ -462,10 +469,9 @@ impl DemographicBiasEvaluator {
         for loc in locations {
             let text = format!("The meeting was held in {}.", loc.name);
             let entities = model.extract_entities(&text, None).unwrap_or_default();
-            
+
             let recognized = entities.iter().any(|e| {
-                e.entity_type == EntityType::Location && 
-                text[e.start..e.end].contains(&loc.name)
+                e.entity_type == EntityType::Location && e.extract_text(&text).contains(&loc.name)
             });
 
             if recognized {
@@ -490,9 +496,14 @@ impl DemographicBiasEvaluator {
         }
 
         let to_rate = |counts: &HashMap<String, (usize, usize)>| -> HashMap<String, f64> {
-            counts.iter()
+            counts
+                .iter()
                 .map(|(k, (correct, total))| {
-                    let rate = if *total > 0 { *correct as f64 / *total as f64 } else { 0.0 };
+                    let rate = if *total > 0 {
+                        *correct as f64 / *total as f64
+                    } else {
+                        0.0
+                    };
                     (k.clone(), rate)
                 })
                 .collect()
@@ -521,11 +532,11 @@ fn compute_max_gap(rates: &HashMap<String, f64>) -> f64 {
     if rates.len() < 2 {
         return 0.0;
     }
-    
+
     let values: Vec<f64> = rates.values().copied().collect();
     let min = values.iter().copied().fold(f64::INFINITY, f64::min);
     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    
+
     max - min
 }
 
@@ -542,106 +553,568 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
 
     // === European Names ===
     names.extend(vec![
-        NameExample::new("James", "Smith", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Mary", "Johnson", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("William", "Williams", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Emma", "Brown", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Heinrich", "Mueller", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("François", "Dubois", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("Giulia", "Rossi", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Moderate),
-        NameExample::new("Björk", "Guðmundsdóttir", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Rare),
+        NameExample::new(
+            "James",
+            "Smith",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mary",
+            "Johnson",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "William",
+            "Williams",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Emma",
+            "Brown",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Heinrich",
+            "Mueller",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "François",
+            "Dubois",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Giulia",
+            "Rossi",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Björk",
+            "Guðmundsdóttir",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Rare,
+        ),
     ]);
 
     // === African-American Names ===
     names.extend(vec![
-        NameExample::new("DeShawn", "Jackson", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Latoya", "Williams", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Jamal", "Robinson", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Aaliyah", "Washington", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Tyrone", "Davis", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Imani", "Johnson", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Feminine), NameFrequency::Moderate),
-        NameExample::new("Darnell", "Thompson", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("Shaniqua", "Brown", Ethnicity::AfricanAmerican, Script::Latin, Some(Gender::Feminine), NameFrequency::Rare),
+        NameExample::new(
+            "DeShawn",
+            "Jackson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Latoya",
+            "Williams",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jamal",
+            "Robinson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aaliyah",
+            "Washington",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Tyrone",
+            "Davis",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Imani",
+            "Johnson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Darnell",
+            "Thompson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Shaniqua",
+            "Brown",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Rare,
+        ),
     ]);
 
     // === Hispanic Names ===
     names.extend(vec![
-        NameExample::new("José", "García", Ethnicity::Hispanic, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("María", "Rodriguez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Carlos", "Martinez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Isabella", "Lopez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Diego", "Hernandez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Sofía", "González", Ethnicity::Hispanic, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Javier", "Pérez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("Guadalupe", "Sánchez", Ethnicity::Hispanic, Script::Latin, Some(Gender::Neutral), NameFrequency::Moderate),
+        NameExample::new(
+            "José",
+            "García",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "María",
+            "Rodriguez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Carlos",
+            "Martinez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Isabella",
+            "Lopez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Diego",
+            "Hernandez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sofía",
+            "González",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Javier",
+            "Pérez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Guadalupe",
+            "Sánchez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Moderate,
+        ),
     ]);
 
     // === East Asian Names ===
     names.extend(vec![
         // Chinese (Latin transliteration)
-        NameExample::new("Wei", "Wang", Ethnicity::EastAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Li", "Zhang", Ethnicity::EastAsian, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Ming", "Chen", Ethnicity::EastAsian, Script::Latin, Some(Gender::Neutral), NameFrequency::Common),
+        NameExample::new(
+            "Wei",
+            "Wang",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Li",
+            "Zhang",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ming",
+            "Chen",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
         // Chinese (characters)
-        NameExample::new("伟", "王", Ethnicity::EastAsian, Script::Chinese, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("丽", "张", Ethnicity::EastAsian, Script::Chinese, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "伟",
+            "王",
+            Ethnicity::EastAsian,
+            Script::Chinese,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "丽",
+            "张",
+            Ethnicity::EastAsian,
+            Script::Chinese,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
         // Japanese
-        NameExample::new("Takeshi", "Tanaka", Ethnicity::EastAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Yuki", "Yamamoto", Ethnicity::EastAsian, Script::Latin, Some(Gender::Neutral), NameFrequency::Common),
-        NameExample::new("太郎", "田中", Ethnicity::EastAsian, Script::Japanese, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("花子", "山本", Ethnicity::EastAsian, Script::Japanese, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "Takeshi",
+            "Tanaka",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Yuki",
+            "Yamamoto",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "太郎",
+            "田中",
+            Ethnicity::EastAsian,
+            Script::Japanese,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "花子",
+            "山本",
+            Ethnicity::EastAsian,
+            Script::Japanese,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
         // Korean
-        NameExample::new("Min-jun", "Kim", Ethnicity::EastAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Seo-yeon", "Park", Ethnicity::EastAsian, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("민준", "김", Ethnicity::EastAsian, Script::Korean, Some(Gender::Masculine), NameFrequency::Common),
+        NameExample::new(
+            "Min-jun",
+            "Kim",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Seo-yeon",
+            "Park",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "민준",
+            "김",
+            Ethnicity::EastAsian,
+            Script::Korean,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
     ]);
 
     // === South Asian Names ===
     names.extend(vec![
-        NameExample::new("Raj", "Patel", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Priya", "Sharma", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Arjun", "Singh", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Aisha", "Khan", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Vikram", "Kumar", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Sunita", "Gupta", Ethnicity::SouthAsian, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "Raj",
+            "Patel",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Priya",
+            "Sharma",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Arjun",
+            "Singh",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aisha",
+            "Khan",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Vikram",
+            "Kumar",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sunita",
+            "Gupta",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
         // Devanagari script
-        NameExample::new("राज", "पटेल", Ethnicity::SouthAsian, Script::Devanagari, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("प्रिया", "शर्मा", Ethnicity::SouthAsian, Script::Devanagari, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "राज",
+            "पटेल",
+            Ethnicity::SouthAsian,
+            Script::Devanagari,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "प्रिया",
+            "शर्मा",
+            Ethnicity::SouthAsian,
+            Script::Devanagari,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
     ]);
 
     // === Middle Eastern Names ===
     names.extend(vec![
-        NameExample::new("Ahmed", "Hassan", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Fatima", "Ali", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Mohammed", "Ibrahim", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Layla", "Omar", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Yusuf", "Mustafa", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Mariam", "Khalil", Ethnicity::MiddleEastern, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "Ahmed",
+            "Hassan",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Fatima",
+            "Ali",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mohammed",
+            "Ibrahim",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Layla",
+            "Omar",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Yusuf",
+            "Mustafa",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mariam",
+            "Khalil",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
         // Arabic script
-        NameExample::new("أحمد", "حسن", Ethnicity::MiddleEastern, Script::Arabic, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("فاطمة", "علي", Ethnicity::MiddleEastern, Script::Arabic, Some(Gender::Feminine), NameFrequency::Common),
+        NameExample::new(
+            "أحمد",
+            "حسن",
+            Ethnicity::MiddleEastern,
+            Script::Arabic,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "فاطمة",
+            "علي",
+            Ethnicity::MiddleEastern,
+            Script::Arabic,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
     ]);
 
     // === African Names ===
     names.extend(vec![
-        NameExample::new("Chidi", "Okonkwo", Ethnicity::African, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Amara", "Adebayo", Ethnicity::African, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Kwame", "Mensah", Ethnicity::African, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Nneka", "Nwosu", Ethnicity::African, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Oluwaseun", "Afolabi", Ethnicity::African, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("Chidinma", "Eze", Ethnicity::African, Script::Latin, Some(Gender::Feminine), NameFrequency::Moderate),
-        NameExample::new("Tendai", "Moyo", Ethnicity::African, Script::Latin, Some(Gender::Neutral), NameFrequency::Moderate),
-        NameExample::new("Zainab", "Diallo", Ethnicity::African, Script::Latin, Some(Gender::Feminine), NameFrequency::Moderate),
+        NameExample::new(
+            "Chidi",
+            "Okonkwo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Amara",
+            "Adebayo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kwame",
+            "Mensah",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nneka",
+            "Nwosu",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Oluwaseun",
+            "Afolabi",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Chidinma",
+            "Eze",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Tendai",
+            "Moyo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Zainab",
+            "Diallo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Moderate,
+        ),
     ]);
 
     // === Cyrillic Names (Russian/Eastern European) ===
     names.extend(vec![
-        NameExample::new("Ivan", "Petrov", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Olga", "Ivanova", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Иван", "Петров", Ethnicity::European, Script::Cyrillic, Some(Gender::Masculine), NameFrequency::Common),
-        NameExample::new("Ольга", "Иванова", Ethnicity::European, Script::Cyrillic, Some(Gender::Feminine), NameFrequency::Common),
-        NameExample::new("Dmytro", "Shevchenko", Ethnicity::European, Script::Latin, Some(Gender::Masculine), NameFrequency::Moderate),
-        NameExample::new("Katarzyna", "Kowalski", Ethnicity::European, Script::Latin, Some(Gender::Feminine), NameFrequency::Moderate),
+        NameExample::new(
+            "Ivan",
+            "Petrov",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Olga",
+            "Ivanova",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Иван",
+            "Петров",
+            Ethnicity::European,
+            Script::Cyrillic,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ольга",
+            "Иванова",
+            Ethnicity::European,
+            Script::Cyrillic,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Dmytro",
+            "Shevchenko",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Moderate,
+        ),
+        NameExample::new(
+            "Katarzyna",
+            "Kowalski",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Moderate,
+        ),
     ]);
 
     names
@@ -651,66 +1124,232 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
 pub fn create_diverse_location_dataset() -> Vec<LocationExample> {
     vec![
         // North America
-        LocationExample::new("New York", Region::NorthAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Los Angeles", Region::NorthAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Toronto", Region::NorthAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Mexico City", Region::NorthAmerica, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "New York",
+            Region::NorthAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Los Angeles",
+            Region::NorthAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Toronto",
+            Region::NorthAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Mexico City",
+            Region::NorthAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Western Europe
-        LocationExample::new("London", Region::WesternEurope, Script::Latin, LocationType::City),
-        LocationExample::new("Paris", Region::WesternEurope, Script::Latin, LocationType::City),
-        LocationExample::new("Berlin", Region::WesternEurope, Script::Latin, LocationType::City),
-        LocationExample::new("Amsterdam", Region::WesternEurope, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "London",
+            Region::WesternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Paris",
+            Region::WesternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Berlin",
+            Region::WesternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Amsterdam",
+            Region::WesternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Eastern Europe
-        LocationExample::new("Moscow", Region::EasternEurope, Script::Latin, LocationType::City),
-        LocationExample::new("Москва", Region::EasternEurope, Script::Cyrillic, LocationType::City),
-        LocationExample::new("Warsaw", Region::EasternEurope, Script::Latin, LocationType::City),
-        LocationExample::new("Kyiv", Region::EasternEurope, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "Moscow",
+            Region::EasternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Москва",
+            Region::EasternEurope,
+            Script::Cyrillic,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Warsaw",
+            Region::EasternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Kyiv",
+            Region::EasternEurope,
+            Script::Latin,
+            LocationType::City,
+        ),
         // East Asia
         LocationExample::new("Tokyo", Region::EastAsia, Script::Latin, LocationType::City),
-        LocationExample::new("東京", Region::EastAsia, Script::Japanese, LocationType::City),
-        LocationExample::new("Beijing", Region::EastAsia, Script::Latin, LocationType::City),
-        LocationExample::new("北京", Region::EastAsia, Script::Chinese, LocationType::City),
+        LocationExample::new(
+            "東京",
+            Region::EastAsia,
+            Script::Japanese,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Beijing",
+            Region::EastAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "北京",
+            Region::EastAsia,
+            Script::Chinese,
+            LocationType::City,
+        ),
         LocationExample::new("Seoul", Region::EastAsia, Script::Latin, LocationType::City),
         LocationExample::new("서울", Region::EastAsia, Script::Korean, LocationType::City),
-        
         // South Asia
-        LocationExample::new("Mumbai", Region::SouthAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Delhi", Region::SouthAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Dhaka", Region::SouthAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Karachi", Region::SouthAsia, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "Mumbai",
+            Region::SouthAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Delhi",
+            Region::SouthAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Dhaka",
+            Region::SouthAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Karachi",
+            Region::SouthAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Southeast Asia
-        LocationExample::new("Bangkok", Region::SoutheastAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Singapore", Region::SoutheastAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Jakarta", Region::SoutheastAsia, Script::Latin, LocationType::City),
-        LocationExample::new("Ho Chi Minh City", Region::SoutheastAsia, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "Bangkok",
+            Region::SoutheastAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Singapore",
+            Region::SoutheastAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Jakarta",
+            Region::SoutheastAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Ho Chi Minh City",
+            Region::SoutheastAsia,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Middle East
-        LocationExample::new("Dubai", Region::MiddleEast, Script::Latin, LocationType::City),
-        LocationExample::new("دبي", Region::MiddleEast, Script::Arabic, LocationType::City),
-        LocationExample::new("Tehran", Region::MiddleEast, Script::Latin, LocationType::City),
-        LocationExample::new("Riyadh", Region::MiddleEast, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "Dubai",
+            Region::MiddleEast,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "دبي",
+            Region::MiddleEast,
+            Script::Arabic,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Tehran",
+            Region::MiddleEast,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Riyadh",
+            Region::MiddleEast,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Africa
         LocationExample::new("Lagos", Region::Africa, Script::Latin, LocationType::City),
         LocationExample::new("Nairobi", Region::Africa, Script::Latin, LocationType::City),
         LocationExample::new("Cairo", Region::Africa, Script::Latin, LocationType::City),
-        LocationExample::new("Johannesburg", Region::Africa, Script::Latin, LocationType::City),
-        LocationExample::new("Addis Ababa", Region::Africa, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "Johannesburg",
+            Region::Africa,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Addis Ababa",
+            Region::Africa,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Latin America
-        LocationExample::new("São Paulo", Region::LatinAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Buenos Aires", Region::LatinAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Bogotá", Region::LatinAmerica, Script::Latin, LocationType::City),
-        LocationExample::new("Lima", Region::LatinAmerica, Script::Latin, LocationType::City),
-        
+        LocationExample::new(
+            "São Paulo",
+            Region::LatinAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Buenos Aires",
+            Region::LatinAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Bogotá",
+            Region::LatinAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Lima",
+            Region::LatinAmerica,
+            Script::Latin,
+            LocationType::City,
+        ),
         // Oceania
         LocationExample::new("Sydney", Region::Oceania, Script::Latin, LocationType::City),
-        LocationExample::new("Melbourne", Region::Oceania, Script::Latin, LocationType::City),
-        LocationExample::new("Auckland", Region::Oceania, Script::Latin, LocationType::City),
+        LocationExample::new(
+            "Melbourne",
+            Region::Oceania,
+            Script::Latin,
+            LocationType::City,
+        ),
+        LocationExample::new(
+            "Auckland",
+            Region::Oceania,
+            Script::Latin,
+            LocationType::City,
+        ),
     ]
 }
 
@@ -725,29 +1364,45 @@ mod tests {
     #[test]
     fn test_create_diverse_names() {
         let names = create_diverse_name_dataset();
-        
+
         // Should have names from all ethnicities
-        let ethnicities: std::collections::HashSet<_> = names.iter()
-            .map(|n| format!("{:?}", n.ethnicity))
-            .collect();
-        
-        assert!(ethnicities.contains("European"), "Should have European names");
-        assert!(ethnicities.contains("AfricanAmerican"), "Should have African-American names");
-        assert!(ethnicities.contains("Hispanic"), "Should have Hispanic names");
-        assert!(ethnicities.contains("EastAsian"), "Should have East Asian names");
-        assert!(ethnicities.contains("SouthAsian"), "Should have South Asian names");
-        assert!(ethnicities.contains("MiddleEastern"), "Should have Middle Eastern names");
+        let ethnicities: std::collections::HashSet<_> =
+            names.iter().map(|n| format!("{:?}", n.ethnicity)).collect();
+
+        assert!(
+            ethnicities.contains("European"),
+            "Should have European names"
+        );
+        assert!(
+            ethnicities.contains("AfricanAmerican"),
+            "Should have African-American names"
+        );
+        assert!(
+            ethnicities.contains("Hispanic"),
+            "Should have Hispanic names"
+        );
+        assert!(
+            ethnicities.contains("EastAsian"),
+            "Should have East Asian names"
+        );
+        assert!(
+            ethnicities.contains("SouthAsian"),
+            "Should have South Asian names"
+        );
+        assert!(
+            ethnicities.contains("MiddleEastern"),
+            "Should have Middle Eastern names"
+        );
         assert!(ethnicities.contains("African"), "Should have African names");
     }
 
     #[test]
     fn test_multiple_scripts() {
         let names = create_diverse_name_dataset();
-        
-        let scripts: std::collections::HashSet<_> = names.iter()
-            .map(|n| format!("{:?}", n.script))
-            .collect();
-        
+
+        let scripts: std::collections::HashSet<_> =
+            names.iter().map(|n| format!("{:?}", n.script)).collect();
+
         assert!(scripts.contains("Latin"), "Should have Latin script");
         assert!(scripts.contains("Chinese"), "Should have Chinese script");
         assert!(scripts.contains("Japanese"), "Should have Japanese script");
@@ -758,14 +1413,16 @@ mod tests {
     #[test]
     fn test_gender_balance() {
         let names = create_diverse_name_dataset();
-        
-        let masculine = names.iter()
+
+        let masculine = names
+            .iter()
             .filter(|n| n.gender == Some(Gender::Masculine))
             .count();
-        let feminine = names.iter()
+        let feminine = names
+            .iter()
             .filter(|n| n.gender == Some(Gender::Feminine))
             .count();
-        
+
         // Should have roughly balanced genders
         let ratio = masculine as f64 / feminine.max(1) as f64;
         assert!(
@@ -778,15 +1435,22 @@ mod tests {
     #[test]
     fn test_diverse_locations() {
         let locations = create_diverse_location_dataset();
-        
-        let regions: std::collections::HashSet<_> = locations.iter()
+
+        let regions: std::collections::HashSet<_> = locations
+            .iter()
             .map(|l| format!("{:?}", l.region))
             .collect();
-        
+
         assert!(regions.len() >= 8, "Should cover at least 8 regions");
         assert!(regions.contains("Africa"), "Should have African locations");
-        assert!(regions.contains("LatinAmerica"), "Should have Latin American locations");
-        assert!(regions.contains("MiddleEast"), "Should have Middle Eastern locations");
+        assert!(
+            regions.contains("LatinAmerica"),
+            "Should have Latin American locations"
+        );
+        assert!(
+            regions.contains("MiddleEast"),
+            "Should have Middle Eastern locations"
+        );
     }
 
     #[test]
@@ -795,9 +1459,8 @@ mod tests {
         rates.insert("A".to_string(), 0.9);
         rates.insert("B".to_string(), 0.7);
         rates.insert("C".to_string(), 0.8);
-        
+
         let gap = compute_max_gap(&rates);
         assert!((gap - 0.2).abs() < 0.001, "Gap should be 0.2, got {}", gap);
     }
 }
-

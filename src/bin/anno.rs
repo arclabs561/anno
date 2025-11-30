@@ -134,6 +134,11 @@ enum Commands {
     #[command(visible_alias = "ds")]
     Dataset(DatasetArgs),
 
+    /// Comprehensive evaluation across all task-dataset-backend combinations
+    #[command(visible_alias = "bench")]
+    #[cfg(feature = "eval-advanced")]
+    Benchmark(BenchmarkArgs),
+
     /// Show model and version info
     #[command(visible_alias = "i")]
     Info,
@@ -314,7 +319,11 @@ struct DebugArgs {
     #[arg(short, long, default_value = "stacked")]
     model: ModelBackend,
 
-    /// Write HTML to file (default: stdout)
+    /// Output as HTML (default: text)
+    #[arg(long)]
+    html: bool,
+
+    /// Write output to file (default: stdout)
     #[arg(short, long, value_name = "PATH")]
     output: Option<String>,
 
@@ -436,6 +445,34 @@ enum DatasetAction {
     },
 }
 
+#[cfg(feature = "eval-advanced")]
+#[derive(Parser)]
+struct BenchmarkArgs {
+    /// Tasks to evaluate (comma-separated: ner,coref,relation). Default: all
+    #[arg(short, long, value_delimiter = ',')]
+    tasks: Option<Vec<String>>,
+
+    /// Datasets to use (comma-separated). Default: all suitable datasets
+    #[arg(short, long, value_delimiter = ',')]
+    datasets: Option<Vec<String>>,
+
+    /// Backends to test (comma-separated). Default: all compatible backends
+    #[arg(short, long, value_delimiter = ',')]
+    backends: Option<Vec<String>>,
+
+    /// Maximum examples per dataset (for quick testing)
+    #[arg(short, long)]
+    max_examples: Option<usize>,
+
+    /// Only use cached datasets (skip downloads)
+    #[arg(long)]
+    cached_only: bool,
+
+    /// Output file for markdown report (default: stdout)
+    #[arg(short, long)]
+    output: Option<String>,
+}
+
 #[cfg(feature = "eval")]
 use anno::eval::loader::DatasetId;
 
@@ -453,6 +490,8 @@ fn main() -> ExitCode {
         Some(Commands::Validate(args)) => cmd_validate(args),
         Some(Commands::Analyze(args)) => cmd_analyze(args),
         Some(Commands::Dataset(args)) => cmd_dataset(args),
+        #[cfg(feature = "eval-advanced")]
+        Some(Commands::Benchmark(args)) => cmd_benchmark(args),
         Some(Commands::Info) => cmd_info(),
         Some(Commands::Completions { shell }) => {
             generate(shell, &mut Cli::command(), "anno", &mut io::stdout());
@@ -736,16 +775,78 @@ fn cmd_debug(args: DebugArgs) -> Result<(), String> {
         println!();
     }
 
-    // Generate HTML
-    let html = render_document_html(&doc);
+    // Output format
+    if args.html
+        || args
+            .output
+            .as_ref()
+            .map(|p| p.ends_with(".html"))
+            .unwrap_or(false)
+    {
+        // Generate HTML
+        let html = render_document_html(&doc);
 
-    if let Some(path) = &args.output {
-        fs::write(path, &html).map_err(|e| format!("Failed to write {}: {}", path, e))?;
-        if !args.quiet {
-            println!("{} HTML written to: {}", color("32", "ok:"), path);
+        if let Some(path) = &args.output {
+            fs::write(path, &html).map_err(|e| format!("Failed to write {}: {}", path, e))?;
+            if !args.quiet {
+                println!("{} HTML written to: {}", color("32", "ok:"), path);
+            }
+        } else {
+            println!("{}", html);
         }
     } else {
-        println!("{}", html);
+        // Text output (default)
+        if doc.signals().is_empty() {
+            println!("  (no entities found)");
+        } else {
+            print_signals(&doc, &text, false);
+        }
+        println!();
+        print_annotated_signals(&text, doc.signals());
+
+        // Show tracks if coref was run
+        if args.coref {
+            let tracks: Vec<_> = doc.tracks().collect();
+            if !tracks.is_empty() {
+                println!();
+                println!("{}", color("1;36", "Coreference Tracks"));
+                for track in tracks {
+                    let entity_type = track.entity_type.as_deref().unwrap_or("-");
+                    let signals: Vec<String> = track
+                        .signals
+                        .iter()
+                        .filter_map(|s| doc.get_signal(s.signal_id))
+                        .map(|s| format!("\"{}\"", s.surface()))
+                        .collect();
+                    println!(
+                        "  T{}: {} [{}] ({})",
+                        track.id,
+                        track.canonical_surface,
+                        entity_type,
+                        signals.join(", ")
+                    );
+                }
+            }
+        }
+
+        // Show identities if KB linking was run
+        if args.link_kb {
+            let identities: Vec<_> = doc.identities().collect();
+            if !identities.is_empty() {
+                println!();
+                println!("{}", color("1;36", "KB-Linked Identities"));
+                for identity in identities {
+                    let kb_id = identity.kb_id.as_deref().unwrap_or("-");
+                    println!(
+                        "  I{}: {} ({})",
+                        identity.id, identity.canonical_name, kb_id
+                    );
+                }
+            }
+        }
+
+        // Note: Text output always goes to stdout
+        // Use --html --output file.html for HTML file output
     }
 
     Ok(())
@@ -1808,6 +1909,113 @@ fn cmd_dataset(args: DatasetArgs) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(feature = "eval-advanced")]
+fn cmd_benchmark(args: BenchmarkArgs) -> Result<(), String> {
+    use anno::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
+    use anno::eval::task_mapping::Task;
+    use std::fs;
+
+    println!("=== Comprehensive Task-Dataset-Backend Evaluation ===\n");
+
+    // Parse tasks
+    let tasks = if let Some(task_strs) = args.tasks {
+        let mut parsed = Vec::new();
+        for t in task_strs {
+            match t.to_lowercase().as_str() {
+                "ner" | "ner_task" => parsed.push(Task::NER),
+                "coref" | "coreference" | "intradoc_coref" => parsed.push(Task::IntraDocCoref),
+                "relation" | "relation_extraction" => parsed.push(Task::RelationExtraction),
+                other => {
+                    return Err(format!(
+                        "Unknown task: {}. Use: ner, coref, relation",
+                        other
+                    ));
+                }
+            }
+        }
+        parsed
+    } else {
+        Task::all().to_vec()
+    };
+
+    // Parse datasets
+    let datasets = if let Some(dataset_strs) = args.datasets {
+        let mut parsed = Vec::new();
+        for d in dataset_strs {
+            let dataset_id: DatasetId = d
+                .parse()
+                .map_err(|e| format!("Invalid dataset '{}': {}", d, e))?;
+            parsed.push(dataset_id);
+        }
+        parsed
+    } else {
+        vec![] // Empty = use all suitable datasets
+    };
+
+    // Parse backends
+    let backends = args.backends.unwrap_or_default();
+
+    // Create evaluator
+    let evaluator =
+        TaskEvaluator::new().map_err(|e| format!("Failed to create evaluator: {}", e))?;
+
+    // Configure evaluation
+    let config = TaskEvalConfig {
+        tasks,
+        datasets,
+        backends,
+        max_examples: args.max_examples,
+        require_cached: args.cached_only,
+    };
+
+    println!("Running comprehensive evaluation...");
+    println!("Tasks: {:?}", config.tasks);
+    if !config.datasets.is_empty() {
+        println!("Datasets: {:?}", config.datasets);
+    } else {
+        println!("Datasets: all suitable datasets");
+    }
+    if !config.backends.is_empty() {
+        println!("Backends: {:?}", config.backends);
+    } else {
+        println!("Backends: all compatible backends");
+    }
+    if let Some(max) = config.max_examples {
+        println!("Max examples per dataset: {}", max);
+    }
+    println!();
+
+    // Run evaluation
+    let results = evaluator
+        .evaluate_all(config)
+        .map_err(|e| format!("Evaluation failed: {}", e))?;
+
+    // Print summary
+    println!("=== Evaluation Summary ===");
+    println!("Total combinations: {}", results.summary.total_combinations);
+    println!("Successful: {}", results.summary.successful);
+    println!("Failed: {}", results.summary.failed);
+    println!("\nTasks evaluated: {}", results.summary.tasks.len());
+    println!("Datasets used: {}", results.summary.datasets.len());
+    println!("Backends tested: {}", results.summary.backends.len());
+    println!();
+
+    // Generate markdown report
+    let report = results.to_markdown();
+
+    // Output report
+    if let Some(output_path) = &args.output {
+        fs::write(output_path, &report)
+            .map_err(|e| format!("Failed to write report to {}: {}", output_path, e))?;
+        println!("Report saved to: {}", output_path);
+    } else {
+        println!("=== Markdown Report ===");
+        println!("{}", report);
+    }
+
+    Ok(())
+}
+
 /// Create relation predictions from entity pairs using heuristics.
 ///
 /// # Bugs Fixed:
@@ -2840,7 +3048,8 @@ mod tests {
 
     #[test]
     fn test_parse_gold_spec_simple() {
-        let spec = parse_gold_spec("Marie Curie:PER:0:11").unwrap();
+        let spec =
+            parse_gold_spec("Marie Curie:PER:0:11").expect("Test gold spec should parse correctly");
         assert_eq!(spec.text, "Marie Curie");
         assert_eq!(spec.label, "PER");
         assert_eq!(spec.start, 0);
@@ -2850,7 +3059,8 @@ mod tests {
     #[test]
     fn test_parse_gold_spec_with_colon_in_text() {
         // URL containing colons
-        let spec = parse_gold_spec("https://example.com:URL:0:19").unwrap();
+        let spec = parse_gold_spec("https://example.com:URL:0:19")
+            .expect("Test gold spec should parse correctly");
         assert_eq!(spec.text, "https://example.com");
         assert_eq!(spec.label, "URL");
         assert_eq!(spec.start, 0);

@@ -255,13 +255,17 @@ pub fn evaluate_relations(
 
     // Strict matching: exact entity spans + relation type
     for (pi, p) in pred.iter().enumerate() {
+        // Skip predictions that are already matched
+        if pred_matched_strict[pi] {
+            continue;
+        }
         for (gi, g) in gold.iter().enumerate() {
             if gold_matched_strict[gi] {
                 continue;
             }
 
-            // Relation type must match
-            if p.relation_type != g.relation_type {
+            // Relation type must match (case-insensitive)
+            if p.relation_type.to_lowercase() != g.relation_type.to_lowercase() {
                 continue;
             }
 
@@ -291,12 +295,17 @@ pub fn evaluate_relations(
 
     // Boundary matching: overlapping entity spans + relation type
     for (pi, p) in pred.iter().enumerate() {
+        // Skip predictions that are already matched
+        if pred_matched_boundary[pi] {
+            continue;
+        }
         for (gi, g) in gold.iter().enumerate() {
             if gold_matched_boundary[gi] {
                 continue;
             }
 
-            if p.relation_type != g.relation_type {
+            // Relation type must match (case-insensitive)
+            if p.relation_type.to_lowercase() != g.relation_type.to_lowercase() {
                 continue;
             }
 
@@ -365,19 +374,38 @@ pub fn evaluate_relations(
     let per_relation: HashMap<String, RelationTypeMetrics> = rel_stats
         .into_iter()
         .map(|(rel, (gold_count, pred_count, boundary, strict))| {
-            let b_p = if pred_count > 0 { boundary as f64 / pred_count as f64 } else { 0.0 };
-            let b_r = if gold_count > 0 { boundary as f64 / gold_count as f64 } else { 0.0 };
-            let s_p = if pred_count > 0 { strict as f64 / pred_count as f64 } else { 0.0 };
-            let s_r = if gold_count > 0 { strict as f64 / gold_count as f64 } else { 0.0 };
+            let b_p = if pred_count > 0 {
+                boundary as f64 / pred_count as f64
+            } else {
+                0.0
+            };
+            let b_r = if gold_count > 0 {
+                boundary as f64 / gold_count as f64
+            } else {
+                0.0
+            };
+            let s_p = if pred_count > 0 {
+                strict as f64 / pred_count as f64
+            } else {
+                0.0
+            };
+            let s_r = if gold_count > 0 {
+                strict as f64 / gold_count as f64
+            } else {
+                0.0
+            };
 
-            (rel, RelationTypeMetrics {
-                boundary_f1: f1_score(b_p, b_r),
-                strict_f1: f1_score(s_p, s_r),
-                gold_count,
-                pred_count,
-                boundary_matches: boundary,
-                strict_matches: strict,
-            })
+            (
+                rel,
+                RelationTypeMetrics {
+                    boundary_f1: f1_score(b_p, b_r),
+                    strict_f1: f1_score(s_p, s_r),
+                    gold_count,
+                    pred_count,
+                    boundary_matches: boundary,
+                    strict_matches: strict,
+                },
+            )
         })
         .collect();
 
@@ -393,6 +421,139 @@ pub fn evaluate_relations(
         boundary_matches,
         strict_matches,
         per_relation,
+    }
+}
+
+/// Render relation evaluation as HTML report.
+pub fn render_relation_eval_html(metrics: &RelationMetrics) -> String {
+    let mut html = String::new();
+    html.push_str("<!DOCTYPE html>\n<html><head><title>Relation Extraction Evaluation</title>");
+    html.push_str("<style>body{font-family:monospace;margin:20px;}table{border-collapse:collapse;}th,td{padding:8px;border:1px solid #ddd;}</style>");
+    html.push_str("</head><body>");
+    html.push_str("<h1>Relation Extraction Evaluation</h1>");
+    html.push_str("<h2>Overall Metrics</h2>");
+    html.push_str("<table>");
+    html.push_str("<tr><th>Metric</th><th>Boundary (Rel)</th><th>Strict (Rel+)</th></tr>");
+    html.push_str(&format!(
+        "<tr><td>Precision</td><td>{:.3}</td><td>{:.3}</td></tr>",
+        metrics.boundary_precision, metrics.strict_precision
+    ));
+    html.push_str(&format!(
+        "<tr><td>Recall</td><td>{:.3}</td><td>{:.3}</td></tr>",
+        metrics.boundary_recall, metrics.strict_recall
+    ));
+    html.push_str(&format!(
+        "<tr><td>F1</td><td>{:.3}</td><td>{:.3}</td></tr>",
+        metrics.boundary_f1, metrics.strict_f1
+    ));
+    html.push_str("</table>");
+    html.push_str(&format!(
+        "<p>Gold: {}  Predicted: {}  Boundary matches: {}  Strict matches: {}</p>",
+        metrics.num_gold, metrics.num_predicted, metrics.boundary_matches, metrics.strict_matches
+    ));
+
+    if !metrics.per_relation.is_empty() {
+        html.push_str("<h2>Per-Relation Breakdown</h2>");
+        html.push_str("<table>");
+        html.push_str("<tr><th>Relation Type</th><th>Boundary F1</th><th>Strict F1</th><th>Gold</th><th>Pred</th><th>Boundary Matches</th><th>Strict Matches</th></tr>");
+        let mut rels: Vec<_> = metrics.per_relation.iter().collect();
+        rels.sort_by(|a, b| b.1.gold_count.cmp(&a.1.gold_count));
+        for (rel_type, rel_metrics) in rels {
+            html.push_str(&format!(
+                "<tr><td>{}</td><td>{:.3}</td><td>{:.3}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                rel_type, rel_metrics.boundary_f1, rel_metrics.strict_f1,
+                rel_metrics.gold_count, rel_metrics.pred_count,
+                rel_metrics.boundary_matches, rel_metrics.strict_matches
+            ));
+        }
+        html.push_str("</table>");
+    }
+
+    html.push_str("</body></html>");
+    html
+}
+
+impl RelationMetrics {
+    /// Generate human-readable string representation.
+    pub fn to_string_human(&self, verbose: bool) -> String {
+        let mut out = String::new();
+
+        out.push_str("Relation Extraction Evaluation\n");
+        out.push_str(
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n",
+        );
+        out.push_str(&format!(
+            "Boundary (Rel):  P={:.1}%  R={:.1}%  F1={:.1}%\n",
+            self.boundary_precision * 100.0,
+            self.boundary_recall * 100.0,
+            self.boundary_f1 * 100.0
+        ));
+        out.push_str(&format!(
+            "Strict (Rel+):   P={:.1}%  R={:.1}%  F1={:.1}%\n",
+            self.strict_precision * 100.0,
+            self.strict_recall * 100.0,
+            self.strict_f1 * 100.0
+        ));
+        out.push_str(&format!(
+            "Gold: {}  Predicted: {}  Boundary matches: {}  Strict matches: {}\n",
+            self.num_gold, self.num_predicted, self.boundary_matches, self.strict_matches
+        ));
+
+        if verbose && !self.per_relation.is_empty() {
+            out.push_str("\nPer-Relation Breakdown:\n");
+            let mut rels: Vec<_> = self.per_relation.iter().collect();
+            rels.sort_by(|a, b| b.1.gold_count.cmp(&a.1.gold_count));
+
+            for (rel_type, metrics) in rels {
+                if metrics.gold_count > 0 || metrics.pred_count > 0 {
+                    // Use stored precision/recall from RelationTypeMetrics (already computed)
+                    // Calculate from stored matches to avoid duplication
+                    let boundary_p = if metrics.pred_count > 0 {
+                        metrics.boundary_matches as f64 / metrics.pred_count as f64
+                    } else {
+                        0.0
+                    };
+                    let boundary_r = if metrics.gold_count > 0 {
+                        metrics.boundary_matches as f64 / metrics.gold_count as f64
+                    } else {
+                        0.0
+                    };
+                    let strict_p = if metrics.pred_count > 0 {
+                        metrics.strict_matches as f64 / metrics.pred_count as f64
+                    } else {
+                        0.0
+                    };
+                    let strict_r = if metrics.gold_count > 0 {
+                        metrics.strict_matches as f64 / metrics.gold_count as f64
+                    } else {
+                        0.0
+                    };
+                    // Use stored F1 scores (already computed correctly)
+                    out.push_str(&format!(
+                        "  {:20} Boundary: F1={:.1}% (P={:.1}% R={:.1}%)  Strict: F1={:.1}% (P={:.1}% R={:.1}%)  [gold={} pred={} matches={}/{}]\n",
+                        rel_type,
+                        metrics.boundary_f1 * 100.0,
+                        boundary_p * 100.0,
+                        boundary_r * 100.0,
+                        metrics.strict_f1 * 100.0,
+                        strict_p * 100.0,
+                        strict_r * 100.0,
+                        metrics.gold_count,
+                        metrics.pred_count,
+                        metrics.boundary_matches,
+                        metrics.strict_matches
+                    ));
+                }
+            }
+        }
+
+        out
+    }
+}
+
+impl std::fmt::Display for RelationMetrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string_human(false))
     }
 }
 
@@ -430,23 +591,23 @@ mod tests {
 
     #[test]
     fn test_exact_relation_match() {
-        let gold = vec![
-            RelationGold::new(
-                (0, 10), "PER", "Steve Jobs",
-                (20, 25), "ORG", "Apple",
-                "FOUNDED"
-            ),
-        ];
-        let pred = vec![
-            RelationPrediction {
-                head_span: (0, 10),
-                head_type: "PER".to_string(),
-                tail_span: (20, 25),
-                tail_type: "ORG".to_string(),
-                relation_type: "FOUNDED".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let gold = vec![RelationGold::new(
+            (0, 10),
+            "PER",
+            "Steve Jobs",
+            (20, 25),
+            "ORG",
+            "Apple",
+            "FOUNDED",
+        )];
+        let pred = vec![RelationPrediction {
+            head_span: (0, 10),
+            head_type: "PER".to_string(),
+            tail_span: (20, 25),
+            tail_type: "ORG".to_string(),
+            relation_type: "FOUNDED".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_relations(&gold, &pred, &RelationEvalConfig::default());
         assert!((metrics.strict_f1 - 1.0).abs() < 0.001);
@@ -455,24 +616,24 @@ mod tests {
 
     #[test]
     fn test_boundary_match_not_strict() {
-        let gold = vec![
-            RelationGold::new(
-                (0, 10), "PER", "Steve Jobs",
-                (20, 30), "ORG", "Apple Inc",
-                "FOUNDED"
-            ),
-        ];
+        let gold = vec![RelationGold::new(
+            (0, 10),
+            "PER",
+            "Steve Jobs",
+            (20, 30),
+            "ORG",
+            "Apple Inc",
+            "FOUNDED",
+        )];
         // Overlapping but not exact
-        let pred = vec![
-            RelationPrediction {
-                head_span: (0, 10),
-                head_type: "PER".to_string(),
-                tail_span: (20, 25), // Different end
-                tail_type: "ORG".to_string(),
-                relation_type: "FOUNDED".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let pred = vec![RelationPrediction {
+            head_span: (0, 10),
+            head_type: "PER".to_string(),
+            tail_span: (20, 25), // Different end
+            tail_type: "ORG".to_string(),
+            relation_type: "FOUNDED".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_relations(&gold, &pred, &RelationEvalConfig::default());
         // Strict should fail
@@ -483,23 +644,23 @@ mod tests {
 
     #[test]
     fn test_wrong_relation_type() {
-        let gold = vec![
-            RelationGold::new(
-                (0, 10), "PER", "Steve Jobs",
-                (20, 25), "ORG", "Apple",
-                "FOUNDED"
-            ),
-        ];
-        let pred = vec![
-            RelationPrediction {
-                head_span: (0, 10),
-                head_type: "PER".to_string(),
-                tail_span: (20, 25),
-                tail_type: "ORG".to_string(),
-                relation_type: "WORKS_FOR".to_string(), // Wrong relation
-                confidence: 0.9,
-            },
-        ];
+        let gold = vec![RelationGold::new(
+            (0, 10),
+            "PER",
+            "Steve Jobs",
+            (20, 25),
+            "ORG",
+            "Apple",
+            "FOUNDED",
+        )];
+        let pred = vec![RelationPrediction {
+            head_span: (0, 10),
+            head_type: "PER".to_string(),
+            tail_span: (20, 25),
+            tail_type: "ORG".to_string(),
+            relation_type: "WORKS_FOR".to_string(), // Wrong relation
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_relations(&gold, &pred, &RelationEvalConfig::default());
         assert!(metrics.strict_f1 < 0.001);
@@ -507,24 +668,24 @@ mod tests {
 
     #[test]
     fn test_undirected_relations() {
-        let gold = vec![
-            RelationGold::new(
-                (0, 10), "PER", "Alice",
-                (20, 25), "PER", "Bob",
-                "SIBLING"
-            ),
-        ];
+        let gold = vec![RelationGold::new(
+            (0, 10),
+            "PER",
+            "Alice",
+            (20, 25),
+            "PER",
+            "Bob",
+            "SIBLING",
+        )];
         // Reversed head/tail
-        let pred = vec![
-            RelationPrediction {
-                head_span: (20, 25),
-                head_type: "PER".to_string(),
-                tail_span: (0, 10),
-                tail_type: "PER".to_string(),
-                relation_type: "SIBLING".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let pred = vec![RelationPrediction {
+            head_span: (20, 25),
+            head_type: "PER".to_string(),
+            tail_span: (0, 10),
+            tail_type: "PER".to_string(),
+            relation_type: "SIBLING".to_string(),
+            confidence: 0.9,
+        }];
 
         // Directed: should fail
         let config_directed = RelationEvalConfig {
@@ -555,16 +716,14 @@ mod tests {
             RelationGold::new((0, 5), "PER", "A", (10, 15), "ORG", "B", "FOUNDED"),
             RelationGold::new((20, 25), "PER", "C", (30, 35), "ORG", "D", "WORKS_FOR"),
         ];
-        let pred = vec![
-            RelationPrediction {
-                head_span: (0, 5),
-                head_type: "PER".to_string(),
-                tail_span: (10, 15),
-                tail_type: "ORG".to_string(),
-                relation_type: "FOUNDED".to_string(),
-                confidence: 0.9,
-            },
-        ];
+        let pred = vec![RelationPrediction {
+            head_span: (0, 5),
+            head_type: "PER".to_string(),
+            tail_span: (10, 15),
+            tail_type: "ORG".to_string(),
+            relation_type: "FOUNDED".to_string(),
+            confidence: 0.9,
+        }];
 
         let metrics = evaluate_relations(&gold, &pred, &RelationEvalConfig::default());
 
@@ -592,4 +751,3 @@ mod tests {
         assert!(overlap > 0.3 && overlap < 0.4); // IoU for this case
     }
 }
-

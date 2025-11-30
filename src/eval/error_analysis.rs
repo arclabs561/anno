@@ -61,7 +61,12 @@ pub struct PredictedEntity {
 
 impl PredictedEntity {
     /// Create a new predicted entity.
-    pub fn new(text: impl Into<String>, entity_type: impl Into<String>, start: usize, end: usize) -> Self {
+    pub fn new(
+        text: impl Into<String>,
+        entity_type: impl Into<String>,
+        start: usize,
+        end: usize,
+    ) -> Self {
         Self {
             text: text.into(),
             entity_type: entity_type.into(),
@@ -256,7 +261,7 @@ impl ErrorAnalyzer {
         // For each gold entity, find candidate predictions using binary search
         for (gi, g) in gold.iter().enumerate() {
             let g_type = g.entity_type.as_label();
-            
+
             // Find predictions that could overlap with this gold entity
             // A prediction overlaps if pred.start < g.end && pred.end > g.start
             let candidates: Vec<usize> = pred_by_start
@@ -278,13 +283,22 @@ impl ErrorAnalyzer {
                 let overlap = self.compute_overlap(p.start, p.end, g.start, g.end);
 
                 // Prefer exact matches, then type matches, then highest overlap
-                let dominated = best_match.is_some_and(|(_, best_overlap, best_exact, best_type)| {
-                    if exact_boundary && !best_exact { return false; }
-                    if !exact_boundary && best_exact { return true; }
-                    if type_match && !best_type { return false; }
-                    if !type_match && best_type { return true; }
-                    overlap <= best_overlap
-                });
+                let dominated =
+                    best_match.is_some_and(|(_, best_overlap, best_exact, best_type)| {
+                        if exact_boundary && !best_exact {
+                            return false;
+                        }
+                        if !exact_boundary && best_exact {
+                            return true;
+                        }
+                        if type_match && !best_type {
+                            return false;
+                        }
+                        if !type_match && best_type {
+                            return true;
+                        }
+                        overlap <= best_overlap
+                    });
 
                 if !dominated && overlap > self.overlap_threshold {
                     best_match = Some((pi, overlap, exact_boundary, type_match));
@@ -370,7 +384,10 @@ impl ErrorAnalyzer {
                         span: (p.start, p.end),
                     }),
                     gold: None,
-                    description: format!("Spurious {} '{}' at [{},{}]", p.entity_type, p.text, p.start, p.end),
+                    description: format!(
+                        "Spurious {} '{}' at [{},{}]",
+                        p.entity_type, p.text, p.start, p.end
+                    ),
                 });
             }
         }
@@ -387,7 +404,10 @@ impl ErrorAnalyzer {
                         entity_type: g_type.to_string(),
                         span: (g.start, g.end),
                     }),
-                    description: format!("Missed {} '{}' at [{},{}]", g_type, g.text, g.start, g.end),
+                    description: format!(
+                        "Missed {} '{}' at [{},{}]",
+                        g_type, g.text, g.start, g.end
+                    ),
                 });
             }
         }
@@ -480,7 +500,10 @@ impl ErrorAnalyzer {
         for err in type_errors {
             if let (Some(pred), Some(gold_info)) = (&err.predicted, &err.gold) {
                 if let Some(entry) = stats.get_mut(&gold_info.entity_type) {
-                    *entry.confused_with.entry(pred.entity_type.clone()).or_insert(0) += 1;
+                    *entry
+                        .confused_with
+                        .entry(pred.entity_type.clone())
+                        .or_insert(0) += 1;
                 }
             }
         }
@@ -575,16 +598,22 @@ impl ErrorAnalyzer {
 
         // Boundary recommendations
         if boundary as f64 / total as f64 > 0.3 {
-            recs.push("High boundary error rate: Consider boundary-aware training or CRF layer".into());
+            recs.push(
+                "High boundary error rate: Consider boundary-aware training or CRF layer".into(),
+            );
         }
 
         // Type confusion recommendations
         if type_err as f64 / total as f64 > 0.2 {
-            recs.push("Frequent type confusions: Add more training examples for confused types".into());
+            recs.push(
+                "Frequent type confusions: Add more training examples for confused types".into(),
+            );
 
             // Find most confused pairs
             for (typ, stats) in by_type {
-                if let Some((confused_type, count)) = stats.confused_with.iter().max_by_key(|(_, c)| *c) {
+                if let Some((confused_type, count)) =
+                    stats.confused_with.iter().max_by_key(|(_, c)| *c)
+                {
                     if *count > 2 {
                         recs.push(format!(
                             "Type {}: Often confused with {} ({} times) - add disambiguation features",
@@ -597,12 +626,18 @@ impl ErrorAnalyzer {
 
         // False positive recommendations
         if fp as f64 / total as f64 > 0.25 {
-            recs.push("High false positive rate: Model is over-predicting - consider higher threshold".into());
+            recs.push(
+                "High false positive rate: Model is over-predicting - consider higher threshold"
+                    .into(),
+            );
         }
 
         // False negative recommendations
         if fn_count as f64 / total as f64 > 0.25 {
-            recs.push("High miss rate: Model is under-predicting - consider lower threshold or more data".into());
+            recs.push(
+                "High miss rate: Model is under-predicting - consider lower threshold or more data"
+                    .into(),
+            );
         }
 
         if recs.is_empty() {
@@ -625,7 +660,12 @@ mod tests {
     #[test]
     fn test_type_error_detection() {
         let predictions = vec![PredictedEntity::new("Google", "LOC", 0, 6)];
-        let gold = vec![GoldEntity::with_span("Google", EntityType::Organization, 0, 6)];
+        let gold = vec![GoldEntity::with_span(
+            "Google",
+            EntityType::Organization,
+            0,
+            6,
+        )];
 
         let analyzer = ErrorAnalyzer::default();
         let report = analyzer.analyze(&predictions, &gold);
@@ -637,7 +677,12 @@ mod tests {
     #[test]
     fn test_boundary_error_detection() {
         let predictions = vec![PredictedEntity::new("John", "PER", 0, 4)];
-        let gold = vec![GoldEntity::with_span("John Smith", EntityType::Person, 0, 10)];
+        let gold = vec![GoldEntity::with_span(
+            "John Smith",
+            EntityType::Person,
+            0,
+            10,
+        )];
 
         let analyzer = ErrorAnalyzer::new(0.3); // Low threshold for partial match
         let report = analyzer.analyze(&predictions, &gold);

@@ -192,13 +192,19 @@ impl GLiNERModel {
     /// Get all models with a specific encoder.
     #[must_use]
     pub fn by_encoder(encoder: EncoderType) -> Vec<&'static GLiNERModel> {
-        GLINER_MODELS.iter().filter(|m| m.encoder == encoder).collect()
+        GLINER_MODELS
+            .iter()
+            .filter(|m| m.encoder == encoder)
+            .collect()
     }
 
     /// Get models that support relations.
     #[must_use]
     pub fn with_relations() -> Vec<&'static GLiNERModel> {
-        GLINER_MODELS.iter().filter(|m| m.supports_relations).collect()
+        GLINER_MODELS
+            .iter()
+            .filter(|m| m.supports_relations)
+            .collect()
     }
 
     /// Get the fastest model.
@@ -211,7 +217,8 @@ impl GLiNERModel {
     #[must_use]
     pub fn most_accurate() -> &'static GLiNERModel {
         // ModernBERT-large is SOTA
-        GLINER_MODELS.iter()
+        GLINER_MODELS
+            .iter()
             .find(|m| m.encoder == EncoderType::ModernBert)
             .unwrap_or(&GLINER_MODELS[2])
     }
@@ -238,7 +245,9 @@ mod tests {
     fn test_models_by_encoder() {
         let modern_models = GLiNERModel::by_encoder(EncoderType::ModernBert);
         assert!(!modern_models.is_empty());
-        assert!(modern_models.iter().all(|m| m.encoder == EncoderType::ModernBert));
+        assert!(modern_models
+            .iter()
+            .all(|m| m.encoder == EncoderType::ModernBert));
     }
 
     #[test]
@@ -259,4 +268,3 @@ mod tests {
         assert_eq!(EncoderType::ModernBert.max_context_length(), 8192);
     }
 }
-

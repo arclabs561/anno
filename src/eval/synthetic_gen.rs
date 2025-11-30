@@ -97,11 +97,7 @@ fn default_values(entity_type: &str) -> Vec<String> {
             "Microsoft Corporation".into(),
             "United Nations".into(),
         ],
-        "LOCATION" | "LOC" | "GPE" => vec![
-            "New York".into(),
-            "Tokyo".into(),
-            "London, UK".into(),
-        ],
+        "LOCATION" | "LOC" | "GPE" => vec!["New York".into(), "Tokyo".into(), "London, UK".into()],
         _ => vec![format!("[{}]", entity_type)],
     }
 }
@@ -148,17 +144,17 @@ pub fn generate_test_cases(templates: &[Template]) -> Vec<TestCase> {
                 continue;
             }
             let value = &values[0];
-            
+
             // Compute adjusted positions
             let adjusted_start = (*placeholder_start as i64 + offset_adjustment) as usize;
             let placeholder_len = placeholder_end - placeholder_start;
             let value_len = value.len();
-            
+
             // Replace placeholder with value
             let before = &text[..adjusted_start];
             let after = &text[adjusted_start + placeholder_len..];
             text = format!("{}{}{}", before, value, after);
-            
+
             // Record entity
             entities.push(SimpleGoldEntity {
                 text: value.clone(),
@@ -166,7 +162,7 @@ pub fn generate_test_cases(templates: &[Template]) -> Vec<TestCase> {
                 start: adjusted_start,
                 end: adjusted_start + value_len,
             });
-            
+
             // Update offset for next placeholder
             offset_adjustment += value_len as i64 - placeholder_len as i64;
         }
@@ -187,7 +183,7 @@ fn parse_placeholders(pattern: &str) -> Vec<(&str, usize, usize)> {
     let mut i = 0;
     let chars: Vec<char> = pattern.chars().collect();
     let _bytes = pattern.as_bytes(); // Reserved for potential byte-level parsing
-    
+
     while i < chars.len() {
         if chars[i] == '{' {
             // Find closing brace
@@ -197,9 +193,17 @@ fn parse_placeholders(pattern: &str) -> Vec<(&str, usize, usize)> {
                 j += 1;
             }
             if j < chars.len() {
-                let end_byte = pattern.char_indices().nth(j + 1).map(|(b, _)| b).unwrap_or(pattern.len());
+                let end_byte = pattern
+                    .char_indices()
+                    .nth(j + 1)
+                    .map(|(b, _)| b)
+                    .unwrap_or(pattern.len());
                 let type_start = start_byte + 1;
-                let type_end = pattern.char_indices().nth(j).map(|(b, _)| b).unwrap_or(pattern.len());
+                let type_end = pattern
+                    .char_indices()
+                    .nth(j)
+                    .map(|(b, _)| b)
+                    .unwrap_or(pattern.len());
                 let entity_type = &pattern[type_start..type_end];
                 results.push((entity_type, start_byte, end_byte));
                 i = j + 1;
@@ -219,21 +223,17 @@ pub fn standard_test_set() -> Vec<TestCase> {
         Template::new("Meeting scheduled for {DATE} at {TIME}"),
         Template::new("Deadline: {DATE}"),
         Template::new("Call at {TIME}"),
-        
         // Contact patterns
         Template::new("Email: {EMAIL}"),
         Template::new("Contact {EMAIL} for more info"),
         Template::new("Phone: {PHONE}"),
-        
         // Financial patterns
         Template::new("Total: {MONEY}"),
         Template::new("Budget approved for {MONEY}"),
         Template::new("Invoice amount: {MONEY} due {DATE}"),
-        
         // URL patterns
         Template::new("Visit {URL} for details"),
         Template::new("Link: {URL}"),
-        
         // Named entities (for ML models)
         Template::new("{PERSON} works at {ORG}"),
         Template::new("CEO of {ORG}"),
@@ -246,12 +246,12 @@ pub fn standard_test_set() -> Vec<TestCase> {
 /// Generate test cases targeting specific entity types.
 pub fn test_set_for_types(types: &[&str]) -> Vec<TestCase> {
     let mut templates = Vec::new();
-    
+
     for entity_type in types {
         let pattern = format!("Test {{{}}}", entity_type);
         templates.push(Template::new(&pattern));
     }
-    
+
     generate_test_cases(&templates)
 }
 
@@ -275,7 +275,7 @@ mod tests {
     fn test_generate_simple_case() {
         let templates = vec![Template::new("Email: {EMAIL}")];
         let cases = generate_test_cases(&templates);
-        
+
         assert_eq!(cases.len(), 1);
         assert!(cases[0].text.contains("@"));
         assert_eq!(cases[0].gold_entities.len(), 1);
@@ -286,12 +286,12 @@ mod tests {
     fn test_offset_computation() {
         let templates = vec![Template::new("Date: {DATE}")];
         let cases = generate_test_cases(&templates);
-        
+
         let case = &cases[0];
         let entity = &case.gold_entities[0];
-        
+
         // Verify the offset is correct
-        let extracted = &case.text[entity.start..entity.end];
+        let extracted = entity.extract_text(&case.text);
         assert_eq!(extracted, entity.text);
     }
 
@@ -299,14 +299,18 @@ mod tests {
     fn test_multiple_placeholders() {
         let templates = vec![Template::new("{DATE} at {TIME}")];
         let cases = generate_test_cases(&templates);
-        
+
         let case = &cases[0];
         assert_eq!(case.gold_entities.len(), 2);
-        
+
         // Verify both offsets are correct
         for entity in &case.gold_entities {
-            let extracted = &case.text[entity.start..entity.end];
-            assert_eq!(extracted, entity.text, "Offset mismatch for {}", entity.entity_type);
+            let extracted = entity.extract_text(&case.text);
+            assert_eq!(
+                extracted, entity.text,
+                "Offset mismatch for {}",
+                entity.entity_type
+            );
         }
     }
 
@@ -314,28 +318,33 @@ mod tests {
     fn test_standard_test_set() {
         let cases = standard_test_set();
         assert!(!cases.is_empty());
-        
+
         // Verify all offsets are valid
         for case in &cases {
             for entity in &case.gold_entities {
-                assert!(entity.end <= case.text.len(), 
-                    "Entity end {} exceeds text length {} in '{}'",
-                    entity.end, case.text.len(), case.text);
-                let extracted = &case.text[entity.start..entity.end];
-                assert_eq!(extracted, entity.text,
+                let char_count = case.text.chars().count();
+                assert!(
+                    entity.end <= char_count,
+                    "Entity end {} exceeds text length {} chars in '{}'",
+                    entity.end,
+                    char_count,
+                    case.text
+                );
+                let extracted = entity.extract_text(&case.text);
+                assert_eq!(
+                    extracted, entity.text,
                     "Offset mismatch: expected '{}', got '{}' in '{}'",
-                    entity.text, extracted, case.text);
+                    entity.text, extracted, case.text
+                );
             }
         }
     }
 
     #[test]
     fn test_custom_values() {
-        let template = Template::new("Name: {PERSON}")
-            .with_values("PERSON", vec!["Alice", "Bob"]);
-        
+        let template = Template::new("Name: {PERSON}").with_values("PERSON", vec!["Alice", "Bob"]);
+
         let cases = generate_test_cases(&[template]);
         assert!(cases[0].text.contains("Alice")); // Uses first value
     }
 }
-

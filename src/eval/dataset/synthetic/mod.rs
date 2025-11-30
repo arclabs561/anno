@@ -46,10 +46,6 @@ pub use discontinuous::{
     Difficulty as DiscontinuousDifficulty, DiscontinuousExample, DiscontinuousStats,
     Domain as DiscontinuousDomain,
 };
-pub use relations::{
-    dataset as relations_dataset, stats as relations_stats,
-    Difficulty as RelationDifficulty, Domain as RelationDomain, RelationExample, RelationStats,
-};
 pub use entertainment::dataset as entertainment_dataset;
 pub use financial::dataset as financial_dataset;
 pub use legal::dataset as legal_dataset;
@@ -57,12 +53,18 @@ pub use misc::{
     adversarial_dataset, conversational_dataset, historical_dataset, structured_dataset,
 };
 pub use news::dataset as news_dataset;
+pub use relations::{
+    dataset as relations_dataset, stats as relations_stats, Difficulty as RelationDifficulty,
+    Domain as RelationDomain, RelationExample, RelationStats,
+};
 pub use scientific::dataset as scientific_dataset;
 pub use social_media::dataset as social_media_dataset;
 pub use specialized::{
-    academic_dataset, cybersecurity_dataset, ecommerce_dataset, food_dataset,
-    globally_diverse_dataset, hard_domain_examples, multilingual_dataset, politics_dataset,
-    real_estate_dataset, sports_dataset, travel_dataset, weather_dataset,
+    academic_dataset, aerospace_dataset, automotive_dataset, cybersecurity_dataset,
+    ecommerce_dataset, energy_dataset, food_dataset, globally_diverse_dataset,
+    hard_domain_examples, healthcare_dataset, manufacturing_dataset, multilingual_dataset,
+    politics_dataset, real_estate_dataset, sports_dataset, technology_dataset, travel_dataset,
+    weather_dataset,
 };
 
 use super::types::{AnnotatedExample, Difficulty, Domain};
@@ -103,6 +105,14 @@ pub fn all_datasets() -> Vec<AnnotatedExample> {
     all.extend(specialized::multilingual_dataset());
     all.extend(specialized::globally_diverse_dataset());
     all.extend(specialized::hard_domain_examples());
+
+    // Industry-specific domains
+    all.extend(specialized::technology_dataset());
+    all.extend(specialized::healthcare_dataset());
+    all.extend(specialized::manufacturing_dataset());
+    all.extend(specialized::automotive_dataset());
+    all.extend(specialized::energy_dataset());
+    all.extend(specialized::aerospace_dataset());
 
     all
 }
@@ -245,4 +255,3 @@ mod tests {
         }
     }
 }
-

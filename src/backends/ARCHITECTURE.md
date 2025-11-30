@@ -66,7 +66,7 @@
 │  ──────────────────────────────────────────────                            │
 │                                                                            │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                     │
-│  │ PatternNER  │    │StatisticalNER│    │ StackedNER │                     │
+│  │ PatternNER  │    │HeuristicNER│    │ StackedNER │                     │
 │  │ (regex)     │    │ (heuristics)│    │ (composite) │                     │
 │  │             │    │             │    │             │                     │
 │  │ Feature:    │    │ Feature:    │    │ Feature:    │                     │
@@ -91,7 +91,7 @@
 | Backend | Feature | Zero-Shot | Nested | Speed | F1 | Use When |
 |---------|---------|-----------|--------|-------|-----|----------|
 | `PatternNER` | - | No | No | ~400ns | ~95%* | Structured data extraction |
-| `StatisticalNER` | - | No | No | ~50µs | ~65% | Quick PER/ORG/LOC |
+| `HeuristicNER` | - | No | No | ~50µs | ~65% | Quick PER/ORG/LOC |
 | `StackedNER` | - | No | No | varies | varies | Default/baseline |
 | `GLiNEROnnx` | `onnx` | **Yes** | No | ~100ms | ~92% | Custom entity types |
 | `GLiNERCandle` | `candle` | **Yes** | No | ~80ms | TBD | Apple Silicon GPU |
@@ -101,6 +101,41 @@
 | `CandleNER` | `candle` | No | No | ~50ms | ~74% | Rust-native ML |
 
 *PatternNER only detects structured entities (dates, money, etc.) - not named entities.
+
+## ⭐ Recommended: GLiNER2 (Multi-Task)
+
+**For new projects, use `GLiNER2`** - it's the most capable and efficient option.
+
+| Feature | GLiNER (v1) | GLiNER2 |
+|---------|-------------|---------|
+| Named Entity Recognition | ✓ | ✓ |
+| Text Classification | ✗ | ✓ |
+| Hierarchical Extraction | ✗ | ✓ |
+| Multi-task in single pass | ✗ | ✓ |
+| Parameters | ~300M | ~205M |
+| CPU Latency | ~100ms | ~130-200ms |
+
+**Why GLiNER2?**
+
+1. **Unified extraction**: NER + classification + structure in one forward pass
+2. **Smaller model**: 205M params vs 7B+ for LLMs
+3. **CPU-efficient**: 130-208ms on CPU (2.6× faster than GPT-4o API)
+4. **Zero-shot F1**: Competitive with GPT-4o on CrossNER benchmarks
+
+```rust
+use anno::backends::gliner2::{GLiNER2, TaskSchema};
+
+let model = GLiNER2::from_pretrained("knowledgator/gliner-multitask-large-v0.5")?;
+
+// Multi-task schema
+let schema = TaskSchema::new()
+    .with_entities(&["person", "organization", "product"])
+    .with_classification("sentiment", &["positive", "negative"]);
+
+let result = model.extract_with_schema("Apple announced iPhone 15", &schema)?;
+```
+
+**Reference**: arXiv:2507.18546 (July 2025)
 
 ## GLiNER Variant Explained
 
@@ -211,7 +246,7 @@ Based on benchmarking against CoNLL-2003 and synthetic datasets:
 | Backend | Default Threshold | Rationale |
 |---------|-------------------|-----------|
 | `PatternNER` | Pattern-specific (0.90-0.98) | High precision regexes |
-| `StatisticalNER` | 0.5 | Balance precision/recall |
+| `HeuristicNER` | 0.5 | Balance precision/recall |
 | `GLiNEROnnx` | 0.5 | GLiNER paper default |
 | `W2NER` | 0.5 | Standard for grid models |
 | `BertNEROnnx` | N/A (argmax) | Sequence labeling |
@@ -225,8 +260,9 @@ onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub", "dep:ndarray"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers"]
 metal = ["candle", "candle-core/metal", "candle-nn/metal"]
 cuda = ["candle", "candle-core/cuda", "candle-nn/cuda"]
-network = ["dep:ureq", "dep:dirs"]
-full = ["onnx", "candle", "network"]
+# eval includes dirs for platform cache directory
+# eval-advanced includes ureq for dataset download
+full = ["eval-full", "onnx", "candle", "discourse"]
 ```
 
 ## Recommended Configuration
@@ -260,6 +296,107 @@ let entities = ner.extract_entities(text, Some(&["product", "company"]))?;
 use anno::GLiNERCandle;
 let ner = GLiNERCandle::new("gliner-small-v2.1")?;
 ```
+
+## Production Infrastructure
+
+Anno provides several production-ready features for deployment:
+
+### Async Inference (Feature: `async-inference`)
+
+Wrap blocking ONNX inference for async runtimes:
+
+```rust
+use anno::{GLiNEROnnx, backends::IntoAsync};
+
+let model = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+let async_model = model.into_async();
+
+// Safe to use in tokio handlers
+let entities = async_model.extract_entities("John works at Apple").await?;
+```
+
+### Session Pooling (Feature: `session-pool`)
+
+Enable parallel inference with multiple ONNX sessions:
+
+```rust
+use anno::backends::{GLiNERPool, PoolConfig};
+
+let pool = GLiNERPool::new(
+    "onnx-community/gliner_small-v2.1",
+    PoolConfig::with_size(4),  // 4 parallel sessions
+)?;
+
+// Each call uses an available session
+let entities = pool.extract(text, &["person", "organization"], 0.5)?;
+```
+
+### Quantized Models
+
+INT8 quantization for 2-4x CPU speedup:
+
+```rust
+use anno::{GLiNEROnnx, backends::GLiNERConfig};
+
+let config = GLiNERConfig {
+    prefer_quantized: true,   // Try model_quantized.onnx first
+    optimization_level: 3,     // Max ONNX optimization
+    num_threads: 8,            // Inference threads
+};
+
+let model = GLiNEROnnx::with_config("model-id", config)?;
+println!("Using INT8: {}", model.is_quantized());
+```
+
+### Model Warmup
+
+Mitigate cold-start latency in serverless environments:
+
+```rust
+use anno::backends::{warmup_model, WarmupConfig};
+
+let model = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+
+let result = warmup_model(&model, WarmupConfig::default())?;
+println!("Speedup: {:.2}x", result.speedup);
+// First inference: 450ms → Warm inference: ~100ms
+```
+
+### Entity Validation
+
+Verify extraction quality before downstream use:
+
+```rust
+use anno::{Entity, EntityType};
+
+let text = "John works at Apple";
+let entities = model.extract_entities(text, None)?;
+
+// Validate all entities against source text
+let issues = Entity::validate_batch(&entities, text);
+if !issues.is_empty() {
+    for (idx, errs) in &issues {
+        for err in errs {
+            eprintln!("Entity {}: {}", idx, err);
+        }
+    }
+}
+```
+
+### Production Feature Bundle
+
+Enable all production features at once:
+
+```toml
+[dependencies]
+anno = { version = "0.2", features = ["production"] }
+```
+
+This enables:
+- `async-inference` - spawn_blocking wrapper
+- `session-pool` - parallel ONNX sessions
+- `fast-lock` - parking_lot mutexes
+- `onnx` - ONNX Runtime backend
 
 ## Timeline
 

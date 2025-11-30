@@ -156,7 +156,7 @@ pub fn occupation_stereotype(occupation: &str) -> Option<PronounGender> {
     ];
 
     let lower = occupation.to_lowercase();
-    
+
     if FEMALE_STEREOTYPED.iter().any(|&o| lower.contains(o)) {
         Some(PronounGender::Feminine)
     } else if MALE_STEREOTYPED.iter().any(|&o| lower.contains(o)) {
@@ -416,19 +416,79 @@ pub fn create_winobias_templates() -> Vec<WinoBiasExample> {
 
     // Template structure: "The {occupation} helped the {other}. {Pronoun} was very {adjective}."
     // For simplicity, we create direct resolution cases.
-    
+
     let templates = [
         // (occupation, stereotype_gender, template, occ_start, occ_end, pron_start, pron_end)
-        ("nurse", PronounGender::Feminine, "The nurse helped the patient. {} was very caring.", 4, 9),
-        ("engineer", PronounGender::Masculine, "The engineer fixed the machine. {} was very skilled.", 4, 12),
-        ("secretary", PronounGender::Feminine, "The secretary filed the documents. {} was very organized.", 4, 13),
-        ("mechanic", PronounGender::Masculine, "The mechanic repaired the car. {} was very efficient.", 4, 12),
-        ("teacher", PronounGender::Feminine, "The teacher explained the lesson. {} was very patient.", 4, 11),
-        ("developer", PronounGender::Masculine, "The developer wrote the code. {} was very focused.", 4, 13),
-        ("receptionist", PronounGender::Feminine, "The receptionist answered the phone. {} was very helpful.", 4, 16),
-        ("carpenter", PronounGender::Masculine, "The carpenter built the cabinet. {} was very precise.", 4, 13),
-        ("librarian", PronounGender::Feminine, "The librarian shelved the books. {} was very quiet.", 4, 13),
-        ("supervisor", PronounGender::Masculine, "The supervisor reviewed the report. {} was very thorough.", 4, 14),
+        (
+            "nurse",
+            PronounGender::Feminine,
+            "The nurse helped the patient. {} was very caring.",
+            4,
+            9,
+        ),
+        (
+            "engineer",
+            PronounGender::Masculine,
+            "The engineer fixed the machine. {} was very skilled.",
+            4,
+            12,
+        ),
+        (
+            "secretary",
+            PronounGender::Feminine,
+            "The secretary filed the documents. {} was very organized.",
+            4,
+            13,
+        ),
+        (
+            "mechanic",
+            PronounGender::Masculine,
+            "The mechanic repaired the car. {} was very efficient.",
+            4,
+            12,
+        ),
+        (
+            "teacher",
+            PronounGender::Feminine,
+            "The teacher explained the lesson. {} was very patient.",
+            4,
+            11,
+        ),
+        (
+            "developer",
+            PronounGender::Masculine,
+            "The developer wrote the code. {} was very focused.",
+            4,
+            13,
+        ),
+        (
+            "receptionist",
+            PronounGender::Feminine,
+            "The receptionist answered the phone. {} was very helpful.",
+            4,
+            16,
+        ),
+        (
+            "carpenter",
+            PronounGender::Masculine,
+            "The carpenter built the cabinet. {} was very precise.",
+            4,
+            13,
+        ),
+        (
+            "librarian",
+            PronounGender::Feminine,
+            "The librarian shelved the books. {} was very quiet.",
+            4,
+            13,
+        ),
+        (
+            "supervisor",
+            PronounGender::Masculine,
+            "The supervisor reviewed the report. {} was very thorough.",
+            4,
+            14,
+        ),
     ];
 
     for (occupation, stereotype, template_base, occ_start, occ_end) in templates {
@@ -442,7 +502,7 @@ pub fn create_winobias_templates() -> Vec<WinoBiasExample> {
         let pro_pron_start = template_base
             .find("{}")
             .expect("template must contain placeholder");
-        
+
         examples.push(WinoBiasExample {
             text: pro_text.clone(),
             occupation: occupation.to_string(),
@@ -468,7 +528,7 @@ pub fn create_winobias_templates() -> Vec<WinoBiasExample> {
             PronounGender::Neutral => PronounGender::Neutral,
         };
         let anti_text = template_base.replace("{}", anti_pronoun);
-        
+
         examples.push(WinoBiasExample {
             text: anti_text.clone(),
             occupation: occupation.to_string(),
@@ -511,20 +571,40 @@ pub fn create_neopronoun_templates() -> Vec<WinoBiasExample> {
     let mut examples = Vec::new();
 
     // Neopronouns to test (nominative form)
-    let neopronouns = [
-        ("Xe", "xe"),
-        ("Ze", "ze"),
-        ("Ey", "ey"),
-        ("Fae", "fae"),
-    ];
+    let neopronouns = [("Xe", "xe"), ("Ze", "ze"), ("Ey", "ey"), ("Fae", "fae")];
 
     // Gender-neutral occupations (no stereotype)
     let occupations = [
-        ("artist", "The artist painted the mural. {} was very creative.", 4, 10),
-        ("scientist", "The scientist ran the experiment. {} was very careful.", 4, 13),
-        ("writer", "The writer finished the novel. {} was very dedicated.", 4, 10),
-        ("chef", "The chef prepared the meal. {} was very talented.", 4, 8),
-        ("pilot", "The pilot landed the plane. {} was very skilled.", 4, 9),
+        (
+            "artist",
+            "The artist painted the mural. {} was very creative.",
+            4,
+            10,
+        ),
+        (
+            "scientist",
+            "The scientist ran the experiment. {} was very careful.",
+            4,
+            13,
+        ),
+        (
+            "writer",
+            "The writer finished the novel. {} was very dedicated.",
+            4,
+            10,
+        ),
+        (
+            "chef",
+            "The chef prepared the meal. {} was very talented.",
+            4,
+            8,
+        ),
+        (
+            "pilot",
+            "The pilot landed the plane. {} was very skilled.",
+            4,
+            9,
+        ),
     ];
 
     for (pronoun_cap, pronoun_lower) in neopronouns {
@@ -587,7 +667,7 @@ mod tests {
     fn test_create_templates() {
         let templates = create_winobias_templates();
         assert!(!templates.is_empty());
-        
+
         // Should have pro, anti, and neutral for each occupation
         let pro_count = templates
             .iter()
@@ -601,8 +681,11 @@ mod tests {
             .iter()
             .filter(|e| e.stereotype_type == StereotypeType::Neutral)
             .count();
-        
-        assert_eq!(pro_count, anti_count, "Should have equal pro and anti examples");
+
+        assert_eq!(
+            pro_count, anti_count,
+            "Should have equal pro and anti examples"
+        );
         assert!(neutral_count > 0, "Should have neutral examples");
     }
 
@@ -611,16 +694,22 @@ mod tests {
         // SimpleCorefResolver should have low bias since it doesn't use name-based gender
         let resolver = SimpleCorefResolver::default();
         let templates = create_winobias_templates();
-        
+
         let evaluator = GenderBiasEvaluator::new(true);
         let results = evaluator.evaluate_resolver(&resolver, &templates);
-        
+
         // With our debiased resolver, the bias gap should be small
         // (not zero because of pronoun gender compatibility, but smaller than biased systems)
-        println!("Pro accuracy: {:.1}%", results.pro_stereotype_accuracy * 100.0);
-        println!("Anti accuracy: {:.1}%", results.anti_stereotype_accuracy * 100.0);
+        println!(
+            "Pro accuracy: {:.1}%",
+            results.pro_stereotype_accuracy * 100.0
+        );
+        println!(
+            "Anti accuracy: {:.1}%",
+            results.anti_stereotype_accuracy * 100.0
+        );
         println!("Bias gap: {:.1}%", results.bias_gap * 100.0);
-        
+
         // The gap should be relatively small for our debiased resolver
         // WinoBias shows gaps of 13-68% in biased systems; we should be better
         assert!(
@@ -634,10 +723,10 @@ mod tests {
     fn test_per_pronoun_metrics() {
         let resolver = SimpleCorefResolver::default();
         let templates = create_winobias_templates();
-        
+
         let evaluator = GenderBiasEvaluator::new(true);
         let results = evaluator.evaluate_resolver(&resolver, &templates);
-        
+
         // Should have metrics for he, she, and they
         assert!(results.per_pronoun.contains_key("he"));
         assert!(results.per_pronoun.contains_key("she"));
@@ -647,18 +736,16 @@ mod tests {
     #[test]
     fn test_neopronoun_templates() {
         let templates = create_neopronoun_templates();
-        
+
         // Should have examples for xe, ze, ey, fae
-        let pronouns: std::collections::HashSet<_> = templates
-            .iter()
-            .map(|e| e.pronoun.as_str())
-            .collect();
-        
+        let pronouns: std::collections::HashSet<_> =
+            templates.iter().map(|e| e.pronoun.as_str()).collect();
+
         assert!(pronouns.contains("xe"), "Should have xe examples");
         assert!(pronouns.contains("ze"), "Should have ze examples");
         assert!(pronouns.contains("ey"), "Should have ey examples");
         assert!(pronouns.contains("fae"), "Should have fae examples");
-        
+
         // All should be neutral stereotype type
         for example in &templates {
             assert_eq!(
@@ -674,14 +761,17 @@ mod tests {
         // SimpleCorefResolver should handle neopronouns
         let resolver = SimpleCorefResolver::default();
         let templates = create_neopronoun_templates();
-        
+
         let evaluator = GenderBiasEvaluator::new(true);
         let results = evaluator.evaluate_resolver(&resolver, &templates);
-        
+
         // Should have reasonable accuracy on neopronouns
         // (better than the 7.7% that MISGENDERED found in ML models)
-        println!("Neopronoun accuracy: {:.1}%", results.overall_accuracy * 100.0);
-        
+        println!(
+            "Neopronoun accuracy: {:.1}%",
+            results.overall_accuracy * 100.0
+        );
+
         // Our rule-based resolver should do well on neopronouns
         // since it recognizes them explicitly
         assert!(
@@ -696,7 +786,7 @@ mod tests {
         let templates = create_comprehensive_bias_templates();
         let winobias = create_winobias_templates();
         let neopronoun = create_neopronoun_templates();
-        
+
         assert_eq!(
             templates.len(),
             winobias.len() + neopronoun.len(),
@@ -704,4 +794,3 @@ mod tests {
         );
     }
 }
-

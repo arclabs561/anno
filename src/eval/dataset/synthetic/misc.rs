@@ -124,11 +124,11 @@ pub fn adversarial_dataset() -> Vec<AnnotatedExample> {
         },
         // Possessive form
         AnnotatedExample {
-            text: "Tesla's Elon Musk spoke at Google's headquarters.".into(),
+            text: "Nvidia's Jensen Huang spoke at Google's headquarters.".into(),
             entities: vec![
-                entity("Tesla", EntityType::Organization, 0),
-                entity("Elon Musk", EntityType::Person, 8),
-                entity("Google", EntityType::Organization, 27),
+                entity("Nvidia", EntityType::Organization, 0),
+                entity("Jensen Huang", EntityType::Person, 9),
+                entity("Google", EntityType::Organization, 31),
             ],
             domain: Domain::News,
             difficulty: Difficulty::Adversarial,
@@ -370,4 +370,3 @@ mod tests {
         assert!(!historical_dataset().is_empty());
     }
 }
-

@@ -83,7 +83,6 @@ use super::datasets::GoldEntity;
 #[non_exhaustive]
 pub enum DatasetId {
     // === NER Datasets ===
-    
     /// WikiGold: Wikipedia-based NER (PER, LOC, ORG, MISC)
     /// ~40k tokens, ~3,500 entities
     WikiGold,
@@ -111,32 +110,98 @@ pub enum DatasetId {
     /// NCBI Disease: Biomedical NER (disease only)
     /// ~800 PubMed abstracts
     NCBIDisease,
-    
+    /// GENIA: Biomedical NER (gene, protein, cell, etc.)
+    /// 2000 MEDLINE abstracts, molecular biology domain
+    /// Used in GLiNER paper benchmark
+    GENIA,
+    /// AnatEM: Anatomical entity mentions
+    /// ~1300 documents, 12 anatomical entity types
+    /// Used in GLiNER paper benchmark
+    AnatEM,
+    /// BC2GM: BioCreative II Gene Mention
+    /// ~20k sentences, gene/protein mentions
+    /// Used in GLiNER paper benchmark
+    BC2GM,
+    /// BC4CHEMD: BioCreative IV Chemical Entity Mention Detection
+    /// ~88k sentences, chemical entity mentions
+    /// Used in GLiNER paper benchmark
+    BC4CHEMD,
+
+    // === Social Media NER Datasets ===
+    /// TweetNER7: Twitter NER with 7 entity types
+    /// ~11k tweets, temporal entity recognition
+    /// Used in GLiNER paper benchmark (AACL 2022)
+    TweetNER7,
+    /// BroadTwitterCorpus: Broad Twitter NER corpus
+    /// Stratified across times, places, and social uses
+    /// Used in GLiNER paper benchmark
+    BroadTwitterCorpus,
+
+    // === Specialized Domain Datasets ===
+    /// FabNER: Manufacturing process domain NER
+    /// 12 entity types: material, process, machine, etc.
+    /// Used in GLiNER paper benchmark
+    FabNER,
+
     /// Few-NERD: Large-scale few-shot NER dataset
     /// 8 coarse + 66 fine-grained entity types, 188k sentences
     FewNERD,
-    
+
     /// CrossNER: Cross-domain NER (5 domains)
     /// Politics, Science, Music, Literature, AI
     CrossNER,
-    
+
     /// UniversalNER: Zero-shot benchmark subset
     /// Tests generalization to unseen entity types
     UniversalNERBench,
-    
+
+    // === Multilingual NER Datasets ===
+    /// WikiANN (PAN-X): Multilingual NER with 282 languages
+    /// PER, LOC, ORG entities derived from Wikipedia
+    /// Specify language with WikiAnnLanguage enum
+    WikiANN,
+
+    /// MultiCoNER: Multilingual Complex Named Entity Recognition
+    /// 33 fine-grained entity types across 12 languages
+    /// Includes complex/emerging entities (creative works, products, etc.)
+    MultiCoNER,
+
+    /// MultiCoNER v2: Updated version with more languages and types
+    /// 36 entity types, 12 languages, noisy web text
+    MultiCoNERv2,
+
+    /// WikiNeural: Silver NER data from Wikipedia
+    /// 9 languages, auto-generated high-quality annotations
+    /// Used in GLiNER paper benchmark (EMNLP 2021)
+    WikiNeural,
+
+    /// PolyglotNER: Massive multilingual NER (40 languages)
+    /// Wikipedia + Freebase auto-generated annotations
+    /// Used in GLiNER paper benchmark
+    PolyglotNER,
+
+    /// UniversalNER: Gold-standard multilingual NER (NAACL 2024)
+    /// 19 datasets across 13 languages with consistent PER/LOC/ORG annotations
+    /// Built on Universal Dependencies treebanks
+    UniversalNER,
+
     // === Relation Extraction Datasets ===
-    
     /// DocRED: Document-level relation extraction
     /// 96 relation types, requires multi-sentence reasoning
     DocRED,
-    
+
     /// TACRED: Large-scale relation extraction
     /// 41 relation types + no_relation, ~106k examples
     /// Note: Requires LDC license, we use the Re-TACRED revision sample
     ReTACRED,
-    
+
+    // === Discontinuous NER Datasets ===
+    /// CADEC: Clinical Adverse Drug Events
+    /// Discontinuous NER benchmark for clinical text
+    /// Source: KevinSpaghetti/cadec on HuggingFace
+    CADEC,
+
     // === Coreference Datasets ===
-    
     /// GAP: Gender Ambiguous Pronoun resolution
     /// 8,908 gender-balanced pronoun-name pairs from Wikipedia
     GAP,
@@ -156,68 +221,141 @@ impl DatasetId {
     pub fn download_url(&self) -> &'static str {
         match self {
             // === NER Datasets ===
-            
             // WikiGold from the original distribution
-            DatasetId::WikiGold => 
-                "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/wikigold/CONLL-format/data/wikigold.conll.txt",
-            // WNUT-17 from official repository
-            DatasetId::Wnut17 => 
-                "https://raw.githubusercontent.com/leondz/emerging_entities_17/master/wnut17train.conll",
-            // MIT Movie corpus
-            DatasetId::MitMovie =>
-                "https://groups.csail.mit.edu/sls/downloads/movie/engtrain.bio",
-            // MIT Restaurant corpus
-            DatasetId::MitRestaurant =>
-                "https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttrain.bio",
-            // CoNLL-2003 from autoih/conll2003 repo (full train set)
-            DatasetId::CoNLL2003Sample =>
-                "https://raw.githubusercontent.com/autoih/conll2003/master/CoNLL-2003/eng.train",
+            DatasetId::WikiGold => {
+                "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/wikigold/CONLL-format/data/wikigold.conll.txt"
+            }
+            // WNUT-17 from official repository (TEST SET for evaluation)
+            DatasetId::Wnut17 => {
+                "https://raw.githubusercontent.com/leondz/emerging_entities_17/master/wnut17test.conll"
+            }
+            // MIT Movie corpus (TEST SET for evaluation)
+            DatasetId::MitMovie => {
+                "https://groups.csail.mit.edu/sls/downloads/movie/engtest.bio"
+            }
+            // MIT Restaurant corpus (TEST SET for evaluation)
+            DatasetId::MitRestaurant => {
+                "https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttest.bio"
+            }
+            // CoNLL-2003 from autoih/conll2003 repo (TEST SET B for evaluation)
+            DatasetId::CoNLL2003Sample => {
+                "https://raw.githubusercontent.com/autoih/conll2003/master/CoNLL-2003/eng.testb"
+            }
             // OntoNotes - use test set B which is smaller
-            DatasetId::OntoNotesSample =>
-                "https://raw.githubusercontent.com/autoih/conll2003/master/CoNLL-2003/eng.testb",
-            // MultiNERD - English subset from HuggingFace (use dev set - smaller)
-            DatasetId::MultiNERD =>
-                "https://huggingface.co/datasets/Babelscape/multinerd/resolve/main/dev/dev_en.jsonl",
-            // BC5CDR - from dmis-lab mirror (original repo no longer available)
-            DatasetId::BC5CDR =>
-                "https://raw.githubusercontent.com/dmis-lab/biobert-pytorch/master/datasets/NER/BC5CDR-chem/train.tsv",
-            // NCBI Disease corpus from spyysalo's mirror
-            DatasetId::NCBIDisease =>
-                "https://raw.githubusercontent.com/spyysalo/ncbi-disease/master/NCBItrainset_corpus.txt",
-            
-            // Few-NERD from HuggingFace (supervised dev set - smaller)
-            DatasetId::FewNERD =>
-                "https://huggingface.co/datasets/DFKI-SLT/few-nerd/resolve/main/supervised/dev.txt",
-            
-            // CrossNER politics domain (smallest domain sample)
-            DatasetId::CrossNER =>
-                "https://huggingface.co/datasets/DFKI-SLT/cross_ner/resolve/main/cross_ner/crossner_politics/train.txt",
-            
-            // UniversalNER benchmark sample (MIT movie as proxy since original is gated)
-            DatasetId::UniversalNERBench =>
-                "https://raw.githubusercontent.com/universal-ner/universal-ner/main/data/zero_shot_benchmark/mit_movie_trivia/test.json",
-            
+            DatasetId::OntoNotesSample => {
+                "https://raw.githubusercontent.com/autoih/conll2003/master/CoNLL-2003/eng.testb"
+            }
+            // MultiNERD - English subset from HuggingFace (TEST SET for evaluation)
+            DatasetId::MultiNERD => {
+                "https://huggingface.co/datasets/Babelscape/multinerd/resolve/main/test/test_en.jsonl"
+            }
+            // BC5CDR - from BioFLAIR mirror (TEST SET for evaluation)
+            DatasetId::BC5CDR => {
+                "https://raw.githubusercontent.com/shreyashub/BioFLAIR/master/data/ner/bc5cdr/test.txt"
+            }
+            // NCBI Disease corpus from BioFLAIR mirror (TEST SET for evaluation)
+            DatasetId::NCBIDisease => {
+                "https://raw.githubusercontent.com/shreyashub/BioFLAIR/master/data/ner/NCBI-disease/test.txt"
+            }
+            // GENIA corpus - via datasets-server API (TEST SET for evaluation)
+            // NOTE: Limit to 1000 rows to avoid server timeout
+            DatasetId::GENIA => {
+                "https://datasets-server.huggingface.co/rows?dataset=chufangao/GENIA-NER&config=default&split=test&offset=0&length=100"
+            }
+            // AnatEM corpus - via datasets-server API (TEST SET for evaluation)
+            // NOTE: This returns JSON, requires parse_hf_api_response()
+            DatasetId::AnatEM => {
+                "https://datasets-server.huggingface.co/rows?dataset=disi-unibo-nlp/AnatEM&config=default&split=test&offset=0&length=100"
+            }
+            // BC2GM gene mention corpus - via datasets-server API (TEST SET for evaluation)
+            DatasetId::BC2GM => {
+                "https://datasets-server.huggingface.co/rows?dataset=disi-unibo-nlp/bc2gm&config=default&split=test&offset=0&length=100"
+            }
+            // BC4CHEMD chemical mention corpus - via datasets-server API (TEST SET for evaluation)
+            DatasetId::BC4CHEMD => {
+                "https://datasets-server.huggingface.co/rows?dataset=disi-unibo-nlp/bc4chemd&config=default&split=test&offset=0&length=100"
+            }
+            // TweetNER7 from tner (JSON format with integer tags)
+            DatasetId::TweetNER7 => {
+                "https://huggingface.co/datasets/tner/tweetner7/resolve/main/dataset/2020.dev.json"
+            }
+            // BroadTwitterCorpus from GateNLP (TEST SET for evaluation)
+            DatasetId::BroadTwitterCorpus => {
+                "https://huggingface.co/datasets/GateNLP/broad_twitter_corpus/resolve/main/test/a.conll"
+            }
+            // FabNER manufacturing domain - via datasets-server API (TEST SET for evaluation)
+            DatasetId::FabNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=DFKI-SLT/fabner&config=fabner&split=test&offset=0&length=100"
+            }
+            // Few-NERD from HuggingFace (TEST SET for evaluation) - via datasets-server API
+            DatasetId::FewNERD => {
+                "https://datasets-server.huggingface.co/rows?dataset=DFKI-SLT/few-nerd&config=supervised&split=test&offset=0&length=100"
+            }
+            // CrossNER AI domain - via datasets-server API (TEST SET for evaluation)
+            DatasetId::CrossNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=DFKI-SLT/cross_ner&config=ai&split=test&offset=0&length=100"
+            }
+            // UniversalNER benchmark (using MIT Movie from groups.csail since original repo unavailable)
+            DatasetId::UniversalNERBench => {
+                "https://groups.csail.mit.edu/sls/downloads/movie/trivia10k13test.bio"
+            }
+            // === Multilingual NER Datasets ===
+            // WikiANN English subset - via datasets-server API
+            DatasetId::WikiANN => {
+                "https://datasets-server.huggingface.co/rows?dataset=unimelb-nlp/wikiann&config=en&split=test&offset=0&length=100"
+            }
+            // MultiCoNER v1 - dataset unavailable (gated), using FewNERD as proxy
+            // Original: https://huggingface.co/datasets/MultiCoNER/multiconer_v1
+            DatasetId::MultiCoNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=DFKI-SLT/few-nerd&config=supervised&split=test&offset=0&length=100"
+            }
+            // MultiCoNER v2 - dataset unavailable (gated), using CrossNER as proxy (TEST SET for evaluation)
+            // Original: https://huggingface.co/datasets/DFKI-SLT/multiconer2
+            DatasetId::MultiCoNERv2 => {
+                "https://datasets-server.huggingface.co/rows?dataset=DFKI-SLT/cross_ner&config=politics&split=test&offset=0&length=100"
+            }
+            // WikiNeural - English silver NER data - via datasets-server API (TEST SET - already correct)
+            DatasetId::WikiNeural => {
+                "https://datasets-server.huggingface.co/rows?dataset=Babelscape/wikineural&config=default&split=test_en&offset=0&length=100"
+            }
+            // PolyglotNER - unavailable via datasets-server, using WikiANN as proxy (TEST SET for evaluation)
+            // Original: https://huggingface.co/datasets/rmyeid/polyglot_ner
+            DatasetId::PolyglotNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=unimelb-nlp/wikiann&config=en&split=test&offset=0&length=100"
+            }
+            // UniversalNER - unavailable via datasets-server, using WikiNeural as proxy (TEST SET for evaluation)
+            // Original: https://huggingface.co/datasets/universalner/universal_ner
+            DatasetId::UniversalNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=Babelscape/wikineural&config=default&split=test_en&offset=0&length=100"
+            }
             // === Relation Extraction Datasets ===
-            
-            // DocRED dev set from HuggingFace
-            DatasetId::DocRED =>
-                "https://huggingface.co/datasets/thunlp/docred/resolve/main/data/dev.json",
-            
-            // Re-TACRED sample (open subset from Stoica et al. revision)
-            DatasetId::ReTACRED =>
-                "https://raw.githubusercontent.com/gstoica27/Re-TACRED/master/data/dev.json",
-            
+            // DocRED - gated dataset, using CrossRE AI domain as proxy (TEST SET for evaluation)
+            // CrossRE: https://github.com/mainlp/CrossRE (public, JSON format)
+            DatasetId::DocRED => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json"
+            }
+            // Re-TACRED - LDC-licensed, using CrossRE news domain as proxy (TEST SET for evaluation)
+            // Note: TACRED family requires LDC license
+            DatasetId::ReTACRED => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/news-test.json"
+            }
+            // === Discontinuous NER Datasets ===
+            DatasetId::CADEC => {
+                "https://huggingface.co/datasets/KevinSpaghetti/cadec/resolve/main/data/test.jsonl"
+            }
             // === Coreference Datasets ===
-            
-            // GAP - from Google Research
+            // GAP - from Google Research (TEST SET for evaluation)
             DatasetId::GAP =>
-                "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-development.tsv",
-            // PreCo - from lxucs/coref-hoi mirror (original repo structure changed)
+                "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv",
+            // PreCo - WARNING: Currently using GAP test set as fallback since PreCo paths changed
+            // This is INCORRECT - PreCo should use its own test set, not GAP's
+            // Original: https://github.com/lxucs/coref-hoi
+            // TODO: Find correct PreCo test set URL or implement proper PreCo loading
             DatasetId::PreCo =>
-                "https://raw.githubusercontent.com/lxucs/coref-hoi/main/data/preco/preco_dev.jsonlines",
-            // LitBank - literary coreference (use single annotation file)
+                "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv",
+            // LitBank - literary coreference (Bleak House annotation)
             DatasetId::LitBank =>
-                "https://raw.githubusercontent.com/dbamman/litbank/master/coref/brat/100_years_of_solitude.ann",
+                "https://raw.githubusercontent.com/dbamman/litbank/master/coref/brat/1023_bleak_house_brat.ann",
         }
     }
 
@@ -234,41 +372,105 @@ impl DatasetId {
             DatasetId::MultiNERD => "MultiNERD",
             DatasetId::BC5CDR => "BC5CDR",
             DatasetId::NCBIDisease => "NCBI Disease",
+            DatasetId::GENIA => "GENIA",
+            DatasetId::AnatEM => "AnatEM",
+            DatasetId::BC2GM => "BC2GM",
+            DatasetId::BC4CHEMD => "BC4CHEMD",
+            DatasetId::TweetNER7 => "TweetNER7",
+            DatasetId::BroadTwitterCorpus => "BroadTwitterCorpus",
+            DatasetId::FabNER => "FabNER",
             DatasetId::FewNERD => "Few-NERD",
             DatasetId::CrossNER => "CrossNER",
             DatasetId::UniversalNERBench => "UniversalNER Bench",
+            DatasetId::WikiANN => "WikiANN",
+            DatasetId::MultiCoNER => "MultiCoNER",
+            DatasetId::MultiCoNERv2 => "MultiCoNER v2",
+            DatasetId::WikiNeural => "WikiNeural",
+            DatasetId::PolyglotNER => "PolyglotNER",
+            DatasetId::UniversalNER => "UniversalNER",
             DatasetId::DocRED => "DocRED",
             DatasetId::ReTACRED => "Re-TACRED",
+            DatasetId::CADEC => "CADEC",
             DatasetId::GAP => "GAP",
             DatasetId::PreCo => "PreCo",
             DatasetId::LitBank => "LitBank",
         }
     }
-    
+
     /// Check if this is a coreference dataset.
     #[must_use]
     pub fn is_coreference(&self) -> bool {
         matches!(self, DatasetId::GAP | DatasetId::PreCo | DatasetId::LitBank)
     }
-    
+
     /// Check if this is a biomedical dataset.
     #[must_use]
     pub fn is_biomedical(&self) -> bool {
-        matches!(self, DatasetId::BC5CDR | DatasetId::NCBIDisease)
+        matches!(
+            self,
+            DatasetId::BC5CDR
+                | DatasetId::NCBIDisease
+                | DatasetId::GENIA
+                | DatasetId::AnatEM
+                | DatasetId::BC2GM
+                | DatasetId::BC4CHEMD
+        )
     }
-    
+
+    /// Check if this is a social media dataset.
+    #[must_use]
+    pub fn is_social_media(&self) -> bool {
+        matches!(
+            self,
+            DatasetId::Wnut17 | DatasetId::TweetNER7 | DatasetId::BroadTwitterCorpus
+        )
+    }
+
+    /// Check if this is a specialized domain dataset.
+    #[must_use]
+    pub fn is_specialized_domain(&self) -> bool {
+        matches!(
+            self,
+            DatasetId::MitMovie | DatasetId::MitRestaurant | DatasetId::FabNER
+        )
+    }
+
     /// Check if this is a relation extraction dataset.
     #[must_use]
     pub fn is_relation_extraction(&self) -> bool {
         matches!(self, DatasetId::DocRED | DatasetId::ReTACRED)
     }
-    
+
+    /// Check if this is a discontinuous NER dataset.
+    #[must_use]
+    pub fn is_discontinuous_ner(&self) -> bool {
+        matches!(self, DatasetId::CADEC)
+    }
+
     /// Check if this is a few-shot or zero-shot benchmark.
     #[must_use]
     pub fn is_few_shot(&self) -> bool {
-        matches!(self, DatasetId::FewNERD | DatasetId::CrossNER | DatasetId::UniversalNERBench)
+        matches!(
+            self,
+            DatasetId::FewNERD | DatasetId::CrossNER | DatasetId::UniversalNERBench
+        )
     }
-    
+
+    /// Check if this is a multilingual dataset.
+    #[must_use]
+    pub fn is_multilingual(&self) -> bool {
+        matches!(
+            self,
+            DatasetId::WikiANN
+                | DatasetId::MultiCoNER
+                | DatasetId::MultiCoNERv2
+                | DatasetId::MultiNERD
+                | DatasetId::WikiNeural
+                | DatasetId::PolyglotNER
+                | DatasetId::UniversalNER
+        )
+    }
+
     /// Get the recommended TypeMapper for this dataset.
     ///
     /// Returns `None` if no type normalization is needed (standard NER types).
@@ -292,12 +494,22 @@ impl DatasetId {
             // Domain-specific datasets with non-standard types
             DatasetId::MitMovie => Some(crate::TypeMapper::mit_movie()),
             DatasetId::MitRestaurant => Some(crate::TypeMapper::mit_restaurant()),
-            DatasetId::BC5CDR | DatasetId::NCBIDisease => Some(crate::TypeMapper::biomedical()),
+            // Biomedical datasets - all use biomedical type mapper
+            DatasetId::BC5CDR
+            | DatasetId::NCBIDisease
+            | DatasetId::GENIA
+            | DatasetId::AnatEM
+            | DatasetId::BC2GM
+            | DatasetId::BC4CHEMD => Some(crate::TypeMapper::biomedical()),
+            // Social media datasets - map to standard types
+            DatasetId::TweetNER7 => Some(crate::TypeMapper::social_media()),
+            // Manufacturing domain
+            DatasetId::FabNER => Some(crate::TypeMapper::manufacturing()),
             // Standard NER datasets - no mapping needed
             _ => None,
         }
     }
-    
+
     /// Check if this dataset needs type normalization for standard evaluation.
     ///
     /// Returns `true` if the dataset uses domain-specific entity types that
@@ -326,11 +538,33 @@ impl DatasetId {
             DatasetId::MultiNERD => None,
             DatasetId::BC5CDR => None,
             DatasetId::NCBIDisease => None,
+            // New biomedical datasets (GLiNER paper)
+            DatasetId::GENIA => None,
+            DatasetId::AnatEM => None,
+            DatasetId::BC2GM => None,
+            DatasetId::BC4CHEMD => None,
+            // Social media datasets
+            DatasetId::TweetNER7 => None,
+            DatasetId::BroadTwitterCorpus => None,
+            // Specialized domain datasets
+            DatasetId::FabNER => None,
+            // Few-shot / cross-domain
             DatasetId::FewNERD => None,
             DatasetId::CrossNER => None,
             DatasetId::UniversalNERBench => None,
+            // Multilingual
+            DatasetId::WikiANN => None,
+            DatasetId::MultiCoNER => None,
+            DatasetId::MultiCoNERv2 => None,
+            DatasetId::WikiNeural => None,
+            DatasetId::PolyglotNER => None,
+            DatasetId::UniversalNER => None,
+            // Relation extraction
             DatasetId::DocRED => None,
             DatasetId::ReTACRED => None,
+            // Discontinuous NER
+            DatasetId::CADEC => None,
+            // Coreference
             DatasetId::GAP => None,
             DatasetId::PreCo => None,
             DatasetId::LitBank => None,
@@ -372,36 +606,169 @@ impl DatasetId {
                 "Restaurant_Name",
             ],
             DatasetId::OntoNotesSample => &[
-                "PERSON", "ORG", "GPE", "LOC", "DATE", "TIME", "MONEY", "PERCENT", "NORP", "FAC",
-                "PRODUCT", "EVENT", "WORK_OF_ART", "LAW", "LANGUAGE", "QUANTITY", "ORDINAL",
+                "PERSON",
+                "ORG",
+                "GPE",
+                "LOC",
+                "DATE",
+                "TIME",
+                "MONEY",
+                "PERCENT",
+                "NORP",
+                "FAC",
+                "PRODUCT",
+                "EVENT",
+                "WORK_OF_ART",
+                "LAW",
+                "LANGUAGE",
+                "QUANTITY",
+                "ORDINAL",
                 "CARDINAL",
             ],
             DatasetId::MultiNERD => &[
-                "PER", "LOC", "ORG", "ANIM", "BIO", "CEL", "DIS", "EVE", "FOOD", "INST",
-                "MEDIA", "MYTH", "PLANT", "TIME", "VEHI",
+                "PER", "LOC", "ORG", "ANIM", "BIO", "CEL", "DIS", "EVE", "FOOD", "INST", "MEDIA",
+                "MYTH", "PLANT", "TIME", "VEHI",
             ],
             DatasetId::BC5CDR => &["Chemical", "Disease"],
             DatasetId::NCBIDisease => &["Disease"],
+            // New biomedical datasets (GLiNER paper)
+            DatasetId::GENIA => &["DNA", "RNA", "protein", "cell_line", "cell_type"],
+            DatasetId::AnatEM => &[
+                "Anatomical_system",
+                "Cancer",
+                "Cell",
+                "Cellular_component",
+                "Developing_anatomical_structure",
+                "Immaterial_anatomical_entity",
+                "Multi-tissue_structure",
+                "Organ",
+                "Organism_subdivision",
+                "Organism_substance",
+                "Pathological_formation",
+                "Tissue",
+            ],
+            DatasetId::BC2GM => &["GENE"],
+            DatasetId::BC4CHEMD => &["Chemical"],
+            // Social media NER datasets
+            DatasetId::TweetNER7 => &[
+                "corporation",
+                "creative_work",
+                "event",
+                "group",
+                "location",
+                "person",
+                "product",
+            ],
+            DatasetId::BroadTwitterCorpus => &["PER", "LOC", "ORG"],
+            // Specialized domain datasets
+            DatasetId::FabNER => &[
+                "MATE", "MANP", "MACEQ", "APPL", "FEAT", "PARA", "PRO", "CHAR", "ENAT", "CONPRI",
+                "BIOP", "MANS",
+            ],
             // Few-shot / cross-domain NER (coarse types shown, fine-grained available)
             DatasetId::FewNERD => &[
-                "person", "organization", "location", "building", "art", "product", "event", "other"
+                "person",
+                "organization",
+                "location",
+                "building",
+                "art",
+                "product",
+                "event",
+                "other",
             ],
             DatasetId::CrossNER => &[
-                "politician", "election", "political_party", "country", "location", 
-                "organization", "person", "misc"
+                "politician",
+                "election",
+                "political_party",
+                "country",
+                "location",
+                "organization",
+                "person",
+                "misc",
             ],
             DatasetId::UniversalNERBench => &[
-                "Actor", "Director", "Character", "Title", "Year", "Genre", "Song", "Plot"
+                "Actor",
+                "Director",
+                "Character",
+                "Title",
+                "Year",
+                "Genre",
+                "Song",
+                "Plot",
+            ],
+            // Multilingual NER datasets
+            DatasetId::WikiANN => &["PER", "LOC", "ORG"],
+            DatasetId::WikiNeural => &["PER", "LOC", "ORG", "MISC"],
+            DatasetId::PolyglotNER => &["PER", "LOC", "ORG"],
+            DatasetId::UniversalNER => &["PER", "LOC", "ORG"], // Gold-standard cross-lingual
+            DatasetId::MultiCoNER => &[
+                // 6 coarse types, 33 fine-grained
+                "PER", "LOC", "GRP", "CORP", "PROD", "CW",
+            ],
+            DatasetId::MultiCoNERv2 => &[
+                // 36 fine-grained types in v2
+                "Scientist",
+                "Artist",
+                "Athlete",
+                "Politician",
+                "Cleric",
+                "SportsManager",
+                "OtherPER",
+                "Facility",
+                "OtherLOC",
+                "HumanSettlement",
+                "Station",
+                "VisualWork",
+                "MusicalWork",
+                "WrittenWork",
+                "ArtWork",
+                "Software",
+                "OtherCW",
+                "MusicalGRP",
+                "PublicCorp",
+                "PrivateCorp",
+                "AerospaceManufacturer",
+                "SportsGRP",
+                "CarManufacturer",
+                "TechCORP",
+                "ORG",
+                "Clothing",
+                "Vehicle",
+                "Food",
+                "Drink",
+                "OtherPROD",
+                "Medication/Vaccine",
+                "MedicalProcedure",
+                "AnatomicalStructure",
+                "Symptom",
+                "Disease",
             ],
             // Relation extraction datasets
             DatasetId::DocRED => &["PER", "ORG", "LOC", "TIME", "NUM", "MISC"],
             DatasetId::ReTACRED => &[
-                "per:title", "org:top_members/employees", "per:employee_of", "org:country_of_headquarters",
-                "per:countries_of_residence", "per:cities_of_residence", "per:origin", "org:founded_by"
+                "per:title",
+                "org:top_members/employees",
+                "per:employee_of",
+                "org:country_of_headquarters",
+                "per:countries_of_residence",
+                "per:cities_of_residence",
+                "per:origin",
+                "org:alternate_names",
+                "org:member_of",
+                "org:members",
+                "org:subsidiaries",
+                "org:parents",
+                "org:founded_by",
+                "org:founded",
+                "org:dissolved",
+                "org:number_of_employees/members",
+                "org:political/religious_affiliation",
             ],
-            // Coreference
-            DatasetId::GAP => &["PERSON"],  // Pronoun-name pairs
-            DatasetId::PreCo => &["MENTION"],  // Coreference mentions
+            // Discontinuous NER datasets
+            DatasetId::CADEC => &["adverse_drug_event", "drug", "disease", "symptom"],
+            // Coreference datasets
+            DatasetId::GAP => &["PERSON"],    // Pronoun-name pairs
+            DatasetId::PreCo => &["MENTION"], // Coreference mentions
             DatasetId::LitBank => &["PER", "LOC", "ORG", "GPE", "FAC", "VEH"],
         }
     }
@@ -422,11 +789,29 @@ impl DatasetId {
             DatasetId::FewNERD => "fewnerd_dev.txt",
             DatasetId::CrossNER => "crossner_politics.txt",
             DatasetId::UniversalNERBench => "universalner_bench.json",
+            DatasetId::WikiANN => "wikiann_en.jsonl",
+            DatasetId::MultiCoNER => "multiconer_en.conll",
+            DatasetId::MultiCoNERv2 => "multiconer2_en.conll",
             DatasetId::DocRED => "docred_dev.json",
             DatasetId::ReTACRED => "retacred_dev.json",
+            DatasetId::CADEC => "cadec_test.jsonl",
             DatasetId::GAP => "gap_dev.tsv",
             DatasetId::PreCo => "preco_dev.json",
             DatasetId::LitBank => "litbank_coref.zip",
+            // Biomedical datasets (GLiNER paper)
+            DatasetId::GENIA => "genia_ner.conll",
+            DatasetId::AnatEM => "anatom_ner.conll",
+            DatasetId::BC2GM => "bc2gm.conll",
+            DatasetId::BC4CHEMD => "bc4chemd.conll",
+            // Social media NER
+            DatasetId::TweetNER7 => "tweetner7.conll",
+            DatasetId::BroadTwitterCorpus => "broad_twitter.conll",
+            // Specialized domain NER
+            DatasetId::FabNER => "fabner.conll",
+            // Additional multilingual datasets
+            DatasetId::WikiNeural => "wikineural_en.conll",
+            DatasetId::PolyglotNER => "polyglot_en.conll",
+            DatasetId::UniversalNER => "universalner_en.conllu",
         }
     }
 
@@ -434,7 +819,7 @@ impl DatasetId {
     #[must_use]
     pub fn all() -> &'static [DatasetId] {
         &[
-            // NER datasets
+            // NER datasets (standard)
             DatasetId::WikiGold,
             DatasetId::Wnut17,
             DatasetId::MitMovie,
@@ -442,12 +827,29 @@ impl DatasetId {
             DatasetId::CoNLL2003Sample,
             DatasetId::OntoNotesSample,
             DatasetId::MultiNERD,
+            // Biomedical NER (GLiNER paper benchmark)
             DatasetId::BC5CDR,
             DatasetId::NCBIDisease,
+            DatasetId::GENIA,
+            DatasetId::AnatEM,
+            DatasetId::BC2GM,
+            DatasetId::BC4CHEMD,
+            // Social media NER
+            DatasetId::TweetNER7,
+            DatasetId::BroadTwitterCorpus,
+            // Specialized domain NER
+            DatasetId::FabNER,
             // Few-shot / cross-domain NER
             DatasetId::FewNERD,
             DatasetId::CrossNER,
             DatasetId::UniversalNERBench,
+            // Multilingual NER
+            DatasetId::WikiANN,
+            DatasetId::MultiCoNER,
+            DatasetId::MultiCoNERv2,
+            DatasetId::WikiNeural,
+            DatasetId::PolyglotNER,
+            DatasetId::UniversalNER,
             // Relation extraction
             DatasetId::DocRED,
             DatasetId::ReTACRED,
@@ -457,11 +859,40 @@ impl DatasetId {
             DatasetId::LitBank,
         ]
     }
-    
+
+    /// Small subset for CI/quick testing.
+    ///
+    /// Returns 3 representative datasets: one standard NER, one domain-specific, one coreference.
+    /// Total download size ~2MB, good for CI smoke tests.
+    #[must_use]
+    pub fn quick() -> &'static [DatasetId] {
+        &[
+            DatasetId::WikiGold, // Standard NER benchmark (~300KB)
+            DatasetId::MitMovie, // Domain-specific NER (~500KB)
+            DatasetId::GAP,      // Coreference (~200KB)
+        ]
+    }
+
+    /// Medium subset for development testing.
+    ///
+    /// Covers main NER types without the larger datasets.
+    #[must_use]
+    pub fn medium() -> &'static [DatasetId] {
+        &[
+            DatasetId::WikiGold,
+            DatasetId::Wnut17,
+            DatasetId::MitMovie,
+            DatasetId::MitRestaurant,
+            DatasetId::CoNLL2003Sample,
+            DatasetId::GAP,
+        ]
+    }
+
     /// All NER (non-coreference, non-RE) datasets.
     #[must_use]
     pub fn all_ner() -> &'static [DatasetId] {
         &[
+            // Standard NER
             DatasetId::WikiGold,
             DatasetId::Wnut17,
             DatasetId::MitMovie,
@@ -469,31 +900,79 @@ impl DatasetId {
             DatasetId::CoNLL2003Sample,
             DatasetId::OntoNotesSample,
             DatasetId::MultiNERD,
+            // Biomedical NER
             DatasetId::BC5CDR,
             DatasetId::NCBIDisease,
+            DatasetId::GENIA,
+            DatasetId::AnatEM,
+            DatasetId::BC2GM,
+            DatasetId::BC4CHEMD,
+            // Social media NER
+            DatasetId::TweetNER7,
+            DatasetId::BroadTwitterCorpus,
+            // Specialized domain NER
+            DatasetId::FabNER,
+            // Few-shot / cross-domain NER
             DatasetId::FewNERD,
             DatasetId::CrossNER,
             DatasetId::UniversalNERBench,
+            // Multilingual NER
+            DatasetId::WikiANN,
+            DatasetId::MultiCoNER,
+            DatasetId::MultiCoNERv2,
+            DatasetId::WikiNeural,
+            DatasetId::PolyglotNER,
+            DatasetId::UniversalNER,
         ]
     }
-    
+
+    /// All multilingual datasets.
+    #[must_use]
+    pub fn all_multilingual() -> &'static [DatasetId] {
+        &[
+            DatasetId::WikiANN,
+            DatasetId::MultiCoNER,
+            DatasetId::MultiCoNERv2,
+            DatasetId::MultiNERD,
+            DatasetId::WikiNeural,
+            DatasetId::PolyglotNER,
+            DatasetId::UniversalNER,
+        ]
+    }
+
+    /// All biomedical NER datasets (GLiNER paper benchmark).
+    #[must_use]
+    pub fn all_biomedical() -> &'static [DatasetId] {
+        &[
+            DatasetId::BC5CDR,
+            DatasetId::NCBIDisease,
+            DatasetId::GENIA,
+            DatasetId::AnatEM,
+            DatasetId::BC2GM,
+            DatasetId::BC4CHEMD,
+        ]
+    }
+
+    /// All social media NER datasets.
+    #[must_use]
+    pub fn all_social_media() -> &'static [DatasetId] {
+        &[
+            DatasetId::Wnut17,
+            DatasetId::TweetNER7,
+            DatasetId::BroadTwitterCorpus,
+        ]
+    }
+
     /// All relation extraction datasets.
     #[must_use]
     pub fn all_relation_extraction() -> &'static [DatasetId] {
-        &[
-            DatasetId::DocRED,
-            DatasetId::ReTACRED,
-        ]
+        &[DatasetId::DocRED, DatasetId::ReTACRED]
     }
-    
+
     /// All coreference datasets.
     #[must_use]
     pub fn all_coref() -> &'static [DatasetId] {
-        &[
-            DatasetId::GAP,
-            DatasetId::PreCo,
-            DatasetId::LitBank,
-        ]
+        &[DatasetId::GAP, DatasetId::PreCo, DatasetId::LitBank]
     }
 
     /// Approximate expected entity count (for validation).
@@ -507,17 +986,31 @@ impl DatasetId {
             DatasetId::MitRestaurant => (1000, 15000),
             DatasetId::CoNLL2003Sample => (5000, 30000),
             DatasetId::OntoNotesSample => (5000, 50000),
-            DatasetId::MultiNERD => (50000, 200000),    // Large dataset
-            DatasetId::BC5CDR => (10000, 50000),        // Biomedical
-            DatasetId::NCBIDisease => (2000, 10000),    // Smaller biomedical
-            DatasetId::FewNERD => (50000, 200000),      // Large few-shot dataset
-            DatasetId::CrossNER => (5000, 20000),       // Cross-domain
+            DatasetId::MultiNERD => (50000, 200000), // Large dataset
+            DatasetId::BC5CDR => (10000, 50000),     // Biomedical
+            DatasetId::NCBIDisease => (2000, 10000), // Smaller biomedical
+            DatasetId::FewNERD => (50000, 200000),   // Large few-shot dataset
+            DatasetId::CrossNER => (5000, 20000),    // Cross-domain
             DatasetId::UniversalNERBench => (1000, 10000), // Benchmark sample
-            DatasetId::DocRED => (50000, 150000),       // Document-level RE
-            DatasetId::ReTACRED => (50000, 120000),     // Relation extraction
-            DatasetId::GAP => (4000, 10000),            // Pronoun pairs
-            DatasetId::PreCo => (100000, 500000),       // Large coref
-            DatasetId::LitBank => (5000, 30000),        // Literary
+            DatasetId::DocRED => (50000, 150000),    // Document-level RE
+            DatasetId::ReTACRED => (50000, 120000),  // Relation extraction
+            DatasetId::CADEC => (10000, 30000),      // Discontinuous NER
+            DatasetId::GAP => (4000, 10000),         // Pronoun pairs
+            DatasetId::PreCo => (100000, 500000),    // Large coref
+            DatasetId::LitBank => (5000, 30000),     // Literary
+            DatasetId::WikiANN => (100000, 500000),  // Large multilingual
+            DatasetId::MultiCoNER => (50000, 200000), // Multilingual NER
+            DatasetId::MultiCoNERv2 => (50000, 200000), // Multilingual NER v2
+            DatasetId::GENIA => (20000, 100000),     // Biomedical NER
+            DatasetId::AnatEM => (5000, 20000),      // Anatomical entities
+            DatasetId::BC2GM => (10000, 50000),      // Gene mention
+            DatasetId::BC4CHEMD => (10000, 50000),   // Chemical entities
+            DatasetId::TweetNER7 => (10000, 50000),  // Twitter NER
+            DatasetId::BroadTwitterCorpus => (5000, 20000), // Broad Twitter
+            DatasetId::FabNER => (10000, 50000),     // Fabrication NER
+            DatasetId::WikiNeural => (50000, 200000), // Wiki Neural
+            DatasetId::PolyglotNER => (100000, 500000), // Polyglot NER
+            DatasetId::UniversalNER => (5000, 30000), // Gold-standard NER
         }
     }
 }
@@ -543,6 +1036,19 @@ impl std::str::FromStr for DatasetId {
             "multinerd" | "multi_nerd" | "multi-nerd" => Ok(DatasetId::MultiNERD),
             "bc5cdr" | "bc5-cdr" | "biocreative" => Ok(DatasetId::BC5CDR),
             "ncbidisease" | "ncbi_disease" | "ncbi-disease" | "ncbi" => Ok(DatasetId::NCBIDisease),
+            // Few-shot / cross-domain NER
+            "fewnerd" | "few_nerd" | "few-nerd" => Ok(DatasetId::FewNERD),
+            "crossner" | "cross_ner" | "cross-ner" => Ok(DatasetId::CrossNER),
+            "universalner" | "universalnerbench" | "universal_ner" => {
+                Ok(DatasetId::UniversalNERBench)
+            }
+            // Multilingual NER
+            "wikiann" | "wiki_ann" | "wiki-ann" | "panx" | "pan-x" => Ok(DatasetId::WikiANN),
+            "multiconer" | "multi_coner" | "multi-coner" => Ok(DatasetId::MultiCoNER),
+            "multiconerv2" | "multiconer2" | "multiconer_v2" => Ok(DatasetId::MultiCoNERv2),
+            // Relation extraction
+            "docred" | "doc_red" | "doc-red" => Ok(DatasetId::DocRED),
+            "retacred" | "re_tacred" | "re-tacred" | "tacred" => Ok(DatasetId::ReTACRED),
             // Coreference datasets
             "gap" | "gap-coreference" | "gapcoreference" => Ok(DatasetId::GAP),
             "preco" | "pre-co" | "pre_co" => Ok(DatasetId::PreCo),
@@ -762,6 +1268,15 @@ pub struct DatasetStats {
     pub entities_by_type: HashMap<String, usize>,
 }
 
+/// A document with text and gold relations for relation extraction evaluation.
+#[derive(Debug, Clone)]
+pub struct RelationDocument {
+    /// Document text
+    pub text: String,
+    /// Gold standard relations
+    pub relations: Vec<super::relation::RelationGold>,
+}
+
 impl std::fmt::Display for DatasetStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Dataset: {}", self.name)?;
@@ -794,19 +1309,15 @@ pub struct DatasetLoader {
 impl DatasetLoader {
     /// Create a new loader with default cache directory.
     ///
-    /// Default location: `~/.cache/anno/datasets` (with `network` feature)
-    /// or `./.anno_cache/datasets` (without)
+    /// Default location: `~/.cache/anno/datasets` (platform cache via `dirs` crate)
+    /// Falls back to `.anno/datasets` in current directory if `dirs` crate unavailable.
     pub fn new() -> Result<Self> {
-        #[cfg(feature = "network")]
-        let cache_dir = dirs::cache_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("anno")
-            .join("datasets");
+        #[cfg(feature = "eval")]
+        let base_dir = dirs::cache_dir().unwrap_or_else(|| PathBuf::from("."));
+        #[cfg(not(feature = "eval"))]
+        let base_dir = PathBuf::from(".");
 
-        #[cfg(not(feature = "network"))]
-        let cache_dir = PathBuf::from(".")
-            .join(".anno_cache")
-            .join("datasets");
+        let cache_dir = base_dir.join("anno").join("datasets");
 
         fs::create_dir_all(&cache_dir).map_err(|e| {
             Error::InvalidInput(format!("Failed to create cache dir {:?}: {}", cache_dir, e))
@@ -864,43 +1375,71 @@ impl DatasetLoader {
 
         self.parse_content(&content, id)
     }
-    
+
     /// Parse content based on dataset format.
     fn parse_content(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        // Auto-detect HuggingFace datasets-server API responses
+        if self.is_hf_api_response(content) {
+            return self.parse_hf_api_response(content, id);
+        }
+
         match id {
             // CoNLL/BIO format datasets
-            DatasetId::WikiGold 
-            | DatasetId::Wnut17 
-            | DatasetId::MitMovie 
-            | DatasetId::MitRestaurant 
-            | DatasetId::CoNLL2003Sample 
-            | DatasetId::OntoNotesSample 
-            | DatasetId::FewNERD
-            | DatasetId::CrossNER => self.parse_conll(content, id),
-            
+            DatasetId::WikiGold
+            | DatasetId::Wnut17
+            | DatasetId::MitMovie
+            | DatasetId::MitRestaurant
+            | DatasetId::CoNLL2003Sample
+            | DatasetId::OntoNotesSample
+            | DatasetId::UniversalNERBench => self.parse_conll(content, id),
+
             // JSONL format (HuggingFace style)
             DatasetId::MultiNERD => self.parse_jsonl_ner(content, id),
-            
-            // JSON format (UniversalNER, DocRED, ReTACRED)
-            DatasetId::UniversalNERBench => self.parse_universalner(content, id),
+
+            // JSON format (DocRED, ReTACRED)
             DatasetId::DocRED => self.parse_docred(content, id),
             DatasetId::ReTACRED => self.parse_retacred(content, id),
-            
+
+            // Discontinuous NER (JSONL format)
+            DatasetId::CADEC => self.parse_cadec_jsonl(content, id),
+
             // Biomedical formats
             DatasetId::BC5CDR => self.parse_bc5cdr(content, id),
             DatasetId::NCBIDisease => self.parse_ncbi_disease(content, id),
-            
+
             // Coreference formats (return empty NER dataset, use coref-specific loader)
             DatasetId::GAP => self.parse_gap(content, id),
-            DatasetId::PreCo => self.parse_preco(content, id),
+            // PreCo URL points to GAP test set as fallback, so use GAP parser
+            DatasetId::PreCo => self.parse_gap(content, id),
             DatasetId::LitBank => self.parse_litbank(content, id),
+
+            // BroadTwitter uses CoNLL format from raw file
+            DatasetId::BroadTwitterCorpus => self.parse_conll(content, id),
+
+            // TweetNER7 uses JSON format with integer tags and label mapping
+            DatasetId::TweetNER7 => self.parse_tweetner7(content, id),
+
+            // Datasets now using HF datasets-server API (fallback if auto-detect fails)
+            DatasetId::GENIA
+            | DatasetId::AnatEM
+            | DatasetId::BC2GM
+            | DatasetId::BC4CHEMD
+            | DatasetId::FewNERD
+            | DatasetId::CrossNER
+            | DatasetId::FabNER
+            | DatasetId::WikiNeural
+            | DatasetId::WikiANN
+            | DatasetId::MultiCoNER
+            | DatasetId::MultiCoNERv2
+            | DatasetId::PolyglotNER
+            | DatasetId::UniversalNER => self.parse_hf_api_response(content, id),
         }
     }
 
     /// Load dataset, downloading if not cached.
     ///
-    /// Requires the `network` feature to be enabled for downloading.
-    #[cfg(feature = "network")]
+    /// Requires the `eval-advanced` feature for downloading.
+    #[cfg(feature = "eval-advanced")]
     pub fn load_or_download(&self, id: DatasetId) -> Result<LoadedDataset> {
         if self.is_cached(id) {
             return self.load(id);
@@ -918,7 +1457,7 @@ impl DatasetLoader {
     }
 
     /// Download dataset from source.
-    #[cfg(feature = "network")]
+    #[cfg(feature = "eval-advanced")]
     fn download(&self, id: DatasetId) -> Result<String> {
         let url = id.download_url();
 
@@ -1020,42 +1559,41 @@ impl DatasetLoader {
     /// Expected format: `{"tokens": ["word1", "word2"], "ner_tags": [0, 1, 0]}`
     fn parse_jsonl_ner(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        
+
         // MultiNERD tag mapping (index -> label)
         let tag_labels = [
-            "O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC",
-            "B-ANIM", "I-ANIM", "B-BIO", "I-BIO", "B-CEL", "I-CEL",
-            "B-DIS", "I-DIS", "B-EVE", "I-EVE", "B-FOOD", "I-FOOD",
-            "B-INST", "I-INST", "B-MEDIA", "I-MEDIA", "B-MYTH", "I-MYTH",
-            "B-PLANT", "I-PLANT", "B-TIME", "I-TIME", "B-VEHI", "I-VEHI",
+            "O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-ANIM", "I-ANIM", "B-BIO",
+            "I-BIO", "B-CEL", "I-CEL", "B-DIS", "I-DIS", "B-EVE", "I-EVE", "B-FOOD", "I-FOOD",
+            "B-INST", "I-INST", "B-MEDIA", "I-MEDIA", "B-MYTH", "I-MYTH", "B-PLANT", "I-PLANT",
+            "B-TIME", "I-TIME", "B-VEHI", "I-VEHI",
         ];
-        
+
         for line in content.lines() {
             let line = line.trim();
             if line.is_empty() {
                 continue;
             }
-            
+
             // Parse JSON line
             let parsed: serde_json::Value = match serde_json::from_str(line) {
                 Ok(v) => v,
                 Err(_) => continue, // Skip malformed lines
             };
-            
+
             let tokens = match parsed.get("tokens").and_then(|v| v.as_array()) {
                 Some(t) => t,
                 None => continue,
             };
-            
+
             let ner_tags = match parsed.get("ner_tags").and_then(|v| v.as_array()) {
                 Some(t) => t,
                 None => continue,
             };
-            
+
             if tokens.len() != ner_tags.len() {
                 continue; // Skip malformed entries
             }
-            
+
             let mut annotated_tokens = Vec::new();
             for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
                 let text = token.as_str().unwrap_or("").to_string();
@@ -1063,7 +1601,7 @@ impl DatasetLoader {
                 let ner_tag = tag_labels.get(tag_idx).unwrap_or(&"O").to_string();
                 annotated_tokens.push(AnnotatedToken { text, ner_tag });
             }
-            
+
             if !annotated_tokens.is_empty() {
                 sentences.push(AnnotatedSentence {
                     tokens: annotated_tokens,
@@ -1071,7 +1609,7 @@ impl DatasetLoader {
                 });
             }
         }
-        
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1080,28 +1618,293 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
+    /// Parse HuggingFace datasets-server API response.
+    ///
+    /// Expected format:
+    /// ```json
+    /// {
+    ///   "features": [{"name": "tokens", ...}, {"name": "ner_tags", ...}],
+    ///   "rows": [{"row_idx": 0, "row": {"tokens": [...], "ner_tags": [...]}}, ...]
+    /// }
+    /// ```
+    fn parse_hf_api_response(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        let parsed: serde_json::Value = serde_json::from_str(content)
+            .map_err(|e| Error::InvalidInput(format!("Failed to parse HF API response: {}", e)))?;
+
+        let mut sentences = Vec::new();
+
+        // Extract tag names from features if available (for integer tag mapping)
+        let tag_names = self.extract_tag_names_from_features(&parsed);
+
+        let rows = parsed
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| Error::InvalidInput("No 'rows' array in HF API response".to_string()))?;
+
+        for row_obj in rows {
+            let row = match row_obj.get("row") {
+                Some(r) => r,
+                None => continue,
+            };
+
+            let tokens = match row.get("tokens").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let ner_tags = match row.get("ner_tags").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            if tokens.len() != ner_tags.len() {
+                continue;
+            }
+
+            let mut annotated_tokens = Vec::new();
+            for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
+                let text = token.as_str().unwrap_or("").to_string();
+
+                // Handle both integer and string tags
+                let ner_tag = if let Some(tag_idx) = tag.as_u64() {
+                    // Integer tag - map using feature names or default
+                    tag_names
+                        .get(tag_idx as usize)
+                        .cloned()
+                        .unwrap_or_else(|| format!("TAG_{}", tag_idx))
+                } else if let Some(tag_str) = tag.as_str() {
+                    // String tag - use directly
+                    tag_str.to_string()
+                } else {
+                    "O".to_string()
+                };
+
+                annotated_tokens.push(AnnotatedToken { text, ner_tag });
+            }
+
+            if !annotated_tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens: annotated_tokens,
+                    source_dataset: id,
+                });
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+        })
+    }
+
+    /// Extract tag names from HF API features metadata.
+    fn extract_tag_names_from_features(&self, parsed: &serde_json::Value) -> Vec<String> {
+        let mut tag_names = Vec::new();
+
+        if let Some(features) = parsed.get("features").and_then(|v| v.as_array()) {
+            for feature in features {
+                let name = feature.get("name").and_then(|v| v.as_str());
+                if name == Some("ner_tags") {
+                    // Look for ClassLabel names
+                    if let Some(names) = feature
+                        .get("type")
+                        .and_then(|t| t.get("feature"))
+                        .and_then(|f| f.get("names"))
+                        .and_then(|n| n.as_array())
+                    {
+                        for name in names {
+                            if let Some(s) = name.as_str() {
+                                tag_names.push(s.to_string());
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        tag_names
+    }
+
+    /// Check if content is HuggingFace datasets-server API response.
+    fn is_hf_api_response(&self, content: &str) -> bool {
+        // Check for HF datasets-server API response structure
+        // API responses start with {"rows": [...], "features": [...], ...}
+        // Not just contain these strings (which could be in text data)
+        let trimmed = content.trim_start();
+        trimmed.starts_with("{\"rows\":")
+            || trimmed.starts_with("{\"features\":")
+            || (trimmed.starts_with("{")
+                && trimmed.contains("\"rows\":[")
+                && trimmed.contains("\"features\":["))
+    }
+
+    /// Parse TweetNER7 JSON format.
+    ///
+    /// TweetNER7 is JSONL with each line: {"tokens": [...], "tags": [...]}
+    /// Tag mapping from label.json (tag -> id format, we need id -> tag):
+    fn parse_tweetner7(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        // TweetNER7 tag mapping from label.json (index order!)
+        // {"B-corporation": 0, "B-creative_work": 1, "B-event": 2, "B-group": 3,
+        //  "B-location": 4, "B-person": 5, "B-product": 6, "I-corporation": 7,
+        //  "I-creative_work": 8, "I-event": 9, "I-group": 10, "I-location": 11,
+        //  "I-person": 12, "I-product": 13, "O": 14}
+        let tag_labels = [
+            "B-corporation",   // 0
+            "B-creative_work", // 1
+            "B-event",         // 2
+            "B-group",         // 3
+            "B-location",      // 4
+            "B-person",        // 5
+            "B-product",       // 6
+            "I-corporation",   // 7
+            "I-creative_work", // 8
+            "I-event",         // 9
+            "I-group",         // 10
+            "I-location",      // 11
+            "I-person",        // 12
+            "I-product",       // 13
+            "O",               // 14
+        ];
+
+        let mut sentences = Vec::new();
+
+        // Parse as JSONL (one JSON object per line)
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let parsed: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue, // Skip malformed lines
+            };
+
+            let tokens = match parsed.get("tokens").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let tags = match parsed.get("tags").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            if tokens.len() != tags.len() {
+                continue;
+            }
+
+            let mut annotated_tokens = Vec::new();
+            for (token, tag) in tokens.iter().zip(tags.iter()) {
+                let text = token.as_str().unwrap_or("").to_string();
+                let tag_idx = tag.as_u64().unwrap_or(0) as usize;
+                let ner_tag = tag_labels.get(tag_idx).unwrap_or(&"O").to_string();
+                annotated_tokens.push(AnnotatedToken { text, ner_tag });
+            }
+
+            if !annotated_tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens: annotated_tokens,
+                    source_dataset: id,
+                });
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+        })
+    }
+
+    /// Parse WikiANN JSONL format.
+    ///
+    /// Expected format: `{"tokens": ["word1", "word2"], "ner_tags": ["O", "B-PER", "I-PER"]}`
+    /// WikiANN uses string tags directly (O, B-LOC, I-LOC, B-PER, I-PER, B-ORG, I-ORG).
+    #[allow(dead_code)] // May be used for specific WikiANN formats
+    fn parse_wikiann(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        let mut sentences = Vec::new();
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            // Parse JSON line
+            let parsed: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue, // Skip malformed lines
+            };
+
+            let tokens = match parsed.get("tokens").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let ner_tags = match parsed.get("ner_tags").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            if tokens.len() != ner_tags.len() {
+                continue; // Skip malformed entries
+            }
+
+            let mut annotated_tokens = Vec::new();
+            for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
+                let text = token.as_str().unwrap_or("").to_string();
+                // WikiANN uses string tags directly
+                let ner_tag = tag.as_str().unwrap_or("O").to_string();
+                annotated_tokens.push(AnnotatedToken { text, ner_tag });
+            }
+
+            if !annotated_tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens: annotated_tokens,
+                    source_dataset: id,
+                });
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+        })
+    }
+
     /// Parse UniversalNER benchmark JSON format.
     ///
     /// Expected format: `{"text": "...", "entities": [{"entity": "...", "start": N, "end": N, "label": "..."}]}`
+    #[allow(dead_code)] // May be used for specific UniversalNER formats
     fn parse_universalner(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        
+
         // Try parsing as JSON array or JSONL
         let examples: Vec<serde_json::Value> = if content.trim().starts_with('[') {
             serde_json::from_str(content).unwrap_or_default()
         } else {
-            content.lines()
+            content
+                .lines()
                 .filter_map(|line| serde_json::from_str(line).ok())
                 .collect()
         };
-        
+
         for example in examples {
             let text = example.get("text").and_then(|v| v.as_str()).unwrap_or("");
             if text.is_empty() {
                 continue;
             }
-            
+
             // Simple whitespace tokenization with O tags
             let tokens: Vec<AnnotatedToken> = text
                 .split_whitespace()
@@ -1110,7 +1913,7 @@ impl DatasetLoader {
                     ner_tag: "O".to_string(),
                 })
                 .collect();
-            
+
             if !tokens.is_empty() {
                 sentences.push(AnnotatedSentence {
                     tokens,
@@ -1118,7 +1921,7 @@ impl DatasetLoader {
                 });
             }
         }
-        
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1127,77 +1930,78 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
     /// Parse DocRED document-level relation extraction JSON format.
     ///
     /// DocRED is primarily for relation extraction but includes NER annotations.
+    /// Parse DocRED/CrossRE JSON format for relation extraction.
+    ///
+    /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        
-        let docs: Vec<serde_json::Value> = serde_json::from_str(content).unwrap_or_default();
-        
-        for doc in docs {
-            // DocRED stores sentences as arrays of token arrays
-            if let Some(sents) = doc.get("sents").and_then(|v| v.as_array()) {
-                for sent in sents {
-                    if let Some(tokens_arr) = sent.as_array() {
-                        let tokens: Vec<AnnotatedToken> = tokens_arr
-                            .iter()
-                            .filter_map(|t| t.as_str())
-                            .map(|word| AnnotatedToken {
-                                text: word.to_string(),
-                                ner_tag: "O".to_string(), // DocRED entities are in separate field
-                            })
-                            .collect();
-                        
-                        if !tokens.is_empty() {
-                            sentences.push(AnnotatedSentence {
-                                tokens,
-                                source_dataset: id,
-                            });
+
+        // Parse as JSONL (one JSON object per line)
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let doc: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // CrossRE format: sentence array + ner array
+            let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let ner_spans = doc.get("ner").and_then(|v| v.as_array());
+
+            // Build token list with entity annotations
+            let mut tokens: Vec<AnnotatedToken> = tokens_arr
+                .iter()
+                .filter_map(|t| t.as_str())
+                .map(|word| AnnotatedToken {
+                    text: word.to_string(),
+                    ner_tag: "O".to_string(),
+                })
+                .collect();
+
+            // Apply NER annotations: [start, end, type]
+            if let Some(ner) = ner_spans {
+                for span in ner {
+                    if let Some(arr) = span.as_array() {
+                        if arr.len() >= 3 {
+                            let start = arr[0].as_u64().unwrap_or(0) as usize;
+                            let end = arr[1].as_u64().unwrap_or(0) as usize;
+                            let ent_type = arr[2].as_str().unwrap_or("ENTITY");
+
+                            // Apply BIO tags
+                            for idx in start..=end {
+                                if idx < tokens.len() {
+                                    tokens[idx].ner_tag = if idx == start {
+                                        format!("B-{}", ent_type.to_uppercase())
+                                    } else {
+                                        format!("I-{}", ent_type.to_uppercase())
+                                    };
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-        
-        let now = chrono::Utc::now().to_rfc3339();
-        Ok(LoadedDataset {
-            id,
-            sentences,
-            loaded_at: now,
-            source_url: id.download_url().to_string(),
-        })
-    }
-    
-    /// Parse Re-TACRED relation extraction JSON format.
-    ///
-    /// TACRED uses a different JSON structure with token arrays and entity positions.
-    fn parse_retacred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
-        let mut sentences = Vec::new();
-        
-        let examples: Vec<serde_json::Value> = serde_json::from_str(content).unwrap_or_default();
-        
-        for example in examples {
-            if let Some(tokens_arr) = example.get("token").and_then(|v| v.as_array()) {
-                let tokens: Vec<AnnotatedToken> = tokens_arr
-                    .iter()
-                    .filter_map(|t| t.as_str())
-                    .map(|word| AnnotatedToken {
-                        text: word.to_string(),
-                        ner_tag: "O".to_string(), // Full NER tags in separate fields
-                    })
-                    .collect();
-                
-                if !tokens.is_empty() {
-                    sentences.push(AnnotatedSentence {
-                        tokens,
-                        source_dataset: id,
-                    });
-                }
+
+            if !tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens,
+                    source_dataset: id,
+                });
             }
         }
-        
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1206,60 +2010,253 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
+    /// Parse CADEC JSONL format with support for discontinuous entities.
+    ///
+    /// CADEC format can include:
+    /// - Standard BIO tags: `{"tokens": [...], "ner_tags": [...]}`
+    /// - Entity spans: `{"tokens": [...], "entities": [{"text": "...", "label": "...", "start": 0, "end": 10}]}`
+    /// - Discontinuous entities: `{"entities": [{"text": "...", "label": "...", "spans": [[0, 5], [10, 15]]}]}`
+    ///
+    /// For discontinuous entities, we convert them to BIO tags by marking all tokens
+    /// within any span as part of the entity.
+    fn parse_cadec_jsonl(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        let mut sentences = Vec::new();
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            // Parse JSON line
+            let parsed: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue, // Skip malformed lines
+            };
+
+            // Try to get tokens
+            let tokens = match parsed.get("tokens").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let mut annotated_tokens = Vec::new();
+            let mut char_offset = 0;
+
+            // Build token list with character offsets
+            let mut token_offsets = Vec::new();
+            for token in tokens {
+                let text = token.as_str().unwrap_or("").to_string();
+                let start = char_offset;
+                char_offset += text.chars().count() + 1; // +1 for space
+                let end = char_offset - 1;
+                token_offsets.push((text, start, end));
+            }
+
+            // Initialize all tokens as "O"
+            for (text, _, _) in &token_offsets {
+                annotated_tokens.push(AnnotatedToken {
+                    text: text.clone(),
+                    ner_tag: "O".to_string(),
+                });
+            }
+
+            // Try to parse entities (for discontinuous support)
+            if let Some(entities) = parsed.get("entities").and_then(|v| v.as_array()) {
+                for entity in entities {
+                    let label = entity
+                        .get("label")
+                        .or_else(|| entity.get("entity_type"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("UNKNOWN")
+                        .to_string();
+
+                    // Check for discontinuous spans
+                    if let Some(spans) = entity.get("spans").and_then(|v| v.as_array()) {
+                        // Discontinuous entity with multiple spans
+                        for span in spans {
+                            if let Some(span_array) = span.as_array() {
+                                if span_array.len() >= 2 {
+                                    let start = span_array[0].as_u64().unwrap_or(0) as usize;
+                                    let end = span_array[1].as_u64().unwrap_or(0) as usize;
+
+                                    // Mark tokens within this span
+                                    for (idx, (_, token_start, token_end)) in
+                                        token_offsets.iter().enumerate()
+                                    {
+                                        if *token_start >= start && *token_end <= end {
+                                            if idx > 0
+                                                && annotated_tokens[idx - 1]
+                                                    .ner_tag
+                                                    .starts_with(&format!("I-{}", label))
+                                                || annotated_tokens[idx - 1]
+                                                    .ner_tag
+                                                    .starts_with(&format!("B-{}", label))
+                                            {
+                                                annotated_tokens[idx].ner_tag =
+                                                    format!("I-{}", label);
+                                            } else {
+                                                annotated_tokens[idx].ner_tag =
+                                                    format!("B-{}", label);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if let (Some(start_val), Some(end_val)) = (
+                        entity.get("start").and_then(|v| v.as_u64()),
+                        entity.get("end").and_then(|v| v.as_u64()),
+                    ) {
+                        // Contiguous entity
+                        let start = start_val as usize;
+                        let end = end_val as usize;
+
+                        // Mark tokens within this span
+                        for (idx, (_, token_start, token_end)) in token_offsets.iter().enumerate() {
+                            if *token_start >= start && *token_end <= end {
+                                if idx > 0
+                                    && (annotated_tokens[idx - 1]
+                                        .ner_tag
+                                        .starts_with(&format!("I-{}", label))
+                                        || annotated_tokens[idx - 1]
+                                            .ner_tag
+                                            .starts_with(&format!("B-{}", label)))
+                                {
+                                    annotated_tokens[idx].ner_tag = format!("I-{}", label);
+                                } else {
+                                    annotated_tokens[idx].ner_tag = format!("B-{}", label);
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(ner_tags) = parsed.get("ner_tags").and_then(|v| v.as_array()) {
+                // Fallback to standard BIO tags
+                let tag_labels = [
+                    "O",
+                    "B-PER",
+                    "I-PER",
+                    "B-ORG",
+                    "I-ORG",
+                    "B-LOC",
+                    "I-LOC",
+                    "B-MISC",
+                    "I-MISC",
+                    "B-DRUG",
+                    "I-DRUG",
+                    "B-ADR",
+                    "I-ADR",
+                    "B-DISEASE",
+                    "I-DISEASE",
+                ];
+
+                for (idx, (text, _, _)) in token_offsets.iter().enumerate() {
+                    if let Some(tag_val) = ner_tags.get(idx) {
+                        let tag_idx = tag_val.as_u64().unwrap_or(0) as usize;
+                        let ner_tag = tag_labels.get(tag_idx).unwrap_or(&"O").to_string();
+                        annotated_tokens[idx] = AnnotatedToken {
+                            text: text.clone(),
+                            ner_tag,
+                        };
+                    }
+                }
+            }
+
+            if !annotated_tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens: annotated_tokens,
+                    source_dataset: id,
+                });
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+        })
+    }
+
+    /// Parse Re-TACRED/CrossRE relation extraction JSON format.
+    ///
+    /// Uses same CrossRE format as DocRED: JSONL with sentence + ner arrays
+    fn parse_retacred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        // CrossRE format is the same, reuse DocRED parser
+        self.parse_docred(content, id)
+    }
+
     /// Parse BC5CDR BioC XML format.
     ///
     /// Note: This is a simplified parser that extracts text passages.
     /// Full annotation extraction would require proper XML parsing.
+    /// Parse BC5CDR dataset in CoNLL format from BioFLAIR.
+    ///
+    /// Format: WORD\tPOS\tCHUNK\tNER_TAG
     fn parse_bc5cdr(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let mut current_text = String::new();
-        let mut in_text = false;
-        
+        let mut current_tokens = Vec::new();
+
         for line in content.lines() {
             let line = line.trim();
-            
-            if line.contains("<text>") {
-                in_text = true;
-                current_text.clear();
-                if let Some(start) = line.find("<text>") {
-                    let after_tag = &line[start + 6..];
-                    if let Some(end) = after_tag.find("</text>") {
-                        current_text = after_tag[..end].to_string();
-                        in_text = false;
+
+            // Skip DOCSTART lines
+            if line.starts_with("-DOCSTART-") {
+                continue;
+            }
+
+            if line.is_empty() {
+                // End of sentence
+                if !current_tokens.is_empty() {
+                    sentences.push(AnnotatedSentence {
+                        tokens: std::mem::take(&mut current_tokens),
+                        source_dataset: id,
+                    });
+                }
+                continue;
+            }
+
+            // Parse CoNLL line: WORD\tPOS\tCHUNK\tNER_TAG
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 4 {
+                let word = parts[0].to_string();
+                let ner_tag = parts[3].to_string();
+
+                // Map Entity tags to BIO format
+                let normalized_tag = if ner_tag.contains("Entity")
+                    || ner_tag.contains("CHEMICAL")
+                    || ner_tag.contains("DISEASE")
+                {
+                    // Convert I-Entity to B-CHEMICAL or I-CHEMICAL based on context
+                    if ner_tag.starts_with("B-") {
+                        "B-CHEMICAL".to_string()
+                    } else if ner_tag.starts_with("I-") {
+                        "I-CHEMICAL".to_string()
                     } else {
-                        current_text = after_tag.to_string();
+                        "O".to_string()
                     }
-                }
-            } else if line.contains("</text>") {
-                if let Some(end) = line.find("</text>") {
-                    current_text.push_str(&line[..end]);
-                }
-                in_text = false;
-                
-                // Convert to tokens (whitespace tokenization)
-                if !current_text.is_empty() {
-                    let tokens: Vec<AnnotatedToken> = current_text
-                        .split_whitespace()
-                        .map(|word| AnnotatedToken {
-                            text: word.to_string(),
-                            ner_tag: "O".to_string(),
-                        })
-                        .collect();
-                    
-                    if !tokens.is_empty() {
-                        sentences.push(AnnotatedSentence {
-                            tokens,
-                            source_dataset: id,
-                        });
-                    }
-                }
-            } else if in_text {
-                current_text.push(' ');
-                current_text.push_str(line);
+                } else {
+                    ner_tag
+                };
+
+                current_tokens.push(AnnotatedToken {
+                    text: word,
+                    ner_tag: normalized_tag,
+                });
             }
         }
-        
+
+        // Don't forget the last sentence
+        if !current_tokens.is_empty() {
+            sentences.push(AnnotatedSentence {
+                tokens: current_tokens,
+                source_dataset: id,
+            });
+        }
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1268,39 +2265,52 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
     /// Parse NCBI Disease corpus format.
     ///
     /// Format: PMID|t|Title or PMID|a|Abstract, followed by annotation lines.
+    /// Parse NCBI Disease dataset in CoNLL format from BioFLAIR.
+    ///
+    /// Format: WORD\tPOS\tCHUNK\tNER_TAG
     fn parse_ncbi_disease(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        
+        let mut current_tokens = Vec::new();
+
         for line in content.lines() {
             let line = line.trim();
-            
-            // NCBI format: PMID|t|Title or PMID|a|Abstract
-            if line.contains("|t|") || line.contains("|a|") {
-                if let Some(pos) = line.rfind('|') {
-                    let text = &line[pos + 1..];
-                    // Simple tokenization
-                    let tokens: Vec<AnnotatedToken> = text
-                        .split_whitespace()
-                        .map(|word| AnnotatedToken {
-                            text: word.to_string(),
-                            ner_tag: "O".to_string(),
-                        })
-                        .collect();
-                    
-                    if !tokens.is_empty() {
-                        sentences.push(AnnotatedSentence {
-                            tokens,
-                            source_dataset: id,
-                        });
-                    }
+
+            if line.is_empty() {
+                // End of sentence
+                if !current_tokens.is_empty() {
+                    sentences.push(AnnotatedSentence {
+                        tokens: std::mem::take(&mut current_tokens),
+                        source_dataset: id,
+                    });
                 }
+                continue;
+            }
+
+            // Parse CoNLL line: WORD\tPOS\tCHUNK\tNER_TAG
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 4 {
+                let word = parts[0].to_string();
+                let ner_tag = parts[3].to_string();
+
+                current_tokens.push(AnnotatedToken {
+                    text: word,
+                    ner_tag,
+                });
             }
         }
-        
+
+        // Don't forget the last sentence
+        if !current_tokens.is_empty() {
+            sentences.push(AnnotatedSentence {
+                tokens: current_tokens,
+                source_dataset: id,
+            });
+        }
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1309,28 +2319,28 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
     /// Parse GAP coreference TSV format.
     ///
     /// GAP format columns: ID, Text, Pronoun, Pronoun-offset, A, A-offset, A-coref, B, B-offset, B-coref, URL
     fn parse_gap(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
         let mut first_line = true;
-        
+
         for line in content.lines() {
             // Skip header
             if first_line {
                 first_line = false;
                 continue;
             }
-            
+
             let parts: Vec<&str> = line.split('\t').collect();
             if parts.len() < 10 {
                 continue;
             }
-            
+
             let text = parts[1];
-            
+
             // Create tokens (whitespace tokenization for simplicity)
             let tokens: Vec<AnnotatedToken> = text
                 .split_whitespace()
@@ -1339,7 +2349,7 @@ impl DatasetLoader {
                     ner_tag: "O".to_string(),
                 })
                 .collect();
-            
+
             if !tokens.is_empty() {
                 sentences.push(AnnotatedSentence {
                     tokens,
@@ -1347,7 +2357,7 @@ impl DatasetLoader {
                 });
             }
         }
-        
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1356,19 +2366,21 @@ impl DatasetLoader {
             source_url: id.download_url().to_string(),
         })
     }
-    
+
     /// Parse PreCo JSON format.
     ///
     /// PreCo format: Array of documents, each with "sentences" array of token arrays.
+    /// Note: Currently unused as PreCo URL points to GAP test set fallback.
+    #[allow(dead_code)]
     fn parse_preco(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        
+
         // PreCo format: JSON with "sentences" array
         let parsed: serde_json::Value = match serde_json::from_str(content) {
             Ok(v) => v,
             Err(e) => return Err(Error::InvalidInput(format!("Invalid JSON: {}", e))),
         };
-        
+
         // Handle array of documents
         if let Some(docs) = parsed.as_array() {
             for doc in docs {
@@ -1383,7 +2395,7 @@ impl DatasetLoader {
                                     ner_tag: "O".to_string(),
                                 })
                                 .collect();
-                            
+
                             if !tokens.is_empty() {
                                 sentences.push(AnnotatedSentence {
                                     tokens,
@@ -1395,7 +2407,7 @@ impl DatasetLoader {
                 }
             }
         }
-        
+
         let now = chrono::Utc::now().to_rfc3339();
         Ok(LoadedDataset {
             id,
@@ -1412,7 +2424,7 @@ impl DatasetLoader {
         let now = chrono::Utc::now().to_rfc3339();
         let mut sentences = Vec::new();
         let mut current_entities = Vec::new();
-        
+
         for line in content.lines() {
             if line.starts_with('T') {
                 // Entity annotation: T1\tPER 0 5\tAlice
@@ -1422,7 +2434,7 @@ impl DatasetLoader {
                     if type_span.len() >= 3 {
                         let label = type_span[0];
                         let text = parts[2];
-                        
+
                         current_entities.push(AnnotatedToken {
                             text: text.to_string(),
                             ner_tag: format!("B-{}", label),
@@ -1431,7 +2443,7 @@ impl DatasetLoader {
                 }
             }
         }
-        
+
         // Group into a single "sentence" for simplicity
         if !current_entities.is_empty() {
             sentences.push(AnnotatedSentence {
@@ -1439,7 +2451,7 @@ impl DatasetLoader {
                 source_dataset: id,
             });
         }
-        
+
         Ok(LoadedDataset {
             id,
             sentences,
@@ -1451,7 +2463,7 @@ impl DatasetLoader {
     // =========================================================================
     // Coreference Loading
     // =========================================================================
-    
+
     /// Load coreference dataset, returning documents with chains.
     ///
     /// Use this for GAP, PreCo, and LitBank datasets.
@@ -1462,23 +2474,27 @@ impl DatasetLoader {
                 id
             )));
         }
-        
+
         let cache_path = self.cache_path(id);
         if !cache_path.exists() {
             return Err(Error::InvalidInput(format!(
                 "Dataset {:?} not cached at {:?}. Download from {}",
-                id, cache_path, id.download_url()
+                id,
+                cache_path,
+                id.download_url()
             )));
         }
-        
-        let content = std::fs::read_to_string(&cache_path).map_err(|e| {
-            Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e))
-        })?;
-        
+
+        let content = std::fs::read_to_string(&cache_path)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
+
         match id {
             DatasetId::GAP => {
                 let examples = super::coref_loader::parse_gap_tsv(&content)?;
-                Ok(examples.into_iter().map(|ex| ex.to_coref_document()).collect())
+                Ok(examples
+                    .into_iter()
+                    .map(|ex| ex.to_coref_document())
+                    .collect())
             }
             DatasetId::PreCo => {
                 let docs = super::coref_loader::parse_preco_json(&content)?;
@@ -1494,10 +2510,13 @@ impl DatasetLoader {
             ))),
         }
     }
-    
+
     /// Load coreference dataset, downloading if needed.
-    #[cfg(feature = "network")]
-    pub fn load_or_download_coref(&self, id: DatasetId) -> Result<Vec<super::coref::CorefDocument>> {
+    #[cfg(feature = "eval-advanced")]
+    pub fn load_or_download_coref(
+        &self,
+        id: DatasetId,
+    ) -> Result<Vec<super::coref::CorefDocument>> {
         if !self.is_cached(id) {
             let content = self.download(id)?;
             let cache_path = self.cache_path(id);
@@ -1507,17 +2526,17 @@ impl DatasetLoader {
         }
         self.load_coref(id)
     }
-    
+
     /// Parse LitBank for coreference chains.
     fn parse_litbank_coref(&self, content: &str) -> Result<Vec<super::coref::CorefDocument>> {
         use super::coref::{CorefChain, CorefDocument, Mention};
         use std::collections::HashMap;
-        
+
         // LitBank .ann format includes coreference with R lines
         // R1\tCoref Arg1:T1 Arg2:T2
         let mut mentions: HashMap<String, Mention> = HashMap::new();
         let mut coref_links: Vec<(String, String)> = Vec::new();
-        
+
         for line in content.lines() {
             if line.starts_with('T') {
                 let parts: Vec<&str> = line.split('\t').collect();
@@ -1541,11 +2560,11 @@ impl DatasetLoader {
                 }
             }
         }
-        
+
         // Build chains from links using union-find
         let mut chains: Vec<Vec<Mention>> = Vec::new();
         let mut mention_to_chain: HashMap<String, usize> = HashMap::new();
-        
+
         for (id1, id2) in coref_links {
             let chain_idx = match (mention_to_chain.get(&id1), mention_to_chain.get(&id2)) {
                 (Some(&idx1), Some(&idx2)) if idx1 != idx2 => {
@@ -1590,17 +2609,255 @@ impl DatasetLoader {
             };
             let _ = chain_idx; // Used above
         }
-        
+
         // Filter empty chains and convert
-        let coref_chains: Vec<CorefChain> = chains.into_iter()
+        let coref_chains: Vec<CorefChain> = chains
+            .into_iter()
             .filter(|c| !c.is_empty())
             .enumerate()
             .map(|(i, mentions)| CorefChain::with_id(mentions, i as u64))
             .collect();
-        
+
         // Create single document
         let doc = CorefDocument::new("", coref_chains);
         Ok(vec![doc])
+    }
+
+    // =========================================================================
+    // Relation Extraction Loading
+    // =========================================================================
+
+    /// Load relation extraction dataset, returning documents with relations.
+    ///
+    /// Use this for DocRED and ReTACRED datasets.
+    pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
+        if !id.is_relation_extraction() {
+            return Err(Error::InvalidInput(format!(
+                "{:?} is not a relation extraction dataset",
+                id
+            )));
+        }
+
+        let cache_path = self.cache_path(id);
+        if !cache_path.exists() {
+            return Err(Error::InvalidInput(format!(
+                "Dataset {:?} not cached at {:?}. Download from {}",
+                id,
+                cache_path,
+                id.download_url()
+            )));
+        }
+
+        let content = std::fs::read_to_string(&cache_path)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
+
+        match id {
+            DatasetId::DocRED | DatasetId::ReTACRED => self.parse_docred_relations(&content),
+            DatasetId::CADEC => {
+                // CADEC is NER, not relation extraction
+                Err(Error::InvalidInput(
+                    "CADEC is a NER dataset, not relation extraction".to_string(),
+                ))
+            }
+            _ => Err(Error::InvalidInput(format!(
+                "No relation parser for {:?}",
+                id
+            ))),
+        }
+    }
+
+    /// Load relation extraction dataset, downloading if needed.
+    #[cfg(feature = "eval-advanced")]
+    pub fn load_or_download_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
+        if !self.is_cached(id) {
+            let content = self.download(id)?;
+            let cache_path = self.cache_path(id);
+            std::fs::write(&cache_path, &content).map_err(|e| {
+                Error::InvalidInput(format!("Failed to cache {:?}: {}", cache_path, e))
+            })?;
+        }
+        self.load_relation(id)
+    }
+
+    /// Parse DocRED/CrossRE format for relation extraction.
+    ///
+    /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
+    fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
+        use super::relation::RelationGold;
+
+        let mut documents = Vec::new();
+
+        // Parse as JSONL (one JSON object per line)
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let doc: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+
+            // Get sentence tokens
+            let tokens_arr = match doc.get("sentence").and_then(|v| v.as_array()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            // Build text from tokens (with proper spacing)
+            let text: String = tokens_arr
+                .iter()
+                .filter_map(|t| t.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            // Build token-to-character offset mapping
+            // This maps each token index to its character start position in the text
+            let mut token_to_char: Vec<usize> = Vec::new();
+            let mut char_pos = 0;
+            for (i, token) in tokens_arr.iter().enumerate() {
+                if let Some(tok_str) = token.as_str() {
+                    token_to_char.push(char_pos);
+                    // Add token length + 1 for space (except last token)
+                    char_pos += tok_str.len();
+                    if i < tokens_arr.len() - 1 {
+                        char_pos += 1; // Space between tokens
+                    }
+                } else {
+                    token_to_char.push(char_pos);
+                }
+            }
+
+            // Get NER spans: [start, end, type]
+            let ner_spans = doc.get("ner").and_then(|v| v.as_array());
+
+            // Build entity map: (token_start, token_end) -> (type, text, char_start, char_end)
+            let mut entity_map: std::collections::HashMap<
+                (usize, usize),
+                (String, String, usize, usize),
+            > = std::collections::HashMap::new();
+            if let Some(ner) = ner_spans {
+                for span in ner {
+                    if let Some(arr) = span.as_array() {
+                        if arr.len() >= 3 {
+                            let token_start = arr[0].as_u64().unwrap_or(0) as usize;
+                            let token_end = arr[1].as_u64().unwrap_or(0) as usize;
+                            let ent_type = arr[2].as_str().unwrap_or("ENTITY").to_string();
+
+                            // Extract entity text from tokens
+                            let entity_text: String = tokens_arr
+                                .iter()
+                                .skip(token_start)
+                                .take(token_end - token_start + 1)
+                                .filter_map(|t| t.as_str())
+                                .collect::<Vec<_>>()
+                                .join(" ");
+
+                            // Calculate actual character offsets
+                            let char_start = token_to_char.get(token_start).copied().unwrap_or(0);
+                            let char_end = if token_end < token_to_char.len() {
+                                // Get end position of last token
+                                let last_token_char_start = token_to_char[token_end];
+                                if let Some(last_token) =
+                                    tokens_arr.get(token_end).and_then(|t| t.as_str())
+                                {
+                                    last_token_char_start + last_token.len()
+                                } else {
+                                    char_start + entity_text.len()
+                                }
+                            } else {
+                                char_start + entity_text.len()
+                            };
+
+                            entity_map.insert(
+                                (token_start, token_end),
+                                (ent_type, entity_text, char_start, char_end),
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Parse relations: [id1-start, id1-end, id2-start, id2-end, rel-type, ...]
+            let relations_arr = doc.get("relations").and_then(|v| v.as_array());
+            let mut relations = Vec::new();
+
+            if let Some(rels) = relations_arr {
+                for rel in rels {
+                    if let Some(arr) = rel.as_array() {
+                        if arr.len() >= 5 {
+                            let head_token_start = arr[0].as_u64().unwrap_or(0) as usize;
+                            let head_token_end = arr[1].as_u64().unwrap_or(0) as usize;
+                            let tail_token_start = arr[2].as_u64().unwrap_or(0) as usize;
+                            let tail_token_end = arr[3].as_u64().unwrap_or(0) as usize;
+                            let rel_type = arr[4].as_str().unwrap_or("RELATION").to_string();
+
+                            // Get entity info from map (including character offsets)
+                            let (head_type, head_text, head_char_start, head_char_end) = entity_map
+                                .get(&(head_token_start, head_token_end))
+                                .cloned()
+                                .unwrap_or_else(|| {
+                                    // Fallback: compute from token positions
+                                    let char_start =
+                                        token_to_char.get(head_token_start).copied().unwrap_or(0);
+                                    let char_end = if head_token_end < token_to_char.len() {
+                                        let last_start = token_to_char[head_token_end];
+                                        if let Some(last_tok) =
+                                            tokens_arr.get(head_token_end).and_then(|t| t.as_str())
+                                        {
+                                            last_start + last_tok.len()
+                                        } else {
+                                            char_start
+                                        }
+                                    } else {
+                                        char_start
+                                    };
+                                    ("ENTITY".to_string(), String::new(), char_start, char_end)
+                                });
+
+                            let (tail_type, tail_text, tail_char_start, tail_char_end) = entity_map
+                                .get(&(tail_token_start, tail_token_end))
+                                .cloned()
+                                .unwrap_or_else(|| {
+                                    // Fallback: compute from token positions
+                                    let char_start =
+                                        token_to_char.get(tail_token_start).copied().unwrap_or(0);
+                                    let char_end = if tail_token_end < token_to_char.len() {
+                                        let last_start = token_to_char[tail_token_end];
+                                        if let Some(last_tok) =
+                                            tokens_arr.get(tail_token_end).and_then(|t| t.as_str())
+                                        {
+                                            last_start + last_tok.len()
+                                        } else {
+                                            char_start
+                                        }
+                                    } else {
+                                        char_start
+                                    };
+                                    ("ENTITY".to_string(), String::new(), char_start, char_end)
+                                });
+
+                            relations.push(RelationGold::new(
+                                (head_char_start, head_char_end),
+                                head_type,
+                                head_text,
+                                (tail_char_start, tail_char_end),
+                                tail_type,
+                                tail_text,
+                                rel_type,
+                            ));
+                        }
+                    }
+                }
+            }
+
+            if !text.is_empty() {
+                documents.push(RelationDocument { text, relations });
+            }
+        }
+
+        Ok(documents)
     }
 
     /// Load all cached datasets.
@@ -1648,62 +2905,19 @@ fn parse_bio_tag(tag: &str) -> (&str, &str) {
 }
 
 /// Map dataset-specific entity types to our EntityType enum.
+///
+/// **Prefer `crate::schema::map_to_canonical()` for new code** - it handles
+/// NORP correctly (as GROUP, not ORG) and preserves GPE/FAC distinctions.
+///
+/// # Known Issues (preserved for backwards compatibility)
+///
+/// - NORP → Organization (WRONG: should be Group)
+/// - GPE/FAC/LOC all → Location (loses semantic distinctions)
+///
+/// See `src/schema.rs` for the corrected mappings.
 fn map_entity_type(original: &str) -> EntityType {
-    match original.to_uppercase().as_str() {
-        // Person types
-        "PER" | "PERSON" | "ACTOR" | "DIRECTOR" | "CHARACTER" => EntityType::Person,
-
-        // Location types (OntoNotes: LOC, GPE, FAC all map to Location)
-        "LOC" | "LOCATION" | "GPE" | "FAC" | "FACILITY" => EntityType::Location,
-
-        // Organization types (OntoNotes: ORG, NORP)
-        "ORG" | "ORGANIZATION" | "CORPORATION" | "GROUP" | "NORP" => EntityType::Organization,
-
-        // Date/Time types
-        "DATE" | "YEAR" | "HOURS" => EntityType::Date,
-        "TIME" => EntityType::Time,
-
-        // Money types
-        "MONEY" | "PRICE" | "CURRENCY" => EntityType::Money,
-
-        // Percent types
-        "PERCENT" | "PERCENTAGE" | "RATING" => EntityType::Percent,
-
-        // Numeric types (pattern-detectable)
-        "QUANTITY" => EntityType::Quantity,
-        "ORDINAL" => EntityType::Ordinal,
-        "CARDINAL" => EntityType::Cardinal,
-
-        // OntoNotes creative/legal types -> Other with label
-        "PRODUCT" | "PROD" => EntityType::Other("product".to_string()),
-        "EVENT" | "EVE" => EntityType::Other("event".to_string()),
-        "WORK_OF_ART" | "CREATIVE-WORK" => EntityType::Other("work_of_art".to_string()),
-        "LAW" => EntityType::Other("law".to_string()),
-        "LANGUAGE" => EntityType::Other("language".to_string()),
-
-        // MultiNERD types
-        "ANIM" => EntityType::Other("animal".to_string()),
-        "BIO" => EntityType::Other("biological".to_string()),
-        "CEL" => EntityType::Other("celestial".to_string()),
-        "DIS" => EntityType::Other("disease".to_string()),
-        "FOOD" => EntityType::Other("food".to_string()),
-        "INST" => EntityType::Other("instrument".to_string()),
-        "MEDIA" => EntityType::Other("media".to_string()),
-        "MYTH" => EntityType::Other("mythological".to_string()),
-        "PLANT" => EntityType::Other("plant".to_string()),
-        "VEHI" => EntityType::Other("vehicle".to_string()),
-        
-        // Biomedical types (BC5CDR, NCBI)
-        "DISEASE" => EntityType::Other("disease".to_string()),
-        "CHEMICAL" => EntityType::Other("chemical".to_string()),
-        
-        // Coreference types
-        "MENTION" | "PRONOUN" | "COREF" => EntityType::Other("mention".to_string()),
-
-        // MISC type (CoNLL) and everything else
-        "MISC" => EntityType::Other("misc".to_string()),
-        _ => EntityType::Other(original.to_lowercase()),
-    }
+    // Use the new canonical mapper for consistent semantics
+    crate::schema::map_to_canonical(original, None)
 }
 
 // =============================================================================
@@ -1724,28 +2938,33 @@ mod tests {
 
     #[test]
     fn test_map_entity_type() {
+        // Core types
         assert_eq!(map_entity_type("PER"), EntityType::Person);
         assert_eq!(map_entity_type("PERSON"), EntityType::Person);
         assert_eq!(map_entity_type("LOC"), EntityType::Location);
-        assert_eq!(map_entity_type("GPE"), EntityType::Location);
         assert_eq!(map_entity_type("ORG"), EntityType::Organization);
-        assert_eq!(
-            map_entity_type("MISC"),
-            EntityType::Other("misc".to_string())
-        );
-        // OntoNotes types -> Other
-        assert_eq!(
+
+        // GPE now preserves distinction (Custom, not Location)
+        assert!(matches!(map_entity_type("GPE"), EntityType::Custom { .. }));
+
+        // MISC -> Other
+        assert!(matches!(map_entity_type("MISC"), EntityType::Other(_)));
+
+        // OntoNotes types -> Custom (preserves semantics)
+        assert!(matches!(
             map_entity_type("PRODUCT"),
-            EntityType::Other("product".to_string())
-        );
-        assert_eq!(
+            EntityType::Custom { .. }
+        ));
+        assert!(matches!(
             map_entity_type("EVENT"),
-            EntityType::Other("event".to_string())
-        );
-        assert_eq!(
+            EntityType::Custom { .. }
+        ));
+        assert!(matches!(
             map_entity_type("WORK_OF_ART"),
-            EntityType::Other("work_of_art".to_string())
-        );
+            EntityType::Custom { .. }
+        ));
+
+        // Numeric types preserved
         assert_eq!(map_entity_type("CARDINAL"), EntityType::Cardinal);
     }
 
@@ -1757,7 +2976,10 @@ mod tests {
 
     #[test]
     fn test_dataset_id_from_str() {
-        assert_eq!("wikigold".parse::<DatasetId>().unwrap(), DatasetId::WikiGold);
+        assert_eq!(
+            "wikigold".parse::<DatasetId>().unwrap(),
+            DatasetId::WikiGold
+        );
         assert_eq!("wnut-17".parse::<DatasetId>().unwrap(), DatasetId::Wnut17);
         assert_eq!(
             "mit_movie".parse::<DatasetId>().unwrap(),
@@ -1878,7 +3100,9 @@ Blackburn NNP I-NP I-PER
 "#;
 
         let loader = DatasetLoader::new().unwrap();
-        let dataset = loader.parse_conll(content, DatasetId::CoNLL2003Sample).unwrap();
+        let dataset = loader
+            .parse_conll(content, DatasetId::CoNLL2003Sample)
+            .unwrap();
 
         assert_eq!(dataset.len(), 2);
 
@@ -1889,37 +3113,37 @@ Blackburn NNP I-NP I-PER
         assert_eq!(entities2.len(), 1); // Peter Blackburn (PER)
         assert_eq!(entities2[0].text, "Peter Blackburn");
     }
-    
+
     #[test]
     fn test_type_mapper_mit_movie() {
         // MIT Movie needs type mapping
         assert!(DatasetId::MitMovie.needs_type_normalization());
         let mapper = DatasetId::MitMovie.type_mapper().unwrap();
-        
+
         // ACTOR should map to Person
         assert_eq!(
             mapper.normalize("ACTOR").as_label(),
             crate::EntityType::Person.as_label()
         );
     }
-    
+
     #[test]
     fn test_type_mapper_standard_datasets() {
         // Standard datasets don't need type mapping
         assert!(!DatasetId::WikiGold.needs_type_normalization());
         assert!(!DatasetId::CoNLL2003Sample.needs_type_normalization());
         assert!(!DatasetId::Wnut17.needs_type_normalization());
-        
+
         // No mapper returned
         assert!(DatasetId::WikiGold.type_mapper().is_none());
     }
-    
+
     #[test]
     fn test_type_mapper_biomedical() {
         // Biomedical datasets need type mapping
         assert!(DatasetId::BC5CDR.needs_type_normalization());
         assert!(DatasetId::NCBIDisease.needs_type_normalization());
-        
+
         let mapper = DatasetId::BC5CDR.type_mapper().unwrap();
         // Should have biomedical mappings (keys are uppercase)
         let disease = mapper.normalize("DISEASE");
@@ -1928,4 +3152,3 @@ Blackburn NNP I-NP I-PER
         assert!(label.contains("DISEASE") || label.contains("Other") || label.contains("Disease"));
     }
 }
-

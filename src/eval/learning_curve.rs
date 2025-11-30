@@ -236,10 +236,8 @@ impl LearningCurveAnalyzer {
             return 0.0;
         }
 
-        let initial_improvement =
-            sorted[first_third_end].f1 - sorted[0].f1;
-        let recent_improvement =
-            sorted[sorted.len() - 1].f1 - sorted[last_third_start].f1;
+        let initial_improvement = sorted[first_third_end].f1 - sorted[0].f1;
+        let recent_improvement = sorted[sorted.len() - 1].f1 - sorted[last_third_start].f1;
 
         if initial_improvement <= 0.0 {
             return 1.0; // Already saturated from start
@@ -414,10 +412,30 @@ mod tests {
     #[test]
     fn test_basic_analysis() {
         let points = vec![
-            DataPoint { train_size: 100, f1: 0.60, precision: 0.65, recall: 0.55 },
-            DataPoint { train_size: 500, f1: 0.75, precision: 0.78, recall: 0.72 },
-            DataPoint { train_size: 1000, f1: 0.82, precision: 0.84, recall: 0.80 },
-            DataPoint { train_size: 2000, f1: 0.85, precision: 0.86, recall: 0.84 },
+            DataPoint {
+                train_size: 100,
+                f1: 0.60,
+                precision: 0.65,
+                recall: 0.55,
+            },
+            DataPoint {
+                train_size: 500,
+                f1: 0.75,
+                precision: 0.78,
+                recall: 0.72,
+            },
+            DataPoint {
+                train_size: 1000,
+                f1: 0.82,
+                precision: 0.84,
+                recall: 0.80,
+            },
+            DataPoint {
+                train_size: 2000,
+                f1: 0.85,
+                precision: 0.86,
+                recall: 0.84,
+            },
         ];
 
         let analyzer = LearningCurveAnalyzer::new(points);
@@ -431,12 +449,42 @@ mod tests {
     fn test_saturation_detection() {
         // Simulated saturated model - big gains early, tiny gains late
         let points = vec![
-            DataPoint { train_size: 100, f1: 0.50, precision: 0.50, recall: 0.50 },
-            DataPoint { train_size: 200, f1: 0.70, precision: 0.70, recall: 0.70 },
-            DataPoint { train_size: 400, f1: 0.80, precision: 0.80, recall: 0.80 },
-            DataPoint { train_size: 800, f1: 0.82, precision: 0.82, recall: 0.82 },
-            DataPoint { train_size: 1600, f1: 0.83, precision: 0.83, recall: 0.83 },
-            DataPoint { train_size: 3200, f1: 0.835, precision: 0.835, recall: 0.835 },
+            DataPoint {
+                train_size: 100,
+                f1: 0.50,
+                precision: 0.50,
+                recall: 0.50,
+            },
+            DataPoint {
+                train_size: 200,
+                f1: 0.70,
+                precision: 0.70,
+                recall: 0.70,
+            },
+            DataPoint {
+                train_size: 400,
+                f1: 0.80,
+                precision: 0.80,
+                recall: 0.80,
+            },
+            DataPoint {
+                train_size: 800,
+                f1: 0.82,
+                precision: 0.82,
+                recall: 0.82,
+            },
+            DataPoint {
+                train_size: 1600,
+                f1: 0.83,
+                precision: 0.83,
+                recall: 0.83,
+            },
+            DataPoint {
+                train_size: 3200,
+                f1: 0.835,
+                precision: 0.835,
+                recall: 0.835,
+            },
         ];
 
         let analyzer = LearningCurveAnalyzer::new(points);
@@ -465,21 +513,53 @@ mod tests {
         // Unsaturated model - consistent improvement rate throughout
         // (first third and last third have similar improvement rates)
         let unsaturated = vec![
-            DataPoint { train_size: 100, f1: 0.40, precision: 0.40, recall: 0.40 },
-            DataPoint { train_size: 200, f1: 0.48, precision: 0.48, recall: 0.48 },
-            DataPoint { train_size: 400, f1: 0.56, precision: 0.56, recall: 0.56 },
-            DataPoint { train_size: 800, f1: 0.64, precision: 0.64, recall: 0.64 },
-            DataPoint { train_size: 1600, f1: 0.72, precision: 0.72, recall: 0.72 },
-            DataPoint { train_size: 3200, f1: 0.80, precision: 0.80, recall: 0.80 },
+            DataPoint {
+                train_size: 100,
+                f1: 0.40,
+                precision: 0.40,
+                recall: 0.40,
+            },
+            DataPoint {
+                train_size: 200,
+                f1: 0.48,
+                precision: 0.48,
+                recall: 0.48,
+            },
+            DataPoint {
+                train_size: 400,
+                f1: 0.56,
+                precision: 0.56,
+                recall: 0.56,
+            },
+            DataPoint {
+                train_size: 800,
+                f1: 0.64,
+                precision: 0.64,
+                recall: 0.64,
+            },
+            DataPoint {
+                train_size: 1600,
+                f1: 0.72,
+                precision: 0.72,
+                recall: 0.72,
+            },
+            DataPoint {
+                train_size: 3200,
+                f1: 0.80,
+                precision: 0.80,
+                recall: 0.80,
+            },
         ];
 
         let analyzer = LearningCurveAnalyzer::new(unsaturated);
         let analysis = analyzer.analyze();
 
         // Linear improvement = low saturation
-        assert!(analysis.efficiency.saturation_level < 0.5,
+        assert!(
+            analysis.efficiency.saturation_level < 0.5,
             "Saturation level {:.2} should be < 0.5 for linearly improving model",
-            analysis.efficiency.saturation_level);
+            analysis.efficiency.saturation_level
+        );
         assert!(analysis.more_data_would_help());
     }
 
@@ -492,4 +572,3 @@ mod tests {
         assert!(analysis.curve_fit.is_none());
     }
 }
-

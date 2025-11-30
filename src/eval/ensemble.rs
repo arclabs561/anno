@@ -176,8 +176,7 @@ impl EnsembleAnalyzer {
                     .map(|(t, c)| (Some(t.clone()), *c))
                     .unwrap_or((None, 0));
 
-                let majority_confidence =
-                    majority_count as f64 / predictions.len() as f64;
+                let majority_confidence = majority_count as f64 / predictions.len() as f64;
 
                 disagreed.push(DisagreementDetail {
                     text: text.clone(),
@@ -204,10 +203,7 @@ impl EnsembleAnalyzer {
     }
 
     /// Analyze disagreements across multiple examples.
-    pub fn analyze_batch(
-        &self,
-        batch: &[Vec<ModelPrediction>],
-    ) -> EnsembleAnalysisResults {
+    pub fn analyze_batch(&self, batch: &[Vec<ModelPrediction>]) -> EnsembleAnalysisResults {
         if batch.is_empty() {
             return EnsembleAnalysisResults {
                 overall_agreement_rate: 1.0,
@@ -262,8 +258,12 @@ impl EnsembleAnalyzer {
                 for j in (i + 1)..model_names.len() {
                     let key = (model_names[i].clone(), model_names[j].clone());
 
-                    let pred_i = example_preds.iter().find(|p| p.model_name == model_names[i]);
-                    let pred_j = example_preds.iter().find(|p| p.model_name == model_names[j]);
+                    let pred_i = example_preds
+                        .iter()
+                        .find(|p| p.model_name == model_names[i]);
+                    let pred_j = example_preds
+                        .iter()
+                        .find(|p| p.model_name == model_names[j]);
 
                     if let (Some(pi), Some(pj)) = (pred_i, pred_j) {
                         // Count entities where both models agree
@@ -306,8 +306,15 @@ impl EnsembleAnalyzer {
         // Compute pairwise agreement matrix
         let mut pairwise_agreement: HashMap<String, HashMap<String, f64>> = HashMap::new();
         for ((m1, m2), total) in &pairwise_total {
-            let agreed = pairwise_agreed.get(&(m1.clone(), m2.clone())).copied().unwrap_or(0);
-            let rate = if *total == 0 { 1.0 } else { agreed as f64 / *total as f64 };
+            let agreed = pairwise_agreed
+                .get(&(m1.clone(), m2.clone()))
+                .copied()
+                .unwrap_or(0);
+            let rate = if *total == 0 {
+                1.0
+            } else {
+                agreed as f64 / *total as f64
+            };
 
             pairwise_agreement
                 .entry(m1.clone())
@@ -368,7 +375,9 @@ impl EnsembleAnalyzer {
                 let mut category_counts: HashMap<String, usize> = HashMap::new();
 
                 for pred in example_preds {
-                    if let Some((_, typ)) = pred.entities.iter().find(|(t, _)| t.to_lowercase() == text) {
+                    if let Some((_, typ)) =
+                        pred.entities.iter().find(|(t, _)| t.to_lowercase() == text)
+                    {
                         *category_counts.entry(typ.clone()).or_insert(0) += 1;
                         total_ratings += 1;
                         *category_proportions.entry(typ.clone()).or_insert(0.0) += 1.0;
@@ -456,11 +465,17 @@ mod tests {
         let predictions = vec![
             ModelPrediction {
                 model_name: "model_a".into(),
-                entities: vec![("John".into(), "PER".into()), ("Google".into(), "ORG".into())],
+                entities: vec![
+                    ("John".into(), "PER".into()),
+                    ("Google".into(), "ORG".into()),
+                ],
             },
             ModelPrediction {
                 model_name: "model_b".into(),
-                entities: vec![("John".into(), "PER".into()), ("Google".into(), "ORG".into())],
+                entities: vec![
+                    ("John".into(), "PER".into()),
+                    ("Google".into(), "ORG".into()),
+                ],
             },
         ];
 
@@ -477,11 +492,17 @@ mod tests {
         let predictions = vec![
             ModelPrediction {
                 model_name: "model_a".into(),
-                entities: vec![("John".into(), "PER".into()), ("Google".into(), "ORG".into())],
+                entities: vec![
+                    ("John".into(), "PER".into()),
+                    ("Google".into(), "ORG".into()),
+                ],
             },
             ModelPrediction {
                 model_name: "model_b".into(),
-                entities: vec![("John".into(), "PER".into()), ("Google".into(), "LOC".into())],
+                entities: vec![
+                    ("John".into(), "PER".into()),
+                    ("Google".into(), "LOC".into()),
+                ],
             },
         ];
 
@@ -498,7 +519,10 @@ mod tests {
         let predictions = vec![
             ModelPrediction {
                 model_name: "model_a".into(),
-                entities: vec![("John".into(), "PER".into()), ("Google".into(), "ORG".into())],
+                entities: vec![
+                    ("John".into(), "PER".into()),
+                    ("Google".into(), "ORG".into()),
+                ],
             },
             ModelPrediction {
                 model_name: "model_b".into(),
@@ -565,4 +589,3 @@ mod tests {
         assert_eq!(kappa_interpretation(0.90), "Almost perfect agreement");
     }
 }
-

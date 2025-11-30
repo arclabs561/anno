@@ -26,4 +26,7 @@ Thumbs.db
 *.bak
 .cargo/
 mutants.out*/
-test_fixes
+
+# Test binaries and artifacts
+test_*
+test_profiling*

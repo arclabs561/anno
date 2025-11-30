@@ -13,10 +13,10 @@
 //! |---------|-------------------|-------------|-------|
 //! | BertNEROnnx, GLiNEROnnx | `Neural` | ✓ Yes | Softmax probabilities |
 //! | PatternNER | `Pattern` | ✗ No | Hardcoded values (e.g., 0.95) |
-//! | StatisticalNER | `Heuristic` | ✗ No | Rule-based scores |
+//! | HeuristicNER | `Heuristic` | ✗ No | Rule-based scores |
 //! | StackedNER | Mixed | Partial | Depends on entity type |
 //!
-//! **Running calibration analysis on PatternNER or StatisticalNER produces
+//! **Running calibration analysis on PatternNER or HeuristicNER produces
 //! meaningless results.** Use `ExtractionMethod::is_calibrated()` to check.
 //!
 //! # Research Background
@@ -240,7 +240,10 @@ impl CalibrationEvaluator {
         // Compute threshold metrics
         let mut threshold_accuracy = HashMap::new();
         for &threshold in &self.thresholds {
-            let above: Vec<_> = predictions.iter().filter(|(c, _)| *c >= threshold).collect();
+            let above: Vec<_> = predictions
+                .iter()
+                .filter(|(c, _)| *c >= threshold)
+                .collect();
 
             if above.is_empty() {
                 threshold_accuracy.insert(
@@ -252,8 +255,8 @@ impl CalibrationEvaluator {
                     },
                 );
             } else {
-                let acc =
-                    above.iter().filter(|(_, correct)| *correct).count() as f64 / above.len() as f64;
+                let acc = above.iter().filter(|(_, correct)| *correct).count() as f64
+                    / above.len() as f64;
                 let cov = above.len() as f64 / predictions.len() as f64;
                 threshold_accuracy.insert(
                     format!("{:.2}", threshold),
@@ -432,5 +435,255 @@ mod tests {
         assert_eq!(calibration_grade(0.12), "Poorly calibrated");
         assert_eq!(calibration_grade(0.25), "Very poorly calibrated");
     }
+
+    #[test]
+    fn test_entropy_single_source() {
+        // Single source = zero entropy
+        let scores = vec![0.9];
+        let entropy = confidence_entropy(&scores);
+        assert!(
+            (entropy - 0.0).abs() < 0.001,
+            "Single source should have 0 entropy"
+        );
+    }
+
+    #[test]
+    fn test_entropy_agreement() {
+        // Sources agree = low entropy
+        let scores = vec![0.9, 0.88, 0.92];
+        let entropy = confidence_entropy(&scores);
+        assert!(
+            entropy < 0.5,
+            "Agreeing sources should have low entropy: {}",
+            entropy
+        );
+    }
+
+    #[test]
+    fn test_entropy_conflict() {
+        // Sources disagree = high entropy
+        let scores = vec![0.95, 0.05, 0.5, 0.8, 0.2];
+        let entropy = confidence_entropy(&scores);
+        assert!(
+            entropy > 0.5,
+            "Conflicting sources should have high entropy: {}",
+            entropy
+        );
+    }
+
+    #[test]
+    fn test_entropy_filter() {
+        let candidates = vec![
+            ("Apple Inc.", vec![0.9, 0.88, 0.92]), // Agreement
+            ("Apple", vec![0.95, 0.05, 0.5]),      // Conflict
+            ("Microsoft", vec![0.85, 0.87]),       // Agreement
+        ];
+
+        let filter = EntropyFilter::new(0.6);
+        let filtered: Vec<_> = candidates
+            .iter()
+            .filter(|(_, scores)| filter.should_keep(scores))
+            .map(|(name, _)| *name)
+            .collect();
+
+        assert!(filtered.contains(&"Apple Inc."));
+        assert!(filtered.contains(&"Microsoft"));
+        assert!(
+            !filtered.contains(&"Apple"),
+            "Conflicting 'Apple' should be filtered"
+        );
+    }
 }
 
+// =============================================================================
+// Entropy-Based Conflict Detection (TruthfulRAG-style)
+// =============================================================================
+
+/// Compute disagreement metric for confidence scores from multiple sources.
+///
+/// # TruthfulRAG Research Background
+///
+/// When multiple sources provide confidence scores for the same entity/fact,
+/// high disagreement indicates conflict. TruthfulRAG (EMNLP 2024) uses this
+/// to identify facts that need verification:
+///
+/// - **Low disagreement**: Sources agree → likely reliable
+/// - **High disagreement**: Sources disagree → needs human review or rejection
+///
+/// # Formula
+///
+/// Uses normalized standard deviation of scores:
+/// ```text
+/// disagreement = std_dev(scores) / 0.5
+/// ```
+/// where 0.5 is the maximum possible std dev for scores in \[0,1\].
+/// This maps to \[0, 1\] where 0 = perfect agreement, 1 = maximum disagreement.
+///
+/// # Example
+///
+/// ```rust
+/// use anno::eval::calibration::confidence_entropy;
+///
+/// // Sources agree (low disagreement)
+/// let scores = vec![0.9, 0.88, 0.92];
+/// assert!(confidence_entropy(&scores) < 0.3);
+///
+/// // Sources disagree (high disagreement)
+/// let scores = vec![0.95, 0.05, 0.5];
+/// assert!(confidence_entropy(&scores) > 0.5);
+/// ```
+#[must_use]
+pub fn confidence_entropy(scores: &[f64]) -> f64 {
+    if scores.len() <= 1 {
+        return 0.0; // Single source = no disagreement
+    }
+
+    // Compute standard deviation
+    let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+    let variance = scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64;
+    let std_dev = variance.sqrt();
+
+    // Normalize by maximum possible std dev for [0,1] scores
+    // Max std dev is 0.5 (when half are 0 and half are 1)
+    (std_dev / 0.5).min(1.0)
+}
+
+/// Compute variance of confidence scores (simpler alternative to entropy).
+///
+/// High variance indicates disagreement between sources.
+#[must_use]
+pub fn confidence_variance(scores: &[f64]) -> f64 {
+    if scores.len() <= 1 {
+        return 0.0;
+    }
+
+    let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+    scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64
+}
+
+/// Filter for rejecting high-entropy (conflicting) entity extractions.
+///
+/// # Usage in RAG Systems
+///
+/// When multiple retrieval passes or models extract the same entity with
+/// different confidences, use this filter to:
+///
+/// 1. Accept entities where sources agree (low entropy)
+/// 2. Flag/reject entities where sources disagree (high entropy)
+///
+/// # Example
+///
+/// ```rust
+/// use anno::eval::calibration::EntropyFilter;
+///
+/// let filter = EntropyFilter::new(0.6);  // Reject if entropy > 0.6
+///
+/// // Multiple models extracted "Apple" with these confidences:
+/// let apple_scores = vec![0.95, 0.05, 0.5];  // Disagreement
+/// assert!(!filter.should_keep(&apple_scores), "Should reject conflicting extractions");
+///
+/// let microsoft_scores = vec![0.9, 0.88, 0.92];  // Agreement
+/// assert!(filter.should_keep(&microsoft_scores), "Should keep agreeing extractions");
+/// ```
+#[derive(Debug, Clone)]
+pub struct EntropyFilter {
+    /// Maximum allowed entropy (0.0-1.0)
+    pub max_entropy: f64,
+    /// Minimum number of sources required
+    pub min_sources: usize,
+    /// Use variance instead of entropy (faster, simpler)
+    pub use_variance: bool,
+    /// Maximum variance threshold (if use_variance=true)
+    pub max_variance: f64,
+}
+
+impl Default for EntropyFilter {
+    fn default() -> Self {
+        Self {
+            max_entropy: 0.7, // Moderate threshold
+            min_sources: 2,   // Need at least 2 sources
+            use_variance: false,
+            max_variance: 0.1, // ~0.3 std dev
+        }
+    }
+}
+
+impl EntropyFilter {
+    /// Create with specific entropy threshold.
+    #[must_use]
+    pub fn new(max_entropy: f64) -> Self {
+        Self {
+            max_entropy,
+            ..Default::default()
+        }
+    }
+
+    /// Create a strict filter (low threshold = high agreement required).
+    #[must_use]
+    pub fn strict() -> Self {
+        Self {
+            max_entropy: 0.4,
+            min_sources: 3,
+            ..Default::default()
+        }
+    }
+
+    /// Create a permissive filter (high threshold = accepts more disagreement).
+    #[must_use]
+    pub fn permissive() -> Self {
+        Self {
+            max_entropy: 0.85,
+            min_sources: 2,
+            ..Default::default()
+        }
+    }
+
+    /// Check if scores indicate sufficient agreement to keep the extraction.
+    #[must_use]
+    pub fn should_keep(&self, scores: &[f64]) -> bool {
+        if scores.len() < self.min_sources {
+            return true; // Not enough sources to judge
+        }
+
+        if self.use_variance {
+            confidence_variance(scores) <= self.max_variance
+        } else {
+            confidence_entropy(scores) <= self.max_entropy
+        }
+    }
+
+    /// Compute the entropy/variance for logging/debugging.
+    #[must_use]
+    pub fn compute_score(&self, scores: &[f64]) -> f64 {
+        if self.use_variance {
+            confidence_variance(scores)
+        } else {
+            confidence_entropy(scores)
+        }
+    }
+
+    /// Grade the level of agreement.
+    #[must_use]
+    pub fn agreement_grade(&self, scores: &[f64]) -> &'static str {
+        let score = self.compute_score(scores);
+        if self.use_variance {
+            if score < 0.02 {
+                "Strong agreement"
+            } else if score < 0.05 {
+                "Good agreement"
+            } else if score < 0.1 {
+                "Moderate agreement"
+            } else {
+                "Disagreement"
+            }
+        } else if score < 0.3 {
+            "Strong agreement"
+        } else if score < 0.5 {
+            "Good agreement"
+        } else if score < 0.7 {
+            "Moderate agreement"
+        } else {
+            "Disagreement"
+        }
+    }
+}

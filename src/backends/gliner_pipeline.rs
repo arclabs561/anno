@@ -47,9 +47,10 @@
 #![allow(unused_variables)]
 
 use crate::backends::inference::{
-    DotProductInteraction, LateInteraction, SemanticRegistry, SpanRepConfig, SpanRepresentationLayer,
+    DotProductInteraction, LateInteraction, SemanticRegistry, SpanRepConfig,
+    SpanRepresentationLayer,
 };
-use crate::entity::{RaggedBatch, SpanCandidate, generate_span_candidates};
+use crate::entity::{generate_span_candidates, RaggedBatch, SpanCandidate};
 use crate::{Entity, EntityType, Result};
 
 #[cfg(feature = "candle")]
@@ -83,11 +84,7 @@ impl Default for PipelineConfig {
         Self {
             max_span_width: 12,
             threshold: 0.5,
-            entity_types: vec![
-                "person".into(),
-                "organization".into(), 
-                "location".into(),
-            ],
+            entity_types: vec!["person".into(), "organization".into(), "location".into()],
             entity_descriptions: vec![
                 "A named individual human being".into(),
                 "A company, institution, or group".into(),
@@ -246,9 +243,9 @@ impl PipelineBuilder {
     /// Build the pipeline.
     #[cfg(feature = "candle")]
     pub fn build(self) -> Result<GLiNERPipeline<CandleEncoder>> {
-        let encoder_id = self.encoder_model.unwrap_or_else(|| 
-            "answerdotai/ModernBERT-base".to_string()
-        );
+        let encoder_id = self
+            .encoder_model
+            .unwrap_or_else(|| "answerdotai/ModernBERT-base".to_string());
 
         // Load encoder
         let encoder = CandleEncoder::from_pretrained(&encoder_id)?;
@@ -256,8 +253,11 @@ impl PipelineBuilder {
 
         // Build registry from entity types
         let mut registry_builder = SemanticRegistry::builder();
-        for (type_name, desc) in self.config.entity_types.iter()
-            .zip(self.config.entity_descriptions.iter()) 
+        for (type_name, desc) in self
+            .config
+            .entity_types
+            .iter()
+            .zip(self.config.entity_descriptions.iter())
         {
             registry_builder = registry_builder.add_entity(type_name, desc);
         }
@@ -290,7 +290,7 @@ impl PipelineBuilder {
     #[cfg(not(feature = "candle"))]
     pub fn build(self) -> Result<GLiNERPipeline<()>> {
         Err(Error::FeatureNotAvailable(
-            "GLiNERPipeline requires 'candle' feature".into()
+            "GLiNERPipeline requires 'candle' feature".into(),
         ))
     }
 }
@@ -342,21 +342,16 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
         let batch = RaggedBatch::from_sequences(&[dummy_tokens]);
 
         // Step 3: Generate span candidates
-        let candidates = generate_span_candidates(
-            &batch,
-            self.config.max_span_width,
-        );
+        let candidates = generate_span_candidates(&batch, self.config.max_span_width);
 
         if candidates.is_empty() {
             return Ok(vec![]);
         }
 
-        // Step 4: Compute span embeddings  
-        let span_embeddings = self.span_layer.forward(
-            &token_embeddings,
-            &candidates,
-            &batch,
-        );
+        // Step 4: Compute span embeddings
+        let span_embeddings = self
+            .span_layer
+            .forward(&token_embeddings, &candidates, &batch);
 
         // Step 5: Compute similarity scores via late interaction
         let scores = self.interaction.compute_similarity(
@@ -372,12 +367,7 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
         self.interaction.apply_sigmoid(&mut scores);
 
         // Step 7: Decode entities
-        let entities = self.decode_entities(
-            text,
-            &candidates,
-            &scores,
-            seq_len,
-        );
+        let entities = self.decode_entities(text, &candidates, &scores, seq_len);
 
         Ok(entities)
     }
@@ -406,7 +396,9 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
                     EntityType::Other(s) => s.as_str(),
                     _ => return false,
                 };
-                entity_types.iter().any(|&t| t.eq_ignore_ascii_case(type_name))
+                entity_types
+                    .iter()
+                    .any(|&t| t.eq_ignore_ascii_case(type_name))
             })
             .filter(|e| e.confidence >= threshold as f64)
             .collect())
@@ -448,7 +440,7 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
                 if score >= self.config.threshold {
                     // Get label info
                     let label = &self.registry.labels[label_idx];
-                    
+
                     // Calculate character offsets from word indices
                     let start_word = candidate.start as usize;
                     let end_word = (candidate.end as usize).min(words.len());
@@ -464,9 +456,12 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
                         end_word.saturating_sub(1),
                     );
 
-                    let entity_text = text.get(char_start..char_end)
-                        .unwrap_or("")
-                        .to_string();
+                    // Extract text using character offsets (not byte offsets)
+                    let entity_text: String = text
+                        .chars()
+                        .skip(char_start)
+                        .take(char_end.saturating_sub(char_start))
+                        .collect();
 
                     if entity_text.trim().is_empty() {
                         continue;
@@ -487,17 +482,22 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
 
         // Sort by position
         entities.sort_by(|a, b| {
-            a.start.cmp(&b.start)
+            a.start
+                .cmp(&b.start)
                 .then_with(|| b.end.cmp(&a.end))
-                .then_with(|| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| {
+                    b.confidence
+                        .partial_cmp(&a.confidence)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
         });
 
         // Remove duplicates (keep highest confidence)
         let mut kept = Vec::new();
         for entity in entities {
-            let overlaps = kept.iter().any(|e: &Entity| {
-                !(entity.end <= e.start || e.end <= entity.start)
-            });
+            let overlaps = kept
+                .iter()
+                .any(|e: &Entity| !(entity.end <= e.start || e.end <= entity.start));
             if !overlaps {
                 kept.push(entity);
             }
@@ -512,33 +512,38 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
 // =============================================================================
 
 /// Convert word indices to character offsets.
+///
+/// This function correctly handles Unicode text by converting byte offsets
+/// to character offsets using the offset module's bytes_to_chars function.
 fn word_indices_to_char_offsets(
     text: &str,
     words: &[&str],
     start_word: usize,
     end_word: usize,
 ) -> (usize, usize) {
-    let mut char_pos = 0;
-    let mut start_char = 0;
-    let mut end_char = text.len();
+    let mut byte_pos = 0;
+    let mut start_byte = 0;
+    let mut end_byte = text.len();
 
     for (idx, word) in words.iter().enumerate() {
-        if let Some(pos) = text[char_pos..].find(word) {
-            let word_start = char_pos + pos;
-            let word_end = word_start + word.len();
+        // Search for the word in the remaining text (by bytes)
+        if let Some(pos) = text[byte_pos..].find(word) {
+            let word_start_byte = byte_pos + pos;
+            let word_end_byte = word_start_byte + word.len();
 
             if idx == start_word {
-                start_char = word_start;
+                start_byte = word_start_byte;
             }
             if idx == end_word {
-                end_char = word_end;
+                end_byte = word_end_byte;
                 break;
             }
-            char_pos = word_end;
+            byte_pos = word_end_byte;
         }
     }
 
-    (start_char, end_char)
+    // Convert byte offsets to character offsets
+    crate::offset::bytes_to_chars(text, start_byte, end_byte)
 }
 
 /// Convert label slug to EntityType.
@@ -565,7 +570,8 @@ impl<E: TextEncoder + 'static> crate::Model for GLiNERPipeline<E> {
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
-        self.config.entity_types
+        self.config
+            .entity_types
             .iter()
             .map(|s| slug_to_entity_type(s))
             .collect()
@@ -617,7 +623,10 @@ mod tests {
     fn test_slug_to_entity_type() {
         assert_eq!(slug_to_entity_type("person"), EntityType::Person);
         assert_eq!(slug_to_entity_type("PER"), EntityType::Person);
-        assert_eq!(slug_to_entity_type("organization"), EntityType::Organization);
+        assert_eq!(
+            slug_to_entity_type("organization"),
+            EntityType::Organization
+        );
         assert_eq!(slug_to_entity_type("LOC"), EntityType::Location);
         assert!(matches!(slug_to_entity_type("actor"), EntityType::Other(_)));
     }
@@ -634,4 +643,3 @@ mod tests {
         assert_eq!(builder.config.max_span_width, 8);
     }
 }
-
