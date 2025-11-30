@@ -284,4 +284,4 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           # Allow warnings for unmaintained crates, but still fail on actual vulnerabilities
-          deny-warnings: false
+          args: --allow unmaintained
