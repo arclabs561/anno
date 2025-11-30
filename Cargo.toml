@@ -42,8 +42,7 @@ ndarray = { version = "0.16", optional = true }
 candle-core = { version = "0.9", optional = true }
 candle-nn = { version = "0.9", optional = true }
 candle-transformers = { version = "0.9", optional = true }
-# PyTorch model conversion (for candle backend)
-# tch = { version = "0.13", optional = true }  # PyTorch bindings for conversion
+# PyTorch model conversion (for candle backend) - now uses Python script via uv
 safetensors = { version = "0.4", optional = true }  # For saving converted models
 # gliner = { version = "0.1", optional = true } # Not yet published to crates.io
 

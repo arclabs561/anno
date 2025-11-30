@@ -7,6 +7,8 @@
 # Cache directories
 .anno_cache/
 .cache/
+.anno/
+anno/
 
 # Proptest regressions (keep these in source control per proptest docs)
 # *.proptest-regressions
