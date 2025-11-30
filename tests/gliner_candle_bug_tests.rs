@@ -247,7 +247,7 @@ mod tests {
 
         // This should not happen in practice (words.is_empty() check earlier),
         // but test that the code handles it defensively
-        let end_exclusive = 1;
+        let end_exclusive: usize = 1;
         let end_index = end_exclusive
             .saturating_sub(1)
             .min(word_positions.len().saturating_sub(1));
@@ -393,7 +393,7 @@ mod tests {
         const MAX_SPAN_WIDTH: usize = 12;
 
         // Test normal case
-        let num_words = 100;
+        let num_words: usize = 100;
         let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH);
         assert_eq!(num_spans, Some(1200), "Normal case should work");
 
@@ -421,7 +421,7 @@ mod tests {
         let span_idx_len = num_spans * 2; // 2400
 
         // Test valid access
-        let dim = 100;
+        let dim: usize = 100;
         if let Some(dim2) = dim.checked_mul(2) {
             assert!(dim2 + 1 < span_idx_len, "Valid dim should be in bounds");
         }

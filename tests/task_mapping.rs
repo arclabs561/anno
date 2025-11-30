@@ -1,7 +1,7 @@
 //! Tests for task-dataset-backend mapping system.
 
 use anno::eval::task_mapping::{
-    dataset_tasks, get_dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
+    get_dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
 
 #[test]
