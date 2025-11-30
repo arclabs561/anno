@@ -283,4 +283,5 @@ jobs:
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --allow unmaintained
+          # Allow warnings for unmaintained crates, but still fail on actual vulnerabilities
+          deny-warnings: false
