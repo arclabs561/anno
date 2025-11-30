@@ -30,3 +30,6 @@ mutants.out*/
 # Test binaries and artifacts
 test_*
 test_profiling*
+
+# Archived documentation (progress docs, old status reports)
+docs/archive/

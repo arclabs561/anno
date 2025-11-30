@@ -2,7 +2,7 @@
 
 ## Problem 1: GLiNERCandle - PyTorch to Safetensors Conversion
 
-**Status:** ✅ **FIXED** - Automatic conversion using Python script with PEP 723 dependencies
+**Status:** ✅ **FIXED** - Automatic conversion using Python script with PEP 723 dependencies (via `uv run --script`)
 
 **Root Cause:**
 - GLiNER models (urchade/gliner_small-v2.1, knowledgator/gliner-x-small) only provide `pytorch_model.bin`
@@ -10,7 +10,7 @@
 - Cannot load PyTorch `.bin` files directly in Candle
 
 **Location:**
-- `src/backends/gliner_candle.rs:312-401` (conversion function)
+- `src/backends/gliner_candle.rs:312-407` (conversion function)
 - `scripts/convert_pytorch_to_safetensors.py` (PEP 723 script with inline dependencies)
 
 **Solution Implemented:**
@@ -25,6 +25,7 @@
 - Script is self-contained with PEP 723 inline dependencies (no manual pip install needed)
 - Conversion happens automatically when a model only has `pytorch_model.bin`
 - Cached conversions stored as `model_converted.safetensors` in model cache directory
+- Falls back to `python3` if `uv` is not available
 
 **Backends with Conversion Support:**
 1. **GLiNERCandle** - ✅ Automatic conversion
@@ -179,16 +180,16 @@ cargo build --features onnx,eval-parallel
 ## Summary & Action Plan
 
 ### ✅ All Issues Fixed:
-1. **GLiNERCandle**: ✅ Pure Rust PyTorch to Safetensors conversion implemented using `repugnant-pickle`
+1. **GLiNERCandle**: ✅ Automatic PyTorch to Safetensors conversion using Python script (via `uv run --script`)
 2. **W2NER**: ✅ Better error handling and documentation for 401 authentication errors
 3. **NuNER**: ✅ Evaluation fixed - zero-shot backends now use dataset labels (NuNER, GLiNER, GLiNER2, GLiNERCandle)
 
 ### Implementation Details:
 
 **GLiNERCandle Conversion:**
-- Uses `repugnant-pickle` crate to parse Python pickle files
-- Extracts PyTorch state dict tensors and converts to safetensors
-- No Python dependencies required
+- Uses Python script with PEP 723 inline dependencies (torch, safetensors)
+- Calls `uv run --script` (or `python3` fallback) to convert PyTorch `.bin` to safetensors
+- Script is self-contained - no manual pip install needed
 - Caches converted files
 
 **W2NER Authentication:**
@@ -213,9 +214,9 @@ cargo build --features onnx,eval-parallel
        - ✅ NuNER ONNX: Dynamic span tensor generation for models that require it
 
 ### Files Modified:
-1. ✅ `src/backends/gliner_candle.rs` - Pure Rust conversion using `repugnant-pickle`
+1. ✅ `src/backends/gliner_candle.rs` - Automatic conversion using Python script (uv run --script)
 2. ✅ `src/backends/w2ner.rs` - Enhanced 401 error handling
 3. ✅ `src/eval/task_evaluator.rs` - Zero-shot backend support with dataset labels
-4. ✅ `Cargo.toml` - Added `repugnant-pickle`, `safetensors`, `tch` dependencies for candle feature
+4. ✅ `scripts/convert_pytorch_to_safetensors.py` - PEP 723 script with inline dependencies
 
 
