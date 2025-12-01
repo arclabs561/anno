@@ -1,16 +1,16 @@
 # Research Contributions and Implementations
 
-This document clarifies what is novel in this codebase versus what implements existing research.
+This document clarifies what this codebase contains versus what implements existing research.
 
 ## Overview
 
-This library primarily **implements** existing research papers and methods. The main contributions are:
+This library primarily **implements** existing research papers and methods. The codebase includes:
 
 1. **Architectural design** - Unified abstractions for NER, coreference, and evaluation
 2. **Integration** - Combining multiple research findings into a cohesive evaluation framework
 3. **Rust implementation** - Production-ready implementations of research methods
 
-## Novel Contributions
+## Architectural Design
 
 ### 1. Grounded Entity Representation (`src/grounded.rs`)
 
@@ -25,7 +25,7 @@ This architecture separates concerns that are often conflated in NER systems, en
 - Unified treatment of text and visual signals
 - Efficient streaming/incremental coreference
 
-**Note**: The isomorphism between vision detection and NER is inspired by DETR and similar work, but the specific three-level hierarchy appears to be original to this codebase.
+**Note**: The isomorphism between vision detection and NER is inspired by DETR and similar work.
 
 ### 2. Unified Evaluation Framework
 
@@ -36,7 +36,7 @@ The evaluation system integrates multiple recent research findings into a single
 - **Temporal stratification** - Analyzes performance across time periods
 - **Confidence intervals** - Proper statistical reporting with sample variance
 
-**Novel aspect**: The unified integration of these methods, not the individual methods themselves.
+This integrates existing methods into a unified system.
 
 ### 3. Trait Architecture
 
@@ -122,15 +122,16 @@ We strive to:
 1. **Cite papers** in code comments and documentation
 2. **Link to arXiv** when available
 3. **Credit original authors** in relevant modules
-4. **Be clear** about what's implementation vs. novel
+4. **Be clear** about what's implementation vs. architectural design
 
 If you find missing attributions, please open an issue.
 
 ## Summary
 
-- **~15-20% novel**: Architectural design (grounded representation, trait system)
-- **~70-75% implementation**: Backend implementations, metrics, dataset loaders
-- **~10-15% integration**: Research-aware evaluation framework combining multiple findings
+This codebase consists of:
+- **Architectural design**: Unified abstractions and trait system
+- **Implementation**: Backend implementations, metrics, dataset loaders (majority of codebase)
+- **Integration**: Research-aware evaluation framework combining multiple findings
 
-The main value is in the **unified architecture** and **production-ready Rust implementations** of research methods, not in proposing new algorithms.
+The main value is in the **unified architecture** and **production-ready Rust implementations** of research methods.
 
