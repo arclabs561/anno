@@ -295,13 +295,15 @@ pub fn get_task_datasets(task: Task) -> Vec<DatasetId> {
 }
 
 /// Get all backends that support a task.
+///
+/// For benchmarking, only returns "stacked" (which combines pattern+heuristic)
+/// and ML backends, since individual pattern/heuristic backends are incomplete.
 pub fn get_task_backends(task: Task) -> Vec<&'static str> {
     let mut backends = Vec::new();
     for backend in [
-        "pattern",
-        "heuristic",
+        // Only stacked (combines pattern+heuristic), not individual ones
         "stacked",
-        "hybrid",
+        // ML backends
         "bert_onnx",
         "candle_ner",
         "nuner",
@@ -309,6 +311,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "gliner_candle",
         "gliner2",
         "w2ner",
+        // Special backends
         "coref_resolver",
     ] {
         if backend_tasks(backend).contains(&task) {

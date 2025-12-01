@@ -77,13 +77,15 @@ pub struct TaskEvalResult {
 }
 
 impl TaskEvalResult {
-    /// Check if this is a "skipped" result (feature not available) vs actual failure
+    /// Check if this is a "skipped" result (feature not available or incompatible) vs actual failure
     pub fn is_skipped(&self) -> bool {
         if self.success {
             return false;
         }
         if let Some(ref err) = self.error {
-            err.contains("Feature not available") || err.contains("requires '")
+            err.contains("Feature not available")
+                || err.contains("requires '")
+                || err.contains("Incompatible entity types")
         } else {
             false
         }
@@ -227,6 +229,42 @@ impl TaskEvaluator {
         Ok(ComprehensiveEvalResults { results, summary })
     }
 
+    /// Check if backend is compatible with dataset entity types.
+    ///
+    /// - `stacked`: Compatible with most types (combines pattern+heuristic)
+    /// - ML backends: Always compatible (zero-shot or trained)
+    /// - `pattern`: Only structured entities (not named entities)
+    /// - `heuristic`: Only Person, Organization, Location
+    fn is_backend_compatible(backend_name: &str, dataset: DatasetId) -> bool {
+        let entity_types = dataset.entity_types();
+        let normalized_types: Vec<String> = entity_types
+            .iter()
+            .map(|t| t.to_lowercase())
+            .collect();
+
+        match backend_name {
+            // Stacked combines pattern+heuristic, so it's compatible with most types
+            "stacked" => true,
+            // ML backends are zero-shot or trained, so compatible
+            "bert_onnx" | "candle_ner" | "nuner" | "gliner_onnx" | "gliner_candle" | "gliner2"
+            | "w2ner" => true,
+            // Pattern only does structured entities (not named entities)
+            "pattern" => {
+                // PatternNER only extracts: Date, Time, Money, Percent, Email, URL, Phone
+                // Not compatible with named entity datasets
+                false
+            }
+            // Heuristic only does Person, Organization, Location
+            "heuristic" => {
+                let supported = ["person", "per", "organization", "org", "location", "loc", "misc"];
+                normalized_types.iter().all(|t| {
+                    supported.iter().any(|s| t == s || t.starts_with(s))
+                })
+            }
+            _ => true, // Unknown backends - assume compatible
+        }
+    }
+
     /// Evaluate a single task-dataset-backend combination.
     fn evaluate_combination(
         &self,
@@ -235,6 +273,23 @@ impl TaskEvaluator {
         backend_name: &str,
         config: &TaskEvalConfig,
     ) -> Result<TaskEvalResult> {
+        // Check compatibility before loading dataset
+        if !Self::is_backend_compatible(backend_name, dataset) {
+            return Ok(TaskEvalResult {
+                task,
+                dataset,
+                backend: backend_name.to_string(),
+                success: false,
+                error: Some(format!(
+                    "Incompatible entity types: backend '{}' doesn't support dataset entity types: {:?}",
+                    backend_name,
+                    dataset.entity_types()
+                )),
+                metrics: HashMap::new(),
+                num_examples: 0,
+                duration_ms: None,
+            });
+        }
         // Load dataset
         let dataset_data = {
             #[cfg(feature = "eval-advanced")]
@@ -314,8 +369,7 @@ impl TaskEvaluator {
             (dataset_data, total)
         };
 
-        // Try to create backend (this is a placeholder - actual implementation
-        // would need backend factory)
+        // Try to evaluate backend (handles backend creation internally)
         let start = Instant::now();
         let result = match self.try_evaluate_backend(task, dataset, backend_name, &sampled_data) {
             Ok(metrics) => {
@@ -384,18 +438,25 @@ impl TaskEvaluator {
             )));
         }
 
-        // Create backend instance
-        let backend = BackendFactory::create(backend_name)?;
-
         // Run task-specific evaluation
+        // Note: Coref tasks don't use BackendFactory (they use create_coref_resolver)
         match task {
             Task::NER | Task::DiscontinuousNER => {
+                let backend = BackendFactory::create(backend_name)?;
                 self.evaluate_ner_task(backend_name, &*backend, dataset, dataset_data)
             }
             Task::IntraDocCoref | Task::AbstractAnaphora => {
+                // Coref tasks use create_coref_resolver, not BackendFactory
+                // Skip BackendFactory::create() to avoid "Unknown backend" error
                 self.evaluate_coref_task(backend_name, dataset_data)
             }
-            Task::RelationExtraction => self.evaluate_relation_task(backend_name, dataset_data),
+            Task::RelationExtraction => {
+                // Relation extraction may need a Model backend, but handle gracefully if it fails
+                match BackendFactory::create(backend_name) {
+                    Ok(_backend) => self.evaluate_relation_task(backend_name, dataset_data),
+                    Err(_) => self.evaluate_relation_task(backend_name, dataset_data),
+                }
+            }
             _ => {
                 // Placeholder for other tasks
                 let mut metrics = HashMap::new();
@@ -934,7 +995,7 @@ impl TaskEvaluator {
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::coref::{entities_to_chains, CorefDocument};
         use crate::eval::coref_metrics::CorefEvaluation;
-        use crate::eval::coref_resolver::SimpleCorefResolver;
+        use crate::eval::backend_factory::create_coref_resolver;
 
         // Try to load coreference documents if dataset supports it
         let gold_docs = if dataset_data.id.is_coreference() {
@@ -976,8 +1037,17 @@ impl TaskEvaluator {
             return Ok(metrics);
         };
 
-        // Run coreference resolver on each document
-        let resolver = SimpleCorefResolver::default();
+        // Create coreference resolver (not a Model backend)
+        let resolver = create_coref_resolver(backend_name)?;
+        
+        // Use a NER backend to extract entities first (heuristic or stacked as default)
+        let ner_backend_name = if backend_name == "coref_resolver" {
+            "stacked"  // Default NER backend for coref evaluation
+        } else {
+            backend_name  // If a specific NER backend was requested
+        };
+        
+        let ner_backend = BackendFactory::create(ner_backend_name)?;
         let mut all_predicted_chains = Vec::new();
         let mut all_gold_chains = Vec::new();
 
@@ -985,9 +1055,8 @@ impl TaskEvaluator {
             // Collect gold chains from the document
             all_gold_chains.extend(doc.chains.clone());
 
-            // Extract entities from the document text using the backend
-            let backend = BackendFactory::create(backend_name)?;
-            match backend.extract_entities(&doc.text, None) {
+            // Extract entities from the document text using NER backend
+            match ner_backend.extract_entities(&doc.text, None) {
                 Ok(entities) => {
                     // Resolve coreference on predicted entities
                     let resolved_entities = resolver.resolve(&entities);
@@ -997,7 +1066,7 @@ impl TaskEvaluator {
                 }
                 Err(e) => {
                     // Log error but continue with other documents
-                    eprintln!("Warning: Backend inference failed for document: {}", e);
+                    eprintln!("Warning: NER backend inference failed for document: {}", e);
                 }
             }
         }
@@ -1212,10 +1281,22 @@ impl ComprehensiveEvalResults {
         }
 
         md.push_str("## Results\n\n");
-        // Group results by task
+        
+        // Filter out skipped entries for cleaner report (show summary instead)
+        let skipped_count = self.results.iter().filter(|r| r.is_skipped()).count();
+        if skipped_count > 0 {
+            md.push_str(&format!(
+                "**Note**: {} combinations skipped (features not enabled or incompatible). Showing successful and failed results only.\n\n",
+                skipped_count
+            ));
+        }
+        
+        // Group results by task, filtering out skipped
         let mut by_task: HashMap<Task, Vec<&TaskEvalResult>> = HashMap::new();
         for result in &self.results {
-            by_task.entry(result.task).or_default().push(result);
+            if !result.is_skipped() {
+                by_task.entry(result.task).or_default().push(result);
+            }
         }
 
         for (task, mut results) in by_task {
