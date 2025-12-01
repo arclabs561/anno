@@ -4,9 +4,7 @@
 //! and that trait implementations maintain expected invariants.
 
 use anno::{
-    backends::{
-        HeuristicNER, PatternNER, StackedNER,
-    },
+    backends::{HeuristicNER, PatternNER, StackedNER},
     BatchCapable, Entity, Model, StreamingCapable,
 };
 use proptest::prelude::*;
@@ -368,7 +366,10 @@ fn test_no_overlapping_entities_same_backend() {
                     // So we just verify the logic is correct
                     if overlaps {
                         // If they overlap, they should have different types or be intentional
-                        assert_ne!(e1.entity_type, e2.entity_type, "Overlapping entities with same type");
+                        assert_ne!(
+                            e1.entity_type, e2.entity_type,
+                            "Overlapping entities with same type"
+                        );
                     }
                 }
             }
@@ -385,12 +386,12 @@ fn test_batch_with_empty_strings() {
     let backend = PatternNER::new();
     let texts = vec!["", "Test", "", "Another test"];
     let text_refs: Vec<&str> = texts.iter().copied().collect();
-    
+
     let result = backend.extract_entities_batch(&text_refs, None);
     assert!(result.is_ok());
     let results = result.unwrap();
     assert_eq!(results.len(), texts.len());
-    
+
     // Empty strings should return empty entity lists
     assert!(results[0].is_empty());
     assert!(results[2].is_empty());
@@ -400,10 +401,10 @@ fn test_batch_with_empty_strings() {
 fn test_streaming_with_zero_offset() {
     let backend = PatternNER::new();
     let text = "Meeting on 2024-01-15";
-    
+
     let entities = backend.extract_entities_streaming(text, 0).unwrap();
     let direct_entities = backend.extract_entities(text, None).unwrap();
-    
+
     // With zero offset, results should match
     assert_eq!(entities.len(), direct_entities.len());
 }
@@ -413,9 +414,9 @@ fn test_streaming_with_large_offset() {
     let backend = PatternNER::new();
     let text = "Date: 2024-01-15";
     let offset = 1000;
-    
+
     let entities = backend.extract_entities_streaming(text, offset).unwrap();
-    
+
     // All entities should have adjusted offsets
     for entity in entities {
         assert!(entity.start >= offset);
@@ -430,12 +431,12 @@ fn test_batch_optimal_size_consistency() {
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
-    
+
     for backend in backends {
         if let Some(size) = backend.optimal_batch_size() {
             // Should be a reasonable size
             assert!(size > 0 && size <= 128);
-            
+
             // Test with exactly that batch size
             let texts: Vec<String> = (0..size).map(|i| format!("Test {}", i)).collect();
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_ref()).collect();
@@ -452,11 +453,11 @@ fn test_streaming_chunk_size_consistency() {
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
-    
+
     for backend in backends {
         let chunk_size = backend.recommended_chunk_size();
         assert!(chunk_size > 0);
-        
+
         // Create text of exactly that size
         let text = "a".repeat(chunk_size);
         let result = backend.extract_entities_streaming(&text, 0);
@@ -485,25 +486,24 @@ fn test_trait_implementation_consistency() {
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
-    
+
     for backend in batch_backends {
         // Should be able to use as Model
         let _entities = backend.extract_entities("Test", None).unwrap();
-        
+
         // Should be able to use batch methods
         let _batch = backend.extract_entities_batch(&["Test"], None).unwrap();
     }
-    
+
     // Same for StreamingCapable
     let stream_backends: Vec<Box<dyn StreamingCapable>> = vec![
         Box::new(PatternNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
-    
+
     for backend in stream_backends {
         let _entities = backend.extract_entities("Test", None).unwrap();
         let _stream = backend.extract_entities_streaming("Test", 0).unwrap();
     }
 }
-
