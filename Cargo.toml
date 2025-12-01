@@ -146,6 +146,11 @@ name = "gliner_profiling"
 harness = false
 required-features = ["onnx"]
 
+[[bench]]
+name = "gliner_eval_profiling"
+harness = false
+required-features = ["onnx", "eval"]
+
 [lints.rust]
 missing_docs = "warn"
 
