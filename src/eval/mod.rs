@@ -10,9 +10,9 @@
 //!
 //! ```rust,ignore
 //! use anno::eval::{evaluate_ner_model, GoldEntity, ErrorAnalysis};
-//! use anno::PatternNER;
+//! use anno::RegexNER;
 //!
-//! let model = PatternNER::new();
+//! let model = RegexNER::new();
 //! let test_cases = vec![
 //!     ("Meeting on January 15".to_string(), vec![
 //!         GoldEntity::new("January 15", anno::EntityType::Date, 11),
@@ -721,7 +721,7 @@ pub fn evaluate_ner_model(
 /// # Example
 ///
 /// ```rust,ignore
-/// use anno::{TypeMapper, PatternNER, Model};
+/// use anno::{TypeMapper, RegexNER, Model};
 /// use anno::eval::{evaluate_ner_model_with_mapper, GoldEntity};
 ///
 /// // MIT Movie dataset - normalize ACTOR/DIRECTOR to Person
@@ -732,7 +732,7 @@ pub fn evaluate_ner_model(
 ///     ]),
 /// ];
 ///
-/// let model = PatternNER::new();
+/// let model = RegexNER::new();
 /// let results = evaluate_ner_model_with_mapper(&model, &test_cases, Some(&mapper));
 /// ```
 pub fn evaluate_ner_model_with_mapper(

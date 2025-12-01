@@ -66,7 +66,7 @@ trait DiscontinuousNER {
 
 ### Backend philosophy
 
-1. **Zero-dependency default**: `PatternNER` and `StackedNER` require no model downloads.
+1. **Zero-dependency default**: `RegexNER` and `StackedNER` require no model downloads.
 2. **ONNX for production**: Cross-platform, widely tested, good performance.
 3. **Candle for pure Rust**: Metal/CUDA without Python dependencies.
 
@@ -111,7 +111,7 @@ The ONNX backends are integration work, not novel implementations.
 | Experimental | Limited testing |
 | Stub | Types/traits only |
 
-**Mature**: PatternNER, StackedNER, evaluation framework.  
+**Mature**: RegexNER, StackedNER, evaluation framework.  
 **Stable**: GLiNER, NuNER, W2NER, coref metrics, BIO adapter.  
 **Experimental**: Candle backend, LLM prompting.  
 **Stub**: RelationExtractor trait.

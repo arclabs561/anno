@@ -18,12 +18,12 @@ This module provides tools for measuring NER and coreference system performance.
 
 ```rust
 use anno::eval::{ReportBuilder, TestCase, SimpleGoldEntity};
-use anno::PatternNER;
+use anno::RegexNER;
 
-let model = PatternNER::new();
+let model = RegexNER::new();
 
 // Evaluate on built-in synthetic data
-let report = ReportBuilder::new("PatternNER").build(&model);
+let report = ReportBuilder::new("RegexNER").build(&model);
 
 // Or provide your own test cases
 let tests = vec![
@@ -40,7 +40,7 @@ let tests = vec![
     },
 ];
 
-let report = ReportBuilder::new("PatternNER")
+let report = ReportBuilder::new("RegexNER")
     .with_test_data(tests)
     .with_error_analysis(true)
     .build(&model);
@@ -50,7 +50,7 @@ println!("{}", report.summary());
 
 **Output example:**
 ```
-PatternNER Evaluation Report
+RegexNER Evaluation Report
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Strict:  P=95.2%  R=87.3%  F1=91.1%
 Exact:   P=95.2%  R=87.3%  F1=91.1%
@@ -380,9 +380,9 @@ Confidence [0.8, 0.9): Accuracy=75.2% (expected=85.0%)
 
 ### Multilingual NER
 
-The non-ML backends (`PatternNER`, `HeuristicNER`) have different multilingual capabilities:
+The non-ML backends (`RegexNER`, `HeuristicNER`) have different multilingual capabilities:
 
-**PatternNER (regex-based)** works well across languages for structured entities:
+**RegexNER (regex-based)** works well across languages for structured entities:
 
 | Entity Type | Cross-lingual Support | Notes |
 |-------------|----------------------|-------|

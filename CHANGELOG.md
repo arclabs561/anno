@@ -69,7 +69,7 @@
 
 ### Changed
 - Fixed CI: align feature names (`onnx` instead of `ml-ner-onnx`)
-- Added property tests for Entity and PatternNER
+- Added property tests for Entity and RegexNER
 - Added `#[must_use]` to pure functions
 - Fixed all doc tests (6/6 passing)
 - Fixed clippy lints
@@ -81,7 +81,7 @@ Initial release.
 ### Added
 
 - `Model` trait for NER backends
-- `PatternNER`: DATE, MONEY, PERCENT extraction (always available)
+- `RegexNER`: DATE, MONEY, PERCENT extraction (always available)
 - `RuleBasedNER`: Gazetteer-based (deprecated)
 - `BertNEROnnx`: BERT via ONNX Runtime (feature: `onnx`)
 - `GLiNERNER`: Zero-shot NER via ONNX (feature: `onnx`)

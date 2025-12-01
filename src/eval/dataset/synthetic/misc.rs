@@ -182,7 +182,7 @@ pub fn adversarial_dataset() -> Vec<AnnotatedExample> {
 
 /// Structured entities dataset - dates, times, money, percentages.
 ///
-/// These are entities that PatternNER can reliably detect via regex patterns.
+/// These are entities that RegexNER can reliably detect via regex patterns.
 pub fn structured_dataset() -> Vec<AnnotatedExample> {
     vec![
         // Dates

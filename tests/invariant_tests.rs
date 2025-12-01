@@ -5,7 +5,7 @@
 //! that unit tests might miss.
 
 use anno::{
-    backends::{HeuristicNER, PatternNER, StackedNER},
+    backends::{HeuristicNER, RegexNER, StackedNER},
     Entity, EntityType, Model,
 };
 use proptest::prelude::*;
@@ -108,7 +108,7 @@ mod extraction_invariants {
             let char_count = text.chars().count();
 
             let backends: Vec<Box<dyn Model>> = vec![
-                Box::new(PatternNER::new()),
+                Box::new(RegexNER::new()),
                 Box::new(HeuristicNER::new()),
                 Box::new(StackedNER::new()),
             ];
@@ -135,7 +135,7 @@ mod extraction_invariants {
         #[test]
         fn empty_text_no_entities(backend_idx in 0..3u8) {
             let backend: Box<dyn Model> = match backend_idx {
-                0 => Box::new(PatternNER::new()),
+                0 => Box::new(RegexNER::new()),
                 1 => Box::new(HeuristicNER::new()),
                 _ => Box::new(StackedNER::new()),
             };
@@ -149,7 +149,7 @@ mod extraction_invariants {
         #[test]
         fn no_panic_on_utf8(text in "\\PC{0,200}") {
             let backends: Vec<Box<dyn Model>> = vec![
-                Box::new(PatternNER::new()),
+                Box::new(RegexNER::new()),
                 Box::new(HeuristicNER::new()),
                 Box::new(StackedNER::new()),
             ];
@@ -163,7 +163,7 @@ mod extraction_invariants {
         /// INVARIANT: All entities have non-empty text (when span > 0)
         #[test]
         fn non_empty_text_for_nonzero_span(text in "[A-Za-z0-9 .,@]{10,200}") {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
 
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 for entity in &entities {
@@ -182,7 +182,7 @@ mod extraction_invariants {
         #[test]
         fn confidence_always_valid(text in "[A-Za-z0-9 .,@$%]{10,200}") {
             let backends: Vec<Box<dyn Model>> = vec![
-                Box::new(PatternNER::new()),
+                Box::new(RegexNER::new()),
                 Box::new(HeuristicNER::new()),
                 Box::new(StackedNER::new()),
             ];
@@ -215,7 +215,7 @@ mod backend_invariants {
         #[test]
         fn name_not_empty(backend_idx in 0..3u8) {
             let backend: Box<dyn Model> = match backend_idx {
-                0 => Box::new(PatternNER::new()),
+                0 => Box::new(RegexNER::new()),
                 1 => Box::new(HeuristicNER::new()),
                 _ => Box::new(StackedNER::new()),
             };
@@ -227,7 +227,7 @@ mod backend_invariants {
         #[test]
         fn available_returns_ok(text in "[A-Za-z ]{1,50}") {
             let backends: Vec<Box<dyn Model>> = vec![
-                Box::new(PatternNER::new()),
+                Box::new(RegexNER::new()),
                 Box::new(HeuristicNER::new()),
                 Box::new(StackedNER::new()),
             ];
@@ -251,7 +251,7 @@ mod backend_invariants {
         ) {
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
 
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let result = ner.extract_entities_batch(&text_refs, None);
 
             prop_assert!(result.is_ok());
@@ -265,7 +265,7 @@ mod backend_invariants {
 
     #[test]
     fn base_backends_always_available() {
-        assert!(PatternNER::new().is_available());
+        assert!(RegexNER::new().is_available());
         assert!(HeuristicNER::new().is_available());
         assert!(StackedNER::new().is_available());
     }
@@ -297,10 +297,10 @@ mod consistency_invariants {
             }
         }
 
-        /// INVARIANT: StackedNER finds at least what PatternNER finds
+        /// INVARIANT: StackedNER finds at least what RegexNER finds
         #[test]
         fn stacked_includes_pattern(text in "[A-Za-z0-9 .,@$]{20,100}") {
-            let pattern = PatternNER::new();
+            let pattern = RegexNER::new();
             let stacked = StackedNER::new();
 
             let pattern_entities = pattern.extract_entities(&text, None).unwrap();
@@ -439,7 +439,7 @@ mod memory_safety_invariants {
 
     #[test]
     fn entities_can_be_moved_to_vec() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let entities = ner.extract_entities("test@example.com", None).unwrap();
 
         // Move entities to a new vec

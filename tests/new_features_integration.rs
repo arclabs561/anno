@@ -197,10 +197,10 @@ fn test_cdcr_with_custom_blocking() {
 
 #[test]
 fn test_short_text_handling() {
-    use anno::backends::PatternNER;
+    use anno::backends::RegexNER;
     use anno::Model;
 
-    let ner = PatternNER::default();
+    let ner = RegexNER::default();
 
     // Edge case: very short text
     let result = ner.extract_entities("Hi", None);

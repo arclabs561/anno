@@ -41,7 +41,7 @@ Gazetteers should be **features, not authorities**. The model learns when to tru
 
 ```
 TypeMapper     ──→ Label normalization (ACTOR → Person)
-PatternNER     ──→ Format detection (dates, emails, money)
+RegexNER     ──→ Format detection (dates, emails, money)
 RuleBasedNER   ──→ Hardcoded gazetteers (DEPRECATED)
 GLiNER/BERT    ──→ Neural extraction
 ```

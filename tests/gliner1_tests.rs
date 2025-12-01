@@ -273,7 +273,7 @@ mod harness_registration {
 
         assert!(
             names.iter().any(|n| n.contains("Pattern")),
-            "Should have PatternNER registered"
+            "Should have RegexNER registered"
         );
     }
 }
@@ -333,7 +333,7 @@ mod edge_cases {
 
 #[cfg(any(feature = "onnx", feature = "candle"))]
 mod performance {
-    use anno::{HeuristicNER, Model, PatternNER, StackedNER};
+    use anno::{HeuristicNER, Model, RegexNER, StackedNER};
     use std::time::Instant;
 
     #[test]
@@ -341,7 +341,7 @@ mod performance {
         // Establish baseline latency expectations
         let text = "Steve Jobs founded Apple Inc. in California in 1976.";
 
-        let pattern = PatternNER::new();
+        let pattern = RegexNER::new();
         let statistical = HeuristicNER::new();
         let stacked = StackedNER::new();
 
@@ -379,20 +379,20 @@ mod performance {
 mod batch_capable {
     #[cfg(feature = "onnx")]
     use anno::backends::GLiNEROnnx;
-    use anno::backends::PatternNER;
+    use anno::backends::RegexNER;
     use anno::{BatchCapable, Model};
 
     #[test]
     fn test_batch_capable_trait_exists_pattern() {
         // Pattern NER should implement BatchCapable
-        let model = PatternNER::new();
+        let model = RegexNER::new();
         let _ = model.extract_entities("test", None); // Verify it's a Model
                                                       // This compiles = trait exists
     }
 
     #[test]
-    fn test_batch_capable_pattern_ner() {
-        let model = PatternNER::new();
+    fn test_batch_capable_regex_ner() {
+        let model = RegexNER::new();
         let texts = vec![
             "Steve Jobs founded Apple.",
             "Elon Musk leads Tesla.",
@@ -446,13 +446,13 @@ mod batch_capable {
 // =============================================================================
 
 mod streaming_capable {
-    use anno::backends::{PatternNER, StackedNER};
+    use anno::backends::{RegexNER, StackedNER};
     use anno::StreamingCapable;
 
     #[test]
     fn test_streaming_capable_default_impl() {
         // Test that default implementation works
-        let model = PatternNER::new();
+        let model = RegexNER::new();
 
         // Default implementation should exist
         let chunk_size = model.recommended_chunk_size();
@@ -461,7 +461,7 @@ mod streaming_capable {
 
     #[test]
     fn test_streaming_extraction() {
-        let model = PatternNER::new();
+        let model = RegexNER::new();
         let full_text = "Steve Jobs was born in California. Tim Cook works at Apple.";
 
         // Extract from a chunk with offset

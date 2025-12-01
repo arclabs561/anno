@@ -72,9 +72,9 @@ EXAMPLES:
 fn run_quick(args: &[String]) {
     use anno::eval::modes::MultiModeResults;
     use anno::eval::GoldEntity;
-    use anno::{Entity, EntityType, Model, PatternNER};
+    use anno::{Entity, EntityType, Model, RegexNER};
 
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     println!("Running quick evaluation with: {}", model.name());
     println!();
 

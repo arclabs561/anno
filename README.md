@@ -9,7 +9,7 @@ Information extraction for Rust: NER, coreference resolution, and evaluation.
 Unified API for named entity recognition, coreference resolution, and evaluation. Swap between regex patterns (~400ns), transformer models (~50-150ms), and zero-shot NER without changing your code.
 
 **Key features:**
-- Zero-dependency baselines (`PatternNER`, `HeuristicNER`) for fast iteration
+- Zero-dependency baselines (`RegexNER`, `HeuristicNER`) for fast iteration
 - ML backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) via ONNX Runtime
 - Comprehensive evaluation framework with bias analysis and calibration
 - Coreference metrics (MUC, B³, CEAF, LEA, BLANC) and resolution
@@ -33,9 +33,9 @@ cargo add anno
 Extract entity spans from text. Each entity includes the matched text, its type, and character offsets:
 
 ```rust
-use anno::{Model, PatternNER};
+use anno::{Model, RegexNER};
 
-let ner = PatternNER::new();
+let ner = RegexNER::new();
 let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
 
 for e in &entities {
@@ -48,7 +48,7 @@ for e in &entities {
 
 **Note**: All examples use `?` for error handling. In production, handle `Result` types appropriately.
 
-`PatternNER` detects structured entities via regex: dates, times, money, percentages, emails, URLs, phone numbers. It won't find "John Smith" or "Apple Inc." — those require context, not patterns.
+`RegexNER` detects structured entities via regex: dates, times, money, percentages, emails, URLs, phone numbers. It won't find "John Smith" or "Apple Inc." — those require context, not patterns.
 
 ### Example: named entity recognition
 
@@ -212,7 +212,7 @@ The same `Location` type works for text spans, bounding boxes, and other modalit
 
 | Backend | Use Case | Latency | Accuracy | Feature | When to Use |
 |---------|----------|---------|----------|---------|-------------|
-| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | Fast structured data extraction |
+| `RegexNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | Fast structured data extraction |
 | `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always | Quick baseline, no dependencies |
 | `StackedNER` | Composable layered extraction | ~100μs | varies | always | Combine patterns + heuristics |
 | `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` | Standard 4-type NER (PER/ORG/LOC/MISC) |
@@ -226,7 +226,7 @@ The same `Location` type works for text spans, bounding boxes, and other modalit
 *Pattern accuracy on structured entities only
 
 **Quick selection guide:**
-- **Fastest**: `PatternNER` for structured entities, `StackedNER` for general use
+- **Fastest**: `RegexNER` for structured entities, `StackedNER` for general use
 - **Best accuracy**: `GLiNEROnnx` for zero-shot, `BertNEROnnx` for fixed types
 - **Custom types**: `GLiNEROnnx` (zero-shot, no retraining needed)
 - **No dependencies**: `StackedNER` (patterns + heuristics)
@@ -241,11 +241,11 @@ Known limitations:
 This library includes an evaluation framework for measuring precision, recall, and F1 with different matching semantics (strict, partial, type-only). It also implements coreference metrics (MUC, B³, CEAF, LEA) for systems that resolve mentions to entities.
 
 ```rust
-use anno::{Model, PatternNER};
+use anno::{Model, RegexNER};
 use anno::eval::report::ReportBuilder;
 
-let model = PatternNER::new();
-let report = ReportBuilder::new("PatternNER")
+let model = RegexNER::new();
+let report = ReportBuilder::new("RegexNER")
     .with_core_metrics(true)
     .with_error_analysis(true)
     .build(&model);
@@ -261,7 +261,7 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 **What makes `anno` different:**
 - **Unified API**: Swap between regex (~400ns) and ML models (~50-150ms) without code changes
-- **Zero-dependency defaults**: `PatternNER` and `StackedNER` work out of the box
+- **Zero-dependency defaults**: `RegexNER` and `StackedNER` work out of the box
 - **Evaluation framework**: Comprehensive metrics, bias analysis, and calibration (unique in Rust NER)
 - **Coreference support**: Metrics (MUC, B³, CEAF, LEA, BLANC) and resolution
 - **Graph export**: Built-in Neo4j/NetworkX export for RAG applications
@@ -270,7 +270,7 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 | Feature | What it enables |
 |---------|-----------------|
-| *(default)* | `PatternNER`, `HeuristicNER`, `StackedNER`, `GraphDocument`, `SchemaMapper` |
+| *(default)* | `RegexNER`, `HeuristicNER`, `StackedNER`, `GraphDocument`, `SchemaMapper` |
 | `onnx` | BERT, GLiNER, GLiNER2, NuNER, W2NER via ONNX Runtime |
 | `candle` | Pure Rust inference (`CandleNER`, `GLiNERCandle`, `GLiNER2Candle`) with optional Metal/CUDA |
 | `eval` | Core metrics (P/R/F1), datasets, evaluation framework |

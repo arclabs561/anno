@@ -16,7 +16,7 @@ use anno::eval::{
     compare_datasets, compute_stats, estimate_difficulty, interpret_curve, DriftConfig,
     DriftDetector, PredictionWithConfidence, ThresholdAnalyzer,
 };
-use anno::{Model, PatternNER};
+use anno::{Model, RegexNER};
 
 // =============================================================================
 // Drift Detection Tests
@@ -373,8 +373,8 @@ fn test_harness_synthetic_evaluation() {
 
 #[test]
 fn test_threshold_analysis_with_real_predictions() {
-    // Use PatternNER to make predictions, then analyze thresholds
-    let ner = PatternNER::new();
+    // Use RegexNER to make predictions, then analyze thresholds
+    let ner = RegexNER::new();
 
     let test_cases = vec![
         (

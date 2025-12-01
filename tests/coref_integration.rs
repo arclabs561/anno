@@ -5,7 +5,7 @@
 use anno::eval::coref::{CorefChain, Mention};
 use anno::eval::coref_metrics::{b_cubed_score, conll_f1, muc_score};
 use anno::eval::coref_resolver::{CorefConfig, SimpleCorefResolver};
-use anno::{Entity, EntityType, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // Resolver → Metrics Integration
@@ -129,11 +129,11 @@ fn test_perfect_resolution_gives_perfect_score() {
 fn test_ner_to_coref_pipeline() {
     let text = "John Smith went to the store. He bought milk. Smith paid $5.99.";
 
-    // Step 1: Extract entities with PatternNER (will get the money)
-    let pattern_ner = PatternNER::new();
-    let entities = pattern_ner.extract_entities(text, None).unwrap();
+    // Step 1: Extract entities with RegexNER (will get the money)
+    let regex_ner = RegexNER::new();
+    let entities = regex_ner.extract_entities(text, None).unwrap();
 
-    // PatternNER finds money, dates, etc. - it won't find John Smith
+    // RegexNER finds money, dates, etc. - it won't find John Smith
     // But we can test that whatever it finds can go through the resolver
     let resolver = SimpleCorefResolver::default();
     let chains = resolver.resolve_to_chains(&entities);

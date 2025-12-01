@@ -21,7 +21,7 @@ impl BackendFactory {
     /// # Supported Backends
     ///
     /// ## Always Available
-    /// - `pattern` / `PatternNER` - Pattern-based NER
+    /// - `pattern` / `RegexNER` - Pattern-based NER
     /// - `heuristic` / `HeuristicNER` - Heuristic NER
     /// - `stacked` / `StackedNER` - Stacked NER
     ///
@@ -51,7 +51,7 @@ impl BackendFactory {
     pub fn create(backend_name: &str) -> Result<Box<dyn Model>> {
         match backend_name.to_lowercase().as_str() {
             // Always available backends
-            "pattern" | "patternner" => Ok(Box::new(crate::PatternNER::new())),
+            "pattern" | "patternner" => Ok(Box::new(crate::RegexNER::new())),
             "heuristic" | "heuristicner" => Ok(Box::new(crate::HeuristicNER::new())),
             "stacked" | "stackedner" => Ok(Box::new(crate::StackedNER::default())),
 

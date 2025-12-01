@@ -9,7 +9,7 @@
 //! │                    BACKEND SPECIALIZATION                           │
 //! ├─────────────────────────────────────────────────────────────────────┤
 //! │                                                                     │
-//! │  PatternNER                   HeuristicNER                        │
+//! │  RegexNER                   HeuristicNER                        │
 //! │  ───────────                  ──────────────                        │
 //! │  Uses: Regex patterns         Uses: Capitalization, context         │
 //! │  Good at: Structured data     Good at: Named entities               │
@@ -35,7 +35,7 @@
 //!         │
 //!         ▼
 //! ┌───────────────────────────────────────────────────────────────────┐
-//! │                     LAYER 1: PatternNER                           │
+//! │                     LAYER 1: RegexNER                           │
 //! │                                                                   │
 //! │   Scans for regex patterns:                                       │
 //! │                                                                   │
@@ -142,11 +142,11 @@
 //! Custom composition:
 //!
 //! ```rust
-//! use anno::{Model, PatternNER, HeuristicNER, StackedNER};
+//! use anno::{Model, RegexNER, HeuristicNER, StackedNER};
 //! use anno::backends::stacked::ConflictStrategy;
 //!
 //! let ner = StackedNER::builder()
-//!     .layer(PatternNER::new())
+//!     .layer(RegexNER::new())
 //!     .layer(HeuristicNER::new())
 //!     .strategy(ConflictStrategy::LongestSpan)
 //!     .build();
@@ -162,7 +162,7 @@
 //! ```
 
 use super::heuristic::HeuristicNER;
-use super::pattern::PatternNER;
+use super::pattern::RegexNER;
 use crate::{Entity, EntityType, Model, Result};
 use std::sync::Arc;
 
@@ -246,7 +246,7 @@ enum Resolution {
 /// # Default Configuration
 ///
 /// `StackedNER::default()` creates a Pattern + Statistical configuration:
-/// - Layer 1: `PatternNER` (dates, money, emails, etc.)
+/// - Layer 1: `RegexNER` (dates, money, emails, etc.)
 /// - Layer 2: `HeuristicNER` (person, org, location)
 ///
 /// This provides solid NER coverage with zero ML dependencies.
@@ -260,11 +260,11 @@ enum Resolution {
 /// let ner = StackedNER::default();
 ///
 /// // Or build custom:
-/// use anno::{PatternNER, HeuristicNER};
+/// use anno::{RegexNER, HeuristicNER};
 /// use anno::backends::stacked::ConflictStrategy;
 ///
 /// let custom = StackedNER::builder()
-///     .layer(PatternNER::new())
+///     .layer(RegexNER::new())
 ///     .layer(HeuristicNER::new())
 ///     .strategy(ConflictStrategy::LongestSpan)
 ///     .build();
@@ -363,7 +363,7 @@ impl StackedNER {
     #[must_use]
     pub fn with_heuristic_threshold(_threshold: f64) -> Self {
         Self::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .build()
     }
@@ -381,7 +381,7 @@ impl StackedNER {
     /// emails, URLs, phone numbers.
     #[must_use]
     pub fn pattern_only() -> Self {
-        Self::builder().layer(PatternNER::new()).build()
+        Self::builder().layer(RegexNER::new()).build()
     }
 
     /// Heuristic-only configuration (no pattern layer).
@@ -406,7 +406,7 @@ impl StackedNER {
     pub fn with_ml_first(ml_backend: Box<dyn Model + Send + Sync>) -> Self {
         Self::builder()
             .layer_boxed(ml_backend)
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .build()
     }
@@ -417,7 +417,7 @@ impl StackedNER {
     #[must_use]
     pub fn with_ml_fallback(ml_backend: Box<dyn Model + Send + Sync>) -> Self {
         Self::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .layer_boxed(ml_backend)
             .build()
@@ -450,7 +450,7 @@ impl Default for StackedNER {
     /// - Heuristic named entity extraction (person, org, location)
     fn default() -> Self {
         Self::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .build()
     }
@@ -638,7 +638,7 @@ mod tests {
 
     #[test]
     fn test_builder_single_layer() {
-        let ner = StackedNER::builder().layer(PatternNER::new()).build();
+        let ner = StackedNER::builder().layer(RegexNER::new()).build();
         let e = ner.extract_entities("$100", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
@@ -646,7 +646,7 @@ mod tests {
     #[test]
     fn test_builder_layer_names() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .build();
 
@@ -658,7 +658,7 @@ mod tests {
     #[test]
     fn test_builder_strategy() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .strategy(ConflictStrategy::LongestSpan)
             .build();
 

@@ -117,7 +117,7 @@ All evaluation modules have:
 | GLiNER-ONNX | 66.7% | Best overall, zero-shot flexibility |
 | BertNER-ONNX | 59.3% | Strong on named entities |
 | StackedNER | 48.1% | Best non-ML model |
-| PatternNER | 25.9% | Excellent on structured patterns (100% on emails/phones) |
+| RegexNER | 25.9% | Excellent on structured patterns (100% on emails/phones) |
 | HeuristicNER | 22.2% | Capitalization heuristics only |
 
 **Key Finding**: Hybrid approaches (Pattern + ML) provide best coverage:

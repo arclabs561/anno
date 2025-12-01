@@ -13,7 +13,7 @@
 use anno::backends::stacked::ConflictStrategy;
 use anno::{
     AutoNER, DiscontinuousSpan, Entity, EntityBuilder, EntityType, EntityViewport,
-    ExtractionMethod, HeuristicNER, HierarchicalConfidence, Model, PatternNER, Provenance,
+    ExtractionMethod, HeuristicNER, HierarchicalConfidence, Model, RegexNER, Provenance,
     StackedNER,
 };
 
@@ -983,7 +983,7 @@ fn test_model_consistency_stacked() {
 fn test_model_consistency_pattern() {
     let text = "Contact: test@example.com or call 555-1234 on Jan 15, 2024";
 
-    let pattern = PatternNER::new();
+    let pattern = RegexNER::new();
     let heuristic = heuristic();
 
     let pattern_entities = pattern.extract_entities(text, None).unwrap();
@@ -1296,7 +1296,7 @@ fn test_stacked_priority_strategy() {
     // Create two models that will produce overlapping entities
     let text = "New York City";
 
-    // PatternNER might find "New York" (if it has a pattern)
+    // RegexNER might find "New York" (if it has a pattern)
     // HeuristicNER might find "New York City"
     let stacked = StackedNER::builder()
         .strategy(ConflictStrategy::Priority)
@@ -1610,7 +1610,7 @@ fn test_redos_protection_pattern() {
     // "a" repeated many times followed by "b" and "a" again
     let text = format!("{}{}a", "a".repeat(100), "b");
 
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let start = std::time::Instant::now();
     let entities = model.extract_entities(&text, None).unwrap();
     let duration = start.elapsed();
@@ -1753,7 +1753,7 @@ fn test_entity_overlap_ratio() {
 #[test]
 fn test_entity_is_structured_vs_named() {
     let text = "John works at Apple on Jan 15, 2024";
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities(text, None).unwrap();
 
     for e in entities {
@@ -1785,7 +1785,7 @@ fn test_entity_normalized_or_text() {
 #[test]
 fn test_entity_method_and_source() {
     let text = "test@example.com";
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities(text, None).unwrap();
 
     for e in entities {
@@ -2218,10 +2218,10 @@ fn test_exact_duplicate_entities() {
 #[test]
 fn test_extraction_method_provenance() {
     let text = "test@example.com";
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities(text, None).unwrap();
 
-    // PatternNER should set provenance with Pattern method
+    // RegexNER should set provenance with Pattern method
     for e in entities {
         if let Some(ref _prov) = e.provenance {
             // Pattern entities should have Pattern method

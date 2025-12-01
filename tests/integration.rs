@@ -1,7 +1,7 @@
 //! Integration tests for anno NER evaluation framework.
 
 use anno::eval::{evaluate_ner_model, load_conll2003, GoldEntity};
-use anno::{EntityType, PatternNER};
+use anno::{EntityType, RegexNER};
 
 #[test]
 fn test_end_to_end_conll_evaluation() {
@@ -27,7 +27,7 @@ $ $ O B-MONEY
     let test_cases = load_conll2003(&temp_file).unwrap();
     assert!(!test_cases.is_empty());
 
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let results = evaluate_ner_model(&model, &test_cases).unwrap();
 
     // Verify results structure
@@ -53,9 +53,9 @@ fn test_synthetic_dataset_evaluation() {
     assert!(!news.is_empty(), "Should have news datasets");
 
     // Convert to test cases and evaluate
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
-    // PatternNER only detects DATE/MONEY/PERCENT, so we need test cases with those
+    // RegexNER only detects DATE/MONEY/PERCENT, so we need test cases with those
     let test_cases: Vec<(String, Vec<GoldEntity>)> = vec![
         (
             "Cost is $500 on January 15, 2025".to_string(),
@@ -72,13 +72,13 @@ fn test_synthetic_dataset_evaluation() {
 
     let results = evaluate_ner_model(&model, &test_cases).unwrap();
 
-    // PatternNER should do well on DATE/MONEY/PERCENT
-    assert!(results.f1 > 0.0, "PatternNER should find some entities");
+    // RegexNER should do well on DATE/MONEY/PERCENT
+    assert!(results.f1 > 0.0, "RegexNER should find some entities");
 }
 
 #[test]
 fn test_metrics_serialization() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let test_cases = vec![(
         "Meeting on January 15, 2025".to_string(),
         vec![GoldEntity::with_span(
@@ -103,7 +103,7 @@ fn test_metrics_serialization() {
 
 #[test]
 fn test_per_type_metrics() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let test_cases = vec![
         (
             "Cost: $100".to_string(),
@@ -118,6 +118,6 @@ fn test_per_type_metrics() {
     let results = evaluate_ner_model(&model, &test_cases).unwrap();
 
     // Should have per-type breakdown
-    // Note: PatternNER recognizes these, so we should have metrics
+    // Note: RegexNER recognizes these, so we should have metrics
     assert!(!results.per_type.is_empty() || results.expected == 0);
 }

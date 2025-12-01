@@ -5,7 +5,7 @@
 //! - Arc<dyn Model> works correctly
 //! - No data races occur under concurrent load
 
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 use std::sync::Arc;
 use std::thread;
 
@@ -14,9 +14,9 @@ use std::thread;
 // =============================================================================
 
 #[test]
-fn pattern_ner_is_send_sync() {
+fn regex_ner_is_send_sync() {
     fn assert_send_sync<T: Send + Sync>() {}
-    assert_send_sync::<PatternNER>();
+    assert_send_sync::<RegexNER>();
 }
 
 #[test]
@@ -36,8 +36,8 @@ fn stacked_ner_is_send_sync() {
 // =============================================================================
 
 #[test]
-fn pattern_ner_concurrent_extraction() {
-    let ner = Arc::new(PatternNER::new());
+fn regex_ner_concurrent_extraction() {
+    let ner = Arc::new(RegexNER::new());
     let texts = vec![
         "Cost: $100",
         "Date: 2024-01-15",
@@ -145,8 +145,8 @@ fn stacked_ner_concurrent_extraction() {
 }
 
 #[test]
-fn high_concurrency_pattern_ner() {
-    let ner = Arc::new(PatternNER::new());
+fn high_concurrency_regex_ner() {
+    let ner = Arc::new(RegexNER::new());
     let num_threads = 50;
     let text = "Price: $100, date: 2024-01-15, email: test@test.com";
 
@@ -216,7 +216,7 @@ fn concurrent_different_texts_same_model() {
 #[test]
 fn arc_dyn_model_concurrent() {
     let models: Vec<Arc<dyn Model + Send + Sync>> = vec![
-        Arc::new(PatternNER::new()),
+        Arc::new(RegexNER::new()),
         Arc::new(HeuristicNER::new()),
         Arc::new(StackedNER::new()),
     ];
@@ -237,7 +237,7 @@ fn arc_dyn_model_concurrent() {
 
     let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
-    // PatternNER should find money and date (guaranteed)
+    // RegexNER should find money and date (guaranteed)
     // HeuristicNER is heuristic - may or may not find
     // StackedNER combines both
 
@@ -245,7 +245,7 @@ fn arc_dyn_model_concurrent() {
     let pattern_found = results
         .iter()
         .any(|(name, e)| *name == "pattern" && !e.is_empty());
-    assert!(pattern_found, "PatternNER should find entities");
+    assert!(pattern_found, "RegexNER should find entities");
 
     // Stacked should find something (includes pattern)
     let stacked_found = results
@@ -259,8 +259,8 @@ fn arc_dyn_model_concurrent() {
 // =============================================================================
 
 #[test]
-fn pattern_ner_deterministic_across_threads() {
-    let ner = Arc::new(PatternNER::new());
+fn regex_ner_deterministic_across_threads() {
+    let ner = Arc::new(RegexNER::new());
     let text = "Meeting on 2024-01-15 at 3:30pm, cost $500";
 
     // Run 100 times across threads

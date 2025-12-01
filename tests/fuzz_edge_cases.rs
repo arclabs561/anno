@@ -6,7 +6,7 @@
 //! - Malformed input (invalid spans, overlapping)
 //! - Adversarial cases (injection attempts, format strings)
 
-use anno::{Entity, EntityBuilder, EntityType, HeuristicNER, Model, PatternNER};
+use anno::{Entity, EntityBuilder, EntityType, HeuristicNER, Model, RegexNER};
 use proptest::prelude::*;
 
 // =============================================================================
@@ -15,7 +15,7 @@ use proptest::prelude::*;
 
 #[test]
 fn unicode_emoji_in_text() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "Contact me at test@example.com on January 15, 2024";
     let entities = ner.extract_entities(text, None).unwrap();
 
@@ -27,7 +27,7 @@ fn unicode_emoji_in_text() {
 #[test]
 fn unicode_rtl_text() {
     // Arabic text mixed with English
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "مرحبا test@example.com مرحبا";
     let entities = ner.extract_entities(text, Some("ar")).unwrap();
 
@@ -50,7 +50,7 @@ fn unicode_cjk_text() {
 
 #[test]
 fn unicode_combining_characters() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // Text with combining diacritical marks: é = e + combining acute
     let text = "Contact me\u{0301} at test@example.com";
     let entities = ner.extract_entities(text, None).unwrap();
@@ -61,7 +61,7 @@ fn unicode_combining_characters() {
 
 #[test]
 fn unicode_zero_width_chars() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // Zero-width space and joiner
     let text = "test\u{200B}@example.com"; // Zero-width space
     let entities = ner.extract_entities(text, None).unwrap();
@@ -74,7 +74,7 @@ fn unicode_zero_width_chars() {
 
 #[test]
 fn unicode_surrogate_pairs() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // Text with characters outside BMP (emoji)
     let text = "📧 test@example.com 🎉 January 15, 2024";
     let entities = ner.extract_entities(text, None).unwrap();
@@ -112,7 +112,7 @@ fn unicode_surrogate_pairs() {
 
 #[test]
 fn empty_text_input() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let entities = ner.extract_entities("", None).unwrap();
     assert!(entities.is_empty());
 
@@ -123,14 +123,14 @@ fn empty_text_input() {
 
 #[test]
 fn whitespace_only_text() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let entities = ner.extract_entities("   \t\n\r   ", None).unwrap();
     assert!(entities.is_empty());
 }
 
 #[test]
 fn single_character_text() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let entities = ner.extract_entities("x", None).unwrap();
     // Should not panic
     for e in &entities {
@@ -141,7 +141,7 @@ fn single_character_text() {
 
 #[test]
 fn very_long_text() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // 100KB of repeated text
     let unit = "John Smith visited test@example.com on January 15, 2024. ";
     let text: String = unit.repeat(2000);
@@ -214,7 +214,7 @@ fn entity_with_mismatched_text_span() {
 
 #[test]
 fn format_string_injection() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "Contact %s at %d or {format} or ${var}";
     let entities = ner.extract_entities(text, None).unwrap();
 
@@ -227,7 +227,7 @@ fn format_string_injection() {
 
 #[test]
 fn regex_metacharacters() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // Text with regex metacharacters
     let text = "Contact me at test@example.com (or test.*@example.com)";
     let entities = ner.extract_entities(text, None).unwrap();
@@ -238,7 +238,7 @@ fn regex_metacharacters() {
 
 #[test]
 fn null_bytes() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     // Rust strings can't have null bytes, but handle gracefully
     let text = "test\0@example.com";
     let entities = ner.extract_entities(text, None).unwrap();
@@ -251,7 +251,7 @@ fn null_bytes() {
 
 #[test]
 fn repeated_special_chars() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@";
     let entities = ner.extract_entities(text, None).unwrap();
 
@@ -264,18 +264,18 @@ fn repeated_special_chars() {
 // =============================================================================
 
 proptest! {
-    /// PatternNER should never panic on arbitrary ASCII input.
+    /// RegexNER should never panic on arbitrary ASCII input.
     #[test]
-    fn pattern_ner_never_panics_ascii(text in "[ -~]{0,500}") {
-        let ner = PatternNER::new();
+    fn regex_ner_never_panics_ascii(text in "[ -~]{0,500}") {
+        let ner = RegexNER::new();
         let result = ner.extract_entities(&text, None);
         prop_assert!(result.is_ok());
     }
 
-    /// PatternNER should never panic on arbitrary UTF-8 input.
+    /// RegexNER should never panic on arbitrary UTF-8 input.
     #[test]
-    fn pattern_ner_never_panics_utf8(text in ".{0,200}") {
-        let ner = PatternNER::new();
+    fn regex_ner_never_panics_utf8(text in ".{0,200}") {
+        let ner = RegexNER::new();
         let result = ner.extract_entities(&text, None);
         prop_assert!(result.is_ok());
     }
@@ -319,7 +319,7 @@ proptest! {
     /// Extracted entities should have offsets within text bounds.
     #[test]
     fn extracted_offsets_within_bounds(text in "[A-Za-z0-9 @.]{10,100}") {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         if let Ok(entities) = ner.extract_entities(&text, None) {
             for e in &entities {
                 prop_assert!(e.start <= e.end, "start > end");
@@ -331,7 +331,7 @@ proptest! {
     /// No overlapping entities from single backend.
     #[test]
     fn no_overlapping_entities_single_backend(text in "[A-Za-z0-9 @.]{10,100}") {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         if let Ok(entities) = ner.extract_entities(&text, None) {
             for (i, e1) in entities.iter().enumerate() {
                 for e2 in entities.iter().skip(i + 1) {

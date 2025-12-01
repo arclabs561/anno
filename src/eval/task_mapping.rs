@@ -250,7 +250,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
 pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
     match backend_name {
         // Pattern-based backends
-        "pattern" | "PatternNER" => &[Task::NER], // Only structured entities
+        "pattern" | "RegexNER" => &[Task::NER], // Only structured entities
         "heuristic" | "HeuristicNER" => &[Task::NER],
         "stacked" | "StackedNER" => &[Task::NER],
 

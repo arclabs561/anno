@@ -21,7 +21,7 @@
 
 use anno::{
     backends::{HeuristicNER, StackedNER},
-    Model, PatternNER, DEFAULT_BERT_ONNX_MODEL, DEFAULT_CANDLE_MODEL, DEFAULT_GLINER_CANDLE_MODEL,
+    Model, RegexNER, DEFAULT_BERT_ONNX_MODEL, DEFAULT_CANDLE_MODEL, DEFAULT_GLINER_CANDLE_MODEL,
     DEFAULT_GLINER_MODEL, DEFAULT_NUNER_MODEL,
 };
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
@@ -40,7 +40,7 @@ const W2NER_ALTERNATIVE: &str = "harry-kpv-hf/ai-rec-ner-onnx-model"; // Alterna
 
 fn bench_all_backends(c: &mut Criterion) {
     // Always available backends
-    bench_pattern_ner(c);
+    bench_regex_ner(c);
     bench_heuristic_ner(c);
     bench_stacked_ner(c);
 
@@ -61,9 +61,9 @@ fn bench_all_backends(c: &mut Criterion) {
     }
 }
 
-fn bench_pattern_ner(c: &mut Criterion) {
-    let ner = PatternNER::new();
-    c.bench_function("PatternNER", |b| {
+fn bench_regex_ner(c: &mut Criterion) {
+    let ner = RegexNER::new();
+    c.bench_function("RegexNER", |b| {
         b.iter(|| ner.extract_entities(black_box(BENCH_TEXT), None))
     });
 }

@@ -222,9 +222,9 @@ fn test_per_type_micro_averaging() {
 #[test]
 fn test_evaluator_output_format() {
     use anno::Model;
-    use anno::PatternNER;
+    use anno::RegexNER;
 
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let text = "Meeting on January 15 at 3:00 PM";
     let entities = model.extract_entities(text, None).unwrap();
 

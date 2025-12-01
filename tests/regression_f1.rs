@@ -8,7 +8,7 @@
 //! | Backend | Dataset | Baseline F1 | Date |
 //! |---------|---------|-------------|------|
 //! | StackedNER | Synthetic | 45.0% | 2024-11 |
-//! | PatternNER | Structured | 90.0% | 2024-11 |
+//! | RegexNER | Structured | 90.0% | 2024-11 |
 //!
 //! # Updating Baselines
 //!
@@ -17,7 +17,7 @@
 
 use anno::eval::modes::MultiModeResults;
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{EntityType, Model, PatternNER, StackedNER};
+use anno::{EntityType, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // Baseline Constants
@@ -27,18 +27,18 @@ use anno::{EntityType, Model, PatternNER, StackedNER};
 /// If this test fails, something broke - investigate before merging.
 const STACKED_SYNTHETIC_MIN_F1: f64 = 0.40; // 40% - conservative baseline
 
-/// Minimum acceptable F1 for PatternNER on structured entities.
+/// Minimum acceptable F1 for RegexNER on structured entities.
 const PATTERN_STRUCTURED_MIN_F1: f64 = 0.85; // 85% - high bar for regex
 
-/// Minimum acceptable F1 for PatternNER dates specifically.
+/// Minimum acceptable F1 for RegexNER dates specifically.
 const PATTERN_DATE_MIN_F1: f64 = 0.70; // 70% for dates
 
-/// Minimum acceptable F1 for PatternNER money.
+/// Minimum acceptable F1 for RegexNER money.
 /// Note: 50% because some test cases use abbreviated forms ($50B)
 /// that don't match exact gold boundaries.
 const PATTERN_MONEY_MIN_F1: f64 = 0.50; // 50% - realistic baseline
 
-/// Minimum acceptable F1 for PatternNER email.
+/// Minimum acceptable F1 for RegexNER email.
 const PATTERN_EMAIL_MIN_F1: f64 = 0.95; // 95% for emails
 
 // =============================================================================
@@ -142,21 +142,21 @@ fn mixed_test_cases() -> Vec<(String, Vec<GoldEntity>)> {
 // =============================================================================
 
 #[test]
-fn regression_pattern_ner_structured() {
-    let ner = PatternNER::new();
+fn regression_regex_ner_structured() {
+    let ner = RegexNER::new();
     let test_cases = structured_test_cases();
 
     let results = evaluate_ner_model(&ner, &test_cases).unwrap();
 
     assert!(
         results.f1 >= PATTERN_STRUCTURED_MIN_F1,
-        "PatternNER F1 regression! Got {:.1}%, expected >= {:.1}%",
+        "RegexNER F1 regression! Got {:.1}%, expected >= {:.1}%",
         results.f1 * 100.0,
         PATTERN_STRUCTURED_MIN_F1 * 100.0
     );
 
     println!(
-        "PatternNER structured F1: {:.1}% (baseline: {:.1}%)",
+        "RegexNER structured F1: {:.1}% (baseline: {:.1}%)",
         results.f1 * 100.0,
         PATTERN_STRUCTURED_MIN_F1 * 100.0
     );
@@ -185,7 +185,7 @@ fn regression_stacked_ner_mixed() {
 
 #[test]
 fn regression_pattern_dates() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
 
     let test_cases = vec![
         (
@@ -210,7 +210,7 @@ fn regression_pattern_dates() {
 
     assert!(
         results.f1 >= PATTERN_DATE_MIN_F1,
-        "PatternNER date F1 regression! Got {:.1}%, expected >= {:.1}%",
+        "RegexNER date F1 regression! Got {:.1}%, expected >= {:.1}%",
         results.f1 * 100.0,
         PATTERN_DATE_MIN_F1 * 100.0
     );
@@ -218,10 +218,10 @@ fn regression_pattern_dates() {
 
 #[test]
 fn regression_pattern_money() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
 
     // Note: Use ASCII-only currencies to avoid byte/char offset mismatch.
-    // The evaluation system uses char offsets, PatternNER uses byte offsets.
+    // The evaluation system uses char offsets, RegexNER uses byte offsets.
     // For ASCII text, these are the same.
     // TODO: Fix the char/byte offset mismatch for non-ASCII currencies (€, £, ¥)
     let test_cases = vec![
@@ -247,7 +247,7 @@ fn regression_pattern_money() {
 
     assert!(
         results.f1 >= PATTERN_MONEY_MIN_F1,
-        "PatternNER money F1 regression! Got {:.1}%, expected >= {:.1}%",
+        "RegexNER money F1 regression! Got {:.1}%, expected >= {:.1}%",
         results.f1 * 100.0,
         PATTERN_MONEY_MIN_F1 * 100.0
     );
@@ -255,7 +255,7 @@ fn regression_pattern_money() {
 
 #[test]
 fn regression_pattern_email() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
 
     let test_cases = vec![
         (
@@ -280,7 +280,7 @@ fn regression_pattern_email() {
 
     assert!(
         results.f1 >= PATTERN_EMAIL_MIN_F1,
-        "PatternNER email F1 regression! Got {:.1}%, expected >= {:.1}%",
+        "RegexNER email F1 regression! Got {:.1}%, expected >= {:.1}%",
         results.f1 * 100.0,
         PATTERN_EMAIL_MIN_F1 * 100.0
     );
@@ -292,7 +292,7 @@ fn regression_pattern_email() {
 
 #[test]
 fn test_multi_mode_evaluation() {
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "Price: $100.00 on 2024-01-15";
 
     let entities = ner.extract_entities(text, None).unwrap();
@@ -319,7 +319,7 @@ fn test_multi_mode_evaluation() {
 #[test]
 fn test_partial_vs_strict() {
     // Test where partial should be higher than strict
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let text = "Price: $100"; // Just $100, not $100.00
 
     let entities = ner.extract_entities(text, None).unwrap();

@@ -52,7 +52,7 @@ use anno::grounded::{
     render_document_html, render_eval_html, EvalComparison, EvalMatch, GroundedDocument, Identity,
     Location, Modality, Quantifier, Signal, SignalValidationError,
 };
-use anno::{AutoNER, Entity, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{AutoNER, Entity, HeuristicNER, Model, RegexNER, StackedNER};
 
 #[cfg(feature = "onnx")]
 // GLiNER exports available when onnx feature is enabled
@@ -187,7 +187,7 @@ enum ModelBackend {
 impl ModelBackend {
     fn create_model(self) -> Result<Box<dyn Model>, String> {
         match self {
-            Self::Pattern => Ok(Box::new(PatternNER::new())),
+            Self::Pattern => Ok(Box::new(RegexNER::new())),
             Self::Heuristic => Ok(Box::new(HeuristicNER::new())),
             // Minimal was merged into HeuristicNER
             Self::Minimal => Ok(Box::new(HeuristicNER::new())),

@@ -24,7 +24,7 @@ Backend capabilities are determined by **trait implementations**, not string mat
 - **One task → Many datasets**: NER can be evaluated on CoNLL-2003, WikiGold, MultiNERD, etc.
 - **One dataset → Many tasks**: GAP supports both IntraDocCoref and AbstractAnaphora
 - **One backend → Many tasks**: GLiNER2 supports NER, RelationExtraction, TextClassification, HierarchicalExtraction
-- **One task → Many backends**: NER can be evaluated with PatternNER, BERT, GLiNER, etc.
+- **One task → Many backends**: NER can be evaluated with RegexNER, BERT, GLiNER, etc.
 
 ## Tasks
 

@@ -1,4 +1,4 @@
-//! Pattern-based NER - Extracts entities via regex patterns only.
+//! Regex-based NER - Extracts entities via regex patterns only.
 //!
 //! No hardcoded gazetteers. Only extracts entities that can be reliably
 //! identified by their format:
@@ -17,7 +17,7 @@ use crate::{Entity, EntityType, Model, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-/// Pattern-based NER - extracts entities with recognizable formats.
+/// Regex-based NER - extracts entities with recognizable formats using regex patterns.
 ///
 /// Reliable extraction without ML models. Does NOT attempt to identify
 /// Person/Organization/Location - those require contextual understanding.
@@ -37,9 +37,9 @@ use regex::Regex;
 /// # Example
 ///
 /// ```rust
-/// use anno::{PatternNER, Model};
+/// use anno::{RegexNER, Model};
 ///
-/// let ner = PatternNER::new();
+/// let ner = RegexNER::new();
 /// let entities = ner.extract_entities(
 ///     "Meeting at 3:30 PM on Jan 15. Contact: bob@acme.com",
 ///     None
@@ -47,17 +47,17 @@ use regex::Regex;
 ///
 /// assert!(entities.len() >= 3); // time, date, email
 /// ```
-pub struct PatternNER;
+pub struct RegexNER;
 
-impl PatternNER {
-    /// Create a new pattern-based NER.
+impl RegexNER {
+    /// Create a new regex-based NER.
     #[must_use]
     pub fn new() -> Self {
         Self
     }
 }
 
-impl Default for PatternNER {
+impl Default for RegexNER {
     fn default() -> Self {
         Self::new()
     }
@@ -214,7 +214,7 @@ static HASHTAG: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"\B#\w+").expect("valid regex")
 });
 
-impl Model for PatternNER {
+impl Model for RegexNER {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         use crate::entity::Provenance;
         use crate::offset::bytes_to_chars;
@@ -391,15 +391,15 @@ fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
     entities.iter().any(|e| !(end <= e.start || start >= e.end))
 }
 
-// Capability marker: PatternNER extracts structured entities via regex
-impl crate::StructuredEntityCapable for PatternNER {}
+// Capability marker: RegexNER extracts structured entities via regex
+impl crate::StructuredEntityCapable for RegexNER {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn ner() -> PatternNER {
-        PatternNER::new()
+    fn ner() -> RegexNER {
+        RegexNER::new()
     }
 
     fn extract(text: &str) -> Vec<Entity> {
@@ -540,7 +540,7 @@ mod tests {
         // Euro sign (€) is 3 bytes but 1 character.
         // This test catches the bug where regex byte offsets were stored directly.
         let text = "Price: €50 then €100";
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let entities = ner.extract_entities(text, None).unwrap();
 
         // "Price: " = 7 chars, so first € is at char 7
@@ -928,7 +928,7 @@ mod tests {
 // BatchCapable and StreamingCapable Trait Implementations
 // =============================================================================
 
-impl crate::BatchCapable for PatternNER {
+impl crate::BatchCapable for RegexNER {
     fn extract_entities_batch(
         &self,
         texts: &[&str],
@@ -945,7 +945,7 @@ impl crate::BatchCapable for PatternNER {
     }
 }
 
-impl crate::StreamingCapable for PatternNER {
+impl crate::StreamingCapable for RegexNER {
     fn recommended_chunk_size(&self) -> usize {
         10_000 // Pattern matching handles larger chunks efficiently
     }
@@ -959,13 +959,13 @@ mod proptests {
     proptest! {
         #[test]
         fn extraction_never_panics(text in ".*") {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let _ = ner.extract_entities(&text, None);
         }
 
         #[test]
         fn entities_within_text_bounds(text in ".{1,200}") {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 for e in entities {
                     prop_assert!(e.start <= text.len());
@@ -978,7 +978,7 @@ mod proptests {
         #[test]
         fn dollar_amounts_detected(amount in 1u32..10000) {
             let text = format!("Cost: ${}", amount);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Money));
         }
@@ -986,7 +986,7 @@ mod proptests {
         #[test]
         fn percentages_detected(pct in 1u32..100) {
             let text = format!("{}% complete", pct);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Percent));
         }
@@ -994,7 +994,7 @@ mod proptests {
         #[test]
         fn emails_detected(user in "[a-z]{3,10}", domain in "[a-z]{3,8}") {
             let text = format!("Contact: {}@{}.com", user, domain);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e|
                 e.entity_type == EntityType::Email
@@ -1004,7 +1004,7 @@ mod proptests {
         #[test]
         fn urls_detected(path in "[a-z]{1,10}") {
             let text = format!("Visit https://example.com/{}", path);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e|
                 e.entity_type == EntityType::Url
@@ -1014,14 +1014,14 @@ mod proptests {
         #[test]
         fn iso_dates_detected(y in 2000u32..2030, m in 1u32..13, d in 1u32..29) {
             let text = format!("Date: {:04}-{:02}-{:02}", y, m, d);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Date));
         }
 
         #[test]
         fn no_overlapping_entities(text in ".{0,100}") {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 for i in 0..entities.len() {
                     for j in (i + 1)..entities.len() {

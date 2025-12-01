@@ -8,7 +8,7 @@
 
 use anno::eval::metrics::{analyze_confidence_thresholds, calculate_partial_match_metrics};
 use anno::eval::GoldEntity;
-use anno::{Entity, EntityType, Model, PatternNER};
+use anno::{Entity, EntityType, Model, RegexNER};
 
 #[test]
 fn test_partial_match_metrics_exact() {
@@ -65,8 +65,8 @@ fn test_confidence_threshold_analysis() {
 }
 
 #[test]
-fn test_pattern_ner_dates() {
-    let ner = PatternNER::new();
+fn test_regex_ner_dates() {
+    let ner = RegexNER::new();
     let entities = ner
         .extract_entities("Meeting on 2024-01-15 and January 20, 2024", None)
         .unwrap();
@@ -78,8 +78,8 @@ fn test_pattern_ner_dates() {
 }
 
 #[test]
-fn test_pattern_ner_money() {
-    let ner = PatternNER::new();
+fn test_regex_ner_money() {
+    let ner = RegexNER::new();
     let entities = ner
         .extract_entities("Cost is $100 or 50 EUR", None)
         .unwrap();
@@ -90,8 +90,8 @@ fn test_pattern_ner_money() {
 }
 
 #[test]
-fn test_pattern_ner_percent() {
-    let ner = PatternNER::new();
+fn test_regex_ner_percent() {
+    let ner = RegexNER::new();
     let entities = ner
         .extract_entities("Growth of 15% and 20 percent", None)
         .unwrap();

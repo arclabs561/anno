@@ -12,7 +12,7 @@
 //! | GLiNER v2.1 | `onnx` | ~90%* | ~61% | ~100ms | Zero-shot, SOTA |
 //! | BERT ONNX | `onnx` | ~86% | N/A | ~50ms | Fixed 4 types |
 //! | Candle BERT | `candle` | ~74% | N/A | ~50ms | Rust-native |
-//! | PatternNER | always | N/A | N/A | ~400ns | Structured only |
+//! | RegexNER | always | N/A | N/A | ~400ns | Structured only |
 //!
 //! *CoNLL F1 from original GLiNER paper; CrossNER from arxiv:2507.18546
 //!
@@ -23,7 +23,7 @@
 //! - **Hybrid mode**: Best of both worlds (ML for context, patterns for structure)
 //! - **Clean adapters**: Each backend wrapped to implement common trait
 
-use crate::{Entity, EntityType, Model, PatternNER, Result};
+use crate::{Entity, EntityType, Model, RegexNER, Result};
 use std::sync::Arc;
 
 /// Default models for each backend.
@@ -120,8 +120,8 @@ impl BackendType {
 pub struct NERExtractor {
     /// Primary ML backend (optional)
     primary: Option<Arc<dyn Model>>,
-    /// Fallback backend (always PatternNER)
-    fallback: Arc<PatternNER>,
+    /// Fallback backend (always RegexNER)
+    fallback: Arc<RegexNER>,
     /// Backend type identifier
     backend_type: BackendType,
 }
@@ -131,12 +131,12 @@ impl NERExtractor {
     pub fn new(primary: Option<Arc<dyn Model>>, backend_type: BackendType) -> Self {
         Self {
             primary,
-            fallback: Arc::new(PatternNER::new()),
+            fallback: Arc::new(RegexNER::new()),
             backend_type,
         }
     }
 
-    /// Create with pattern-based backend only.
+    /// Create with regex-based backend only.
     ///
     /// Fast (~400ns) but limited to structured entities:
     /// DATE, TIME, MONEY, PERCENT, EMAIL, URL, PHONE
@@ -144,7 +144,7 @@ impl NERExtractor {
     pub fn pattern_only() -> Self {
         Self {
             primary: None,
-            fallback: Arc::new(PatternNER::new()),
+            fallback: Arc::new(RegexNER::new()),
             backend_type: BackendType::Pattern,
         }
     }
@@ -155,7 +155,7 @@ impl NERExtractor {
     /// 1. GLiNER (if `onnx` feature enabled) - zero-shot, best accuracy (~90% CoNLL F1)
     /// 2. BERT ONNX (if `onnx` feature enabled) - reliable, fixed types (~86% F1)
     /// 3. Candle (if `candle` feature enabled) - Rust-native (~74% F1)
-    /// 4. PatternNER (always) - structured entities only
+    /// 4. RegexNER (always) - structured entities only
     #[must_use]
     pub fn best_available() -> Self {
         // Try GLiNER first (best accuracy, zero-shot)
@@ -186,7 +186,7 @@ impl NERExtractor {
         }
 
         // Ultimate fallback: patterns only
-        log::info!("[NER] Using PatternNER (structured entities only)");
+        log::info!("[NER] Using RegexNER (structured entities only)");
         Self::pattern_only()
     }
 
@@ -194,7 +194,7 @@ impl NERExtractor {
     ///
     /// Prioritizes speed over accuracy:
     /// 1. GLiNER small (if `onnx` feature) - fast zero-shot
-    /// 2. PatternNER (always) - ~400ns per call
+    /// 2. RegexNER (always) - ~400ns per call
     #[must_use]
     pub fn fast() -> Self {
         #[cfg(feature = "onnx")]
@@ -204,7 +204,7 @@ impl NERExtractor {
                 return extractor;
             }
         }
-        log::info!("[NER] Using PatternNER (structured entities only)");
+        log::info!("[NER] Using RegexNER (structured entities only)");
         Self::pattern_only()
     }
 
@@ -214,7 +214,7 @@ impl NERExtractor {
     /// 1. GLiNER large (if `onnx` feature) - highest accuracy
     /// 2. GLiNER medium (if `onnx` feature) - fallback
     /// 3. BERT ONNX (if `onnx` feature) - reliable
-    /// 4. PatternNER (always)
+    /// 4. RegexNER (always)
     #[must_use]
     pub fn best_quality() -> Self {
         #[cfg(feature = "onnx")]
@@ -232,7 +232,7 @@ impl NERExtractor {
                 return extractor;
             }
         }
-        log::info!("[NER] Using PatternNER (structured entities only)");
+        log::info!("[NER] Using RegexNER (structured entities only)");
         Self::pattern_only()
     }
 
@@ -248,7 +248,7 @@ impl NERExtractor {
         let bert = crate::backends::BertNEROnnx::new(model_name)?;
         Ok(Self {
             primary: Some(Arc::new(bert)),
-            fallback: Arc::new(PatternNER::new()),
+            fallback: Arc::new(RegexNER::new()),
             backend_type: BackendType::BertOnnx,
         })
     }
@@ -271,7 +271,7 @@ impl NERExtractor {
         let gliner = crate::backends::GLiNEROnnx::new(model_name)?;
         Ok(Self {
             primary: Some(Arc::new(gliner)),
-            fallback: Arc::new(PatternNER::new()),
+            fallback: Arc::new(RegexNER::new()),
             backend_type: BackendType::GLiNER,
         })
     }
@@ -293,7 +293,7 @@ impl NERExtractor {
         let candle = crate::backends::CandleNER::new(model_name)?;
         Ok(Self {
             primary: Some(Arc::new(candle)),
-            fallback: Arc::new(PatternNER::new()),
+            fallback: Arc::new(RegexNER::new()),
             backend_type: BackendType::Candle,
         })
     }

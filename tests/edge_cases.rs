@@ -2,7 +2,7 @@
 //!
 //! Tests boundary conditions, unusual inputs, and potential failure modes.
 
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 fn has_type(entities: &[Entity], ty: &EntityType) -> bool {
     entities.iter().any(|e| e.entity_type == *ty)
@@ -17,7 +17,7 @@ mod empty_input {
 
     #[test]
     fn pattern_empty_string() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("", None).unwrap();
         assert!(e.is_empty());
     }
@@ -62,28 +62,28 @@ mod unicode {
 
     #[test]
     fn pattern_with_emoji() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("Meeting costs $100 🎉", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn pattern_with_chinese() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("价格是 $100 美元", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn pattern_with_arabic() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("السعر $100", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn pattern_with_mixed_scripts() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities("日期: 2024-01-15, email: test@example.com", None)
             .unwrap();
@@ -93,7 +93,7 @@ mod unicode {
 
     #[test]
     fn unicode_character_boundaries() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // Multi-byte characters before pattern
         let text = "价格：$500";
         let e = ner.extract_entities(text, None).unwrap();
@@ -117,7 +117,7 @@ mod unicode {
 
     #[test]
     fn emoji_before_entity() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities("🚀 Launch on 2024-01-15", None)
             .unwrap();
@@ -126,7 +126,7 @@ mod unicode {
 
     #[test]
     fn emoji_inside_should_not_match() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // Emoji breaks the date pattern
         let e = ner.extract_entities("2024🎉01-15", None).unwrap();
         // Should NOT match as a valid date
@@ -147,7 +147,7 @@ mod unicode {
 
     #[test]
     fn zero_width_characters() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // Zero-width joiner and other invisible chars
         let e = ner.extract_entities("$100\u{200B}dollars", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
@@ -171,7 +171,7 @@ mod long_input {
 
     #[test]
     fn very_long_text_with_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let filler = "Lorem ipsum dolor sit amet. ".repeat(1000);
         let text = format!("{}Price: $100. {}", filler, filler);
         let e = ner.extract_entities(&text, None).unwrap();
@@ -180,7 +180,7 @@ mod long_input {
 
     #[test]
     fn many_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = (1..=100)
             .map(|i| format!("Item {}: ${}", i, i * 10))
             .collect::<Vec<_>>()
@@ -217,7 +217,7 @@ mod special_chars {
 
     #[test]
     fn html_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("Price: &dollar;100", None).unwrap();
         // HTML entity is NOT a real dollar sign
         assert!(!has_type(&e, &EntityType::Money));
@@ -225,7 +225,7 @@ mod special_chars {
 
     #[test]
     fn escaped_characters() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("Price: \\$100", None).unwrap();
         // Backslash before $ - depends on regex
         // Just verify no panic
@@ -244,14 +244,14 @@ mod special_chars {
 
     #[test]
     fn control_characters() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("$100\x01\x02\x03", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn mixed_line_endings() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities("$100\r\n2024-01-15\n$200\r$300", None)
             .unwrap();
@@ -264,7 +264,7 @@ mod special_chars {
 
     #[test]
     fn tabs_in_text() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities("Price:\t$100\tDate:\t2024-01-15", None)
             .unwrap();
@@ -282,7 +282,7 @@ mod boundaries {
 
     #[test]
     fn entity_at_start() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("$100 is the price", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
         assert_eq!(e[0].start, 0);
@@ -290,14 +290,14 @@ mod boundaries {
 
     #[test]
     fn entity_at_end() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("The price is $100", None).unwrap();
         assert!(has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn entity_is_entire_text() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("$100", None).unwrap();
         assert_eq!(e.len(), 1);
         assert_eq!(e[0].start, 0);
@@ -306,7 +306,7 @@ mod boundaries {
 
     #[test]
     fn adjacent_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // Two entities right next to each other
         let e = ner.extract_entities("$100$200", None).unwrap();
         // Might be interpreted as one or two entities
@@ -315,7 +315,7 @@ mod boundaries {
 
     #[test]
     fn entities_separated_by_single_space() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("$100 $200", None).unwrap();
         let money_count = e
             .iter()
@@ -326,7 +326,7 @@ mod boundaries {
 
     #[test]
     fn overlapping_pattern_candidates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // Could be interpreted multiple ways
         let e = ner.extract_entities("12/25/2024", None).unwrap();
         // Should pick one interpretation (date)
@@ -343,7 +343,7 @@ mod pattern_edges {
 
     #[test]
     fn money_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Very large amounts
         let e = ner.extract_entities("$1,000,000,000", None).unwrap();
@@ -360,7 +360,7 @@ mod pattern_edges {
 
     #[test]
     fn date_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Leap year date
         let e = ner.extract_entities("2024-02-29", None).unwrap();
@@ -377,7 +377,7 @@ mod pattern_edges {
 
     #[test]
     fn email_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Subdomain
         let e = ner.extract_entities("test@mail.example.com", None).unwrap();
@@ -394,7 +394,7 @@ mod pattern_edges {
 
     #[test]
     fn time_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Midnight
         let e = ner.extract_entities("at 12:00am", None).unwrap();
@@ -411,7 +411,7 @@ mod pattern_edges {
 
     #[test]
     fn percent_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // 100%
         let e = ner.extract_entities("100%", None).unwrap();
@@ -428,7 +428,7 @@ mod pattern_edges {
 
     #[test]
     fn phone_edge_cases() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Various formats
         let e = ner.extract_entities("(555) 123-4567", None).unwrap();
@@ -448,21 +448,21 @@ mod invalid_patterns {
 
     #[test]
     fn invalid_email_no_at() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("testexample.com", None).unwrap();
         assert!(!has_type(&e, &EntityType::Email));
     }
 
     #[test]
     fn invalid_email_no_domain() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("test@", None).unwrap();
         assert!(!has_type(&e, &EntityType::Email));
     }
 
     #[test]
     fn invalid_date_month_13() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // 13 is not a valid month, but regex might still match format
         let e = ner.extract_entities("2024-13-15", None).unwrap();
         // Regex doesn't validate month ranges, so this might match
@@ -472,14 +472,14 @@ mod invalid_patterns {
 
     #[test]
     fn almost_money_no_amount() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("$ only", None).unwrap();
         assert!(!has_type(&e, &EntityType::Money));
     }
 
     #[test]
     fn almost_url_no_scheme() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner.extract_entities("example.com", None).unwrap();
         // Without scheme, might not be detected as URL
         // Just verify behavior is consistent
@@ -523,7 +523,7 @@ mod span_validity {
 
     #[test]
     fn pattern_spans_valid() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let texts = [
             "$100 is the price",
             "Date: 2024-01-15",

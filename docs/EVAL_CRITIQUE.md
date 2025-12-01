@@ -28,9 +28,9 @@ The current logic is backwards - it tries to use "coref_resolver" as a Model bac
 
 ### 2. Entity Type Mismatches (58 datasets with 0.0 F1)
 
-**Problem**: PatternNER and HeuristicNER only support limited entity types.
+**Problem**: RegexNER and HeuristicNER only support limited entity types.
 
-- **PatternNER**: Only extracts structured entities (dates, money, emails, URLs) - NOT named entities
+- **RegexNER**: Only extracts structured entities (dates, money, emails, URLs) - NOT named entities
 - **HeuristicNER**: Only extracts Person, Organization, Location - NOT domain-specific types
 - **Result**: 0.0 F1 on:
   - MIT Movie (actor, director, genre, title, etc.)
@@ -125,7 +125,7 @@ let resolver = create_coref_resolver(backend_name)?;  // ✅ Correct
 
 ### 2. No Entity Type Compatibility Check
 
-HeuristicNER and PatternNER are evaluated on datasets with incompatible entity types, resulting in 0.0 F1. Should check compatibility first:
+HeuristicNER and RegexNER are evaluated on datasets with incompatible entity types, resulting in 0.0 F1. Should check compatibility first:
 
 ```rust
 fn is_compatible(backend: &str, dataset_entity_types: &[&str]) -> bool {
@@ -138,7 +138,7 @@ fn is_compatible(backend: &str, dataset_entity_types: &[&str]) -> bool {
         }
         "pattern" => {
             // Only supports structured entities
-            false  // PatternNER doesn't do named entities
+            false  // RegexNER doesn't do named entities
         }
         _ => true  // ML backends are zero-shot or trained
     }

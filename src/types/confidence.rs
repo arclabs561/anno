@@ -58,14 +58,14 @@
 //! ```text
 //! NEVER DO THIS:
 //!
-//!   PatternNER says EMAIL with 0.98 confidence
+//!   RegexNER says EMAIL with 0.98 confidence
 //!   HeuristicNER says ORG with 0.55 confidence
 //!
 //!   "0.98 > 0.55, so EMAIL is more likely!"  ← WRONG!
 //!
 //! These scales are incompatible:
 //!
-//!   • PatternNER's 0.98 means "regex matched, nearly certain"
+//!   • RegexNER's 0.98 means "regex matched, nearly certain"
 //!   • HeuristicNER's 0.55 means "some features matched, unsure"
 //!
 //! Comparing them is like comparing °C to °F to Kelvin.
@@ -86,7 +86,7 @@
 //! ┌───────────────┬─────────────────────────────────────────────────────────┐
 //! │ Backend       │ When confidence is reliable                            │
 //! ├───────────────┼─────────────────────────────────────────────────────────┤
-//! │ PatternNER    │ Always (deterministic). 0.95+ means pattern matched.   │
+//! │ RegexNER    │ Always (deterministic). 0.95+ means pattern matched.   │
 //! │ HeuristicNER│ Use as ranking within backend, not absolute truth.     │
 //! │ BERT-NER      │ Reasonably calibrated for in-domain data.              │
 //! │ GLiNER        │ Good for ranking, less calibrated for absolute probs.  │
@@ -141,7 +141,7 @@ impl Confidence {
     /// The maximum valid confidence value.
     pub const MAX: Self = Self(1.0);
 
-    /// A "perfect" confidence of 1.0 (deterministic/pattern-based extraction).
+    /// A "perfect" confidence of 1.0 (deterministic/regex-based extraction).
     pub const CERTAIN: Self = Self(1.0);
 
     /// A "no information" confidence of 0.5 (maximum entropy).

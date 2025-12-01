@@ -10,7 +10,7 @@
 //! cargo run --example candle_gliner_demo --features candle
 //! ```
 
-use anno::{HeuristicNER, Model, PatternNER};
+use anno::{HeuristicNER, Model, RegexNER};
 
 #[cfg(feature = "candle")]
 use anno::backends::gliner_candle::GLiNERCandle;
@@ -28,12 +28,12 @@ fn main() -> anno::Result<()> {
     ];
 
     // Pattern-based baseline
-    println!("PatternNER (zero-dependency baseline)");
+    println!("RegexNER (zero-dependency baseline)");
     println!("-------------------------------------\n");
 
-    let pattern_ner = PatternNER::new();
+    let regex_ner = RegexNER::new();
     for text in &texts {
-        let entities = pattern_ner.extract_entities(text, None)?;
+        let entities = regex_ner.extract_entities(text, None)?;
         println!("Text: {}", text);
         println!(
             "  Entities: {:?}",
@@ -269,7 +269,7 @@ fn main() -> anno::Result<()> {
     println!("-------------------------------\n");
 
     println!("Zero Dependencies:");
-    println!("  - PatternNER     Regex patterns (dates, emails, etc.)");
+    println!("  - RegexNER     Regex patterns (dates, emails, etc.)");
     println!("  - HeuristicNER Capitalization heuristics");
     println!();
     println!("ONNX Runtime (cross-platform):");

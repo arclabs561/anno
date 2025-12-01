@@ -4,20 +4,20 @@
 //! `default = []` (no features enabled). This is the lightest configuration
 //! and should provide:
 //!
-//! - PatternNER (dates, money, email, phone, etc.)
+//! - RegexNER (dates, money, email, phone, etc.)
 //! - HeuristicNER (basic named entity heuristics)
 //! - StackedNER (combination of the above)
 //! - Basic eval module (always compiled, not feature-gated)
 
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
-// PatternNER (always available)
+// RegexNER (always available)
 // =============================================================================
 
 #[test]
-fn test_pattern_ner_dates() {
-    let model = PatternNER::new();
+fn test_regex_ner_dates() {
+    let model = RegexNER::new();
     let entities = model
         .extract_entities("Meeting on January 15, 2024", None)
         .unwrap();
@@ -30,8 +30,8 @@ fn test_pattern_ner_dates() {
 }
 
 #[test]
-fn test_pattern_ner_money() {
-    let model = PatternNER::new();
+fn test_regex_ner_money() {
+    let model = RegexNER::new();
     let entities = model.extract_entities("Cost: $99.99", None).unwrap();
 
     assert!(!entities.is_empty(), "Should find money");
@@ -42,8 +42,8 @@ fn test_pattern_ner_money() {
 }
 
 #[test]
-fn test_pattern_ner_email() {
-    let model = PatternNER::new();
+fn test_regex_ner_email() {
+    let model = RegexNER::new();
     let entities = model
         .extract_entities("Contact: alice@example.com", None)
         .unwrap();
@@ -56,8 +56,8 @@ fn test_pattern_ner_email() {
 }
 
 #[test]
-fn test_pattern_ner_phone() {
-    let model = PatternNER::new();
+fn test_regex_ner_phone() {
+    let model = RegexNER::new();
     let entities = model.extract_entities("Call 555-123-4567", None).unwrap();
 
     assert!(!entities.is_empty(), "Should find phone");
@@ -68,8 +68,8 @@ fn test_pattern_ner_phone() {
 }
 
 #[test]
-fn test_pattern_ner_url() {
-    let model = PatternNER::new();
+fn test_regex_ner_url() {
+    let model = RegexNER::new();
     let entities = model
         .extract_entities("Visit https://example.com", None)
         .unwrap();
@@ -82,8 +82,8 @@ fn test_pattern_ner_url() {
 }
 
 #[test]
-fn test_pattern_ner_percent() {
-    let model = PatternNER::new();
+fn test_regex_ner_percent() {
+    let model = RegexNER::new();
     let entities = model.extract_entities("Got 95% on the test", None).unwrap();
 
     assert!(!entities.is_empty(), "Should find percent");
@@ -96,8 +96,8 @@ fn test_pattern_ner_percent() {
 }
 
 #[test]
-fn test_pattern_ner_time() {
-    let model = PatternNER::new();
+fn test_regex_ner_time() {
+    let model = RegexNER::new();
     let entities = model.extract_entities("Meeting at 3:30 PM", None).unwrap();
 
     assert!(!entities.is_empty(), "Should find time");
@@ -108,8 +108,8 @@ fn test_pattern_ner_time() {
 }
 
 #[test]
-fn test_pattern_ner_multiple_entities() {
-    let model = PatternNER::new();
+fn test_regex_ner_multiple_entities() {
+    let model = RegexNER::new();
     let text = "Send $500 to alice@test.com by January 1, 2025";
     let entities = model.extract_entities(text, None).unwrap();
 
@@ -165,7 +165,7 @@ fn test_stacked_ner_combines_backends() {
     let text = "Email bob@test.com about the $500 invoice";
     let entities = model.extract_entities(text, None).unwrap();
 
-    // Should get email and money from PatternNER
+    // Should get email and money from RegexNER
     let types: Vec<_> = entities.iter().map(|e| &e.entity_type).collect();
     assert!(types.contains(&&EntityType::Email) || types.contains(&&EntityType::Money));
 }
@@ -176,7 +176,7 @@ fn test_stacked_ner_combines_backends() {
 
 #[test]
 fn test_entity_has_confidence() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities("$100", None).unwrap();
 
     assert!(!entities.is_empty());
@@ -186,7 +186,7 @@ fn test_entity_has_confidence() {
 
 #[test]
 fn test_entity_has_span() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let text = "Pay $50 now";
     let entities = model.extract_entities(text, None).unwrap();
 
@@ -201,7 +201,7 @@ fn test_entity_has_span() {
 
 #[test]
 fn test_entity_type_label() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities("$100", None).unwrap();
 
     assert!(!entities.is_empty());
@@ -215,7 +215,7 @@ fn test_entity_type_label() {
 
 #[test]
 fn test_model_trait_name() {
-    let pattern = PatternNER::new();
+    let pattern = RegexNER::new();
     let stacked = StackedNER::default();
     let statistical = HeuristicNER::new();
 
@@ -226,10 +226,10 @@ fn test_model_trait_name() {
 
 #[test]
 fn test_model_trait_supported_types() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let types = model.supported_types();
 
-    // PatternNER should support these
+    // RegexNER should support these
     assert!(types.contains(&EntityType::Date));
     assert!(types.contains(&EntityType::Money));
     assert!(types.contains(&EntityType::Email));
@@ -241,21 +241,21 @@ fn test_model_trait_supported_types() {
 
 #[test]
 fn test_empty_input() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities("", None).unwrap();
     assert!(entities.is_empty());
 }
 
 #[test]
 fn test_whitespace_only() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model.extract_entities("   \t\n  ", None).unwrap();
     assert!(entities.is_empty());
 }
 
 #[test]
 fn test_no_entities() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let entities = model
         .extract_entities("The quick brown fox jumps", None)
         .unwrap();
@@ -264,7 +264,7 @@ fn test_no_entities() {
 
 #[test]
 fn test_unicode_text() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     // Should handle unicode without panicking
     let entities = model.extract_entities("会议在 $500 的价格", None).unwrap();
     // May or may not find entities, but should not panic

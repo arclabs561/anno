@@ -1,18 +1,18 @@
 //! Bias analysis example for NER models.
 //!
-//! Demonstrates how to check for length bias using pattern-based entities.
+//! Demonstrates how to check for length bias using regex-based entities.
 //! For demographic bias on names, use an ML-based model that detects PERSON.
 //!
 //! Run: cargo run --example bias
 
 use anno::eval::length_bias::create_length_varied_dataset;
 use anno::Model;
-use anno::PatternNER;
+use anno::RegexNER;
 
 fn main() {
     println!("=== NER Bias Analysis ===\n");
 
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     // Check supported entity types
     let supported = model.supported_types();
@@ -131,7 +131,7 @@ fn main() {
     }
 
     println!("\n=== Summary ===");
-    println!("\nPatternNER is best suited for:");
+    println!("\nRegexNER is best suited for:");
     println!("  - Structured patterns (dates, emails, URLs, money)");
     println!("\nFor name/organization analysis, use an ML model with:");
     println!("  cargo run --example bias_check --features onnx");

@@ -66,7 +66,7 @@
 │  ──────────────────────────────────────────────                            │
 │                                                                            │
 │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                     │
-│  │ PatternNER  │    │HeuristicNER│    │ StackedNER │                     │
+│  │ RegexNER  │    │HeuristicNER│    │ StackedNER │                     │
 │  │ (regex)     │    │ (heuristics)│    │ (composite) │                     │
 │  │             │    │             │    │             │                     │
 │  │ Feature:    │    │ Feature:    │    │ Feature:    │                     │
@@ -90,7 +90,7 @@
 
 | Backend | Feature | Zero-Shot | Nested | Speed | F1 | Use When |
 |---------|---------|-----------|--------|-------|-----|----------|
-| `PatternNER` | - | No | No | ~400ns | ~95%* | Structured data extraction |
+| `RegexNER` | - | No | No | ~400ns | ~95%* | Structured data extraction |
 | `HeuristicNER` | - | No | No | ~50µs | ~65% | Quick PER/ORG/LOC |
 | `StackedNER` | - | No | No | varies | varies | Default/baseline |
 | `GLiNEROnnx` | `onnx` | **Yes** | No | ~100ms | ~92% | Custom entity types |
@@ -100,7 +100,7 @@
 | `BertNEROnnx` | `onnx` | No | No | ~50ms | ~86% | Production (fixed types) |
 | `CandleNER` | `candle` | No | No | ~50ms | ~74% | Rust-native ML |
 
-*PatternNER only detects structured entities (dates, money, etc.) - not named entities.
+*RegexNER only detects structured entities (dates, money, etc.) - not named entities.
 
 ## ⭐ Recommended: GLiNER2 (Multi-Task)
 
@@ -245,7 +245,7 @@ Based on benchmarking against CoNLL-2003 and synthetic datasets:
 
 | Backend | Default Threshold | Rationale |
 |---------|-------------------|-----------|
-| `PatternNER` | Pattern-specific (0.90-0.98) | High precision regexes |
+| `RegexNER` | Pattern-specific (0.90-0.98) | High precision regexes |
 | `HeuristicNER` | 0.5 | Balance precision/recall |
 | `GLiNEROnnx` | 0.5 | GLiNER paper default |
 | `W2NER` | 0.5 | Standard for grid models |

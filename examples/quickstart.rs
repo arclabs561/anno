@@ -5,17 +5,17 @@
 //! Run: cargo run --example quickstart
 
 use anno::eval::{ReportBuilder, SimpleGoldEntity, TestCase};
-use anno::PatternNER;
+use anno::RegexNER;
 
 fn main() {
     println!("=== Quick NER Evaluation ===\n");
 
     // Create model
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     // Option 1: Use built-in synthetic data (quick sanity check)
     println!("--- Evaluation on synthetic data ---\n");
-    let report = ReportBuilder::new("PatternNER")
+    let report = ReportBuilder::new("RegexNER")
         .with_error_analysis(true)
         .build(&model);
 
@@ -60,7 +60,7 @@ fn main() {
         },
     ];
 
-    let custom_report = ReportBuilder::new("PatternNER")
+    let custom_report = ReportBuilder::new("RegexNER")
         .with_test_data(custom_tests)
         .with_error_analysis(true)
         .build(&model);

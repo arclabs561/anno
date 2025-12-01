@@ -5,7 +5,7 @@ This document identifies areas where additional property-based testing (fuzzing)
 ## Current Fuzzing Coverage
 
 ### ✅ Well-Covered Areas
-- **PatternNER/HeuristicNER**: Basic fuzzing with ASCII/UTF-8 strings (`fuzz_edge_cases.rs`)
+- **RegexNER/HeuristicNER**: Basic fuzzing with ASCII/UTF-8 strings (`fuzz_edge_cases.rs`)
 - **Corpus operations**: Property tests for inter-doc coref (`corpus_proptest.rs`)
 - **Inference module**: Comprehensive property tests (`inference_tests.rs`)
 - **Entity construction**: Basic offset validation (`fuzz_edge_cases.rs`)

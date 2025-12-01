@@ -4,7 +4,7 @@
 //! in real-world scenarios and edge cases.
 
 use anno::{
-    backends::{HeuristicNER, PatternNER, StackedNER},
+    backends::{HeuristicNER, RegexNER, StackedNER},
     BatchCapable, Entity, Model, StreamingCapable,
 };
 
@@ -14,7 +14,7 @@ use anno::{
 
 #[test]
 fn test_batch_extraction_with_varying_lengths() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let texts = vec![
         "Short",
         "This is a medium length text with some entities like $100 and 2024-01-15",
@@ -70,7 +70,7 @@ fn test_batch_optimal_size_usage() {
 
 #[test]
 fn test_batch_larger_than_optimal() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let optimal_size = backend.optimal_batch_size().unwrap_or(8);
 
     // Create batch larger than optimal
@@ -104,7 +104,7 @@ fn test_batch_single_item() {
 
 #[test]
 fn test_streaming_chunk_boundary() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let chunk_size = backend.recommended_chunk_size();
 
     // Create text exactly at chunk boundary
@@ -138,7 +138,7 @@ fn test_streaming_multiple_chunks() {
 
 #[test]
 fn test_streaming_empty_chunk() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let result = backend.extract_entities_streaming("", 0);
     assert!(result.is_ok());
     let entities = result.unwrap();
@@ -167,7 +167,7 @@ fn test_streaming_very_large_offset() {
 
 #[test]
 fn test_batch_and_streaming_together() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
 
     // Use batch for initial processing
     let texts = vec!["Text 1: $100", "Text 2: $200"];
@@ -209,7 +209,7 @@ fn test_model_batch_streaming_all_together() {
 
 #[test]
 fn test_batch_with_all_empty_strings() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let texts = vec!["", "", ""];
     let text_refs: Vec<&str> = texts.iter().copied().collect();
 
@@ -222,7 +222,7 @@ fn test_batch_with_all_empty_strings() {
 
 #[test]
 fn test_streaming_with_unicode_boundaries() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     // Text with Unicode characters that might affect offset calculation
     let text = "Test with émojis 🎉 and 中文 characters";
     let offset = 50;
@@ -240,7 +240,7 @@ fn test_streaming_with_unicode_boundaries() {
 #[test]
 fn test_batch_consistency_across_backends() {
     let backends: Vec<Box<dyn BatchCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -259,7 +259,7 @@ fn test_batch_consistency_across_backends() {
 #[test]
 fn test_streaming_consistency_across_backends() {
     let backends: Vec<Box<dyn StreamingCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -284,7 +284,7 @@ fn test_streaming_consistency_across_backends() {
 #[test]
 fn test_batch_is_faster_than_sequential() {
     // This is a qualitative test - batch should handle multiple items
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let texts: Vec<String> = (0..10).map(|i| format!("Text {}: $100", i)).collect();
     let text_refs: Vec<&str> = texts.iter().map(|s| s.as_ref()).collect();
 

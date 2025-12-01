@@ -74,7 +74,7 @@ fn test_available_backends_always_includes_core() {
     let backends = available_backends();
 
     // Core backends should always be available
-    let pattern = backends.iter().find(|(name, _)| *name == "PatternNER");
+    let pattern = backends.iter().find(|(name, _)| *name == "RegexNER");
     assert!(pattern.is_some());
     assert!(pattern.unwrap().1); // Should be available
 
@@ -87,7 +87,7 @@ fn test_available_backends_always_includes_core() {
     assert!(stacked.unwrap().1);
 
     // Note: HybridNER is not a separate backend - it's a pattern used by NERExtractor
-    // which combines ML backends with PatternNER. The test checks core backends only.
+    // which combines ML backends with RegexNER. The test checks core backends only.
 }
 
 #[test]
@@ -155,7 +155,7 @@ fn test_auto_returns_working_model() {
     let result = model.extract_entities("John works at Apple", None);
     assert!(result.is_ok());
     let _entities = result.unwrap();
-    // Should find at least some entities (pattern-based ones like dates, or heuristic ones)
+    // Should find at least some entities (regex-based ones like dates, or heuristic ones)
     // Even if it doesn't find "John" or "Apple", it should not panic
 }
 

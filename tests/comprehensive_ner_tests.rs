@@ -1,13 +1,13 @@
 //! Comprehensive NER test suite.
 //!
 //! This file contains extensive tests for all NER backends:
-//! - PatternNER: Format-based structured entity extraction
+//! - RegexNER: Format-based structured entity extraction
 //! - HeuristicNER: Heuristic-based named entity extraction  
 //! - StackedNER: Combined Pattern + Statistical
 //! - StackedNER: Arbitrary backend composition with conflict strategies
 
 use anno::{
-    backends::stacked::ConflictStrategy, Entity, EntityType, HeuristicNER, Model, PatternNER,
+    backends::stacked::ConflictStrategy, Entity, EntityType, HeuristicNER, Model, RegexNER,
     StackedNER,
 };
 
@@ -63,11 +63,11 @@ fn sorted_by_position(entities: &[Entity]) -> bool {
 // PATTERN NER TESTS
 // =============================================================================
 
-mod pattern_ner {
+mod regex_ner {
     use super::*;
 
     fn extract(text: &str) -> Vec<Entity> {
-        PatternNER::new().extract_entities(text, None).unwrap()
+        RegexNER::new().extract_entities(text, None).unwrap()
     }
 
     // -------------------------------------------------------------------------
@@ -1081,7 +1081,7 @@ mod layered_ner {
 
         #[test]
         fn single_layer() {
-            let ner = StackedNER::builder().layer(PatternNER::new()).build();
+            let ner = StackedNER::builder().layer(RegexNER::new()).build();
 
             let e = ner.extract_entities("$100", None).unwrap();
             assert!(has_type(&e, EntityType::Money));
@@ -1090,7 +1090,7 @@ mod layered_ner {
         #[test]
         fn two_layers() {
             let ner = StackedNER::builder()
-                .layer(PatternNER::new())
+                .layer(RegexNER::new())
                 .layer(HeuristicNER::new())
                 .build();
 
@@ -1100,7 +1100,7 @@ mod layered_ner {
         #[test]
         fn layer_names() {
             let ner = StackedNER::builder()
-                .layer(PatternNER::new())
+                .layer(RegexNER::new())
                 .layer(HeuristicNER::new())
                 .build();
 
@@ -1112,7 +1112,7 @@ mod layered_ner {
         #[test]
         fn strategy_configured() {
             let ner = StackedNER::builder()
-                .layer(PatternNER::new())
+                .layer(RegexNER::new())
                 .strategy(ConflictStrategy::LongestSpan)
                 .build();
 
@@ -1297,7 +1297,7 @@ mod integration {
 
     #[test]
     fn all_backends_available() {
-        assert!(PatternNER::new().is_available());
+        assert!(RegexNER::new().is_available());
         assert!(HeuristicNER::new().is_available());
         assert!(StackedNER::new().is_available());
     }
@@ -1305,7 +1305,7 @@ mod integration {
     #[test]
     fn model_trait_consistency() {
         let backends: Vec<Box<dyn Model>> = vec![
-            Box::new(PatternNER::new()),
+            Box::new(RegexNER::new()),
             Box::new(HeuristicNER::new()),
             Box::new(StackedNER::new()),
         ];
@@ -1325,7 +1325,7 @@ mod integration {
     fn consistent_output_format() {
         let text = "$100 for Dr. Smith in Paris";
 
-        let pattern_e = PatternNER::new().extract_entities(text, None).unwrap();
+        let pattern_e = RegexNER::new().extract_entities(text, None).unwrap();
         let stat_e = HeuristicNER::new().extract_entities(text, None).unwrap();
         let tiered_e = StackedNER::new().extract_entities(text, None).unwrap();
 
@@ -1370,7 +1370,7 @@ mod proptests {
 
         #[test]
         fn pattern_never_panics(text in ".*") {
-            let _ = PatternNER::new().extract_entities(&text, None);
+            let _ = RegexNER::new().extract_entities(&text, None);
         }
 
         #[test]

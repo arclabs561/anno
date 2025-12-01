@@ -4,7 +4,7 @@
 
 use anno::{
     Entity, EntityCategory, EntityType, ExtractionMethod, HierarchicalConfidence, Model,
-    PatternNER, Provenance, Span, StackedNER,
+    RegexNER, Provenance, Span, StackedNER,
 };
 
 // =============================================================================
@@ -266,7 +266,7 @@ mod extraction_results_serde {
 
     #[test]
     fn extracted_entities_roundtrip() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let entities = ner
             .extract_entities("Cost: $100 on 2024-01-15", None)
             .unwrap();
@@ -283,7 +283,7 @@ mod extraction_results_serde {
 
     #[test]
     fn empty_extraction() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let entities = ner.extract_entities("no entities here", None).unwrap();
         let json = serde_json::to_string(&entities).unwrap();
         assert_eq!(json, "[]");

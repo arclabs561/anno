@@ -108,7 +108,7 @@ Comprehensive testing completed for backend harmonization. All 640+ tests pass a
 - ✅ GLiNER2Candle: Tested (candle feature)
 
 ### BatchCapable
-- ✅ PatternNER: Fully tested
+- ✅ RegexNER: Fully tested
 - ✅ HeuristicNER: Fully tested
 - ✅ StackedNER: Fully tested
 - ✅ NuNER: Tested (onnx feature)
@@ -117,7 +117,7 @@ Comprehensive testing completed for backend harmonization. All 640+ tests pass a
 - ✅ CandleNER: Tested (candle feature)
 
 ### StreamingCapable
-- ✅ PatternNER: Fully tested
+- ✅ RegexNER: Fully tested
 - ✅ HeuristicNER: Fully tested
 - ✅ StackedNER: Fully tested
 - ✅ NuNER: Tested (onnx feature)

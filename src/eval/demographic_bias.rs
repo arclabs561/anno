@@ -35,11 +35,11 @@
 //!
 //! ```rust
 //! use anno::eval::demographic_bias::{DemographicBiasEvaluator, create_diverse_name_dataset};
-//! use anno::PatternNER;
+//! use anno::RegexNER;
 //!
 //! let names = create_diverse_name_dataset();
 //! let evaluator = DemographicBiasEvaluator::default();
-//! // let results = evaluator.evaluate_ner(&PatternNER::new(), &names);
+//! // let results = evaluator.evaluate_ner(&RegexNER::new(), &names);
 //! ```
 
 use crate::{EntityType, Model};

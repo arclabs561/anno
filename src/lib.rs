@@ -33,7 +33,7 @@
 //!
 //! | Backend | Feature | CoNLL-03* | Zero-Shot | Speed | Status |
 //! |---------|---------|-----------|-----------|-------|--------|
-//! | `PatternNER` | always | N/A | No | ~400ns | ✅ Complete |
+//! | `RegexNER` | always | N/A | No | ~400ns | ✅ Complete |
 //! | `HeuristicNER` | always | ~65% F1 | No | ~50μs | ✅ Complete |
 //! | `StackedNER` | always | varies | No | varies | ✅ Complete |
 //! | `BertNEROnnx` | `onnx` | ~86% F1 | No | ~50ms | ✅ Complete |
@@ -102,9 +102,9 @@
 //! ## Simple Pattern Extraction
 //!
 //! ```rust
-//! use anno::{Model, PatternNER};
+//! use anno::{Model, RegexNER};
 //!
-//! let model = PatternNER::new();
+//! let model = RegexNER::new();
 //! let entities = model.extract_entities("Meeting on January 15, 2025", None).unwrap();
 //! assert!(entities.iter().any(|e| e.text.contains("January")));
 //! ```
@@ -118,7 +118,7 @@
 //! ## Design Philosophy
 //!
 //! - **ML-first**: BERT ONNX is the recommended default
-//! - **No hardcoded gazetteers**: PatternNER only extracts format-based entities
+//! - **No hardcoded gazetteers**: RegexNER only extracts format-based entities
 //! - **Trait-based**: All backends implement the `Model` trait
 //! - **Graceful degradation**: Falls back to patterns if ML unavailable
 //! - **No stubs**: Every backend has a complete implementation
@@ -157,7 +157,7 @@ mod sealed {
     pub trait Sealed {}
 
     // Implement Sealed for all built-in backends
-    impl Sealed for super::PatternNER {}
+    impl Sealed for super::RegexNER {}
     impl Sealed for super::HeuristicNER {}
     impl Sealed for super::StackedNER {}
     impl Sealed for super::NuNER {}
@@ -355,7 +355,7 @@ pub mod prelude {
     pub use crate::error::{Error, Result};
     pub use crate::types::{Confidence, EntitySliceExt, Score};
     pub use crate::Model;
-    pub use crate::{MockModel, PatternNER, StackedNER};
+    pub use crate::{MockModel, RegexNER, StackedNER};
 
     // Schema harmonization (preferred over TypeMapper for multi-dataset work)
     pub use crate::schema::{CanonicalType, CoarseType, DatasetSchema, SchemaMapper};
@@ -414,7 +414,7 @@ pub use discourse::{
 
 // Backend re-exports (always available)
 pub use backends::{
-    AutoNER, BackendType, ConflictStrategy, HeuristicNER, NERExtractor, NuNER, PatternNER,
+    AutoNER, BackendType, ConflictStrategy, HeuristicNER, NERExtractor, NuNER, RegexNER,
     StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,
 };
 
@@ -682,7 +682,7 @@ pub fn auto_for(use_case: UseCase) -> Result<Box<dyn Model>> {
 /// ```
 pub fn available_backends() -> Vec<(&'static str, bool)> {
     let mut backends = vec![
-        ("PatternNER", true),
+        ("RegexNER", true),
         ("HeuristicNER", true),
         ("StackedNER", true),
     ];

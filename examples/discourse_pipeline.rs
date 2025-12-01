@@ -7,7 +7,7 @@
 //! 2. Event Extraction: Identify events and their triggers
 //! 3. Discourse Resolution: Resolve abstract anaphors ("this", "that") to events
 
-use anno::backends::PatternNER;
+use anno::backends::RegexNER;
 use anno::discourse::{DiscourseScope, EventExtractor};
 use anno::eval::coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
 use anno::{Entity, EntityType, Model};
@@ -74,7 +74,7 @@ fn process_document(text: &str) {
     println!("│ Step 1: Named Entity Recognition                               │");
     println!("└─────────────────────────────────────────────────────────────────┘");
 
-    let ner = PatternNER::default();
+    let ner = RegexNER::default();
     let entities = ner.extract_entities(text, None).unwrap_or_default();
 
     if entities.is_empty() {

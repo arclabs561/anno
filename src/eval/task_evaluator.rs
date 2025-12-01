@@ -335,7 +335,7 @@ impl TaskEvaluator {
             }
             // Pattern only does structured entities (not named entities)
             "pattern" => {
-                // PatternNER only extracts: Date, Time, Money, Percent, Email, URL, Phone
+                // RegexNER only extracts: Date, Time, Money, Percent, Email, URL, Phone
                 // Not compatible with named entity datasets
                 false
             }

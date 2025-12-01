@@ -65,10 +65,10 @@ fn bench_backend_extraction(c: &mut Criterion) {
         group.sample_size(20);
 
         // Pattern NER (baseline)
-        let pattern_ner = PatternNER::new();
-        group.bench_function("pattern_ner", |b| {
+        let regex_ner = RegexNER::new();
+        group.bench_function("regex_ner", |b| {
             b.iter(|| {
-                let _ = pattern_ner.extract_entities(black_box(text), None);
+                let _ = regex_ner.extract_entities(black_box(text), None);
             })
         });
 

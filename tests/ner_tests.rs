@@ -1,6 +1,6 @@
 //! NER evaluation tests
 use anno::eval::{entity_type_matches, entity_type_to_string, evaluate_ner_model, GoldEntity};
-use anno::{EntityType, PatternNER};
+use anno::{EntityType, RegexNER};
 
 #[test]
 fn test_entity_type_matches() {
@@ -45,7 +45,7 @@ fn test_entity_type_to_string() {
 
 #[test]
 fn test_evaluate_ner_model_basic() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     let test_cases = vec![(
         "Meeting on January 15, 2025 for $100".to_string(),
@@ -65,7 +65,7 @@ fn test_evaluate_ner_model_basic() {
 
 #[test]
 fn test_evaluate_empty_dataset() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let test_cases: Vec<(String, Vec<GoldEntity>)> = vec![];
 
     let metrics = evaluate_ner_model(&model, &test_cases).unwrap();

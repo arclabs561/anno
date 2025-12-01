@@ -82,9 +82,9 @@ for backend in backends {
 ```
 
 **Opportunity**: If multiple backends process the same text:
-- PatternNER, HeuristicNER, StackedNER all process "Apple Inc. was founded..."
+- RegexNER, HeuristicNER, StackedNER all process "Apple Inc. was founded..."
 - They all tokenize/parse the same text
-- Could share tokenization results (though PatternNER doesn't use ML tokenization)
+- Could share tokenization results (though RegexNER doesn't use ML tokenization)
 
 **Challenge**: Different backends use different tokenizers/encoders, so sharing is limited.
 

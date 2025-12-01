@@ -21,7 +21,7 @@ for task in tasks {
 
 Example:
 - Text: "Apple Inc. was founded by Steve Jobs in 1976."
-- PatternNER processes it
+- RegexNER processes it
 - HeuristicNER processes it  
 - GLiNER processes it
 - All tokenize/encode the same text independently
@@ -102,7 +102,7 @@ pub struct TaskEvaluator {
 - BERT-based backends might share tokenizer
 
 **When NOT to use**:
-- Different tokenizers (PatternNER vs. GLiNER)
+- Different tokenizers (RegexNER vs. GLiNER)
 - Different encoders (BERT vs. ModernBERT)
 
 ### 4. GLiNER - Same (text, entity_types) with Different Thresholds

@@ -10,7 +10,7 @@ use anno::eval::coref_resolver::{
 };
 use anno::eval::synthetic::news_dataset;
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // NER Pipeline Tests
@@ -22,7 +22,7 @@ fn test_ner_pipeline_on_synthetic_data() {
     assert!(!dataset.is_empty(), "Dataset should not be empty");
 
     let backends: Vec<(&str, Box<dyn Model>)> = vec![
-        ("PatternNER", Box::new(PatternNER::new())),
+        ("RegexNER", Box::new(RegexNER::new())),
         ("HeuristicNER", Box::new(HeuristicNER::new())),
         ("StackedNER", Box::new(StackedNER::new())),
     ];
@@ -281,7 +281,7 @@ fn test_full_pipeline_news_article() {
 #[test]
 fn test_full_pipeline_edge_cases() {
     // Edge case: Empty text
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let entities = ner.extract_entities("", None).expect("Should handle empty");
     assert!(entities.is_empty());
 

@@ -208,9 +208,9 @@ From `coref_metrics.rs`:
 
 ```rust
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::PatternNER;
+use anno::RegexNER;
 
-let model = PatternNER::new();
+let model = RegexNER::new();
 let test_cases = vec![
     ("Meeting on Jan 15".into(), vec![
         GoldEntity::new("Jan 15", EntityType::Date, 11),

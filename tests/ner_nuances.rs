@@ -5,7 +5,7 @@
 //! 2. Statistical classification scoring
 //! 3. Layer interaction and overlap handling
 
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // PATTERN CONFIDENCE AND PRIORITY
@@ -16,7 +16,7 @@ mod pattern_confidence {
     use super::*;
 
     fn extract(text: &str) -> Vec<Entity> {
-        PatternNER::new().extract_entities(text, None).unwrap()
+        RegexNER::new().extract_entities(text, None).unwrap()
     }
 
     /// ISO dates should have high confidence (0.95) as they're unambiguous.
@@ -112,7 +112,7 @@ mod pattern_priority {
     use super::*;
 
     fn extract(text: &str) -> Vec<Entity> {
-        PatternNER::new().extract_entities(text, None).unwrap()
+        RegexNER::new().extract_entities(text, None).unwrap()
     }
 
     /// When multiple patterns could match, higher confidence should win.
@@ -363,7 +363,7 @@ mod edge_cases {
     use super::*;
 
     fn pattern_extract(text: &str) -> Vec<Entity> {
-        PatternNER::new().extract_entities(text, None).unwrap()
+        RegexNER::new().extract_entities(text, None).unwrap()
     }
 
     fn stat_extract(text: &str) -> Vec<Entity> {
@@ -523,7 +523,7 @@ mod provenance {
 
     #[test]
     fn pattern_provenance_has_source() {
-        let e = PatternNER::new()
+        let e = RegexNER::new()
             .extract_entities("Price: $100", None)
             .unwrap();
 
@@ -534,7 +534,7 @@ mod provenance {
 
     #[test]
     fn pattern_provenance_has_pattern_name() {
-        let e = PatternNER::new()
+        let e = RegexNER::new()
             .extract_entities("Email: test@email.com", None)
             .unwrap();
 
@@ -580,7 +580,7 @@ mod regressions {
     /// Issue: Emails with valid subdomains should match.
     #[test]
     fn email_with_subdomain_matches() {
-        let e = PatternNER::new()
+        let e = RegexNER::new()
             .extract_entities("Contact: admin@mail.company.co.uk", None)
             .unwrap();
 
@@ -594,7 +594,7 @@ mod regressions {
     /// Issue: URLs with paths and queries should match.
     #[test]
     fn url_with_complex_path_matches() {
-        let e = PatternNER::new()
+        let e = RegexNER::new()
             .extract_entities(
                 "API: https://api.example.com/v1/users?page=1&sort=asc",
                 None,
@@ -619,7 +619,7 @@ mod regressions {
         ];
 
         for case in cases {
-            let e = PatternNER::new().extract_entities(case, None).unwrap();
+            let e = RegexNER::new().extract_entities(case, None).unwrap();
 
             let phones: Vec<_> = e
                 .iter()
@@ -640,7 +640,7 @@ mod regressions {
         ];
 
         for case in cases {
-            let e = PatternNER::new().extract_entities(case, None).unwrap();
+            let e = RegexNER::new().extract_entities(case, None).unwrap();
 
             let dates: Vec<_> = e
                 .iter()

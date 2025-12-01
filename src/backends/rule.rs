@@ -1,6 +1,6 @@
 //! Rule-based Named Entity Recognition (NER) - **DEPRECATED**.
 //!
-//! **Use `PatternNER` instead** - it only extracts format-based entities
+//! **Use `RegexNER` instead** - it only extracts format-based entities
 //! (dates, money, percentages) without hardcoded gazetteers.
 //!
 //! ## Why Deprecated
@@ -19,10 +19,10 @@
 //! ## Migration
 //!
 //! ```rust
-//! use anno::{PatternNER, Model};
+//! use anno::{RegexNER, Model};
 //!
-//! // Use PatternNER for dates, money, percentages
-//! let model = PatternNER::new();
+//! // Use RegexNER for dates, money, percentages
+//! let model = RegexNER::new();
 //! let entities = model.extract_entities("Cost: $100", None).unwrap();
 //! // For Person/Org/Location, enable `onnx` feature and use BertNEROnnx
 //! ```
@@ -39,13 +39,13 @@ use crate::{Entity, EntityType, Model, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-/// Rule-based NER (**DEPRECATED** - use `PatternNER` or ML backends).
+/// Rule-based NER (**DEPRECATED** - use `RegexNER` or ML backends).
 ///
 /// Contains hardcoded gazetteers that give inflated F1 on curated tests
 /// but fail on novel entities. Use `NERExtractor::best_available()` instead.
 #[deprecated(
     since = "0.1.0",
-    note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX). Will be removed in 1.0."
+    note = "Use RegexNER (no gazetteers) or ML backends (BERT ONNX). Will be removed in 1.0."
 )]
 pub struct RuleBasedNER {
     /// Minimum confidence for extracted entities

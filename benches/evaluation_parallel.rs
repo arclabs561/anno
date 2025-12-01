@@ -55,7 +55,7 @@ fn bench_parallel_vs_sequential(c: &mut Criterion) {
     for &sentence_count in &[10, 50, 100] {
         let dataset = create_mock_dataset(sentence_count);
 
-        // Test with PatternNER (fast, no model loading)
+        // Test with RegexNER (fast, no model loading)
         if let Ok(backend) = BackendFactory::create("pattern") {
             let evaluator = TaskEvaluator::new().unwrap();
 

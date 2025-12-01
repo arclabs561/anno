@@ -61,7 +61,7 @@ Successfully harmonized all backend implementations to ensure consistent trait c
 
 | Backend | Model | BatchCapable | StreamingCapable | GpuCapable | DynamicLabels | RelationCapable | DiscontinuousNER |
 |---------|-------|--------------|------------------|------------|---------------|-----------------|------------------|
-| PatternNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| RegexNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | HeuristicNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | StackedNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | GLiNEROnnx | ✅ | ✅ | ✅ | ❌* | ✅ | ❌ | ❌ |

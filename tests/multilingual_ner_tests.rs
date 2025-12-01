@@ -1,11 +1,11 @@
 //! Multilingual NER tests - exposing limitations of pattern and statistical approaches.
 //!
-//! These tests demonstrate where PatternNER and HeuristicNER fail on non-English text,
+//! These tests demonstrate where RegexNER and HeuristicNER fail on non-English text,
 //! serving as a baseline for future ML-based improvements.
 //!
 //! ## Key Findings from Research
 //!
-//! 1. **PatternNER (regex)**: Works well across languages for structured entities
+//! 1. **RegexNER (regex)**: Works well across languages for structured entities
 //!    (dates, emails, URLs, money with $ € £ ¥) but fails for:
 //!    - Language-specific date formats (Japanese 年月日, Arabic numerals)
 //!    - Currency names in other languages
@@ -30,14 +30,14 @@
 //! - MultiCoNER: 12 languages, 33 fine-grained types
 //! - CoNLL 2002/2003: Spanish, Dutch, German, English
 
-use anno::{Entity, EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // Test Helpers
 // =============================================================================
 
-fn pattern() -> PatternNER {
-    PatternNER::new()
+fn pattern() -> RegexNER {
+    RegexNER::new()
 }
 
 fn stats() -> HeuristicNER {
@@ -667,7 +667,7 @@ mod improvement_opportunities {
         let m = re.find(text).unwrap();
         assert_eq!(m.as_str(), "١٢٣");
 
-        // This means PatternNER works with Arabic-Indic numerals automatically!
+        // This means RegexNER works with Arabic-Indic numerals automatically!
     }
 
     /// For non-capitalizing languages, could use:
@@ -700,7 +700,7 @@ mod improvement_opportunities {
 
 /// Summary of expected performance by language and backend.
 ///
-/// | Language | PatternNER | HeuristicNER | Notes |
+/// | Language | RegexNER | HeuristicNER | Notes |
 /// |----------|------------|----------------|-------|
 /// | English | High | Medium | Reference implementation |
 /// | German | High | Low-Medium | All nouns capitalized (FP problem) |
@@ -714,13 +714,13 @@ mod improvement_opportunities {
 ///
 /// For production multilingual NER, use:
 /// - GLiNER/NuNER for named entities (zero-shot works across languages)
-/// - PatternNER for structured entities (extend date patterns)
+/// - RegexNER for structured entities (extend date patterns)
 #[test]
 fn performance_expectations_documented() {
     // This test exists to document expected behavior
     // See table above in doc comment
 
-    // PatternNER: ~95%+ precision on supported patterns, any language
+    // RegexNER: ~95%+ precision on supported patterns, any language
     // HeuristicNER: ~60-70% F1 English, near-zero for CJK/Arabic
 
     assert!(true, "Documentation test");

@@ -11,13 +11,13 @@
 //!
 //! ```rust,ignore
 //! use anno::eval::harness::{EvalHarness, EvalConfig, BackendRegistry};
-//! use anno::{PatternNER, HeuristicNER, StackedNER};
+//! use anno::{RegexNER, HeuristicNER, StackedNER};
 //!
 //! // Create harness with default config
 //! let mut harness = EvalHarness::new(EvalConfig::default())?;
 //!
 //! // Register backends
-//! harness.register("pattern", Box::new(PatternNER::new()));
+//! harness.register("pattern", Box::new(RegexNER::new()));
 //! harness.register("heuristic", Box::new(HeuristicNER::new()));
 //! harness.register("stacked", Box::new(StackedNER::new()));
 //!
@@ -217,12 +217,12 @@ impl BackendRegistry {
 
     /// Register default zero-dependency backends.
     pub fn register_defaults(&mut self) {
-        use crate::{HeuristicNER, PatternNER, StackedNER};
+        use crate::{HeuristicNER, RegexNER, StackedNER};
 
         self.register(
-            "PatternNER",
+            "RegexNER",
             "Regex patterns (DATE/MONEY/EMAIL/etc.)",
-            Box::new(PatternNER::new()),
+            Box::new(RegexNER::new()),
         );
         self.register(
             "HeuristicNER",
@@ -335,7 +335,7 @@ impl BackendRegistry {
     /// let mut registry = BackendRegistry::new();
     /// registry.register_stack(
     ///     "custom_stack",
-    ///     &["PatternNER", "HeuristicNER"],
+    ///     &["RegexNER", "HeuristicNER"],
     ///     ConflictStrategy::HighestConf,
     /// );
     /// ```
@@ -346,15 +346,15 @@ impl BackendRegistry {
         strategy: crate::backends::stacked::ConflictStrategy,
     ) {
         use crate::backends::stacked::StackedNERBuilder;
-        use crate::{HeuristicNER, PatternNER};
+        use crate::{HeuristicNER, RegexNER};
 
         let name = name.into();
         let mut builder = StackedNERBuilder::default().strategy(strategy);
 
         for layer_name in layer_names {
             match *layer_name {
-                "PatternNER" | "pattern" => {
-                    builder = builder.layer(PatternNER::new());
+                "RegexNER" | "pattern" => {
+                    builder = builder.layer(RegexNER::new());
                 }
                 "HeuristicNER" | "heuristic" => {
                     builder = builder.layer(HeuristicNER::new());
@@ -380,7 +380,7 @@ impl BackendRegistry {
     /// Register all possible combinations of base backends.
     ///
     /// This creates:
-    /// - Individual backends (PatternNER, HeuristicNER)
+    /// - Individual backends (RegexNER, HeuristicNER)
     /// - Two-layer stacks (Pattern->Heuristic, Heuristic->Pattern)
     /// - Different conflict strategies
     pub fn register_all_combinations(&mut self) {
@@ -389,27 +389,27 @@ impl BackendRegistry {
         // Already registered as part of defaults
         self.register_defaults();
 
-        // Additional ordering: HeuristicNER first, then PatternNER
+        // Additional ordering: HeuristicNER first, then RegexNER
         self.register_stack(
             "Heuristic->Pattern",
-            &["HeuristicNER", "PatternNER"],
+            &["HeuristicNER", "RegexNER"],
             ConflictStrategy::HighestConf,
         );
 
         // Different conflict strategies for default stack
         self.register_stack(
             "Stack_LongestSpan",
-            &["PatternNER", "HeuristicNER"],
+            &["RegexNER", "HeuristicNER"],
             ConflictStrategy::LongestSpan,
         );
         self.register_stack(
             "Stack_Priority",
-            &["PatternNER", "HeuristicNER"],
+            &["RegexNER", "HeuristicNER"],
             ConflictStrategy::Priority,
         );
         self.register_stack(
             "Stack_Union",
-            &["PatternNER", "HeuristicNER"],
+            &["RegexNER", "HeuristicNER"],
             ConflictStrategy::Union,
         );
     }
@@ -1346,6 +1346,6 @@ mod tests {
 
         assert!(html.contains("<html"));
         assert!(html.contains("NER Evaluation Report"));
-        assert!(html.contains("PatternNER"));
+        assert!(html.contains("RegexNER"));
     }
 }

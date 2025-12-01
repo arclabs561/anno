@@ -36,7 +36,7 @@ cargo run --example grounded
 
 | Example | Features | Description |
 |---------|----------|-------------|
-| `quickstart` | — | Basic span extraction with PatternNER |
+| `quickstart` | — | Basic span extraction with RegexNER |
 | `eval_basic` | eval | **Start here!** Simple backend comparison |
 | `eval` | eval | Full evaluation on synthetic and real datasets |
 | `bert` | onnx | BERT-based NER |

@@ -47,7 +47,7 @@ This document provides a complete matrix of:
 
 | Backend | Feature | Zero-Shot | Nested | Discontinuous | Relations | Status | Tests |
 |---------|---------|-----------|--------|---------------|-----------|--------|-------|
-| **PatternNER** | - | No | No | No | No | ✅ Stable | ✅ 100+ |
+| **RegexNER** | - | No | No | No | No | ✅ Stable | ✅ 100+ |
 | **HeuristicNER** | - | No | No | No | No | ✅ Stable | ✅ 50+ |
 | **StackedNER** | - | No | No | No | No | ✅ Stable | ✅ 100+ |
 | **BertNEROnnx** | `onnx` | No | No | No | No | ✅ Stable | ✅ 30+ |
@@ -306,7 +306,7 @@ This document provides a complete matrix of:
 
 ### 6.1 Task × Model Coverage
 
-| Task | PatternNER | HeuristicNER | StackedNER | BertNEROnnx | GLiNEROnnx | NuNER | W2NER | CandleNER | GLiNERCandle | GLiNER2 |
+| Task | RegexNER | HeuristicNER | StackedNER | BertNEROnnx | GLiNEROnnx | NuNER | W2NER | CandleNER | GLiNERCandle | GLiNER2 |
 |------|------------|--------------|------------|-------------|------------|-------|-------|------------|--------------|---------|
 | **NER** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **Zero-Shot NER** | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
@@ -356,7 +356,7 @@ This document provides a complete matrix of:
 
 | Backend | Unit Tests | Integration Tests | Dataset Tests | Total |
 |---------|------------|-------------------|---------------|-------|
-| PatternNER | ✅ 100+ | ✅ 50+ | ✅ 30+ | ~180+ |
+| RegexNER | ✅ 100+ | ✅ 50+ | ✅ 30+ | ~180+ |
 | HeuristicNER | ✅ 50+ | ✅ 50+ | ✅ 30+ | ~130+ |
 | StackedNER | ✅ 100+ | ✅ 50+ | ✅ 30+ | ~180+ |
 | BertNEROnnx | ✅ 30+ | ✅ 20+ | ✅ 30+ | ~80+ |

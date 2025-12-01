@@ -2,7 +2,7 @@
 //!
 //! This file explores the nuances of each layer and their interactions:
 //!
-//! - **PatternNER**: Format-based detection with regex
+//! - **RegexNER**: Format-based detection with regex
 //! - **HeuristicNER**: Heuristic-based named entity detection
 //! - **StackedNER**: Combined extraction with priority merging
 //!
@@ -31,17 +31,17 @@
 //! for overlapping spans. This prevents statistical NER from incorrectly
 //! classifying something that's clearly a date or email.
 
-use anno::{EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // PATTERN NER: FORMAT-BASED DETECTION
 // =============================================================================
 
-mod pattern_ner {
+mod regex_ner {
     use super::*;
 
     fn extract(text: &str) -> Vec<anno::Entity> {
-        PatternNER::new().extract_entities(text, None).unwrap()
+        RegexNER::new().extract_entities(text, None).unwrap()
     }
 
     fn types(entities: &[anno::Entity]) -> Vec<EntityType> {
@@ -1099,8 +1099,8 @@ mod proptests {
 
     proptest! {
         #[test]
-        fn pattern_ner_never_panics(text in ".*") {
-            let ner = PatternNER::new();
+        fn regex_ner_never_panics(text in ".*") {
+            let ner = RegexNER::new();
             let _ = ner.extract_entities(&text, None);
         }
 
@@ -1146,7 +1146,7 @@ mod proptests {
         #[test]
         fn dollar_amounts_found(amount in 1u32..100000) {
             let text = format!("Cost: ${}", amount);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Money));
         }
@@ -1154,7 +1154,7 @@ mod proptests {
         #[test]
         fn emails_found(user in "[a-z]{3,10}", domain in "[a-z]{3,8}") {
             let text = format!("Contact: {}@{}.com", user, domain);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Email));
         }
@@ -1162,7 +1162,7 @@ mod proptests {
         #[test]
         fn urls_found(path in "[a-z]{1,10}") {
             let text = format!("Visit https://example.com/{}", path);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Url));
         }
@@ -1170,7 +1170,7 @@ mod proptests {
         #[test]
         fn iso_dates_found(y in 2000u32..2030, m in 1u32..13, d in 1u32..29) {
             let text = format!("Date: {:04}-{:02}-{:02}", y, m, d);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
             prop_assert!(entities.iter().any(|e| e.entity_type == EntityType::Date));
         }
@@ -1198,7 +1198,7 @@ mod regressions {
     /// Ensure month names at sentence start are dates, not persons
     #[test]
     fn month_names_are_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities("January 15, 2024 was the deadline.", None)
             .unwrap();
@@ -1230,7 +1230,7 @@ mod regressions {
     /// Ensure URLs with special characters are captured correctly
     #[test]
     fn url_special_chars() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let e = ner
             .extract_entities(
                 "API: https://api.example.com/v1/users?page=1&limit=10#section",
@@ -1247,7 +1247,7 @@ mod regressions {
     /// Ensure phone numbers with various separators work
     #[test]
     fn phone_separators() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             "555-123-4567",

@@ -34,7 +34,7 @@ text_cache: Arc<Mutex<HashMap<u64, Vec<f32>>>>
 
 Adding `context: Option<&SharedContext>` to `extract_entities`:
 - **Breaking change**: Would require updating all backends
-- **Trait pollution**: Not all backends benefit from caching (PatternNER doesn't need it)
+- **Trait pollution**: Not all backends benefit from caching (RegexNER doesn't need it)
 - **Complexity**: Context must be passed through call chains
 
 **Better**: Make caching opt-in via a separate trait or builder pattern.

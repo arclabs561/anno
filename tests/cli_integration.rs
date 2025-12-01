@@ -7,7 +7,7 @@ use anno::grounded::{
     render_document_html, render_eval_html, EvalComparison, EvalMatch, GroundedDocument, Location,
     Modality, Quantifier, Signal, SignalValidationError,
 };
-use anno::{EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
 // Model Coverage Tests
@@ -15,7 +15,7 @@ use anno::{EntityType, HeuristicNER, Model, PatternNER, StackedNER};
 
 #[test]
 fn test_pattern_model_dates() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let text = "Meeting on January 15, 2024 at 3pm.";
     let entities = model.extract_entities(text, None).unwrap();
 
@@ -25,7 +25,7 @@ fn test_pattern_model_dates() {
 
 #[test]
 fn test_pattern_model_money() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     // Various money formats
     let cases = [
@@ -47,7 +47,7 @@ fn test_pattern_model_money() {
 
 #[test]
 fn test_pattern_model_contact() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let text = "Contact john.doe@example.com or call 555-123-4567 or visit https://example.com";
     let entities = model.extract_entities(text, None).unwrap();
 
@@ -564,7 +564,7 @@ fn regression_barack_obama_detected() {
 
 #[test]
 fn regression_money_with_commas() {
-    let model = PatternNER::new();
+    let model = RegexNER::new();
     let text = "Budget: $50,000.";
     let entities = model.extract_entities(text, None).unwrap();
 

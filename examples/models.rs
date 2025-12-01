@@ -9,7 +9,7 @@
 //!
 //! Run: cargo run --features "onnx" --example models
 
-use anno::{HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{HeuristicNER, Model, RegexNER, StackedNER};
 use std::time::Instant;
 
 #[cfg(feature = "onnx")]
@@ -32,8 +32,8 @@ fn main() -> anno::Result<()> {
     println!("------------------------------------------------\n");
 
     // Pattern NER
-    println!("[PatternNER]");
-    let pattern = PatternNER::new();
+    println!("[RegexNER]");
+    let pattern = RegexNER::new();
     run_model_test(&pattern, &test_texts[0..2]);
 
     // Statistical NER
@@ -156,14 +156,14 @@ fn main() -> anno::Result<()> {
         );
 
         // Pattern NER
-        let pattern = PatternNER::new();
+        let pattern = RegexNER::new();
         let start = Instant::now();
         for _ in 0..iterations {
             let _ = pattern.extract_entities(benchmark_text, None);
         }
         let pattern_time = start.elapsed();
         println!(
-            "  PatternNER:     {:>6.2}ms avg",
+            "  RegexNER:     {:>6.2}ms avg",
             pattern_time.as_secs_f64() * 1000.0 / iterations as f64
         );
 
@@ -223,8 +223,8 @@ fn main() -> anno::Result<()> {
     println!("\nPART 5: Entity Type Coverage");
     println!("----------------------------\n");
 
-    println!("[PatternNER Types]");
-    for t in PatternNER::new().supported_types() {
+    println!("[RegexNER Types]");
+    for t in RegexNER::new().supported_types() {
         println!("  {}", t.as_label());
     }
 
@@ -255,7 +255,7 @@ fn main() -> anno::Result<()> {
     println!("-------\n");
 
     println!("Available backends:");
-    println!("  [x] PatternNER     - Regex patterns (dates, emails, money, etc.)");
+    println!("  [x] RegexNER     - Regex patterns (dates, emails, money, etc.)");
     println!("  [x] HeuristicNER - Capitalization heuristics (PER, ORG, LOC)");
     println!("  [x] StackedNER     - Combined Pattern + Statistical");
     #[cfg(feature = "onnx")]

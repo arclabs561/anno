@@ -17,7 +17,7 @@
 //! ```
 
 use anno::eval::synthetic::all_datasets;
-use anno::{Model, PatternNER};
+use anno::{Model, RegexNER};
 use std::time::Instant;
 
 /// Backend info for comparison.
@@ -71,8 +71,8 @@ fn benchmark_backend(backend: &BackendInfo, texts: &[String]) -> BenchmarkResult
 }
 
 #[test]
-fn test_pattern_ner_basic() {
-    let ner = PatternNER::new();
+fn test_regex_ner_basic() {
+    let ner = RegexNER::new();
     assert!(ner.is_available());
     assert_eq!(ner.name(), "pattern");
 
@@ -107,8 +107,8 @@ fn test_pattern_ner_basic() {
 }
 
 #[test]
-fn test_pattern_ner_contact_entities() {
-    let ner = PatternNER::new();
+fn test_regex_ner_contact_entities() {
+    let ner = RegexNER::new();
 
     let text = "Contact: bob@example.com, https://example.com, (555) 123-4567";
     let entities = ner.extract_entities(text, None).unwrap();
@@ -129,8 +129,8 @@ fn test_pattern_ner_contact_entities() {
 }
 
 #[test]
-fn test_pattern_ner_no_named_entities() {
-    let ner = PatternNER::new();
+fn test_regex_ner_no_named_entities() {
+    let ner = RegexNER::new();
 
     // Pattern NER should NOT extract person/org/location
     let text = "Steve Jobs founded Apple in Cupertino, California.";
@@ -195,7 +195,7 @@ fn test_backend_comparison_on_synthetic() {
     );
 
     // Create available backends
-    let backends: Vec<BackendInfo> = vec![BackendInfo::new("pattern", PatternNER::new())];
+    let backends: Vec<BackendInfo> = vec![BackendInfo::new("pattern", RegexNER::new())];
 
     // Run benchmarks
     let mut results = Vec::new();

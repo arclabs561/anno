@@ -23,7 +23,7 @@
 //! │  └─ CRF-based (conditional random fields) - classical               │
 //! │                                                                     │
 //! │  Zero Dependency (always available)                                 │
-//! │  ├─ PatternNER (regex) - structured entities                        │
+//! │  ├─ RegexNER (regex) - structured entities                        │
 //! │  └─ HeuristicNER (heuristics) - Person/Org/Location               │
 //! │                                                                     │
 //! └─────────────────────────────────────────────────────────────────────┘
@@ -33,7 +33,7 @@
 //!
 //! | Backend | Feature | Zero-Shot | Nested | Speed | Status |
 //! |---------|---------|-----------|--------|-------|--------|
-//! | `PatternNER` | - | No | No | ~400ns | ✅ Complete |
+//! | `RegexNER` | - | No | No | ~400ns | ✅ Complete |
 //! | `HeuristicNER` | - | No | No | ~50μs | ✅ Complete |
 //! | `StackedNER` | - | No | No | varies | ✅ Complete |
 //! | `BertNEROnnx` | `onnx` | No | No | ~50ms | ✅ Complete |
@@ -121,7 +121,7 @@
 //! | Nested entities | `W2NER` |
 //! | Production (fixed types) | `BertNEROnnx` |
 //! | Knowledge graphs | `HandshakingMatrix` (TPLinker) |
-//! | Structured data | `PatternNER` |
+//! | Structured data | `RegexNER` |
 //!
 //! # Why Multiple GLiNER Implementations?
 //!

@@ -5,7 +5,7 @@
 //!
 //! Run: cargo run --features "onnx" --example hybrid
 
-use anno::{Entity, HybridNER, Model, PatternNER};
+use anno::{Entity, HybridNER, Model, RegexNER};
 use std::collections::HashSet;
 
 #[cfg(feature = "onnx")]
@@ -41,7 +41,7 @@ fn main() -> anno::Result<()> {
     ];
 
     // Initialize models
-    let pattern = PatternNER::new();
+    let pattern = RegexNER::new();
     let hybrid_basic = HybridNER::pattern_only();
 
     #[cfg(feature = "onnx")]
@@ -58,7 +58,7 @@ fn main() -> anno::Result<()> {
 
         // Pattern only
         let pattern_entities = pattern.extract_entities(text, None).unwrap_or_default();
-        println!("  PatternNER:     {}", format_entities(&pattern_entities));
+        println!("  RegexNER:     {}", format_entities(&pattern_entities));
 
         // BERT only
         #[cfg(feature = "onnx")]
@@ -124,7 +124,7 @@ fn main() -> anno::Result<()> {
     }
 
     println!("Entity counts across {} test cases:", test_cases.len());
-    println!("  PatternNER:     {:2} entities", total_pattern);
+    println!("  RegexNER:     {:2} entities", total_pattern);
     #[cfg(feature = "onnx")]
     println!("  GLiNER:         {:2} entities", total_ml);
     #[cfg(feature = "onnx")]
@@ -132,7 +132,7 @@ fn main() -> anno::Result<()> {
 
     println!("\nComplementary Strengths:");
     println!();
-    println!("  PatternNER excels at:");
+    println!("  RegexNER excels at:");
     println!("    - Dates (March 15, 2024)");
     println!("    - Times (3:00 PM)");
     println!("    - Money ($50 million)");
@@ -159,7 +159,7 @@ fn main() -> anno::Result<()> {
     println!("  let model = HybridNER::default();");
     println!();
     println!("  // Option 2: Manual combination with deduplication");
-    println!("  let pattern = PatternNER::new();");
+    println!("  let pattern = RegexNER::new();");
     println!("  let ml = GLiNEROnnx::new(\"...\")?;");
     println!("  let entities = merge_entities(pattern.extract(text)?, ml.extract(text)?);");
     println!();

@@ -8,7 +8,7 @@
 use anno::eval::benchmark::{generate_large_dataset, BenchmarkStats, EdgeCaseType};
 use anno::eval::synthetic::{all_datasets, AnnotatedExample};
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{Model, PatternNER};
+use anno::{Model, RegexNER};
 use std::time::Instant;
 
 /// Convert AnnotatedExample to the format expected by evaluate_ner_model.
@@ -83,11 +83,11 @@ fn test_large_benchmark_500_examples() {
     );
 
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
-    evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER on 500 hard examples");
+    let regex_ner = RegexNER::new();
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on 500 hard examples");
 
-    // PatternNER should perform ~50% or less on mixed hard examples
-    let results = evaluate_ner_model(&pattern_ner, &test_cases).unwrap();
+    // RegexNER should perform ~50% or less on mixed hard examples
+    let results = evaluate_ner_model(&regex_ner, &test_cases).unwrap();
     assert!(
         results.f1 < 0.8,
         "Expected F1 < 80% on hard examples, got {:.1}%",
@@ -107,11 +107,11 @@ fn test_large_benchmark_1000_examples() {
     );
 
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
+    let regex_ner = RegexNER::new();
     evaluate_with_stats(
-        &pattern_ner,
+        &regex_ner,
         &test_cases,
-        "PatternNER on 1000 hard examples",
+        "RegexNER on 1000 hard examples",
     );
 }
 
@@ -121,15 +121,15 @@ fn test_ambiguous_cases_only() {
     println!("\n=== Ambiguous Cases (500 examples) ===");
     let dataset = generate_large_dataset(500, EdgeCaseType::Ambiguous);
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
+    let regex_ner = RegexNER::new();
     evaluate_with_stats(
-        &pattern_ner,
+        &regex_ner,
         &test_cases,
-        "PatternNER on ambiguous examples",
+        "RegexNER on ambiguous examples",
     );
 
     // Ambiguous cases are genuinely hard - models should struggle
-    let _results = evaluate_ner_model(&pattern_ner, &test_cases).unwrap();
+    let _results = evaluate_ner_model(&regex_ner, &test_cases).unwrap();
     println!("\nNote: Low scores expected on ambiguous cases (Apple company vs fruit, etc.)");
 }
 
@@ -145,8 +145,8 @@ fn test_unicode_edge_cases() {
     );
 
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
-    evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER on Unicode examples");
+    let regex_ner = RegexNER::new();
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on Unicode examples");
 }
 
 #[test]
@@ -161,15 +161,15 @@ fn test_numeric_edge_cases() {
     );
 
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
+    let regex_ner = RegexNER::new();
     evaluate_with_stats(
-        &pattern_ner,
+        &regex_ner,
         &test_cases,
-        "PatternNER on numeric edge cases",
+        "RegexNER on numeric edge cases",
     );
 
-    // PatternNER should do well on numeric patterns
-    let results = evaluate_ner_model(&pattern_ner, &test_cases).unwrap();
+    // RegexNER should do well on numeric patterns
+    let results = evaluate_ner_model(&regex_ner, &test_cases).unwrap();
     assert!(
         results.f1 > 0.3,
         "Expected F1 > 30% on numeric edge cases, got {:.1}%",
@@ -183,8 +183,8 @@ fn test_boundary_edge_cases() {
     println!("\n=== Boundary Edge Cases (500 examples) ===");
     let dataset = generate_large_dataset(500, EdgeCaseType::Boundary);
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
-    evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER on boundary cases");
+    let regex_ner = RegexNER::new();
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on boundary cases");
 }
 
 #[test]
@@ -199,8 +199,8 @@ fn test_dense_text() {
     );
 
     let test_cases = to_test_cases(&dataset);
-    let pattern_ner = PatternNER::new();
-    evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER on dense text");
+    let regex_ner = RegexNER::new();
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on dense text");
 }
 
 #[test]
@@ -213,10 +213,10 @@ fn test_comprehensive_slow_benchmark() {
     // Test on full synthetic dataset first
     let synthetic = all_datasets();
     let test_cases = to_test_cases(&synthetic);
-    let pattern_ner = PatternNER::new();
+    let regex_ner = RegexNER::new();
 
     println!("\n--- Synthetic Dataset ({} examples) ---", synthetic.len());
-    evaluate_with_stats(&pattern_ner, &test_cases, "PatternNER");
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER");
 
     // Then test on each edge case type
     for edge_type in [
@@ -233,7 +233,7 @@ fn test_comprehensive_slow_benchmark() {
     ] {
         let dataset = generate_large_dataset(100, edge_type);
         let test_cases = to_test_cases(&dataset);
-        evaluate_with_stats(&pattern_ner, &test_cases, &format!("{:?}", edge_type));
+        evaluate_with_stats(&regex_ner, &test_cases, &format!("{:?}", edge_type));
     }
 
     // Large combined benchmark
@@ -247,9 +247,9 @@ fn test_comprehensive_slow_benchmark() {
 
     let test_cases = to_test_cases(&large_dataset);
     evaluate_with_stats(
-        &pattern_ner,
+        &regex_ner,
         &test_cases,
-        "PatternNER on 5000 hard examples",
+        "RegexNER on 5000 hard examples",
     );
 
     println!("\n========================================");

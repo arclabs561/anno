@@ -986,7 +986,7 @@ pub struct Provenance {
 }
 
 impl Provenance {
-    /// Create provenance for pattern-based extraction.
+    /// Create provenance for regex-based extraction.
     #[must_use]
     pub fn pattern(pattern_name: &'static str) -> Self {
         Self {

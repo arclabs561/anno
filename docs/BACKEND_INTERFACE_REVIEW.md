@@ -68,7 +68,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 
 | Backend | BatchCapable | StreamingCapable | DynamicLabels | RelationCapable | GpuCapable |
 |---------|--------------|------------------|---------------|-----------------|------------|
-| PatternNER | ✅ | ✅ | ❌ | ❌ | ❌ |
+| RegexNER | ✅ | ✅ | ❌ | ❌ | ❌ |
 | HeuristicNER | ❌ | ❌ | ❌ | ❌ | ❌ |
 | StackedNER | ✅ | ✅ | ❌ | ❌ | ❌ |
 | GLiNEROnnx | ✅ | ✅ | ✅ (via ZeroShotNER) | ❌ | ❌ |
@@ -119,7 +119,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 
 ### 2.1 Zero-Dependency Backends
 
-#### PatternNER
+#### RegexNER
 **File**: `src/backends/pattern.rs`
 
 **Strengths**:
@@ -165,7 +165,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 - ✅ Good builder pattern
 
 **Issues**:
-- ⚠️ No validation that layers don't conflict (e.g., two PatternNER layers)
+- ⚠️ No validation that layers don't conflict (e.g., two RegexNER layers)
 - ⚠️ Conflict resolution happens per-entity, not globally (could be optimized)
 
 **Recommendations**:
@@ -371,7 +371,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 
 **Issues**:
 - ⚠️ No unified configuration interface
-- ⚠️ Some backends have no config (PatternNER, HeuristicNER)
+- ⚠️ Some backends have no config (RegexNER, HeuristicNER)
 
 **Recommendations**:
 - Consider a unified `BackendConfig` trait or enum
@@ -449,7 +449,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 
 4. **Improve configuration**:
    - Add unified configuration interface
-   - Make PatternNER and HeuristicNER configurable
+   - Make RegexNER and HeuristicNER configurable
 
 5. **Split large files**:
    - Split `gliner2.rs` (2700 lines) into multiple files
@@ -474,7 +474,7 @@ The backend architecture is well-designed with a sealed `Model` trait providing 
 
 ## 7. Conclusion
 
-The backend architecture is **well-designed** with a clear separation of concerns, good use of traits, and comprehensive coverage of NER approaches (pattern-based, heuristic, traditional ML, zero-shot, nested). The main areas for improvement are:
+The backend architecture is **well-designed** with a clear separation of concerns, good use of traits, and comprehensive coverage of NER approaches (regex-based, heuristic, traditional ML, zero-shot, nested). The main areas for improvement are:
 
 1. **Completeness**: Many backends could implement more capability traits
 2. **Consistency**: Some traits are defined but never used

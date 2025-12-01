@@ -114,7 +114,7 @@ The `die_hard.rs` test suite focuses on adversarial Unicode edge cases and valid
 
 #### 10. Model-Specific Behavior Differences
 - Tests use both `AutoNER` and `HeuristicNER`, but don't verify consistent behavior
-- No tests for `StackedNER`, `PatternNER`, or other backends with same inputs
+- No tests for `StackedNER`, `RegexNER`, or other backends with same inputs
 - No tests verify that different models produce compatible offset formats
 
 #### 11. Error Cases
@@ -130,7 +130,7 @@ The `die_hard.rs` test suite focuses on adversarial Unicode edge cases and valid
 
 #### 13. Performance Degradation
 - No tests for pathological inputs that cause O(n²) behavior
-- No tests for regex backtracking issues (in PatternNER)
+- No tests for regex backtracking issues (in RegexNER)
 - No tests for tokenizer edge cases (very long words, many special tokens)
 
 #### 14. Entity Validation

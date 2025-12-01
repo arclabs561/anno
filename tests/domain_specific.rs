@@ -8,7 +8,7 @@
 //! - Social media
 //! - Technical/scientific
 
-use anno::{Entity, EntityType, Model, PatternNER, StackedNER};
+use anno::{Entity, EntityType, Model, RegexNER, StackedNER};
 
 fn has_type(entities: &[Entity], ty: &EntityType) -> bool {
     entities.iter().any(|e| e.entity_type == *ty)
@@ -27,7 +27,7 @@ mod medical {
 
     #[test]
     fn clinical_note_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Patient visited on 2024-01-15.
             Follow-up scheduled for February 28, 2024.
@@ -39,7 +39,7 @@ mod medical {
 
     #[test]
     fn clinical_note_times() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Vitals taken at 8:30am.
             Medication administered at 2:00 PM.
@@ -80,7 +80,7 @@ mod medical {
 
     #[test]
     fn percentages_in_vitals() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "SpO2: 98%, Heart rate normal. Improvement of 15% since last visit.";
         let e = ner.extract_entities(text, None).unwrap();
         assert!(count_type(&e, &EntityType::Percent) >= 2);
@@ -96,7 +96,7 @@ mod legal {
 
     #[test]
     fn contract_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             This Agreement is entered into as of January 1, 2024 (the "Effective Date").
             Term shall end on December 31, 2024.
@@ -108,7 +108,7 @@ mod legal {
 
     #[test]
     fn contract_money() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Total consideration: $1,500,000.
             Monthly payment: $25,000.
@@ -142,7 +142,7 @@ mod legal {
 
     #[test]
     fn legal_percentages() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Interest rate: 5.5% per annum.
             Commission: 3% of gross revenue.
@@ -154,7 +154,7 @@ mod legal {
 
     #[test]
     fn contact_info_in_contracts() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Notices shall be sent to:
             Email: legal@acme.com
@@ -177,7 +177,7 @@ mod financial {
 
     #[test]
     fn earnings_report() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Q4 2024 Earnings Report
             
@@ -207,7 +207,7 @@ mod financial {
 
     #[test]
     fn transaction_details() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Transaction ID: TX-2024-001
             Date: 2024-01-15 at 14:30
@@ -223,7 +223,7 @@ mod financial {
 
     #[test]
     fn bank_contact() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             For assistance, contact:
             Customer Service: 1-800-555-0123
@@ -280,7 +280,7 @@ mod news {
 
     #[test]
     fn dateline_extraction() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             NEW YORK, January 15, 2024 - The stock market opened higher today.
             
@@ -300,7 +300,7 @@ mod social_media {
 
     #[test]
     fn tweet_with_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Just bought tickets for $50! 🎉 
             Show starts at 8pm on 12/25/2024.
@@ -315,7 +315,7 @@ mod social_media {
 
     #[test]
     fn url_in_post() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Check out this link: https://example.com/page?id=123";
         let e = ner.extract_entities(text, None).unwrap();
         assert!(has_type(&e, &EntityType::Url));
@@ -323,7 +323,7 @@ mod social_media {
 
     #[test]
     fn informal_time_expressions() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "See you at 3pm! Meeting at 10:30am tomorrow.";
         let e = ner.extract_entities(text, None).unwrap();
         assert!(count_type(&e, &EntityType::Time) >= 2);
@@ -348,7 +348,7 @@ mod technical {
 
     #[test]
     fn research_paper_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Received: January 15, 2024
             Accepted: February 28, 2024
@@ -362,7 +362,7 @@ mod technical {
 
     #[test]
     fn statistical_results() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Results showed a 23.5% improvement (p < 0.05).
             Control group: 45% success rate.
@@ -389,7 +389,7 @@ mod technical {
 
     #[test]
     fn contact_author() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             Corresponding author:
             Dr. John Smith
@@ -403,7 +403,7 @@ mod technical {
 
     #[test]
     fn code_snippet_with_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         // URL and email in code comments
         let text = r#"
             // See documentation at https://docs.example.com
@@ -460,7 +460,7 @@ mod mixed {
 
     #[test]
     fn invoice_document() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = r#"
             INVOICE #INV-2024-001
             Date: 2024-01-15

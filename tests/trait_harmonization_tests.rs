@@ -4,7 +4,7 @@
 //! and that trait implementations maintain expected invariants.
 
 use anno::{
-    backends::{HeuristicNER, PatternNER, StackedNER},
+    backends::{HeuristicNER, RegexNER, StackedNER},
     BatchCapable, Entity, Model, StreamingCapable,
 };
 use proptest::prelude::*;
@@ -21,7 +21,7 @@ proptest! {
         backend_idx in 0..3u8
     ) {
         let backend: Box<dyn Model> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -51,7 +51,7 @@ proptest! {
     #[test]
     fn backend_names_not_empty(backend_idx in 0..3u8) {
         let backend: Box<dyn Model> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -64,7 +64,7 @@ proptest! {
     #[test]
     fn empty_text_handling(backend_idx in 0..3u8) {
         let backend: Box<dyn Model> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -87,7 +87,7 @@ proptest! {
         texts in prop::collection::vec("[A-Za-z0-9 .,!?]{1,100}", 1..10)
     ) {
         let backends: Vec<Box<dyn BatchCapable>> = vec![
-            Box::new(PatternNER::new()),
+            Box::new(RegexNER::new()),
             Box::new(HeuristicNER::new()),
             Box::new(StackedNER::default()),
         ];
@@ -111,7 +111,7 @@ proptest! {
     fn batch_matches_sequential(
         texts in prop::collection::vec("[A-Za-z0-9 .,!?]{1,50}", 1..5)
     ) {
-        let backend = PatternNER::new();
+        let backend = RegexNER::new();
         let text_refs: Vec<&str> = texts.iter().map(|s| s.as_ref()).collect();
 
         // Sequential extraction
@@ -144,7 +144,7 @@ proptest! {
     #[test]
     fn optimal_batch_size_reasonable(backend_idx in 0..3u8) {
         let backend: Box<dyn BatchCapable> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -172,7 +172,7 @@ proptest! {
         backend_idx in 0..3u8
     ) {
         let backend: Box<dyn StreamingCapable> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -202,7 +202,7 @@ proptest! {
     #[test]
     fn recommended_chunk_size_reasonable(backend_idx in 0..3u8) {
         let backend: Box<dyn StreamingCapable> = match backend_idx {
-            0 => Box::new(PatternNER::new()),
+            0 => Box::new(RegexNER::new()),
             1 => Box::new(HeuristicNER::new()),
             _ => Box::new(StackedNER::default()),
         };
@@ -253,7 +253,7 @@ mod gpu_tests {
 #[test]
 fn test_all_backends_implement_model() {
     let backends: Vec<Box<dyn Model>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -268,7 +268,7 @@ fn test_all_backends_implement_model() {
 #[test]
 fn test_batch_capable_backends() {
     let backends: Vec<Box<dyn BatchCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -287,7 +287,7 @@ fn test_batch_capable_backends() {
 #[test]
 fn test_streaming_capable_backends() {
     let backends: Vec<Box<dyn StreamingCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -311,7 +311,7 @@ fn test_streaming_capable_backends() {
 #[test]
 fn test_trait_combinations() {
     // Test that backends can implement multiple traits
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
 
     // Should work as Model
     let _entities = backend.extract_entities("Test", None).unwrap();
@@ -330,7 +330,7 @@ fn test_trait_combinations() {
 #[test]
 fn test_confidence_bounds() {
     let backends: Vec<Box<dyn Model>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -353,7 +353,7 @@ fn test_confidence_bounds() {
 
 #[test]
 fn test_no_overlapping_entities_same_backend() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let text = "Meeting on 2024-01-15 cost $100.";
 
     if let Ok(entities) = backend.extract_entities(text, None) {
@@ -383,7 +383,7 @@ fn test_no_overlapping_entities_same_backend() {
 
 #[test]
 fn test_batch_with_empty_strings() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let texts = vec!["", "Test", "", "Another test"];
     let text_refs: Vec<&str> = texts.iter().copied().collect();
 
@@ -399,7 +399,7 @@ fn test_batch_with_empty_strings() {
 
 #[test]
 fn test_streaming_with_zero_offset() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let text = "Meeting on 2024-01-15";
 
     let entities = backend.extract_entities_streaming(text, 0).unwrap();
@@ -411,7 +411,7 @@ fn test_streaming_with_zero_offset() {
 
 #[test]
 fn test_streaming_with_large_offset() {
-    let backend = PatternNER::new();
+    let backend = RegexNER::new();
     let text = "Date: 2024-01-15";
     let offset = 1000;
 
@@ -427,7 +427,7 @@ fn test_streaming_with_large_offset() {
 #[test]
 fn test_batch_optimal_size_consistency() {
     let backends: Vec<Box<dyn BatchCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -449,7 +449,7 @@ fn test_batch_optimal_size_consistency() {
 #[test]
 fn test_streaming_chunk_size_consistency() {
     let backends: Vec<Box<dyn StreamingCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -482,7 +482,7 @@ fn test_gpu_capable_backends_work_on_cpu() {
 fn test_trait_implementation_consistency() {
     // Verify that all backends that implement BatchCapable also implement Model
     let batch_backends: Vec<Box<dyn BatchCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];
@@ -497,7 +497,7 @@ fn test_trait_implementation_consistency() {
 
     // Same for StreamingCapable
     let stream_backends: Vec<Box<dyn StreamingCapable>> = vec![
-        Box::new(PatternNER::new()),
+        Box::new(RegexNER::new()),
         Box::new(HeuristicNER::new()),
         Box::new(StackedNER::default()),
     ];

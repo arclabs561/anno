@@ -24,7 +24,7 @@
 //! │   Person/Org/Location via heuristics                │
 //! │   ~60-70% F1, always available                      │
 //! ├─────────────────────────────────────────────────────┤
-//! │ Layer 1: PatternNER (zero deps)                     │
+//! │ Layer 1: RegexNER (zero deps)                     │
 //! │   Date/Time/Money/Email/URL/Phone                   │
 //! │   ~95%+ precision, always available                 │
 //! └─────────────────────────────────────────────────────┘
@@ -35,7 +35,7 @@
 //! | Backend | Feature | Zero-Shot | Nested | Speed | Notes |
 //! |---------|---------|-----------|--------|-------|-------|
 //! | `StackedNER` | - | No | No | Fast | Composable layers |
-//! | `PatternNER` | - | No | No | ~400ns | Structured only |
+//! | `RegexNER` | - | No | No | ~400ns | Structured only |
 //! | `HeuristicNER` | - | No | No | ~50μs | Capitalization + context |
 //! | `GLiNER` | `onnx` | Yes | No | ~100ms | Span-based |
 //! | `NuNER` | `onnx` | Yes | No | ~100ms | Token-based |
@@ -48,7 +48,7 @@
 //! - **Zero deps**: `StackedNER::default()` - no ML, good baseline
 //! - **Custom types**: `GLiNER` or `NuNER` - zero-shot, any entity type
 //! - **Nested entities**: `W2NER` - handles overlapping spans
-//! - **Structured data**: `PatternNER` - dates, emails, money
+//! - **Structured data**: `RegexNER` - dates, emails, money
 //!
 //! # Quick Start
 //!
@@ -62,11 +62,11 @@
 //! Custom stack:
 //!
 //! ```rust
-//! use anno::{Model, PatternNER, HeuristicNER, StackedNER};
+//! use anno::{Model, RegexNER, HeuristicNER, StackedNER};
 //! use anno::backends::stacked::ConflictStrategy;
 //!
 //! let ner = StackedNER::builder()
-//!     .layer(PatternNER::new())
+//!     .layer(RegexNER::new())
 //!     .layer(HeuristicNER::new())
 //!     .strategy(ConflictStrategy::LongestSpan)
 //!     .build();
@@ -79,7 +79,7 @@ pub mod extractor;
 pub mod heuristic;
 pub mod inference;
 pub mod nuner;
-pub mod pattern;
+pub mod regex;
 pub mod pattern_config;
 /// Language-aware routing for automatic backend selection.
 pub mod router;
@@ -148,7 +148,7 @@ pub mod coref_t5;
 pub use extractor::{BackendType, NERExtractor};
 pub use heuristic::HeuristicNER;
 pub use nuner::NuNER;
-pub use pattern::PatternNER;
+pub use regex::RegexNER;
 pub use router::AutoNER;
 pub use stacked::{ConflictStrategy, StackedNER};
 

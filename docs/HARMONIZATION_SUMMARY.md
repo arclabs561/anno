@@ -68,7 +68,7 @@ Created comprehensive test suite: `tests/trait_harmonization_tests.rs`
 
 | Backend | Model | BatchCapable | StreamingCapable | GpuCapable | DynamicLabels | RelationCapable | DiscontinuousNER |
 |---------|-------|--------------|------------------|------------|---------------|-----------------|------------------|
-| PatternNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| RegexNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | HeuristicNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | StackedNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | GLiNEROnnx | ✅ | ✅ | ✅ | ❌* | ✅ | ❌ | ❌ |

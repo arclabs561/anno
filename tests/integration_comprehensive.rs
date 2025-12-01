@@ -10,7 +10,7 @@
 use anno::backends::stacked::ConflictStrategy;
 use anno::{
     eval::GoldEntity, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType,
-    ExtractionMethod, HeuristicNER, Model, PatternNER, StackedNER,
+    ExtractionMethod, HeuristicNER, Model, RegexNER, StackedNER,
 };
 
 mod entity_types {
@@ -95,8 +95,8 @@ mod provenance_tracking {
     use super::*;
 
     #[test]
-    fn pattern_ner_includes_provenance() {
-        let ner = PatternNER::new();
+    fn regex_ner_includes_provenance() {
+        let ner = RegexNER::new();
         let entities = ner.extract_entities("Price: $100.00", None).unwrap();
 
         assert!(!entities.is_empty());
@@ -154,7 +154,7 @@ mod conflict_resolution {
     #[test]
     fn priority_strategy_favors_first() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::Priority)
             .build();
@@ -177,7 +177,7 @@ mod conflict_resolution {
     #[test]
     fn longest_span_prefers_longer() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::LongestSpan)
             .build();
@@ -194,7 +194,7 @@ mod conflict_resolution {
     #[test]
     fn union_keeps_all() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::Union)
             .build();
@@ -208,7 +208,7 @@ mod conflict_resolution {
     #[test]
     fn highest_conf_selects_best() {
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::HighestConf)
             .build();
@@ -406,8 +406,8 @@ mod backend_composition {
     fn builder_can_add_same_layer_twice() {
         // Edge case: adding same backend type twice
         let ner = StackedNER::builder()
-            .layer(PatternNER::new())
-            .layer(PatternNER::new())
+            .layer(RegexNER::new())
+            .layer(RegexNER::new())
             .build();
 
         let entities = ner.extract_entities("$100", None).unwrap();
@@ -500,7 +500,7 @@ mod edge_cases {
 
     #[test]
     fn special_characters_in_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Email with special chars
         let entities = ner
@@ -542,14 +542,14 @@ mod performance {
     }
 
     #[test]
-    fn pattern_ner_is_faster_than_stacked() {
-        let pattern_ner = PatternNER::new();
+    fn regex_ner_is_faster_than_stacked() {
+        let regex_ner = RegexNER::new();
         let stacked_ner = StackedNER::default();
         let text = "$100 on 2024-01-01 email@test.com";
 
         let start_pattern = Instant::now();
         for _ in 0..1000 {
-            let _ = pattern_ner.extract_entities(text, None);
+            let _ = regex_ner.extract_entities(text, None);
         }
         let pattern_time = start_pattern.elapsed();
 

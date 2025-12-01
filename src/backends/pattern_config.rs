@@ -1,4 +1,4 @@
-//! Declarative pattern configuration for PatternNER.
+//! Declarative pattern configuration for RegexNER.
 //!
 //! This provides a cleaner, more maintainable way to define patterns
 //! without boilerplate. Patterns are defined once and compiled lazily.

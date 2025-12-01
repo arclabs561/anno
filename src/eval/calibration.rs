@@ -12,11 +12,11 @@
 //! | Backend | `ExtractionMethod` | Calibrated? | Notes |
 //! |---------|-------------------|-------------|-------|
 //! | BertNEROnnx, GLiNEROnnx | `Neural` | ✓ Yes | Softmax probabilities |
-//! | PatternNER | `Pattern` | ✗ No | Hardcoded values (e.g., 0.95) |
+//! | RegexNER | `Pattern` | ✗ No | Hardcoded values (e.g., 0.95) |
 //! | HeuristicNER | `Heuristic` | ✗ No | Rule-based scores |
 //! | StackedNER | Mixed | Partial | Depends on entity type |
 //!
-//! **Running calibration analysis on PatternNER or HeuristicNER produces
+//! **Running calibration analysis on RegexNER or HeuristicNER produces
 //! meaningless results.** Use `ExtractionMethod::is_calibrated()` to check.
 //!
 //! # Research Background

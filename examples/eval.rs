@@ -27,7 +27,7 @@ use anno::eval::analysis::{compare_ner_systems, ConfusionMatrix, ErrorAnalysis};
 use anno::eval::loader::{DatasetId, DatasetLoader};
 use anno::eval::synthetic::{all_datasets, Difficulty};
 use anno::eval::{evaluate_ner_model, GoldEntity};
-use anno::{HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{HeuristicNER, Model, RegexNER, StackedNER};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -44,8 +44,8 @@ fn create_backends() -> Vec<Backend> {
     #[allow(unused_mut)]
     let mut backends = vec![
         Backend {
-            name: "PatternNER",
-            model: Box::new(PatternNER::new()),
+            name: "RegexNER",
+            model: Box::new(RegexNER::new()),
         },
         Backend {
             name: "HeuristicNER",

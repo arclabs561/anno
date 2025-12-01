@@ -36,7 +36,7 @@ use anno::eval::threshold_analysis::{
 };
 use anno::eval::MetricWithVariance;
 use anno::eval::SimpleCorefResolver;
-use anno::PatternNER;
+use anno::RegexNER;
 use std::collections::HashMap;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -251,7 +251,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\nKey observations:");
-    println!("  - PatternNER: High precision on DATE/MONEY/PERCENT/EMAIL/URL/PHONE");
+    println!("  - RegexNER: High precision on DATE/MONEY/PERCENT/EMAIL/URL/PHONE");
     println!("  - HeuristicNER: Baseline for PER/ORG/LOC (heuristic-based)");
     println!("  - StackedNER: Best zero-dependency option");
 
@@ -336,11 +336,11 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Demographic Bias (NER) ---
     println!("\n--- Demographic Bias (NER) ---\n");
-    println!("⚠️  NOTE: PatternNER cannot detect PERSON or LOCATION entities.");
+    println!("⚠️  NOTE: RegexNER cannot detect PERSON or LOCATION entities.");
     println!("    These bias evaluations require ML backends (--features onnx).");
     println!("    Results below demonstrate the API structure only.\n");
 
-    let ner = PatternNER::new();
+    let ner = RegexNER::new();
     let names = create_diverse_name_dataset();
     let locations = create_diverse_location_dataset();
     let demo_evaluator = DemographicBiasEvaluator::new(false);
@@ -372,7 +372,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
             name_results.script_bias_gap * 100.0
         );
     } else {
-        println!("Name Recognition: [SKIPPED - PatternNER cannot detect PERSON]");
+        println!("Name Recognition: [SKIPPED - RegexNER cannot detect PERSON]");
     }
 
     if has_location_data {
@@ -391,7 +391,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
             location_results.regional_parity_gap * 100.0
         );
     } else {
-        println!("\nLocation Recognition: [SKIPPED - PatternNER cannot detect LOCATION]");
+        println!("\nLocation Recognition: [SKIPPED - RegexNER cannot detect LOCATION]");
     }
 
     // --- Temporal Bias (Names by Decade) ---
@@ -437,7 +437,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
             temporal_results.temporal_parity_gap * 100.0
         );
     } else {
-        println!("[SKIPPED - PatternNER cannot detect PERSON entities]");
+        println!("[SKIPPED - RegexNER cannot detect PERSON entities]");
     }
 
     // --- Entity Length Bias ---
@@ -493,7 +493,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     // --- Robustness Testing ---
     println!("\n--- Robustness Testing ---\n");
 
-    // Create test cases with some DATE entities PatternNER can handle
+    // Create test cases with some DATE entities RegexNER can handle
     let robustness_cases: Vec<(String, Vec<anno::Entity>)> = vec![
         (
             "Meeting on January 15, 2024.".to_string(),
@@ -604,7 +604,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- Calibration Demo ---\n");
     println!("⚠️  IMPORTANT: Calibration metrics are only meaningful for probabilistic");
     println!("    confidence scores (e.g., softmax outputs from neural models).");
-    println!("    PatternNER outputs hardcoded values (0.95) - NOT calibrated.");
+    println!("    RegexNER outputs hardcoded values (0.95) - NOT calibrated.");
     println!("    HeuristicNER outputs heuristic scores - NOT calibrated.");
     println!("    Use ExtractionMethod::is_calibrated() to check.\n");
 
@@ -855,7 +855,7 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     // --- Summary ---
     println!("\n--- Summary ---\n");
-    println!("Note: PatternNER only detects structured entities (DATE/MONEY/etc.),");
+    println!("Note: RegexNER only detects structured entities (DATE/MONEY/etc.),");
     println!("not PERSON/LOCATION, so demographic/temporal bias results will be 0%.");
     println!("For meaningful bias evaluation, use ML backends:");
     println!("  cargo run --example quality_bench --features onnx");

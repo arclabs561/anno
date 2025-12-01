@@ -120,7 +120,7 @@ The architecture document (`backends/ARCHITECTURE.md`) correctly explains when t
 ```rust
 #[deprecated(
     since = "0.1.0",
-    note = "Use PatternNER (no gazetteers) or ML backends (BERT ONNX). Will be removed in 1.0."
+    note = "Use RegexNER (no gazetteers) or ML backends (BERT ONNX). Will be removed in 1.0."
 )]
 pub struct RuleBasedNER { ... }
 ```

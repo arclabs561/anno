@@ -30,7 +30,7 @@
 
 use anno::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 #[allow(unused_imports)] // Used by ignored tests
-use anno::{HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{HeuristicNER, Model, RegexNER, StackedNER};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -535,7 +535,7 @@ fn download_crossre_dataset() {
 
 #[test]
 #[ignore]
-fn evaluate_pattern_ner_on_wikigold() {
+fn evaluate_regex_ner_on_wikigold() {
     #[cfg(feature = "eval-advanced")]
     {
         let loader = DatasetLoader::new().unwrap();
@@ -547,10 +547,10 @@ fn evaluate_pattern_ner_on_wikigold() {
             }
         };
 
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let (metrics, by_type) = evaluate_ner_on_dataset(&ner, &dataset);
 
-        println!("\n=== PatternNER on WikiGold ===");
+        println!("\n=== RegexNER on WikiGold ===");
         println!("Sentences: {}", dataset.len());
         println!("Gold entities: {}", metrics.total_gold);
         println!("Predicted: {}", metrics.total_predicted);
@@ -577,9 +577,9 @@ fn evaluate_pattern_ner_on_wikigold() {
             }
         }
 
-        // Note: PatternNER won't find PER/ORG/LOC - it's for structured entities
+        // Note: RegexNER won't find PER/ORG/LOC - it's for structured entities
         // We expect very low recall but potentially decent precision on dates/numbers
-        println!("\nNote: PatternNER is for structured entities (dates, money, emails, etc.)");
+        println!("\nNote: RegexNER is for structured entities (dates, money, emails, etc.)");
         println!("Low recall on PER/ORG/LOC is expected - use ML backends for those.");
     }
 }
@@ -590,18 +590,18 @@ fn evaluate_pattern_ner_on_wikigold() {
 
 #[test]
 #[ignore]
-fn benchmark_pattern_ner_on_datasets() {
+fn benchmark_regex_ner_on_datasets() {
     #[cfg(feature = "eval-advanced")]
     {
         let loader = DatasetLoader::new().unwrap();
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
-        // PatternNER is for structured entities (dates, money, emails, URLs, phones)
+        // RegexNER is for structured entities (dates, money, emails, URLs, phones)
         // It won't find PER/ORG/LOC, so we benchmark on all datasets but expect low recall
-        // on named entity datasets. This is useful to show what PatternNER can/can't do.
+        // on named entity datasets. This is useful to show what RegexNER can/can't do.
         let datasets = DatasetId::all();
 
-        println!("\n=== NER Benchmark: PatternNER on All Datasets ===\n");
+        println!("\n=== NER Benchmark: RegexNER on All Datasets ===\n");
         println!(
             "{:20} {:>8} {:>8} {:>8} {:>8} {:>8} {:>10}",
             "Dataset", "Sents", "Gold", "Pred", "P%", "R%", "F1%"
@@ -1746,11 +1746,11 @@ fn benchmark_relation_extraction_on_docred() {
     }
 }
 
-// These are very loose baselines for PatternNER on named entity datasets
-// PatternNER is NOT designed for PER/ORG/LOC - it's for structured patterns
+// These are very loose baselines for RegexNER on named entity datasets
+// RegexNER is NOT designed for PER/ORG/LOC - it's for structured patterns
 // So we expect near-zero performance, but non-crashing behavior
 
-const PATTERN_NER_MIN_F1: f64 = 0.0; // PatternNER won't find named entities
+const PATTERN_NER_MIN_F1: f64 = 0.0; // RegexNER won't find named entities
 
 #[test]
 #[ignore]
@@ -1763,7 +1763,7 @@ fn regression_test_wikigold() {
             Err(_) => return,
         };
 
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let (metrics, _) = evaluate_ner_on_dataset(&ner, &dataset);
 
         let f1 = metrics.f1();

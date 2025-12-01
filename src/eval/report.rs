@@ -7,10 +7,10 @@
 //!
 //! ```rust
 //! use anno::eval::report::{EvalReport, ReportBuilder};
-//! use anno::PatternNER;
+//! use anno::RegexNER;
 //!
-//! let model = PatternNER::new();
-//! let report = ReportBuilder::new("PatternNER")
+//! let model = RegexNER::new();
+//! let report = ReportBuilder::new("RegexNER")
 //!     .with_core_metrics(true)
 //!     .with_bias_analysis(false)  // Skip if no PER/ORG support
 //!     .with_error_analysis(true)
@@ -678,13 +678,13 @@ mod tests {
 
     #[test]
     fn test_report_builder_basic() {
-        use crate::PatternNER;
-        let model = PatternNER::new();
-        let report = ReportBuilder::new("PatternNER")
+        use crate::RegexNER;
+        let model = RegexNER::new();
+        let report = ReportBuilder::new("RegexNER")
             .with_error_analysis(true)
             .build(&model);
 
-        assert_eq!(report.model_name, "PatternNER");
+        assert_eq!(report.model_name, "RegexNER");
         assert!(report.core.total_gold > 0);
     }
 
@@ -747,8 +747,8 @@ mod tests {
 
     #[test]
     fn test_recommendations_generated() {
-        use crate::PatternNER;
-        let model = PatternNER::new();
+        use crate::RegexNER;
+        let model = RegexNER::new();
 
         // Create test data that will result in low F1
         let test_data = vec![TestCase {
@@ -769,11 +769,11 @@ mod tests {
             ],
         }];
 
-        let report = ReportBuilder::new("PatternNER")
+        let report = ReportBuilder::new("RegexNER")
             .with_test_data(test_data)
             .build(&model);
 
-        // PatternNER can't detect PER/ORG, so F1 should be low
+        // RegexNER can't detect PER/ORG, so F1 should be low
         // and recommendations should be generated
         assert!(
             report.core.f1 < 0.5

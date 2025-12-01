@@ -1,4 +1,4 @@
-//! Detailed tests for PatternNER and HeuristicNER backends.
+//! Detailed tests for RegexNER and HeuristicNER backends.
 //!
 //! These tests focus on:
 //! - Edge cases and boundary conditions
@@ -8,13 +8,13 @@
 
 #![allow(unused_variables)] // Many smoke tests just ensure no panic
 
-use anno::{EntityType, HeuristicNER, Model, PatternNER, StackedNER};
+use anno::{EntityType, HeuristicNER, Model, RegexNER, StackedNER};
 
 // =============================================================================
-// PatternNER Detailed Tests
+// RegexNER Detailed Tests
 // =============================================================================
 
-mod pattern_ner {
+mod regex_ner {
     use super::*;
 
     // -------------------------------------------------------------------------
@@ -23,7 +23,7 @@ mod pattern_ner {
 
     #[test]
     fn test_iso_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Meeting on 2024-01-15", "2024-01-15"),
@@ -45,9 +45,9 @@ mod pattern_ner {
 
     #[test]
     fn test_us_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
-        // Note: PatternNER uses specific date patterns - MM/DD/YYYY with slashes
+        // Note: RegexNER uses specific date patterns - MM/DD/YYYY with slashes
         let cases = [
             ("Born 01/15/2024", "01/15/2024"),
             ("Date: 12/31/2023", "12/31/2023"),
@@ -67,10 +67,10 @@ mod pattern_ner {
 
     #[test]
     fn test_hyphenated_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Hyphenated dates may be ISO format (YYYY-MM-DD) or US format (MM-DD-YYYY)
-        // Our PatternNER primarily supports ISO format
+        // Our RegexNER primarily supports ISO format
         let text = "Event on 2024-06-01";
         let entities = ner.extract_entities(text, None).unwrap();
         let dates: Vec<_> = entities
@@ -84,7 +84,7 @@ mod pattern_ner {
 
     #[test]
     fn test_written_dates() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("January 15, 2024", "January 15, 2024"),
@@ -110,7 +110,7 @@ mod pattern_ner {
 
     #[test]
     fn test_money_formats() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Price: $100", "$100"),
@@ -134,7 +134,7 @@ mod pattern_ner {
 
     #[test]
     fn test_money_with_text() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Costs 100 USD", "100 USD"),
@@ -160,7 +160,7 @@ mod pattern_ner {
 
     #[test]
     fn test_percent_formats() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Growth of 25%", "25%"),
@@ -187,7 +187,7 @@ mod pattern_ner {
 
     #[test]
     fn test_email_formats() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Contact: test@example.com", "test@example.com"),
@@ -214,7 +214,7 @@ mod pattern_ner {
 
     #[test]
     fn test_url_formats() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Visit https://example.com", "https://example.com"),
@@ -243,7 +243,7 @@ mod pattern_ner {
 
     #[test]
     fn test_phone_formats() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         let cases = [
             ("Call +1 (555) 123-4567", "+1 (555) 123-4567"),
@@ -269,7 +269,7 @@ mod pattern_ner {
 
     #[test]
     fn test_multiple_entities_same_type() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Meeting on 2024-01-15 and 2024-02-20";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -283,7 +283,7 @@ mod pattern_ner {
 
     #[test]
     fn test_mixed_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Email test@example.com for $100 on 2024-01-15";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -305,7 +305,7 @@ mod pattern_ner {
 
     #[test]
     fn test_no_false_positives() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // These should NOT match
         let cases = [
@@ -328,7 +328,7 @@ mod pattern_ner {
 
     #[test]
     fn test_entity_boundaries() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "prefix$100suffix";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -345,13 +345,13 @@ mod pattern_ner {
 
     #[test]
     fn test_confidence_scores() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Date: 2024-01-15, Email: test@example.com";
 
         let entities = ner.extract_entities(text, None).unwrap();
 
         for e in &entities {
-            // All PatternNER entities should have confidence >= 0.9
+            // All RegexNER entities should have confidence >= 0.9
             assert!(
                 e.confidence >= 0.9,
                 "Entity {} has low confidence {}",
@@ -633,7 +633,7 @@ mod unicode_tests {
 
     #[test]
     fn test_unicode_in_text() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Meeting on 2024-01-15 with café owner";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -648,7 +648,7 @@ mod unicode_tests {
 
     #[test]
     fn test_emoji_in_text() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Contact 👋 test@example.com 📧";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -663,7 +663,7 @@ mod unicode_tests {
 
     #[test]
     fn test_chinese_text_with_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "会议日期 2024-01-15 费用 $100";
 
         let entities = ner.extract_entities(text, None).unwrap();
@@ -681,7 +681,7 @@ mod unicode_tests {
 
     #[test]
     fn test_arabic_numerals_in_entities() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "Price: $١٢٣"; // Arabic-Indic numerals
 
         // This might or might not work depending on regex
@@ -699,8 +699,8 @@ mod performance {
     use std::time::Instant;
 
     #[test]
-    fn test_pattern_ner_is_fast() {
-        let ner = PatternNER::new();
+    fn test_regex_ner_is_fast() {
+        let ner = RegexNER::new();
         let text = "Contact test@example.com for $100 on 2024-01-15";
 
         let start = Instant::now();
@@ -709,10 +709,10 @@ mod performance {
         }
         let elapsed = start.elapsed();
 
-        // PatternNER should process 1000 iterations in < 100ms
+        // RegexNER should process 1000 iterations in < 100ms
         assert!(
             elapsed.as_millis() < 100,
-            "PatternNER too slow: {}ms for 1000 iterations",
+            "RegexNER too slow: {}ms for 1000 iterations",
             elapsed.as_millis()
         );
     }

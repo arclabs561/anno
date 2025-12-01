@@ -224,10 +224,10 @@ impl Default for TypeMetricGoals {
 ///
 /// ```rust
 /// use anno::eval::{GoldEntity, StandardNEREvaluator, NEREvaluator};
-/// use anno::{PatternNER, Model, EntityType};
+/// use anno::{RegexNER, Model, EntityType};
 ///
 /// let evaluator = StandardNEREvaluator::new();
-/// let model = PatternNER::new();
+/// let model = RegexNER::new();
 /// let ground_truth = vec![
 ///     GoldEntity::new("$100", EntityType::Money, 6),
 /// ];

@@ -3,14 +3,14 @@
 use anno::eval::evaluator::{NEREvaluator, StandardNEREvaluator};
 use anno::eval::types::MetricValue;
 use anno::eval::GoldEntity;
-use anno::{EntityType, PatternNER};
+use anno::{EntityType, RegexNER};
 
 #[test]
 fn test_evaluate_test_case_basic() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
-    // Use entities PatternNER can actually detect
+    // Use entities RegexNER can actually detect
     let text = "Meeting on January 15, 2025 for $100";
     let ground_truth = vec![
         GoldEntity::with_span("January 15, 2025", EntityType::Date, 11, 27),
@@ -30,7 +30,7 @@ fn test_evaluate_test_case_basic() {
 #[test]
 fn test_evaluate_test_case_empty_ground_truth() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     let text = "This is a test sentence.";
     let ground_truth = vec![];
@@ -45,7 +45,7 @@ fn test_evaluate_test_case_empty_ground_truth() {
 #[test]
 fn test_aggregate_metrics() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     let test_cases = [
         (
@@ -188,7 +188,7 @@ fn test_micro_vs_macro_averaging() {
 #[test]
 fn test_per_type_metrics() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
     // Text with multiple entity types
     let text = "Meeting on January 15, 2025 costs $500. Email: test@example.com";
@@ -206,7 +206,7 @@ fn test_per_type_metrics() {
     assert!(!metrics.per_type.is_empty(), "Should have per-type metrics");
 
     // Check that we have metrics for the types we expected
-    // (PatternNER should detect these types)
+    // (RegexNER should detect these types)
     assert!(
         !metrics.per_type.is_empty(),
         "Should have at least one type in per_type metrics"
@@ -217,9 +217,9 @@ fn test_per_type_metrics() {
 #[test]
 fn test_mixed_predictions() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
-    // PatternNER will find $100 but not "John" (requires ML)
+    // RegexNER will find $100 but not "John" (requires ML)
     let text = "John paid $100";
     let ground_truth = vec![
         GoldEntity::with_span("John", EntityType::Person, 0, 4), // Won't be found
@@ -242,9 +242,9 @@ fn test_mixed_predictions() {
 #[test]
 fn test_false_positives_only() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
-    // PatternNER will find $100 but we don't expect it
+    // RegexNER will find $100 but we don't expect it
     let text = "Payment: $100";
     let ground_truth: Vec<GoldEntity> = vec![]; // Expect nothing
 
@@ -263,9 +263,9 @@ fn test_false_positives_only() {
 #[test]
 fn test_false_negatives_only() {
     let evaluator = StandardNEREvaluator::new();
-    let model = PatternNER::new();
+    let model = RegexNER::new();
 
-    // Expect a person entity that PatternNER can't find
+    // Expect a person entity that RegexNER can't find
     let text = "John Smith is here";
     let ground_truth = vec![GoldEntity::with_span(
         "John Smith",
@@ -278,7 +278,7 @@ fn test_false_negatives_only() {
         .evaluate_test_case(&model, text, &ground_truth, None)
         .unwrap();
 
-    // PatternNER can't find Person entities
+    // RegexNER can't find Person entities
     assert_eq!(metrics.expected, 1);
     assert_eq!(metrics.recall.get(), 0.0, "Recall should be 0");
 }

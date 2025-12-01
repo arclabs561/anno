@@ -23,7 +23,7 @@
 //!
 //! let names = create_temporal_name_dataset();
 //! let evaluator = TemporalBiasEvaluator::default();
-//! // let results = evaluator.evaluate(&PatternNER::new(), &names);
+//! // let results = evaluator.evaluate(&RegexNER::new(), &names);
 //! ```
 
 use crate::{EntityType, Model};

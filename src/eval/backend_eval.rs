@@ -12,7 +12,7 @@
 //! println!("{}", report.to_markdown());
 //! ```
 
-use crate::backends::{HeuristicNER, PatternNER, StackedNER};
+use crate::backends::{HeuristicNER, RegexNER, StackedNER};
 use crate::eval::dataset::synthetic;
 use crate::eval::dataset::{AnnotatedExample, Difficulty, Domain};
 use crate::{Entity, EntityType, Model};
@@ -442,7 +442,7 @@ impl BackendEvaluator {
         let mut backends = Vec::new();
 
         if self.config.include_pattern {
-            let results = self.evaluate_backend("Pattern", &PatternNER::new(), examples);
+            let results = self.evaluate_backend("Pattern", &RegexNER::new(), examples);
             backends.push(results);
         }
 

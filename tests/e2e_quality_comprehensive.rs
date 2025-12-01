@@ -13,7 +13,7 @@
 //! - Full NER → Coref → Relation pipeline
 
 use anno::{
-    backends::{HeuristicNER, PatternNER, StackedNER},
+    backends::{HeuristicNER, RegexNER, StackedNER},
     BatchCapable, Entity, EntityType, Model, StreamingCapable,
 };
 use proptest::prelude::*;
@@ -141,7 +141,7 @@ mod e2e_pipeline {
             Das Meeting findet am 15. Januar 2024 in Berlin statt.
         "#;
 
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let entities = ner.extract_entities(text, None).unwrap();
 
         // Should find email regardless of surrounding language
@@ -210,7 +210,7 @@ mod batch_property_tests {
         fn batch_equals_individual(
             texts in prop::collection::vec("[A-Za-z0-9 .,@]{10,50}", 1..10)
         ) {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let text_refs: Vec<&str> = texts.iter().map(|s| s.as_str()).collect();
 
             // Batch extraction
@@ -254,7 +254,7 @@ mod batch_property_tests {
             let empty: Vec<&str> = vec![];
 
             let result = match ner_type {
-                0 => PatternNER::new().extract_entities_batch(&empty, None),
+                0 => RegexNER::new().extract_entities_batch(&empty, None),
                 // 1 => HeuristicNER::new().extract_entities_batch(&empty, None),
                 _ => StackedNER::new().extract_entities_batch(&empty, None),
             };
@@ -277,7 +277,7 @@ mod batch_property_tests {
                 }
             }
 
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let result = ner.extract_entities_batch(&texts, None);
 
             prop_assert!(result.is_ok());
@@ -297,7 +297,7 @@ mod batch_property_tests {
         fn optimal_batch_size_positive(ner_type in 0..3u8) {
             use anno::BatchCapable;
             let batch_size = match ner_type {
-                0 => PatternNER::new().optimal_batch_size(),
+                0 => RegexNER::new().optimal_batch_size(),
                 1 => {
                     // HeuristicNER does not implement BatchCapable
                     None
@@ -327,7 +327,7 @@ mod streaming_property_tests {
             offset in 0..10000usize,
             text in "[A-Za-z0-9 @.]{20,100}"
         ) {
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
 
             let entities = ner.extract_entities_streaming(&text, offset).unwrap();
 
@@ -353,7 +353,7 @@ mod streaming_property_tests {
         fn chunk_size_reasonable(ner_type in 0..3u8) {
             use anno::StreamingCapable;
             let chunk_size = match ner_type {
-                0 => PatternNER::new().recommended_chunk_size(),
+                0 => RegexNER::new().recommended_chunk_size(),
                 1 => 10_000, // Default for HeuristicNER which doesn't impl StreamingCapable explicitly
                 _ => StackedNER::new().recommended_chunk_size(),
             };
@@ -369,7 +369,7 @@ mod streaming_property_tests {
         ) {
             let full_text = chunks.join(" test@example.com ");
 
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
 
             // Full document extraction
             let full_entities = ner.extract_entities(&full_text, None).unwrap();
@@ -443,7 +443,7 @@ mod fuzz_edge_cases {
         ) {
             let text = pattern.repeat(repeat);
 
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let result = ner.extract_entities(&text, None);
 
             prop_assert!(result.is_ok());
@@ -462,7 +462,7 @@ mod fuzz_edge_cases {
         ) {
             let text = format!("{} {} {} test@example.com", latin, cjk, arabic);
 
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
             let result = ner.extract_entities(&text, None);
 
             prop_assert!(result.is_ok());
@@ -491,7 +491,7 @@ mod fuzz_edge_cases {
 
         for char in boundary_chars {
             let text = format!("test{}@example.com", char);
-            let ner = PatternNER::new();
+            let ner = RegexNER::new();
 
             // Should not panic
             let _ = ner.extract_entities(&text, None);
@@ -507,7 +507,7 @@ mod fuzz_edge_cases {
             "[a[".repeat(50) + &"]".repeat(50),
         ];
 
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         for pattern in &patterns {
             // Should complete in reasonable time without panic
             let _ = ner.extract_entities(pattern, None);
@@ -526,7 +526,7 @@ mod mutation_targets {
 
     #[test]
     fn batch_empty_vs_non_empty() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Empty batch
         let empty_result = ner.extract_entities_batch(&[], None).unwrap();
@@ -543,7 +543,7 @@ mod mutation_targets {
 
     #[test]
     fn streaming_offset_zero_vs_nonzero() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
         let text = "test@example.com";
 
         // Offset 0
@@ -564,7 +564,7 @@ mod mutation_targets {
 
     #[test]
     fn entity_boundary_exact_match() {
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         // Entity at exact text boundaries
         let text = "$100";
@@ -624,7 +624,7 @@ mod mutation_targets {
     #[test]
     fn backend_is_available() {
         // All base backends should be available
-        assert!(PatternNER::new().is_available());
+        assert!(RegexNER::new().is_available());
         assert!(HeuristicNER::new().is_available());
         assert!(StackedNER::new().is_available());
     }
@@ -707,7 +707,7 @@ mod integration_quality {
             ("https://example.com", EntityType::Url),
         ];
 
-        let ner = PatternNER::new();
+        let ner = RegexNER::new();
 
         for (text, expected_type) in test_cases {
             let entities = ner.extract_entities(text, None).unwrap();
@@ -796,7 +796,7 @@ mod regression_tests {
         ];
 
         let backends: Vec<Box<dyn Model>> = vec![
-            Box::new(PatternNER::new()),
+            Box::new(RegexNER::new()),
             Box::new(HeuristicNER::new()),
             Box::new(StackedNER::new()),
         ];
@@ -841,7 +841,7 @@ mod regression_tests {
     #[test]
     fn regression_empty_text() {
         let backends: Vec<Box<dyn Model>> = vec![
-            Box::new(PatternNER::new()),
+            Box::new(RegexNER::new()),
             Box::new(HeuristicNER::new()),
             Box::new(StackedNER::new()),
         ];

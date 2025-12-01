@@ -36,7 +36,7 @@
 
 | Backend | Model | BatchCapable | StreamingCapable | GpuCapable | DynamicLabels | RelationCapable | DiscontinuousNER |
 |---------|-------|--------------|-----------------|------------|---------------|-----------------|------------------|
-| PatternNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| RegexNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | HeuristicNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | StackedNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
 | GLiNEROnnx | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
