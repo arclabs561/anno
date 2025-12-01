@@ -158,6 +158,6 @@ mod tests {
         assert!(!model.is_available());
         let result = model.extract_entities("Test text", None);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), vec![]);
+        assert!(result.unwrap().is_empty());
     }
 }
