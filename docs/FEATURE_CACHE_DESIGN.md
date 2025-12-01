@@ -1,5 +1,7 @@
 # Shared Feature Cache Design
 
+> **Note**: This document has been critiqued. See [FEATURE_CACHE_CRITIQUE.md](FEATURE_CACHE_CRITIQUE.md) for issues identified, and [FEATURE_CACHE_IMPLEMENTATION_PLAN.md](FEATURE_CACHE_IMPLEMENTATION_PLAN.md) for the revised implementation plan.
+
 ## Problem
 
 When `extract_entities` is called multiple times (or by different projects), text embeddings are recomputed each time. For backends like GLiNER that use bi-encoder architectures, we can cache:
