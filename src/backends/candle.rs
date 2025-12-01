@@ -452,6 +452,58 @@ impl Model for CandleNER {
 }
 
 // =============================================================================
+// GpuCapable Trait Implementation
+// =============================================================================
+
+#[cfg(feature = "candle")]
+impl crate::GpuCapable for CandleNER {
+    fn is_gpu_active(&self) -> bool {
+        matches!(&self.device, Device::Metal(_) | Device::Cuda(_))
+    }
+
+    fn device(&self) -> &str {
+        match &self.device {
+            Device::Cpu => "cpu",
+            Device::Metal(_) => "metal",
+            Device::Cuda(_) => "cuda",
+        }
+    }
+}
+
+#[cfg(not(feature = "candle"))]
+impl crate::GpuCapable for CandleNER {
+    fn is_gpu_active(&self) -> bool {
+        false
+    }
+
+    fn device(&self) -> &str {
+        "cpu"
+    }
+}
+
+// =============================================================================
+// BatchCapable Trait Implementation
+// =============================================================================
+
+#[cfg(feature = "candle")]
+impl crate::BatchCapable for CandleNER {
+    fn optimal_batch_size(&self) -> Option<usize> {
+        Some(8)
+    }
+}
+
+// =============================================================================
+// StreamingCapable Trait Implementation
+// =============================================================================
+
+#[cfg(feature = "candle")]
+impl crate::StreamingCapable for CandleNER {
+    fn recommended_chunk_size(&self) -> usize {
+        4096 // Characters
+    }
+}
+
+// =============================================================================
 // Non-candle stub
 // =============================================================================
 

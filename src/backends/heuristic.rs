@@ -729,3 +729,23 @@ fn classify_minimal(
 }
 
 impl crate::NamedEntityCapable for HeuristicNER {}
+
+// =============================================================================
+// BatchCapable Trait Implementation
+// =============================================================================
+
+impl crate::BatchCapable for HeuristicNER {
+    fn optimal_batch_size(&self) -> Option<usize> {
+        Some(16) // HeuristicNER is fast, can handle larger batches
+    }
+}
+
+// =============================================================================
+// StreamingCapable Trait Implementation
+// =============================================================================
+
+impl crate::StreamingCapable for HeuristicNER {
+    fn recommended_chunk_size(&self) -> usize {
+        8192 // Characters - heuristics are lightweight
+    }
+}

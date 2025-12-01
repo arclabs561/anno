@@ -263,29 +263,29 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &["protectai/bert-base-NER-onnx"],
     },
     // =========================================================================
-    // Work in Progress
+    // Implemented Backends (Beta)
     // =========================================================================
     BackendInfo {
         name: "gliner_candle",
         feature: Some("candle"),
-        status: BackendStatus::WIP,
+        status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
         recommended_models: &["answerdotai/ModernBERT-base"],
     },
-    // =========================================================================
-    // Planned Backends
-    // =========================================================================
     BackendInfo {
         name: "nuner",
-        feature: Some("nuner"),
-        status: BackendStatus::Planned,
+        feature: Some("onnx"),
+        status: BackendStatus::Stable,
         zero_shot: true,
         gpu_support: true,
         description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        recommended_models: &["numind/NuNER-v1.0", "numind/NuNER-v2.0-4k"],
+        recommended_models: &["numind/NuNER_Zero", "numind/NuNER_Zero_4k"],
     },
+    // =========================================================================
+    // Planned Backends
+    // =========================================================================
     BackendInfo {
         name: "rust_bert",
         feature: Some("rust-bert"),

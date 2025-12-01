@@ -219,4 +219,73 @@ cargo build --features onnx,eval-parallel
 3. ✅ `src/eval/task_evaluator.rs` - Zero-shot backend support with dataset labels
 4. ✅ `scripts/convert_pytorch_to_safetensors.py` - PEP 723 script with inline dependencies
 
+---
+
+## Problem 6: Backend Harmonization - Inconsistent Trait Coverage
+
+**Status:** ✅ **FIXED** - All backends now have consistent trait implementations
+
+**Root Cause:**
+- Many backends could implement capability traits (BatchCapable, StreamingCapable, GpuCapable) but didn't
+- Catalog had incorrect status/feature flags
+- Dead traits (CalibratedConfidence, VisualCapable) were defined but never used
+- Encoder traits were duplicated without clear documentation
+
+**Location:**
+- Multiple backend files
+- `src/lib.rs` (trait definitions)
+- `src/backends/catalog.rs` (status tracking)
+
+**Solution Implemented:**
+- ✅ **GpuCapable**: Implemented for all Candle backends (GLiNERCandle, CandleNER, GLiNER2Candle)
+- ✅ **BatchCapable**: Added to NuNER, W2NER, BertNEROnnx, CandleNER, HeuristicNER
+- ✅ **StreamingCapable**: Added to NuNER, W2NER, BertNEROnnx, CandleNER, HeuristicNER
+- ✅ **DiscontinuousNER**: Verified existing implementation for W2NER
+- ✅ **Catalog fixes**: GLiNERCandle (WIP → Beta), NuNER (feature flag and status corrected)
+- ✅ **Dead traits removed**: CalibratedConfidence and VisualCapable (documented for future re-addition)
+- ✅ **Encoder trait documentation**: Created `docs/ENCODER_TRAIT_DESIGN.md` explaining dual trait design
+- ✅ **Comprehensive tests**: Added `tests/trait_harmonization_tests.rs` with 20+ property-based and integration tests
+
+**Trait Coverage Matrix (Final State):**
+
+| Backend | Model | BatchCapable | StreamingCapable | GpuCapable | DynamicLabels | RelationCapable | DiscontinuousNER |
+|---------|-------|--------------|------------------|------------|---------------|-----------------|------------------|
+| PatternNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| HeuristicNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| StackedNER | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| GLiNEROnnx | ✅ | ✅ | ✅ | ❌* | ✅ | ❌ | ❌ |
+| GLiNERCandle | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| GLiNER2Onnx | ✅ | ✅ | ✅ | ❌* | ✅ | ✅ | ❌ |
+| GLiNER2Candle | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| NuNER | ✅ | ✅ | ✅ | ❌* | ✅ | ❌ | ❌ |
+| W2NER | ✅ | ✅ | ✅ | ❌* | ❌ | ✅ | ✅ |
+| BertNEROnnx | ✅ | ✅ | ✅ | ❌* | ❌ | ❌ | ❌ |
+| CandleNER | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+*ONNX backends could implement GpuCapable by checking execution providers (deferred)
+
+**Test Coverage:**
+- ✅ 20+ property-based tests (proptest) for trait invariants
+- ✅ Integration tests for trait combinations
+- ✅ Edge case tests (empty strings, large offsets, batch size consistency)
+- ✅ All tests passing (20/20)
+
+**Files Modified:**
+1. ✅ `src/backends/catalog.rs` - Fixed status and feature flags
+2. ✅ `src/backends/gliner_candle.rs` - Added GpuCapable
+3. ✅ `src/backends/candle.rs` - Added GpuCapable, BatchCapable, StreamingCapable
+4. ✅ `src/backends/gliner2.rs` - Added GpuCapable for Candle version
+5. ✅ `src/backends/nuner.rs` - Added BatchCapable, StreamingCapable
+6. ✅ `src/backends/w2ner.rs` - Added BatchCapable, StreamingCapable
+7. ✅ `src/backends/onnx.rs` - Added BatchCapable, StreamingCapable
+8. ✅ `src/backends/heuristic.rs` - Added BatchCapable, StreamingCapable
+9. ✅ `src/lib.rs` - Removed dead traits (CalibratedConfidence, VisualCapable)
+10. ✅ `tests/trait_harmonization_tests.rs` - New comprehensive test suite
+11. ✅ `docs/HARMONIZATION_PLAN.md` - Design document
+12. ✅ `docs/HARMONIZATION_SUMMARY.md` - Implementation summary
+13. ✅ `docs/ENCODER_TRAIT_DESIGN.md` - Encoder trait documentation
+14. ✅ `docs/BACKEND_INTERFACE_REVIEW.md` - Comprehensive review
+
+**See**: `docs/HARMONIZATION_SUMMARY.md` for full details
+
 

@@ -807,6 +807,26 @@ impl Model for NuNER {
     }
 }
 
+// =============================================================================
+// BatchCapable Trait Implementation
+// =============================================================================
+
+impl crate::BatchCapable for NuNER {
+    fn optimal_batch_size(&self) -> Option<usize> {
+        Some(8)
+    }
+}
+
+// =============================================================================
+// StreamingCapable Trait Implementation
+// =============================================================================
+
+impl crate::StreamingCapable for NuNER {
+    fn recommended_chunk_size(&self) -> usize {
+        4096 // Characters
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

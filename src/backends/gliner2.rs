@@ -2621,6 +2621,26 @@ impl crate::StreamingCapable for GLiNER2Candle {
 }
 
 // =============================================================================
+// GpuCapable Trait Implementation
+// =============================================================================
+
+#[cfg(feature = "candle")]
+impl crate::GpuCapable for GLiNER2Candle {
+    fn is_gpu_active(&self) -> bool {
+        matches!(&self.device, Device::Metal(_) | Device::Cuda(_))
+    }
+
+    fn device(&self) -> &str {
+        match &self.device {
+            Device::Cpu => "cpu",
+            Device::Metal(_) => "metal",
+            Device::Cuda(_) => "cuda",
+        }
+    }
+}
+
+
+// =============================================================================
 // Tests
 // =============================================================================
 

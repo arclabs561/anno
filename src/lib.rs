@@ -905,24 +905,13 @@ pub trait DynamicLabels: Model {
     ) -> Result<Vec<Entity>>;
 }
 
-/// Marker trait for models that provide calibrated confidence scores.
-///
-/// Calibrated models produce confidence scores that reflect true
-/// probability of correctness (e.g., 80% confidence = 80% accuracy).
-pub trait CalibratedConfidence: Model {
-    /// Get the expected calibration error for this model.
-    ///
-    /// Lower is better. 0.0 = perfectly calibrated.
-    fn expected_calibration_error(&self) -> f64;
-}
-
-/// Marker trait for multi-modal models that can process images.
-///
-/// Visual models (like ColPali) can extract entities from images
-/// in addition to or instead of text.
-pub trait VisualCapable: Model {
-    /// Extract entities from an image.
-    ///
-    /// Returns entities with bounding box locations.
-    fn extract_from_image(&self, image_data: &[u8], format: &str) -> Result<Vec<Entity>>;
-}
+// NOTE: CalibratedConfidence and VisualCapable traits were removed as they were
+// never implemented. They can be re-added in the future if needed:
+//
+// - CalibratedConfidence: For models that provide calibrated confidence scores.
+//   Calibration evaluation exists in src/eval/calibration.rs but is not exposed
+//   as a trait. Re-add if we need trait-based calibration queries.
+//
+// - VisualCapable: For multi-modal models that process images. The infrastructure
+//   exists (ModalityInput, ImageFormat in inference.rs) but no backends implement
+//   it yet. Re-add when implementing ColPali or similar visual NER models.
