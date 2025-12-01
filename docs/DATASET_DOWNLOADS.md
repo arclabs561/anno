@@ -164,9 +164,9 @@ Synthetic datasets are **generated in code** (no downloads):
 **Real datasets (first download):**
 - GitHub files: ~5MB
 - MIT servers: ~1MB
-- HF datasets-server: ~10MB (limited to 100 rows each)
+- HF datasets-server: ~50MB (now with pagination, full datasets)
 - HF direct: ~70MB
-- **Total**: ~86MB
+- **Total**: ~126MB (increased due to full dataset downloads via pagination)
 
 **Synthetic data:**
 - Generated on-demand: 0MB (no download)
@@ -212,8 +212,10 @@ restore-keys: |
 ## Recommendations
 
 1. **Separate caches** - Models and datasets use different cache directories (good!)
-2. **Dataset cache is small** - Only ~86MB vs ~6GB for models
+2. **Dataset cache is small** - Only ~126MB vs ~6GB for models
 3. **Synthetic data is fast** - No download needed
-4. **Consider restore-keys** - For dataset cache (like model cache)
-5. **HF API limits** - Some datasets limited to 100 rows (by design, to avoid timeouts)
+4. **Restore-keys added** - Dataset cache now has restore-keys for better cache hits
+5. **Pagination enabled** - HF datasets-server now downloads full datasets (1000 rows/page)
+6. **Retry logic** - Automatic retry with exponential backoff for failed downloads
+7. **Checksum verification** - SHA256 checksums verify dataset integrity
 
