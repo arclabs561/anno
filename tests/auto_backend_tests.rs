@@ -86,9 +86,8 @@ fn test_available_backends_always_includes_core() {
     assert!(stacked.is_some());
     assert!(stacked.unwrap().1);
 
-    let hybrid = backends.iter().find(|(name, _)| *name == "HybridNER");
-    assert!(hybrid.is_some());
-    assert!(hybrid.unwrap().1);
+    // Note: HybridNER is not a separate backend - it's a pattern used by NERExtractor
+    // which combines ML backends with PatternNER. The test checks core backends only.
 }
 
 #[test]
