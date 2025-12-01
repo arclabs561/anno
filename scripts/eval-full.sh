@@ -18,12 +18,12 @@ cargo build --release --features "eval-advanced,onnx,candle" || {
 # Run full benchmark
 if [ -n "${MAX_EXAMPLES:-}" ]; then
     echo "Limiting to ${MAX_EXAMPLES} examples per dataset"
-    cargo run --release --features eval-advanced -- benchmark \
+    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
         --max-examples "${MAX_EXAMPLES}" \
         --output "${OUTPUT}"
 else
     echo "Running full evaluation (no example limit)"
-    cargo run --release --features eval-advanced -- benchmark \
+    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
         --output "${OUTPUT}"
 fi
 

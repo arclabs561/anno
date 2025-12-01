@@ -11,7 +11,7 @@ RANDOM_SEED=${RANDOM_SEED:-42}
 echo "Running sanity check evaluations (max ${MAX_EXAMPLES} examples per dataset, seed ${RANDOM_SEED})"
 
 # Run benchmark with small samples
-cargo run --release --features eval-advanced -- benchmark \
+cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
     --max-examples "${MAX_EXAMPLES}" \
     --output eval-sanity-report.md \
     --cached-only || {
