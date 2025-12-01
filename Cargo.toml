@@ -8,6 +8,8 @@ description = "Information extraction for Rust: NER, coreference resolution, and
 keywords = ["ner", "nlp", "entity", "extraction", "coreference"]
 categories = ["text-processing", "science"]
 repository = "https://github.com/arclabs561/anno"
+homepage = "https://docs.rs/anno"
+documentation = "https://docs.rs/anno"
 readme = "README.md"
 authors = ["Arc <attobop@gmail.com>"]
 
