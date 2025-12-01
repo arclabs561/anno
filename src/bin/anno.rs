@@ -464,6 +464,10 @@ struct BenchmarkArgs {
     #[arg(short, long)]
     max_examples: Option<usize>,
 
+    /// Random seed for sampling (for reproducibility and varied testing)
+    #[arg(long)]
+    seed: Option<u64>,
+
     /// Only use cached datasets (skip downloads)
     #[arg(long)]
     cached_only: bool,
@@ -1965,6 +1969,7 @@ fn cmd_benchmark(args: BenchmarkArgs) -> Result<(), String> {
         datasets,
         backends,
         max_examples: args.max_examples,
+        seed: args.seed,
         require_cached: args.cached_only,
     };
 
@@ -1982,6 +1987,9 @@ fn cmd_benchmark(args: BenchmarkArgs) -> Result<(), String> {
     }
     if let Some(max) = config.max_examples {
         println!("Max examples per dataset: {}", max);
+    }
+    if let Some(seed) = config.seed {
+        println!("Random seed: {}", seed);
     }
     println!();
 

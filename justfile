@@ -64,6 +64,18 @@ eval-full:
 eval-full-limit MAX_EXAMPLES:
     MAX_EXAMPLES={{MAX_EXAMPLES}} ./scripts/eval-full.sh
 
+# Run evaluations with multiple random seeds (comprehensive testing)
+eval-multi-seed MAX_EXAMPLES="20":
+    MAX_EXAMPLES={{MAX_EXAMPLES}} ./scripts/eval-multi-seed.sh
+
+# Run evaluation with specific seed
+eval-seed SEED MAX_EXAMPLES="20":
+    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+        --max-examples {{MAX_EXAMPLES}} \
+        --seed {{SEED}} \
+        --cached-only \
+        --output eval-seed-{{SEED}}.md
+
 # Run abstract anaphora evaluation
 eval-anaphora:
     cargo run --example abstract_anaphora_eval --features discourse

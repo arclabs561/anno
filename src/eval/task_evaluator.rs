@@ -36,6 +36,8 @@ pub struct TaskEvalConfig {
     pub backends: Vec<String>,
     /// Maximum number of examples per dataset (for quick testing)
     pub max_examples: Option<usize>,
+    /// Random seed for sampling (for reproducibility and varied testing)
+    pub seed: Option<u64>,
     /// Whether to skip datasets that aren't cached
     pub require_cached: bool,
 }
@@ -47,6 +49,7 @@ impl Default for TaskEvalConfig {
             datasets: vec![],
             backends: vec![],
             max_examples: None,
+            seed: Some(42),
             require_cached: false,
         }
     }
@@ -270,17 +273,49 @@ impl TaskEvaluator {
             }
         };
 
-        // Count sentences (limit if configured)
-        let sentences_to_use = if let Some(max) = config.max_examples {
-            dataset_data.sentences.len().min(max)
+        // Sample sentences if configured (with seed for reproducibility)
+        let total = dataset_data.sentences.len();
+        let (sampled_data, sentences_to_use) = if let Some(max) = config.max_examples {
+            if max >= total {
+                (dataset_data, total)
+            } else {
+                // Simple deterministic shuffle based on seed (works for all features)
+                let seed = config.seed.unwrap_or(42);
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut indices: Vec<(usize, u64)> = (0..total)
+                    .map(|i| {
+                        let mut hasher = DefaultHasher::new();
+                        seed.hash(&mut hasher);
+                        i.hash(&mut hasher);
+                        (i, hasher.finish())
+                    })
+                    .collect();
+                indices.sort_by_key(|(_, hash)| *hash);
+                let selected_indices: Vec<usize> = indices.iter()
+                    .take(max)
+                    .map(|(i, _)| *i)
+                    .collect();
+                let sampled_sentences: Vec<_> = selected_indices.iter()
+                    .filter_map(|&i| dataset_data.sentences.get(i).cloned())
+                    .collect();
+                use crate::eval::loader::LoadedDataset;
+                let sampled_dataset = LoadedDataset {
+                    id: dataset_data.id,
+                    sentences: sampled_sentences,
+                    loaded_at: dataset_data.loaded_at.clone(),
+                    source_url: dataset_data.source_url.clone(),
+                };
+                (sampled_dataset, max)
+            }
         } else {
-            dataset_data.sentences.len()
+            (dataset_data, total)
         };
 
         // Try to create backend (this is a placeholder - actual implementation
         // would need backend factory)
         let start = Instant::now();
-        let result = match self.try_evaluate_backend(task, dataset, backend_name, &dataset_data) {
+        let result = match self.try_evaluate_backend(task, dataset, backend_name, &sampled_data) {
             Ok(metrics) => {
                 let duration = start.elapsed().as_secs_f64() * 1000.0;
                 TaskEvalResult {
