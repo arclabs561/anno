@@ -66,7 +66,7 @@ ORG: "Microsoft" [18, 27)
 LOC: "Seattle" [31, 38)
 ```
 
-This requires no model downloads and runs in ~100μs, but accuracy varies by domain. For higher quality, enable the `onnx` feature and use a transformer model:
+This requires no model downloads and runs in ~100μs, but accuracy varies by domain. For higher quality, enable the `onnx` feature:
 
 ```rust
 use anno::BertNEROnnx;
@@ -94,7 +94,7 @@ let entities = ner.extract(
 )?;
 ```
 
-This is slower (~100ms) but handles arbitrary entity schemas.
+This is slower (~100ms) but supports arbitrary entity schemas.
 
 ### Example: multi-task extraction with GLiNER2
 
@@ -219,7 +219,7 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 [rust-bert](https://github.com/guillaume-be/rust-bert) provides full transformer implementations via tch-rs (requires libtorch). It covers many NLP tasks beyond NER.
 
-[gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine with excellent documentation. If you only need GLiNER, it may be simpler.
+[gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine. If you only need GLiNER, it may be simpler.
 
 This library provides:
 
@@ -230,7 +230,7 @@ This library provides:
 - Multiple ONNX backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) behind one interface
 - Pure Rust inference via Candle (optional Metal/CUDA support)
 
-The ONNX backends are integration work — similar inference code to gline-rs and rust-bert's ONNX mode. The evaluation framework and zero-dependency baselines are the parts that don't exist elsewhere.
+The ONNX backends are integration work — similar inference code to gline-rs and rust-bert's ONNX mode. The evaluation framework and zero-dependency baselines may be useful if you need those specific features.
 
 ### Feature flags
 
