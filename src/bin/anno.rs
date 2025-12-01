@@ -2002,7 +2002,10 @@ fn cmd_benchmark(args: BenchmarkArgs) -> Result<(), String> {
     println!("=== Evaluation Summary ===");
     println!("Total combinations: {}", results.summary.total_combinations);
     println!("Successful: {}", results.summary.successful);
-    println!("Skipped (feature not available): {}", results.summary.skipped);
+    println!(
+        "Skipped (feature not available): {}",
+        results.summary.skipped
+    );
     println!("Failed (actual errors): {}", results.summary.failed);
     println!("\nTasks evaluated: {}", results.summary.tasks.len());
     println!("Datasets used: {}", results.summary.datasets.len());

@@ -207,7 +207,10 @@ impl TaskEvaluator {
         }
 
         let skipped = results.iter().filter(|r| r.is_skipped()).count();
-        let failed = results.iter().filter(|r| !r.success && !r.is_skipped()).count();
+        let failed = results
+            .iter()
+            .filter(|r| !r.success && !r.is_skipped())
+            .count();
         let summary = EvalSummary {
             total_combinations: results.len(),
             successful: results.iter().filter(|r| r.success).count(),
@@ -292,11 +295,10 @@ impl TaskEvaluator {
                     })
                     .collect();
                 indices.sort_by_key(|(_, hash)| *hash);
-                let selected_indices: Vec<usize> = indices.iter()
-                    .take(max)
-                    .map(|(i, _)| *i)
-                    .collect();
-                let sampled_sentences: Vec<_> = selected_indices.iter()
+                let selected_indices: Vec<usize> =
+                    indices.iter().take(max).map(|(i, _)| *i).collect();
+                let sampled_sentences: Vec<_> = selected_indices
+                    .iter()
                     .filter_map(|&i| dataset_data.sentences.get(i).cloned())
                     .collect();
                 use crate::eval::loader::LoadedDataset;
@@ -1126,16 +1128,27 @@ impl ComprehensiveEvalResults {
     pub fn to_markdown(&self) -> String {
         let mut md = String::new();
         md.push_str("# Eval Report\n\n");
-        
+
         // Dense summary line
-        let avg_examples: f64 = self.results.iter()
+        let avg_examples: f64 = self
+            .results
+            .iter()
             .filter(|r| r.success)
             .map(|r| r.num_examples as f64)
-            .sum::<f64>() / self.summary.successful.max(1) as f64;
-        let avg_time: f64 = self.results.iter()
+            .sum::<f64>()
+            / self.summary.successful.max(1) as f64;
+        let avg_time: f64 = self
+            .results
+            .iter()
             .filter_map(|r| r.duration_ms)
-            .sum::<f64>() / self.results.iter().filter(|r| r.duration_ms.is_some()).count().max(1) as f64;
-        
+            .sum::<f64>()
+            / self
+                .results
+                .iter()
+                .filter(|r| r.duration_ms.is_some())
+                .count()
+                .max(1) as f64;
+
         md.push_str(&format!(
             "Total: {} | ✓: {} | ⊘: {} | ✗: {} | Avg examples: {:.0} | Avg time: {:.0}ms\n\n",
             self.summary.total_combinations,
@@ -1145,28 +1158,35 @@ impl ComprehensiveEvalResults {
             avg_examples,
             avg_time
         ));
-        
+
         // Failures first (most important for debugging)
-        let failures: Vec<_> = self.results.iter()
+        let failures: Vec<_> = self
+            .results
+            .iter()
             .filter(|r| !r.success && !r.is_skipped())
             .collect();
-        
+
         if !failures.is_empty() {
             md.push_str("## Failures\n\n");
             md.push_str("| Task | Dataset | Backend | Error |\n");
             md.push_str("|------|---------|---------|-------|\n");
             for result in &failures {
-                let error = result.error.as_ref()
+                let error = result
+                    .error
+                    .as_ref()
                     .map(|e| e.replace('|', "\\|").replace('\n', " "))
                     .unwrap_or_else(|| "N/A".to_string());
                 md.push_str(&format!(
                     "| {} | {:?} | {} | {} |\n",
-                    result.task.name(), result.dataset, result.backend, error
+                    result.task.name(),
+                    result.dataset,
+                    result.backend,
+                    error
                 ));
             }
             md.push('\n');
         }
-        
+
         // Error patterns
         let mut error_patterns: HashMap<String, usize> = HashMap::new();
         for result in failures.iter() {
@@ -1180,7 +1200,7 @@ impl ComprehensiveEvalResults {
                 *error_patterns.entry(pattern).or_insert(0) += 1;
             }
         }
-        
+
         if !error_patterns.is_empty() {
             md.push_str("## Error Patterns\n\n");
             let mut patterns: Vec<_> = error_patterns.iter().collect();
@@ -1200,25 +1220,21 @@ impl ComprehensiveEvalResults {
 
         for (task, mut results) in by_task {
             md.push_str(&format!("### {}\n\n", task.name()));
-            
+
             // Sort results: successful first (by F1 descending), then skipped, then failed
-            results.sort_by(|a, b| {
-                match (a.success, b.success) {
-                    (true, true) => {
-                        let a_f1 = a.primary_f1().unwrap_or(0.0);
-                        let b_f1 = b.primary_f1().unwrap_or(0.0);
-                        b_f1.partial_cmp(&a_f1).unwrap_or(std::cmp::Ordering::Equal)
-                    }
+            results.sort_by(|a, b| match (a.success, b.success) {
+                (true, true) => {
+                    let a_f1 = a.primary_f1().unwrap_or(0.0);
+                    let b_f1 = b.primary_f1().unwrap_or(0.0);
+                    b_f1.partial_cmp(&a_f1).unwrap_or(std::cmp::Ordering::Equal)
+                }
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                (false, false) => match (a.is_skipped(), b.is_skipped()) {
                     (true, false) => std::cmp::Ordering::Less,
                     (false, true) => std::cmp::Ordering::Greater,
-                    (false, false) => {
-                        match (a.is_skipped(), b.is_skipped()) {
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
-                            _ => std::cmp::Ordering::Equal,
-                        }
-                    }
-                }
+                    _ => std::cmp::Ordering::Equal,
+                },
             });
 
             // Compact table headers
@@ -1246,36 +1262,82 @@ impl ComprehensiveEvalResults {
             };
 
             for result in results {
-                let time_str = result.duration_ms
+                let time_str = result
+                    .duration_ms
                     .map(|d| format!("{:.0}", d))
                     .unwrap_or_else(|| "-".to_string());
-                
+
                 if show_metrics && result.success {
                     match task {
                         Task::NER | Task::DiscontinuousNER => {
                             let f1 = result.metrics.get("f1").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let p = result.metrics.get("precision").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let r = result.metrics.get("recall").map(|v| *v * 100.0).unwrap_or(0.0);
+                            let p = result
+                                .metrics
+                                .get("precision")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let r = result
+                                .metrics
+                                .get("recall")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
                             md.push_str(&format!(
                                 "| {:?} | {} | {:.1} | {:.1} | {:.1} | {} | {} |\n",
-                                result.dataset, result.backend, f1, p, r, result.num_examples, time_str
+                                result.dataset,
+                                result.backend,
+                                f1,
+                                p,
+                                r,
+                                result.num_examples,
+                                time_str
                             ));
                         }
                         Task::IntraDocCoref | Task::AbstractAnaphora => {
-                            let conll = result.metrics.get("conll_f1").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let muc = result.metrics.get("muc_f1").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let b3 = result.metrics.get("b3_f1").map(|v| *v * 100.0).unwrap_or(0.0);
+                            let conll = result
+                                .metrics
+                                .get("conll_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let muc = result
+                                .metrics
+                                .get("muc_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let b3 = result
+                                .metrics
+                                .get("b3_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
                             md.push_str(&format!(
                                 "| {:?} | {} | {:.1} | {:.1} | {:.1} | {} | {} |\n",
-                                result.dataset, result.backend, conll, muc, b3, result.num_examples, time_str
+                                result.dataset,
+                                result.backend,
+                                conll,
+                                muc,
+                                b3,
+                                result.num_examples,
+                                time_str
                             ));
                         }
                         Task::RelationExtraction => {
-                            let strict = result.metrics.get("strict_f1").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let boundary = result.metrics.get("boundary_f1").map(|v| *v * 100.0).unwrap_or(0.0);
+                            let strict = result
+                                .metrics
+                                .get("strict_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
+                            let boundary = result
+                                .metrics
+                                .get("boundary_f1")
+                                .map(|v| *v * 100.0)
+                                .unwrap_or(0.0);
                             md.push_str(&format!(
                                 "| {:?} | {} | {:.1} | {:.1} | {} | {} |\n",
-                                result.dataset, result.backend, strict, boundary, result.num_examples, time_str
+                                result.dataset,
+                                result.backend,
+                                strict,
+                                boundary,
+                                result.num_examples,
+                                time_str
                             ));
                         }
                         _ => {
@@ -1291,7 +1353,9 @@ impl ComprehensiveEvalResults {
                     let error_msg = if result.is_skipped() {
                         "no-feature".to_string()
                     } else {
-                        result.error.as_ref()
+                        result
+                            .error
+                            .as_ref()
                             .map(|e| {
                                 // Extract key error info
                                 if e.contains("Unknown backend") {
@@ -1314,11 +1378,13 @@ impl ComprehensiveEvalResults {
             }
             md.push('\n');
         }
-        
+
         // Backend summary (compact)
         let mut backend_stats: HashMap<String, (usize, usize, usize, f64)> = HashMap::new();
         for result in &self.results {
-            let entry = backend_stats.entry(result.backend.clone()).or_insert((0, 0, 0, 0.0));
+            let entry = backend_stats
+                .entry(result.backend.clone())
+                .or_insert((0, 0, 0, 0.0));
             if result.success {
                 entry.0 += 1;
                 if let Some(f1) = result.primary_f1() {
@@ -1330,7 +1396,7 @@ impl ComprehensiveEvalResults {
                 entry.2 += 1;
             }
         }
-        
+
         if !backend_stats.is_empty() {
             md.push_str("## Backend Summary\n\n");
             md.push_str("| Backend | ✓ | ⊘ | ✗ | Avg F1 |\n");
@@ -1339,7 +1405,11 @@ impl ComprehensiveEvalResults {
             backends.sort_by_key(|(_, (success, _, _, _))| *success);
             backends.reverse();
             for (backend, (success, skipped, failed, total_f1)) in backends {
-                let avg_f1 = if *success > 0 { total_f1 / *success as f64 * 100.0 } else { 0.0 };
+                let avg_f1 = if *success > 0 {
+                    total_f1 / *success as f64 * 100.0
+                } else {
+                    0.0
+                };
                 md.push_str(&format!(
                     "| {} | {} | {} | {} | {:.1} |\n",
                     backend, success, skipped, failed, avg_f1

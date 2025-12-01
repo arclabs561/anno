@@ -838,12 +838,7 @@ impl DatasetId {
                 "foundationPlace",
                 "foundationDate",
             ], // DBpedia relations
-            DatasetId::GoogleRE => &[
-                "birth_place",
-                "birth_date",
-                "place_of_death",
-                "place_lived",
-            ], // 4 binary relations
+            DatasetId::GoogleRE => &["birth_place", "birth_date", "place_of_death", "place_lived"], // 4 binary relations
             DatasetId::BioRED => &[
                 "gene-protein",
                 "disease-chemical",
@@ -1577,7 +1572,7 @@ impl DatasetLoader {
     #[cfg(feature = "eval-advanced")]
     fn download(&self, id: DatasetId) -> Result<String> {
         let url = id.download_url();
-        
+
         // Check if this is a HuggingFace datasets-server API URL
         if url.contains("datasets-server.huggingface.co/rows") {
             return self.download_hf_dataset_paginated(id, url);
@@ -1662,25 +1657,37 @@ impl DatasetLoader {
         let mut offset = 0;
         let mut total_rows = None;
 
-        log::info!("Downloading {} with pagination (page size: {})", id.name(), PAGE_SIZE);
+        log::info!(
+            "Downloading {} with pagination (page size: {})",
+            id.name(),
+            PAGE_SIZE
+        );
 
         loop {
             // Build paginated URL
             let url = if base_url.contains("offset=") {
                 // Replace existing offset parameter
                 base_url
-                    .replace(&format!("offset={}", offset - PAGE_SIZE), &format!("offset={}", offset))
+                    .replace(
+                        &format!("offset={}", offset - PAGE_SIZE),
+                        &format!("offset={}", offset),
+                    )
                     .replace("length=100", &format!("length={}", PAGE_SIZE))
             } else {
                 // Add pagination parameters
                 let separator = if base_url.contains('?') { "&" } else { "?" };
-                format!("{}{}offset={}&length={}", base_url, separator, offset, PAGE_SIZE)
+                format!(
+                    "{}{}offset={}&length={}",
+                    base_url, separator, offset, PAGE_SIZE
+                )
             };
 
             match self.download_attempt(&url) {
                 Ok(content) => {
-                    let parsed: serde_json::Value = serde_json::from_str(&content)
-                        .map_err(|e| Error::InvalidInput(format!("Invalid JSON response: {}", e)))?;
+                    let parsed: serde_json::Value =
+                        serde_json::from_str(&content).map_err(|e| {
+                            Error::InvalidInput(format!("Invalid JSON response: {}", e))
+                        })?;
 
                     // Extract features (only from first page)
                     if features.is_none() {
@@ -1784,7 +1791,11 @@ impl DatasetLoader {
             DatasetId::BroadTwitterCorpus => ("GateNLP/broad_twitter_corpus", "test/a.conll"),
             DatasetId::CADEC => ("KevinSpaghetti/cadec", "data/test.jsonl"),
             DatasetId::PreCo => ("coref-data/preco", "data/test.jsonl"),
-            _ => return Err(Error::InvalidInput("Dataset not available via hf-hub".to_string())),
+            _ => {
+                return Err(Error::InvalidInput(
+                    "Dataset not available via hf-hub".to_string(),
+                ))
+            }
         };
 
         let api = Api::new().map_err(|e| {
@@ -1800,9 +1811,8 @@ impl DatasetLoader {
             ))
         })?;
 
-        std::fs::read_to_string(&file_path_buf).map_err(|e| {
-            Error::InvalidInput(format!("Failed to read downloaded file: {}", e))
-        })
+        std::fs::read_to_string(&file_path_buf)
+            .map_err(|e| Error::InvalidInput(format!("Failed to read downloaded file: {}", e)))
     }
 
     /// Placeholder for when hf-hub is not available.
