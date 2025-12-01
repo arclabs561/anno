@@ -41,14 +41,12 @@ let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
 for e in &entities {
     println!("{}: \"{}\" [{}, {})", e.entity_type.as_label(), e.text, e.start, e.end);
 }
+// Output:
+// EMAIL: "alice@acme.com" [8, 22)
+// DATE: "Jan 15" [26, 32)
 ```
 
-This prints:
-
-```
-EMAIL: "alice@acme.com" [8, 22)
-DATE: "Jan 15" [26, 32)
-```
+**Note**: All examples use `?` for error handling. In production, handle `Result` types appropriately.
 
 `PatternNER` detects structured entities via regex: dates, times, money, percentages, emails, URLs, phone numbers. It won't find "John Smith" or "Apple Inc." — those require context, not patterns.
 
