@@ -261,7 +261,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}
+          key: anno-datasets-${{ runner.os }}-v2
+          restore-keys: |
+            anno-datasets-${{ runner.os }}-
 
       - name: Run all tests including ignored
         run: cargo test --features "eval-full discourse" -- --include-ignored
