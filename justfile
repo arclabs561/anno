@@ -26,7 +26,7 @@ test-all:
 
 # === CI Simulation ===
 
-# Simulate full CI pipeline locally
+# Simulate full CI pipeline locally (fast checks only)
 ci: fmt
     cargo check --all-targets
     cargo clippy --all-targets
@@ -40,15 +40,29 @@ ci: fmt
     cargo test --test regression_f1 --features eval
     @echo "CI simulation passed"
 
+# Simulate CI with sanity evals (includes small random sample evals)
+ci-eval: ci
+    just eval-sanity
+
 # === Evaluation ===
 
 # Run evaluation on synthetic data (fast, no downloads)
 eval-quick:
     ANNO_MAX_EXAMPLES=20 cargo run --example eval_basic --features eval
 
-# Run evaluation with real datasets (requires network)
+# Run sanity check evaluations (small random samples, ~5-10 min)
+# Used in CI on push
+eval-sanity:
+    ./scripts/eval-sanity.sh
+
+# Run full evaluations (all task-dataset-backend combinations)
+# Heavy operation - only run on eval-* branches or manual trigger
 eval-full:
-    cargo run --example eval_basic --features eval-advanced
+    ./scripts/eval-full.sh
+
+# Run full evaluations with example limit
+eval-full-limit MAX_EXAMPLES:
+    MAX_EXAMPLES={{MAX_EXAMPLES}} ./scripts/eval-full.sh
 
 # Run abstract anaphora evaluation
 eval-anaphora:

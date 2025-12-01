@@ -10,8 +10,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Limit dataset examples in CI for faster/cheaper runs
-  ANNO_MAX_EXAMPLES: 50
 
 jobs:
   # ==========================================================================
@@ -45,7 +43,6 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      # Note: Using -W instead of -D for warnings to avoid failing on pre-existing lints
       - run: cargo clippy --all-targets
 
   # ==========================================================================
@@ -72,7 +69,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       
-      # Cache downloaded datasets across runs
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -126,7 +122,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       
-      # Cache HuggingFace models (shared across ONNX/Candle)
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -151,7 +146,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       
-      # Cache HuggingFace models
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -237,13 +231,12 @@ jobs:
         run: cargo build --example abstract_anaphora_eval --features discourse
 
   # ==========================================================================
-  # Comprehensive tests (manual trigger only - requires model downloads)
+  # Sanity Check Evaluations (small random samples on push)
   # ==========================================================================
-  comprehensive:
-    name: Comprehensive Tests
+  eval-sanity:
+    name: Eval Sanity (small samples)
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    timeout-minutes: 60
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -253,7 +246,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
 
@@ -265,20 +258,61 @@ jobs:
           restore-keys: |
             anno-datasets-${{ runner.os }}-
 
-      - name: Run all tests including ignored
-        run: cargo test --features "eval-full discourse" -- --include-ignored
-        continue-on-error: true
+      - name: Run sanity check evaluations
+        run: ./scripts/eval-sanity.sh
+        env:
+          MAX_EXAMPLES: 20
+          RANDOM_SEED: 42
 
-      - name: Run abstract anaphora evaluation
-        run: cargo run --example abstract_anaphora_eval --features discourse
-
-      - name: Upload reports
+      - name: Upload sanity report
         uses: actions/upload-artifact@v4
-        with:
-          name: evaluation-reports
-          path: |
-            *.html
         if: always()
+        with:
+          name: eval-sanity-report
+          path: eval-sanity-report.md
+
+  # ==========================================================================
+  # Full Evaluations (only on eval-* branches or manual trigger)
+  # ==========================================================================
+  eval-full:
+    name: Eval Full (all combinations)
+    runs-on: ubuntu-latest
+    if: |
+      startsWith(github.ref, 'refs/heads/eval-') ||
+      github.event_name == 'workflow_dispatch'
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Cache HF models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ runner.os }}-v2
+          restore-keys: |
+            hf-models-${{ runner.os }}-
+
+      - name: Cache datasets
+        uses: actions/cache@v4
+        with:
+          path: ~/.anno_cache
+          key: anno-datasets-${{ runner.os }}-v2
+          restore-keys: |
+            anno-datasets-${{ runner.os }}-
+
+      - name: Run full evaluations
+        run: ./scripts/eval-full.sh
+        env:
+          MAX_EXAMPLES: ${{ github.event.inputs.max_examples || '' }}
+
+      - name: Upload full report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-full-report
+          path: eval-full-report.md
 
   # ==========================================================================
   # Security audit
