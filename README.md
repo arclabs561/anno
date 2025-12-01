@@ -6,7 +6,7 @@ Information extraction for Rust: NER, coreference resolution, and evaluation.
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Extract entities, resolve coreference, and evaluate models. Supports regex patterns (dates, money, emails), transformer models (BERT, GLiNER), and coreference resolution (rule-based and T5-based).
+Extract entities, resolve coreference, and evaluate models. Supports regex patterns (dates, money, emails), transformer models (BERT, GLiNER, GLiNER2), and coreference resolution (rule-based and T5-based).
 
 All backends implement the same `Model` trait. You can swap between a 400ns regex matcher and a 50ms BERT model without changing calling code.
 
