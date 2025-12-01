@@ -42,6 +42,7 @@ ort = { version = "2.0.0-rc.10", optional = true }
 tokenizers = { version = "0.22", optional = true }
 hf-hub = { version = "0.4", optional = true }
 ndarray = { version = "0.16", optional = true }
+lru = { version = "0.12", optional = true }
 candle-core = { version = "0.9", optional = true }
 candle-nn = { version = "0.9", optional = true }
 candle-transformers = { version = "0.9", optional = true }
@@ -93,7 +94,7 @@ eval-profiling = ["eval"]
 discourse = ["eval"]
 
 # === ML Backends ===
-onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub", "dep:ndarray"]
+onnx = ["dep:ort", "dep:tokenizers", "dep:hf-hub", "dep:ndarray", "dep:lru"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub", "dep:safetensors"]
 
 # GPU acceleration for Candle (opt-in)
@@ -139,6 +140,11 @@ harness = false
 name = "evaluation_parallel"
 harness = false
 required-features = ["eval", "eval-parallel"]
+
+[[bench]]
+name = "gliner_profiling"
+harness = false
+required-features = ["onnx"]
 
 [lints.rust]
 missing_docs = "warn"
