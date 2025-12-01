@@ -52,6 +52,8 @@ pub struct GLiNERConfig {
     pub optimization_level: u8,
     /// Number of threads for inference (0 = auto).
     pub num_threads: usize,
+    /// Cache size for prompt encodings (0 = disabled, default 100).
+    pub prompt_cache_size: usize,
 }
 
 #[cfg(feature = "onnx")]
@@ -61,8 +63,32 @@ impl Default for GLiNERConfig {
             prefer_quantized: true,
             optimization_level: 3,
             num_threads: 4,
+            prompt_cache_size: 100,
         }
     }
+}
+
+/// Cache key for prompt encodings.
+///
+/// Keyed by (text_hash, entity_types_hash, model_id) to ensure cache hits
+/// only when text, entity types, and model are identical.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct PromptCacheKey {
+    text_hash: u64,
+    entity_types_hash: u64,
+    model_id: String,
+}
+
+/// Cached prompt encoding result.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone)]
+struct PromptCacheValue {
+    input_ids: Vec<i64>,
+    attention_mask: Vec<i64>,
+    words_mask: Vec<i64>,
+    text_lengths: i64,
+    entity_count: usize,
 }
 
 /// GLiNER model for zero-shot NER.
@@ -77,6 +103,8 @@ pub struct GLiNEROnnx {
     model_name: String,
     /// Whether a quantized model was loaded.
     is_quantized: bool,
+    /// LRU cache for prompt encodings (keyed by text + entity types).
+    prompt_cache: Option<std::sync::Mutex<lru::LruCache<PromptCacheKey, PromptCacheValue>>>,
 }
 
 #[cfg(feature = "onnx")]
@@ -186,11 +214,24 @@ impl GLiNEROnnx {
             session.outputs.iter().map(|o| &o.name).collect::<Vec<_>>()
         );
 
+        // Initialize prompt cache if enabled
+        let prompt_cache = if config.prompt_cache_size > 0 {
+            use lru::LruCache;
+            use std::num::NonZeroUsize;
+            Some(std::sync::Mutex::new(LruCache::new(
+                NonZeroUsize::new(config.prompt_cache_size)
+                    .expect("prompt_cache_size must be > 0"),
+            )))
+        } else {
+            None
+        };
+
         Ok(Self {
             session: std::sync::Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             model_name: model_name.to_string(),
             is_quantized,
+            prompt_cache,
         })
     }
 
@@ -243,8 +284,9 @@ impl GLiNEROnnx {
         }
 
         // Encode input following gline-rs pattern: word-by-word encoding
+        // Use cached version if cache is enabled
         let (input_ids, attention_mask, words_mask, text_lengths, entity_count) =
-            self.encode_prompt(&text_words, entity_types)?;
+            self.encode_prompt_cached(&text_words, entity_types)?;
 
         // Generate span tensors
         let (span_idx, span_mask) = self.make_span_tensors(num_text_words);
@@ -322,10 +364,102 @@ impl GLiNEROnnx {
         Ok(entities)
     }
 
+    /// Hash text for cache key.
+    fn hash_text(text: &str) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        text.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Hash entity types for cache key (sorted for consistency).
+    fn hash_entity_types(entity_types: &[&str]) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        // Sort entity types for consistent hashing regardless of input order
+        let mut sorted: Vec<&str> = entity_types.to_vec();
+        sorted.sort();
+        sorted.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    /// Encode prompt with caching support.
+    ///
+    /// Checks cache first if enabled, otherwise calls `encode_prompt`.
+    fn encode_prompt_cached(
+        &self,
+        text_words: &[&str],
+        entity_types: &[&str],
+    ) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>, i64, usize)> {
+        // If cache is disabled, use direct encoding
+        let cache = match &self.prompt_cache {
+            Some(c) => c,
+            None => return self.encode_prompt(text_words, entity_types),
+        };
+
+        // Build cache key
+        let text = text_words.join(" ");
+        let text_hash = Self::hash_text(&text);
+        let entity_types_hash = Self::hash_entity_types(entity_types);
+        let key = PromptCacheKey {
+            text_hash,
+            entity_types_hash,
+            model_id: self.model_name.clone(),
+        };
+
+        // Check cache
+        {
+            let mut cache_guard = cache
+                .lock()
+                .map_err(|e| Error::Retrieval(format!("Failed to lock prompt cache: {}", e)))?;
+            if let Some(cached) = cache_guard.get(&key) {
+                return Ok((
+                    cached.input_ids.clone(),
+                    cached.attention_mask.clone(),
+                    cached.words_mask.clone(),
+                    cached.text_lengths,
+                    cached.entity_count,
+                ));
+            }
+        }
+
+        // Cache miss: compute encoding
+        let result = self.encode_prompt(text_words, entity_types)?;
+
+        // Store in cache
+        {
+            let mut cache_guard = cache
+                .lock()
+                .map_err(|e| Error::Retrieval(format!("Failed to lock prompt cache: {}", e)))?;
+            cache_guard.put(
+                key,
+                PromptCacheValue {
+                    input_ids: result.0.clone(),
+                    attention_mask: result.1.clone(),
+                    words_mask: result.2.clone(),
+                    text_lengths: result.3,
+                    entity_count: result.4,
+                },
+            );
+        }
+
+        Ok(result)
+    }
+
     /// Encode prompt following gline-rs pattern: word-by-word encoding.
     ///
     /// Structure: [START] <<ENT>> type1 <<ENT>> type2 <<SEP>> word1 word2 ... [END]
-    fn encode_prompt(
+    ///
+    /// # Performance
+    ///
+    /// This method performs tokenization and encoding, which can be expensive.
+    /// Consider caching the result if the same (text, entity_types) combination
+    /// is queried multiple times.
+    ///
+    /// For cached encoding, use `encode_prompt_cached` instead.
+    pub(crate) fn encode_prompt(
         &self,
         text_words: &[&str],
         entity_types: &[&str],

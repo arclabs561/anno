@@ -40,18 +40,8 @@ fn bench_gliner_extract_breakdown(c: &mut Criterion) {
             });
         });
         
-        // Measure encode_prompt separately (if we can access it)
-        // Note: This requires making encode_prompt public or adding a benchmark helper
-        group.bench_function(BenchmarkId::new("encode_prompt_only", name), |b| {
-            b.iter(|| {
-                let text_words: Vec<&str> = text.split_whitespace().collect();
-                // We can't directly call encode_prompt, but we can measure extract overhead
-                // by subtracting inference time
-                let start = Instant::now();
-                let _ = model.extract(black_box(text), black_box(entity_types), 0.5);
-                let _elapsed = start.elapsed();
-            });
-        });
+        // Measure encode_prompt cost indirectly by comparing full extract times
+        // The encode_prompt_only benchmark is removed as it was redundant
     }
     
     group.finish();
