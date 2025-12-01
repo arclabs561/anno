@@ -30,6 +30,7 @@ rand = { version = "0.9", optional = true }
 
 # Dataset downloading (optional, eval-advanced)
 ureq = { version = "2", optional = true }
+sha2 = { version = "0.10", optional = true }
 
 # Cache directory discovery (optional, eval)
 dirs = { version = "5", optional = true }
@@ -77,7 +78,7 @@ eval = ["dep:dirs"]
 eval-bias = ["eval"]
 # Advanced analysis: calibration, robustness, OOD, dataset download, etc.
 # Includes ureq for downloading real NER datasets (WikiGold, WNUT, etc.)
-eval-advanced = ["eval", "dep:rand", "dep:ureq"]
+eval-advanced = ["eval", "dep:rand", "dep:ureq", "dep:sha2"]
 # Everything in eval
 eval-full = ["eval", "eval-bias", "eval-advanced"]
 # Parallel evaluation (faster processing on multi-core systems)

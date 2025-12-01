@@ -143,7 +143,12 @@ pub fn dataset_tasks(dataset: DatasetId) -> &'static [Task] {
         DatasetId::CADEC => &[Task::DiscontinuousNER, Task::NER],
 
         // Relation Extraction datasets
-        DatasetId::DocRED | DatasetId::ReTACRED => &[Task::RelationExtraction],
+        DatasetId::DocRED
+        | DatasetId::ReTACRED
+        | DatasetId::NYTFB
+        | DatasetId::WEBNLG
+        | DatasetId::GoogleRE
+        | DatasetId::BioRED => &[Task::RelationExtraction],
 
         // Coreference datasets
         DatasetId::GAP | DatasetId::PreCo | DatasetId::LitBank => &[
@@ -190,7 +195,14 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             &[DatasetId::CADEC]
             // TODO: Add ShARe13, ShARe14 when available
         }
-        Task::RelationExtraction => &[DatasetId::DocRED, DatasetId::ReTACRED],
+        Task::RelationExtraction => &[
+            DatasetId::DocRED,
+            DatasetId::ReTACRED,
+            DatasetId::NYTFB,
+            DatasetId::WEBNLG,
+            DatasetId::GoogleRE,
+            DatasetId::BioRED,
+        ],
         Task::IntraDocCoref => &[DatasetId::GAP, DatasetId::PreCo, DatasetId::LitBank],
         Task::InterDocCoref => {
             // TODO: Add inter-doc coref datasets when available

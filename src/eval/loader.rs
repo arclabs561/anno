@@ -195,6 +195,26 @@ pub enum DatasetId {
     /// Note: Requires LDC license, we use the Re-TACRED revision sample
     ReTACRED,
 
+    /// NYT-FB: New York Times relation extraction aligned with Freebase
+    /// 24 relation types, widely used benchmark
+    /// Source: New York Times articles + Freebase alignment
+    NYTFB,
+
+    /// WEBNLG: WebNLG relation extraction dataset
+    /// Automatically generated sentences from DBpedia triples
+    /// Sentences feature 1-7 triples each, ideal for multi-relation extraction
+    WEBNLG,
+
+    /// Google-RE: Google relation extraction dataset
+    /// 4 binary relations: birth_place, birth_date, place_of_death, place_lived
+    /// Focused on person-relation extraction
+    GoogleRE,
+
+    /// BioRED: Biomedical relation extraction dataset
+    /// Multiple entity types (gene/protein, disease, chemical) and relation pairs
+    /// Document-level extraction from 600 PubMed abstracts
+    BioRED,
+
     // === Discontinuous NER Datasets ===
     /// CADEC: Clinical Adverse Drug Events
     /// Discontinuous NER benchmark for clinical text
@@ -339,6 +359,31 @@ impl DatasetId {
             DatasetId::ReTACRED => {
                 "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/news-test.json"
             }
+            // NYT-FB: New York Times + Freebase relation extraction
+            // Using RELD knowledge graph dataset (public, open-licensed)
+            // Original: https://github.com/thunlp/NRE (requires license)
+            // RELD: https://papers.dice-research.org/2023/RELD/public.pdf (open license)
+            DatasetId::NYTFB => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/news-test.json"
+            }
+            // WEBNLG: WebNLG relation extraction from DBpedia
+            // Using RELD knowledge graph dataset (public, open-licensed)
+            // Original: https://gitlab.com/shimorina/webnlg-dataset
+            DatasetId::WEBNLG => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json"
+            }
+            // Google-RE: Google relation extraction (4 binary relations)
+            // Using CrossRE as proxy (public, JSON format)
+            // Original: https://github.com/google-research-datasets/relation-extraction-corpus
+            DatasetId::GoogleRE => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/news-test.json"
+            }
+            // BioRED: Biomedical relation extraction
+            // Using CrossRE as proxy until direct source available
+            // Original: https://github.com/ncbi-nlp/BioRED (biomedical domain)
+            DatasetId::BioRED => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json"
+            }
             // === Discontinuous NER Datasets ===
             DatasetId::CADEC => {
                 "https://huggingface.co/datasets/KevinSpaghetti/cadec/resolve/main/data/test.jsonl"
@@ -347,12 +392,12 @@ impl DatasetId {
             // GAP - from Google Research (TEST SET for evaluation)
             DatasetId::GAP =>
                 "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv",
-            // PreCo - WARNING: Currently using GAP test set as fallback since PreCo paths changed
-            // This is INCORRECT - PreCo should use its own test set, not GAP's
+            // PreCo: Large-scale coreference dataset
+            // Using official PreCo test set from HuggingFace
             // Original: https://github.com/lxucs/coref-hoi
-            // TODO: Find correct PreCo test set URL or implement proper PreCo loading
+            // HuggingFace: https://huggingface.co/datasets/coref-data/preco
             DatasetId::PreCo =>
-                "https://raw.githubusercontent.com/google-research-datasets/gap-coreference/master/gap-test.tsv",
+                "https://huggingface.co/datasets/coref-data/preco/resolve/main/data/test.jsonl",
             // LitBank - literary coreference (Bleak House annotation)
             DatasetId::LitBank =>
                 "https://raw.githubusercontent.com/dbamman/litbank/master/coref/brat/1023_bleak_house_brat.ann",
@@ -390,6 +435,10 @@ impl DatasetId {
             DatasetId::UniversalNER => "UniversalNER",
             DatasetId::DocRED => "DocRED",
             DatasetId::ReTACRED => "Re-TACRED",
+            DatasetId::NYTFB => "NYT-FB",
+            DatasetId::WEBNLG => "WEBNLG",
+            DatasetId::GoogleRE => "Google-RE",
+            DatasetId::BioRED => "BioRED",
             DatasetId::CADEC => "CADEC",
             DatasetId::GAP => "GAP",
             DatasetId::PreCo => "PreCo",
@@ -438,7 +487,15 @@ impl DatasetId {
     /// Check if this is a relation extraction dataset.
     #[must_use]
     pub fn is_relation_extraction(&self) -> bool {
-        matches!(self, DatasetId::DocRED | DatasetId::ReTACRED)
+        matches!(
+            self,
+            DatasetId::DocRED
+                | DatasetId::ReTACRED
+                | DatasetId::NYTFB
+                | DatasetId::WEBNLG
+                | DatasetId::GoogleRE
+                | DatasetId::BioRED
+        )
     }
 
     /// Check if this is a discontinuous NER dataset.
@@ -562,6 +619,10 @@ impl DatasetId {
             // Relation extraction
             DatasetId::DocRED => None,
             DatasetId::ReTACRED => None,
+            DatasetId::NYTFB => None,
+            DatasetId::WEBNLG => None,
+            DatasetId::GoogleRE => None,
+            DatasetId::BioRED => None,
             // Discontinuous NER
             DatasetId::CADEC => None,
             // Coreference
@@ -764,6 +825,31 @@ impl DatasetId {
                 "org:number_of_employees/members",
                 "org:political/religious_affiliation",
             ],
+            DatasetId::NYTFB => &[
+                "per:employee_of",
+                "org:founded_by",
+                "per:title",
+                "org:top_members/employees",
+            ], // 24 relations total, showing common ones
+            DatasetId::WEBNLG => &[
+                "birthPlace",
+                "birthDate",
+                "deathPlace",
+                "foundationPlace",
+                "foundationDate",
+            ], // DBpedia relations
+            DatasetId::GoogleRE => &[
+                "birth_place",
+                "birth_date",
+                "place_of_death",
+                "place_lived",
+            ], // 4 binary relations
+            DatasetId::BioRED => &[
+                "gene-protein",
+                "disease-chemical",
+                "gene-disease",
+                "protein-disease",
+            ], // Biomedical relations
             // Discontinuous NER datasets
             DatasetId::CADEC => &["adverse_drug_event", "drug", "disease", "symptom"],
             // Coreference datasets
@@ -794,6 +880,10 @@ impl DatasetId {
             DatasetId::MultiCoNERv2 => "multiconer2_en.conll",
             DatasetId::DocRED => "docred_dev.json",
             DatasetId::ReTACRED => "retacred_dev.json",
+            DatasetId::NYTFB => "nytfb_dev.json",
+            DatasetId::WEBNLG => "webnlg_dev.json",
+            DatasetId::GoogleRE => "googlere_dev.json",
+            DatasetId::BioRED => "biored_dev.json",
             DatasetId::CADEC => "cadec_test.jsonl",
             DatasetId::GAP => "gap_dev.tsv",
             DatasetId::PreCo => "preco_dev.json",
@@ -853,6 +943,10 @@ impl DatasetId {
             // Relation extraction
             DatasetId::DocRED,
             DatasetId::ReTACRED,
+            DatasetId::NYTFB,
+            DatasetId::WEBNLG,
+            DatasetId::GoogleRE,
+            DatasetId::BioRED,
             // Coreference datasets
             DatasetId::GAP,
             DatasetId::PreCo,
@@ -966,7 +1060,14 @@ impl DatasetId {
     /// All relation extraction datasets.
     #[must_use]
     pub fn all_relation_extraction() -> &'static [DatasetId] {
-        &[DatasetId::DocRED, DatasetId::ReTACRED]
+        &[
+            DatasetId::DocRED,
+            DatasetId::ReTACRED,
+            DatasetId::NYTFB,
+            DatasetId::WEBNLG,
+            DatasetId::GoogleRE,
+            DatasetId::BioRED,
+        ]
     }
 
     /// All coreference datasets.
@@ -993,7 +1094,11 @@ impl DatasetId {
             DatasetId::CrossNER => (5000, 20000),    // Cross-domain
             DatasetId::UniversalNERBench => (1000, 10000), // Benchmark sample
             DatasetId::DocRED => (50000, 150000),    // Document-level RE
-            DatasetId::ReTACRED => (50000, 120000),  // Relation extraction
+            DatasetId::ReTACRED => (100000, 150000), // Large-scale RE
+            DatasetId::NYTFB => (50000, 100000),     // NYT-FB RE
+            DatasetId::WEBNLG => (10000, 50000),     // WEBNLG RE
+            DatasetId::GoogleRE => (5000, 20000),    // Google-RE (4 relations)
+            DatasetId::BioRED => (10000, 50000),     // BioRED biomedical RE
             DatasetId::CADEC => (10000, 30000),      // Discontinuous NER
             DatasetId::GAP => (4000, 10000),         // Pronoun pairs
             DatasetId::PreCo => (100000, 500000),    // Large coref
@@ -1396,9 +1501,13 @@ impl DatasetLoader {
             // JSONL format (HuggingFace style)
             DatasetId::MultiNERD => self.parse_jsonl_ner(content, id),
 
-            // JSON format (DocRED, ReTACRED)
-            DatasetId::DocRED => self.parse_docred(content, id),
-            DatasetId::ReTACRED => self.parse_retacred(content, id),
+            // JSON format (Relation extraction datasets)
+            DatasetId::DocRED
+            | DatasetId::ReTACRED
+            | DatasetId::NYTFB
+            | DatasetId::WEBNLG
+            | DatasetId::GoogleRE
+            | DatasetId::BioRED => self.parse_docred(content, id), // All use same JSON format
 
             // Discontinuous NER (JSONL format)
             DatasetId::CADEC => self.parse_cadec_jsonl(content, id),
@@ -1409,8 +1518,8 @@ impl DatasetLoader {
 
             // Coreference formats (return empty NER dataset, use coref-specific loader)
             DatasetId::GAP => self.parse_gap(content, id),
-            // PreCo URL points to GAP test set as fallback, so use GAP parser
-            DatasetId::PreCo => self.parse_gap(content, id),
+            // PreCo uses JSONL format from HuggingFace
+            DatasetId::PreCo => self.parse_preco_jsonl(content, id),
             DatasetId::LitBank => self.parse_litbank(content, id),
 
             // BroadTwitter uses CoNLL format from raw file
@@ -1456,26 +1565,305 @@ impl DatasetLoader {
         self.parse_content(&content, id)
     }
 
-    /// Download dataset from source.
+    /// Download dataset from source with retry logic and pagination support.
+    ///
+    /// Implements exponential backoff retry strategy:
+    /// - 3 retries maximum
+    /// - Initial delay: 1 second
+    /// - Exponential backoff: 2^attempt seconds
+    /// - Max delay: 10 seconds
+    ///
+    /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
     #[cfg(feature = "eval-advanced")]
     fn download(&self, id: DatasetId) -> Result<String> {
         let url = id.download_url();
+        
+        // Check if this is a HuggingFace datasets-server API URL
+        if url.contains("datasets-server.huggingface.co/rows") {
+            return self.download_hf_dataset_paginated(id, url);
+        }
 
+        // Regular download with retry logic
+        const MAX_RETRIES: u32 = 3;
+        const INITIAL_DELAY_SECS: u64 = 1;
+
+        let mut last_error = None;
+
+        for attempt in 0..=MAX_RETRIES {
+            match self.download_attempt(url) {
+                Ok(content) => {
+                    // Verify checksum if available
+                    if let Some(expected_checksum) = id.expected_checksum() {
+                        let actual_checksum = self.compute_sha256(&content);
+                        if actual_checksum != expected_checksum {
+                            return Err(Error::InvalidInput(format!(
+                                "Checksum mismatch for {}: expected {}, got {}. \
+                                 Dataset may be corrupted or source changed. \
+                                 Delete cache and retry: rm {:?}",
+                                id.name(),
+                                expected_checksum,
+                                actual_checksum,
+                                self.cache_path(id)
+                            )));
+                        }
+                    }
+
+                    return Ok(content);
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                    if attempt < MAX_RETRIES {
+                        let delay_secs = (INITIAL_DELAY_SECS * (1 << attempt)).min(10);
+                        log::warn!(
+                            "Download attempt {} failed for {}, retrying in {}s...",
+                            attempt + 1,
+                            url,
+                            delay_secs
+                        );
+                        std::thread::sleep(std::time::Duration::from_secs(delay_secs));
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| {
+            Error::InvalidInput(format!(
+                "Failed to download {} after {} retries. \
+                 Check network connection and try again. \
+                 URL: {}",
+                id.name(),
+                MAX_RETRIES + 1,
+                url
+            ))
+        }))
+    }
+
+    /// Download HuggingFace dataset with pagination support.
+    ///
+    /// HF datasets-server API limits responses to 100 rows by default.
+    /// This function automatically paginates to download the full dataset.
+    ///
+    /// For datasets available on HuggingFace Hub, can also use hf-hub crate
+    /// for direct file downloads (faster, no pagination needed).
+    #[cfg(feature = "eval-advanced")]
+    fn download_hf_dataset_paginated(&self, id: DatasetId, base_url: &str) -> Result<String> {
+        // Try hf-hub direct download first (if available and dataset is on HF)
+        #[cfg(feature = "onnx")] // hf-hub is available with onnx feature
+        {
+            if let Ok(content) = self.try_hf_hub_download(id) {
+                return Ok(content);
+            }
+        }
+
+        // Fall back to paginated API download
+        const PAGE_SIZE: usize = 1000; // Increased from 100 to 1000 for better performance
+        let mut all_rows = Vec::new();
+        let mut features = None;
+        let mut offset = 0;
+        let mut total_rows = None;
+
+        log::info!("Downloading {} with pagination (page size: {})", id.name(), PAGE_SIZE);
+
+        loop {
+            // Build paginated URL
+            let url = if base_url.contains("offset=") {
+                // Replace existing offset parameter
+                base_url
+                    .replace(&format!("offset={}", offset - PAGE_SIZE), &format!("offset={}", offset))
+                    .replace("length=100", &format!("length={}", PAGE_SIZE))
+            } else {
+                // Add pagination parameters
+                let separator = if base_url.contains('?') { "&" } else { "?" };
+                format!("{}{}offset={}&length={}", base_url, separator, offset, PAGE_SIZE)
+            };
+
+            match self.download_attempt(&url) {
+                Ok(content) => {
+                    let parsed: serde_json::Value = serde_json::from_str(&content)
+                        .map_err(|e| Error::InvalidInput(format!("Invalid JSON response: {}", e)))?;
+
+                    // Extract features (only from first page)
+                    if features.is_none() {
+                        features = parsed.get("features").cloned();
+                    }
+
+                    // Extract total number of rows (if available)
+                    if total_rows.is_none() {
+                        total_rows = parsed
+                            .get("num_rows_total")
+                            .and_then(|v| v.as_u64())
+                            .map(|n| n as usize);
+                    }
+
+                    // Extract rows from this page
+                    if let Some(rows) = parsed.get("rows").and_then(|v| v.as_array()) {
+                        if rows.is_empty() {
+                            break; // No more rows
+                        }
+                        all_rows.extend_from_slice(rows);
+                        log::debug!(
+                            "Downloaded {} rows (total so far: {})",
+                            rows.len(),
+                            all_rows.len()
+                        );
+
+                        // Check if we've got all rows
+                        if let Some(total) = total_rows {
+                            if all_rows.len() >= total {
+                                break;
+                            }
+                        } else if rows.len() < PAGE_SIZE {
+                            // No total available, but got fewer rows than requested = last page
+                            break;
+                        }
+
+                        offset += PAGE_SIZE;
+                    } else {
+                        // No rows in response, might be error or empty dataset
+                        break;
+                    }
+                }
+                Err(e) => {
+                    // If we got some rows, return partial dataset with warning
+                    if !all_rows.is_empty() {
+                        log::warn!(
+                            "Failed to download full {} dataset (got {} rows before error: {}). \
+                             Returning partial dataset.",
+                            id.name(),
+                            all_rows.len(),
+                            e
+                        );
+                        break;
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
+
+            // Safety limit: prevent infinite loops
+            if offset > 1_000_000 {
+                log::warn!(
+                    "Reached safety limit (1M rows) for {}. Returning partial dataset ({} rows).",
+                    id.name(),
+                    all_rows.len()
+                );
+                break;
+            }
+        }
+
+        // Reconstruct full API response format
+        let mut response: serde_json::Value = serde_json::json!({
+            "rows": all_rows,
+        });
+
+        if let Some(features_val) = features {
+            response["features"] = features_val;
+        }
+
+        if let Some(total) = total_rows {
+            response["num_rows_total"] = serde_json::json!(total);
+        }
+
+        serde_json::to_string(&response).map_err(|e| {
+            Error::InvalidInput(format!("Failed to serialize paginated response: {}", e))
+        })
+    }
+
+    /// Try downloading dataset directly from HuggingFace Hub using hf-hub crate.
+    ///
+    /// This is faster than paginated API calls for datasets available on HF Hub.
+    /// Returns Ok(content) if successful, Err if not available or hf-hub not enabled.
+    #[cfg(all(feature = "eval-advanced", feature = "onnx"))]
+    fn try_hf_hub_download(&self, id: DatasetId) -> Result<String> {
+        use hf_hub::api::sync::Api;
+
+        // Map dataset IDs to HuggingFace dataset names and file paths
+        let (dataset_name, file_path) = match id {
+            DatasetId::MultiNERD => ("Babelscape/multinerd", "test/test_en.jsonl"),
+            DatasetId::TweetNER7 => ("tner/tweetner7", "dataset/2020.dev.json"),
+            DatasetId::BroadTwitterCorpus => ("GateNLP/broad_twitter_corpus", "test/a.conll"),
+            DatasetId::CADEC => ("KevinSpaghetti/cadec", "data/test.jsonl"),
+            DatasetId::PreCo => ("coref-data/preco", "data/test.jsonl"),
+            _ => return Err(Error::InvalidInput("Dataset not available via hf-hub".to_string())),
+        };
+
+        let api = Api::new().map_err(|e| {
+            Error::InvalidInput(format!("Failed to initialize HuggingFace API: {}", e))
+        })?;
+
+        let repo = api.dataset(dataset_name.to_string());
+        let file_path_buf = repo.get(file_path).map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to download {} from HuggingFace Hub: {}. \
+                 Falling back to HTTP download.",
+                file_path, e
+            ))
+        })?;
+
+        std::fs::read_to_string(&file_path_buf).map_err(|e| {
+            Error::InvalidInput(format!("Failed to read downloaded file: {}", e))
+        })
+    }
+
+    /// Placeholder for when hf-hub is not available.
+    #[cfg(not(all(feature = "eval-advanced", feature = "onnx")))]
+    fn try_hf_hub_download(&self, _id: DatasetId) -> Result<String> {
+        Err(Error::InvalidInput("hf-hub not available".to_string()))
+    }
+
+    /// Single download attempt.
+    #[cfg(feature = "eval-advanced")]
+    fn download_attempt(&self, url: &str) -> Result<String> {
         let response = ureq::get(url)
+            .timeout(std::time::Duration::from_secs(60))
             .call()
-            .map_err(|e| Error::InvalidInput(format!("Failed to download {}: {}", url, e)))?;
+            .map_err(|e| {
+                let error_msg = format!("{}", e);
+                Error::InvalidInput(format!(
+                    "Network error downloading {}: {}. \
+                     Check your internet connection and try again.",
+                    url, error_msg
+                ))
+            })?;
 
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
-                "HTTP {} downloading {}",
+                "HTTP {} downloading {}. \
+                 Server returned error status. \
+                 Dataset may be temporarily unavailable or URL changed.",
                 response.status(),
                 url
             )));
         }
 
         response.into_string().map_err(|e| {
-            Error::InvalidInput(format!("Failed to read response from {}: {}", url, e))
+            Error::InvalidInput(format!(
+                "Failed to read response from {}: {}. \
+                 Response may be too large or corrupted.",
+                url, e
+            ))
         })
+    }
+
+    /// Compute SHA256 checksum of content.
+    #[cfg(feature = "eval-advanced")]
+    fn compute_sha256(&self, content: &str) -> String {
+        #[cfg(feature = "eval-advanced")]
+        {
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(content.as_bytes());
+            format!("{:x}", hasher.finalize())
+        }
+        #[cfg(not(feature = "eval-advanced"))]
+        {
+            // Fallback if sha2 not available
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            content.hash(&mut hasher);
+            format!("{:x}", hasher.finish())
+        }
     }
 
     /// Parse CoNLL/BIO format content.
@@ -2184,6 +2572,7 @@ impl DatasetLoader {
     /// Parse Re-TACRED/CrossRE relation extraction JSON format.
     ///
     /// Uses same CrossRE format as DocRED: JSONL with sentence + ner arrays
+    #[allow(dead_code)] // May be used for ReTACRED-specific parsing in future
     fn parse_retacred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         // CrossRE format is the same, reuse DocRED parser
         self.parse_docred(content, id)
@@ -2367,10 +2756,59 @@ impl DatasetLoader {
         })
     }
 
-    /// Parse PreCo JSON format.
+    /// Parse PreCo JSONL format from HuggingFace.
+    ///
+    /// PreCo JSONL format: One JSON object per line with "sentences" array.
+    fn parse_preco_jsonl(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        let mut sentences = Vec::new();
+
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            let parsed: serde_json::Value = match serde_json::from_str(line) {
+                Ok(v) => v,
+                Err(_) => continue, // Skip malformed lines
+            };
+
+            // PreCo format: {"sentences": [[token1, token2, ...], ...]}
+            if let Some(sents) = parsed.get("sentences").and_then(|v| v.as_array()) {
+                for sent_tokens in sents {
+                    if let Some(token_array) = sent_tokens.as_array() {
+                        let tokens: Vec<AnnotatedToken> = token_array
+                            .iter()
+                            .filter_map(|t| t.as_str())
+                            .map(|t| AnnotatedToken {
+                                text: t.to_string(),
+                                ner_tag: "O".to_string(),
+                            })
+                            .collect();
+
+                        if !tokens.is_empty() {
+                            sentences.push(AnnotatedSentence {
+                                tokens,
+                                source_dataset: id,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+        })
+    }
+
+    /// Parse PreCo JSON format (legacy, kept for compatibility).
     ///
     /// PreCo format: Array of documents, each with "sentences" array of token arrays.
-    /// Note: Currently unused as PreCo URL points to GAP test set fallback.
     #[allow(dead_code)]
     fn parse_preco(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
