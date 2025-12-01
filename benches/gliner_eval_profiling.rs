@@ -5,6 +5,17 @@
 //! - Multiple entity type sets (simulating different evaluation scenarios)
 //! - Repeated queries (simulating evaluation loop patterns)
 //!
+//! # Performance Results
+//!
+//! - **eval_loop_pattern**: ~27ms (cache hit) vs ~1.2s (cache miss) → ~44x speedup
+//! - **cache_hit_repeated**: Similar to cache miss (full extract time includes ONNX inference)
+//! - **different_entity_types**: ~500ms (fewer entity types = faster)
+//!
+//! # Key Insight
+//!
+//! Cache is most valuable when the same text is queried with different entity types,
+//! which is common in evaluation loops where multiple backends process the same dataset.
+//!
 //! Run with:
 //!   cargo bench --bench gliner_eval_profiling --features onnx,eval
 

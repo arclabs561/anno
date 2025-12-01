@@ -145,6 +145,8 @@ pub struct TaskEvalResult {
     #[cfg(feature = "eval-advanced")]
     pub robustness: Option<super::robustness::RobustnessResults>,
     #[cfg(not(feature = "eval-advanced"))]
+    /// Robustness testing results (only available with `eval-advanced` feature).
+    #[cfg(not(feature = "eval-advanced"))]
     pub robustness: Option<()>, // Placeholder when feature not enabled
     /// Stratified metrics by various dimensions
     pub stratified: Option<StratifiedMetrics>,
