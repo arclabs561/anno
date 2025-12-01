@@ -162,7 +162,7 @@
 //! ```
 
 use super::heuristic::HeuristicNER;
-use super::pattern::RegexNER;
+use super::regex::RegexNER;
 use crate::{Entity, EntityType, Model, Result};
 use std::sync::Arc;
 
