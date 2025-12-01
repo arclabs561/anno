@@ -23,7 +23,7 @@ This crate does named entity recognition and related tasks. The hierarchy of wha
 | Coreference metrics | Stable. MUC, B³, CEAF, LEA, BLANC. |
 | Coreference resolution | Basic rule-based resolver. |
 | Discontinuous NER | Stable. W2NER-style grid decoding. |
-| Relation extraction | Traits defined, no models. |
+| Relation extraction | TPLinker placeholder (heuristic-based). Full ONNX model pending. |
 
 ### What's not implemented
 
@@ -44,7 +44,13 @@ trait ZeroShotNER: Model {
 
 // Relation extraction: joint entity + relation
 trait RelationExtractor: Model {
-    fn extract_with_relations(&self, text: &str) -> Result<ExtractionWithRelations>;
+    fn extract_with_relations(
+        &self,
+        text: &str,
+        entity_types: &[&str],
+        relation_types: &[&str],
+        threshold: f32,
+    ) -> Result<ExtractionWithRelations>;
 }
 
 // Coreference: mention clustering

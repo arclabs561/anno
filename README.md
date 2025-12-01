@@ -6,9 +6,14 @@ Information extraction for Rust: NER, coreference resolution, and evaluation.
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Extract entities, resolve coreference, and evaluate models. Supports regex patterns (dates, money, emails), transformer models (BERT, GLiNER, GLiNER2), and coreference resolution (rule-based and T5-based).
+Unified API for named entity recognition, coreference resolution, and evaluation. Swap between regex patterns (~400ns), transformer models (~50-150ms), and zero-shot NER without changing your code.
 
-All backends implement the same `Model` trait. You can swap between a 400ns regex matcher and a 50ms BERT model without changing calling code.
+**Key features:**
+- Zero-dependency baselines (`PatternNER`, `HeuristicNER`) for fast iteration
+- ML backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) via ONNX Runtime
+- Comprehensive evaluation framework with bias analysis and calibration
+- Coreference metrics (MUC, B³, CEAF, LEA, BLANC) and resolution
+- Graph export for RAG applications (Neo4j, NetworkX)
 
 Dual-licensed under MIT or Apache-2.0.
 
@@ -207,20 +212,26 @@ The same `Location` type works for text spans, bounding boxes, and other modalit
 
 ### Backend comparison
 
-| Backend | Use Case | Latency | Accuracy | Feature | Notes |
-|---------|----------|---------|----------|---------|-------|
-| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | |
-| `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always | |
-| `StackedNER` | Composable layered extraction | ~100μs | varies | always | |
-| `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` | |
-| `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` | |
-| `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` | |
-| `W2NER` | Nested/discontinuous NER | ~150ms | ~85% | `onnx` | Requires authentication |
-| `CandleNER` | Pure Rust BERT NER | varies | ~86% | `candle` | |
-| `GLiNERCandle` | Pure Rust zero-shot NER | varies | ~90% | `candle` | Requires PyTorch to safetensors conversion |
-| `GLiNER2` | Multi-task (NER + classification) | ~130ms | ~92% | `onnx`/`candle` | |
+| Backend | Use Case | Latency | Accuracy | Feature | When to Use |
+|---------|----------|---------|----------|---------|-------------|
+| `PatternNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | Fast structured data extraction |
+| `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always | Quick baseline, no dependencies |
+| `StackedNER` | Composable layered extraction | ~100μs | varies | always | Combine patterns + heuristics |
+| `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` | Standard 4-type NER (PER/ORG/LOC/MISC) |
+| `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` | **Recommended**: Custom entity types without retraining |
+| `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` | Alternative zero-shot approach |
+| `W2NER` | Nested/discontinuous NER | ~150ms | ~85% | `onnx` | Overlapping or non-contiguous entities |
+| `CandleNER` | Pure Rust BERT NER | varies | ~86% | `candle` | Rust-native, no ONNX dependency |
+| `GLiNERCandle` | Pure Rust zero-shot NER | varies | ~90% | `candle` | Rust-native zero-shot (requires model conversion) |
+| `GLiNER2` | Multi-task (NER + classification) | ~130ms | ~92% | `onnx`/`candle` | Joint NER + text classification |
 
 *Pattern accuracy on structured entities only
+
+**Quick selection guide:**
+- **Fastest**: `PatternNER` for structured entities, `StackedNER` for general use
+- **Best accuracy**: `GLiNEROnnx` for zero-shot, `BertNEROnnx` for fixed types
+- **Custom types**: `GLiNEROnnx` (zero-shot, no retraining needed)
+- **No dependencies**: `StackedNER` (patterns + heuristics)
 
 Known limitations:
 
@@ -247,20 +258,15 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 ### Related projects
 
-[rust-bert](https://github.com/guillaume-be/rust-bert) provides full transformer implementations via tch-rs (requires libtorch). It covers many NLP tasks beyond NER.
+- **[rust-bert](https://github.com/guillaume-be/rust-bert)**: Full transformer implementations via tch-rs (requires libtorch). Covers many NLP tasks beyond NER.
+- **[gline-rs](https://github.com/fbilhaut/gline-rs)**: Focused GLiNER inference engine. Use if you only need GLiNER.
 
-[gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine. If you only need GLiNER, it may be simpler.
-
-This library includes:
-
-- Unified `Model` trait across regex, heuristics, and ML backends
-- Zero-dependency baselines (`PatternNER`, `HeuristicNER`, `StackedNER`)
-- Coreference resolution (rule-based and T5-based) with metrics (MUC, B³, CEAF, LEA, BLANC)
-- Evaluation framework with SemEval modes and coreference metrics
-- Multiple ONNX backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) behind one interface
-- Pure Rust inference via Candle (optional Metal/CUDA support)
-
-The ONNX backends are integration work — similar inference code to gline-rs and rust-bert's ONNX mode. The evaluation framework and zero-dependency baselines may be useful if you need those specific features.
+**What makes `anno` different:**
+- **Unified API**: Swap between regex (~400ns) and ML models (~50-150ms) without code changes
+- **Zero-dependency defaults**: `PatternNER` and `StackedNER` work out of the box
+- **Evaluation framework**: Comprehensive metrics, bias analysis, and calibration (unique in Rust NER)
+- **Coreference support**: Metrics (MUC, B³, CEAF, LEA, BLANC) and resolution
+- **Graph export**: Built-in Neo4j/NetworkX export for RAG applications
 
 ### Feature flags
 
