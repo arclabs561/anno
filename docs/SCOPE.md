@@ -66,11 +66,15 @@ trait DiscontinuousNER {
 
 ### Research basis
 
+This library primarily implements existing research. See [RESEARCH.md](RESEARCH.md) for a detailed breakdown of what's novel versus implementation.
+
 | Paper | What we use |
 |-------|-------------|
 | GLiNER | Bi-encoder for zero-shot span classification |
 | W2NER | Word-word grid for discontinuous spans |
-| UniversalNER | Cross-domain type normalization |
+| UniversalNER | Cross-domain type normalization (placeholder) |
+
+**Note**: The ONNX backends are integration work, not novel implementations. Our main contributions are architectural design and unified evaluation framework integration.
 
 ### Ecosystem positioning
 

@@ -14,7 +14,8 @@ Dual-licensed under MIT or Apache-2.0.
 
 ### Documentation
 
-https://docs.rs/anno
+- **API docs**: https://docs.rs/anno
+- **Research contributions**: See [docs/RESEARCH.md](docs/RESEARCH.md) for what's novel vs. implementation
 
 ### Usage
 
