@@ -75,7 +75,7 @@ let ner = BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)?;
 let entities = ner.extract_entities("Marie Curie discovered radium in 1898", None)?;
 ```
 
-This downloads a ~400MB model on first run.
+**Note**: ML backends (BERT, GLiNER, etc.) download models on first run (~400MB for BERT, ~50-400MB for GLiNER depending on size). Models are cached locally after download.
 
 ### Example: zero-shot NER
 
@@ -119,26 +119,56 @@ GLiNER2 supports zero-shot NER, text classification, and structured extraction. 
 
 ### Example: Graph RAG integration
 
-Export entities and relations to knowledge graphs for RAG applications:
+Extract entities and relations, then export to knowledge graphs for RAG applications:
 
 ```rust
 use anno::graph::GraphDocument;
-use anno::Entity;
+use anno::backends::tplinker::TPLinker;
+use anno::backends::inference::RelationExtractor;
+use anno::StackedNER;
 
-// From NER extraction
+let text = "Steve Jobs founded Apple in 1976. The company is headquartered in Cupertino.";
+
+// Extract entities
+let ner = StackedNER::default();
 let entities = ner.extract_entities(text, None)?;
-// Relations would come from a relation extraction model
-// let relations = relation_model.extract_relations(text, &entities)?;
+
+// Extract relations between entities
+let rel_extractor = TPLinker::new()?;
+let result = rel_extractor.extract_with_relations(
+    text,
+    &["person", "organization", "location", "date"],
+    &["founded", "headquartered_in", "founded_in"],
+    0.5,
+)?;
+
+// Convert relations to graph format
+use anno::entity::Relation;
+let relations: Vec<Relation> = result.relations.iter().map(|r| {
+    let head = &result.entities[r.head_idx];
+    let tail = &result.entities[r.tail_idx];
+    Relation::new(
+        head.clone(),
+        tail.clone(),
+        r.relation_type.clone(),
+        r.confidence,
+    )
+}).collect();
 
 // Build graph document (deduplicates via coreference if provided)
-let graph = GraphDocument::from_extraction(&entities, &[], None);
+let graph = GraphDocument::from_extraction(&result.entities, &relations, None);
 
 // Export to Neo4j Cypher
 println!("{}", graph.to_cypher());
+// Output: Creates nodes for entities and edges for relations
 
 // Or NetworkX JSON for Python
 println!("{}", graph.to_networkx_json());
 ```
+
+This creates a knowledge graph with:
+- **Nodes**: Entities (Steve Jobs, Apple, Cupertino, 1976)
+- **Edges**: Relations (founded, headquartered_in, founded_in)
 
 ### Example: grounded entity representation
 
