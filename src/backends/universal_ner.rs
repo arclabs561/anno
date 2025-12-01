@@ -153,7 +153,11 @@ mod tests {
     #[test]
     fn test_universal_ner_error_when_unavailable() {
         let model = UniversalNER::new().unwrap();
+        // When LLM is unavailable, extract_entities returns empty vec (not error)
+        // to allow evaluation system to skip gracefully based on is_available()
+        assert!(!model.is_available());
         let result = model.extract_entities("Test text", None);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), vec![]);
     }
 }
