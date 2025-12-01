@@ -2,6 +2,10 @@
 
 A research-grounded perspective on the limitations of NER and coreference evaluation.
 
+> **Related documents**: 
+> - [EVAL_CRITIQUE.md](EVAL_CRITIQUE.md) - Critique of specific evaluation results
+> - [EVALUATION_CRITICAL_REVIEW.md](EVALUATION_CRITICAL_REVIEW.md) - Implementation review
+
 ## TL;DR
 
 - **47% of "errors" on CoNLL-03 are actually correct** — annotation noise, not model mistakes (CleanCoNLL, EMNLP 2023)

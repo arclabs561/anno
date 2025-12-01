@@ -1,5 +1,7 @@
 # Evaluation Results Critique
 
+> **Note**: This document critiques specific evaluation results from a particular run. For general evaluation limitations and research findings, see [EVALUATION_CRITIQUE.md](EVALUATION_CRITIQUE.md). For implementation review, see [EVALUATION_CRITICAL_REVIEW.md](EVALUATION_CRITICAL_REVIEW.md).
+
 ## Executive Summary
 
 **Total: 258 combinations | ✓: 75 (29%) | ⊘: 177 (69%) | ✗: 6 (2%)**

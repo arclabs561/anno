@@ -3,6 +3,10 @@
 **Date**: 2025-01-XX  
 **Context**: Review of evaluation implementation against latest research on NER/NED/Coref evaluation pitfalls
 
+> **Related documents**:
+> - [EVALUATION_CRITIQUE.md](EVALUATION_CRITIQUE.md) - Research-based evaluation limitations
+> - [EVAL_CRITIQUE.md](EVAL_CRITIQUE.md) - Critique of specific evaluation results
+
 ## Executive Summary
 
 The codebase has **strong architectural foundations** with awareness of many research findings, but several critical features are **defined but not computed** in actual evaluations. This review identifies:
