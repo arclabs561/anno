@@ -263,6 +263,7 @@ jobs:
         env:
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
+          # Note: cli feature is included in eval-advanced via script
 
       - name: Upload sanity report
         uses: actions/upload-artifact@v4
