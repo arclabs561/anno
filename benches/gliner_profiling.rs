@@ -105,52 +105,7 @@ fn bench_gliner_cache_impact(c: &mut Criterion) {
     group.finish();
 }
 
-#[cfg(feature = "onnx")]
-fn bench_gliner_encode_prompt_cost(c: &mut Criterion) {
-    use anno::backends::gliner_onnx::GLiNEROnnx;
-    
-    let model = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")
-        .expect("Failed to load GLiNER model");
-    
-    let test_cases = vec![
-        ("short", "Apple Inc. was founded by Steve Jobs."),
-        ("medium", "Apple Inc. was founded by Steve Jobs in California in 1976. The company is headquartered in Cupertino."),
-        ("long", "Apple Inc. was founded by Steve Jobs, Steve Wozniak, and Ronald Wayne in April 1976 in California. The company is headquartered in Cupertino and is known for products like the iPhone, iPad, and Mac computers. Tim Cook became CEO in 2011 after Jobs stepped down."),
-    ];
-    
-    let entity_types = &["person", "organization", "location", "date"];
-    
-    let mut group = c.benchmark_group("gliner_encode_prompt_cost");
-    
-    for (name, text) in test_cases {
-        // Measure total extract time
-        let mut total_time = std::time::Duration::ZERO;
-        let mut encode_time = std::time::Duration::ZERO;
-        let iterations = 10;
-        
-        for _ in 0..iterations {
-            let start = Instant::now();
-            let text_words: Vec<&str> = text.split_whitespace().collect();
-            let encode_start = Instant::now();
-            // We can't directly measure encode_prompt, but we can estimate
-            // by measuring tokenization overhead
-            let _ = text_words.join(" ");
-            encode_time += encode_start.elapsed();
-            let _ = model.extract(text, entity_types, 0.5);
-            total_time += start.elapsed();
-        }
-        
-        // This is a rough estimate - actual encode_prompt time would need
-        // the method to be public or a benchmark helper
-        group.bench_function(BenchmarkId::new("total", name), |b| {
-            b.iter(|| {
-                let _ = model.extract(black_box(text), black_box(entity_types), 0.5);
-            });
-        });
-    }
-    
-    group.finish();
-}
+// Removed bench_gliner_encode_prompt_cost - redundant with bench_gliner_extract_breakdown
 
 #[cfg(not(feature = "onnx"))]
 fn bench_gliner_extract_breakdown(_c: &mut Criterion) {
@@ -162,16 +117,11 @@ fn bench_gliner_cache_impact(_c: &mut Criterion) {
     // Stub when onnx feature is not enabled
 }
 
-#[cfg(not(feature = "onnx"))]
-fn bench_gliner_encode_prompt_cost(_c: &mut Criterion) {
-    // Stub when onnx feature is not enabled
-}
 
 criterion_group!(
     benches,
     bench_gliner_extract_breakdown,
-    bench_gliner_cache_impact,
-    bench_gliner_encode_prompt_cost
+    bench_gliner_cache_impact
 );
 criterion_main!(benches);
 

@@ -205,13 +205,13 @@ let gliner2 = GLiNEROnnx::with_cache("model2", shared_cache.clone())?;
 
 ## Implementation Steps
 
-1. ✅ **Critique complete** - Identified issues
-2. ⏳ **Add `lru` dependency** - Add to `Cargo.toml` with `onnx` feature
-3. ⏳ **Implement cache in `GLiNEROnnx`** - Add `PromptCacheKey`, `PromptCacheValue`, cache field
-4. ⏳ **Modify `encode_prompt`** - Add caching logic
-5. ⏳ **Add benchmarks** - Measure cache hit vs miss performance
-6. ⏳ **Test** - Verify cache works correctly
-7. ⏳ **Measure** - Check hit rate and memory usage
+1. ✅ **Critique complete** - Identified 7 issues with original design
+2. ✅ **Add `lru` dependency** - Added to `Cargo.toml` with `onnx` feature
+3. ✅ **Create profiling benchmark** - `benches/gliner_profiling.rs` to measure actual bottlenecks
+4. ⏳ **Run benchmarks** - `cargo bench --bench gliner_profiling --features onnx`
+5. ⏳ **Analyze results** - Determine if `encode_prompt` is the bottleneck
+6. ⏳ **Implement cache if valuable** - Only if profiling shows it's worth it
+7. ⏳ **Measure cache impact** - Compare cached vs uncached performance
 8. ⏳ **Expand** - Add to other backends if valuable
 
 ## Questions to Answer
