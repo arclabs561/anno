@@ -15,7 +15,7 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 
 ## Dataset Sources by Type
 
-### 1. GitHub Raw Files (7 datasets)
+### 1. GitHub Raw Files (11 datasets)
 
 | Dataset | URL | Format | Size |
 |---------|-----|--------|------|
@@ -27,8 +27,11 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 | NCBIDisease | `shreyashub/BioFLAIR` | BIO | ~500KB |
 | DocRED (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
 | ReTACRED (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
+| NYT-FB (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
+| WEBNLG (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
+| Google-RE (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
+| BioRED (proxy) | `mainlp/CrossRE` | JSON | ~100KB |
 | GAP | `google-research-datasets/gap-coreference` | TSV | ~500KB |
-| PreCo (proxy) | `google-research-datasets/gap-coreference` | TSV | ~500KB |
 | LitBank | `dbamman/litbank` | BRAT | ~1MB |
 
 ### 2. MIT Servers (3 datasets)
@@ -41,7 +44,7 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 
 ### 3. HuggingFace Datasets-Server API (13 datasets)
 
-**Note**: These use the HF datasets-server API with `?offset=0&length=100` (limited to 100 rows to avoid timeouts)
+**Note**: These use the HF datasets-server API with automatic pagination (1000 rows/page, downloads full dataset)
 
 | Dataset | HF Dataset | Config | Split | Format |
 |---------|------------|--------|-------|--------|
@@ -59,7 +62,7 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 | PolyglotNER | `unimelb-nlp/wikiann` (proxy) | en | test | JSON |
 | UniversalNER | `Babelscape/wikineural` (proxy) | default | test_en | JSON |
 
-### 4. HuggingFace Direct Downloads (3 datasets)
+### 4. HuggingFace Direct Downloads (5 datasets)
 
 | Dataset | HF Dataset | Path | Format | Size |
 |---------|------------|------|--------|------|
@@ -68,7 +71,7 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 | BroadTwitterCorpus | `GateNLP/broad_twitter_corpus` | `test/a.conll` | CoNLL | ~5MB |
 | CADEC | `KevinSpaghetti/cadec` | `data/test.jsonl` | JSONL | ~2MB |
 
-## Complete Dataset List (30+ datasets)
+## Complete Dataset List (35 datasets)
 
 ### NER Datasets (20+)
 1. **WikiGold** - GitHub (juand-r)
@@ -97,17 +100,21 @@ Datasets come from **multiple sources** (unlike models which are 100% HuggingFac
 24. **PolyglotNER** - HF datasets-server API (proxy)
 25. **UniversalNER** - HF datasets-server API (proxy)
 
-### Relation Extraction (2)
+### Relation Extraction (6)
 26. **DocRED** - GitHub (CrossRE proxy)
 27. **ReTACRED** - GitHub (CrossRE proxy)
+28. **NYT-FB** - GitHub (CrossRE proxy, RELD source)
+29. **WEBNLG** - GitHub (CrossRE proxy, RELD source)
+30. **Google-RE** - GitHub (CrossRE proxy)
+31. **BioRED** - GitHub (CrossRE proxy)
 
 ### Discontinuous NER (1)
 28. **CADEC** - HuggingFace direct
 
 ### Coreference (3)
-29. **GAP** - GitHub (Google Research)
-30. **PreCo** - GitHub (Google Research, proxy)
-31. **LitBank** - GitHub (dbamman)
+32. **GAP** - GitHub (Google Research)
+33. **PreCo** - HuggingFace (coref-data/preco, fixed source)
+34. **LitBank** - GitHub (dbamman)
 
 ### Synthetic Data (Generated, No Download)
 
