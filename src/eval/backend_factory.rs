@@ -195,9 +195,46 @@ impl BackendFactory {
                 "GLiNER2Candle requires both 'candle' and 'onnx' features".to_string(),
             )),
 
+            // TPLinker (always available - placeholder implementation)
+            "tplinker" | "tplink" => {
+                use crate::backends::tplinker::TPLinker;
+                Ok(Box::new(TPLinker::new()?) as Box<dyn Model>)
+            }
+
+            // Poly-Encoder GLiNER (requires onnx)
+            #[cfg(feature = "onnx")]
+            "gliner_poly" | "gliner-poly" | "poly_gliner" => {
+                use crate::backends::gliner_poly::GLiNERPoly;
+                // Use default GLiNER model for now (poly-encoder models pending)
+                Ok(
+                    Box::new(GLiNERPoly::new("onnx-community/gliner_small-v2.1")?)
+                        as Box<dyn Model>,
+                )
+            }
+
+            // DeBERTa-v3 NER (requires onnx)
+            #[cfg(feature = "onnx")]
+            "deberta_v3" | "deberta-v3" | "deberta" => {
+                use crate::backends::deberta_v3::DeBERTaV3NER;
+                Ok(Box::new(DeBERTaV3NER::new("microsoft/deberta-v3-base")?) as Box<dyn Model>)
+            }
+
+            // ALBERT NER (requires onnx)
+            #[cfg(feature = "onnx")]
+            "albert" | "albert_ner" => {
+                use crate::backends::albert::ALBERTNER;
+                Ok(Box::new(ALBERTNER::new("albert-base-v2")?) as Box<dyn Model>)
+            }
+
+            // UniversalNER (placeholder - LLM integration pending)
+            "universal_ner" | "universal-ner" | "universalner" => {
+                use crate::backends::universal_ner::UniversalNER;
+                Ok(Box::new(UniversalNER::new()?) as Box<dyn Model>)
+            }
+
             // Unknown backend
             _ => Err(crate::Error::InvalidInput(format!(
-                "Unknown backend: '{}'. Available: pattern, heuristic, stacked{}",
+                "Unknown backend: '{}'. Available: pattern, heuristic, stacked, tplinker{}",
                 backend_name,
                 if cfg!(feature = "onnx") {
                     ", bert_onnx, gliner_onnx, nuner, w2ner, gliner2"
@@ -212,11 +249,26 @@ impl BackendFactory {
     #[must_use]
     pub fn available_backends() -> Vec<&'static str> {
         #[allow(unused_mut)] // mut needed for extend/push calls
-        let mut backends = vec!["pattern", "heuristic", "stacked"];
+        let mut backends = vec![
+            "pattern",
+            "heuristic",
+            "stacked",
+            "tplinker",
+            "universal_ner",
+        ];
 
         #[cfg(feature = "onnx")]
         {
-            backends.extend(&["bert_onnx", "gliner_onnx", "nuner", "w2ner", "gliner2"]);
+            backends.extend(&[
+                "bert_onnx",
+                "gliner_onnx",
+                "nuner",
+                "w2ner",
+                "gliner2",
+                "gliner_poly",
+                "deberta_v3",
+                "albert",
+            ]);
         }
 
         #[cfg(feature = "candle")]

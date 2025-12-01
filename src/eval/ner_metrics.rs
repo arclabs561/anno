@@ -321,6 +321,24 @@ pub struct NerEvalSummary {
 ///
 /// Implements SemEval-2013 Task 9.1 evaluation methodology.
 ///
+/// # Boundary Error Handling
+///
+/// This implementation uses **greedy matching** to assign predictions to gold entities:
+/// - Each gold entity is matched to at most one prediction (best match by priority)
+/// - Each prediction is matched to at most one gold entity
+/// - Boundary errors (overlapping but inexact spans) are counted as **one incorrect match**
+///   - The unmatched gold becomes a false negative (FN)
+///   - The unmatched prediction becomes a false positive (FP)
+///
+/// **Note**: This is NOT the double-penalty issue described in AIDA-CoNLL (D13-1027).
+/// The double-penalty occurs when boundary errors are counted as both FP and FN for the
+/// same entity pair. Our greedy matching avoids this by ensuring each entity is only
+/// counted once.
+///
+/// However, boundary errors still result in two errors total (one incorrect match + one FN + one FP),
+/// which is more than a complete miss (one FN). This is intentional and reflects that
+/// boundary errors are more problematic than complete misses in many applications.
+///
 /// # Example
 ///
 /// ```

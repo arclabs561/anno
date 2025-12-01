@@ -85,7 +85,17 @@ pub mod pattern_config;
 pub mod router;
 pub mod rule;
 pub mod stacked;
+pub mod tplinker;
 pub mod w2ner;
+
+// Advanced backends
+#[cfg(feature = "onnx")]
+pub mod albert;
+#[cfg(feature = "onnx")]
+pub mod deberta_v3;
+#[cfg(feature = "onnx")]
+pub mod gliner_poly;
+pub mod universal_ner;
 
 // LLM-based NER prompting (CodeNER-style)
 pub mod llm_prompt;
@@ -152,7 +162,17 @@ pub use stacked::{ConflictStrategy, StackedNER};
     note = "Use HeuristicNER instead - StatisticalNER was misleading"
 )]
 pub type StatisticalNER = HeuristicNER;
+pub use tplinker::TPLinker;
 pub use w2ner::{W2NERConfig, W2NERRelation, W2NER};
+
+// Advanced backends
+#[cfg(feature = "onnx")]
+pub use albert::ALBERTNER;
+#[cfg(feature = "onnx")]
+pub use deberta_v3::DeBERTaV3NER;
+#[cfg(feature = "onnx")]
+pub use gliner_poly::GLiNERPoly;
+pub use universal_ner::UniversalNER;
 
 // Backwards compatibility
 #[allow(deprecated)]

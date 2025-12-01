@@ -69,6 +69,12 @@ mod tests {
             backends: vec!["pattern".to_string()],
             max_examples: Some(5), // Limit for quick testing
             require_cached: false,
+            seed: None,
+            relation_threshold: 0.5,
+            robustness: false,
+            compute_familiarity: false,
+            temporal_stratification: false,
+            confidence_intervals: false,
         };
 
         // This will attempt to download datasets if not cached
@@ -166,6 +172,12 @@ mod tests {
             backends: vec!["nonexistent".to_string()],
             max_examples: Some(1),
             require_cached: false,
+            seed: None,
+            relation_threshold: 0.5,
+            robustness: false,
+            compute_familiarity: false,
+            temporal_stratification: false,
+            confidence_intervals: false,
         };
 
         let result = evaluator.evaluate_all(config);

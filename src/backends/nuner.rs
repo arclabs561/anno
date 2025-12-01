@@ -122,6 +122,7 @@ pub struct NuNER {
     threshold: f64,
     /// Whether model requires span tensors (detected on load)
     #[cfg(feature = "onnx")]
+    #[allow(dead_code)] // Reserved for future span tensor support
     requires_span_tensors: bool,
     /// Default entity labels for Model trait
     default_labels: Vec<String>,

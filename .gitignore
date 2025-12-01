@@ -35,3 +35,18 @@ test_profiling*
 
 # Archived documentation (progress docs, old status reports)
 docs/archive/
+
+# Generated evaluation reports (temporary, regenerated on demand)
+*_report.md
+*-report.md
+*-seed-*.md
+eval-seed-*.md
+eval-sanity-report.md
+comprehensive_evaluation_report.md
+stress_test_report.md
+verify_new_features_report.md
+
+# Temporary review/status documents (should be in docs/ or archived)
+FIXES_APPLIED.md
+REVIEW_BACKWARDS.md
+REVIEW_ISSUES.md

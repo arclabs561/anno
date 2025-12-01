@@ -162,6 +162,14 @@ mod sealed {
     impl Sealed for super::StackedNER {}
     impl Sealed for super::NuNER {}
     impl Sealed for super::W2NER {}
+    impl Sealed for super::backends::tplinker::TPLinker {}
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::gliner_poly::GLiNERPoly {}
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::deberta_v3::DeBERTaV3NER {}
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::albert::ALBERTNER {}
+    impl Sealed for super::backends::universal_ner::UniversalNER {}
     impl Sealed for super::NERExtractor {}
 
     // Deprecated backends (still need Sealed for backwards compat)
@@ -407,7 +415,7 @@ pub use discourse::{
 // Backend re-exports (always available)
 pub use backends::{
     AutoNER, BackendType, ConflictStrategy, HeuristicNER, NERExtractor, NuNER, PatternNER,
-    StackedNER, W2NERConfig, W2NERRelation, W2NER,
+    StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,
 };
 
 // Backwards compatibility

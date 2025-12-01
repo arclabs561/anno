@@ -117,6 +117,8 @@ pub struct CorefEvaluation {
     pub blanc: CorefScores,
     /// CoNLL F1 (average of MUC, B³, CEAFe)
     pub conll_f1: f64,
+    /// Chain-length stratified metrics (if computed)
+    pub chain_stats: Option<super::types::CorefChainStats>,
 }
 
 impl CorefEvaluation {
@@ -130,6 +132,7 @@ impl CorefEvaluation {
         let lea = CorefScores::from_tuple(lea_score(predicted, gold));
         let blanc = CorefScores::from_tuple(blanc_score(predicted, gold));
         let conll = conll_f1(predicted, gold);
+        let chain_stats = compute_chain_length_stratified(predicted, gold);
 
         Self {
             muc,
@@ -139,6 +142,7 @@ impl CorefEvaluation {
             lea,
             blanc,
             conll_f1: conll,
+            chain_stats: Some(chain_stats),
         }
     }
 }
@@ -247,6 +251,30 @@ impl std::fmt::Display for CorefEvaluation {
             self.blanc.f1 * 100.0
         )?;
         writeln!(f, "  CoNLL:   F1={:.1}%", self.conll_f1 * 100.0)?;
+
+        // Add chain-length stratification if available
+        if let Some(ref stats) = self.chain_stats {
+            writeln!(f, "\n  Chain-Length Stratification:")?;
+            writeln!(
+                f,
+                "    Long chains (>10): {} chains, F1={:.1}%",
+                stats.long_chain_count,
+                stats.long_chain_f1 * 100.0
+            )?;
+            writeln!(
+                f,
+                "    Short chains (2-10): {} chains, F1={:.1}%",
+                stats.short_chain_count,
+                stats.short_chain_f1 * 100.0
+            )?;
+            writeln!(
+                f,
+                "    Singletons (1): {} chains, F1={:.1}%",
+                stats.singleton_count,
+                stats.singleton_f1 * 100.0
+            )?;
+        }
+
         Ok(())
     }
 }
@@ -974,6 +1002,7 @@ impl AggregateCorefEvaluation {
             lea: CorefScores::new(mean_lea_p, mean_lea_r),
             blanc: CorefScores::new(mean_blanc_p, mean_blanc_r),
             conll_f1: evaluations.iter().map(|e| e.conll_f1).sum::<f64>() / n,
+            chain_stats: None, // Aggregate doesn't compute per-document chain stats
         };
 
         // Compute standard deviations
@@ -1072,6 +1101,120 @@ fn std_dev(values: &[f64]) -> f64 {
     let mean = values.iter().sum::<f64>() / n;
     let variance = values.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / n;
     variance.sqrt()
+}
+
+// =============================================================================
+// Chain-Length Stratified Evaluation (arXiv:2401.00238)
+// =============================================================================
+
+/// Compute chain-length stratified metrics for coreference evaluation.
+///
+/// Stratifies chains by length:
+/// - Long chains: >10 mentions (protagonists/main entities)
+/// - Short chains: 2-10 mentions (secondary entities)
+/// - Singletons: 1 mention (background entities)
+///
+/// # Research Context
+///
+/// Thalken et al. (2024) show that single CoNLL F1 hides performance differences:
+/// - Long chains: Models excel (92% F1)
+/// - Short chains: Models struggle (71% F1)
+/// - Singletons: Often ignored (45% F1)
+///
+/// # Returns
+///
+/// Stratified statistics with per-chain-length F1 scores.
+#[must_use]
+pub fn compute_chain_length_stratified(
+    predicted: &[CorefChain],
+    gold: &[CorefChain],
+) -> super::types::CorefChainStats {
+    use super::types::CorefChainStats;
+
+    // Separate chains by length
+    let mut long_chains_pred: Vec<&CorefChain> = Vec::new();
+    let mut short_chains_pred: Vec<&CorefChain> = Vec::new();
+    let mut singletons_pred: Vec<&CorefChain> = Vec::new();
+
+    let mut long_chains_gold: Vec<&CorefChain> = Vec::new();
+    let mut short_chains_gold: Vec<&CorefChain> = Vec::new();
+    let mut singletons_gold: Vec<&CorefChain> = Vec::new();
+
+    for chain in predicted {
+        if chain.len() > 10 {
+            long_chains_pred.push(chain);
+        } else if chain.len() > 1 {
+            short_chains_pred.push(chain);
+        } else {
+            singletons_pred.push(chain);
+        }
+    }
+
+    for chain in gold {
+        if chain.len() > 10 {
+            long_chains_gold.push(chain);
+        } else if chain.len() > 1 {
+            short_chains_gold.push(chain);
+        } else {
+            singletons_gold.push(chain);
+        }
+    }
+
+    // Compute F1 for each stratum using LEA (most informative for chain-level evaluation)
+    let long_chain_f1 = if !long_chains_pred.is_empty() || !long_chains_gold.is_empty() {
+        let (_, _, f1) = lea_score(
+            &long_chains_pred
+                .iter()
+                .copied()
+                .cloned()
+                .collect::<Vec<_>>(),
+            &long_chains_gold
+                .iter()
+                .copied()
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+        f1
+    } else {
+        0.0
+    };
+
+    let short_chain_f1 = if !short_chains_pred.is_empty() || !short_chains_gold.is_empty() {
+        let (_, _, f1) = lea_score(
+            &short_chains_pred
+                .iter()
+                .copied()
+                .cloned()
+                .collect::<Vec<_>>(),
+            &short_chains_gold
+                .iter()
+                .copied()
+                .cloned()
+                .collect::<Vec<_>>(),
+        );
+        f1
+    } else {
+        0.0
+    };
+
+    let singleton_f1 = if !singletons_pred.is_empty() || !singletons_gold.is_empty() {
+        let (_, _, f1) = lea_score(
+            &singletons_pred.iter().copied().cloned().collect::<Vec<_>>(),
+            &singletons_gold.iter().copied().cloned().collect::<Vec<_>>(),
+        );
+        f1
+    } else {
+        0.0
+    };
+
+    CorefChainStats {
+        long_chain_count: long_chains_gold.len(),
+        short_chain_count: short_chains_gold.len(),
+        singleton_count: singletons_gold.len(),
+        long_chain_f1,
+        short_chain_f1,
+        singleton_f1,
+    }
 }
 
 // =============================================================================

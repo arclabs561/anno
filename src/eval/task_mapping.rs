@@ -137,7 +137,11 @@ pub fn dataset_tasks(dataset: DatasetId) -> &'static [Task] {
         | DatasetId::MultiCoNERv2
         | DatasetId::WikiNeural
         | DatasetId::PolyglotNER
-        | DatasetId::UniversalNER => &[Task::NER],
+        | DatasetId::UniversalNER
+        | DatasetId::UNER
+        | DatasetId::MSNER
+        | DatasetId::BioMNER
+        | DatasetId::LegNER => &[Task::NER],
 
         // Discontinuous NER datasets
         DatasetId::CADEC => &[Task::DiscontinuousNER, Task::NER],
@@ -148,7 +152,10 @@ pub fn dataset_tasks(dataset: DatasetId) -> &'static [Task] {
         | DatasetId::NYTFB
         | DatasetId::WEBNLG
         | DatasetId::GoogleRE
-        | DatasetId::BioRED => &[Task::RelationExtraction],
+        | DatasetId::BioRED
+        | DatasetId::SciER
+        | DatasetId::MixRED
+        | DatasetId::CovEReD => &[Task::RelationExtraction],
 
         // Coreference datasets
         DatasetId::GAP | DatasetId::PreCo | DatasetId::LitBank => &[
@@ -190,6 +197,10 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             DatasetId::WikiNeural,
             DatasetId::PolyglotNER,
             DatasetId::UniversalNER,
+            DatasetId::UNER,
+            DatasetId::MSNER,
+            DatasetId::BioMNER,
+            DatasetId::LegNER,
         ],
         Task::DiscontinuousNER => {
             &[DatasetId::CADEC]
@@ -202,6 +213,9 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             DatasetId::WEBNLG,
             DatasetId::GoogleRE,
             DatasetId::BioRED,
+            DatasetId::SciER,
+            DatasetId::MixRED,
+            DatasetId::CovEReD,
         ],
         Task::IntraDocCoref => &[DatasetId::GAP, DatasetId::PreCo, DatasetId::LitBank],
         Task::InterDocCoref => {
@@ -244,10 +258,14 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
         "candle_ner" | "CandleNER" => &[Task::NER],
         "nuner" | "NuNER" => &[Task::NER], // Also implements ZeroShotNER
+        "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
+        "albert" | "ALBERTNER" => &[Task::NER],
 
         // Zero-shot NER backends (implement Model + ZeroShotNER)
         "gliner_onnx" | "GLiNEROnnx" => &[Task::NER],
         "gliner_candle" | "GLiNERCandle" => &[Task::NER],
+        "gliner_poly" | "GLiNERPoly" => &[Task::NER],
+        "universal_ner" | "UniversalNER" => &[Task::NER],
 
         // Multi-task backends (GLiNER2 implements multiple traits)
         "gliner2" | "GLiNER2" | "GLiNER2Onnx" | "GLiNER2Candle" => &[
@@ -259,6 +277,9 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
 
         // Discontinuous NER backends (implement DiscontinuousNER trait)
         "w2ner" | "W2NER" => &[Task::NER, Task::DiscontinuousNER],
+
+        // Joint entity-relation backends
+        "tplinker" | "TPLinker" => &[Task::NER, Task::RelationExtraction],
 
         // Coreference backends (implement CoreferenceResolver trait)
         "coref_resolver" | "CorefResolver" | "SimpleCorefResolver" | "DiscourseAwareResolver" => {
@@ -311,6 +332,12 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "gliner_candle",
         "gliner2",
         "w2ner",
+        // New backends
+        "tplinker",
+        "gliner_poly",
+        "deberta_v3",
+        "albert",
+        "universal_ner",
         // Special backends
         "coref_resolver",
     ] {

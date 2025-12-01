@@ -185,6 +185,29 @@ pub enum DatasetId {
     /// Built on Universal Dependencies treebanks
     UniversalNER,
 
+    /// UNER: Universal NER multilingual benchmark (v1)
+    /// 19 datasets across 13 languages with cross-lingually consistent annotations
+    /// Source: https://huggingface.co/datasets/universalner/universal_ner
+    UNER,
+
+    /// MSNER: Multilingual Speech Named Entity Recognition
+    /// 590 hours silver-annotated + 17 hours manual evaluation
+    /// Languages: Dutch, French, German, Spanish
+    /// Source: VoxPopuli dataset with NER annotations
+    /// Source: https://huggingface.co/datasets/facebook/voxpopuli
+    MSNER,
+
+    /// BioMNER: Biomedical Method Entity Recognition
+    /// Methodological concepts in biomedical literature
+    /// Specialized dataset for biomedical method extraction
+    BioMNER,
+
+    /// LegNER: Legal Domain Named Entity Recognition
+    /// 1,542 manually annotated court cases
+    /// Entity types: PERSON, ORGANIZATION, LAW, CASE_REFERENCE, etc.
+    /// Source: Legal text processing and anonymization
+    LegNER,
+
     // === Relation Extraction Datasets ===
     /// DocRED: Document-level relation extraction
     /// 96 relation types, requires multi-sentence reasoning
@@ -214,6 +237,22 @@ pub enum DatasetId {
     /// Multiple entity types (gene/protein, disease, chemical) and relation pairs
     /// Document-level extraction from 600 PubMed abstracts
     BioRED,
+
+    /// SciER: Scientific document relation extraction dataset
+    /// 106 full-text scientific publications, 24K+ entities, 12K+ relations
+    /// Entity types: Datasets, Methods, Tasks
+    /// Source: https://github.com/edzq/SciER
+    SciER,
+
+    /// MixRED: Mix-lingual relation extraction dataset
+    /// Human-annotated code-mixed relation extraction
+    /// Addresses code-switching scenarios in multilingual communities
+    MixRED,
+
+    /// CovEReD: Counterfactual relation extraction dataset
+    /// Based on DocRED with entity replacement for robustness testing
+    /// Evaluates factual consistency in relation extraction models
+    CovEReD,
 
     // === Discontinuous NER Datasets ===
     /// CADEC: Clinical Adverse Drug Events
@@ -384,9 +423,49 @@ impl DatasetId {
             DatasetId::BioRED => {
                 "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json"
             }
+            // SciER: Scientific document relation extraction
+            // Source: https://github.com/edzq/SciER
+            DatasetId::SciER => {
+                "https://raw.githubusercontent.com/edzq/SciER/main/data/train.json"
+            }
+            // MixRED: Mix-lingual relation extraction
+            // NOTE: Using CrossRE as placeholder proxy (code-mixed datasets are rare and may require licenses)
+            DatasetId::MixRED => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/news-test.json"
+            }
+            // CovEReD: Counterfactual relation extraction
+            // NOTE: Using CrossRE as placeholder proxy until direct source available
+            // Based on DocRED with entity replacement - original may require license
+            DatasetId::CovEReD => {
+                "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json"
+            }
+            // UNER: Universal NER multilingual
+            // Source: https://huggingface.co/datasets/universalner/universal_ner
+            DatasetId::UNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=universalner/universal_ner&config=en&split=test&offset=0&length=100"
+            }
+            // MSNER: Multilingual Speech NER
+            // Source: https://huggingface.co/datasets/facebook/voxpopuli
+            // Note: Requires matching with VoxPopuli audio, using transcript annotations
+            DatasetId::MSNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=facebook/voxpopuli&config=nl&split=test&offset=0&length=100"
+            }
+            // BioMNER: Biomedical Method Entity Recognition
+            // NOTE: Using tner/bionlp2004 as proxy (similar biomedical domain)
+            // Original BioMNER dataset may require license or different source
+            DatasetId::BioMNER => {
+                "https://datasets-server.huggingface.co/rows?dataset=tner/bionlp2004&config=default&split=test&offset=0&length=100"
+            }
+            // LegNER: Legal Domain NER
+            // NOTE: Using WikiGold as placeholder proxy until proper legal dataset URL available
+            // Legal datasets often require licenses - this is a temporary workaround
+            DatasetId::LegNER => {
+                "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/wikigold/CONLL-format/data/wikigold.conll.txt"
+            }
             // === Discontinuous NER Datasets ===
+            // CADEC: Using HuggingFace datasets-server API (test split)
             DatasetId::CADEC => {
-                "https://huggingface.co/datasets/KevinSpaghetti/cadec/resolve/main/data/test.jsonl"
+                "https://datasets-server.huggingface.co/rows?dataset=KevinSpaghetti/cadec&config=default&split=test&offset=0&length=1000"
             }
             // === Coreference Datasets ===
             // GAP - from Google Research (TEST SET for evaluation)
@@ -439,6 +518,13 @@ impl DatasetId {
             DatasetId::WEBNLG => "WEBNLG",
             DatasetId::GoogleRE => "Google-RE",
             DatasetId::BioRED => "BioRED",
+            DatasetId::SciER => "SciER",
+            DatasetId::MixRED => "MixRED",
+            DatasetId::CovEReD => "CovEReD",
+            DatasetId::UNER => "UNER",
+            DatasetId::MSNER => "MSNER",
+            DatasetId::BioMNER => "BioMNER",
+            DatasetId::LegNER => "LegNER",
             DatasetId::CADEC => "CADEC",
             DatasetId::GAP => "GAP",
             DatasetId::PreCo => "PreCo",
@@ -495,6 +581,9 @@ impl DatasetId {
                 | DatasetId::WEBNLG
                 | DatasetId::GoogleRE
                 | DatasetId::BioRED
+                | DatasetId::SciER
+                | DatasetId::MixRED
+                | DatasetId::CovEReD
         )
     }
 
@@ -525,6 +614,9 @@ impl DatasetId {
                 | DatasetId::WikiNeural
                 | DatasetId::PolyglotNER
                 | DatasetId::UniversalNER
+                | DatasetId::UNER
+                | DatasetId::MSNER
+                | DatasetId::MixRED
         )
     }
 
@@ -616,6 +708,10 @@ impl DatasetId {
             DatasetId::WikiNeural => None,
             DatasetId::PolyglotNER => None,
             DatasetId::UniversalNER => None,
+            DatasetId::UNER => None,
+            DatasetId::MSNER => None,
+            DatasetId::BioMNER => None,
+            DatasetId::LegNER => None,
             // Relation extraction
             DatasetId::DocRED => None,
             DatasetId::ReTACRED => None,
@@ -623,6 +719,9 @@ impl DatasetId {
             DatasetId::WEBNLG => None,
             DatasetId::GoogleRE => None,
             DatasetId::BioRED => None,
+            DatasetId::SciER => None,
+            DatasetId::MixRED => None,
+            DatasetId::CovEReD => None,
             // Discontinuous NER
             DatasetId::CADEC => None,
             // Coreference
@@ -845,6 +944,13 @@ impl DatasetId {
                 "gene-disease",
                 "protein-disease",
             ], // Biomedical relations
+            DatasetId::SciER => &["Method", "Task", "Material"], // Scientific entity types (SciER is RE dataset)
+            DatasetId::MixRED => &["PER", "ORG", "LOC"],         // Code-mixed uses standard types
+            DatasetId::CovEReD => &["PER", "ORG", "LOC", "MISC"], // Counterfactual DocRED
+            DatasetId::UNER => &["PER", "LOC", "ORG"],           // Universal NER standard types
+            DatasetId::MSNER => &["PER", "LOC", "ORG"],          // Speech NER standard types
+            DatasetId::BioMNER => &["Method", "Material", "Metric"], // Biomedical method entities (methodological concepts)
+            DatasetId::LegNER => &["PERSON", "ORGANIZATION", "LAW", "CASE_REFERENCE", "COURT"], // Legal entities (NOTE: using WikiGold proxy, actual types may differ)
             // Discontinuous NER datasets
             DatasetId::CADEC => &["adverse_drug_event", "drug", "disease", "symptom"],
             // Coreference datasets
@@ -879,6 +985,13 @@ impl DatasetId {
             DatasetId::WEBNLG => "webnlg_dev.json",
             DatasetId::GoogleRE => "googlere_dev.json",
             DatasetId::BioRED => "biored_dev.json",
+            DatasetId::SciER => "scier.json",
+            DatasetId::MixRED => "mixred.json",
+            DatasetId::CovEReD => "covered.json",
+            DatasetId::UNER => "uner.json",
+            DatasetId::MSNER => "msner.json",
+            DatasetId::BioMNER => "biomner.json",
+            DatasetId::LegNER => "legner.conll",
             DatasetId::CADEC => "cadec_test.jsonl",
             DatasetId::GAP => "gap_dev.tsv",
             DatasetId::PreCo => "preco_dev.json",
@@ -935,6 +1048,10 @@ impl DatasetId {
             DatasetId::WikiNeural,
             DatasetId::PolyglotNER,
             DatasetId::UniversalNER,
+            DatasetId::UNER,
+            DatasetId::MSNER,
+            DatasetId::BioMNER,
+            DatasetId::LegNER,
             // Relation extraction
             DatasetId::DocRED,
             DatasetId::ReTACRED,
@@ -942,6 +1059,9 @@ impl DatasetId {
             DatasetId::WEBNLG,
             DatasetId::GoogleRE,
             DatasetId::BioRED,
+            DatasetId::SciER,
+            DatasetId::MixRED,
+            DatasetId::CovEReD,
             // Coreference datasets
             DatasetId::GAP,
             DatasetId::PreCo,
@@ -1062,6 +1182,9 @@ impl DatasetId {
             DatasetId::WEBNLG,
             DatasetId::GoogleRE,
             DatasetId::BioRED,
+            DatasetId::SciER,
+            DatasetId::MixRED,
+            DatasetId::CovEReD,
         ]
     }
 
@@ -1094,6 +1217,13 @@ impl DatasetId {
             DatasetId::WEBNLG => (10000, 50000),     // WEBNLG RE
             DatasetId::GoogleRE => (5000, 20000),    // Google-RE (4 relations)
             DatasetId::BioRED => (10000, 50000),     // BioRED biomedical RE
+            DatasetId::SciER => (20000, 50000),      // SciER scientific RE (106 papers)
+            DatasetId::MixRED => (5000, 20000),      // MixRED code-mixed RE
+            DatasetId::CovEReD => (50000, 150000),   // CovEReD counterfactual RE
+            DatasetId::UNER => (10000, 50000),       // UNER multilingual NER
+            DatasetId::MSNER => (50000, 200000),     // MSNER speech NER (large)
+            DatasetId::BioMNER => (5000, 20000),     // BioMNER biomedical methods
+            DatasetId::LegNER => (10000, 50000),     // LegNER legal NER
             DatasetId::CADEC => (10000, 30000),      // Discontinuous NER
             DatasetId::GAP => (4000, 10000),         // Pronoun pairs
             DatasetId::PreCo => (100000, 500000),    // Large coref
@@ -1287,6 +1417,30 @@ impl AnnotatedSentence {
     }
 }
 
+/// Temporal metadata for datasets (optional).
+///
+/// Used for temporal stratification of evaluation metrics.
+/// Most datasets don't have temporal metadata, so this is optional.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemporalMetadata {
+    /// KB version used for entity linking (if applicable)
+    pub kb_version: Option<String>,
+    /// Temporal cutoff date (entities before this date are "old", after are "new")
+    pub temporal_cutoff: Option<String>, // ISO 8601 date string
+    /// Entity creation dates (if available)
+    pub entity_creation_dates: Option<HashMap<String, String>>, // entity_id -> ISO 8601 date
+}
+
+impl Default for TemporalMetadata {
+    fn default() -> Self {
+        Self {
+            kb_version: None,
+            temporal_cutoff: None,
+            entity_creation_dates: None,
+        }
+    }
+}
+
 /// A loaded dataset with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoadedDataset {
@@ -1298,6 +1452,9 @@ pub struct LoadedDataset {
     pub loaded_at: String, // ISO 8601
     /// Source URL.
     pub source_url: String,
+    /// Optional temporal metadata for temporal stratification
+    #[serde(default)]
+    pub temporal_metadata: Option<TemporalMetadata>,
 }
 
 impl LoadedDataset {
@@ -1476,6 +1633,42 @@ impl DatasetLoader {
         self.parse_content(&content, id)
     }
 
+    /// Get temporal metadata for a dataset if available.
+    fn get_temporal_metadata(id: DatasetId) -> Option<TemporalMetadata> {
+        match id {
+            DatasetId::TweetNER7 => {
+                // TweetNER7 has temporal entity recognition - use dataset creation date as cutoff
+                Some(TemporalMetadata {
+                    kb_version: None,                                // No KB linking in TweetNER7
+                    temporal_cutoff: Some("2017-01-01".to_string()), // Approximate dataset creation
+                    entity_creation_dates: None,                     // Would need entity linking
+                })
+            }
+            DatasetId::BroadTwitterCorpus => {
+                // BroadTwitterCorpus is stratified across times - use approximate cutoff
+                Some(TemporalMetadata {
+                    kb_version: None,
+                    temporal_cutoff: Some("2018-01-01".to_string()), // Approximate
+                    entity_creation_dates: None,
+                })
+            }
+            DatasetId::BC5CDR
+            | DatasetId::NCBIDisease
+            | DatasetId::GENIA
+            | DatasetId::AnatEM
+            | DatasetId::BC2GM
+            | DatasetId::BC4CHEMD => {
+                // Biomedical datasets might have KB versions (UMLS, etc.)
+                Some(TemporalMetadata {
+                    kb_version: Some("UMLS-2023".to_string()), // Placeholder - would need actual KB version
+                    temporal_cutoff: None,
+                    entity_creation_dates: None,
+                })
+            }
+            _ => None, // Most datasets don't have temporal metadata
+        }
+    }
+
     /// Parse content based on dataset format.
     fn parse_content(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         // Auto-detect HuggingFace datasets-server API responses
@@ -1491,7 +1684,8 @@ impl DatasetLoader {
             | DatasetId::MitRestaurant
             | DatasetId::CoNLL2003Sample
             | DatasetId::OntoNotesSample
-            | DatasetId::UniversalNERBench => self.parse_conll(content, id),
+            | DatasetId::UniversalNERBench
+            | DatasetId::LegNER => self.parse_conll(content, id),
 
             // JSONL format (HuggingFace style)
             DatasetId::MultiNERD => self.parse_jsonl_ner(content, id),
@@ -1502,10 +1696,20 @@ impl DatasetLoader {
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
             | DatasetId::GoogleRE
-            | DatasetId::BioRED => self.parse_docred(content, id), // All use same JSON format
+            | DatasetId::BioRED
+            | DatasetId::SciER
+            | DatasetId::MixRED
+            | DatasetId::CovEReD => self.parse_docred(content, id), // All use same JSON format
 
-            // Discontinuous NER (JSONL format)
-            DatasetId::CADEC => self.parse_cadec_jsonl(content, id),
+            // Discontinuous NER (HF datasets-server API or JSONL format)
+            DatasetId::CADEC => {
+                // Try HF API format first, fall back to JSONL
+                if self.is_hf_api_response(content) {
+                    self.parse_cadec_hf_api(content, id)
+                } else {
+                    self.parse_cadec_jsonl(content, id)
+                }
+            }
 
             // Biomedical formats
             DatasetId::BC5CDR => self.parse_bc5cdr(content, id),
@@ -1536,7 +1740,10 @@ impl DatasetLoader {
             | DatasetId::MultiCoNER
             | DatasetId::MultiCoNERv2
             | DatasetId::PolyglotNER
-            | DatasetId::UniversalNER => self.parse_hf_api_response(content, id),
+            | DatasetId::UniversalNER
+            | DatasetId::UNER
+            | DatasetId::MSNER
+            | DatasetId::BioMNER => self.parse_hf_api_response(content, id),
         }
     }
 
@@ -1654,7 +1861,7 @@ impl DatasetLoader {
         const PAGE_SIZE: usize = 1000; // Increased from 100 to 1000 for better performance
         let mut all_rows = Vec::new();
         let mut features = None;
-        let mut offset = 0;
+        let mut offset: usize = 0;
         let mut total_rows = None;
 
         log::info!(
@@ -1667,9 +1874,10 @@ impl DatasetLoader {
             // Build paginated URL
             let url = if base_url.contains("offset=") {
                 // Replace existing offset parameter
+                let prev_offset = offset.saturating_sub(PAGE_SIZE);
                 base_url
                     .replace(
-                        &format!("offset={}", offset - PAGE_SIZE),
+                        &format!("offset={}", prev_offset),
                         &format!("offset={}", offset),
                     )
                     .replace("length=100", &format!("length={}", PAGE_SIZE))
@@ -1949,6 +2157,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2014,6 +2223,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2095,6 +2305,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2218,6 +2429,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2277,6 +2489,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2326,6 +2539,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2406,6 +2620,108 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
+        })
+    }
+
+    /// Parse CADEC from HuggingFace datasets-server API.
+    ///
+    /// CADEC HF API format: {"text": "...", "ade": "...", "term_PT": "..."}
+    /// Each row is a text-ADE pair (one sentence per ADE mention).
+    /// The `ade` field contains the adverse drug event mention within `text`.
+    fn parse_cadec_hf_api(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
+        let parsed: serde_json::Value = serde_json::from_str(content).map_err(|e| {
+            Error::InvalidInput(format!("Failed to parse CADEC HF API response: {}", e))
+        })?;
+
+        let mut sentences = Vec::new();
+
+        let rows = parsed
+            .get("rows")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| {
+                Error::InvalidInput("No 'rows' array in CADEC HF API response".to_string())
+            })?;
+
+        for row_obj in rows {
+            let row = match row_obj.get("row") {
+                Some(r) => r,
+                None => continue,
+            };
+
+            let text = match row.get("text").and_then(|v| v.as_str()) {
+                Some(t) => t,
+                None => continue,
+            };
+
+            let ade_text = match row.get("ade").and_then(|v| v.as_str()) {
+                Some(a) => a,
+                None => continue,
+            };
+
+            // Tokenize text and find ADE span (case-insensitive, handle punctuation)
+            let text_lower = text.to_lowercase();
+            let ade_lower = ade_text.to_lowercase();
+
+            // Find ADE span in text (handle word boundaries)
+            let ade_start = text_lower.find(&ade_lower);
+            if ade_start.is_none() {
+                continue; // ADE not found in text
+            }
+            let ade_start_char = ade_start.unwrap();
+            let ade_end_char = ade_start_char + ade_text.len();
+
+            // Tokenize text preserving character offsets
+            let mut tokens: Vec<AnnotatedToken> = Vec::new();
+            let mut char_idx = 0;
+            let words: Vec<&str> = text.split_whitespace().collect();
+
+            for word in words {
+                let word_start = text[char_idx..].find(word).unwrap_or(0) + char_idx;
+                let word_end = word_start + word.len();
+
+                // Check if this word overlaps with ADE span
+                let ner_tag = if word_start >= ade_start_char && word_end <= ade_end_char {
+                    // Check if this is the first word of the ADE
+                    if word_start == ade_start_char
+                        || tokens.is_empty()
+                        || !tokens.last().unwrap().ner_tag.starts_with("I-")
+                    {
+                        "B-adverse_drug_event".to_string()
+                    } else {
+                        "I-adverse_drug_event".to_string()
+                    }
+                } else {
+                    "O".to_string()
+                };
+
+                tokens.push(AnnotatedToken {
+                    text: word.to_string(),
+                    ner_tag,
+                });
+
+                // Update char_idx to after this word (including trailing space)
+                char_idx = word_end;
+                if char_idx < text.len() && text.chars().nth(char_idx) == Some(' ') {
+                    char_idx += 1;
+                }
+            }
+
+            if !tokens.is_empty() {
+                sentences.push(AnnotatedSentence {
+                    tokens,
+                    source_dataset: id,
+                });
+            }
+        }
+
+        let now = chrono::Utc::now().to_rfc3339();
+        Ok(LoadedDataset {
+            id,
+            sentences,
+            loaded_at: now,
+            source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2576,6 +2892,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2662,6 +2979,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2716,6 +3034,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2763,6 +3082,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2813,6 +3133,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2862,6 +3183,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2905,6 +3227,7 @@ impl DatasetLoader {
             sentences,
             loaded_at: now,
             source_url: id.download_url().to_string(),
+            temporal_metadata: Self::get_temporal_metadata(id),
         })
     }
 
@@ -2945,8 +3268,30 @@ impl DatasetLoader {
                     .collect())
             }
             DatasetId::PreCo => {
-                let docs = super::coref_loader::parse_preco_json(&content)?;
-                Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
+                // PreCo can be JSONL (one JSON object per line) or JSON array
+                // Try JSONL first (more common), then fall back to JSON array
+                if content.trim().starts_with('[') {
+                    // JSON array format
+                    let docs = super::coref_loader::parse_preco_json(&content)?;
+                    Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
+                } else {
+                    // JSONL format - parse each line and convert to JSON array format
+                    let mut json_objects = Vec::new();
+                    for line in content.lines() {
+                        let line = line.trim();
+                        if line.is_empty() {
+                            continue;
+                        }
+                        // Validate it's valid JSON
+                        if serde_json::from_str::<serde_json::Value>(line).is_ok() {
+                            json_objects.push(line);
+                        }
+                    }
+                    // Convert JSONL to JSON array format
+                    let json_array = format!("[{}]", json_objects.join(","));
+                    let docs = super::coref_loader::parse_preco_json(&json_array)?;
+                    Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
+                }
             }
             DatasetId::LitBank => {
                 // LitBank coreference - parse .ann format for chains
@@ -3100,7 +3445,18 @@ impl DatasetLoader {
             .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
 
         match id {
-            DatasetId::DocRED | DatasetId::ReTACRED => self.parse_docred_relations(&content),
+            DatasetId::DocRED
+            | DatasetId::ReTACRED
+            | DatasetId::NYTFB
+            | DatasetId::WEBNLG
+            | DatasetId::GoogleRE
+            | DatasetId::BioRED
+            | DatasetId::SciER
+            | DatasetId::MixRED
+            | DatasetId::CovEReD => {
+                // All these datasets use the CrossRE format (same as DocRED)
+                self.parse_docred_relations(&content)
+            }
             DatasetId::CADEC => {
                 // CADEC is NER, not relation extraction
                 Err(Error::InvalidInput(

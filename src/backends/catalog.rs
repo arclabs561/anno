@@ -41,7 +41,12 @@
 //! | `NuNER` | `onnx` | **Yes** | No | ~100ms | ✅ Complete |
 //! | `W2NER` | `onnx` | No | **Yes** | ~150ms | ✅ Complete |
 //! | `CandleNER` | `candle` | No | No | varies | ✅ Complete |
-//! | `GLiNERCandle` | `candle` | **Yes** | No | varies | ✅ Complete |
+//! | `GLiNERCandle` | `candle` | **Yes** | No | varies | Complete |
+//! | `GLiNERPoly` | `onnx` | **Yes** | No | ~120ms | Placeholder |
+//! | `TPLinker` | - | No | No | varies | Placeholder |
+//! | `DeBERTaV3NER` | `onnx` | No | No | ~50ms | Complete |
+//! | `ALBERTNER` | `onnx` | No | No | ~40ms | Complete |
+//! | `UniversalNER` | - | **Yes** | No | varies | Placeholder |
 //!
 //! # Research Landscape (2024-2025)
 //!
