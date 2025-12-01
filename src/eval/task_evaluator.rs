@@ -69,6 +69,31 @@ pub struct TaskEvalResult {
     pub metrics: HashMap<String, f64>,
     /// Number of examples evaluated
     pub num_examples: usize,
+    /// Time taken in milliseconds (if available)
+    pub duration_ms: Option<f64>,
+}
+
+impl TaskEvalResult {
+    /// Check if this is a "skipped" result (feature not available) vs actual failure
+    pub fn is_skipped(&self) -> bool {
+        if self.success {
+            return false;
+        }
+        if let Some(ref err) = self.error {
+            err.contains("Feature not available") || err.contains("requires '")
+        } else {
+            false
+        }
+    }
+
+    /// Get primary F1 metric for ranking
+    pub fn primary_f1(&self) -> Option<f64> {
+        self.metrics
+            .get("f1")
+            .or_else(|| self.metrics.get("conll_f1"))
+            .or_else(|| self.metrics.get("strict_f1"))
+            .copied()
+    }
 }
 
 /// Comprehensive evaluation results across all combinations.
@@ -87,8 +112,10 @@ pub struct EvalSummary {
     pub total_combinations: usize,
     /// Successful evaluations
     pub successful: usize,
-    /// Failed evaluations
+    /// Failed evaluations (actual errors, not skipped)
     pub failed: usize,
+    /// Skipped evaluations (feature not available, etc.)
+    pub skipped: usize,
     /// Tasks evaluated
     pub tasks: Vec<Task>,
     /// Datasets used
@@ -176,10 +203,13 @@ impl TaskEvaluator {
             }
         }
 
+        let skipped = results.iter().filter(|r| r.is_skipped()).count();
+        let failed = results.iter().filter(|r| !r.success && !r.is_skipped()).count();
         let summary = EvalSummary {
             total_combinations: results.len(),
             successful: results.iter().filter(|r| r.success).count(),
-            failed: results.iter().filter(|r| !r.success).count(),
+            failed,
+            skipped,
             tasks: tasks_evaluated,
             datasets: datasets_used,
             backends: backends_tested,
@@ -214,6 +244,7 @@ impl TaskEvaluator {
                             error: Some(format!("Failed to load dataset: {}", e)),
                             metrics: HashMap::new(),
                             num_examples: 0,
+                            duration_ms: None,
                         });
                     }
                 }
@@ -232,6 +263,7 @@ impl TaskEvaluator {
                             error: Some(format!("Failed to load dataset (not cached, eval-advanced feature required for download): {}", e)),
                             metrics: HashMap::new(),
                             num_examples: 0,
+                            duration_ms: None,
                         });
                     }
                 }
@@ -247,25 +279,34 @@ impl TaskEvaluator {
 
         // Try to create backend (this is a placeholder - actual implementation
         // would need backend factory)
+        let start = Instant::now();
         let result = match self.try_evaluate_backend(task, dataset, backend_name, &dataset_data) {
-            Ok(metrics) => TaskEvalResult {
-                task,
-                dataset,
-                backend: backend_name.to_string(),
-                success: true,
-                error: None,
-                metrics,
-                num_examples: sentences_to_use,
-            },
-            Err(e) => TaskEvalResult {
-                task,
-                dataset,
-                backend: backend_name.to_string(),
-                success: false,
-                error: Some(format!("{}", e)),
-                metrics: HashMap::new(),
-                num_examples: sentences_to_use,
-            },
+            Ok(metrics) => {
+                let duration = start.elapsed().as_secs_f64() * 1000.0;
+                TaskEvalResult {
+                    task,
+                    dataset,
+                    backend: backend_name.to_string(),
+                    success: true,
+                    error: None,
+                    metrics,
+                    num_examples: sentences_to_use,
+                    duration_ms: Some(duration),
+                }
+            }
+            Err(e) => {
+                let duration = start.elapsed().as_secs_f64() * 1000.0;
+                TaskEvalResult {
+                    task,
+                    dataset,
+                    backend: backend_name.to_string(),
+                    success: false,
+                    error: Some(format!("{}", e)),
+                    metrics: HashMap::new(),
+                    num_examples: sentences_to_use,
+                    duration_ms: Some(duration),
+                }
+            }
         };
 
         Ok(result)
@@ -1049,13 +1090,95 @@ impl ComprehensiveEvalResults {
     /// Convert evaluation results to a markdown-formatted report.
     pub fn to_markdown(&self) -> String {
         let mut md = String::new();
-        md.push_str("# Comprehensive Task-Dataset-Backend Evaluation\n\n");
+        md.push_str("# Evaluation Report\n\n");
+        
+        // Executive Summary
+        md.push_str("## Executive Summary\n\n");
         md.push_str(&format!(
-            "**Total Combinations**: {}\n",
+            "- **Total Combinations**: {}\n",
             self.summary.total_combinations
         ));
-        md.push_str(&format!("**Successful**: {}\n", self.summary.successful));
-        md.push_str(&format!("**Failed**: {}\n\n", self.summary.failed));
+        md.push_str(&format!("- **Successful**: {}\n", self.summary.successful));
+        md.push_str(&format!("- **Skipped** (feature not available): {}\n", self.summary.skipped));
+        md.push_str(&format!("- **Failed** (actual errors): {}\n", self.summary.failed));
+        
+        // Statistical warning
+        let avg_examples: f64 = self.results.iter()
+            .filter(|r| r.success)
+            .map(|r| r.num_examples as f64)
+            .sum::<f64>() / self.summary.successful.max(1) as f64;
+        if avg_examples < 50.0 {
+            md.push_str(&format!(
+                "\n⚠️ **Warning**: Average of {:.0} examples per evaluation. Results may not be statistically significant. Consider running with more examples for reliable metrics.\n\n",
+                avg_examples
+            ));
+        }
+        
+        // Key Insights
+        md.push_str("\n## Key Insights\n\n");
+        
+        // Find best performing backends per task
+        let mut by_task: HashMap<Task, Vec<&TaskEvalResult>> = HashMap::new();
+        for result in &self.results {
+            if result.success {
+                by_task.entry(result.task).or_default().push(result);
+            }
+        }
+        
+        for (task, results) in &by_task {
+            if results.is_empty() {
+                continue;
+            }
+            
+            // Rank backends by F1
+            let mut ranked: Vec<_> = results.iter()
+                .filter_map(|r| {
+                    r.primary_f1().map(|f1| (r.backend.clone(), f1, r.num_examples))
+                })
+                .collect();
+            ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            
+            if !ranked.is_empty() {
+                md.push_str(&format!("### {}\n\n", task.name()));
+                md.push_str("**Top Performers**:\n");
+                for (i, (backend, f1, examples)) in ranked.iter().take(3).enumerate() {
+                    let medal = match i {
+                        0 => "🥇",
+                        1 => "🥈",
+                        2 => "🥉",
+                        _ => "",
+                    };
+                    md.push_str(&format!("- {} {}: {:.1}% F1 ({} examples)\n", medal, backend, f1 * 100.0, examples));
+                }
+                md.push_str("\n");
+            }
+        }
+        
+        // Backend availability summary
+        md.push_str("### Backend Availability\n\n");
+        let mut backend_counts: HashMap<String, (usize, usize)> = HashMap::new();
+        for result in &self.results {
+            let entry = backend_counts.entry(result.backend.clone()).or_insert((0, 0));
+            if result.success {
+                entry.0 += 1;
+            } else if result.is_skipped() {
+                entry.1 += 1;
+            }
+        }
+        
+        let mut backend_list: Vec<_> = backend_counts.iter().collect();
+        backend_list.sort_by_key(|(_, (success, _))| *success);
+        backend_list.reverse();
+        
+        for (backend, (success, skipped)) in backend_list {
+            let total = *success + *skipped;
+            if total > 0 {
+                let pct = (*success as f64 / total as f64) * 100.0;
+                md.push_str(&format!("- **{}**: {} successful, {} skipped ({:.0}% available)\n", 
+                    backend, success, skipped, pct));
+            }
+        }
+        md.push_str("\n");
 
         md.push_str("## Tasks Evaluated\n\n");
         for task in &self.summary.tasks {
@@ -1079,42 +1202,74 @@ impl ComprehensiveEvalResults {
             by_task.entry(result.task).or_default().push(result);
         }
 
-        for (task, results) in by_task {
+        for (task, mut results) in by_task {
             md.push_str(&format!("### {}\n\n", task.name()));
+            
+            // Sort results: successful first (by F1 descending), then skipped, then failed
+            results.sort_by(|a, b| {
+                match (a.success, b.success) {
+                    (true, true) => {
+                        let a_f1 = a.primary_f1().unwrap_or(0.0);
+                        let b_f1 = b.primary_f1().unwrap_or(0.0);
+                        b_f1.partial_cmp(&a_f1).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                    (true, false) => std::cmp::Ordering::Less,
+                    (false, true) => std::cmp::Ordering::Greater,
+                    (false, false) => {
+                        match (a.is_skipped(), b.is_skipped()) {
+                            (true, false) => std::cmp::Ordering::Less,
+                            (false, true) => std::cmp::Ordering::Greater,
+                            _ => std::cmp::Ordering::Equal,
+                        }
+                    }
+                }
+            });
 
             // Determine which metrics to show based on task
             let show_metrics = match task {
                 Task::NER | Task::DiscontinuousNER => {
-                    md.push_str("| Dataset | Backend | Success | F1 | P | R | Examples |\n");
-                    md.push_str("|---------|---------|---------|----|----|----|----------|\n");
+                    md.push_str("| Dataset | Backend | Status | F1 | P | R | Examples | Time (ms) |\n");
+                    md.push_str("|---------|---------|--------|----|----|----|----------|-----------|\n");
                     true
                 }
                 Task::IntraDocCoref | Task::AbstractAnaphora => {
                     md.push_str(
-                        "| Dataset | Backend | Success | CoNLL F1 | MUC F1 | B³ F1 | Examples |\n",
+                        "| Dataset | Backend | Status | CoNLL F1 | MUC F1 | B³ F1 | Examples | Time (ms) |\n",
                     );
                     md.push_str(
-                        "|---------|---------|---------|----------|--------|-------|----------|\n",
+                        "|---------|---------|--------|----------|--------|-------|----------|-----------|\n",
                     );
                     true
                 }
                 Task::RelationExtraction => {
                     md.push_str(
-                        "| Dataset | Backend | Success | Strict F1 | Boundary F1 | Examples |\n",
+                        "| Dataset | Backend | Status | Strict F1 | Boundary F1 | Examples | Time (ms) |\n",
                     );
                     md.push_str(
-                        "|---------|---------|---------|------------|-------------|----------|\n",
+                        "|---------|---------|--------|------------|-------------|----------|-----------|\n",
                     );
                     true
                 }
                 _ => {
-                    md.push_str("| Dataset | Backend | Success | Examples |\n");
-                    md.push_str("|---------|---------|---------|----------|\n");
+                    md.push_str("| Dataset | Backend | Status | Examples | Time (ms) |\n");
+                    md.push_str("|---------|---------|--------|----------|-----------|\n");
                     false
                 }
             };
 
             for result in results {
+                let status = if result.success {
+                    "✓"
+                } else if result.is_skipped() {
+                    "⊘"
+                } else {
+                    "✗"
+                };
+                
+                let time_str = result.duration_ms
+                    .map(|d| format!("{:.0}", d))
+                    .unwrap_or_else(|| "N/A".to_string());
+                
                 if show_metrics && result.success {
                     match task {
                         Task::NER | Task::DiscontinuousNER => {
@@ -1130,8 +1285,8 @@ impl ComprehensiveEvalResults {
                                 .map(|v| *v * 100.0)
                                 .unwrap_or(0.0);
                             md.push_str(&format!(
-                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {:.1}% | {} |\n",
-                                result.dataset, result.backend, f1, p, r, result.num_examples
+                                "| {:?} | {} | {} | {:.1}% | {:.1}% | {:.1}% | {} | {} |\n",
+                                result.dataset, result.backend, status, f1, p, r, result.num_examples, time_str
                             ));
                         }
                         Task::IntraDocCoref | Task::AbstractAnaphora => {
@@ -1151,8 +1306,8 @@ impl ComprehensiveEvalResults {
                                 .map(|v| *v * 100.0)
                                 .unwrap_or(0.0);
                             md.push_str(&format!(
-                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {:.1}% | {} |\n",
-                                result.dataset, result.backend, conll, muc, b3, result.num_examples
+                                "| {:?} | {} | {} | {:.1}% | {:.1}% | {:.1}% | {} | {} |\n",
+                                result.dataset, result.backend, status, conll, muc, b3, result.num_examples, time_str
                             ));
                         }
                         Task::RelationExtraction => {
@@ -1167,43 +1322,113 @@ impl ComprehensiveEvalResults {
                                 .map(|v| *v * 100.0)
                                 .unwrap_or(0.0);
                             md.push_str(&format!(
-                                "| {:?} | {} | ✓ | {:.1}% | {:.1}% | {} |\n",
+                                "| {:?} | {} | {} | {:.1}% | {:.1}% | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
+                                status,
                                 strict,
                                 boundary,
-                                result.num_examples
+                                result.num_examples,
+                                time_str
                             ));
                         }
                         _ => {
                             md.push_str(&format!(
-                                "| {:?} | {} | ✓ | {} |\n",
-                                result.dataset, result.backend, result.num_examples
+                                "| {:?} | {} | {} | {} | {} |\n",
+                                result.dataset, result.backend, status, result.num_examples, time_str
                             ));
                         }
                     }
                 } else {
-                    // Failed or no metrics
-                    let error_msg = result
-                        .error
-                        .as_ref()
-                        .map(|e| {
-                            // Truncate long error messages
-                            if e.len() > 50 {
-                                format!("{}...", &e[..47])
-                            } else {
-                                e.clone()
-                            }
-                        })
-                        .unwrap_or_else(|| "N/A".to_string());
+                    // Failed, skipped, or no metrics
+                    let error_msg = if result.is_skipped() {
+                        "Feature not available".to_string()
+                    } else {
+                        result
+                            .error
+                            .as_ref()
+                            .map(|e| {
+                                // Truncate long error messages
+                                if e.len() > 40 {
+                                    format!("{}...", &e[..37])
+                                } else {
+                                    e.clone()
+                                }
+                            })
+                            .unwrap_or_else(|| "N/A".to_string())
+                    };
                     md.push_str(&format!(
-                        "| {:?} | {} | ✗ | {} |\n",
-                        result.dataset, result.backend, error_msg
+                        "| {:?} | {} | {} | {} | {} |\n",
+                        result.dataset, result.backend, status, error_msg, time_str
                     ));
                 }
             }
             md.push('\n');
         }
+        
+        // Recommendations section
+        md.push_str("\n## Recommendations\n\n");
+        
+        // Check for common issues
+        if self.summary.skipped > self.summary.successful {
+            md.push_str("### Enable More Features\n");
+            md.push_str("Many backends are skipped due to missing features. Consider enabling:\n");
+            md.push_str("- `onnx` feature for ONNX-based backends (bert_onnx, nuner, gliner_onnx, gliner2, w2ner)\n");
+            md.push_str("- `candle` feature for Candle-based backends (candle_ner, gliner_candle)\n");
+            md.push_str("- `discourse` feature for coreference resolution\n\n");
+        }
+        
+        if avg_examples < 50.0 {
+            md.push_str("### Increase Sample Size\n");
+            md.push_str("For statistically significant results, run with more examples:\n");
+            md.push_str("```bash\n");
+            md.push_str("just eval-full-limit 100  # 100 examples per dataset\n");
+            md.push_str("# or for full evaluation:\n");
+            md.push_str("just eval-full\n");
+            md.push_str("```\n\n");
+        }
+        
+        // Performance recommendations
+        let successful_results: Vec<_> = self.results.iter()
+            .filter(|r| r.success && r.duration_ms.is_some())
+            .collect();
+        if !successful_results.is_empty() {
+            let avg_time: f64 = successful_results.iter()
+                .map(|r| r.duration_ms.unwrap())
+                .sum::<f64>() / successful_results.len() as f64;
+            
+            md.push_str("### Performance Notes\n");
+            md.push_str(&format!("Average evaluation time: {:.0}ms per combination\n", avg_time));
+            
+            // Find slowest backends
+            let mut backend_times: HashMap<String, Vec<f64>> = HashMap::new();
+            for result in &successful_results {
+                if let Some(duration) = result.duration_ms {
+                    backend_times.entry(result.backend.clone())
+                        .or_default()
+                        .push(duration);
+                }
+            }
+            
+            let mut slow_backends: Vec<_> = backend_times.iter()
+                .map(|(backend, times)| {
+                    let avg = times.iter().sum::<f64>() / times.len() as f64;
+                    (backend.clone(), avg)
+                })
+                .collect();
+            slow_backends.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            
+            if !slow_backends.is_empty() && slow_backends[0].1 > avg_time * 2.0 {
+                md.push_str("\nSlowest backends (consider optimization):\n");
+                for (backend, time) in slow_backends.iter().take(3) {
+                    md.push_str(&format!("- {}: {:.0}ms average\n", backend, time));
+                }
+            }
+            md.push_str("\n");
+        }
+        
+        md.push_str("---\n\n");
+        md.push_str("*Legend: ✓ = Success, ⊘ = Skipped (feature not available), ✗ = Failed*\n");
 
         md
     }
