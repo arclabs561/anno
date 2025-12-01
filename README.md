@@ -221,12 +221,12 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 
 [gline-rs](https://github.com/fbilhaut/gline-rs) is a focused GLiNER inference engine. If you only need GLiNER, it may be simpler.
 
-This library provides:
+This library includes:
 
 - Unified `Model` trait across regex, heuristics, and ML backends
-- Zero-dependency baselines (`PatternNER`, `HeuristicNER`, `StackedNER`) for fast iteration
-- Coreference resolution (rule-based and T5-based) with comprehensive metrics
-- Evaluation framework with SemEval modes and coreference metrics (MUC, B³, CEAF, LEA, BLANC)
+- Zero-dependency baselines (`PatternNER`, `HeuristicNER`, `StackedNER`)
+- Coreference resolution (rule-based and T5-based) with metrics (MUC, B³, CEAF, LEA, BLANC)
+- Evaluation framework with SemEval modes and coreference metrics
 - Multiple ONNX backends (BERT, GLiNER, GLiNER2, NuNER, W2NER) behind one interface
 - Pure Rust inference via Candle (optional Metal/CUDA support)
 
