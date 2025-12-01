@@ -609,7 +609,7 @@ impl TaskEvaluator {
                         String::new()
                     };
                     eprint!("\rProcessing: {}/{} sentences ({:.1}%) for backend '{}' on dataset '{}'{}\x1b[K",
-                        idx + 1, total_sentences, progress, backend_name, dataset.to_string(), remaining_str);
+                        idx + 1, total_sentences, progress, backend_name, dataset, remaining_str);
                 }
 
                 let text = sentence.text();
@@ -663,7 +663,7 @@ impl TaskEvaluator {
                 0.0
             };
             eprint!("\rProcessing: {}/{} sentences (100.0%) for backend '{}' on dataset '{}' (completed in {:.1}s, {:.1} sentences/s)\x1b[K",
-                total_sentences, total_sentences, backend_name, dataset.to_string(), total_secs, rate);
+                total_sentences, total_sentences, backend_name, dataset, total_secs, rate);
             eprintln!(); // Newline after progress
         }
 
@@ -1164,7 +1164,7 @@ impl ComprehensiveEvalResults {
                     result.task.name(), result.dataset, result.backend, error
                 ));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
         
         // Error patterns
@@ -1188,7 +1188,7 @@ impl ComprehensiveEvalResults {
             for (pattern, count) in patterns {
                 md.push_str(&format!("- [{}x] {}\n", count, pattern));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md.push_str("## Results\n\n");
@@ -1345,7 +1345,7 @@ impl ComprehensiveEvalResults {
                     backend, success, skipped, failed, avg_f1
                 ));
             }
-            md.push_str("\n");
+            md.push('\n');
         }
 
         md

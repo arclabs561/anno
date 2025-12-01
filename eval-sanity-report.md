@@ -1,6 +1,6 @@
 # Eval Report
 
-Total: 258 | ✓: 75 | ⊘: 177 | ✗: 6 | Avg examples: 20 | Avg time: 33ms
+Total: 258 | ✓: 75 | ⊘: 177 | ✗: 6 | Avg examples: 20 | Avg time: 0ms
 
 ## Failures
 
@@ -19,101 +19,92 @@ Total: 258 | ✓: 75 | ⊘: 177 | ✗: 6 | Avg examples: 20 | Avg time: 33ms
 
 ## Results
 
-### Abstract Anaphora Resolution
+### Relation Extraction
 
-| Dataset | Backend | CoNLL | MUC | B³ | N | ms |
-|---------|---------|-------|-----|----|---|----|
-| GAP | coref_resolver | ✗ | unknown-backend | 0 |
-| PreCo | coref_resolver | ✗ | unknown-backend | 0 |
-| LitBank | coref_resolver | ✗ | unknown-backend | 0 |
-
-### Intra-document Coreference
-
-| Dataset | Backend | CoNLL | MUC | B³ | N | ms |
-|---------|---------|-------|-----|----|---|----|
-| GAP | coref_resolver | ✗ | unknown-backend | 0 |
-| PreCo | coref_resolver | ✗ | unknown-backend | 0 |
-| LitBank | coref_resolver | ✗ | unknown-backend | 0 |
+| Dataset | Backend | Strict | Boundary | N | ms |
+|---------|---------|--------|----------|---|----|
+| DocRED | gliner2 | ⊘ | no-feature | 0 |
+| ReTACRED | gliner2 | ⊘ | no-feature | 0 |
 
 ### Named Entity Recognition
 
 | Dataset | Backend | F1 | P | R | N | ms |
 |---------|---------|----|----|----|---|----|
-| WikiANN | heuristic | 42.3 | 37.4 | 48.6 | 20 | 1 |
-| WikiANN | stacked | 42.2 | 37.3 | 48.6 | 20 | 1 |
-| MultiNERD | stacked | 39.5 | 39.8 | 39.2 | 20 | 1860 |
-| MultiNERD | heuristic | 39.1 | 40.0 | 38.2 | 20 | 1655 |
-| CoNLL2003Sample | heuristic | 36.3 | 36.5 | 36.2 | 20 | 1416 |
-| CoNLL2003Sample | stacked | 35.9 | 34.7 | 37.3 | 20 | 1692 |
-| OntoNotesSample | stacked | 34.6 | 33.6 | 35.7 | 20 | 106 |
-| OntoNotesSample | heuristic | 34.2 | 34.7 | 33.6 | 20 | 74 |
-| WikiGold | heuristic | 33.3 | 31.1 | 35.8 | 20 | 46 |
-| WikiGold | stacked | 32.7 | 30.4 | 35.5 | 20 | 55 |
-| MultiCoNERv2 | heuristic | 31.7 | 30.1 | 33.5 | 20 | 2 |
-| MultiCoNERv2 | stacked | 31.6 | 29.9 | 33.5 | 20 | 4 |
-| PolyglotNER | heuristic | 20.0 | 16.9 | 24.4 | 20 | 1 |
-| PolyglotNER | stacked | 19.8 | 16.7 | 24.4 | 20 | 1 |
-| Wnut17 | heuristic | 18.8 | 12.1 | 41.7 | 20 | 66 |
-| BroadTwitterCorpus | heuristic | 18.7 | 12.9 | 34.2 | 20 | 7 |
-| BroadTwitterCorpus | stacked | 16.3 | 10.7 | 34.2 | 20 | 13 |
-| Wnut17 | stacked | 14.1 | 8.5 | 41.4 | 20 | 101 |
-| TweetNER7 | heuristic | 13.9 | 11.7 | 17.3 | 20 | 19 |
-| TweetNER7 | stacked | 12.5 | 10.4 | 15.7 | 20 | 34 |
-| FewNERD | heuristic | 1.6 | 2.2 | 1.2 | 20 | 1 |
-| FewNERD | stacked | 1.3 | 1.9 | 1.1 | 20 | 2 |
-| MultiCoNER | heuristic | 1.0 | 1.5 | 0.8 | 20 | 1 |
-| MultiCoNER | stacked | 1.0 | 1.5 | 0.8 | 20 | 2 |
-| CrossNER | heuristic | 0.9 | 1.0 | 0.8 | 20 | 2 |
-| CrossNER | stacked | 0.9 | 1.0 | 0.8 | 20 | 3 |
-| MitRestaurant | pattern | 0.0 | 0.4 | 0.0 | 20 | 32 |
-| MitRestaurant | stacked | 0.0 | 0.4 | 0.0 | 20 | 34 |
-| WikiGold | pattern | 0.0 | 0.0 | 0.0 | 20 | 27 |
-| Wnut17 | pattern | 0.0 | 0.0 | 0.0 | 20 | 42 |
-| MitMovie | pattern | 0.0 | 0.0 | 0.0 | 20 | 41 |
-| MitMovie | heuristic | 0.0 | 0.0 | 0.0 | 20 | 25 |
-| MitMovie | stacked | 0.0 | 0.0 | 0.0 | 20 | 44 |
-| MitRestaurant | heuristic | 0.0 | 0.0 | 0.0 | 20 | 19 |
-| CoNLL2003Sample | pattern | 0.0 | 0.0 | 0.0 | 20 | 97 |
-| OntoNotesSample | pattern | 0.0 | 0.0 | 0.0 | 20 | 18 |
-| MultiNERD | pattern | 0.0 | 0.0 | 0.0 | 20 | 156 |
-| BC5CDR | pattern | 0.0 | 0.0 | 0.0 | 20 | 30 |
-| BC5CDR | heuristic | 0.0 | 0.0 | 0.0 | 20 | 43 |
-| BC5CDR | stacked | 0.0 | 0.0 | 0.0 | 20 | 65 |
-| NCBIDisease | pattern | 0.0 | 0.0 | 0.0 | 20 | 34 |
-| NCBIDisease | heuristic | 0.0 | 0.0 | 0.0 | 20 | 138 |
-| NCBIDisease | stacked | 0.0 | 0.0 | 0.0 | 20 | 170 |
-| GENIA | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| GENIA | heuristic | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| GENIA | stacked | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| AnatEM | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| AnatEM | heuristic | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| AnatEM | stacked | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| BC2GM | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| WikiANN | heuristic | 42.3 | 42.3 | 42.3 | 20 | 0 |
+| WikiANN | stacked | 42.3 | 42.3 | 42.3 | 20 | 0 |
+| CoNLL2003Sample | heuristic | 38.6 | 39.3 | 37.9 | 20 | 0 |
+| MultiNERD | heuristic | 38.1 | 37.5 | 38.7 | 20 | 0 |
+| MultiNERD | stacked | 38.1 | 37.5 | 38.7 | 20 | 0 |
+| CoNLL2003Sample | stacked | 36.7 | 35.5 | 37.9 | 20 | 0 |
+| WikiGold | heuristic | 29.3 | 28.3 | 30.4 | 20 | 0 |
+| WikiGold | stacked | 29.1 | 27.9 | 30.4 | 20 | 0 |
+| OntoNotesSample | heuristic | 27.0 | 27.8 | 26.3 | 20 | 0 |
+| OntoNotesSample | stacked | 26.0 | 25.6 | 26.3 | 20 | 0 |
+| MultiCoNERv2 | heuristic | 24.3 | 23.5 | 25.2 | 20 | 0 |
+| MultiCoNERv2 | stacked | 24.3 | 23.5 | 25.2 | 20 | 1 |
+| PolyglotNER | heuristic | 16.2 | 14.6 | 18.2 | 20 | 0 |
+| PolyglotNER | stacked | 16.2 | 14.6 | 18.2 | 20 | 0 |
+| BroadTwitterCorpus | heuristic | 12.1 | 9.1 | 18.2 | 20 | 0 |
+| TweetNER7 | heuristic | 11.8 | 9.2 | 16.4 | 20 | 0 |
+| TweetNER7 | stacked | 11.5 | 8.9 | 16.4 | 20 | 1 |
+| Wnut17 | heuristic | 11.3 | 6.5 | 42.9 | 20 | 0 |
+| BroadTwitterCorpus | stacked | 10.8 | 7.7 | 18.2 | 20 | 0 |
+| Wnut17 | stacked | 9.0 | 5.0 | 42.9 | 20 | 0 |
+| CrossNER | heuristic | 7.4 | 8.0 | 6.9 | 20 | 0 |
+| CrossNER | stacked | 7.4 | 8.0 | 6.9 | 20 | 1 |
+| MultiCoNER | heuristic | 5.7 | 7.5 | 4.6 | 20 | 0 |
+| MultiCoNER | stacked | 5.7 | 7.4 | 4.6 | 20 | 0 |
+| FewNERD | heuristic | 4.2 | 5.9 | 3.2 | 20 | 0 |
+| FewNERD | stacked | 4.2 | 5.9 | 3.2 | 20 | 0 |
+| WikiGold | pattern | 0.0 | 0.0 | 0.0 | 20 | 10 |
+| Wnut17 | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitMovie | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitMovie | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitMovie | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitRestaurant | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitRestaurant | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MitRestaurant | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| CoNLL2003Sample | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| OntoNotesSample | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MultiNERD | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| BC5CDR | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| BC5CDR | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| BC5CDR | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| NCBIDisease | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| NCBIDisease | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| NCBIDisease | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| GENIA | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| GENIA | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| GENIA | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| AnatEM | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| AnatEM | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| AnatEM | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| BC2GM | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
 | BC2GM | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
-| BC2GM | stacked | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| BC4CHEMD | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| BC2GM | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| BC4CHEMD | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
 | BC4CHEMD | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
-| BC4CHEMD | stacked | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| TweetNER7 | pattern | 0.0 | 0.0 | 0.0 | 20 | 17 |
-| BroadTwitterCorpus | pattern | 0.0 | 0.0 | 0.0 | 20 | 7 |
-| FabNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| BC4CHEMD | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| TweetNER7 | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| BroadTwitterCorpus | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| FabNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
 | FabNER | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
-| FabNER | stacked | 0.0 | 0.0 | 0.0 | 20 | 2 |
+| FabNER | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
 | FewNERD | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| CrossNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| UniversalNERBench | pattern | 0.0 | 0.0 | 0.0 | 20 | 31 |
-| UniversalNERBench | heuristic | 0.0 | 0.0 | 0.0 | 20 | 67 |
-| UniversalNERBench | stacked | 0.0 | 0.0 | 0.0 | 20 | 73 |
-| WikiANN | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| MultiCoNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| MultiCoNERv2 | pattern | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| WikiNeural | pattern | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| WikiNeural | heuristic | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| WikiNeural | stacked | 0.0 | 0.0 | 0.0 | 20 | 3 |
-| PolyglotNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
-| UniversalNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| UniversalNER | heuristic | 0.0 | 0.0 | 0.0 | 20 | 2 |
-| UniversalNER | stacked | 0.0 | 0.0 | 0.0 | 20 | 2 |
+| CrossNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| UniversalNERBench | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| UniversalNERBench | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| UniversalNERBench | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| WikiANN | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MultiCoNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| MultiCoNERv2 | pattern | 0.0 | 0.0 | 0.0 | 20 | 1 |
+| WikiNeural | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| WikiNeural | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| WikiNeural | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| PolyglotNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| UniversalNER | pattern | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| UniversalNER | heuristic | 0.0 | 0.0 | 0.0 | 20 | 0 |
+| UniversalNER | stacked | 0.0 | 0.0 | 0.0 | 20 | 0 |
 | WikiGold | bert_onnx | ⊘ | no-feature | 0 |
 | WikiGold | candle_ner | ⊘ | no-feature | 0 |
 | WikiGold | nuner | ⊘ | no-feature | 0 |
@@ -290,26 +281,35 @@ Total: 258 | ✓: 75 | ⊘: 177 | ✗: 6 | Avg examples: 20 | Avg time: 33ms
 | UniversalNER | gliner2 | ⊘ | no-feature | 0 |
 | UniversalNER | w2ner | ⊘ | no-feature | 0 |
 
-### Relation Extraction
+### Intra-document Coreference
 
-| Dataset | Backend | Strict | Boundary | N | ms |
-|---------|---------|--------|----------|---|----|
-| DocRED | gliner2 | ⊘ | no-feature | 0 |
-| ReTACRED | gliner2 | ⊘ | no-feature | 0 |
+| Dataset | Backend | CoNLL | MUC | B³ | N | ms |
+|---------|---------|-------|-----|----|---|----|
+| GAP | coref_resolver | ✗ | unknown-backend | 0 |
+| PreCo | coref_resolver | ✗ | unknown-backend | 0 |
+| LitBank | coref_resolver | ✗ | unknown-backend | 0 |
+
+### Abstract Anaphora Resolution
+
+| Dataset | Backend | CoNLL | MUC | B³ | N | ms |
+|---------|---------|-------|-----|----|---|----|
+| GAP | coref_resolver | ✗ | unknown-backend | 0 |
+| PreCo | coref_resolver | ✗ | unknown-backend | 0 |
+| LitBank | coref_resolver | ✗ | unknown-backend | 0 |
 
 ## Backend Summary
 
 | Backend | ✓ | ⊘ | ✗ | Avg F1 |
 |---------|---|---|---|--------|
 | pattern | 25 | 0 | 0 | 0.0 |
-| stacked | 25 | 0 | 0 | 11.3 |
-| heuristic | 25 | 0 | 0 | 11.7 |
-| gliner_candle | 0 | 25 | 0 | 0.0 |
-| nuner | 0 | 25 | 0 | 0.0 |
-| gliner2 | 0 | 27 | 0 | 0.0 |
-| gliner_onnx | 0 | 25 | 0 | 0.0 |
-| candle_ner | 0 | 25 | 0 | 0.0 |
+| heuristic | 25 | 0 | 0 | 10.7 |
+| stacked | 25 | 0 | 0 | 10.4 |
+| coref_resolver | 0 | 0 | 6 | 0.0 |
 | bert_onnx | 0 | 25 | 0 | 0.0 |
 | w2ner | 0 | 25 | 0 | 0.0 |
-| coref_resolver | 0 | 0 | 6 | 0.0 |
+| gliner_onnx | 0 | 25 | 0 | 0.0 |
+| gliner2 | 0 | 27 | 0 | 0.0 |
+| gliner_candle | 0 | 25 | 0 | 0.0 |
+| nuner | 0 | 25 | 0 | 0.0 |
+| candle_ner | 0 | 25 | 0 | 0.0 |
 
