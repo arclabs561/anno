@@ -77,7 +77,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v1
+          key: anno-datasets-${{ runner.os }}-v2
+          restore-keys: |
+            anno-datasets-${{ runner.os }}-
           
       - name: Build with eval features
         run: cargo build --features "eval-advanced discourse"
