@@ -129,7 +129,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v1
+          key: hf-models-${{ runner.os }}-v2
+          restore-keys: |
+            hf-models-${{ runner.os }}-
           
       - name: Build ONNX backend
         run: cargo build --features onnx
@@ -152,7 +154,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v1
+          key: hf-models-${{ runner.os }}-v2
+          restore-keys: |
+            hf-models-${{ runner.os }}-
           
       - name: Build Candle backend
         run: cargo build --features candle
