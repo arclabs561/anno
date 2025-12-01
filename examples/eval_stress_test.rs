@@ -35,6 +35,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         robustness: true,
         compute_familiarity: true,
         temporal_stratification: true,
+        confidence_intervals: false,
+        robustness: true,
+        compute_familiarity: true,
+        temporal_stratification: true,
         confidence_intervals: true,
     };
 

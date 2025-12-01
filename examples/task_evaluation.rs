@@ -22,6 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         backends: vec![],        // Empty = use all compatible backends
         max_examples: Some(100), // Limit for quick testing
         require_cached: false,   // Download if needed
+        relation_threshold: 0.5,
+        robustness: false,
+        compute_familiarity: false,
+        temporal_stratification: false,
+        confidence_intervals: false,
+        seed: None,
     };
 
     println!("Running comprehensive evaluation...");

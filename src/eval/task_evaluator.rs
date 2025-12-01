@@ -443,6 +443,7 @@ impl TaskEvaluator {
                             robustness: None,
                             stratified: None,
                             confidence_intervals: None,
+                            kb_version: None,
                         });
                     }
                 }
