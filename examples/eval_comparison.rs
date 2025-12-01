@@ -32,7 +32,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
-        confidence_intervals: false,
     };
 
     let config_with_ci = TaskEvalConfig {
