@@ -55,3 +55,7 @@ REVIEW_ISSUES.md
 !CHANGELOG.md
 !docs/**/*.md
 reports/
+.env
+
+# Archived review documents (not actively maintained)
+docs/archive/

@@ -1,0 +1,1 @@
+Intel Corporation revealed its latest processor architecture designed specifically for artificial intelligence workloads. The chipmaker is competing with Nvidia and AMD in the rapidly growing AI hardware market.

@@ -1,0 +1,1 @@
+It has been reported that a group of banks is in talks to lend another $38 billion to Oracle and data-centre developer Vantage to support OpenAI's infrastructure needs. This massive funding round highlights the enormous capital requirements for training and deploying large language models.

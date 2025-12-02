@@ -1,0 +1,1 @@
+AMD unveiled new data center processors that challenge Nvidia's dominance in AI training. The Advanced Micro Devices chips offer competitive performance for machine learning applications.
