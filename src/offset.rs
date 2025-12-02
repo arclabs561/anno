@@ -640,28 +640,84 @@ impl SpanConverter {
     }
 
     /// Convert byte offset to char offset.
+    ///
+    /// # Arguments
+    ///
+    /// * `byte_idx` - Byte offset in the text
+    ///
+    /// # Returns
+    ///
+    /// Character offset corresponding to the byte offset. If `byte_idx` is out of bounds,
+    /// returns the last valid character index (or 0 if the map is empty).
+    ///
+    /// # Panics
+    ///
+    /// In debug mode, panics if `byte_idx` exceeds the text length by more than 1
+    /// (allowing for the exclusive end position).
     #[must_use]
     pub fn byte_to_char(&self, byte_idx: usize) -> usize {
         if self.is_ascii {
             byte_idx
         } else {
-            self.byte_to_char
-                .get(byte_idx)
-                .copied()
-                .unwrap_or(self.byte_to_char.last().copied().unwrap_or(0))
+            self.byte_to_char.get(byte_idx).copied().unwrap_or_else(|| {
+                // Bounds check: byte_idx should be <= text.len() (inclusive end position)
+                // The map has length text.len() + 1 to include the end position
+                #[cfg(debug_assertions)]
+                {
+                    let max_valid = self.byte_to_char.len().saturating_sub(1);
+                    if byte_idx > max_valid {
+                        debug_assert!(
+                            byte_idx <= max_valid + 1,
+                            "byte_idx {} out of bounds (max valid: {}, map len: {})",
+                            byte_idx,
+                            max_valid,
+                            self.byte_to_char.len()
+                        );
+                    }
+                }
+                self.byte_to_char.last().copied().unwrap_or(0)
+            })
         }
     }
 
     /// Convert char offset to byte offset.
+    ///
+    /// # Arguments
+    ///
+    /// * `char_idx` - Character offset in the text
+    ///
+    /// # Returns
+    ///
+    /// Byte offset corresponding to the character offset. If `char_idx` is out of bounds,
+    /// returns the last valid byte index (or 0 if the map is empty).
+    ///
+    /// # Panics
+    ///
+    /// In debug mode, panics if `char_idx` exceeds the character count by more than 1
+    /// (allowing for the exclusive end position).
     #[must_use]
     pub fn char_to_byte(&self, char_idx: usize) -> usize {
         if self.is_ascii {
             char_idx
         } else {
-            self.char_to_byte
-                .get(char_idx)
-                .copied()
-                .unwrap_or(self.char_to_byte.last().copied().unwrap_or(0))
+            self.char_to_byte.get(char_idx).copied().unwrap_or_else(|| {
+                // Bounds check: char_idx should be <= char_count (inclusive end position)
+                // The map has length char_count + 1 to include the end position
+                #[cfg(debug_assertions)]
+                {
+                    let max_valid = self.char_to_byte.len().saturating_sub(1);
+                    if char_idx > max_valid {
+                        debug_assert!(
+                            char_idx <= max_valid + 1,
+                            "char_idx {} out of bounds (max valid: {}, map len: {})",
+                            char_idx,
+                            max_valid,
+                            self.char_to_byte.len()
+                        );
+                    }
+                }
+                self.char_to_byte.last().copied().unwrap_or(0)
+            })
         }
     }
 

@@ -358,13 +358,21 @@ impl NEREvaluator for StandardNEREvaluator {
         };
 
         // Count correct predictions (exact match: same span and type)
+        // Track which gold entities have been matched to prevent double-counting
+        // This ensures each gold entity can only be matched once, even if multiple
+        // predictions match it (duplicate predictions should not inflate precision)
+        let mut gold_matched = vec![false; ground_truth.len()];
         let mut correct = 0;
         for pred in &predicted {
-            for gt in ground_truth {
+            for (gt_idx, gt) in ground_truth.iter().enumerate() {
+                if gold_matched[gt_idx] {
+                    continue; // This gold entity already matched
+                }
                 if pred.start == gt.start
                     && pred.end == gt.end
                     && super::entity_type_matches(&pred.entity_type, &gt.entity_type)
                 {
+                    gold_matched[gt_idx] = true;
                     correct += 1;
                     break;
                 }
@@ -374,20 +382,25 @@ impl NEREvaluator for StandardNEREvaluator {
         // Calculate per-type statistics
         let mut per_type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new(); // (found, expected, correct)
 
-        // Count expected per type
-        for gt in ground_truth {
+        // Count expected per type and check matches
+        // Reuse gold_matched tracking to ensure each gold entity counted once per type
+        let mut gold_matched_per_type = vec![false; ground_truth.len()];
+        for (gt_idx, gt) in ground_truth.iter().enumerate() {
             let type_key = super::entity_type_to_string(&gt.entity_type);
             let stats = per_type_stats.entry(type_key.clone()).or_insert((0, 0, 0));
             stats.1 += 1; // expected
 
-            // Check if this ground truth entity was found
-            for pred in &predicted {
-                if pred.start == gt.start
-                    && pred.end == gt.end
-                    && super::entity_type_matches(&pred.entity_type, &gt.entity_type)
-                {
-                    stats.2 += 1; // correct
-                    break;
+            // Check if this ground truth entity was found (only count once per gold entity)
+            if !gold_matched_per_type[gt_idx] {
+                for pred in &predicted {
+                    if pred.start == gt.start
+                        && pred.end == gt.end
+                        && super::entity_type_matches(&pred.entity_type, &gt.entity_type)
+                    {
+                        gold_matched_per_type[gt_idx] = true;
+                        stats.2 += 1; // correct
+                        break;
+                    }
                 }
             }
         }

@@ -21,6 +21,7 @@ use crate::eval::profiling;
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
+use crate::sync::{lock, try_lock, Mutex};
 use crate::{Entity, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -76,7 +77,7 @@ pub struct ConfidenceIntervals {
 }
 
 /// Configuration for task evaluation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct TaskEvalConfig {
     /// Which tasks to evaluate
     pub tasks: Vec<Task>,
@@ -100,6 +101,12 @@ pub struct TaskEvalConfig {
     pub temporal_stratification: bool,
     /// Whether to compute confidence intervals for metrics
     pub confidence_intervals: bool,
+    /// Optional custom coreference resolver (for use with matryoshka-box trained models)
+    /// If None, resolver is created from backend_name using create_coref_resolver()
+    /// Uses Arc to allow sharing across multiple evaluation calls
+    #[serde(skip)]
+    pub custom_coref_resolver:
+        Option<std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver>>,
 }
 
 impl Default for TaskEvalConfig {
@@ -116,7 +123,34 @@ impl Default for TaskEvalConfig {
             compute_familiarity: true, // Default to true for zero-shot awareness
             temporal_stratification: false,
             confidence_intervals: true, // Default to true for better reporting
+            custom_coref_resolver: None,
         }
+    }
+}
+
+impl std::fmt::Debug for TaskEvalConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TaskEvalConfig")
+            .field("tasks", &self.tasks)
+            .field("datasets", &self.datasets)
+            .field("backends", &self.backends)
+            .field("max_examples", &self.max_examples)
+            .field("seed", &self.seed)
+            .field("require_cached", &self.require_cached)
+            .field("relation_threshold", &self.relation_threshold)
+            .field("robustness", &self.robustness)
+            .field("compute_familiarity", &self.compute_familiarity)
+            .field("temporal_stratification", &self.temporal_stratification)
+            .field("confidence_intervals", &self.confidence_intervals)
+            .field(
+                "custom_coref_resolver",
+                &if self.custom_coref_resolver.is_some() {
+                    "Some(...)"
+                } else {
+                    "None"
+                },
+            )
+            .finish()
     }
 }
 
@@ -217,8 +251,7 @@ pub struct TaskEvaluator {
     // Temporary storage for per-example scores (used during evaluation)
     // Cloned when needed to avoid borrow checker issues
     #[allow(dead_code)] // Used internally
-    per_example_scores_cache:
-        std::sync::Mutex<Option<Vec<(Vec<crate::Entity>, Vec<crate::Entity>, String)>>>,
+    per_example_scores_cache: Mutex<Option<Vec<(Vec<crate::Entity>, Vec<crate::Entity>, String)>>>,
 }
 
 impl TaskEvaluator {
@@ -227,7 +260,7 @@ impl TaskEvaluator {
         Ok(Self {
             loader: DatasetLoader::new()?,
             mapping: TaskMapping::build(),
-            per_example_scores_cache: std::sync::Mutex::new(None),
+            per_example_scores_cache: Mutex::new(None),
         })
     }
 
@@ -541,13 +574,10 @@ impl TaskEvaluator {
                     };
 
                     // Compute stratified metrics (use per-example scores if available)
+                    // Extract per-example scores once and reuse for both stratified metrics and confidence intervals
+                    let per_example_opt = { lock(&self.per_example_scores_cache).clone() };
+
                     let stratified = if matches!(task, Task::NER | Task::DiscontinuousNER) {
-                        let per_example_opt = {
-                            self.per_example_scores_cache
-                                .lock()
-                                .unwrap_or_else(|e| e.into_inner())
-                                .clone()
-                        };
                         if let Some(per_example) = per_example_opt.as_ref() {
                             self.compute_stratified_metrics_from_scores(
                                 &sampled_data,
@@ -563,12 +593,6 @@ impl TaskEvaluator {
 
                     // Compute confidence intervals if requested (use per-example scores if available)
                     let confidence_intervals = if config.confidence_intervals {
-                        let per_example_opt = {
-                            self.per_example_scores_cache
-                                .lock()
-                                .unwrap_or_else(|e| e.into_inner())
-                                .clone()
-                        };
                         if let Some(per_example) = per_example_opt.as_ref() {
                             self.compute_confidence_intervals_from_scores(per_example)
                         } else {
@@ -584,11 +608,8 @@ impl TaskEvaluator {
                         None
                     };
 
-                    // Clear cache after use (handle mutex poisoning gracefully)
-                    let mut cache = self
-                        .per_example_scores_cache
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner());
+                    // Clear cache after use
+                    let mut cache = lock(&self.per_example_scores_cache);
                     *cache = None;
 
                     // Extract KB version if available
@@ -763,7 +784,6 @@ impl TaskEvaluator {
             use std::cell::RefCell;
             use std::sync::atomic::{AtomicUsize, Ordering};
             use std::sync::Arc;
-            use std::sync::Mutex;
 
             // For parallel processing, use thread-local storage to cache backends per thread
             // This avoids the need to share state across threads while still caching per thread
@@ -788,11 +808,11 @@ impl TaskEvaluator {
                     let text = sentence.text();
                     let chars_count = text.chars().count();
 
-                    // Extract gold entities
+                    // Extract gold entities (clone necessary for parallel processing)
                     let gold_entities: Vec<Entity> = sentence.entities().iter().map(|g| {
                         let mut entity = Entity::new(
-                            g.text.clone(),
-                            g.entity_type.clone(),
+                            g.text.clone(), // Clone necessary: sentence.entities() returns references
+                            g.entity_type.clone(), // Clone necessary: sentence.entities() returns references
                             g.start,
                             g.end,
                             1.0,
@@ -806,8 +826,9 @@ impl TaskEvaluator {
                         THREAD_CACHED_BACKEND.with(|cache| {
                             let mut cached = cache.borrow_mut();
                             // Check if we have a cached backend for this backend_name (case-insensitive)
+                            let backend_name_lower = backend_name_arc.to_lowercase();
                             if let Some((ref cached_name, ref backend)) = *cached {
-                                if cached_name.to_lowercase() == backend_name_arc.as_str() {
+                                if cached_name.to_lowercase() == backend_name_lower {
                                     // Use cached backend
                                     return Self::extract_with_cached_backend(
                                         backend_name_arc.as_str(),
@@ -827,7 +848,7 @@ impl TaskEvaluator {
                                         &mapped_labels_arc
                                     );
                                     // Store normalized (lowercase) name for consistent matching
-                                    *cached = Some((backend_name_arc.to_string(), new_backend));
+                                    *cached = Some((backend_name_lower, new_backend));
                                     result
                                 }
                                 Err(e) => Err(e),
@@ -840,10 +861,9 @@ impl TaskEvaluator {
                     // Update progress with time estimates
                     let processed = progress_counter.fetch_add(1, Ordering::Relaxed) + 1;
                     let current_percent = (processed * 100) / total_sentences;
-                    // Use unwrap_or_else to handle mutex poisoning gracefully
-                    let mut last_percent = last_progress_percent.lock().unwrap_or_else(|e| e.into_inner());
+                    let mut last_percent = lock(&last_progress_percent);
                     if current_percent >= *last_percent + 10 || processed % 10 == 0 {
-                        let elapsed = start_time_arc.lock().unwrap_or_else(|e| e.into_inner()).elapsed();
+                        let elapsed = lock(&start_time_arc).elapsed();
                         let elapsed_secs = elapsed.as_secs_f64();
                         let rate = if elapsed_secs > 0.0 {
                             processed as f64 / elapsed_secs
@@ -885,16 +905,27 @@ impl TaskEvaluator {
             // Aggregate results and track per-example scores if needed
             for (chars_count, gold_entities, entities_result, text) in all_results {
                 total_chars += chars_count;
-                all_gold.extend(gold_entities.clone());
 
                 match entities_result {
                     Ok(entities) => {
-                        all_predicted.extend(entities.clone());
                         if track_per_example {
+                            // Clone when tracking per-example (need to store in cache)
+                            all_gold.extend(gold_entities.clone());
+                            all_predicted.extend(entities.clone());
                             per_example_scores.push((gold_entities, entities, text));
+                        } else {
+                            // Move when not tracking (more efficient)
+                            all_gold.extend(gold_entities);
+                            all_predicted.extend(entities);
                         }
                     }
                     Err(e) => {
+                        // Still need to extend all_gold even on error (for metrics)
+                        if track_per_example {
+                            all_gold.extend(gold_entities.clone());
+                        } else {
+                            all_gold.extend(gold_entities);
+                        }
                         eprintln!("\nWarning: Backend inference failed: {}", e);
                     }
                 }
@@ -924,7 +955,8 @@ impl TaskEvaluator {
                         0.0
                     };
                     let remaining = if rate > 0.0 {
-                        ((total_sentences - idx - 1) as f64 / rate) as u64
+                        ((total_sentences.saturating_sub(idx).saturating_sub(1)) as f64 / rate)
+                            as u64
                     } else {
                         0
                     };
@@ -966,8 +998,8 @@ impl TaskEvaluator {
 
                 match entities {
                     Ok(entities) => {
-                        all_predicted.extend(entities.clone());
                         if track_per_example {
+                            // Clone when tracking per-example (need to store in cache)
                             let gold: Vec<Entity> = gold_entities
                                 .iter()
                                 .map(|g| {
@@ -982,7 +1014,11 @@ impl TaskEvaluator {
                                     entity
                                 })
                                 .collect();
+                            all_predicted.extend(entities.clone());
                             per_example_scores.push((gold, entities, text.to_string()));
+                        } else {
+                            // Move when not tracking (more efficient)
+                            all_predicted.extend(entities);
                         }
                     }
                     Err(e) => {
@@ -1048,10 +1084,13 @@ impl TaskEvaluator {
         metrics.insert("num_predicted".to_string(), all_predicted.len() as f64);
 
         // Store per-example scores for later use in stratified metrics and confidence intervals
-        if !per_example_scores.is_empty() {
-            *self.per_example_scores_cache.lock().unwrap() = Some(per_example_scores);
-        } else {
-            *self.per_example_scores_cache.lock().unwrap() = None;
+        {
+            let mut cache_guard = try_lock(&self.per_example_scores_cache)?;
+            if !per_example_scores.is_empty() {
+                *cache_guard = Some(per_example_scores);
+            } else {
+                *cache_guard = None;
+            }
         }
 
         Ok(metrics)
@@ -1340,7 +1379,7 @@ impl TaskEvaluator {
         &self,
         backend_name: &str,
         dataset_data: &LoadedDataset,
-        _config: &TaskEvalConfig,
+        config: &TaskEvalConfig,
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::backend_factory::create_coref_resolver;
         use crate::eval::coref::entities_to_chains;
@@ -1408,7 +1447,15 @@ impl TaskEvaluator {
         };
 
         // Create coreference resolver (not a Model backend)
-        let resolver = create_coref_resolver(backend_name)?;
+        // Use custom resolver if provided, otherwise create from backend_name
+        let resolver: std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver> =
+            if let Some(ref custom_resolver) = config.custom_coref_resolver {
+                // Use the custom resolver directly (e.g., TrainedBoxCorefResolver from matryoshka-box)
+                custom_resolver.clone()
+            } else {
+                // Create resolver from backend_name (e.g., "coref_resolver", "box", etc.)
+                std::sync::Arc::from(create_coref_resolver(backend_name)?)
+            };
 
         // Use a NER backend to extract entities first (heuristic or stacked as default)
         let ner_backend_name = if backend_name == "coref_resolver" {
@@ -2295,9 +2342,15 @@ impl TaskEvaluator {
         let margin = z * std_dev;
 
         Some(ConfidenceIntervals {
-            f1_ci: ((f1 - margin).max(0.0), (f1 + margin).min(1.0)),
-            precision_ci: ((precision - margin).max(0.0), (precision + margin).min(1.0)),
-            recall_ci: ((recall - margin).max(0.0), (recall + margin).min(1.0)),
+            f1_ci: ((f1 - margin).clamp(0.0, 1.0), (f1 + margin).clamp(0.0, 1.0)),
+            precision_ci: (
+                (precision - margin).clamp(0.0, 1.0),
+                (precision + margin).clamp(0.0, 1.0),
+            ),
+            recall_ci: (
+                (recall - margin).clamp(0.0, 1.0),
+                (recall + margin).clamp(0.0, 1.0),
+            ),
         })
     }
 
@@ -2341,7 +2394,7 @@ impl TaskEvaluator {
         if dataset_len == 0 {
             return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
         }
-        let sample_size = dataset_len.min(MAX_CI_SAMPLE_SIZE).max(MIN_CI_SAMPLE_SIZE);
+        let sample_size = dataset_len.clamp(MIN_CI_SAMPLE_SIZE, MAX_CI_SAMPLE_SIZE);
         let sample: Vec<_> = dataset_data.sentences.iter().take(sample_size).collect();
 
         // Compute per-example F1, precision, recall
@@ -2463,16 +2516,16 @@ impl TaskEvaluator {
 
         Some(ConfidenceIntervals {
             f1_ci: (
-                (f1_mean - f1_margin).max(0.0),
-                (f1_mean + f1_margin).min(1.0),
+                (f1_mean - f1_margin).clamp(0.0, 1.0),
+                (f1_mean + f1_margin).clamp(0.0, 1.0),
             ),
             precision_ci: (
-                (precision_mean - precision_margin).max(0.0),
-                (precision_mean + precision_margin).min(1.0),
+                (precision_mean - precision_margin).clamp(0.0, 1.0),
+                (precision_mean + precision_margin).clamp(0.0, 1.0),
             ),
             recall_ci: (
-                (recall_mean - recall_margin).max(0.0),
-                (recall_mean + recall_margin).min(1.0),
+                (recall_mean - recall_margin).clamp(0.0, 1.0),
+                (recall_mean + recall_margin).clamp(0.0, 1.0),
             ),
         })
     }
@@ -2563,13 +2616,25 @@ impl TaskEvaluator {
             let mut by_type_scores: HashMap<String, Vec<(f64, f64, f64)>> = HashMap::new(); // (f1, precision, recall)
 
             for (gold, predicted, _text) in per_example {
-                // Compute per-example metrics
-                let result = evaluate_entities(gold, predicted);
-                let summary = result.summary();
-
-                // Group by entity type
+                // Group by entity type and compute per-type metrics
+                let mut type_groups: HashMap<String, (Vec<Entity>, Vec<Entity>)> = HashMap::new();
+                
+                // Group gold entities by type
                 for entity in gold {
                     let type_str = entity.entity_type.as_label().to_string();
+                    type_groups.entry(type_str.clone()).or_default().0.push(entity.clone());
+                }
+                
+                // Group predicted entities by type
+                for entity in predicted {
+                    let type_str = entity.entity_type.as_label().to_string();
+                    type_groups.entry(type_str).or_default().1.push(entity.clone());
+                }
+                
+                // Compute per-type metrics
+                for (type_str, (type_gold, type_predicted)) in type_groups {
+                    let result = evaluate_entities(&type_gold, &type_predicted);
+                    let summary = result.summary();
                     by_type_scores.entry(type_str).or_default().push((
                         summary.strict_f1,
                         summary.strict_precision,
@@ -2611,7 +2676,10 @@ impl TaskEvaluator {
                     MetricWithCI {
                         mean: f1_mean,
                         std_dev: f1_std_dev,
-                        ci_95: ((f1_mean - margin).max(0.0), (f1_mean + margin).min(1.0)),
+                        ci_95: (
+                            (f1_mean - margin).clamp(0.0, 1.0),
+                            (f1_mean + margin).clamp(0.0, 1.0),
+                        ),
                         n: scores.len(),
                     },
                 );
@@ -2705,7 +2773,10 @@ impl TaskEvaluator {
                 MetricWithCI {
                     mean,
                     std_dev,
-                    ci_95: ((mean - margin).max(0.0), (mean + margin).min(1.0)),
+                    ci_95: (
+                        (mean - margin).clamp(0.0, 1.0),
+                        (mean + margin).clamp(0.0, 1.0),
+                    ),
                     n: pre_cutoff_scores.len(),
                 },
             );
@@ -2733,7 +2804,10 @@ impl TaskEvaluator {
                 MetricWithCI {
                     mean,
                     std_dev,
-                    ci_95: ((mean - margin).max(0.0), (mean + margin).min(1.0)),
+                    ci_95: (
+                        (mean - margin).clamp(0.0, 1.0),
+                        (mean + margin).clamp(0.0, 1.0),
+                    ),
                     n: post_cutoff_scores.len(),
                 },
             );
@@ -2816,16 +2890,16 @@ impl TaskEvaluator {
 
         Some(ConfidenceIntervals {
             f1_ci: (
-                (f1_mean - f1_margin).max(0.0),
-                (f1_mean + f1_margin).min(1.0),
+                (f1_mean - f1_margin).clamp(0.0, 1.0),
+                (f1_mean + f1_margin).clamp(0.0, 1.0),
             ),
             precision_ci: (
-                (precision_mean - precision_margin).max(0.0),
-                (precision_mean + precision_margin).min(1.0),
+                (precision_mean - precision_margin).clamp(0.0, 1.0),
+                (precision_mean + precision_margin).clamp(0.0, 1.0),
             ),
             recall_ci: (
-                (recall_mean - recall_margin).max(0.0),
-                (recall_mean + recall_margin).min(1.0),
+                (recall_mean - recall_margin).clamp(0.0, 1.0),
+                (recall_mean + recall_margin).clamp(0.0, 1.0),
             ),
         })
     }
@@ -2887,7 +2961,10 @@ impl TaskEvaluator {
                 MetricWithCI {
                     mean,
                     std_dev,
-                    ci_95: ((mean - margin).max(0.0), (mean + margin).min(1.0)),
+                    ci_95: (
+                        (mean - margin).clamp(0.0, 1.0),
+                        (mean + margin).clamp(0.0, 1.0),
+                    ),
                     n: count, // Use actual count from dataset
                 },
             );

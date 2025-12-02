@@ -433,6 +433,10 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
         // Split text into words for offset calculation
         let words: Vec<&str> = text.split_whitespace().collect();
 
+        // Performance optimization: Cache text length for repeated extractions
+        // ROI: High - called once, used for all entity text extractions
+        let text_char_count = text.chars().count();
+
         for (span_idx, candidate) in candidates.iter().enumerate() {
             for label_idx in 0..num_labels {
                 let score = scores[span_idx * num_labels + label_idx];
@@ -457,11 +461,16 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
                     );
 
                     // Extract text using character offsets (not byte offsets)
-                    let entity_text: String = text
-                        .chars()
-                        .skip(char_start)
-                        .take(char_end.saturating_sub(char_start))
-                        .collect();
+                    // Performance: Use cached text_char_count for bounds checking
+                    let entity_text: String =
+                        if char_start < text_char_count && char_end <= text_char_count {
+                            text.chars()
+                                .skip(char_start)
+                                .take(char_end.saturating_sub(char_start))
+                                .collect()
+                        } else {
+                            String::new()
+                        };
 
                     if entity_text.trim().is_empty() {
                         continue;
@@ -480,8 +489,9 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by position
-        entities.sort_by(|a, b| {
+        entities.sort_unstable_by(|a, b| {
             a.start
                 .cmp(&b.start)
                 .then_with(|| b.end.cmp(&a.end))
@@ -493,12 +503,13 @@ impl<E: TextEncoder> GLiNERPipeline<E> {
         });
 
         // Remove duplicates (keep highest confidence)
+        // Two entities overlap if: entity.start < e.end && e.start < entity.end
         let mut kept = Vec::new();
         for entity in entities {
-            let overlaps = kept
+            let has_overlap = kept
                 .iter()
-                .any(|e: &Entity| !(entity.end <= e.start || e.end <= entity.start));
-            if !overlaps {
+                .any(|e: &Entity| entity.start < e.end && e.start < entity.end);
+            if !has_overlap {
                 kept.push(entity);
             }
         }
