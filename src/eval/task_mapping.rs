@@ -144,7 +144,35 @@ pub fn dataset_tasks(dataset: DatasetId) -> &'static [Task] {
         | DatasetId::LegNER => &[Task::NER],
 
         // Discontinuous NER datasets
-        DatasetId::CADEC => &[Task::DiscontinuousNER, Task::NER],
+        DatasetId::CADEC | DatasetId::ShARe13 | DatasetId::ShARe14 => {
+            &[Task::DiscontinuousNER, Task::NER]
+        }
+
+        // Inter-document coreference datasets
+        DatasetId::ECBPlus | DatasetId::WikiCoref => &[Task::InterDocCoref],
+
+        // Event extraction datasets
+        DatasetId::ACE2005 => &[Task::EventExtraction],
+
+        // Named Entity Disambiguation datasets
+        DatasetId::AIDA | DatasetId::TACKBP => &[Task::NED],
+
+        // Additional multilingual NER datasets
+        DatasetId::CoNLL2002
+        | DatasetId::CoNLL2002Spanish
+        | DatasetId::CoNLL2002Dutch
+        | DatasetId::OntoNotes50
+        | DatasetId::GermEval2014
+        | DatasetId::HAREM
+        | DatasetId::SemEval2013Task91
+        | DatasetId::MUC6
+        | DatasetId::MUC7 => &[Task::NER],
+
+        // Additional biomedical NER datasets
+        DatasetId::JNLPBA | DatasetId::BC2GMFull | DatasetId::CRAFT => &[Task::NER],
+
+        // Additional domain-specific NER datasets
+        DatasetId::FinNER | DatasetId::LegalNER | DatasetId::SciERCNER => &[Task::NER],
 
         // Relation Extraction datasets
         DatasetId::DocRED
@@ -157,7 +185,7 @@ pub fn dataset_tasks(dataset: DatasetId) -> &'static [Task] {
         | DatasetId::MixRED
         | DatasetId::CovEReD => &[Task::RelationExtraction],
 
-        // Coreference datasets
+        // Intra-document coreference datasets
         DatasetId::GAP | DatasetId::PreCo | DatasetId::LitBank => &[
             Task::IntraDocCoref,
             // Some coref datasets can also evaluate abstract anaphora
@@ -201,11 +229,25 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             DatasetId::MSNER,
             DatasetId::BioMNER,
             DatasetId::LegNER,
+            DatasetId::CoNLL2002,
+            DatasetId::CoNLL2002Spanish,
+            DatasetId::CoNLL2002Dutch,
+            DatasetId::OntoNotes50,
+            DatasetId::GermEval2014,
+            DatasetId::HAREM,
+            DatasetId::SemEval2013Task91,
+            DatasetId::MUC6,
+            DatasetId::MUC7,
+            DatasetId::JNLPBA,
+            DatasetId::BC2GMFull,
+            DatasetId::CRAFT,
+            DatasetId::FinNER,
+            DatasetId::LegalNER,
+            DatasetId::SciERCNER,
+            // Note: These variants were referenced but not added to enum
+            // Using existing variants: CoNLL2003Sample, Wnut17, BC5CDR, NCBIDisease
         ],
-        Task::DiscontinuousNER => {
-            &[DatasetId::CADEC]
-            // TODO: Add ShARe13, ShARe14 when available
-        }
+        Task::DiscontinuousNER => &[DatasetId::CADEC, DatasetId::ShARe13, DatasetId::ShARe14],
         Task::RelationExtraction => &[
             DatasetId::DocRED,
             DatasetId::ReTACRED,
@@ -218,19 +260,10 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             DatasetId::CovEReD,
         ],
         Task::IntraDocCoref => &[DatasetId::GAP, DatasetId::PreCo, DatasetId::LitBank],
-        Task::InterDocCoref => {
-            // TODO: Add inter-doc coref datasets when available
-            &[]
-        }
+        Task::InterDocCoref => &[DatasetId::ECBPlus, DatasetId::WikiCoref],
         Task::AbstractAnaphora => &[DatasetId::GAP, DatasetId::PreCo, DatasetId::LitBank],
-        Task::NED => {
-            // TODO: Add NED datasets (e.g., AIDA, TAC-KBP) when available
-            &[]
-        }
-        Task::EventExtraction => {
-            // TODO: Add event extraction datasets (e.g., ACE 2005) when available
-            &[]
-        }
+        Task::EventExtraction => &[DatasetId::ACE2005],
+        Task::NED => &[DatasetId::AIDA, DatasetId::TACKBP],
         Task::TextClassification => {
             // GLiNER2 can do classification, but we don't have dedicated datasets yet
             &[]
@@ -249,7 +282,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
 /// use `detect_backend_capabilities` instead.
 pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
     match backend_name {
-        // Pattern-based backends
+        // Regex-based backends
         "pattern" | "RegexNER" => &[Task::NER], // Only structured entities
         "heuristic" | "HeuristicNER" => &[Task::NER],
         "stacked" | "StackedNER" => &[Task::NER],
@@ -292,17 +325,23 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
 
 /// Runtime capability detection for a backend instance.
 ///
-/// Uses trait object downcasting to detect what capabilities a backend has.
-/// This is more accurate than string-based matching but requires runtime checks.
+/// Uses backend name to determine capabilities (fallback when type_id isn't available).
+/// For more accurate detection, use `detect_backend_capabilities_by_name` with the backend's name.
 ///
-/// Note: This is a placeholder implementation. Full implementation would use
-/// trait object downcasting or a capability registry.
-pub fn detect_backend_capabilities<M: crate::Model>(_backend: &M) -> Vec<Task> {
-    // Placeholder: return NER (all backends implement Model)
-    // Full implementation would:
-    // - Use Any::type_id() to check trait implementations
-    // - Or maintain a capability registry
-    vec![Task::NER]
+/// Note: Full runtime detection with trait objects is limited by Rust's type system.
+/// A capability registry pattern would be more robust but requires backend registration.
+pub fn detect_backend_capabilities(backend: &dyn crate::Model) -> Vec<Task> {
+    // Use the backend's name to determine capabilities
+    // This is a pragmatic approach given Rust's trait object limitations
+    let backend_name = backend.name();
+    detect_backend_capabilities_by_name(backend_name)
+}
+
+/// Capability detection using backend name (fallback when type_id isn't available).
+///
+/// This is less accurate than `detect_backend_capabilities` but works with trait objects.
+pub fn detect_backend_capabilities_by_name(backend_name: &str) -> Vec<Task> {
+    backend_tasks(backend_name).to_vec()
 }
 
 /// Get all tasks that a dataset supports.

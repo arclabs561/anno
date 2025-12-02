@@ -249,6 +249,8 @@ pub mod visual;
 // Gender, demographic, temporal, and length bias analysis
 // =============================================================================
 #[cfg(feature = "eval-bias")]
+pub mod bias_config;
+#[cfg(feature = "eval-bias")]
 pub mod demographic_bias;
 #[cfg(feature = "eval-bias")]
 pub mod gender_bias;
@@ -391,6 +393,10 @@ pub use gender_bias::{
 };
 
 #[cfg(feature = "eval-bias")]
+pub use bias_config::{
+    BiasDatasetConfig, DistributionValidation, FrequencyWeightedResults, StatisticalBiasResults,
+};
+#[cfg(feature = "eval-bias")]
 pub use demographic_bias::{
     create_diverse_location_dataset, create_diverse_name_dataset, DemographicBiasEvaluator,
     DemographicBiasResults, Ethnicity, Gender, LocationExample, LocationType, NameExample,
@@ -482,6 +488,30 @@ pub use report::{
     RecommendationCategory, ReportBuilder, SimpleGoldEntity, TestCase,
     TypeMetrics as ReportTypeMetrics,
 };
+
+// Unified evaluation system (recommended entry point)
+pub mod unified_evaluator;
+pub use unified_evaluator::{EvalMetadata, EvalSystem, UnifiedEvalResults};
+
+#[cfg(feature = "eval-bias")]
+pub use unified_evaluator::BiasEvalResults;
+#[cfg(feature = "eval-advanced")]
+pub use unified_evaluator::CalibrationEvalResults;
+#[cfg(feature = "eval-advanced")]
+pub use unified_evaluator::DataQualityEvalResults;
+#[cfg(feature = "eval-advanced")]
+pub use unified_evaluator::StandardEvalResults;
+
+// Type-safe backend names
+pub mod backend_name;
+pub use backend_name::BackendName;
+
+// Configuration builders
+pub mod config_builder;
+#[cfg(feature = "eval-bias")]
+pub use config_builder::BiasDatasetConfigBuilder;
+#[cfg(feature = "eval-advanced")]
+pub use config_builder::TaskEvalConfigBuilder;
 
 #[cfg(feature = "eval-advanced")]
 pub use few_shot::{

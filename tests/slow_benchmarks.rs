@@ -108,11 +108,7 @@ fn test_large_benchmark_1000_examples() {
 
     let test_cases = to_test_cases(&dataset);
     let regex_ner = RegexNER::new();
-    evaluate_with_stats(
-        &regex_ner,
-        &test_cases,
-        "RegexNER on 1000 hard examples",
-    );
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on 1000 hard examples");
 }
 
 #[test]
@@ -122,11 +118,7 @@ fn test_ambiguous_cases_only() {
     let dataset = generate_large_dataset(500, EdgeCaseType::Ambiguous);
     let test_cases = to_test_cases(&dataset);
     let regex_ner = RegexNER::new();
-    evaluate_with_stats(
-        &regex_ner,
-        &test_cases,
-        "RegexNER on ambiguous examples",
-    );
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on ambiguous examples");
 
     // Ambiguous cases are genuinely hard - models should struggle
     let _results = evaluate_ner_model(&regex_ner, &test_cases).unwrap();
@@ -162,11 +154,7 @@ fn test_numeric_edge_cases() {
 
     let test_cases = to_test_cases(&dataset);
     let regex_ner = RegexNER::new();
-    evaluate_with_stats(
-        &regex_ner,
-        &test_cases,
-        "RegexNER on numeric edge cases",
-    );
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on numeric edge cases");
 
     // RegexNER should do well on numeric patterns
     let results = evaluate_ner_model(&regex_ner, &test_cases).unwrap();
@@ -246,11 +234,7 @@ fn test_comprehensive_slow_benchmark() {
     );
 
     let test_cases = to_test_cases(&large_dataset);
-    evaluate_with_stats(
-        &regex_ner,
-        &test_cases,
-        "RegexNER on 5000 hard examples",
-    );
+    evaluate_with_stats(&regex_ner, &test_cases, "RegexNER on 5000 hard examples");
 
     println!("\n========================================");
     println!("  BENCHMARK COMPLETE");

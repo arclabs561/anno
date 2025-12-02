@@ -575,7 +575,8 @@ impl GLiNERCandle {
         // Build word positions
         let full_text = words.join(" ");
         let word_positions: Vec<(usize, usize)> = {
-            let mut positions = Vec::new();
+            // Performance: Pre-allocate positions vec with known size
+            let mut positions = Vec::with_capacity(words.len());
             let mut pos = 0;
             for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = full_text[pos..].find(word) {
@@ -621,7 +622,9 @@ impl GLiNERCandle {
 
     fn encode_labels(&self, labels: &[&str]) -> Result<Tensor> {
         // Encode each label
-        let mut all_embeddings = Vec::new();
+        // Performance: Pre-allocate all_embeddings with estimated capacity
+        // Each label produces hidden_size embeddings
+        let mut all_embeddings = Vec::with_capacity(labels.len().saturating_mul(self.hidden_size));
 
         for label in labels {
             let (embeddings, seq_len) = self.encoder.encode(label)?;
@@ -654,7 +657,10 @@ impl GLiNERCandle {
     }
 
     fn generate_spans(&self, num_words: usize) -> Result<Tensor> {
-        let mut spans = Vec::new();
+        // Performance: Pre-allocate spans vec with estimated capacity
+        // num_words * MAX_SPAN_WIDTH * 2 (for start/end pairs)
+        let estimated_capacity = num_words.saturating_mul(MAX_SPAN_WIDTH).saturating_mul(2);
+        let mut spans = Vec::with_capacity(estimated_capacity.min(1000));
 
         for start in 0..num_words {
             for width in 0..MAX_SPAN_WIDTH.min(num_words - start) {
@@ -688,7 +694,8 @@ impl GLiNERCandle {
         let num_labels = labels.len();
         let num_spans = scores_vec.len() / num_labels;
 
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(num_spans.min(32));
         let mut span_idx = 0;
 
         for start in 0..words.len() {
@@ -742,14 +749,16 @@ impl GLiNERCandle {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Remove overlapping (keep highest scoring)
-        entities.sort_by(|a, b| {
+        entities.sort_unstable_by(|a, b| {
             b.confidence
                 .partial_cmp(&a.confidence)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        let mut filtered = Vec::new();
+        // Performance: Pre-allocate filtered vec with estimated capacity
+        let mut filtered = Vec::with_capacity(entities.len().min(32));
         for entity in entities {
             let overlaps = filtered
                 .iter()
@@ -759,7 +768,8 @@ impl GLiNERCandle {
             }
         }
 
-        filtered.sort_by_key(|e| e.start);
+        // Performance: Use unstable sort (we don't need stable sort here)
+        filtered.sort_unstable_by_key(|e| e.start);
         Ok(filtered)
     }
 

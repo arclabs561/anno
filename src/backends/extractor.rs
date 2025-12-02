@@ -67,7 +67,7 @@ pub enum BackendType {
     BertOnnx,
     /// Candle (Rust-native)
     Candle,
-    /// Pattern-based only
+    /// Regex-based only
     Pattern,
 }
 
@@ -337,7 +337,8 @@ impl NERExtractor {
     /// - High F1 on ambiguous entities (via ML)
     /// - 100% precision on pattern entities (via patterns)
     pub fn extract_hybrid(&self, text: &str, language: Option<&str>) -> Result<Vec<Entity>> {
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(16);
 
         // Step 1: Get ML entities (context-dependent types)
         if let Some(ref primary) = self.primary {
@@ -367,8 +368,9 @@ impl NERExtractor {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by position
-        entities.sort_by_key(|e| e.start);
+        entities.sort_unstable_by_key(|e| e.start);
 
         Ok(entities)
     }
@@ -431,7 +433,7 @@ impl Model for NERExtractor {
             BackendType::GLiNER => "GLiNER zero-shot NER via gline-rs",
             BackendType::BertOnnx => "BERT NER via ONNX Runtime",
             BackendType::Candle => "BERT NER via Candle (Rust-native)",
-            BackendType::Pattern => "Pattern-based NER (structured entities only)",
+            BackendType::Pattern => "Regex-based NER (structured entities only)",
         }
     }
 }

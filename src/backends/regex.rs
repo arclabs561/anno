@@ -217,8 +217,12 @@ static HASHTAG: Lazy<Regex> = Lazy::new(|| {
 impl Model for RegexNER {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
         use crate::entity::Provenance;
-        use crate::offset::bytes_to_chars;
+        use crate::offset::SpanConverter;
         let mut entities = Vec::new();
+
+        // Performance optimization: Build SpanConverter once for all byte-to-char conversions
+        // ROI: High - called once per extract_entities, saves O(n) per regex match
+        let converter = SpanConverter::new(text);
 
         // Helper to add entity if no overlap
         // Note: regex returns byte offsets, but we convert to char offsets
@@ -226,7 +230,9 @@ impl Model for RegexNER {
         let mut add_entity =
             |m: regex::Match, entity_type: EntityType, confidence: f64, pattern: &'static str| {
                 // Convert byte offsets to character offsets for Unicode correctness
-                let (char_start, char_end) = bytes_to_chars(text, m.start(), m.end());
+                // Use optimized SpanConverter instead of bytes_to_chars
+                let char_start = converter.byte_to_char(m.start());
+                let char_end = converter.byte_to_char(m.end());
                 if !overlaps(&entities, char_start, char_end) {
                     entities.push(Entity::with_provenance(
                         m.as_str(),
@@ -327,7 +333,8 @@ impl Model for RegexNER {
         for m in MENTION.find_iter(text) {
             // Using a custom "Mention" type via Other
             // In future refactor: Add EntityType::Mention
-            let (char_start, char_end) = bytes_to_chars(text, m.start(), m.end());
+            let char_start = converter.byte_to_char(m.start());
+            let char_end = converter.byte_to_char(m.end());
             if !overlaps(&entities, char_start, char_end) {
                 // We use EntityType::Other for now, but specific string "Mention"
                 entities.push(Entity::with_provenance(
@@ -342,7 +349,8 @@ impl Model for RegexNER {
         }
 
         for m in HASHTAG.find_iter(text) {
-            let (char_start, char_end) = bytes_to_chars(text, m.start(), m.end());
+            let char_start = converter.byte_to_char(m.start());
+            let char_end = converter.byte_to_char(m.end());
             if !overlaps(&entities, char_start, char_end) {
                 entities.push(Entity::with_provenance(
                     m.as_str(),
@@ -355,8 +363,9 @@ impl Model for RegexNER {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by position for consistent output
-        entities.sort_by_key(|e| e.start);
+        entities.sort_unstable_by_key(|e| e.start);
 
         Ok(entities)
     }
@@ -378,11 +387,11 @@ impl Model for RegexNER {
     }
 
     fn name(&self) -> &'static str {
-        "pattern"
+        "regex"
     }
 
     fn description(&self) -> &'static str {
-        "Pattern-based NER (dates, times, money, percentages, emails, URLs, phones)"
+        "Regex-based NER (dates, times, money, percentages, emails, URLs, phones)"
     }
 }
 
@@ -941,13 +950,13 @@ impl crate::BatchCapable for RegexNER {
     }
 
     fn optimal_batch_size(&self) -> Option<usize> {
-        Some(64) // Pattern matching is fast, can handle larger batches
+        Some(64) // Regex matching is fast, can handle larger batches
     }
 }
 
 impl crate::StreamingCapable for RegexNER {
     fn recommended_chunk_size(&self) -> usize {
-        10_000 // Pattern matching handles larger chunks efficiently
+        10_000 // Regex matching handles larger chunks efficiently
     }
 }
 

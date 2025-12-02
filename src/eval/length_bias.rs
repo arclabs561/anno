@@ -495,6 +495,149 @@ pub fn create_length_varied_dataset() -> Vec<LengthTestExample> {
             "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is a town in Wales.",
             EntityType::Location,
         ),
+        // === Additional PERSON examples with titles and suffixes ===
+        LengthTestExample::with_sentence(
+            "Dr. Jane Smith",
+            "Dr. Jane Smith diagnosed the patient.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Prof. John Doe",
+            "Prof. John Doe published the research.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Mary-Jane Watson",
+            "Mary-Jane Watson attended the event.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "José María García",
+            "José María García spoke at the conference.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Robert Williams Jr.",
+            "Robert Williams Jr. inherited the business.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Elizabeth Taylor III",
+            "Elizabeth Taylor III was the third generation.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Jean-Pierre Dubois",
+            "Jean-Pierre Dubois visited from France.",
+            EntityType::Person,
+        ),
+        LengthTestExample::with_sentence(
+            "Mary Ann Johnson",
+            "Mary Ann Johnson was the keynote speaker.",
+            EntityType::Person,
+        ),
+        // === Additional ORGANIZATION examples ===
+        LengthTestExample::with_sentence(
+            "AT&T",
+            "AT&T announced the merger.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "3M",
+            "3M developed new materials.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "JPMorgan Chase",
+            "JPMorgan Chase reported earnings.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "Bank of America",
+            "Bank of America opened new branches.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "General Electric Company",
+            "General Electric Company restructured operations.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "The Coca-Cola Company",
+            "The Coca-Cola Company launched a new product.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "Procter & Gamble",
+            "Procter & Gamble acquired the brand.",
+            EntityType::Organization,
+        ),
+        LengthTestExample::with_sentence(
+            "Johnson & Johnson",
+            "Johnson & Johnson developed the vaccine.",
+            EntityType::Organization,
+        ),
+        // === Additional LOCATION examples ===
+        LengthTestExample::with_sentence("UK", "UK announced new policies.", EntityType::Location),
+        LengthTestExample::with_sentence("USA", "USA hosted the summit.", EntityType::Location),
+        LengthTestExample::with_sentence(
+            "Los Angeles",
+            "Los Angeles hosted the Olympics.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "San Diego",
+            "San Diego is a coastal city.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "New York City",
+            "New York City never sleeps.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "Greater London Area",
+            "Greater London Area has millions of residents.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "Republic of South Africa",
+            "Republic of South Africa celebrated independence.",
+            EntityType::Location,
+        ),
+        LengthTestExample::with_sentence(
+            "Federative Republic of Brazil",
+            "Federative Republic of Brazil hosted the World Cup.",
+            EntityType::Location,
+        ),
+        // === DATE examples (for completeness) ===
+        LengthTestExample::with_sentence(
+            "2024",
+            "The year 2024 was significant.",
+            EntityType::Date,
+        ),
+        LengthTestExample::with_sentence(
+            "January 15, 2024",
+            "The meeting was scheduled for January 15, 2024.",
+            EntityType::Date,
+        ),
+        LengthTestExample::with_sentence(
+            "Q1 2024",
+            "Q1 2024 showed strong growth.",
+            EntityType::Date,
+        ),
+        // === MONEY examples ===
+        LengthTestExample::with_sentence("$5", "The item cost $5.", EntityType::Money),
+        LengthTestExample::with_sentence(
+            "$1,234.56",
+            "The total was $1,234.56.",
+            EntityType::Money,
+        ),
+        LengthTestExample::with_sentence(
+            "€1,000,000",
+            "The investment was €1,000,000.",
+            EntityType::Money,
+        ),
     ]
 }
 

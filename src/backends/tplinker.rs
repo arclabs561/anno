@@ -90,11 +90,12 @@ impl TPLinker {
         _entity_types: &[&str],
         relation_types: &[&str],
     ) -> Result<ExtractionWithRelations> {
-        // Placeholder: Use simple pattern matching for now
+        // Placeholder: Use simple regex matching for now
         // Full implementation would use ONNX model with handshaking matrix
 
         // Extract entities first (using simple heuristics as placeholder)
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(8);
         let words: Vec<&str> = text.split_whitespace().collect();
 
         // Simple entity detection (placeholder)
@@ -137,7 +138,8 @@ impl TPLinker {
         }
 
         // Extract relations (placeholder: simple proximity-based)
-        let mut relations = Vec::new();
+        // Performance: Pre-allocate relations vec with estimated capacity
+        let mut relations = Vec::with_capacity(entities.len().min(8));
         for i in 0..entities.len() {
             for j in (i + 1)..entities.len().min(i + 3) {
                 // Check for relation triggers between entities

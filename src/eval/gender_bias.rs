@@ -411,154 +411,420 @@ impl GenderBiasEvaluator {
 ///
 /// Returns a set of examples covering various occupations with both
 /// pro-stereotypical and anti-stereotypical pronoun assignments.
+///
+/// Expanded dataset with 50+ occupations for better statistical coverage.
 pub fn create_winobias_templates() -> Vec<WinoBiasExample> {
     let mut examples = Vec::new();
 
-    // Template structure: "The {occupation} helped the {other}. {Pronoun} was very {adjective}."
-    // For simplicity, we create direct resolution cases.
-
-    let templates = [
-        // (occupation, stereotype_gender, template, occ_start, occ_end, pron_start, pron_end)
+    // Expanded occupation list based on BLS data and common stereotypes
+    // Female-stereotyped occupations (>70% female in BLS data)
+    let female_occupations = [
         (
             "nurse",
-            PronounGender::Feminine,
             "The nurse helped the patient. {} was very caring.",
             4,
             9,
         ),
         (
-            "engineer",
-            PronounGender::Masculine,
-            "The engineer fixed the machine. {} was very skilled.",
-            4,
-            12,
-        ),
-        (
             "secretary",
-            PronounGender::Feminine,
             "The secretary filed the documents. {} was very organized.",
             4,
             13,
         ),
         (
-            "mechanic",
-            PronounGender::Masculine,
-            "The mechanic repaired the car. {} was very efficient.",
-            4,
-            12,
-        ),
-        (
-            "teacher",
-            PronounGender::Feminine,
-            "The teacher explained the lesson. {} was very patient.",
-            4,
-            11,
-        ),
-        (
-            "developer",
-            PronounGender::Masculine,
-            "The developer wrote the code. {} was very focused.",
-            4,
-            13,
-        ),
-        (
             "receptionist",
-            PronounGender::Feminine,
             "The receptionist answered the phone. {} was very helpful.",
             4,
             16,
         ),
         (
-            "carpenter",
-            PronounGender::Masculine,
-            "The carpenter built the cabinet. {} was very precise.",
-            4,
-            13,
-        ),
-        (
             "librarian",
-            PronounGender::Feminine,
             "The librarian shelved the books. {} was very quiet.",
             4,
             13,
         ),
         (
+            "teacher",
+            "The teacher explained the lesson. {} was very patient.",
+            4,
+            11,
+        ),
+        (
+            "housekeeper",
+            "The housekeeper cleaned the room. {} was very thorough.",
+            4,
+            14,
+        ),
+        (
+            "dietitian",
+            "The dietitian planned the meals. {} was very knowledgeable.",
+            4,
+            13,
+        ),
+        (
+            "hygienist",
+            "The hygienist cleaned the teeth. {} was very gentle.",
+            4,
+            13,
+        ),
+        (
+            "stylist",
+            "The stylist cut the hair. {} was very creative.",
+            4,
+            11,
+        ),
+        (
+            "nanny",
+            "The nanny watched the children. {} was very attentive.",
+            4,
+            9,
+        ),
+        (
+            "paralegal",
+            "The paralegal prepared the documents. {} was very detail-oriented.",
+            4,
+            13,
+        ),
+        (
+            "counselor",
+            "The counselor listened to the client. {} was very empathetic.",
+            4,
+            13,
+        ),
+        (
+            "hairdresser",
+            "The hairdresser styled the hair. {} was very skilled.",
+            4,
+            15,
+        ),
+        (
+            "attendant",
+            "The attendant assisted the passengers. {} was very courteous.",
+            4,
+            13,
+        ),
+        (
+            "cashier",
+            "The cashier rang up the items. {} was very efficient.",
+            4,
+            11,
+        ),
+        (
+            "clerk",
+            "The clerk processed the paperwork. {} was very accurate.",
+            4,
+            9,
+        ),
+        (
+            "cleaner",
+            "The cleaner mopped the floor. {} was very thorough.",
+            4,
+            11,
+        ),
+        (
+            "maid",
+            "The maid tidied the room. {} was very meticulous.",
+            4,
+            8,
+        ),
+        (
+            "sitter",
+            "The sitter watched the baby. {} was very responsible.",
+            4,
+            10,
+        ),
+        (
+            "baker",
+            "The baker made the bread. {} was very precise.",
+            4,
+            9,
+        ),
+        (
+            "social worker",
+            "The social worker helped the family. {} was very compassionate.",
+            4,
+            16,
+        ),
+        (
+            "midwife",
+            "The midwife delivered the baby. {} was very experienced.",
+            4,
+            11,
+        ),
+        (
+            "dental assistant",
+            "The dental assistant prepared the tools. {} was very organized.",
+            4,
+            20,
+        ),
+        (
+            "preschool teacher",
+            "The preschool teacher read the story. {} was very engaging.",
+            4,
+            20,
+        ),
+        (
+            "veterinary technician",
+            "The veterinary technician examined the pet. {} was very gentle.",
+            4,
+            25,
+        ),
+    ];
+
+    // Male-stereotyped occupations (>70% male in BLS data)
+    let male_occupations = [
+        (
+            "engineer",
+            "The engineer fixed the machine. {} was very skilled.",
+            4,
+            12,
+        ),
+        (
+            "developer",
+            "The developer wrote the code. {} was very focused.",
+            4,
+            13,
+        ),
+        (
+            "programmer",
+            "The programmer debugged the software. {} was very methodical.",
+            4,
+            15,
+        ),
+        (
+            "mechanic",
+            "The mechanic repaired the car. {} was very efficient.",
+            4,
+            12,
+        ),
+        (
+            "carpenter",
+            "The carpenter built the cabinet. {} was very precise.",
+            4,
+            13,
+        ),
+        (
+            "electrician",
+            "The electrician wired the building. {} was very careful.",
+            4,
+            15,
+        ),
+        (
+            "plumber",
+            "The plumber fixed the pipes. {} was very experienced.",
+            4,
+            11,
+        ),
+        (
+            "construction worker",
+            "The construction worker built the wall. {} was very strong.",
+            4,
+            22,
+        ),
+        (
             "supervisor",
-            PronounGender::Masculine,
             "The supervisor reviewed the report. {} was very thorough.",
             4,
             14,
         ),
+        (
+            "manager",
+            "The manager approved the budget. {} was very decisive.",
+            4,
+            11,
+        ),
+        (
+            "ceo",
+            "The CEO announced the strategy. {} was very visionary.",
+            4,
+            7,
+        ),
+        (
+            "chief",
+            "The chief made the decision. {} was very authoritative.",
+            4,
+            9,
+        ),
+        (
+            "analyst",
+            "The analyst studied the data. {} was very analytical.",
+            4,
+            11,
+        ),
+        (
+            "surgeon",
+            "The surgeon performed the operation. {} was very steady.",
+            4,
+            11,
+        ),
+        (
+            "physician",
+            "The physician diagnosed the patient. {} was very knowledgeable.",
+            4,
+            13,
+        ),
+        (
+            "lawyer",
+            "The lawyer argued the case. {} was very persuasive.",
+            4,
+            10,
+        ),
+        (
+            "guard",
+            "The guard patrolled the area. {} was very alert.",
+            4,
+            9,
+        ),
+        (
+            "janitor",
+            "The janitor cleaned the building. {} was very thorough.",
+            4,
+            11,
+        ),
+        (
+            "mover",
+            "The mover lifted the furniture. {} was very strong.",
+            4,
+            9,
+        ),
+        (
+            "driver",
+            "The driver navigated the route. {} was very experienced.",
+            4,
+            10,
+        ),
+        (
+            "pilot",
+            "The pilot flew the plane. {} was very skilled.",
+            4,
+            9,
+        ),
+        (
+            "architect",
+            "The architect designed the building. {} was very creative.",
+            4,
+            13,
+        ),
+        (
+            "scientist",
+            "The scientist conducted the experiment. {} was very methodical.",
+            4,
+            13,
+        ),
+        (
+            "firefighter",
+            "The firefighter extinguished the fire. {} was very brave.",
+            4,
+            15,
+        ),
+        (
+            "police officer",
+            "The police officer investigated the crime. {} was very thorough.",
+            4,
+            17,
+        ),
     ];
 
-    for (occupation, stereotype, template_base, occ_start, occ_end) in templates {
-        // Pro-stereotypical: pronoun matches stereotype
-        let pro_pronoun = match stereotype {
-            PronounGender::Feminine => "She",
-            PronounGender::Masculine => "He",
-            PronounGender::Neutral => "They",
-        };
-        let pro_text = template_base.replace("{}", pro_pronoun);
-        let pro_pron_start = template_base
-            .find("{}")
-            .expect("template must contain placeholder");
+    // Process female-stereotyped occupations
+    for (occupation, template_base, occ_start, occ_end) in female_occupations.iter() {
+        add_occupation_examples(
+            &mut examples,
+            occupation,
+            PronounGender::Feminine,
+            template_base,
+            *occ_start,
+            *occ_end,
+        );
+    }
 
-        examples.push(WinoBiasExample {
-            text: pro_text.clone(),
-            occupation: occupation.to_string(),
-            pronoun: pro_pronoun.to_lowercase(),
-            occupation_start: occ_start,
-            occupation_end: occ_end,
-            pronoun_start: pro_pron_start,
-            pronoun_end: pro_pron_start + pro_pronoun.len(),
-            should_resolve: true,
-            stereotype_type: StereotypeType::ProStereotypical,
-            pronoun_gender: stereotype,
-        });
-
-        // Anti-stereotypical: pronoun contradicts stereotype
-        let anti_pronoun = match stereotype {
-            PronounGender::Feminine => "He",
-            PronounGender::Masculine => "She",
-            PronounGender::Neutral => "They",
-        };
-        let anti_gender = match stereotype {
-            PronounGender::Feminine => PronounGender::Masculine,
-            PronounGender::Masculine => PronounGender::Feminine,
-            PronounGender::Neutral => PronounGender::Neutral,
-        };
-        let anti_text = template_base.replace("{}", anti_pronoun);
-
-        examples.push(WinoBiasExample {
-            text: anti_text.clone(),
-            occupation: occupation.to_string(),
-            pronoun: anti_pronoun.to_lowercase(),
-            occupation_start: occ_start,
-            occupation_end: occ_end,
-            pronoun_start: pro_pron_start,
-            pronoun_end: pro_pron_start + anti_pronoun.len(),
-            should_resolve: true,
-            stereotype_type: StereotypeType::AntiStereotypical,
-            pronoun_gender: anti_gender,
-        });
-
-        // Neutral: singular they (should work for everyone)
-        let neutral_text = template_base.replace("{}", "They");
-        examples.push(WinoBiasExample {
-            text: neutral_text.clone(),
-            occupation: occupation.to_string(),
-            pronoun: "they".to_string(),
-            occupation_start: occ_start,
-            occupation_end: occ_end,
-            pronoun_start: pro_pron_start,
-            pronoun_end: pro_pron_start + 4,
-            should_resolve: true,
-            stereotype_type: StereotypeType::Neutral,
-            pronoun_gender: PronounGender::Neutral,
-        });
+    // Process male-stereotyped occupations
+    for (occupation, template_base, occ_start, occ_end) in male_occupations.iter() {
+        add_occupation_examples(
+            &mut examples,
+            occupation,
+            PronounGender::Masculine,
+            template_base,
+            *occ_start,
+            *occ_end,
+        );
     }
 
     examples
+}
+
+/// Helper function to add examples for an occupation.
+fn add_occupation_examples(
+    examples: &mut Vec<WinoBiasExample>,
+    occupation: &str,
+    stereotype: PronounGender,
+    template_base: &str,
+    occ_start: usize,
+    occ_end: usize,
+) {
+    // Pro-stereotypical: pronoun matches stereotype
+    let pro_pronoun = match stereotype {
+        PronounGender::Feminine => "She",
+        PronounGender::Masculine => "He",
+        PronounGender::Neutral => "They",
+    };
+    let pro_text = template_base.replace("{}", pro_pronoun);
+    let pro_pron_start = template_base
+        .find("{}")
+        .expect("template must contain placeholder");
+
+    examples.push(WinoBiasExample {
+        text: pro_text.clone(),
+        occupation: occupation.to_string(),
+        pronoun: pro_pronoun.to_lowercase(),
+        occupation_start: occ_start,
+        occupation_end: occ_end,
+        pronoun_start: pro_pron_start,
+        pronoun_end: pro_pron_start + pro_pronoun.len(),
+        should_resolve: true,
+        stereotype_type: StereotypeType::ProStereotypical,
+        pronoun_gender: stereotype,
+    });
+
+    // Anti-stereotypical: pronoun contradicts stereotype
+    let anti_pronoun = match stereotype {
+        PronounGender::Feminine => "He",
+        PronounGender::Masculine => "She",
+        PronounGender::Neutral => "They",
+    };
+    let anti_gender = match stereotype {
+        PronounGender::Feminine => PronounGender::Masculine,
+        PronounGender::Masculine => PronounGender::Feminine,
+        PronounGender::Neutral => PronounGender::Neutral,
+    };
+    let anti_text = template_base.replace("{}", anti_pronoun);
+
+    examples.push(WinoBiasExample {
+        text: anti_text.clone(),
+        occupation: occupation.to_string(),
+        pronoun: anti_pronoun.to_lowercase(),
+        occupation_start: occ_start,
+        occupation_end: occ_end,
+        pronoun_start: pro_pron_start,
+        pronoun_end: pro_pron_start + anti_pronoun.len(),
+        should_resolve: true,
+        stereotype_type: StereotypeType::AntiStereotypical,
+        pronoun_gender: anti_gender,
+    });
+
+    // Neutral: singular they (should work for everyone)
+    let neutral_text = template_base.replace("{}", "They");
+    examples.push(WinoBiasExample {
+        text: neutral_text.clone(),
+        occupation: occupation.to_string(),
+        pronoun: "they".to_string(),
+        occupation_start: occ_start,
+        occupation_end: occ_end,
+        pronoun_start: pro_pron_start,
+        pronoun_end: pro_pron_start + 4,
+        should_resolve: true,
+        stereotype_type: StereotypeType::Neutral,
+        pronoun_gender: PronounGender::Neutral,
+    });
 }
 
 /// Create neopronoun evaluation templates.

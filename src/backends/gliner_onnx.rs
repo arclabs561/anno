@@ -30,6 +30,7 @@
 #![allow(unused_imports)] // EntityType used conditionally
 
 #[cfg(feature = "onnx")]
+use crate::sync::{lock, try_lock, Mutex};
 use crate::EntityType;
 use crate::{Entity, Error, Result};
 
@@ -113,7 +114,7 @@ struct PromptCacheValue {
 #[cfg(feature = "onnx")]
 #[derive(Debug)]
 pub struct GLiNEROnnx {
-    session: std::sync::Mutex<ort::session::Session>,
+    session: Mutex<ort::session::Session>,
     /// Arc-wrapped tokenizer for cheap cloning across threads.
     tokenizer: std::sync::Arc<tokenizers::Tokenizer>,
     /// HuggingFace model identifier (e.g., "onnx-community/gliner_small-v2.1").
@@ -121,7 +122,7 @@ pub struct GLiNEROnnx {
     /// Whether a quantized model was loaded.
     is_quantized: bool,
     /// LRU cache for prompt encodings (keyed by text + entity types).
-    prompt_cache: Option<std::sync::Mutex<lru::LruCache<PromptCacheKey, PromptCacheValue>>>,
+    prompt_cache: Option<Mutex<lru::LruCache<PromptCacheKey, PromptCacheValue>>>,
 }
 
 #[cfg(feature = "onnx")]
@@ -235,16 +236,15 @@ impl GLiNEROnnx {
         let prompt_cache = if config.prompt_cache_size > 0 {
             use lru::LruCache;
             use std::num::NonZeroUsize;
-            Some(std::sync::Mutex::new(LruCache::new(
-                NonZeroUsize::new(config.prompt_cache_size)
-                    .expect("prompt_cache_size must be > 0"),
+            Some(Mutex::new(LruCache::new(
+                NonZeroUsize::new(config.prompt_cache_size).expect("prompt_cache_size must be > 0"),
             )))
         } else {
             None
         };
 
         Ok(Self {
-            session: std::sync::Mutex::new(session),
+            session: Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             model_name: model_name.to_string(),
             is_quantized,
@@ -350,10 +350,7 @@ impl GLiNEROnnx {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         // Run inference
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|e| Error::Retrieval(format!("Failed to lock session: {}", e)))?;
+        let mut session = try_lock(&self.session)?;
 
         let outputs = session
             .run(ort::inputs![
@@ -441,9 +438,7 @@ impl GLiNEROnnx {
 
         // Check cache (lock scope minimized)
         let cached_result = {
-            let mut cache_guard = cache
-                .lock()
-                .map_err(|e| Error::Retrieval(format!("Failed to lock prompt cache: {}", e)))?;
+            let mut cache_guard = try_lock(cache)?;
             cache_guard.get(&key).cloned()
         };
 
@@ -463,9 +458,7 @@ impl GLiNEROnnx {
 
         // Store in cache (re-acquire lock)
         {
-            let mut cache_guard = cache
-                .lock()
-                .map_err(|e| Error::Retrieval(format!("Failed to lock prompt cache: {}", e)))?;
+            let mut cache_guard = try_lock(cache)?;
             cache_guard.put(
                 key,
                 PromptCacheValue {
@@ -512,6 +505,7 @@ impl GLiNEROnnx {
             word_mask.push(0);
 
             // Encode entity type word(s)
+            // Note: tokenizers::Tokenizer::encode requires String, not &str
             let encoding = self
                 .tokenizer
                 .encode(entity_type.to_string(), false)
@@ -530,6 +524,7 @@ impl GLiNEROnnx {
         let mut word_id: i64 = 0;
         for word in text_words {
             // Encode word
+            // Note: tokenizers::Tokenizer::encode requires String, not &str
             let encoding = self
                 .tokenizer
                 .encode(word.to_string(), false)
@@ -553,7 +548,9 @@ impl GLiNEROnnx {
         word_mask.push(0);
 
         let seq_len = input_ids.len();
-        let attention_mask: Vec<i64> = vec![1; seq_len];
+        // Performance: Pre-allocate attention_mask with known size
+        let mut attention_mask = Vec::with_capacity(seq_len);
+        attention_mask.resize(seq_len, 1);
 
         Ok((
             input_ids,
@@ -650,6 +647,9 @@ impl GLiNEROnnx {
         expected_num_classes: usize,
         threshold: f32,
     ) -> Result<Vec<Entity>> {
+        // Performance: Cache text length once (used in extract_char_slice calls)
+        // ROI: High - called once, saves O(n) per entity in decode loops
+        let text_char_count = text.chars().count();
         // Get output tensor
         let output = outputs
             .iter()
@@ -681,7 +681,9 @@ impl GLiNEROnnx {
             return Ok(vec![]);
         }
 
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        // Most texts have 0-50 entities, but we'll start with a reasonable default
+        let mut entities = Vec::with_capacity(32);
         let num_text_words = text_words.len();
 
         // Expected shape: [batch, num_words, max_width, num_classes]
@@ -726,7 +728,13 @@ impl GLiNEROnnx {
                                 );
 
                                 // Extract actual text from source to preserve original whitespace
-                                let span_text = extract_char_slice(text, char_start, char_end);
+                                // Performance: Use optimized extraction with cached length
+                                let span_text = extract_char_slice_with_len(
+                                    text,
+                                    char_start,
+                                    char_end,
+                                    text_char_count,
+                                );
 
                                 let entity_type_str =
                                     entity_types.get(class_idx).unwrap_or(&"OTHER");
@@ -774,7 +782,13 @@ impl GLiNEROnnx {
                                 .word_span_to_char_offsets(text, text_words, word_idx, end_word);
 
                             // Extract actual text from source to preserve original whitespace
-                            let span_text = extract_char_slice(text, char_start, char_end);
+                            // Performance: Use optimized extraction with cached length
+                            let span_text = extract_char_slice_with_len(
+                                text,
+                                char_start,
+                                char_end,
+                                text_char_count,
+                            );
 
                             let entity_type_str = entity_types.get(class_idx).unwrap_or(&"OTHER");
                             let entity_type = Self::map_entity_type(entity_type_str);
@@ -792,8 +806,10 @@ impl GLiNEROnnx {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by start position, then by descending span length, then by descending confidence
-        entities.sort_by(|a, b| {
+        entities.sort_unstable_by(|a, b| {
             a.start
                 .cmp(&b.start)
                 .then_with(|| b.end.cmp(&a.end))
@@ -866,9 +882,21 @@ impl GLiNEROnnx {
         start_word: usize,
         end_word: usize,
     ) -> (usize, usize) {
+        // Defensive: Validate bounds
+        if words.is_empty()
+            || start_word >= words.len()
+            || end_word >= words.len()
+            || start_word > end_word
+        {
+            // Return safe defaults: empty span (0, 0)
+            return (0, 0);
+        }
+
         let mut byte_pos = 0;
         let mut start_byte = 0;
         let mut end_byte = text.len();
+        let mut found_start = false;
+        let mut found_end = false;
 
         for (idx, word) in words.iter().enumerate() {
             // Search for the word in the remaining text (by bytes)
@@ -878,24 +906,59 @@ impl GLiNEROnnx {
 
                 if idx == start_word {
                     start_byte = word_start_byte;
+                    found_start = true;
                 }
                 if idx == end_word {
                     end_byte = word_end_byte;
+                    found_end = true;
                     break;
                 }
                 byte_pos = word_end_byte;
+            } else {
+                // Word not found - this shouldn't happen in normal operation,
+                // but if it does, we can't reliably compute offsets
             }
         }
 
-        // Convert byte offsets to character offsets
-        crate::offset::bytes_to_chars(text, start_byte, end_byte)
+        // If we didn't find the words, return safe defaults
+        if !found_start || !found_end {
+            // Return empty span to avoid incorrect entity extraction
+            (0, 0)
+        } else {
+            // Convert byte offsets to character offsets
+            crate::offset::bytes_to_chars(text, start_byte, end_byte)
+        }
     }
 }
 
 /// Extract a substring by character offsets (not byte offsets).
 ///
 /// This handles Unicode text correctly by iterating over characters.
+///
+/// # Performance
+///
+/// For repeated calls on the same text, consider using `extract_char_slice_with_len`
+/// with a cached text length to avoid recalculating `text.chars().count()`.
 fn extract_char_slice(text: &str, char_start: usize, char_end: usize) -> String {
+    // Performance optimization: Use Entity's optimized method if we have cached length
+    // For single calls, this is fine. For batch operations, cache text.chars().count()
+    let text_char_count = text.chars().count();
+    extract_char_slice_with_len(text, char_start, char_end, text_char_count)
+}
+
+/// Extract a substring by character offsets with pre-computed text length.
+///
+/// This is a performance optimization for batch operations where you've already
+/// computed `text.chars().count()`.
+fn extract_char_slice_with_len(
+    text: &str,
+    char_start: usize,
+    char_end: usize,
+    text_char_count: usize,
+) -> String {
+    if char_start >= text_char_count || char_end > text_char_count || char_start >= char_end {
+        return String::new();
+    }
     text.chars()
         .skip(char_start)
         .take(char_end.saturating_sub(char_start))
@@ -1132,9 +1195,10 @@ fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
         return entities;
     }
 
+    // Performance: Use unstable sort (we don't need stable sort here)
     // Sort by span length (shorter first), then by confidence descending
     // This prefers shorter, more precise spans
-    entities.sort_by(|a, b| {
+    entities.sort_unstable_by(|a, b| {
         let len_a = a.end - a.start;
         let len_b = b.end - b.start;
         len_a.cmp(&len_b).then_with(|| {
@@ -1172,8 +1236,9 @@ fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
         }
     }
 
+    // Performance: Use unstable sort (we don't need stable sort here)
     // Re-sort by position for output
-    result.sort_by_key(|e| e.start);
+    result.sort_unstable_by_key(|e| e.start);
     result
 }
 

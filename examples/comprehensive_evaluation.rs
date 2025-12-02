@@ -12,6 +12,8 @@
 //! Run with:
 //!   cargo run --example comprehensive_evaluation --features eval-advanced
 
+#[cfg(feature = "eval-advanced")]
+use anno::eval::config_builder::TaskEvalConfigBuilder;
 use anno::eval::loader::DatasetId;
 use anno::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use anno::eval::task_mapping::Task;
@@ -23,24 +25,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test configuration with all new features enabled
     // Use datasets with temporal metadata (TweetNER7, BroadTwitterCorpus) and others
-    let config = TaskEvalConfig {
-        tasks: vec![Task::NER], // Focus on NER for now
-        datasets: vec![
-            DatasetId::TweetNER7,          // Has temporal metadata
-            DatasetId::BroadTwitterCorpus, // Has temporal metadata
-            DatasetId::WikiGold,           // Standard dataset
-        ],
-        backends: vec![],       // Empty = use all compatible backends
-        max_examples: Some(50), // Small sample for quick verification
-        require_cached: false,
-        relation_threshold: 0.5, // Default threshold for relation extraction
+    // === NEW: Using Configuration Builder ===
+    #[cfg(feature = "eval-advanced")]
+    let config = TaskEvalConfigBuilder::new()
+        .with_tasks(vec![Task::NER])
+        .add_dataset(DatasetId::TweetNER7) // Has temporal metadata
+        .add_dataset(DatasetId::BroadTwitterCorpus) // Has temporal metadata
+        .add_dataset(DatasetId::WikiGold) // Standard dataset
+        .with_max_examples(Some(50))
+        .with_seed(42)
+        .with_confidence_intervals(true)
+        .with_familiarity(true)
+        .with_temporal_stratification(true)
+        .with_robustness(true)
+        .build();
 
-        // Enable all new features
+    #[cfg(not(feature = "eval-advanced"))]
+    let config = TaskEvalConfig {
+        tasks: vec![Task::NER],
+        datasets: vec![
+            DatasetId::TweetNER7,
+            DatasetId::BroadTwitterCorpus,
+            DatasetId::WikiGold,
+        ],
+        backends: vec![],
+        max_examples: Some(50),
+        require_cached: false,
+        relation_threshold: 0.5,
         confidence_intervals: true,
         compute_familiarity: true,
         temporal_stratification: true,
-        robustness: true, // Requires eval-advanced feature
-        seed: Some(42),   // For reproducibility
+        robustness: true,
+        seed: Some(42),
     };
 
     println!("Configuration:");

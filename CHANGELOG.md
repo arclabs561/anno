@@ -12,17 +12,21 @@
 - **Discourse Analysis**: Abstract anaphora resolution, event extraction, shell noun detection
 - **CLI Tools**: `anno` and `anno-eval` binaries for command-line usage
 - **Justfile**: Task runner with common development commands
+- **GLiNER Prompt Cache**: LRU cache for prompt encodings, ~44x speedup for repeated entity types
 
 ### Changed
+- **BREAKING**: Renamed `PatternNER` → `RegexNER` for clarity (module: `pattern.rs` → `regex.rs`)
 - Updated README to reflect coreference resolution capabilities (not just NER)
 - Library description now emphasizes "Information extraction: NER, coreference resolution, and evaluation"
 - Fixed `task_evaluator.rs` to handle `eval-advanced` feature gate correctly
 - Improved documentation across all modules
+- Backend factory now accepts "regex"/"regexner" in addition to "pattern"/"patternner" (backward compatible)
 
 ### Fixed
 - Compilation error in `task_evaluator.rs` when `eval-advanced` feature not enabled
 - Clippy warnings for double `#[must_use]` attributes
 - Error conversion for HuggingFace API errors (`From<ApiError>` implementation)
+- Documentation link warnings (modules exist, links were correct)
 
 ## [0.2.0] - 2025-11-27
 

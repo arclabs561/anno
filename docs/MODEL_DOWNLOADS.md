@@ -2,7 +2,149 @@
 
 ## Overview
 
-All models in the anno codebase are downloaded from **HuggingFace Hub** (`hf_hub` crate). There are no other model sources (no local models, no other repositories).
+This document describes where model weights come from and how models are used in this codebase.
+
+## Trained vs Off-the-Shelf Models
+
+### Pre-Trained Models (Downloaded from HuggingFace)
+
+**All NER and encoder models are pre-trained and downloaded from HuggingFace Hub.** These models were trained by their original authors (GLiNER team, NuMind, etc.) and we only run inference.
+
+| Model Type | Source | Training | Weights Location |
+|------------|--------|----------|------------------|
+| **BERT NER** | `protectai/bert-base-NER-onnx` | Trained by ProtectAI | HuggingFace Hub |
+| **GLiNER** | `onnx-community/gliner_small-v2.1` | Trained by GLiNER authors | HuggingFace Hub |
+| **GLiNER2** | `fastino/gliner2-base-v1` | Trained by Fastino Labs | HuggingFace Hub |
+| **NuNER** | `deepanwa/NuNerZero_onnx` | Trained by NuMind | HuggingFace Hub |
+| **W2NER** | `ljynlp/w2ner-bert-base` | Trained by W2NER authors | HuggingFace Hub |
+| **ModernBERT** | `answerdotai/ModernBERT-base` | Trained by Answer.AI | HuggingFace Hub |
+| **DeBERTa** | `microsoft/deberta-v3-base` | Trained by Microsoft | HuggingFace Hub |
+
+**What we do:**
+- Download pre-trained weights from HuggingFace
+- Run inference via ONNX Runtime or Candle
+- Cache models locally after first download
+
+**What we don't do:**
+- Train these models
+- Modify their weights
+- Fine-tune them (though the infrastructure could support it)
+
+### Trainable Models (Implemented in This Codebase)
+
+**Box Embeddings for Coreference Resolution** are the only trainable models in this codebase.
+
+**Note**: This implementation is related to the **matryoshka-box** research project (not yet published). Box embeddings combine geometric representations (hyperrectangles) with logical invariants for coreference resolution.
+
+| Model Type | Training Code | Training Data | Weights Location |
+|------------|---------------|---------------|------------------|
+| **Box Embeddings** | N/A (inference only) | N/A | N/A |
+
+**Note**: Box embedding **training** is in `anno` (`src/backends/box_embeddings_training.rs`). The [matryoshka-box](https://github.com/arclabs561/matryoshka-box) research project extends this with matryoshka-specific features (variable dimensions, etc.).
+
+**Training in anno:**
+- Training code: `src/backends/box_embeddings_training.rs`
+- Training examples: `examples/box_training.rs`, `examples/box_training_real_data.rs`
+- Standard box embedding training with full evaluation integration
+
+**Research extensions in matryoshka-box:**
+- Extends `anno`'s training with matryoshka features (variable dimensions, hierarchical reasoning)
+- See: https://github.com/arclabs561/matryoshka-box
+
+**Inference in anno:**
+- Box embeddings can be created from vectors: `BoxEmbedding::from_vector()`
+- Coreference resolution: `BoxCorefResolver::resolve_with_boxes()`
+- Trained boxes can be saved/loaded for inference
+
+## Using Your Own Models (Bring Your Own)
+
+### Backends with Local Path Support
+
+**W2NER** and **T5Coref** support loading models from local file paths:
+
+#### W2NER
+
+```rust
+use anno::backends::w2ner::W2NER;
+
+// Use local model directory
+let w2ner = W2NER::from_pretrained("/path/to/local/w2ner-model")?;
+
+// Or use HuggingFace model ID (default)
+let w2ner = W2NER::from_pretrained("ljynlp/w2ner-bert-base")?;
+```
+
+**Local directory structure:**
+```
+/path/to/local/w2ner-model/
+├── model.onnx          # ONNX model file (or onnx/model.onnx)
+└── tokenizer.json      # Tokenizer file
+```
+
+**How it works:**
+- If the path exists as a directory, loads from local files
+- Otherwise, downloads from HuggingFace Hub
+- Automatically detects which to use
+
+#### T5Coref (Coreference Resolution)
+
+```rust
+use anno::backends::coref_t5::{T5Coref, T5CorefConfig};
+
+let config = T5CorefConfig::default();
+let coref = T5Coref::from_path("/path/to/t5-coref-model", config)?;
+```
+
+**Local directory structure:**
+```
+/path/to/t5-coref-model/
+├── encoder_model.onnx  # Encoder ONNX model
+├── decoder_model.onnx  # Decoder ONNX model
+└── tokenizer.json      # Tokenizer file
+```
+
+### Other Backends (HuggingFace Only)
+
+Most other backends (BERT, GLiNER, NuNER, GLiNER2, etc.) currently only support HuggingFace model IDs. To use your own models:
+
+1. **Upload to HuggingFace**: Upload your model to HuggingFace Hub, then use the model ID:
+   ```rust
+   let ner = GLiNEROnnx::new("your-username/your-custom-model")?;
+   ```
+
+2. **Use HuggingFace cache**: Models downloaded from HuggingFace are cached in `~/.cache/huggingface/hub/`. You can manually place files there, but this is not officially supported and may break with cache updates.
+
+3. **Extend the backend**: The backends use `hf_hub::api::sync::Api` which could be extended to support local paths (similar to W2NER's implementation). See `src/backends/w2ner.rs` lines 202-206 for the pattern.
+
+### Box Embeddings (Custom Training)
+
+Box embeddings are trained in this codebase and can be saved/loaded:
+
+```rust
+use anno::backends::box_embeddings_training::{BoxEmbeddingTrainer, TrainingConfig};
+
+// Train
+let mut trainer = BoxEmbeddingTrainer::new(config, dim, None);
+trainer.train(&examples);
+
+// Save trained boxes
+trainer.save_boxes("/path/to/boxes.json")?;
+
+// Load later
+let trainer = BoxEmbeddingTrainer::load_boxes("/path/to/boxes.json")?;
+```
+
+## Model Sources
+
+**Default**: All pre-trained models are downloaded from **HuggingFace Hub** (`hf_hub` crate):
+- ✅ HuggingFace model IDs (e.g., `"onnx-community/gliner_small-v2.1"`)
+- ✅ Automatic caching in `~/.cache/huggingface/hub/`
+- ✅ Authentication via `HF_TOKEN` environment variable (for gated models)
+
+**Custom Models**:
+- ✅ W2NER: Supports local file paths
+- ✅ Box embeddings: Trained in-code, can be saved/loaded
+- ⚠️ Other backends: HuggingFace Hub only (can be extended)
 
 ## Models Downloaded by Backend
 

@@ -78,9 +78,10 @@
 
 #![cfg(feature = "onnx")]
 
+use crate::sync::Mutex;
 use crate::{Entity, Error, Result};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use hf_hub::api::sync::Api;
 use ort::{
@@ -140,10 +141,10 @@ impl Default for T5CorefConfig {
 pub struct T5Coref {
     /// Encoder session (used in future seq2seq implementation).
     #[allow(dead_code)]
-    encoder: Mutex<Session>,
+    encoder: crate::sync::Mutex<Session>,
     /// Decoder session (used in future seq2seq implementation).
     #[allow(dead_code)]
-    decoder: Mutex<Session>,
+    decoder: crate::sync::Mutex<Session>,
     /// Tokenizer (used in future seq2seq implementation).
     #[allow(dead_code)]
     tokenizer: Arc<Tokenizer>,
@@ -211,8 +212,8 @@ impl T5Coref {
         log::info!("[T5-Coref] Loaded model from {}", model_path);
 
         Ok(Self {
-            encoder: Mutex::new(encoder),
-            decoder: Mutex::new(decoder),
+            encoder: crate::sync::Mutex::new(encoder),
+            decoder: crate::sync::Mutex::new(decoder),
             tokenizer: Arc::new(tokenizer),
             config,
             model_path: model_path.to_string(),
@@ -282,8 +283,8 @@ impl T5Coref {
         log::info!("[T5-Coref] Loaded model from {}", model_id);
 
         Ok(Self {
-            encoder: Mutex::new(encoder),
-            decoder: Mutex::new(decoder),
+            encoder: crate::sync::Mutex::new(encoder),
+            decoder: crate::sync::Mutex::new(decoder),
             tokenizer: Arc::new(tokenizer),
             config,
             model_path: model_id.to_string(),

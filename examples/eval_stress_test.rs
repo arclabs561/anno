@@ -9,6 +9,8 @@
 //! Run with:
 //!   cargo run --example eval_stress_test --features eval-advanced
 
+#[cfg(feature = "eval-advanced")]
+use anno::eval::config_builder::TaskEvalConfigBuilder;
 use anno::eval::loader::DatasetId;
 use anno::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use anno::eval::task_mapping::Task;
@@ -20,6 +22,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 1: Multiple datasets with all features enabled
     println!("Test 1: Multi-Dataset Evaluation with All Features\n");
+
+    // === NEW: Using Configuration Builder ===
+    #[cfg(feature = "eval-advanced")]
+    let config = TaskEvalConfigBuilder::new()
+        .with_tasks(vec![Task::NER])
+        .add_dataset(DatasetId::WikiGold)
+        .add_dataset(DatasetId::TweetNER7)
+        .add_dataset(DatasetId::BroadTwitterCorpus)
+        .add_backend("stacked".to_string())
+        .add_backend("tplinker".to_string())
+        .with_max_examples(Some(100))
+        .with_seed(42)
+        .with_robustness(true)
+        .with_familiarity(true)
+        .with_temporal_stratification(true)
+        .with_confidence_intervals(true)
+        .build();
+
+    #[cfg(not(feature = "eval-advanced"))]
     let config = TaskEvalConfig {
         tasks: vec![Task::NER],
         datasets: vec![

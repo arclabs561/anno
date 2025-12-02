@@ -220,8 +220,8 @@ impl TemporalBiasEvaluator {
         let mut total_recognized = 0;
 
         for name in names {
-            // Create test sentence
-            let text = format!("{} attended the conference in Chicago.", name.full_name);
+            // Create test sentence with realistic context
+            let text = create_realistic_temporal_sentence(&name.full_name);
 
             // Extract entities
             let entities = model.extract_entities(&text, None).unwrap_or_default();
@@ -347,6 +347,37 @@ fn compute_max_gap(rates: &HashMap<String, f64>) -> f64 {
 }
 
 // =============================================================================
+// Realistic Sentence Contexts
+// =============================================================================
+
+/// Create a realistic sentence context for a temporal name.
+fn create_realistic_temporal_sentence(name: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    name.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let templates = [
+        format!("{} was featured in the historical archives.", name),
+        format!("The biography of {} was published last year.", name),
+        format!("{} made significant contributions to the field.", name),
+        format!("Records show that {} attended the event in 1950.", name),
+        format!("{} was recognized for lifetime achievements.", name),
+        format!("The family of {} established a scholarship fund.", name),
+        format!("{} served as president of the organization.", name),
+        format!("Historical documents mention {} in several contexts.", name),
+        format!("{} was known for innovative research methods.", name),
+        format!(
+            "The legacy of {} continues to inspire new generations.",
+            name
+        ),
+    ];
+
+    templates[hash as usize % templates.len()].clone()
+}
+
+// =============================================================================
 // Temporal Name Dataset
 // =============================================================================
 
@@ -367,6 +398,11 @@ pub fn create_temporal_name_dataset() -> Vec<TemporalNameExample> {
         ("Mildred", TemporalGender::Feminine),
         ("Herbert", TemporalGender::Masculine),
         ("Bertha", TemporalGender::Feminine),
+        ("Agnes", TemporalGender::Feminine),
+        ("Albert", TemporalGender::Masculine),
+        ("Florence", TemporalGender::Feminine),
+        ("Walter", TemporalGender::Masculine),
+        ("Edith", TemporalGender::Feminine),
     ];
 
     // 1900s
@@ -376,6 +412,11 @@ pub fn create_temporal_name_dataset() -> Vec<TemporalNameExample> {
         ("Pearl", TemporalGender::Feminine),
         ("Clarence", TemporalGender::Masculine),
         ("Minnie", TemporalGender::Feminine),
+        ("Alice", TemporalGender::Feminine),
+        ("Raymond", TemporalGender::Masculine),
+        ("Ruth", TemporalGender::Feminine),
+        ("Frank", TemporalGender::Masculine),
+        ("Helen", TemporalGender::Feminine),
     ];
 
     // 1910s
@@ -484,6 +525,11 @@ pub fn create_temporal_name_dataset() -> Vec<TemporalNameExample> {
         ("Charlotte", TemporalGender::Feminine),
         ("Oliver", TemporalGender::Masculine),
         ("Amelia", TemporalGender::Feminine),
+        ("Mia", TemporalGender::Feminine),
+        ("Liam", TemporalGender::Masculine),
+        ("Harper", TemporalGender::Neutral),
+        ("Mason", TemporalGender::Masculine),
+        ("Evelyn", TemporalGender::Feminine),
     ];
 
     // Classic names (popular across many decades)
@@ -493,6 +539,11 @@ pub fn create_temporal_name_dataset() -> Vec<TemporalNameExample> {
         ("William", TemporalGender::Masculine, true),
         ("Mary", TemporalGender::Feminine, true),
         ("John", TemporalGender::Masculine, true),
+        ("Sarah", TemporalGender::Feminine, true),
+        ("Robert", TemporalGender::Masculine, true),
+        ("Anna", TemporalGender::Feminine, true),
+        ("Michael", TemporalGender::Masculine, true),
+        ("Emily", TemporalGender::Feminine, true),
     ];
 
     // Helper to add names from a decade

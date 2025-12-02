@@ -50,3 +50,8 @@ verify_new_features_report.md
 FIXES_APPLIED.md
 REVIEW_BACKWARDS.md
 REVIEW_ISSUES.md
+*.md
+!README.md
+!CHANGELOG.md
+!docs/**/*.md
+reports/

@@ -73,6 +73,7 @@
 //! ```
 
 use super::coref::CorefChain;
+use crate::backends::box_embeddings::{BoxCorefConfig, BoxEmbedding};
 use crate::{Entity, EntityType};
 use std::collections::HashMap;
 
@@ -1051,6 +1052,265 @@ impl CoreferenceResolver for DiscourseAwareResolver {
     fn name(&self) -> &'static str {
         "discourse-aware"
     }
+}
+
+// =============================================================================
+// Box Embedding Coreference Resolver
+// =============================================================================
+
+/// Box-based coreference resolver.
+///
+/// Uses box embeddings to resolve coreference with explicit encoding of
+/// logical invariants (transitivity, syntactic constraints).
+///
+/// # Algorithm
+///
+/// 1. Convert entities to box embeddings (if not already boxes)
+/// 2. Compute pairwise coreference scores via conditional probability
+/// 3. Cluster via transitive closure (box containment)
+/// 4. Enforce syntactic constraints (Principle B/C) if enabled
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use anno::eval::coref_resolver::{BoxCorefResolver, BoxCorefConfig};
+/// use anno::backends::box_embeddings::BoxEmbedding;
+/// use anno::{Entity, EntityType};
+///
+/// let config = BoxCorefConfig::default();
+/// let mut resolver = BoxCorefResolver::new(config);
+///
+/// let entities = vec![
+///     Entity::new("John", EntityType::Person, 0, 4, 0.9),
+///     Entity::new("he", EntityType::Person, 10, 12, 0.8),
+/// ];
+///
+/// // Create box embeddings (in practice, these would be learned)
+/// let boxes = vec![
+///     BoxEmbedding::new(vec![0.0, 0.0], vec![1.0, 1.0]),
+///     BoxEmbedding::new(vec![0.1, 0.1], vec![0.9, 0.9]),
+/// ];
+///
+/// let resolved = resolver.resolve_with_boxes(&entities, &boxes);
+/// ```
+pub struct BoxCorefResolver {
+    config: BoxCorefConfig,
+}
+
+impl BoxCorefResolver {
+    /// Create a new box-based coreference resolver.
+    #[must_use]
+    pub fn new(config: BoxCorefConfig) -> Self {
+        Self { config }
+    }
+
+    /// Resolve coreference using box embeddings.
+    ///
+    /// # Arguments
+    ///
+    /// * `entities` - Entities to resolve
+    /// * `boxes` - Box embeddings for each entity (must match entities.len())
+    ///
+    /// # Returns
+    ///
+    /// Entities with `canonical_id` populated. Entities sharing the same
+    /// `canonical_id` corefer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `boxes.len() != entities.len()`.
+    pub fn resolve_with_boxes(&self, entities: &[Entity], boxes: &[BoxEmbedding]) -> Vec<Entity> {
+        assert_eq!(
+            entities.len(),
+            boxes.len(),
+            "entities and boxes must have same length"
+        );
+
+        if entities.is_empty() {
+            return vec![];
+        }
+
+        let mut resolved = entities.to_vec();
+        let mut next_cluster_id: u64 = 0;
+
+        // Union-find for clustering
+        let mut parent: Vec<usize> = (0..entities.len()).collect();
+
+        fn find(parent: &mut [usize], i: usize) -> usize {
+            if parent[i] != i {
+                parent[i] = find(parent, parent[i]);
+            }
+            parent[i]
+        }
+
+        fn union(parent: &mut [usize], i: usize, j: usize) {
+            let pi = find(parent, i);
+            let pj = find(parent, j);
+            if pi != pj {
+                parent[pi] = pj;
+            }
+        }
+
+        // Compute pairwise coreference scores
+        for i in 0..entities.len() {
+            for j in (i + 1)..entities.len() {
+                let score = boxes[i].coreference_score(&boxes[j]);
+
+                // Check coreference threshold
+                if score >= self.config.coreference_threshold {
+                    // Enforce type compatibility
+                    if entities[i].entity_type == entities[j].entity_type {
+                        // Check syntactic constraints if enabled
+                        if !self.config.enforce_syntactic_constraints
+                            || self.check_syntactic_constraints(&entities[i], &entities[j], i, j)
+                        {
+                            union(&mut parent, i, j);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Assign cluster IDs
+        let mut cluster_map: HashMap<usize, u64> = HashMap::new();
+        for i in 0..entities.len() {
+            let root = find(&mut parent, i);
+            let cluster_id = *cluster_map.entry(root).or_insert_with(|| {
+                let id = next_cluster_id;
+                next_cluster_id += 1;
+                id
+            });
+            resolved[i].canonical_id = Some(cluster_id);
+        }
+
+        resolved
+    }
+
+    /// Check syntactic constraints (Principle B/C).
+    ///
+    /// Returns true if coreference is allowed, false if it violates constraints.
+    fn check_syntactic_constraints(
+        &self,
+        entity_a: &Entity,
+        entity_b: &Entity,
+        _idx_a: usize,
+        _idx_b: usize,
+    ) -> bool {
+        // Simplified: check if entities are in local domain
+        // In full implementation, would use parse tree to determine c-command
+        let distance = if entity_a.end <= entity_b.start {
+            entity_b.start - entity_a.end
+        } else {
+            entity_a.start.saturating_sub(entity_b.end)
+        };
+
+        // Principle B: Pronoun cannot corefer with local entity (unless reflexive)
+        if self.is_pronoun(&entity_a.text) && distance <= self.config.max_local_distance {
+            // Would need parse tree to check if entity_b c-commands entity_a
+            // For now, allow if not in same sentence (heuristic)
+            return distance > 50; // Rough sentence boundary
+        }
+
+        // Principle C: R-expression (name) cannot be bound by c-commanding entity
+        if self.is_rexpression(&entity_a.text) && distance <= self.config.max_local_distance {
+            // Would need parse tree to check c-command
+            // For now, allow if not too close (heuristic)
+            return distance > 20;
+        }
+
+        true
+    }
+
+    /// Check if text is a pronoun.
+    fn is_pronoun(&self, text: &str) -> bool {
+        matches!(
+            text.to_lowercase().as_str(),
+            "he" | "she" | "they" | "him" | "her" | "them" | "it" | "this" | "that"
+        )
+    }
+
+    /// Check if text is an R-expression (proper name).
+    fn is_rexpression(&self, text: &str) -> bool {
+        // Simple heuristic: capitalized words are likely R-expressions
+        text.chars().next().map_or(false, |c| c.is_uppercase()) && text.len() > 1
+    }
+}
+
+impl CoreferenceResolver for BoxCorefResolver {
+    fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
+        // Default implementation: requires boxes to be provided separately
+        // In practice, boxes would come from a learned model or be computed
+        // from entity embeddings. For now, return entities unchanged.
+        // Use `resolve_with_boxes()` for actual resolution.
+        entities.to_vec()
+    }
+
+    fn name(&self) -> &'static str {
+        "box-embedding"
+    }
+}
+
+// =============================================================================
+// Box Embedding Utilities
+// =============================================================================
+
+/// Convert vector embeddings to box embeddings for coreference resolution.
+///
+/// This is a convenience function that creates boxes from entity embeddings
+/// using a fixed radius. In practice, boxes would be learned from data.
+///
+/// # Arguments
+///
+/// * `embeddings` - Vector embeddings [num_entities, hidden_dim]
+/// * `hidden_dim` - Hidden dimension of embeddings
+/// * `radius` - Half-width of boxes (default: 0.1)
+///
+/// # Returns
+///
+/// Vector of box embeddings, one per entity.
+pub fn vectors_to_boxes(
+    embeddings: &[f32],
+    hidden_dim: usize,
+    radius: Option<f32>,
+) -> Vec<BoxEmbedding> {
+    let radius = radius.unwrap_or(0.1);
+    let num_entities = embeddings.len() / hidden_dim;
+    let mut boxes = Vec::with_capacity(num_entities);
+
+    for i in 0..num_entities {
+        let start = i * hidden_dim;
+        let end = start + hidden_dim;
+        let vector = &embeddings[start..end];
+        boxes.push(BoxEmbedding::from_vector(vector, radius));
+    }
+
+    boxes
+}
+
+/// Resolve coreference using box embeddings derived from vector embeddings.
+///
+/// Convenience function that combines vector-to-box conversion with resolution.
+///
+/// # Arguments
+///
+/// * `entities` - Entities to resolve
+/// * `embeddings` - Vector embeddings [num_entities, hidden_dim]
+/// * `hidden_dim` - Hidden dimension
+/// * `config` - Box coreference configuration
+///
+/// # Returns
+///
+/// Resolved entities with `canonical_id` populated.
+pub fn resolve_with_box_embeddings(
+    entities: &[Entity],
+    embeddings: &[f32],
+    hidden_dim: usize,
+    config: BoxCorefConfig,
+) -> Vec<Entity> {
+    let radius = config.vector_to_box_radius;
+    let boxes = vectors_to_boxes(embeddings, hidden_dim, radius);
+    let resolver = BoxCorefResolver::new(config);
+    resolver.resolve_with_boxes(entities, &boxes)
 }
 
 #[cfg(all(test, feature = "discourse"))]

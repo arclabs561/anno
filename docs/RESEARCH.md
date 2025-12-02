@@ -27,6 +27,20 @@ This architecture separates concerns that are often conflated in NER systems, en
 
 **Note**: The isomorphism between vision detection and NER is inspired by DETR and similar work.
 
+### 1.5. Box Embeddings for Coreference (`src/backends/box_embeddings.rs`)
+
+**Box embeddings** implement geometric representations (axis-aligned hyperrectangles) that encode logical invariants for coreference resolution. This work is related to the **matryoshka-box** research project (not yet published).
+
+**Key innovation**: Box embeddings combine:
+- **Geometric structure**: Hyperrectangles with min/max bounds
+- **Logical invariants**: Transitivity, syntactic constraints (Principle B/C), temporal evolution
+- **Uncertainty modeling**: Box volume = confidence
+- **Noise robustness**: Gumbel-soft boundaries
+
+**Research basis**: Implements ideas from BERE (2022), BoxTE (2022), and UKGE (2021), adapted for coreference resolution in the context of matryoshka-box research.
+
+**Status**: Implementation complete, training system functional. Part of ongoing research collaboration.
+
 ### 2. Unified Evaluation Framework
 
 The evaluation system integrates multiple recent research findings into a single framework:

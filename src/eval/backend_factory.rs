@@ -51,7 +51,7 @@ impl BackendFactory {
     pub fn create(backend_name: &str) -> Result<Box<dyn Model>> {
         match backend_name.to_lowercase().as_str() {
             // Always available backends
-            "pattern" | "patternner" => Ok(Box::new(crate::RegexNER::new())),
+            "pattern" | "patternner" | "regex" | "regexner" => Ok(Box::new(crate::RegexNER::new())),
             "heuristic" | "heuristicner" => Ok(Box::new(crate::HeuristicNER::new())),
             "stacked" | "stackedner" => Ok(Box::new(crate::StackedNER::default())),
 
@@ -302,8 +302,13 @@ pub fn create_coref_resolver(
             use crate::eval::coref_resolver::{CorefConfig, SimpleCorefResolver};
             Ok(Box::new(SimpleCorefResolver::new(CorefConfig::default())))
         }
+        "box" | "box_coref" | "boxcorefresolver" => {
+            use crate::backends::box_embeddings::BoxCorefConfig;
+            use crate::eval::coref_resolver::BoxCorefResolver;
+            Ok(Box::new(BoxCorefResolver::new(BoxCorefConfig::default())))
+        }
         _ => Err(crate::Error::InvalidInput(format!(
-            "Unknown coreference resolver: '{}'. Available: coref_resolver",
+            "Unknown coreference resolver: '{}'. Available: coref_resolver, box",
             name
         ))),
     }

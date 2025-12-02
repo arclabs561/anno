@@ -158,7 +158,7 @@ impl Default for W2NERConfig {
 pub struct W2NER {
     config: W2NERConfig,
     #[cfg(feature = "onnx")]
-    session: Option<std::sync::Mutex<ort::session::Session>>,
+    session: Option<crate::sync::Mutex<ort::session::Session>>,
     #[cfg(feature = "onnx")]
     tokenizer: Option<tokenizers::Tokenizer>,
 }
@@ -219,13 +219,15 @@ impl W2NER {
                     // Check if it's an authentication error (401)
                     if error_msg.contains("401") || error_msg.contains("Unauthorized") {
                         Error::Retrieval(format!(
-                            "W2NER model '{}' requires HuggingFace authentication (401 Unauthorized). \
-                             This model may be private or gated. \
-                             To use W2NER: \
-                             1. Get access to the model on HuggingFace \
-                             2. Set HF_TOKEN environment variable with your HuggingFace token \
-                             3. Or use an alternative nested NER model. \
-                             Note: W2NER is currently not available in public benchmarks due to authentication requirements.",
+                            "W2NER model '{}' requires HuggingFace authentication.\n\
+                             \n\
+                             To fix this:\n\
+                             1. Get a HuggingFace token from https://huggingface.co/settings/tokens\n\
+                             2. Request access to the model on HuggingFace (if it's gated)\n\
+                             3. Set the token: export HF_TOKEN=your_token_here\n\
+                             4. The hf_hub crate automatically reads HF_TOKEN from environment\n\
+                             \n\
+                             Alternative: Use a different nested/discontinuous NER backend or skip W2NER in evaluation.",
                             model_path
                         ))
                     } else {
@@ -260,7 +262,7 @@ impl W2NER {
                 model_id: model_path.to_string(),
                 ..Default::default()
             },
-            session: Some(std::sync::Mutex::new(session)),
+            session: Some(crate::sync::Mutex::new(session)),
             tokenizer: Some(tokenizer),
         })
     }
@@ -308,7 +310,8 @@ impl W2NER {
         tokens: &[&str],
         entity_type_idx: usize,
     ) -> Vec<(usize, usize, f64)> {
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(16);
 
         // Find all THW (Tail-Head-Word) markers
         // THW at (i,j) means: token i is tail, token j is head
@@ -326,8 +329,9 @@ impl W2NER {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by start position, then by length (longer first for nested)
-        entities.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0))));
+        entities.sort_unstable_by(|a, b| a.0.cmp(&b.0).then_with(|| (b.1 - b.0).cmp(&(a.1 - a.0))));
 
         // Remove nested entities if not allowed
         if !self.config.allow_nested {
@@ -457,9 +461,7 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         // Run inference
-        let mut session_guard = session
-            .lock()
-            .map_err(|e| Error::Retrieval(format!("Session lock failed: {}", e)))?;
+        let mut session_guard = crate::sync::try_lock(session)?;
 
         let outputs = session_guard
             .run(ort::inputs![
@@ -490,7 +492,8 @@ impl W2NER {
         // after the previous word. This is correct for tokenized input where
         // words are in sequence, but may fail if words are out of order.
         let word_positions: Vec<(usize, usize)> = {
-            let mut positions = Vec::new();
+            // Performance: Pre-allocate positions vec with known size
+            let mut positions = Vec::with_capacity(words.len());
             let mut pos = 0;
             for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {
@@ -531,8 +534,9 @@ impl W2NER {
             )));
         }
 
+        // Performance: Pre-allocate entities vec with estimated capacity
         // Decode entities for each type
-        let mut entities = Vec::new();
+        let mut entities = Vec::with_capacity(16);
         for (type_idx, label) in self.config.entity_labels.iter().enumerate() {
             let spans = self.decode_from_matrix(&matrix, &words.to_vec(), type_idx);
 

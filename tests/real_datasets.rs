@@ -1750,7 +1750,7 @@ fn benchmark_relation_extraction_on_docred() {
 // RegexNER is NOT designed for PER/ORG/LOC - it's for structured patterns
 // So we expect near-zero performance, but non-crashing behavior
 
-const PATTERN_NER_MIN_F1: f64 = 0.0; // RegexNER won't find named entities
+const REGEX_NER_MIN_F1: f64 = 0.0; // RegexNER won't find named entities
 
 #[test]
 #[ignore]
@@ -1768,15 +1768,15 @@ fn regression_test_wikigold() {
 
         let f1 = metrics.f1();
         assert!(
-            f1 >= PATTERN_NER_MIN_F1,
+            f1 >= REGEX_NER_MIN_F1,
             "WikiGold F1 ({:.3}) dropped below minimum ({:.3})",
             f1,
-            PATTERN_NER_MIN_F1
+            REGEX_NER_MIN_F1
         );
 
         println!(
             "WikiGold F1: {:.3} (minimum: {:.3}) - PASS",
-            f1, PATTERN_NER_MIN_F1
+            f1, REGEX_NER_MIN_F1
         );
     }
 }

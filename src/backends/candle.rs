@@ -274,12 +274,14 @@ impl CandleNER {
     }
 
     fn decode_bio(&self, text: &str, predictions: &[u32]) -> Result<Vec<Entity>> {
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(16);
         let words: Vec<&str> = text.split_whitespace().collect();
 
         // Build word positions
         let word_positions: Vec<(usize, usize)> = {
-            let mut positions = Vec::new();
+            // Performance: Pre-allocate positions vec with known size
+            let mut positions = Vec::with_capacity(words.len());
             let mut pos = 0;
             for (idx, word) in words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {

@@ -52,7 +52,7 @@ for e in &entities {
 
 ### Example: named entity recognition
 
-For person names, organizations, and locations, use `StackedNER` which combines patterns with heuristics:
+For person names, organizations, and locations, use `StackedNER` which combines patterns with heuristics. `StackedNER` is composable — you can add ML backends on top for better accuracy:
 
 ```rust
 use anno::StackedNER;
@@ -69,27 +69,82 @@ ORG: "Microsoft" [18, 27)
 LOC: "Seattle" [31, 38)
 ```
 
-This requires no model downloads and runs in ~100μs, but accuracy varies by domain. For higher quality, enable the `onnx` feature:
+This requires no model downloads and runs in ~100μs, but accuracy varies by domain. 
+
+**StackedNER is composable**: You can add ML backends on top of the default pattern+heuristic layers for better accuracy while keeping fast structured entity extraction:
 
 ```rust
+#[cfg(feature = "onnx")]
+use anno::{StackedNER, GLiNEROnnx};
+
+// ML-first: GLiNER runs first, then patterns fill gaps
+let ner = StackedNER::with_ml_first(
+    Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?)
+);
+
+// Or ML-fallback: patterns/heuristics first, ML as fallback
+let ner = StackedNER::with_ml_fallback(
+    Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?)
+);
+
+// Or custom stack with builder
+let ner = StackedNER::builder()
+    .layer(RegexNER::new())           // High-precision structured entities
+    .layer(HeuristicNER::new())       // Quick named entities
+    .layer_boxed(Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?))  // ML fallback
+    .build();
+```
+
+For standalone ML backends, enable the `onnx` feature:
+
+```rust
+#[cfg(feature = "onnx")]
 use anno::BertNEROnnx;
 
+#[cfg(feature = "onnx")]
 let ner = BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)?;
+#[cfg(feature = "onnx")]
 let entities = ner.extract_entities("Marie Curie discovered radium in 1898", None)?;
 ```
 
-**Note**: ML backends (BERT, GLiNER, etc.) download models on first run (~400MB for BERT, ~50-400MB for GLiNER depending on size). Models are cached locally after download.
+**Note**: ML backends (BERT, GLiNER, etc.) download **pre-trained models** from HuggingFace on first run:
+- BERT: ~400MB
+- GLiNER small: ~150MB
+- GLiNER medium: ~400MB  
+- GLiNER large: ~1.3GB
+- GLiNER2: ~400MB
+
+Models are cached locally after download. All NER models are pre-trained by their original authors; we only run inference. 
+
+**Using your own models**: W2NER and T5Coref support local file paths. Other backends use HuggingFace model IDs (you can upload your own models to HuggingFace). For detailed "bring your own model" instructions, see [`docs/MODEL_DOWNLOADS.md`](docs/MODEL_DOWNLOADS.md).
+
+**Box embedding training**: Training code is in `anno` (`src/backends/box_embeddings_training.rs`). The [matryoshka-box](https://github.com/arclabs561/matryoshka-box) research project extends this with matryoshka-specific features (variable dimensions, etc.). See [`docs/MATRYOSHKA_BOX_INTEGRATION.md`](docs/MATRYOSHKA_BOX_INTEGRATION.md) for details.
+
+To download models ahead of time:
+
+```bash
+# Download all models (ONNX + Candle)
+cargo run --example download_models --features "onnx,candle"
+
+# Download only ONNX models
+cargo run --example download_models --features onnx
+```
+
+This pre-warms the cache so models are ready for offline use or faster first runs.
 
 ### Example: zero-shot NER
 
 Supervised NER models only recognize entity types seen during training. GLiNER uses a bi-encoder architecture that lets you specify entity types at inference time:
 
 ```rust
+#[cfg(feature = "onnx")]
 use anno::GLiNEROnnx;
 
+#[cfg(feature = "onnx")]
 let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
 
 // Extract domain-specific entities without retraining
+#[cfg(feature = "onnx")]
 let entities = ner.extract(
     "Patient presents with diabetes, prescribed metformin 500mg",
     &["disease", "medication", "dosage"],
@@ -104,15 +159,20 @@ This is slower (~100ms) but supports arbitrary entity schemas.
 GLiNER2 extends GLiNER with multi-task capabilities. Extract entities, classify text, and extract hierarchical structures in a single forward pass:
 
 ```rust
+#[cfg(any(feature = "onnx", feature = "candle"))]
 use anno::backends::gliner2::{GLiNER2, TaskSchema};
 
+#[cfg(any(feature = "onnx", feature = "candle"))]
 let model = GLiNER2::from_pretrained(anno::DEFAULT_GLINER2_MODEL)?;
-// Or use: "fastino/gliner2-base-v1" (default) or "knowledgator/gliner-multitask-large-v0.5"
+// DEFAULT_GLINER2_MODEL is "onnx-community/gliner-multitask-large-v0.5"
+// Alternative: "fastino/gliner2-base-v1" (if available)
 
+#[cfg(any(feature = "onnx", feature = "candle"))]
 let schema = TaskSchema::new()
     .with_entities(&["person", "organization", "product"])
     .with_classification("sentiment", &["positive", "negative", "neutral"], false); // false = single-label
 
+#[cfg(any(feature = "onnx", feature = "candle"))]
 let result = model.extract("Apple announced iPhone 15", &schema)?;
 // result.entities: [Apple/organization, iPhone 15/product]
 // result.classifications["sentiment"].labels: ["positive"]
@@ -137,6 +197,8 @@ let ner = StackedNER::default();
 let entities = ner.extract_entities(text, None)?;
 
 // Extract relations between entities
+// Note: TPLinker is currently a placeholder implementation using heuristics.
+// For production, consider GLiNER2 which supports relation extraction via ONNX.
 let rel_extractor = TPLinker::new()?;
 let result = rel_extractor.extract_with_relations(
     text,
@@ -214,7 +276,7 @@ The same `Location` type works for text spans, bounding boxes, and other modalit
 |---------|----------|---------|----------|---------|-------------|
 | `RegexNER` | Structured entities (dates, money, emails) | ~400ns | ~95%* | always | Fast structured data extraction |
 | `HeuristicNER` | Person/Org/Location via heuristics | ~50μs | ~65% | always | Quick baseline, no dependencies |
-| `StackedNER` | Composable layered extraction | ~100μs | varies | always | Combine patterns + heuristics |
+| `StackedNER` | Composable layered extraction | ~100μs | varies | always | Combine patterns + heuristics + ML backends |
 | `BertNEROnnx` | High-quality NER (fixed types) | ~50ms | ~86% | `onnx` | Standard 4-type NER (PER/ORG/LOC/MISC) |
 | `GLiNEROnnx` | Zero-shot NER (custom types) | ~100ms | ~92% | `onnx` | **Recommended**: Custom entity types without retraining |
 | `NuNER` | Zero-shot NER (token-based) | ~100ms | ~86% | `onnx` | Alternative zero-shot approach |
@@ -230,10 +292,11 @@ The same `Location` type works for text spans, bounding boxes, and other modalit
 - **Best accuracy**: `GLiNEROnnx` for zero-shot, `BertNEROnnx` for fixed types
 - **Custom types**: `GLiNEROnnx` (zero-shot, no retraining needed)
 - **No dependencies**: `StackedNER` (patterns + heuristics)
+- **Hybrid approach**: `StackedNER::with_ml_first()` or `with_ml_fallback()` to combine ML accuracy with pattern speed
 
 Known limitations:
 
-- W2NER: The default model (`ljynlp/w2ner-bert-base`) requires HuggingFace authentication. See `PROBLEMS.md` for alternatives.
+- W2NER: The default model (`ljynlp/w2ner-bert-base`) requires HuggingFace authentication. You may need to authenticate with `huggingface-cli login` or use an alternative model.
 - GLiNERCandle: Most GLiNER models only provide PyTorch weights. Automatic conversion requires Python dependencies (`torch`, `safetensors`). Prefer `GLiNEROnnx` for production use.
 
 ### Evaluation

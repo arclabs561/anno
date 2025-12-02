@@ -4,7 +4,7 @@
 
 use anno::{
     Entity, EntityCategory, EntityType, ExtractionMethod, HierarchicalConfidence, Model,
-    RegexNER, Provenance, Span, StackedNER,
+    Provenance, RegexNER, Span, StackedNER,
 };
 
 // =============================================================================

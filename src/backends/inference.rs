@@ -1681,7 +1681,10 @@ impl HandshakingMatrix {
     /// * `scores` - Dense [seq_len, seq_len, num_labels] scores
     /// * `threshold` - Minimum score to keep
     pub fn from_dense(scores: &[f32], seq_len: usize, num_labels: usize, threshold: f32) -> Self {
-        let mut cells = Vec::new();
+        // Performance: Pre-allocate cells vec with estimated capacity
+        // Most matrices have sparse cells (only high-scoring ones), so we estimate conservatively
+        let estimated_capacity = (seq_len * seq_len / 10).min(1000); // ~10% of cells typically pass threshold
+        let mut cells = Vec::with_capacity(estimated_capacity);
 
         for i in 0..seq_len {
             for j in i..seq_len {
@@ -1730,16 +1733,18 @@ impl HandshakingMatrix {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by position, then by score (descending)
-        entities.sort_by(|a, b| {
+        entities.sort_unstable_by(|a, b| {
             a.0.start
                 .cmp(&b.0.start)
                 .then_with(|| a.0.end.cmp(&b.0.end))
                 .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
         });
 
+        // Performance: Pre-allocate kept vec with estimated capacity
         // Non-maximum suppression
-        let mut kept = Vec::new();
+        let mut kept = Vec::with_capacity(entities.len().min(32));
         for (span, label, score) in entities {
             let overlaps = kept.iter().any(|(s, _, _): &(SpanCandidate, _, _)| {
                 !(span.end <= s.start || s.end <= span.start)
@@ -2367,16 +2372,16 @@ pub fn two_stage_retrieval(
     let candidates = blocker.query(&query_hash);
 
     // Stage 2: Dense similarity on candidates only
-    let mut scored: Vec<(usize, f32)> = candidates
-        .into_iter()
-        .map(|idx| {
-            let sim = cosine_similarity_f32(query_embedding, &candidate_embeddings[idx]);
-            (idx, sim)
-        })
-        .collect();
+    // Performance: Pre-allocate scored vec with known size
+    let mut scored: Vec<(usize, f32)> = Vec::with_capacity(candidates.len());
+    scored.extend(candidates.into_iter().map(|idx| {
+        let sim = cosine_similarity_f32(query_embedding, &candidate_embeddings[idx]);
+        (idx, sim)
+    }));
 
+    // Performance: Use unstable sort (we don't need stable sort here)
     // Sort by similarity descending
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     scored.truncate(top_k);
     scored
 }

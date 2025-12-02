@@ -3,6 +3,14 @@
 //! This benchmark tests all available backends and automatically downloads
 //! models from HuggingFace if needed. Models are cached for subsequent runs.
 //!
+//! # Optimizations
+//!
+//! Backends have been optimized with:
+//! - Cached `text.chars().count()` in hot paths (GLiNER, ONNX, StackedNER, etc.)
+//! - Pre-allocated vectors to reduce reallocations
+//! - Unstable sorting for better performance when stability isn't needed
+//! - Optimized span conversion using `SpanConverter` (RegexNER, HeuristicNER)
+//!
 //! # Usage
 //!
 //! ```bash

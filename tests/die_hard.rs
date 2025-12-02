@@ -13,7 +13,7 @@
 use anno::backends::stacked::ConflictStrategy;
 use anno::{
     AutoNER, DiscontinuousSpan, Entity, EntityBuilder, EntityType, EntityViewport,
-    ExtractionMethod, HeuristicNER, HierarchicalConfidence, Model, RegexNER, Provenance,
+    ExtractionMethod, HeuristicNER, HierarchicalConfidence, Model, Provenance, RegexNER,
     StackedNER,
 };
 

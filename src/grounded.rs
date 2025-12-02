@@ -956,6 +956,10 @@ pub struct Identity {
     /// Entity embedding in the KB/entity space
     /// This is aligned with the text encoder space for similarity computation
     pub embedding: Option<Vec<f32>>,
+    /// Box embedding (alternative to vector embedding for geometric coreference)
+    /// Uses axis-aligned hyperrectangles to encode logical invariants
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub box_embedding: Option<crate::backends::box_embeddings::BoxEmbedding>,
     /// Alias names (other known surface forms)
     pub aliases: Vec<String>,
     /// Confidence that this identity is correctly resolved
@@ -977,6 +981,7 @@ impl Identity {
             kb_name: None,
             description: None,
             embedding: None,
+            box_embedding: None,
             aliases: Vec::new(),
             confidence: 1.0,
             source: None,
@@ -1001,6 +1006,7 @@ impl Identity {
             kb_name: Some(kb_name_str.clone()),
             description: None,
             embedding: None,
+            box_embedding: None,
             aliases: Vec::new(),
             confidence: 1.0,
             source: Some(IdentitySource::KnowledgeBase {
@@ -1071,6 +1077,7 @@ impl Identity {
             kb_name: None,
             description: None,
             embedding: None,
+            box_embedding: None,
             aliases: Vec::new(),
             confidence: cluster.confidence as f32,
             source: None, // Cannot determine source from CDCR format (no track_ids)
@@ -3314,6 +3321,7 @@ impl Corpus {
                 kb_name: None,
                 description: None,
                 embedding: first_track.embedding.clone(),
+                box_embedding: None,
                 aliases: Vec::new(),
                 confidence: first_track.cluster_confidence,
                 source: Some(IdentitySource::CrossDocCoref {
@@ -3441,6 +3449,7 @@ impl Corpus {
                     kb_name: Some(kb_name_str.clone()),
                     description: None,
                     embedding: track.embedding.clone(),
+                    box_embedding: None,
                     aliases: Vec::new(),
                     confidence: track.cluster_confidence,
                     source: Some(IdentitySource::KnowledgeBase {
@@ -3468,6 +3477,7 @@ impl Corpus {
                 kb_name: Some(kb_name_str.clone()),
                 description: None,
                 embedding: track.embedding.clone(),
+                box_embedding: None,
                 aliases: Vec::new(),
                 confidence: track.cluster_confidence,
                 source: Some(IdentitySource::KnowledgeBase {

@@ -197,19 +197,22 @@ impl DemonstrationBank {
 
         let query_features = DemonstrationExample::compute_features(query, &[]);
 
+        // Performance: Pre-allocate scored vec with estimated capacity
         // Score all demonstrations
-        let mut scored: Vec<_> = self
-            .examples
-            .iter()
-            .map(|ex| {
-                let score = self.helpfulness_score(&query_features, ex);
-                (ex, score)
-            })
-            .filter(|(_, score)| *score >= self.config.min_score)
-            .collect();
+        let mut scored: Vec<_> = Vec::with_capacity(self.examples.len().min(k * 2));
+        scored.extend(
+            self.examples
+                .iter()
+                .map(|ex| {
+                    let score = self.helpfulness_score(&query_features, ex);
+                    (ex, score)
+                })
+                .filter(|(_, score)| *score >= self.config.min_score),
+        );
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by score descending
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Take top k
         scored.into_iter().take(k).map(|(ex, _)| ex).collect()
@@ -224,17 +227,20 @@ impl DemonstrationBank {
 
         let query_features = DemonstrationExample::compute_features(query, &[]);
 
-        let mut scored: Vec<_> = self
-            .examples
-            .iter()
-            .map(|ex| {
-                let score = self.helpfulness_score(&query_features, ex);
-                (ex, score)
-            })
-            .filter(|(_, score)| *score >= self.config.min_score)
-            .collect();
+        // Performance: Pre-allocate scored vec with estimated capacity
+        let mut scored: Vec<_> = Vec::with_capacity(self.examples.len().min(k * 2));
+        scored.extend(
+            self.examples
+                .iter()
+                .map(|ex| {
+                    let score = self.helpfulness_score(&query_features, ex);
+                    (ex, score)
+                })
+                .filter(|(_, score)| *score >= self.config.min_score),
+        );
 
-        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        // Performance: Use unstable sort (we don't need stable sort here)
+        scored.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         scored.into_iter().take(k).collect()
     }

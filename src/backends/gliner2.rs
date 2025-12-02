@@ -66,6 +66,7 @@
 //! - **Candle** (native): `cargo build --features candle`
 
 use crate::entity::EntityCategory;
+use crate::sync::{lock, try_lock, Mutex};
 use crate::{Entity, EntityType, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -378,7 +379,7 @@ pub enum StructureValue {
 #[cfg(feature = "onnx")]
 #[derive(Debug)]
 pub struct GLiNER2Onnx {
-    session: std::sync::Mutex<ort::session::Session>,
+    session: Mutex<ort::session::Session>,
     tokenizer: tokenizers::Tokenizer,
     #[allow(dead_code)]
     model_name: String,
@@ -445,7 +446,7 @@ impl GLiNER2Onnx {
         );
 
         Ok(Self {
-            session: std::sync::Mutex::new(session),
+            session: Mutex::new(session),
             tokenizer,
             model_name: model_id.to_string(),
             hidden_size,
@@ -551,10 +552,7 @@ impl GLiNER2Onnx {
             .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
 
         // Run inference
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|_| Error::Inference("Session lock failed".into()))?;
+        let mut session = try_lock(&self.session)?;
 
         let outputs = session
             .run(ort::inputs![
@@ -880,8 +878,10 @@ impl GLiNER2Onnx {
                     }
                 }
 
+                // Performance: Use unstable sort (we don't need stable sort here)
                 // Deduplicate per batch item
-                entities.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end)));
+                entities
+                    .sort_unstable_by(|a, b| a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end)));
                 entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
                 results.push(entities);
             }
@@ -1791,7 +1791,10 @@ impl GLiNER2Candle {
     }
 
     fn generate_spans(&self, num_words: usize) -> Result<Tensor> {
-        let mut spans = Vec::new();
+        // Performance: Pre-allocate spans vec with estimated capacity
+        // num_words * MAX_SPAN_WIDTH * 2 (for start/end pairs)
+        let estimated_capacity = num_words.saturating_mul(MAX_SPAN_WIDTH).saturating_mul(2);
+        let mut spans = Vec::with_capacity(estimated_capacity.min(1000));
 
         for start in 0..num_words {
             for width in 0..MAX_SPAN_WIDTH.min(num_words - start) {
@@ -1845,7 +1848,8 @@ impl GLiNER2Candle {
         let num_labels = labels.len();
         let num_spans = scores_vec.len() / num_labels;
 
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(num_spans.min(32));
         let mut span_idx = 0;
 
         for start in 0..words.len() {
@@ -1963,9 +1967,21 @@ fn word_span_to_char_offsets(
     start_word: usize,
     end_word: usize,
 ) -> (usize, usize) {
+    // Defensive: Validate bounds
+    if words.is_empty()
+        || start_word >= words.len()
+        || end_word >= words.len()
+        || start_word > end_word
+    {
+        // Return safe defaults: empty span at start of text
+        return (0, 0);
+    }
+
     let mut char_pos = 0;
     let mut char_start = 0;
     let mut char_end = text.len();
+    let mut found_start = false;
+    let mut found_end = false;
 
     for (i, word) in words.iter().enumerate() {
         if let Some(pos) = text[char_pos..].find(word) {
@@ -1973,16 +1989,30 @@ fn word_span_to_char_offsets(
 
             if i == start_word {
                 char_start = abs_pos;
+                found_start = true;
             }
             if i == end_word {
                 char_end = abs_pos + word.len();
+                found_end = true;
+                // Early exit: we found both start and end
+                break;
             }
 
             char_pos = abs_pos + word.len();
+        } else {
+            // Word not found - this shouldn't happen in normal operation,
+            // but if it does, we can't reliably compute offsets
+            // Continue searching but mark that we may have incorrect results
         }
     }
 
-    (char_start, char_end)
+    // If we didn't find the words, return safe defaults
+    if !found_start || !found_end {
+        // Return empty span to avoid incorrect entity extraction
+        (0, 0)
+    } else {
+        (char_start, char_end)
+    }
 }
 
 /// Map entity type string to EntityType.
@@ -2534,10 +2564,7 @@ impl crate::BatchCapable for GLiNER2Onnx {
             .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
 
         // Run batched inference
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|_| Error::Inference("Session lock failed".into()))?;
+        let mut session = try_lock(&self.session)?;
 
         let outputs = session
             .run(ort::inputs![

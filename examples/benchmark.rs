@@ -57,6 +57,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         stats.examples_per_difficulty.keys().collect::<Vec<_>>()
     );
 
+    // === NEW: Using Unified EvalSystem (Recommended) ===
+    // For comprehensive evaluation including bias, use EvalSystem
+    #[cfg(all(feature = "eval-advanced", feature = "eval-bias"))]
+    {
+        use anno::eval::task_mapping::Task;
+        use anno::eval::EvalSystem;
+        use anno::StackedNER;
+
+        println!("--- Using Unified EvalSystem ---\n");
+
+        let model = Box::new(StackedNER::default());
+        let results = EvalSystem::new()
+            .with_tasks(vec![Task::NER])
+            .with_backends(vec!["stacked".to_string()])
+            .with_bias_analysis(true)
+            .with_model(model, Some("stacked".to_string()))
+            .run()?;
+
+        if let Some(standard) = &results.standard {
+            println!("Unified Results - F1: {:.1}%", standard.f1 * 100.0);
+        }
+        if let Some(bias) = &results.bias {
+            if let Some(demo) = &bias.demographic {
+                println!(
+                    "Bias - Ethnicity Gap: {:.1}%",
+                    demo.ethnicity_parity_gap * 100.0
+                );
+            }
+        }
+        println!();
+    }
+
+    // === Legacy: Using EvalHarness (Still works) ===
     // Configure evaluation
     let config = EvalConfig {
         breakdown_by_difficulty: true,
@@ -300,7 +333,12 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
 
     let resolver = SimpleCorefResolver::default();
     let templates = create_winobias_templates();
-    let gender_evaluator = GenderBiasEvaluator::new(false);
+    println!(
+        "Loaded {} WinoBias templates (expanded dataset)",
+        templates.len()
+    );
+
+    let gender_evaluator = GenderBiasEvaluator::new(true);
     let gender_results = gender_evaluator.evaluate_resolver(&resolver, &templates);
 
     println!(
@@ -343,8 +381,15 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     let ner = RegexNER::new();
     let names = create_diverse_name_dataset();
     let locations = create_diverse_location_dataset();
-    let demo_evaluator = DemographicBiasEvaluator::new(false);
 
+    // Use new config with frequency weighting and validation
+    use anno::eval::bias_config::BiasDatasetConfig;
+    let config = BiasDatasetConfig::default()
+        .with_frequency_weighting()
+        .with_validation()
+        .with_detailed(true);
+
+    let demo_evaluator = DemographicBiasEvaluator::with_config(true, config);
     let name_results = demo_evaluator.evaluate_ner(&ner, &names);
     let location_results = demo_evaluator.evaluate_locations(&ner, &locations);
 
@@ -371,6 +416,44 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
             "Script Bias Gap: {:.1}% (Latin vs non-Latin)",
             name_results.script_bias_gap * 100.0
         );
+
+        // Show frequency-weighted results if available
+        if let Some(freq) = &name_results.frequency_weighted {
+            println!("\nFrequency-Weighted Analysis:");
+            println!("  Unweighted rate: {:.1}%", freq.unweighted_rate * 100.0);
+            println!("  Weighted rate: {:.1}%", freq.weighted_rate * 100.0);
+        }
+
+        // Show statistical results if available
+        if let Some(stat) = &name_results.statistical {
+            println!("\nStatistical Results:");
+            println!("  {}", stat.format_with_ci());
+        }
+
+        // Show distribution validation if available
+        if let Some(validation) = &name_results.distribution_validation {
+            println!("\nDistribution Validation:");
+            println!("  Valid: {}", validation.is_valid);
+            println!("  Max deviation: {:.1}%", validation.max_deviation * 100.0);
+            if !validation.is_valid {
+                println!("  Category deviations:");
+                let mut devs: Vec<_> = validation.category_deviations.iter().collect();
+                devs.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+                for (cat, dev) in devs.iter().take(5) {
+                    println!("    {}: {:.1}%", cat, dev * 100.0);
+                }
+            }
+        }
+
+        // Show extended intersectional analysis
+        if !name_results.extended_intersectional.is_empty() {
+            println!("\nExtended Intersectional Analysis (Ethnicity × Gender × Frequency):");
+            let mut inter: Vec<_> = name_results.extended_intersectional.iter().collect();
+            inter.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
+            for (key, rate) in inter.iter().take(10) {
+                println!("  {}: {:.1}%", key, rate * 100.0);
+            }
+        }
     } else {
         println!("Name Recognition: [SKIPPED - RegexNER cannot detect PERSON]");
     }
@@ -398,7 +481,12 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- Temporal Bias (Names by Decade) ---\n");
 
     let temporal_names = create_temporal_name_dataset();
-    let temporal_evaluator = TemporalBiasEvaluator::default();
+    println!(
+        "Loaded {} temporal names (expanded dataset)",
+        temporal_names.len()
+    );
+
+    let temporal_evaluator = TemporalBiasEvaluator::new(true);
     let temporal_results = temporal_evaluator.evaluate(&ner, &temporal_names);
 
     let has_temporal_data =
@@ -444,7 +532,12 @@ fn run_bias_evaluation() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n--- Entity Length Bias ---\n");
 
     let length_examples = create_length_varied_dataset();
-    let length_evaluator = EntityLengthEvaluator::default();
+    println!(
+        "Loaded {} length examples (expanded dataset)",
+        length_examples.len()
+    );
+
+    let length_evaluator = EntityLengthEvaluator::new(true);
     let length_results = length_evaluator.evaluate(&ner, &length_examples);
 
     println!("{:<16} {:>12}", "Length Bucket", "Recognition");

@@ -128,7 +128,7 @@ pub struct NuNER {
     default_labels: Vec<String>,
     /// ONNX session (when feature enabled)
     #[cfg(feature = "onnx")]
-    session: Option<std::sync::Mutex<ort::session::Session>>,
+    session: Option<crate::sync::Mutex<ort::session::Session>>,
     /// Tokenizer (when feature enabled)
     #[cfg(feature = "onnx")]
     tokenizer: Option<tokenizers::Tokenizer>,
@@ -223,7 +223,7 @@ impl NuNER {
                 "organization".to_string(),
                 "location".to_string(),
             ],
-            session: Some(std::sync::Mutex::new(session)),
+            session: Some(crate::sync::Mutex::new(session)),
             tokenizer: Some(tokenizer),
         })
     }
@@ -330,9 +330,7 @@ impl NuNER {
         // The model will error if span_mask is missing, so we always generate it
         let needs_span_tensors = true;
 
-        let mut session_guard = session
-            .lock()
-            .map_err(|e| Error::Retrieval(format!("Failed to lock session: {}", e)))?;
+        let mut session_guard = crate::sync::try_lock(session)?;
 
         let outputs = if needs_span_tensors {
             // Generate span tensors similar to GLiNER
@@ -484,8 +482,10 @@ impl NuNER {
         text_words: &[&str],
         entity_types: &[&str],
     ) -> Result<EncodedPrompt> {
-        let mut input_ids: Vec<i64> = Vec::new();
-        let mut word_mask: Vec<i64> = Vec::new();
+        // Performance: Pre-allocate vectors with estimated capacity
+        // Most prompts have 50-200 tokens
+        let mut input_ids: Vec<i64> = Vec::with_capacity(128);
+        let mut word_mask: Vec<i64> = Vec::with_capacity(128);
 
         // [START]
         input_ids.push(TOKEN_START as i64);
@@ -576,7 +576,8 @@ impl NuNER {
         // Calculate word positions in original text
         // Validate that all words are found to prevent silent failures
         let word_positions: Vec<(usize, usize)> = {
-            let mut positions = Vec::new();
+            // Performance: Pre-allocate positions vec with known size
+            let mut positions = Vec::with_capacity(text_words.len());
             let mut pos = 0;
             for (idx, word) in text_words.iter().enumerate() {
                 if let Some(start) = text[pos..].find(word) {
@@ -616,7 +617,8 @@ impl NuNER {
             )));
         }
 
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        let mut entities = Vec::with_capacity(16);
         let mut current_entity: Option<(usize, usize, usize, f32)> = None; // (start_word, end_word, type_idx, score)
 
         // Process each word position

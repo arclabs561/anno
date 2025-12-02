@@ -368,11 +368,7 @@ impl BackendRegistry {
             }
         }
 
-        let description = format!(
-            "Stack: {} ({})",
-            layer_names.join(" -> "),
-            format!("{:?}", strategy)
-        );
+        let description = format!("Stack: {} ({:?})", layer_names.join(" -> "), strategy);
 
         self.register(name, description, Box::new(builder.build()));
     }

@@ -618,8 +618,9 @@ impl GLiNERPool {
             }
         }
 
+        // Performance: Use unstable sort (we don't need stable sort here)
         // Sort and deduplicate
-        entities.sort_by(|a, b| {
+        entities.sort_unstable_by(|a, b| {
             a.start
                 .cmp(&b.start)
                 .then_with(|| b.end.cmp(&a.end))

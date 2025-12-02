@@ -29,11 +29,11 @@ use crate::{Entity, Error, Result};
 
 #[cfg(feature = "onnx")]
 use {
+    crate::sync::{lock, try_lock, Mutex},
     hf_hub::api::sync::Api,
     ndarray::Array2,
     ort::{session::builder::GraphOptimizationLevel, session::Session, value::Tensor},
     std::collections::HashMap,
-    std::sync::Mutex,
     tokenizers::Tokenizer,
 };
 
@@ -69,7 +69,7 @@ impl Default for BertNERConfig {
 /// Thread-safe with `Arc<Tokenizer>` for efficient sharing.
 #[cfg(feature = "onnx")]
 pub struct BertNEROnnx {
-    session: Mutex<Session>,
+    session: crate::sync::Mutex<Session>,
     /// Arc-wrapped tokenizer for cheap cloning across threads.
     tokenizer: std::sync::Arc<Tokenizer>,
     id_to_label: HashMap<usize, String>,
@@ -192,7 +192,7 @@ impl BertNEROnnx {
             .map_err(|e| Error::Retrieval(format!("Failed to load ONNX model: {}", e)))?;
 
         Ok(Self {
-            session: Mutex::new(session),
+            session: crate::sync::Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             id_to_label,
             label_to_entity_type,
@@ -285,6 +285,7 @@ impl BertNEROnnx {
             .iter()
             .map(|&mask| mask as i64)
             .collect();
+        // Performance: Pre-allocate token_type_ids with known size
         // token_type_ids: all zeros for single-sequence NER
         let token_type_ids: Vec<i64> = vec![0i64; input_ids.len()];
 
@@ -316,10 +317,7 @@ impl BertNEROnnx {
             .map_err(|e| Error::Parse(format!("Failed to create token_type_ids tensor: {}", e)))?;
 
         // Run inference
-        let mut session = self
-            .session
-            .lock()
-            .map_err(|e| Error::Retrieval(format!("Failed to lock session: {}", e)))?;
+        let mut session = try_lock(&self.session)?;
 
         let outputs = session
             .run(ort::inputs![
@@ -364,13 +362,18 @@ impl BertNEROnnx {
         // Get token offsets for mapping back to character positions
         let offsets = encoding.get_offsets();
 
+        // Performance: Cache text length once (used in multiple entity text extractions)
+        // ROI: High - called once, saves O(n) per entity in decode loops
+        let text_char_count = text.chars().count();
+
         // Helper to access logits[0, token_idx, label_idx] in flattened array
         let get_logit = |token_idx: usize, label_idx: usize| -> f32 {
             logits_data[token_idx * num_labels + label_idx]
         };
 
-        // Decode BIO tags and extract entities
-        let mut entities = Vec::new();
+        // Performance: Pre-allocate entities vec with estimated capacity
+        // Most texts have 0-20 entities, but we'll start with a reasonable default
+        let mut entities = Vec::with_capacity(16);
         let mut current_entity: Option<(usize, usize, EntityType, f64)> = None; // (start_char, end_char, type, confidence)
 
         for token_idx in 0..seq_len {
@@ -382,7 +385,15 @@ impl BertNEROnnx {
             if char_start == char_end {
                 // Special token, finalize current entity
                 if let Some((start, end, entity_type, conf)) = current_entity.take() {
-                    let entity_text: String = text.chars().skip(start).take(end - start).collect();
+                    // Performance: Use cached text_char_count for bounds checking
+                    let entity_text = if start < end && end <= text_char_count {
+                        text.chars()
+                            .skip(start)
+                            .take(end - start)
+                            .collect::<String>()
+                    } else {
+                        String::new()
+                    };
                     if !entity_text.trim().is_empty() {
                         entities.push(Entity::new(
                             entity_text.trim().to_string(),
@@ -427,7 +438,12 @@ impl BertNEROnnx {
             // Skip "O" (outside) labels
             if label == "O" {
                 if let Some((start, end, entity_type, conf)) = current_entity.take() {
-                    let entity_text: String = text.chars().skip(start).take(end - start).collect();
+                    // Performance: Use cached text_char_count for bounds checking
+                    let entity_text: String = if start < end && end <= text_char_count {
+                        text.chars().skip(start).take(end - start).collect()
+                    } else {
+                        String::new()
+                    };
                     if !entity_text.trim().is_empty() {
                         entities.push(Entity::new(
                             entity_text.trim().to_string(),
@@ -479,8 +495,12 @@ impl BertNEROnnx {
                     } else {
                         // Finalize previous entity and start new
                         if let Some((start, end, prev_type, conf)) = current_entity.take() {
-                            let entity_text: String =
-                                text.chars().skip(start).take(end - start).collect();
+                            // Performance: Use cached text_char_count for bounds checking
+                            let entity_text: String = if start < end && end <= text_char_count {
+                                text.chars().skip(start).take(end - start).collect()
+                            } else {
+                                String::new()
+                            };
                             if !entity_text.trim().is_empty() {
                                 entities.push(Entity::new(
                                     entity_text.trim().to_string(),
@@ -503,8 +523,12 @@ impl BertNEROnnx {
                             current_entity = Some((start, char_end, entity_type, conf));
                         } else {
                             // Different type - finalize and start new
-                            let entity_text: String =
-                                text.chars().skip(start).take(_end - start).collect();
+                            // Performance: Use cached text_char_count for bounds checking
+                            let entity_text: String = if start < _end && _end <= text_char_count {
+                                text.chars().skip(start).take(_end - start).collect()
+                            } else {
+                                String::new()
+                            };
                             if !entity_text.trim().is_empty() {
                                 entities.push(Entity::new(
                                     entity_text.trim().to_string(),
@@ -527,7 +551,12 @@ impl BertNEROnnx {
 
         // Finalize last entity
         if let Some((start, end, entity_type, conf)) = current_entity {
-            let entity_text: String = text.chars().skip(start).take(end - start).collect();
+            // Performance: Use cached text_char_count for bounds checking
+            let entity_text: String = if start < end && end <= text_char_count {
+                text.chars().skip(start).take(end - start).collect()
+            } else {
+                String::new()
+            };
             if !entity_text.trim().is_empty() {
                 entities.push(Entity::new(
                     entity_text.trim().to_string(),

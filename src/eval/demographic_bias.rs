@@ -256,10 +256,18 @@ pub struct DemographicBiasResults {
     pub script_bias_gap: f64,
     /// Intersectional analysis: ethnicity × gender
     pub intersectional: HashMap<String, f64>,
+    /// Extended intersectional analysis: ethnicity × gender × frequency
+    pub extended_intersectional: HashMap<String, f64>,
     /// Number of names tested
     pub total_tested: usize,
     /// Detailed per-name results
     pub detailed: Vec<NameResult>,
+    /// Statistical results (if multiple seeds used)
+    pub statistical: Option<crate::eval::bias_config::StatisticalBiasResults>,
+    /// Frequency-weighted results (if enabled)
+    pub frequency_weighted: Option<crate::eval::bias_config::FrequencyWeightedResults>,
+    /// Distribution validation (if enabled)
+    pub distribution_validation: Option<crate::eval::bias_config::DistributionValidation>,
 }
 
 /// Result for a single name.
@@ -297,16 +305,38 @@ pub struct RegionalBiasResults {
 // =============================================================================
 
 /// Evaluator for demographic bias in NER systems.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct DemographicBiasEvaluator {
     /// Include detailed per-name results
     pub detailed: bool,
+    /// Configuration for bias evaluation
+    pub config: crate::eval::bias_config::BiasDatasetConfig,
+}
+
+impl Default for DemographicBiasEvaluator {
+    fn default() -> Self {
+        Self {
+            detailed: false,
+            config: crate::eval::bias_config::BiasDatasetConfig::default(),
+        }
+    }
 }
 
 impl DemographicBiasEvaluator {
     /// Create a new evaluator.
     pub fn new(detailed: bool) -> Self {
-        Self { detailed }
+        Self {
+            detailed,
+            config: crate::eval::bias_config::BiasDatasetConfig::default(),
+        }
+    }
+
+    /// Create evaluator with configuration.
+    pub fn with_config(
+        detailed: bool,
+        config: crate::eval::bias_config::BiasDatasetConfig,
+    ) -> Self {
+        Self { detailed, config }
     }
 
     /// Evaluate NER model for demographic bias on names.
@@ -316,12 +346,15 @@ impl DemographicBiasEvaluator {
         let mut by_gender: HashMap<String, (usize, usize)> = HashMap::new();
         let mut by_frequency: HashMap<String, (usize, usize)> = HashMap::new();
         let mut intersectional: HashMap<String, (usize, usize)> = HashMap::new();
+        let mut extended_intersectional: HashMap<String, (usize, usize)> = HashMap::new();
         let mut detailed_results = Vec::new();
         let mut total_recognized = 0;
+        let mut recognized_flags = Vec::new();
+        let mut name_strings = Vec::new();
 
         for name_example in names {
-            // Create test sentence
-            let text = format!("{} attended the conference.", name_example.name);
+            // Create test sentence with realistic context
+            let text = create_realistic_sentence(&name_example.name);
 
             // Extract entities
             let entities = model.extract_entities(&text, None).unwrap_or_default();
@@ -344,6 +377,8 @@ impl DemographicBiasEvaluator {
             if recognized {
                 total_recognized += 1;
             }
+            recognized_flags.push(recognized);
+            name_strings.push(name_example.name.clone());
 
             // Update ethnicity stats
             let eth_key = format!("{:?}", name_example.ethnicity);
@@ -387,6 +422,19 @@ impl DemographicBiasEvaluator {
                 if recognized {
                     inter_entry.0 += 1;
                 }
+
+                // Extended intersectional: ethnicity × gender × frequency
+                let ext_inter_key = format!(
+                    "{:?}_{:?}_{:?}",
+                    name_example.ethnicity, gender, name_example.frequency
+                );
+                let ext_inter_entry = extended_intersectional
+                    .entry(ext_inter_key)
+                    .or_insert((0, 0));
+                ext_inter_entry.1 += 1;
+                if recognized {
+                    ext_inter_entry.0 += 1;
+                }
             }
 
             if self.detailed {
@@ -420,6 +468,7 @@ impl DemographicBiasEvaluator {
         let gender_rates = to_rate(&by_gender);
         let frequency_rates = to_rate(&by_frequency);
         let intersectional_rates = to_rate(&intersectional);
+        let extended_intersectional_rates = to_rate(&extended_intersectional);
 
         // Compute parity gaps
         let ethnicity_parity_gap = compute_max_gap(&ethnicity_rates);
@@ -438,6 +487,48 @@ impl DemographicBiasEvaluator {
         };
         let script_bias_gap = (latin_rate - avg_non_latin).abs();
 
+        // Compute frequency-weighted results if enabled
+        let frequency_weighted = if self.config.frequency_weighted {
+            // Create frequency map (simplified - in real implementation, load from data)
+            let mut frequencies = HashMap::new();
+            for name_example in names {
+                let freq = match name_example.frequency {
+                    NameFrequency::Common => 0.5,
+                    NameFrequency::Moderate => 0.3,
+                    NameFrequency::Rare => 0.2,
+                };
+                frequencies.insert(name_example.name.clone(), freq);
+            }
+            Some(crate::eval::bias_config::FrequencyWeightedResults::new(
+                &recognized_flags,
+                &frequencies,
+                &name_strings,
+            ))
+        } else {
+            None
+        };
+
+        // Compute statistical results if multiple seeds
+        let statistical = if self.config.evaluation_seeds.len() > 1 {
+            // For now, compute from single run - in full implementation, run multiple times
+            let values = vec![total_recognized as f64 / names.len().max(1) as f64];
+            Some(
+                crate::eval::bias_config::StatisticalBiasResults::from_values(
+                    &values,
+                    self.config.confidence_level,
+                ),
+            )
+        } else {
+            None
+        };
+
+        // Validate against reference distributions if enabled
+        let distribution_validation = if self.config.validate_distributions {
+            Some(validate_demographic_distribution(&ethnicity_rates))
+        } else {
+            None
+        };
+
         DemographicBiasResults {
             overall_recognition_rate: if names.is_empty() {
                 0.0
@@ -451,8 +542,12 @@ impl DemographicBiasEvaluator {
             ethnicity_parity_gap,
             script_bias_gap,
             intersectional: intersectional_rates,
+            extended_intersectional: extended_intersectional_rates,
             total_tested: names.len(),
             detailed: detailed_results,
+            statistical,
+            frequency_weighted,
+            distribution_validation,
         }
     }
 
@@ -467,7 +562,7 @@ impl DemographicBiasEvaluator {
         let mut total_recognized = 0;
 
         for loc in locations {
-            let text = format!("The meeting was held in {}.", loc.name);
+            let text = create_realistic_location_sentence(&loc.name);
             let entities = model.extract_entities(&text, None).unwrap_or_default();
 
             let recognized = entities.iter().any(|e| {
@@ -538,6 +633,66 @@ fn compute_max_gap(rates: &HashMap<String, f64>) -> f64 {
     let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
 
     max - min
+}
+
+// =============================================================================
+// Realistic Sentence Contexts
+// =============================================================================
+
+/// Create a realistic sentence context for a name.
+///
+/// Uses diverse sentence structures that better reflect real-world usage
+/// patterns than simple templates.
+fn create_realistic_sentence(name: &str) -> String {
+    // Use hash of name to deterministically select sentence template
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    name.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let templates = [
+        format!("{} was interviewed by the news team.", name),
+        format!("The award was presented to {} at the ceremony.", name),
+        format!("{} published a groundbreaking research paper.", name),
+        format!("According to {}, the project will launch next month.", name),
+        format!("{} joined the company as a senior executive.", name),
+        format!("The conference featured a keynote speech by {}.", name),
+        format!(
+            "{} received recognition for outstanding contributions.",
+            name
+        ),
+        format!(
+            "In a statement, {} expressed support for the initiative.",
+            name
+        ),
+        format!("{} was elected to the board of directors.", name),
+        format!(
+            "The research team, led by {}, made significant discoveries.",
+            name
+        ),
+        format!("{} announced plans to expand operations globally.", name),
+        format!("During the meeting, {} proposed a new strategy.", name),
+        format!("{} has been appointed as the new department head.", name),
+        format!("The organization honored {} for years of service.", name),
+        format!("{} spoke at the international summit in Geneva.", name),
+        format!("After careful consideration, {} decided to proceed.", name),
+        format!(
+            "{} collaborated with international partners on the project.",
+            name
+        ),
+        format!(
+            "The committee selected {} as the recipient of the award.",
+            name
+        ),
+        format!("{} provided expert testimony during the hearing.", name),
+        format!(
+            "In an exclusive interview, {} discussed future plans.",
+            name
+        ),
+    ];
+
+    templates[hash as usize % templates.len()].clone()
 }
 
 // =============================================================================
@@ -1115,9 +1270,1265 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Moderate,
         ),
+        NameExample::new(
+            "Alexander",
+            "Volkov",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sofia",
+            "Kozlova",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Dmitri",
+            "Sokolov",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Anastasia",
+            "Popova",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional European Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Robert",
+            "Jones",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Patricia",
+            "Garcia",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Michael",
+            "Miller",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jennifer",
+            "Davis",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "David",
+            "Rodriguez",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Linda",
+            "Martinez",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Richard",
+            "Hernandez",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Barbara",
+            "Lopez",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Joseph",
+            "Wilson",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Elizabeth",
+            "Anderson",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Thomas",
+            "Thomas",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jessica",
+            "Taylor",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Charles",
+            "Moore",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sarah",
+            "Jackson",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Christopher",
+            "Martin",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Karen",
+            "Lee",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Daniel",
+            "Thompson",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nancy",
+            "White",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Matthew",
+            "Harris",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Betty",
+            "Sanchez",
+            Ethnicity::European,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional African-American Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Malik",
+            "Anderson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Keisha",
+            "Thomas",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Andre",
+            "Harris",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Tiffany",
+            "Clark",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Marcus",
+            "Lewis",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nicole",
+            "Walker",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Darius",
+            "Hall",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Monique",
+            "Allen",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Terrell",
+            "Young",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Danielle",
+            "King",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kendrick",
+            "Wright",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Brittany",
+            "Lopez",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jermaine",
+            "Hill",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Crystal",
+            "Scott",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Antoine",
+            "Green",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ebony",
+            "Adams",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Reginald",
+            "Baker",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jasmine",
+            "Nelson",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Darnell",
+            "Carter",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "LaTasha",
+            "Mitchell",
+            Ethnicity::AfricanAmerican,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional Hispanic Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Alejandro",
+            "Fernandez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Valentina",
+            "Ramirez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sebastian",
+            "Torres",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Camila",
+            "Flores",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mateo",
+            "Rivera",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Lucia",
+            "Gomez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nicolas",
+            "Diaz",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Elena",
+            "Reyes",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Gabriel",
+            "Morales",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sofia",
+            "Ortiz",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Adrian",
+            "Gutierrez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Isabella",
+            "Chavez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Luis",
+            "Jimenez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Gabriela",
+            "Moreno",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Fernando",
+            "Alvarez",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Valeria",
+            "Ruiz",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ricardo",
+            "Vargas",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Andrea",
+            "Mendoza",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Eduardo",
+            "Castillo",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Natalia",
+            "Ramos",
+            Ethnicity::Hispanic,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional East Asian Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Hiroshi",
+            "Suzuki",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Yuki",
+            "Takahashi",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kenji",
+            "Tanaka",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sakura",
+            "Watanabe",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jun",
+            "Ito",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mei",
+            "Nakamura",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Xiaoming",
+            "Li",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Xiaoli",
+            "Wang",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jian",
+            "Liu",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Yan",
+            "Zhang",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Hye-jin",
+            "Park",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Seung-ho",
+            "Kim",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ji-woo",
+            "Lee",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Soo-jin",
+            "Choi",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Min-ho",
+            "Jung",
+            Ethnicity::EastAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "明",
+            "王",
+            Ethnicity::EastAsian,
+            Script::Chinese,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "美",
+            "李",
+            Ethnicity::EastAsian,
+            Script::Chinese,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "健",
+            "张",
+            Ethnicity::EastAsian,
+            Script::Chinese,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "花子",
+            "佐藤",
+            Ethnicity::EastAsian,
+            Script::Japanese,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "太郎",
+            "鈴木",
+            Ethnicity::EastAsian,
+            Script::Japanese,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional South Asian Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Amit",
+            "Patel",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kavita",
+            "Sharma",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Rahul",
+            "Singh",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Deepika",
+            "Kumar",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Vikram",
+            "Gupta",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Anjali",
+            "Mehta",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Rohan",
+            "Desai",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Meera",
+            "Joshi",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Siddharth",
+            "Reddy",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kiran",
+            "Nair",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Neutral),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Arjun",
+            "Iyer",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Divya",
+            "Menon",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nikhil",
+            "Rao",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Shreya",
+            "Malhotra",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aditya",
+            "Kapoor",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Pooja",
+            "Agarwal",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ravi",
+            "Bhatt",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Neha",
+            "Chopra",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Karan",
+            "Verma",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sanjana",
+            "Saxena",
+            Ethnicity::SouthAsian,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional Middle Eastern Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Omar",
+            "Hassan",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Zara",
+            "Ali",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Tariq",
+            "Ibrahim",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Amina",
+            "Omar",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Khalil",
+            "Mustafa",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Noor",
+            "Khalil",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Rashid",
+            "Mahmoud",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Samira",
+            "Haddad",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Bashir",
+            "Nasser",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Leila",
+            "Fadel",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Karim",
+            "Said",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Yasmin",
+            "Malik",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Jamal",
+            "Rahman",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Soraya",
+            "Abbas",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Nabil",
+            "Hakim",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Rania",
+            "Farid",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Tariq",
+            "Zaki",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Dina",
+            "Salem",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Malik",
+            "Nasir",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Hala",
+            "Qureshi",
+            Ethnicity::MiddleEastern,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+    ]);
+
+    // === Additional African Names (Expanded) ===
+    names.extend(vec![
+        NameExample::new(
+            "Kofi",
+            "Mensah",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Amina",
+            "Diallo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kwame",
+            "Asante",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Fatou",
+            "Ndiaye",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Bakary",
+            "Traore",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aissatou",
+            "Ba",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ibrahim",
+            "Sow",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mariama",
+            "Diallo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Sekou",
+            "Keita",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Awa",
+            "Cisse",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Moussa",
+            "Toure",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Kadiatou",
+            "Sangare",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Youssouf",
+            "Kone",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aminata",
+            "Diop",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Boubacar",
+            "Sall",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Hawa",
+            "Ba",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Mamadou",
+            "Diallo",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Ramatoulaye",
+            "Ndiaye",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Amadou",
+            "Sow",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Masculine),
+            NameFrequency::Common,
+        ),
+        NameExample::new(
+            "Aissata",
+            "Traore",
+            Ethnicity::African,
+            Script::Latin,
+            Some(Gender::Feminine),
+            NameFrequency::Common,
+        ),
     ]);
 
     names
+}
+
+/// Validate demographic distribution against reference (US Census proportions).
+///
+/// Returns validation results comparing observed distribution to expected
+/// proportions based on US Census data.
+fn validate_demographic_distribution(
+    observed: &HashMap<String, f64>,
+) -> crate::eval::bias_config::DistributionValidation {
+    // Reference distribution based on US Census 2020 data
+    // These are approximate proportions for name recognition testing
+    let mut reference = HashMap::new();
+    reference.insert("European".to_string(), 0.60); // ~60% of US population
+    reference.insert("Hispanic".to_string(), 0.19); // ~19%
+    reference.insert("AfricanAmerican".to_string(), 0.13); // ~13%
+    reference.insert("EastAsian".to_string(), 0.06); // ~6%
+    reference.insert("SouthAsian".to_string(), 0.02); // ~2%
+    reference.insert("MiddleEastern".to_string(), 0.01); // ~1%
+    reference.insert("African".to_string(), 0.01); // ~1%
+    reference.insert("Indigenous".to_string(), 0.01); // ~1%
+
+    // Normalize observed to proportions (if they're counts, convert to rates)
+    let total: f64 = observed.values().sum();
+    let normalized_observed: HashMap<String, f64> = if total > 0.0 {
+        observed
+            .iter()
+            .map(|(k, v)| (k.clone(), v / total))
+            .collect()
+    } else {
+        observed.clone()
+    };
+
+    crate::eval::bias_config::DistributionValidation::validate(
+        &normalized_observed,
+        &reference,
+        0.10, // 10% tolerance
+    )
+}
+
+/// Create a realistic sentence context for a location.
+fn create_realistic_location_sentence(location: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut hasher = DefaultHasher::new();
+    location.hash(&mut hasher);
+    let hash = hasher.finish();
+
+    let templates = [
+        format!("The summit was held in {} last month.", location),
+        format!("{} has become a major tech hub in recent years.", location),
+        format!("Tourists flock to {} during the summer months.", location),
+        format!(
+            "The conference in {} attracted thousands of attendees.",
+            location
+        ),
+        format!("{} is known for its vibrant cultural scene.", location),
+        format!(
+            "Business leaders met in {} to discuss trade policies.",
+            location
+        ),
+        format!(
+            "{} hosted the international competition this year.",
+            location
+        ),
+        format!("The economic growth in {} has been remarkable.", location),
+        format!(
+            "{} is home to several world-renowned universities.",
+            location
+        ),
+        format!(
+            "The climate summit in {} addressed global challenges.",
+            location
+        ),
+    ];
+
+    templates[hash as usize % templates.len()].clone()
 }
 
 /// Create a diverse location dataset for regional bias testing.

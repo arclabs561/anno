@@ -27,7 +27,7 @@ fn main() -> anno::Result<()> {
         "Amazon's headquarters in Seattle employs over 75,000 people.",
     ];
 
-    // Pattern-based baseline
+    // Regex-based baseline
     println!("RegexNER (zero-dependency baseline)");
     println!("-------------------------------------\n");
 

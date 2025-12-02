@@ -313,10 +313,20 @@ impl Model for HeuristicNER {
             for &org in KNOWN_ORGS {
                 // Simple substring search for CJK terms
                 if org.chars().any(|c| c >= '\u{3040}') {
+                    // Performance: Build byte-to-char mapping once for this text
+                    // ROI: High - called in loop, saves O(n) per match
+                    let org_char_count = if org.is_ascii() {
+                        org.len()
+                    } else {
+                        org.chars().count()
+                    };
+                    let converter = crate::offset::SpanConverter::new(text);
+
                     // Include Hiragana/Katakana
+                    // Standard library substring search - efficient for typical NER workloads
                     for (start_byte, _) in text.match_indices(org) {
-                        let char_start = text[..start_byte].chars().count();
-                        let char_end = char_start + org.chars().count();
+                        let char_start = converter.byte_to_char(start_byte);
+                        let char_end = char_start + org_char_count;
                         // Avoid duplicates if already found (simple overlap check)
                         if !entities
                             .iter()
@@ -335,9 +345,18 @@ impl Model for HeuristicNER {
             }
             for &loc in KNOWN_LOCS {
                 if loc.chars().any(|c| c >= '\u{3040}') {
+                    // Performance: Build byte-to-char mapping once for this text
+                    let loc_char_count = if loc.is_ascii() {
+                        loc.len()
+                    } else {
+                        loc.chars().count()
+                    };
+                    let converter = crate::offset::SpanConverter::new(text);
+
+                    // Standard library substring search - efficient for typical NER workloads
                     for (start_byte, _) in text.match_indices(loc) {
-                        let char_start = text[..start_byte].chars().count();
-                        let char_end = char_start + loc.chars().count();
+                        let char_start = converter.byte_to_char(start_byte);
+                        let char_end = char_start + loc_char_count;
                         if !entities
                             .iter()
                             .any(|e| e.start == char_start && e.end == char_end)
@@ -570,7 +589,13 @@ impl Model for HeuristicNER {
             // Get character offsets from our position tracking
             // Correct start offset by adding leading punctuation length
             let char_start = words_with_pos[start_idx].1 + leading_punct_len;
-            let char_end = char_start + entity_text.chars().count();
+            // Performance: Use entity_text.len() for ASCII, fallback to chars().count() for Unicode
+            let char_end = char_start
+                + if entity_text.is_ascii() {
+                    entity_text.len()
+                } else {
+                    entity_text.chars().count()
+                };
 
             // Classify based on minimal rules
             // Use cleaned span for classification to avoid punctuation noise
