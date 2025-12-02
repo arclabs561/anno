@@ -26,6 +26,7 @@ once_cell = "1"
 clap = { version = "4", features = ["derive", "env", "wrap_help"], optional = true }
 clap_complete = { version = "4", optional = true }
 is-terminal = { version = "0.4", optional = true }
+glob = { version = "0.3", optional = true }
 
 # Robustness module needs rand (optional, only with eval-advanced)
 rand = { version = "0.9", optional = true }
@@ -63,11 +64,15 @@ parking_lot = { version = "0.12", optional = true }
 # Parallel processing for evaluation (optional)
 rayon = { version = "1", optional = true }
 
+
 [dev-dependencies]
 criterion = "0.5"
 proptest = "1"
 tempfile = "3"
 rand = "0.9"
+assert_cmd = "2.0"
+predicates = "3.1"
+bstr = "1"  # Byte string utilities for efficient text processing in tests
 
 [features]
 # Minimal by default - users opt-in to what they need
@@ -76,7 +81,7 @@ default = []
 # === Evaluation Framework (tiered) ===
 # Core evaluation: P/R/F1, GoldEntity, basic metrics
 # Includes dirs for platform cache directory discovery
-eval = ["dep:dirs"]
+eval = ["dep:dirs", "dep:glob"]
 # Bias analysis: gender, demographic, temporal, length bias evaluation
 eval-bias = ["eval"]
 # Advanced analysis: calibration, robustness, OOD, dataset download, etc.
@@ -109,6 +114,7 @@ async-inference = ["dep:tokio", "dep:futures", "onnx"]
 session-pool = ["dep:crossbeam-channel", "onnx"]
 # Better mutex performance (parking_lot instead of std::sync::Mutex)
 fast-lock = ["dep:parking_lot"]
+# Optimized string search operations (bstr for performance-critical paths)
 
 # Everything
 full = ["eval-full", "onnx", "candle", "discourse"]
@@ -150,6 +156,19 @@ required-features = ["onnx"]
 name = "gliner_eval_profiling"
 harness = false
 required-features = ["onnx", "eval"]
+
+[[bench]]
+name = "stacked_ner_performance"
+harness = false
+
+[[bench]]
+name = "stacked_ml_performance"
+harness = false
+required-features = ["onnx"]
+
+[[bench]]
+name = "optimization_performance"
+harness = false
 
 [lints.rust]
 missing_docs = "warn"
@@ -240,4 +259,16 @@ name = "grounded"
 
 [[example]]
 name = "temporal_e2e"
+required-features = ["eval"]
+
+[[example]]
+name = "box_coreference"
+required-features = ["eval"]
+
+[[example]]
+name = "box_training"
+required-features = ["eval"]
+
+[[example]]
+name = "box_training_real_data"
 required-features = ["eval"]

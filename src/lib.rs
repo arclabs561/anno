@@ -2,7 +2,7 @@
 //!
 //! Information extraction for Rust: NER, coreference resolution, and evaluation.
 //!
-//! - **NER**: Multiple backends (Pattern, BERT, GLiNER, NuNER, W2NER)
+//! - **NER**: Multiple backends (Regex, BERT, GLiNER, NuNER, W2NER)
 //! - **Coreference**: Resolution (rule-based, T5-based) and metrics (MUC, B³, CEAF, LEA, BLANC)
 //! - **Evaluation**: Comprehensive benchmarking framework with bias analysis
 //!
@@ -11,7 +11,7 @@
 //! ```rust,ignore
 //! use anno::{auto, Model};
 //!
-//! // Automatically picks GLiNER (ONNX) → BERT (ONNX) → Candle → Pattern
+//! // Automatically picks GLiNER (ONNX) → BERT (ONNX) → Candle → Regex
 //! let model = auto()?;
 //! let entities = model.extract_entities("Steve Jobs founded Apple", None)?;
 //! ```
@@ -138,6 +138,7 @@ pub mod lang;
 pub mod offset;
 pub mod schema;
 pub mod similarity;
+pub mod sync;
 pub mod types;
 
 // =============================================================================
@@ -289,6 +290,7 @@ impl MockModel {
 
     /// Validate that entity offsets are within text bounds.
     fn validate_entities(&self, text: &str) -> Result<()> {
+        // Performance optimization: Cache text length (called once, used for all entities)
         let text_len = text.chars().count();
         for (i, e) in self.entities.iter().enumerate() {
             if e.end > text_len {
@@ -298,7 +300,8 @@ impl MockModel {
                 )));
             }
             // Verify text matches (using char offsets)
-            let actual_text: String = text.chars().skip(e.start).take(e.end - e.start).collect();
+            // Use optimized extract_text_with_len to avoid recalculating length
+            let actual_text = e.extract_text_with_len(text, text_len);
             if actual_text != e.text {
                 return Err(Error::InvalidInput(format!(
                     "MockModel entity {} text mismatch: expected '{}' at [{},{}), found '{}'",
@@ -528,7 +531,8 @@ pub const GLINER_LARGE_MODEL: &str = "onnx-community/gliner_large-v2.1";
 /// - `fastino/gliner2-large-v1`: Higher accuracy, larger (340M params)
 ///
 /// For pure NER, prefer [`DEFAULT_GLINER_MODEL`] instead.
-pub const DEFAULT_GLINER2_MODEL: &str = "fastino/gliner2-base-v1";
+/// Note: Model path may need to be "gliner/gliner2-base" or "onnx-community/gliner-multitask-large-v0.5"
+pub const DEFAULT_GLINER2_MODEL: &str = "onnx-community/gliner-multitask-large-v0.5";
 
 /// Default Candle model (BERT-based NER).
 /// Note: dslim/bert-base-NER only has vocab.txt, not tokenizer.json.
@@ -556,8 +560,8 @@ pub const DEFAULT_NUNER_MODEL: &str = "deepanwa/NuNerZero_onnx";
 /// Default W2NER model (nested/discontinuous NER).
 ///
 /// **Note**: This model (`ljynlp/w2ner-bert-base`) currently requires authentication
-/// and returns 401 errors. See `PROBLEMS.md` for details and alternatives.
-/// The backend factory will skip W2NER if this model cannot be loaded.
+/// and returns 401 errors. You may need to authenticate with `huggingface-cli login`
+/// or use an alternative model. The backend factory will skip W2NER if this model cannot be loaded.
 pub const DEFAULT_W2NER_MODEL: &str = "ljynlp/w2ner-bert-base";
 
 // =============================================================================

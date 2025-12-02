@@ -34,7 +34,7 @@
 //!
 //! | Backend | Feature | Zero-Shot | Nested | Speed | Notes |
 //! |---------|---------|-----------|--------|-------|-------|
-//! | `StackedNER` | - | No | No | Fast | Composable layers |
+//! | `StackedNER` | - | No | No | Fast | **Composable with any backend** |
 //! | `RegexNER` | - | No | No | ~400ns | Structured only |
 //! | `HeuristicNER` | - | No | No | ~50μs | Capitalization + context |
 //! | `GLiNER` | `onnx` | Yes | No | ~100ms | Span-based |
@@ -46,11 +46,14 @@
 //!
 //! - **Best accuracy**: `NERExtractor::best_available()` - uses GLiNER (~90% F1)
 //! - **Zero deps**: `StackedNER::default()` - no ML, good baseline
+//! - **Hybrid approach**: `StackedNER` with ML backends - combine ML accuracy with pattern speed
 //! - **Custom types**: `GLiNER` or `NuNER` - zero-shot, any entity type
 //! - **Nested entities**: `W2NER` - handles overlapping spans
 //! - **Structured data**: `RegexNER` - dates, emails, money
 //!
 //! # Quick Start
+//!
+//! Zero-dependency default (Pattern + Heuristic):
 //!
 //! ```rust
 //! use anno::{Model, StackedNER};
@@ -59,7 +62,7 @@
 //! let entities = ner.extract_entities("Dr. Smith charges $100/hr", None).unwrap();
 //! ```
 //!
-//! Custom stack:
+//! Custom stack with pattern + heuristic:
 //!
 //! ```rust
 //! use anno::{Model, RegexNER, HeuristicNER, StackedNER};
@@ -71,16 +74,49 @@
 //!     .strategy(ConflictStrategy::LongestSpan)
 //!     .build();
 //! ```
+//!
+//! **StackedNER is fully composable** - you can combine ML backends with pattern/heuristic layers:
+//!
+//! ```rust,no_run
+//! #[cfg(feature = "onnx")]
+//! use anno::{Model, StackedNER, GLiNEROnnx, RegexNER, HeuristicNER};
+//! use anno::backends::stacked::ConflictStrategy;
+//!
+//! // ML-first: ML runs first, then patterns fill gaps
+//! let ner = StackedNER::with_ml_first(
+//!     Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1").unwrap())
+//! );
+//!
+//! // ML-fallback: patterns/heuristics first, ML as fallback
+//! let ner = StackedNER::with_ml_fallback(
+//!     Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1").unwrap())
+//! );
+//!
+//! // Custom stack: any combination of backends
+//! let ner = StackedNER::builder()
+//!     .layer(RegexNER::new())           // High-precision structured entities
+//!     .layer_boxed(Box::new(GLiNEROnnx::new("onnx-community/gliner_small-v2.1").unwrap()))  // ML layer
+//!     .layer(HeuristicNER::new())       // Quick named entities
+//!     .strategy(ConflictStrategy::HighestConf)  // Resolve conflicts by confidence
+//!     .build();
+//! ```
 
 // Always available (zero deps beyond std)
+/// Box embeddings for geometric coreference resolution.
+pub mod box_embeddings;
+/// Training system for box embeddings.
+///
+/// This is the canonical training implementation. The [matryoshka-box](https://github.com/arclabs561/matryoshka-box)
+/// research project extends this with matryoshka-specific features (variable dimensions, etc.).
+pub mod box_embeddings_training;
 pub mod catalog;
 pub mod encoder;
 pub mod extractor;
 pub mod heuristic;
 pub mod inference;
 pub mod nuner;
-pub mod regex;
 pub mod pattern_config;
+pub mod regex;
 /// Language-aware routing for automatic backend selection.
 pub mod router;
 pub mod rule;
@@ -230,3 +266,15 @@ pub use onnx::BertNERConfig;
 
 // Warmup utilities (always available)
 pub use warmup::{warmup_model, warmup_with_callback, WarmupConfig, WarmupResult};
+
+// Box embeddings for geometric coreference
+pub use box_embeddings::{
+    acquisition_roles, interaction_strength, BoxCorefConfig, BoxEmbedding, BoxVelocity, Conflict,
+    GumbelBox, TemporalBox, UncertainBox,
+};
+
+// Box embedding training (canonical implementation; matryoshka-box extends with research features)
+pub use box_embeddings_training::{
+    coref_documents_to_training_examples, split_train_val, BoxEmbeddingTrainer, TrainingConfig,
+    TrainingExample,
+};
