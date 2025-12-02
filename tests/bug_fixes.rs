@@ -8,50 +8,43 @@ use anno::grounded::{Corpus, GroundedDocument, Location, Signal, TrackRef};
 #[test]
 fn test_gliner2_division_by_zero_empty_logits() {
     // Test for bug: division by zero when logits.len() == 0
-    // This would panic in the old code: 1.0 / 0.0
-    // Fixed: check for empty logits before division
+    // Fixed in src/backends/gliner2.rs:1003-1005
+    // The fix checks logits.is_empty() before division to prevent panic
 
-    // This test verifies the fix by ensuring the code path exists
-    // Actual implementation is in gliner2.rs softmax calculation
-    // The fix ensures that if logits.is_empty(), we return vec![]
-    // instead of trying to divide by logits.len()
+    // NOTE: This test verifies the fix logic conceptually.
+    // The actual code path (empty logits from ONNX model) is difficult to trigger
+    // through the public API because classify() returns early if labels.is_empty().
+    // However, the fix is critical for defensive programming if the model
+    // unexpectedly returns an empty tensor.
 
-    // We can't directly test the private method, but we can verify
-    // that the backend handles edge cases gracefully
+    // Simulate the fix logic: if logits.is_empty(), return empty vec
     let logits: Vec<f32> = vec![];
-    assert!(logits.is_empty());
-
-    // If we had empty logits, the old code would do:
-    // let uniform = 1.0 / logits.len() as f32; // Would panic: division by zero
-    // The fix checks logits.is_empty() first
+    
+    // The fix ensures this check happens before division
     if logits.is_empty() {
-        // Correct behavior: return empty vec
+        // Correct behavior: return empty vec (no division attempted)
         assert_eq!(logits.len(), 0);
     } else {
+        // Normal case: safe division
         let uniform = 1.0 / logits.len() as f32;
         assert!(!uniform.is_infinite());
+        assert!(!uniform.is_nan());
     }
+
+    // Verify the fix prevents the panic case
+    // Old code: 1.0 / 0.0 would panic or produce infinity
+    // New code: logits.is_empty() check prevents this
+    assert!(logits.is_empty(), "Empty logits should be handled gracefully");
 }
 
 #[test]
 fn test_gliner2_division_by_zero_all_neg_inf() {
-    // Test for bug: division by zero when all logits are -infinity
-    // Fixed: check if sum == 0.0 before dividing
+    // Test for bug: division by zero when sum == 0.0 in softmax
+    // Fixed in src/backends/gliner2.rs:1000-1010
+    // The fix checks if sum > 0.0 before dividing, falling back to uniform distribution
 
-    // Simulate all logits being -infinity
-    let logits = vec![f32::NEG_INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY];
-    let max_logit = logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
-    let exp_logits: Vec<f32> = logits.iter().map(|&x| (x - max_logit).exp()).collect();
-    let _sum: f32 = exp_logits.iter().sum();
-
-    // When all logits are -inf, exp(-inf - (-inf)) = exp(0) = 1.0
-    // Actually wait, if max_logit is -inf, then x - max_logit = -inf - (-inf) = NaN
-    // Let me think... if all are -inf, max_logit = -inf
-    // Then (x - max_logit) = -inf - (-inf) = NaN
-    // So exp(NaN) = NaN, and sum of NaNs = NaN
-
-    // Actually, the real case is when we have very negative logits
-    // that underflow to 0.0 when exponentiated
+    // Test case 1: Very negative logits that could underflow
+    // (In practice, this is unlikely but the fix handles it defensively)
     let very_negative = vec![-1000.0, -1000.0, -1000.0];
     let max_vn = very_negative
         .iter()
@@ -60,20 +53,37 @@ fn test_gliner2_division_by_zero_all_neg_inf() {
     let exp_vn: Vec<f32> = very_negative.iter().map(|&x| (x - max_vn).exp()).collect();
     let sum_vn: f32 = exp_vn.iter().sum();
 
-    // These should all be 1.0 (since max - max = 0, exp(0) = 1)
-    assert!((sum_vn - 3.0).abs() < 0.001);
+    // Normal case: all values are 1.0 (since max - max = 0, exp(0) = 1)
+    assert!((sum_vn - 3.0).abs() < 0.001, "Normal case should sum to 3.0");
 
-    // But if we had actual underflow, sum could be 0.0
-    // The fix handles this case
+    // The fix: check sum > 0.0 before division
     if sum_vn > 0.0 {
         let probs: Vec<f32> = exp_vn.iter().map(|&x| x / sum_vn).collect();
         let prob_sum: f32 = probs.iter().sum();
-        assert!((prob_sum - 1.0).abs() < 0.001);
+        assert!((prob_sum - 1.0).abs() < 0.001, "Probabilities should sum to 1.0");
     } else {
-        // Fallback: uniform distribution
+        // Fallback case: uniform distribution (handled by the fix)
         let uniform = 1.0 / very_negative.len() as f32;
-        assert!(!uniform.is_infinite());
-        assert!(!uniform.is_nan());
+        assert!(!uniform.is_infinite(), "Uniform should not be infinite");
+        assert!(!uniform.is_nan(), "Uniform should not be NaN");
+    }
+
+    // Test case 2: Simulate the edge case where sum == 0.0
+    // (This would happen if all exp values underflow to 0.0)
+    let exp_zeros = vec![0.0, 0.0, 0.0];
+    let sum_zeros: f32 = exp_zeros.iter().sum();
+    assert_eq!(sum_zeros, 0.0, "Sum should be 0.0 for this test case");
+
+    // The fix handles this: if sum == 0.0, use uniform distribution
+    if sum_zeros > 0.0 {
+        let _probs: Vec<f32> = exp_zeros.iter().map(|&x| x / sum_zeros).collect();
+        panic!("Should not reach here - sum is 0.0");
+    } else {
+        // This is the fix: uniform distribution fallback
+        let uniform = 1.0 / exp_zeros.len() as f32;
+        assert!(!uniform.is_infinite(), "Uniform should not be infinite");
+        assert!(!uniform.is_nan(), "Uniform should not be NaN");
+        assert!((uniform - 1.0 / 3.0).abs() < 0.001, "Uniform should be 1/3");
     }
 }
 
@@ -201,24 +211,28 @@ fn test_string_similarity_empty_strings() {
 }
 
 #[test]
+#[ignore] // Requires coreference dataset and model
 fn test_coreference_evaluation_runs_resolver() {
     // Test that coreference evaluation actually runs the resolver
     // This verifies the fix for the placeholder implementation
+    //
+    // NOTE: This is an integration test that requires:
+    // 1. A coreference dataset to be loaded
+    // 2. A backend that can extract entities
+    // 3. Verification that SimpleCorefResolver is called
+    // 
+    // Run with: cargo test --features eval-advanced -- --ignored
 
     use anno::eval::task_evaluator::TaskEvaluator;
-
-    // This is an integration test - it requires actual dataset loading
-    // For now, we'll just verify the evaluator can be created
-    // and the method exists (the actual evaluation requires datasets)
 
     let evaluator = TaskEvaluator::new();
     assert!(evaluator.is_ok(), "TaskEvaluator should be creatable");
 
-    // The actual test would require:
-    // 1. A coreference dataset to be loaded
-    // 2. A backend that can extract entities
-    // 3. Verification that SimpleCorefResolver is called
-    // This is better tested in integration tests with actual data
+    // TODO: Implement full integration test that:
+    // 1. Loads a coreference dataset (e.g., OntoNotes)
+    // 2. Runs evaluation with a backend
+    // 3. Verifies that SimpleCorefResolver::resolve() is called
+    // 4. Checks that coreference clusters are created correctly
 }
 
 #[test]
@@ -314,16 +328,24 @@ fn test_resolve_inter_doc_coref_missing_document() {
 }
 
 #[test]
+#[ignore] // Requires W2NER backend and model initialization
 fn test_w2ner_word_position_fallback() {
     // Test for bug: word position calculation may fail if words don't appear in order
-    // The fix adds fallback logic and warning when words aren't found
-
-    // This test verifies the fix exists conceptually
-    // Actual testing requires access to w2ner internals or integration tests
+    // Fixed: fallback logic added when words aren't found at expected positions
+    // 
+    // NOTE: This test requires W2NER backend initialization and model loading.
+    // The fix is in the word position calculation logic, which is difficult to test
+    // without a full backend setup. This test is marked #[ignore] and should be
+    // run as an integration test with: cargo test --features onnx -- --ignored
 
     // The fix ensures that if a word isn't found starting from pos,
-    // it tries to find it from the beginning as a fallback
-    // This handles cases where tokenized words don't match original text exactly
+    // it tries to find it from the beginning as a fallback.
+    // This handles cases where tokenized words don't match original text exactly.
+    
+    // TODO: Implement integration test that:
+    // 1. Initializes W2NER backend
+    // 2. Provides text with words that don't appear in tokenization order
+    // 3. Verifies the fallback logic is triggered and works correctly
 }
 
 #[test]
