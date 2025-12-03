@@ -389,11 +389,12 @@ jobs:
           path: safety-report.json
 
   # Miri: undefined behavior detection (selective on unsafe code)
+  # Only runs on push to main/master or manual trigger (too slow for PRs)
   miri-unsafe:
     name: Miri (Unsafe Code Validation)
     runs-on: ubuntu-latest
     continue-on-error: true
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test-unsafe')
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'test-unsafe'))
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -602,10 +603,11 @@ jobs:
             }
 
   # Code coverage (optional, runs on schedule or manual trigger)
+  # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs)
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
