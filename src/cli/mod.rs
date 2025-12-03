@@ -1,8 +1,13 @@
-//! CLI library modules for the anno binary.
+//! CLI module for anno binary
 //!
-//! This module provides reusable CLI functionality that can be tested
-//! independently and used by other binaries.
+//! This module contains the command-line interface structure, argument parsing,
+//! and command routing. Individual command implementations are in the `commands` submodule.
 
-pub mod cache;
 pub mod commands;
-pub mod config;
+pub mod parser;
+pub mod output;
+pub mod utils;
+
+pub use parser::*;
+pub use output::*;
+pub use utils::*;

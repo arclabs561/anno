@@ -721,7 +721,7 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
 
 /// European names (English, German, French, Italian, Nordic, etc.)
 fn european_names() -> Vec<NameExample> {
-    vec![
+    let mut names = Vec::new();
     // === European Names ===
     names.extend(vec![
         NameExample::new(
@@ -789,7 +789,12 @@ fn european_names() -> Vec<NameExample> {
             NameFrequency::Rare,
         ),
     ]);
+    names
+}
 
+/// African-American names
+fn african_american_names() -> Vec<NameExample> {
+    let mut names = Vec::new();
     // === African-American Names ===
     names.extend(vec![
         NameExample::new(
@@ -856,7 +861,8 @@ fn european_names() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Rare,
         ),
-    ]
+    ]);
+    names
 }
 
 /// Hispanic/Latino names
@@ -1183,8 +1189,9 @@ fn middle_eastern_names() -> Vec<NameExample> {
 
 /// African names (from various African countries)
 fn african_names() -> Vec<NameExample> {
-    vec![
+    let mut names = Vec::new();
     // === African Names ===
+    names.extend(vec![
         NameExample::new(
             "Chidi",
             "Okonkwo",
@@ -2481,7 +2488,8 @@ fn african_names() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Common,
         ),
-    ]
+    ]);
+    names
 }
 
 /// Validate demographic distribution against reference (US Census proportions).

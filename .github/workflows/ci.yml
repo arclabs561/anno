@@ -24,8 +24,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-        with:
-          cache-all-crates: true
       - run: cargo check --all-targets
 
   fmt:
@@ -49,8 +47,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-        with:
-          cache-all-crates: true
       - run: cargo clippy --all-targets
 
   # ==========================================================================
@@ -63,8 +59,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
         with:
           cache-all-crates: true
       - run: cargo test --lib
@@ -120,7 +114,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-        with:
           key: ${{ matrix.os }}
       - name: Build
         run: cargo build --features eval
