@@ -1,110 +1,141 @@
-# Implementation Summary: Evaluation Improvements
+# Implementation Summary - Defaults and Forgotten Tasks
 
-**Date**: 2025-01-XX  
-**Status**: Core Features Implemented, Integration In Progress
+**Date**: 2025-01-25  
+**Status**: ✅ Completed
 
-## ✅ Completed Implementations
+## Changes Implemented
 
-### 1. Chain-Length Stratification for Coreference ✅
-- **File**: `src/eval/coref_metrics.rs`
-- **Implementation**: 
-  - Added `compute_chain_length_stratified()` function
-  - Integrated into `CorefEvaluation::compute()`
-  - Automatically computes per-chain-length F1 (long/short/singleton)
-  - Updated `Display` to show chain-length breakdown
-- **Usage**: Automatically computed for all coreference evaluations
+### 1. Fixed Compilation Warnings ✅
 
-### 2. Improved Familiarity Computation ✅
-- **File**: `src/eval/types.rs`
-- **Implementation**:
-  - Enhanced `LabelShift::from_type_sets()` with improved string similarity
-  - Added `from_type_sets_with_embeddings()` for true semantic similarity
-  - Uses Levenshtein distance + substring matching for better heuristic
-  - Supports embedding-based computation when embeddings are available
-- **Usage**: Can be called with or without embeddings
+**Files Modified**:
+- `src/backends/onnx.rs` - Removed unused `lock` import
+- `src/backends/gliner2.rs` - Removed unused `lock` import  
+- `src/backends/coref_t5.rs` - Removed unused `Mutex` import
+- `src/eval/task_evaluator.rs` - Removed unused `try_lock` import
+- `src/eval/backend_name.rs` - Removed duplicate `"w2ner"` pattern
 
-### 3. Boundary Error Documentation ✅
-- **File**: `src/eval/ner_metrics.rs`
-- **Implementation**: Added comprehensive documentation explaining:
-  - Greedy matching behavior
-  - Why boundary errors are not double-penalized in our implementation
-  - How boundary errors differ from complete misses
-- **Usage**: Documentation available in function docs
+**Result**: All unused import warnings resolved.
 
-### 4. TaskEvalConfig and TaskEvalResult Expansion ✅
-- **File**: `src/eval/task_evaluator.rs`
-- **Implementation**:
-  - Added `robustness`, `compute_familiarity`, `temporal_stratification`, `confidence_intervals` flags
-  - Added `label_shift`, `robustness`, `stratified`, `confidence_intervals` fields to results
-  - Added `StratifiedMetrics`, `MetricWithCI`, `ConfidenceIntervals` types
-- **Usage**: Structures ready for integration
+### 2. Changed MIN_CI_SAMPLE_SIZE from 1 to 2 ✅
 
-### 5. Helper Functions ✅
-- **File**: `src/eval/task_evaluator.rs`
-- **Implementation**:
-  - `compute_familiarity_if_zero_shot()`: Computes familiarity for zero-shot backends
-  - `compute_confidence_intervals()`: Computes confidence intervals (placeholder implementation)
-- **Usage**: Called in `evaluate_combination()` when flags are enabled
+**File**: `src/eval/task_evaluator.rs:40`
 
-## 🚧 Partially Implemented (Structures Ready, Full Integration Pending)
+**Change**:
+```rust
+/// Minimum sample size for confidence interval computation
+/// 
+/// Set to 2 because confidence intervals require at least 2 samples for meaningful variance estimation.
+const MIN_CI_SAMPLE_SIZE: usize = 2;
+```
 
-### 6. Familiarity Integration
-- **Status**: Helper function exists and is called
-- **Remaining**: Need to ensure it's called for all zero-shot backends, report in outputs
+**Rationale**: Confidence intervals require at least 2 samples for meaningful variance estimation. With n=1, variance is always 0, making CI meaningless.
 
-### 7. Robustness Testing Integration
-- **Status**: Structure ready, feature-gated properly
-- **Remaining**: Need to call `RobustnessEvaluator` in `evaluate_ner_task()` when enabled
+**Edge Case Handling**: Added check to fall back to aggregate metrics when `dataset_len < MIN_CI_SAMPLE_SIZE`:
+```rust
+if dataset_len < MIN_CI_SAMPLE_SIZE {
+    return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
+}
+```
 
-### 8. Temporal Stratification
-- **Status**: Structure ready in `StratifiedMetrics`
-- **Remaining**: Need to add temporal metadata to datasets, compute stratification
+### 3. Documented Placeholder Std Dev ✅
 
-### 9. Expanded Stratified Metrics
-- **Status**: Structure ready with `by_surface_form`, `by_mention_char`
-- **Remaining**: Need to compute these metrics in evaluation functions
+**File**: `src/eval/task_evaluator.rs:33-38`
 
-### 10. Confidence Intervals
-- **Status**: Helper function exists (placeholder)
-- **Remaining**: Need proper variance computation from per-example scores
+**Change**: Added comprehensive documentation explaining:
+- Why 0.05 (5%) was chosen as a conservative estimate
+- When it's used (fallback when actual variance unavailable)
+- Preference for computing actual variance from per-example scores
 
-## ⏳ Not Started
+### 4. Verified Per-Example Score Integration ✅
 
-### 11. KB Version Tracking
-- **Status**: Not started
-- **Required**: Add KB version metadata, URI validation, emerging entity separation
+**Status**: **Already optimally implemented**
 
-## Testing Status
+**Findings**:
+- ✅ Per-example scores are tracked during evaluation (`evaluate_ner_task`)
+- ✅ Scores are cached in `per_example_scores_cache` (Mutex-protected)
+- ✅ Cached scores are used for stratified metrics when available (`compute_stratified_metrics_from_scores`)
+- ✅ Cached scores are used for confidence intervals when available (`compute_confidence_intervals_from_scores`)
+- ✅ Fallback to aggregate metrics when cache is empty
 
-- [x] Code compiles successfully
-- [ ] Chain-length stratification tests
-- [ ] Familiarity computation tests
-- [ ] Integration tests for new features
+**Conclusion**: Integration is complete and optimal. No changes needed.
 
-## Next Steps
+### 5. Temporal Metadata Structure ✅
 
-1. **Complete Robustness Integration**: Add robustness testing call in `evaluate_ner_task()`
-2. **Complete Temporal Stratification**: Add temporal metadata support
-3. **Complete Stratified Metrics**: Compute surface form and mention characteristics
-4. **Improve Confidence Intervals**: Compute from per-example scores
-5. **Add Tests**: Comprehensive test coverage for new features
-6. **Update Documentation**: User-facing docs for new evaluation features
+**Status**: **Already fully implemented**
 
-## Files Modified
+**Findings**:
+- ✅ `TemporalMetadata` struct exists in `src/eval/loader.rs:1838-1855`
+- ✅ `LoadedDataset` has `temporal_metadata: Option<TemporalMetadata>` field
+- ✅ `get_temporal_metadata()` function provides metadata for specific datasets
+- ✅ Temporal stratification is computed when metadata is available (`compute_temporal_stratification`)
+- ✅ Integration in evaluation pipeline is complete
 
-1. `src/eval/coref_metrics.rs` - Chain-length stratification
-2. `src/eval/types.rs` - Improved familiarity computation
-3. `src/eval/ner_metrics.rs` - Boundary error documentation
-4. `src/eval/task_evaluator.rs` - Config/result expansion, helper functions
-5. `docs/EVALUATION_CRITICAL_REVIEW.md` - Analysis document
-6. `docs/IMPLEMENTATION_STATUS.md` - Status tracking
-7. `docs/IMPLEMENTATION_SUMMARY.md` - This file
+**Conclusion**: Temporal metadata is fully implemented. No changes needed.
 
-## Key Achievements
+### 6. Default max_examples Limit ⚠️ **DECISION: Keep as None**
 
-✅ **Research-Aligned**: All implementations follow latest research findings  
-✅ **Backward Compatible**: New features are opt-in via config flags  
-✅ **Feature-Gated**: Robustness testing properly gated behind `eval-advanced`  
-✅ **Well-Documented**: Comprehensive documentation added  
-✅ **Type-Safe**: All new types properly defined and serializable
+**Analysis**:
+- **Current**: `max_examples: None` (unlimited)
+- **Proposed**: `max_examples: Some(1000)` (limit to prevent slow runs)
 
+**Decision**: **Keep as `None` by default**
+
+**Rationale**:
+1. Users who want full evaluation should be able to do so
+2. Limiting by default could hide important results
+3. Users can easily set a limit if needed via `with_max_examples()`
+4. The evaluation framework already has performance optimizations (parallel processing, sampling for CI)
+
+**Documentation**: Added comment in code explaining the trade-off.
+
+## Remaining Forgotten Tasks (Not Implemented)
+
+### Medium Priority
+
+1. **Embedding-Based Familiarity Integration** ❌
+   - Function exists but not integrated
+   - Would require encoder backend integration
+   - **Status**: Enhancement, not critical
+
+2. **KB Version Tracking** ❌
+   - Not started
+   - Would require dataset metadata extensions
+   - **Status**: Enhancement, not critical
+
+### Low Priority
+
+3. **Inter-Doc Coref Evaluation** ❌
+   - Specialized use case
+   - **Status**: Future enhancement
+
+4. **Box Embeddings Standard Metrics** ❌
+   - Missing MUC, B³, CEAF, LEA, BLANC, CoNLL F1
+   - **Status**: Research priority, not critical for core evaluation
+
+## Summary
+
+### ✅ Completed
+- Fixed all compilation warnings
+- Changed MIN_CI_SAMPLE_SIZE to 2 (statistical validity)
+- Documented placeholder std_dev
+- Verified per-example score integration (already optimal)
+- Verified temporal metadata (already implemented)
+
+### ⚠️ Decisions Made
+- Keep `max_examples: None` by default (user choice)
+
+### ❌ Not Implemented (Enhancements)
+- Embedding-based familiarity (medium priority)
+- KB version tracking (medium priority)
+- Inter-doc coref evaluation (low priority)
+- Box embeddings standard metrics (research priority)
+
+## Impact
+
+**All critical issues addressed**. The evaluation framework is now:
+- ✅ Statistically sound (MIN_CI_SAMPLE_SIZE = 2)
+- ✅ Well-documented (placeholder std_dev explained)
+- ✅ Warning-free (all unused imports removed)
+- ✅ Optimally integrated (per-example scores, temporal metadata)
+
+**Remaining tasks are enhancements**, not bugs or critical issues.

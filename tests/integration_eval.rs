@@ -75,6 +75,7 @@ mod tests {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: false,
+            custom_coref_resolver: None,
         };
 
         // This will attempt to download datasets if not cached
@@ -178,6 +179,7 @@ mod tests {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: false,
+            custom_coref_resolver: None,
         };
 
         let result = evaluator.evaluate_all(config);

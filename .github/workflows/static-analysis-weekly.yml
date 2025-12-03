@@ -1,0 +1,97 @@
+name: Static Analysis Weekly
+
+# Weekly comprehensive static analysis
+# Runs on schedule to avoid slowing down PRs
+
+on:
+  schedule:
+    # Run every Monday at 2 AM UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  comprehensive-analysis:
+    name: Comprehensive Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for trend analysis
+      
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Install all static analysis tools
+        run: |
+          cargo install --locked cargo-deny
+          cargo install cargo-machete
+          cargo install cargo-geiger
+          cargo install cargo-nextest
+          cargo install cargo-llvm-cov
+          rustup component add miri
+          cargo install cargo-miri
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Run comprehensive safety report
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/generate-safety-report.sh
+      
+      - name: Track unsafe code trends
+        run: |
+          ./scripts/track-unsafe-code-trends.sh
+      
+      - name: Compare tool outputs
+        run: |
+          ./scripts/compare-tool-outputs.sh
+      
+      - name: Benchmark tools
+        run: |
+          ./scripts/benchmark-static-analysis.sh
+      
+      - name: Generate repo-specific report
+        run: |
+          ./scripts/generate-repo-specific-report.sh || true
+      
+      - name: Generate analysis dashboard
+        run: |
+          ./scripts/generate-analysis-dashboard.sh || true
+      
+      - name: Generate code coverage
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      
+      - name: Upload all reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: weekly-static-analysis-reports
+          path: |
+            safety-report.md
+            tool-comparison.md
+            static-analysis-benchmark.txt
+            repo-specific-analysis.md
+            static-analysis-dashboard.html
+            lcov.info
+            .unsafe-code-trends/
+          retention-days: 90
+      
+      - name: Comment on PR (if triggered from PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('safety-report.md')) {
+              const report = fs.readFileSync('safety-report.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Weekly Static Analysis Report\n\n\`\`\`\n${report}\n\`\`\``
+              });
+            }
+

@@ -185,3 +185,199 @@ mutants-all:
 # List mutants without running tests (quick check)
 mutants-list:
     cargo mutants --list
+
+# === Static Analysis Tools ===
+
+# Run cargo-deny (dependency linting)
+# Rule validation and reporting
+validate-rules:
+    @echo "Validating OpenGrep rules against known patterns..."
+    @./scripts/validate-rules.sh
+
+unified-report:
+    @echo "Generating unified static analysis report..."
+    @./scripts/generate-unified-report.sh
+    @echo "Report generated: unified-static-analysis-report.md"
+
+failure-summary:
+    @echo "Summarizing static analysis failures..."
+    @./scripts/summarize-failures.sh
+    @echo "Summary generated: static-analysis-failures-summary.md"
+
+# Static analysis tools
+deny:
+    @which cargo-deny > /dev/null || (echo "Install: cargo install --locked cargo-deny" && exit 1)
+    cargo deny check
+
+# Run cargo-machete (fast unused dependencies)
+machete:
+    @which cargo-machete > /dev/null || (echo "Install: cargo install cargo-machete" && exit 1)
+    cargo machete
+
+# Run cargo-geiger (unsafe code statistics)
+geiger:
+    @which cargo-geiger > /dev/null || (echo "Install: cargo install cargo-geiger" && exit 1)
+    cargo geiger
+
+# Generate unsafe code safety report (creative use of cargo-geiger)
+safety-report:
+    @which cargo-geiger > /dev/null || (echo "Install: cargo install cargo-geiger" && exit 1)
+    @echo "Generating safety report..."
+    @cargo geiger --output-format json > .safety-report.json 2>/dev/null || true
+    @echo "Unsafe code statistics:"
+    @cat .safety-report.json | jq -r '.packages[] | select(.geiger.unsafe_used > 0) | "\(.name): \(.geiger.unsafe_used) unsafe uses"' 2>/dev/null || echo "No unsafe code found or jq not installed"
+    @echo ""
+    @echo "Full report saved to .safety-report.json"
+
+# Run OpenGrep static analysis
+opengrep:
+    @which opengrep > /dev/null || (echo "Install: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash" && exit 1)
+    opengrep scan --config auto --json --output .opengrep-results.json src/ tests/ examples/
+    @echo "Results saved to .opengrep-results.json"
+    @cat .opengrep-results.json | jq -r '.results | length' | xargs -I {} echo "Found {} issues" 2>/dev/null || echo "Run: opengrep scan --config auto"
+
+# Run OpenGrep with custom rules
+opengrep-custom:
+    @which opengrep > /dev/null || (echo "Install: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash" && exit 1)
+    opengrep scan -f .opengrep/rules --json --output .opengrep-custom-results.json src/
+    @echo "Custom rules results saved to .opengrep-custom-results.json"
+
+# Run Miri on unsafe code files (selective)
+miri-unsafe:
+    @rustup component list | grep -q "miri.*installed" || (echo "Install: rustup component add miri" && exit 1)
+    @echo "Running Miri on unsafe code files..."
+    @cargo miri test --lib --features onnx -- --test-threads=1 2>&1 | head -50 || true
+    @echo "Miri check complete (see output above)"
+
+# Run all static analysis tools (comprehensive check)
+static-analysis:
+    @echo "=== Running Static Analysis Tools ==="
+    @echo ""
+    @echo "1. cargo-deny (dependency linting)..."
+    @just deny || echo "⚠️  cargo-deny failed or not installed"
+    @echo ""
+    @echo "2. cargo-machete (unused dependencies)..."
+    @just machete || echo "⚠️  cargo-machete failed or not installed"
+    @echo ""
+    @echo "3. cargo-geiger (unsafe code stats)..."
+    @just geiger || echo "⚠️  cargo-geiger failed or not installed"
+    @echo ""
+    @echo "4. OpenGrep (security patterns)..."
+    @just opengrep || echo "⚠️  OpenGrep failed or not installed"
+    @echo ""
+    @echo "=== Static Analysis Complete ==="
+
+# Run tests with cargo-nextest (better output)
+test-nextest:
+    @which cargo-nextest > /dev/null || (echo "Install: cargo install cargo-nextest" && exit 1)
+    cargo nextest run --all-features
+
+# Generate code coverage report
+coverage:
+    @which cargo-llvm-cov > /dev/null || (echo "Install: cargo install cargo-llvm-cov" && exit 1)
+    cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+    @echo "Coverage report generated: lcov.info"
+    @echo "View with: genhtml lcov.info -o coverage-html && open coverage-html/index.html"
+
+# Generate comprehensive safety report (creative: combines multiple tools)
+safety-report-full:
+    @./scripts/generate-safety-report.sh
+    @echo "Full safety report: safety-report.md"
+
+# Benchmark static analysis tools (creative: performance comparison)
+benchmark-tools:
+    @./scripts/benchmark-static-analysis.sh
+
+# Compare tool outputs (creative: identify overlapping findings)
+compare-tools:
+    @./scripts/compare-tool-outputs.sh
+
+# Track unsafe code trends over time (creative: time-series analysis)
+track-unsafe-trends:
+    @./scripts/track-unsafe-code-trends.sh
+
+# Validate static analysis setup
+validate-setup:
+    @./scripts/validate-static-analysis-setup.sh
+
+# === All-in-One Commands ===
+
+# Run everything: static analysis + safety report + trends
+analysis-full:
+    @echo "Running comprehensive static analysis..."
+    @just static-analysis
+    @echo ""
+    @echo "Generating safety report..."
+    @just safety-report-full
+    @echo ""
+    @echo "Tracking unsafe code trends..."
+    @just track-unsafe-trends
+    @echo ""
+    @echo "✅ Comprehensive analysis complete!"
+    @echo "   - Reports: safety-report.md, tool-comparison.md"
+    @echo "   - Trends: .unsafe-code-trends/"
+
+# Quick validation before commit
+pre-commit-check:
+    @echo "Running pre-commit checks..."
+    @cargo fmt --all -- --check
+    @cargo clippy --all-targets -- -D warnings
+    @just machete || echo "⚠️  cargo-machete not installed, skipping"
+    @echo "✅ Pre-commit checks passed"
+
+# Generate HTML dashboard (creative: visual analysis results)
+dashboard:
+    @./scripts/generate-analysis-dashboard.sh
+    @echo "Dashboard: static-analysis-dashboard.html"
+
+# === NLP/ML-Specific Analysis ===
+
+# Check NLP/ML-specific patterns
+check-nlp-patterns:
+    @./scripts/check-nlp-patterns.sh
+
+# Analyze evaluation framework patterns
+analyze-eval-patterns:
+    @./scripts/analyze-evaluation-patterns.sh
+    @echo "Analysis: evaluation-pattern-analysis.md"
+
+# Check ML backend patterns
+check-ml-backends:
+    @./scripts/check-ml-backend-patterns.sh
+
+# Check evaluation framework invariants
+check-eval-invariants:
+    @./scripts/check-evaluation-invariants.sh
+
+# Comprehensive NLP/ML analysis (combines all checks)
+analysis-nlp-ml:
+    @echo "=== NLP/ML Pattern Analysis ==="
+    @just check-nlp-patterns || echo "⚠️  Some NLP pattern issues found"
+    @echo ""
+    @echo "=== Evaluation Framework Analysis ==="
+    @just analyze-eval-patterns
+    @echo ""
+    @echo "=== ML Backend Analysis ==="
+    @just check-ml-backends || echo "⚠️  Some ML backend issues found"
+    @echo ""
+    @echo "=== Evaluation Invariants ==="
+    @just check-eval-invariants || echo "⚠️  Some invariant issues found"
+    @echo ""
+    @echo "=== OpenGrep Custom Rules ==="
+    @just opengrep-custom || echo "⚠️  OpenGrep not installed"
+    @echo ""
+    @echo "✅ NLP/ML analysis complete"
+
+# Generate repo-specific analysis report
+repo-analysis:
+    @./scripts/generate-repo-specific-report.sh
+    @echo "Report: repo-specific-analysis.md"
+
+# Integrate static analysis with evaluation framework
+integrate-analysis-eval:
+    @./scripts/integrate-with-evaluation.sh
+    @echo "Integration guide: static-analysis-eval-integration.md"
+
+# Check for historical bug patterns (regression prevention)
+check-historical-bugs:
+    @./scripts/check-historical-bugs.sh

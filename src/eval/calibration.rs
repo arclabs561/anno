@@ -540,7 +540,13 @@ pub fn confidence_entropy(scores: &[f64]) -> f64 {
 
     // Compute standard deviation
     let mean = scores.iter().sum::<f64>() / scores.len() as f64;
-    let variance = scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / scores.len() as f64;
+    // Use sample variance (Bessel's correction: n-1) for unbiased estimate
+    let n = scores.len() as f64;
+    let variance = if n > 1.0 {
+        scores.iter().map(|s| (s - mean).powi(2)).sum::<f64>() / (n - 1.0)
+    } else {
+        0.0
+    };
     let std_dev = variance.sqrt();
 
     // Normalize by maximum possible std dev for [0,1] scores

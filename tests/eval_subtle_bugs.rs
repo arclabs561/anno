@@ -20,13 +20,8 @@ fn test_ci_bounds_clamp_consistency() {
     // always in [0.0, 1.0] and that the calculation is consistent.
 
     // Test that clamp produces the same result as max().min()
-    let test_cases: Vec<(f64, f64)> = vec![
-        (-0.1, 0.0),
-        (0.0, 0.0),
-        (0.5, 0.5),
-        (1.0, 1.0),
-        (1.1, 1.0),
-    ];
+    let test_cases: Vec<(f64, f64)> =
+        vec![(-0.1, 0.0), (0.0, 0.0), (0.5, 0.5), (1.0, 1.0), (1.1, 1.0)];
 
     for (value, expected) in test_cases {
         let clamped = value.clamp(0.0, 1.0);
@@ -49,7 +44,7 @@ fn test_ci_bounds_clamp_consistency() {
 fn test_stratified_metrics_per_type_correctness() {
     // This test verifies that stratified metrics compute per-type metrics correctly,
     // not just using overall metrics for all types.
-    // 
+    //
     // The bug was: compute_stratified_metrics_from_scores grouped by entity type
     // but used overall summary.strict_f1 for all types, which is incorrect.
     //
@@ -75,13 +70,15 @@ fn test_stratified_metrics_per_type_correctness() {
 
     // Create predictions: correct for Person and Organization, wrong for Location
     let predicted = vec![
-        Entity::new("John Smith", EntityType::Person, 0, 10, 0.9),      // Correct
+        Entity::new("John Smith", EntityType::Person, 0, 10, 0.9), // Correct
         Entity::new("Apple Inc.", EntityType::Organization, 20, 30, 0.9), // Correct
-        Entity::new("New York", EntityType::Person, 34, 42, 0.9),     // Wrong type
+        Entity::new("New York", EntityType::Person, 34, 42, 0.9),  // Wrong type
     ];
 
     let model = MockModel::new("stratified-test").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold, None)
+        .unwrap();
 
     // Verify per-type metrics are computed correctly
     let person_metrics = metrics.per_type.get("PER");
@@ -91,9 +88,15 @@ fn test_stratified_metrics_per_type_correctness() {
     );
     if let Some(person) = person_metrics {
         // Person: 2 found (John Smith correct, New York wrong type), 1 expected, 1 correct
-        assert_eq!(person.found, 2, "Person should have 2 found (John Smith + New York predicted as Person)");
+        assert_eq!(
+            person.found, 2,
+            "Person should have 2 found (John Smith + New York predicted as Person)"
+        );
         assert_eq!(person.expected, 1, "Person should have 1 expected");
-        assert_eq!(person.correct, 1, "Person should have 1 correct (only John Smith)");
+        assert_eq!(
+            person.correct, 1,
+            "Person should have 1 correct (only John Smith)"
+        );
         assert_eq!(
             person.precision, 0.5,
             "Person precision should be 0.5 (1 correct / 2 found)"
@@ -114,10 +117,7 @@ fn test_stratified_metrics_per_type_correctness() {
         assert_eq!(org.found, 1, "Organization should have 1 found");
         assert_eq!(org.expected, 1, "Organization should have 1 expected");
         assert_eq!(org.correct, 1, "Organization should have 1 correct");
-        assert_eq!(
-            org.precision, 1.0,
-            "Organization precision should be 1.0"
-        );
+        assert_eq!(org.precision, 1.0, "Organization precision should be 1.0");
     }
 
     let loc_metrics = metrics.per_type.get("LOC");
@@ -127,7 +127,10 @@ fn test_stratified_metrics_per_type_correctness() {
     );
     if let Some(loc) = loc_metrics {
         // Location: 0 found (predicted as Person), 1 expected, 0 correct
-        assert_eq!(loc.found, 0, "Location should have 0 found (predicted as Person)");
+        assert_eq!(
+            loc.found, 0,
+            "Location should have 0 found (predicted as Person)"
+        );
         assert_eq!(loc.expected, 1, "Location should have 1 expected");
         assert_eq!(loc.correct, 0, "Location should have 0 correct");
         assert_eq!(
@@ -176,7 +179,9 @@ fn test_per_type_sum_to_overall() {
     ];
 
     let model = MockModel::new("sum-test").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold, None)
+        .unwrap();
 
     // Sum per-type counts
     let sum_found: usize = metrics.per_type.values().map(|m| m.found).sum();
@@ -238,4 +243,3 @@ fn test_zero_length_span_overlap() {
         "Zero-length span should not overlap with non-zero span at different position"
     );
 }
-

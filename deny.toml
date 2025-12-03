@@ -1,0 +1,78 @@
+# cargo-deny configuration for anno
+# Run: cargo deny check
+
+[advisories]
+# Deny all security vulnerabilities
+vulnerability = "deny"
+# Warn about unmaintained crates (but don't block)
+unmaintained = "warn"
+# Warn about yanked crates
+yanked = "warn"
+# Allow notices (informational)
+notice = "warn"
+
+# Ignore specific advisories if needed (add IDs here)
+ignore = [
+    # Example: "RUSTSEC-2023-XXXX"
+]
+
+[licenses]
+# Default: deny unknown licenses
+default = "deny"
+# Deny copyleft licenses (GPL, AGPL, etc.)
+copyleft = "deny"
+# Allow permissive licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "CC0-1.0",
+]
+# Explicitly deny problematic licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-1.0",
+    "AGPL-3.0",
+    "LGPL-2.0",
+    "LGPL-2.1",
+    "LGPL-3.0",
+]
+
+[bans]
+# Deny multiple versions of the same crate
+multiple-versions = "deny"
+# Deny wildcard version requirements
+wildcards = "deny"
+# Allow specific wildcards if needed
+allow-wildcard = []
+# Skip specific crates from duplicate checking
+skip = [
+    # Some crates legitimately need multiple versions
+    # "regex",  # Example: if needed
+]
+
+[sources]
+# Allow crates from crates.io
+registry = "allow"
+# Allow git dependencies (with restrictions)
+git = "allow"
+# Allow path dependencies (for local development)
+path = "allow"
+# Deny unknown sources
+unknown-registry = "deny"
+unknown-git = "deny"
+
+# Specific source restrictions
+[allow-version]
+# Example: Allow specific versions if needed
+# "some-crate" = "=1.2.3"
+
+[allow-org]
+# Allow specific GitHub organizations if using git deps
+# "github:myorg" = ["repo1", "repo2"]
+

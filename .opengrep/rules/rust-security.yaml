@@ -1,0 +1,178 @@
+# OpenGrep custom rules for anno codebase
+# These rules complement clippy by focusing on security and reliability patterns
+
+rules:
+  # ============================================================================
+  # Error Handling Anti-patterns
+  # ============================================================================
+  
+  - id: dangerous-unwrap-in-library
+    pattern: $VAR.unwrap()
+    message: "Unwrap in library code - potential panic. Consider expect() with context or proper error handling."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: reliability
+      cwe: "CWE-248: Uncaught Exception"
+    paths:
+      exclude:
+        - "**/tests/**"
+        - "**/examples/**"
+        - "**/benches/**"
+        - "**/hack/**"
+
+  - id: expect-without-context
+    pattern: $VAR.expect($MSG)
+    message: "Expect without descriptive message. Add context about what failed."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: maintainability
+    paths:
+      exclude:
+        - "**/tests/**"
+
+  - id: panic-in-library
+    patterns:
+      - pattern: panic!(...)
+      - not:
+          - pattern: |
+              #[cfg(test)]
+              ...
+    message: "Panic in library code. Libraries should return Result types instead of panicking."
+    languages: [rust]
+    severity: ERROR
+    metadata:
+      category: reliability
+    paths:
+      exclude:
+        - "**/tests/**"
+        - "**/examples/**"
+
+  # ============================================================================
+  # Unsafe Code Patterns
+  # ============================================================================
+  
+  - id: unsafe-block-without-comment
+    patterns:
+      - pattern: |
+          unsafe {
+            $BODY
+          }
+      - not:
+          - pattern: |
+              // SAFETY:
+              ...
+    message: "Unsafe block without safety comment. Document why this is safe."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: safety
+
+  - id: unsafe-function-without-docs
+    patterns:
+      - pattern: |
+          unsafe fn $F(...) {
+            $BODY
+          }
+      - not:
+          - pattern: |
+              /// ...
+              unsafe fn $F
+    message: "Unsafe function without documentation. Document safety requirements."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: safety
+
+  # ============================================================================
+  # Concurrency Patterns
+  # ============================================================================
+  
+  - id: mutex-lock-without-handling-poison
+    patterns:
+      - pattern: |
+          let $VAR = $MUTEX.lock();
+      - not:
+          - pattern-either:
+              - pattern: .unwrap_or_else
+              - pattern: .map_err
+              - pattern: match $MUTEX.lock()
+    message: "Mutex lock without poison handling. Consider unwrap_or_else or proper error handling."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: reliability
+    paths:
+      include:
+        - "**/eval/**"
+        - "**/sync.rs"
+        - "**/session_pool.rs"
+
+  # ============================================================================
+  # Memory Safety
+  # ============================================================================
+  
+  - id: unchecked-array-access
+    patterns:
+      - pattern: $ARR[$INDEX]
+      - not:
+          - pattern-either:
+              - pattern: $ARR.get($INDEX)
+              - pattern: |
+                  if $INDEX < $ARR.len() {
+                    $ARR[$INDEX]
+                  }
+    message: "Unchecked array access. Consider using get() or bounds checking."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: safety
+    paths:
+      exclude:
+        - "**/tests/**"
+
+  # ============================================================================
+  # API Design
+  # ============================================================================
+  
+  - id: public-unsafe-function
+    patterns:
+      - pattern: |
+          pub unsafe fn $F(...) {
+            $BODY
+          }
+    message: "Public unsafe function. Ensure it's necessary and well-documented."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: api-design
+
+  # ============================================================================
+  # Evaluation-Specific Patterns
+  # ============================================================================
+  
+  - id: division-without-zero-check
+    patterns:
+      - pattern: $NUM / $DENOM
+      - not:
+          - pattern-either:
+              - pattern: |
+                  if $DENOM != 0 {
+                    $NUM / $DENOM
+                  }
+              - pattern: |
+                  if $DENOM == 0 {
+                    return Err(...);
+                  }
+              - pattern: $DENOM.checked_div
+    message: "Division without zero check. Could panic on zero denominator."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: reliability
+    paths:
+      include:
+        - "**/eval/**"
+        - "**/metrics.rs"
+

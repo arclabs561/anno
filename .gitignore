@@ -1,6 +1,25 @@
 /target
 
 # Generated files
+# Static analysis reports
+unified-static-analysis-report.md
+static-analysis-failures-summary.md
+repo-specific-analysis.md
+evaluation-pattern-analysis.md
+.opengrep-results.json
+.opengrep-custom-results.json
+safety-report.json
+safety-report.md
+.geiger-tmp.json
+.machete-tmp.txt
+.deny-tmp.txt
+lcov.info
+coverage-html/
+static-analysis-benchmark.txt
+tool-comparison.md
+.unsafe-code-trends/
+evaluation-pattern-analysis.md
+repo-specific-analysis.md
 *.html
 !docs/**/*.html
 

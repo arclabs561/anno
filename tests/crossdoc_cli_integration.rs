@@ -236,7 +236,8 @@ fn test_cluster_statistics() {
     // Statistics should be consistent
     assert!(cross_doc_count + singleton_count == clusters.len());
     assert!(cross_doc_count >= 0);
-    assert!(singleton_count >= 0);
+    // singleton_count is usize, so >= 0 is always true
+    // Assertion removed as it's redundant for usize type
 
     // Average cluster size
     if !clusters.is_empty() {

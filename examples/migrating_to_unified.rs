@@ -29,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("OLD WAY (TaskEvaluator):");
         let evaluator = TaskEvaluator::new()?;
         let old_config = TaskEvalConfig {
+            custom_coref_resolver: None,
             tasks: vec![Task::NER],
             datasets: vec![],
             backends: vec!["stacked".to_string()],
@@ -40,6 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: true,
             temporal_stratification: false,
             confidence_intervals: true,
+            custom_coref_resolver: None,
         };
         let old_results = evaluator.evaluate_all(old_config)?;
         println!(
@@ -69,6 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // OLD WAY (manual struct):
         println!("OLD WAY (manual struct):");
         let _old_config = TaskEvalConfig {
+            custom_coref_resolver: None,
             tasks: vec![Task::NER],
             datasets: vec![],
             backends: vec!["stacked".to_string()],
@@ -80,6 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: true,
             temporal_stratification: false,
             confidence_intervals: true,
+            custom_coref_resolver: None,
         };
 
         // NEW WAY (builder):

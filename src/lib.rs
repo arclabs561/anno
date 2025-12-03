@@ -105,7 +105,7 @@
 //! use anno::{Model, RegexNER};
 //!
 //! let model = RegexNER::new();
-//! let entities = model.extract_entities("Meeting on January 15, 2025", None).unwrap();
+//! let entities = model.extract_entities("Meeting on January 15, 2026", None).unwrap();
 //! assert!(entities.iter().any(|e| e.text.contains("January")));
 //! ```
 //!
@@ -126,13 +126,19 @@
 #![warn(missing_docs)]
 
 pub mod backends;
+
+#[cfg(feature = "cli")]
+pub mod cli;
+
 #[cfg(feature = "discourse")]
 pub mod discourse;
+
 mod entity;
 mod error;
 pub mod eval;
 pub mod graph;
 pub mod grounded;
+pub mod ingest;
 /// Language detection and classification utilities.
 pub mod lang;
 pub mod offset;
@@ -347,7 +353,7 @@ pub mod prelude {
     //! use anno::prelude::*;
     //!
     //! let ner = StackedNER::default();
-    //! let entities = ner.extract_entities("Meeting on Jan 15, 2024", None).unwrap();
+    //! let entities = ner.extract_entities("Meeting on Jan 15, 2026", None).unwrap();
     //! for e in entities {
     //!     println!("{}: {}", e.entity_type.as_label(), e.text);
     //! }

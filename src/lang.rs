@@ -112,5 +112,9 @@ pub fn detect_language(text: &str) -> Language {
         return Language::Japanese; // Japanese uses Kanji (Chinese chars) too
     }
 
+    // SAFETY: max_idx is guaranteed to be in range [0, 255] because it comes from
+    // argmax over a fixed-size array (Language enum has < 256 variants).
+    // The cast to u8 is safe, and transmute from u8 to Language is safe because
+    // Language is repr(u8) and max_idx corresponds to a valid Language variant.
     unsafe { std::mem::transmute(max_idx as u8) }
 }

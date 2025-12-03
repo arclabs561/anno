@@ -1,0 +1,59 @@
+# Pre-commit hooks for static analysis
+# Install: pip install pre-commit
+# Setup: pre-commit install
+# Run: pre-commit run --all-files
+
+repos:
+  # Rust formatting
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+      - id: fmt
+      - id: clippy
+        args: [--, -D, warnings]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Cargo deny (if available)
+  - repo: local
+    hooks:
+      - id: cargo-deny
+        name: cargo-deny
+        entry: bash -c 'if command -v cargo-deny &> /dev/null; then cargo deny check; else echo "⚠️  cargo-deny not installed, skipping"; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  # Cargo machete (if available)
+  - repo: local
+    hooks:
+      - id: cargo-machete
+        name: cargo-machete
+        entry: bash -c 'if command -v cargo-machete &> /dev/null; then cargo machete; else echo "⚠️  cargo-machete not installed, skipping"; fi'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  # OpenGrep (if available)
+  - repo: local
+    hooks:
+      - id: opengrep
+        name: opengrep
+        entry: bash -c 'if command -v opengrep &> /dev/null; then opengrep scan --config auto --quiet src/ || true; else echo "⚠️  opengrep not installed, skipping"; fi'
+        language: system
+        pass_filenames: false
+        always_run: false  # Only run on Rust files
+        files: \.rs$
+

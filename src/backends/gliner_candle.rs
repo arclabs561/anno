@@ -483,6 +483,9 @@ impl GLiNERCandle {
         let hidden_size = config["hidden_size"].as_u64().unwrap_or(768) as usize;
 
         // Load weights
+        // SAFETY: VarBuilder::from_mmaped_safetensors uses unsafe internally for memory mapping.
+        // The weights_path is validated to exist before this call, and the safetensors format
+        // is validated by the library. This is a safe FFI boundary.
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(&[weights_path], DType::F32, &device)
                 .map_err(|e| Error::Retrieval(format!("safetensors: {}", e)))?

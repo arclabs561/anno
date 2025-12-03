@@ -5,8 +5,8 @@
 //! logic and ensure correctness.
 
 use anno::eval::evaluator::{NEREvaluator, StandardNEREvaluator};
-use anno::eval::GoldEntity;
 use anno::eval::metrics::calculate_overlap;
+use anno::eval::GoldEntity;
 use anno::{Entity, EntityType, MockModel};
 
 /// Test that precision, recall, and F1 are always in [0.0, 1.0]
@@ -25,7 +25,9 @@ fn test_metric_bounds() {
         Entity::new("Apple Inc.", EntityType::Organization, 20, 30, 0.9),
     ];
     let model = MockModel::new("perfect").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold, None)
+        .unwrap();
 
     assert!(
         (0.0..=1.0).contains(&metrics.precision.get()),
@@ -96,10 +98,12 @@ fn test_f1_formula() {
     // Test with partial matches
     let predicted = vec![
         Entity::new("John Smith", EntityType::Person, 0, 10, 0.9), // Correct
-        Entity::new("Apple", EntityType::Location, 20, 25, 0.9),  // Wrong type
+        Entity::new("Apple", EntityType::Location, 20, 25, 0.9),   // Wrong type
     ];
     let model = MockModel::new("partial").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold, None)
+        .unwrap();
 
     let precision = metrics.precision.get();
     let recall = metrics.recall.get();
@@ -134,7 +138,9 @@ fn test_count_invariants() {
         Entity::new("Apple Inc.", EntityType::Organization, 20, 30, 0.9),
     ];
     let model = MockModel::new("perfect").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold, None)
+        .unwrap();
 
     assert!(
         metrics.correct <= metrics.found,
@@ -246,7 +252,9 @@ fn test_edge_cases() {
     let gold_empty = vec![];
     let predicted = vec![Entity::new("John Smith", EntityType::Person, 0, 10, 0.9)];
     let model = MockModel::new("pred").with_entities(predicted);
-    let metrics = evaluator.evaluate_test_case(&model, text, &gold_empty, None).unwrap();
+    let metrics = evaluator
+        .evaluate_test_case(&model, text, &gold_empty, None)
+        .unwrap();
 
     assert_eq!(
         metrics.recall.get(),
@@ -347,11 +355,11 @@ fn test_overlap_union_invariant() {
     // by testing various span configurations
 
     let test_cases = vec![
-        (0, 10, 0, 10),   // Exact match
-        (0, 10, 5, 15),   // Partial overlap
-        (0, 10, 20, 30),  // No overlap
-        (0, 10, 0, 5),    // One contained in other
-        (5, 15, 0, 10),   // Reverse containment
+        (0, 10, 0, 10),  // Exact match
+        (0, 10, 5, 15),  // Partial overlap
+        (0, 10, 20, 30), // No overlap
+        (0, 10, 0, 5),   // One contained in other
+        (5, 15, 0, 10),  // Reverse containment
     ];
 
     for (pred_start, pred_end, gt_start, gt_end) in test_cases {
@@ -373,10 +381,7 @@ fn test_overlap_union_invariant() {
                 gt_start,
                 gt_end
             );
-            assert!(
-                union > 0.0,
-                "Union should be > 0.0 for overlapping spans"
-            );
+            assert!(union > 0.0, "Union should be > 0.0 for overlapping spans");
         }
     }
 }
@@ -395,14 +400,22 @@ fn test_aggregation_invariants() {
         ),
         (
             vec![GoldEntity::new("Apple Inc.", EntityType::Organization, 20)],
-            vec![Entity::new("Apple Inc.", EntityType::Organization, 20, 30, 0.9)],
+            vec![Entity::new(
+                "Apple Inc.",
+                EntityType::Organization,
+                20,
+                30,
+                0.9,
+            )],
         ),
     ];
 
     let mut query_metrics = Vec::new();
     for (gold, predicted) in test_cases {
         let model = MockModel::new("test").with_entities(predicted);
-        let metrics = evaluator.evaluate_test_case(&model, text, &gold, None).unwrap();
+        let metrics = evaluator
+            .evaluate_test_case(&model, text, &gold, None)
+            .unwrap();
         query_metrics.push(metrics);
     }
 
@@ -470,4 +483,3 @@ fn test_aggregation_invariants() {
         "Sum of per-type correct should equal total_correct"
     );
 }
-

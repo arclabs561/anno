@@ -316,10 +316,10 @@ jobs:
           path: eval-full-report.md
 
   # ==========================================================================
-  # Security audit
+  # Security audit (cargo-audit - legacy, kept for compatibility)
   # ==========================================================================
   audit:
-    name: Security Audit
+    name: Security Audit (cargo-audit)
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -330,3 +330,296 @@ jobs:
           # Note: Unmaintained crate warnings (number_prefix, paste) are expected
           # This job will show warnings but won't fail the workflow
           # Actual security vulnerabilities would still be reported
+
+  # ==========================================================================
+  # Static Analysis Tools
+  # ==========================================================================
+  
+  # Comprehensive dependency linting (replaces/enhances cargo-audit)
+  cargo-deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny
+      - name: Check dependencies
+        run: cargo deny check
+
+  # Fast unused dependency detection
+  unused-deps:
+    name: Unused Dependencies
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-machete
+        run: cargo install cargo-machete
+      - name: Check unused dependencies
+        run: cargo machete
+
+  # Unsafe code statistics (creative: generate report)
+  safety-report:
+    name: Safety Report (Unsafe Code Stats)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-geiger
+        run: cargo install cargo-geiger
+      - name: Generate safety report
+        run: |
+          cargo geiger --output-format json > safety-report.json 2>/dev/null || echo "{}" > safety-report.json
+          echo "## Unsafe Code Statistics" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat safety-report.json | jq -r '.packages[] | select(.geiger.unsafe_used > 0) | "\(.name): \(.geiger.unsafe_used) unsafe uses"' >> $GITHUB_STEP_SUMMARY || echo "No unsafe code found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      - name: Upload safety report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: safety-report
+          path: safety-report.json
+
+  # Miri: undefined behavior detection (selective on unsafe code)
+  miri-unsafe:
+    name: Miri (Unsafe Code Validation)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test-unsafe')
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Miri
+        run: |
+          rustup component add miri
+          cargo install cargo-miri
+      - name: Cache HF models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ runner.os }}-v2
+          restore-keys: |
+            hf-models-${{ runner.os }}-
+      - name: Run Miri on unsafe code
+        run: |
+          # Run Miri on files with unsafe code (selective approach)
+          cargo miri test --lib --features onnx -- --test-threads=1 --nocapture 2>&1 | head -100 || true
+        timeout-minutes: 10
+
+  # OpenGrep: Custom security pattern detection
+  opengrep:
+    name: OpenGrep Static Analysis
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenGrep
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Run OpenGrep (default rules)
+        run: |
+          opengrep scan \
+            --config auto \
+            --json --output opengrep-results.json \
+            --sarif-output opengrep-results.sarif \
+            src/ tests/ examples/ || true
+      - name: Run OpenGrep (custom rules - general)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-security.yaml \
+            --json --output opengrep-security-results.json \
+            src/ || true
+      - name: Run OpenGrep (custom rules - NLP/ML patterns)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-nlp-ml-patterns.yaml \
+            --json --output opengrep-nlp-results.json \
+            src/ || true
+      - name: Run OpenGrep (custom rules - evaluation framework)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-evaluation-framework.yaml \
+            --json --output opengrep-eval-results.json \
+            src/eval/ || true
+      - name: Run OpenGrep (custom rules - anno-specific)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-anno-specific.yaml \
+            --json --output opengrep-anno-results.json \
+            src/ || true
+      - name: Run OpenGrep (custom rules - error handling)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-error-handling.yaml \
+            --json --output opengrep-error-results.json \
+            src/ || true
+      - name: Run OpenGrep (custom rules - memory patterns)
+        run: |
+          opengrep scan \
+            -f .opengrep/rules/rust-memory-patterns.yaml \
+            --json --output opengrep-memory-results.json \
+            src/ || true
+      - name: Validate rules
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/validate-rules.sh || true
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: opengrep-results.sarif
+      - name: Upload JSON results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: opengrep-results
+          path: |
+            opengrep-results.json
+            opengrep-security-results.json
+            opengrep-nlp-results.json
+            opengrep-eval-results.json
+            opengrep-anno-results.json
+            opengrep-error-results.json
+            opengrep-memory-results.json
+
+  # NLP/ML-specific pattern checks
+  nlp-ml-patterns:
+    name: NLP/ML Pattern Analysis
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install ripgrep (for pattern analysis)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep jq
+      - name: Check NLP patterns
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/check-nlp-patterns.sh || true
+      - name: Analyze evaluation patterns
+        run: |
+          ./scripts/analyze-evaluation-patterns.sh || true
+      - name: Check ML backend patterns
+        run: |
+          ./scripts/check-ml-backend-patterns.sh || true
+      - name: Check historical bug patterns
+        run: |
+          ./scripts/check-historical-bugs.sh || true
+      - name: Check evaluation invariants
+        run: |
+          ./scripts/check-evaluation-invariants.sh || true
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nlp-ml-analysis
+          path: |
+            evaluation-pattern-analysis.md
+
+  # Unified static analysis report
+  unified-static-analysis:
+    name: Unified Static Analysis Report
+    needs: [cargo-deny, unused-deps, safety-report, opengrep, nlp-ml-patterns]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install tools
+        run: |
+          cargo install --locked cargo-deny || true
+          cargo install cargo-machete || true
+          cargo install cargo-geiger || true
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash || true
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y jq || true
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Generate unified report
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/generate-unified-report.sh || true
+      - name: Upload unified report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unified-static-analysis
+          path: unified-static-analysis-report.md
+
+  # Static analysis failure summary
+  static-analysis-summary:
+    name: Static Analysis Summary
+    needs: [cargo-deny, unused-deps, safety-report, opengrep, nlp-ml-patterns]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Summarize failures
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/summarize-failures.sh || true
+      - name: Upload summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: static-analysis-summary
+          path: static-analysis-failures-summary.md
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('static-analysis-failures-summary.md')) {
+              const summary = fs.readFileSync('static-analysis-failures-summary.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## Static Analysis Summary\n\n${summary}`
+              });
+            }
+
+  # Code coverage (optional, runs on schedule or manual trigger)
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+      - name: Generate coverage
+        run: |
+          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          file: ./lcov.info
+          flags: unittests
+          name: codecov-anno

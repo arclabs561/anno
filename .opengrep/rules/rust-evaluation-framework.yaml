@@ -1,0 +1,288 @@
+# OpenGrep rules specific to anno's evaluation framework
+# Catches evaluation-specific anti-patterns and bugs
+
+rules:
+  # ============================================================================
+  # Variance Calculation (Bessel's Correction)
+  # ============================================================================
+  
+  - id: variance-without-bessel
+    patterns:
+      - pattern: |
+          let $VAR = $SCORES.iter().map(|$X| ($X - $MEAN).powi(2)).sum::<f64>() / $SCORES.len() as f64;
+      - not:
+          - pattern: |
+              / ($SCORES.len() - 1) as f64
+              // or
+              / ($N - 1.0)
+    message: "Variance calculation uses population variance (n) instead of sample variance (n-1, Bessel's correction). For unbiased estimates, use (n-1). See BUGS_FIXED.md for details."
+    languages: [rust]
+    severity: ERROR
+    metadata:
+      category: correctness
+      cwe: "CWE-682: Incorrect Calculation"
+    paths:
+      include:
+        - "**/eval/**"
+  # ============================================================================
+  # Evaluation Loop Patterns
+  # ============================================================================
+  
+  - id: evaluation-loop-backend-recreation
+    patterns:
+      - pattern: |
+          for $EXAMPLE in $EXAMPLES {
+            let $BACKEND = BackendFactory::create($NAME)?;
+            $BACKEND.extract_entities(...)?;
+          }
+    message: "Backend recreated in evaluation loop. Reuse backend outside loop for performance."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: performance
+    paths:
+      include:
+        - "**/eval/task_evaluator.rs"
+        - "**/eval/harness.rs"
+
+  - id: per-example-scores-multiple-iterations
+    patterns:
+      - pattern: |
+          for $SCORE in $PER_EXAMPLE_SCORES {
+            // compute metric
+          }
+          for $SCORE in $PER_EXAMPLE_SCORES {
+            // compute another metric
+          }
+    message: "Iterating over per-example scores multiple times. Consider computing all metrics in single pass."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: performance
+    paths:
+      include:
+        - "**/eval/task_evaluator.rs"
+
+  - id: confidence-interval-recomputation
+    patterns:
+      - pattern: |
+          fn compute_confidence_intervals(...) {
+            // ... recreate backend ...
+            // ... recompute predictions on sample ...
+          }
+      - not:
+          - pattern: |
+              // Uses cached per-example scores
+    message: "Confidence intervals recomputing predictions. Use cached per-example scores instead."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: performance
+    paths:
+      include:
+        - "**/eval/task_evaluator.rs"
+
+  # ============================================================================
+  # Metric Computation Patterns
+  # ============================================================================
+  
+  - id: stratified-metrics-placeholder
+    patterns:
+      - pattern: |
+          StratifiedMetrics {
+            by_entity_type: {
+              $TYPE => MetricWithCI {
+                mean: $AGGREGATE_METRIC,
+                // ... using aggregate instead of per-type ...
+              }
+            }
+          }
+      - not:
+          - pattern: |
+              // Computed from actual per-type scores
+    message: "Stratified metrics using aggregate values as placeholder. Compute from actual per-type scores."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/task_evaluator.rs"
+
+  - id: metric-calculation-without-edge-cases
+    patterns:
+      - pattern: |
+          let $F1 = 2.0 * ($PRECISION * $RECALL) / ($PRECISION + $RECALL);
+      - not:
+          - pattern: |
+              if $PRECISION + $RECALL == 0.0 {
+                return 0.0;
+              }
+    message: "F1 calculation without zero-check. Handle edge case when precision + recall = 0."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/metrics.rs"
+        - "**/eval/ner_metrics.rs"
+
+  # ============================================================================
+  # Task-Dataset-Backend Mapping
+  # ============================================================================
+  
+  - id: task-dataset-mismatch
+    patterns:
+      - pattern: |
+          for $TASK in $TASKS {
+            for $DATASET in $DATASETS {
+              evaluate($TASK, $DATASET, ...)?;
+            }
+          }
+      - not:
+          - pattern: |
+              if !is_valid_combination($TASK, $DATASET) {
+                continue;
+              }
+    message: "Evaluating all task-dataset combinations without validation. Check task-dataset compatibility first."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/task_evaluator.rs"
+        - "**/eval/task_mapping.rs"
+
+  - id: backend-capability-check
+    patterns:
+      - pattern: |
+          let $BACKEND = BackendFactory::create($NAME)?;
+          $BACKEND.$METHOD(...)?;
+      - not:
+          - pattern: |
+              if !$BACKEND.supports($CAPABILITY) {
+                return Err(...);
+              }
+    message: "Using backend method without capability check. Verify backend supports the operation."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/**"
+
+  # ============================================================================
+  # Bias Analysis Patterns
+  # ============================================================================
+  
+  - id: bias-stratification-empty-groups
+    patterns:
+      - pattern: |
+          for $GROUP in $STRATIFICATION_GROUPS {
+            compute_metrics($GROUP)?;
+          }
+      - not:
+          - pattern: |
+              if $GROUP.is_empty() {
+                continue; // or handle empty group
+              }
+    message: "Bias stratification without empty group check. Empty groups may cause division by zero."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/gender_bias.rs"
+        - "**/eval/demographic_bias.rs"
+        - "**/eval/length_bias.rs"
+
+  - id: temporal-stratification-missing-metadata
+    patterns:
+      - pattern: |
+          compute_temporal_stratification(...)
+      - not:
+          - pattern: |
+              // Temporal metadata available
+    message: "Temporal stratification computed but dataset may lack temporal metadata. Check data availability."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/temporal_bias.rs"
+        - "**/eval/task_evaluator.rs"
+
+  # ============================================================================
+  # Robustness Testing Patterns
+  # ============================================================================
+  
+  - id: robustness-testing-limit-check
+    patterns:
+      - pattern: |
+          for $EXAMPLE in $EXAMPLES {
+            let $PERTURBED = apply_perturbation($EXAMPLE, ...)?;
+            // ... test ...
+          }
+      - not:
+          - pattern: |
+              if $COUNT > $ROBUSTNESS_LIMIT {
+                break;
+              }
+    message: "Robustness testing without limit check. May be expensive on large datasets."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: performance
+    paths:
+      include:
+        - "**/eval/robustness.rs"
+
+  # ============================================================================
+  # Coreference Resolution Patterns
+  # ============================================================================
+  
+  - id: coref-chain-validation
+    patterns:
+      - pattern: |
+          CorefChain {
+            mentions: $MENTIONS,
+            ...
+          }
+      - not:
+          - pattern: |
+              if $MENTIONS.is_empty() {
+                return Err(...);
+              }
+    message: "Coreference chain created without validation. Ensure non-empty mentions."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/coref_resolver.rs"
+        - "**/eval/cdcr.rs"
+
+  - id: coref-metric-computation
+    patterns:
+      - pattern: |
+          compute_muc($GOLD, $PRED)?;
+          compute_b3($GOLD, $PRED)?;
+          // ... multiple metrics ...
+      - not:
+          - pattern: |
+              // All metrics computed from same gold/pred pairs
+    message: "Multiple coref metrics computed. Ensure they use consistent gold/predicted pairs."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/eval/coref_metrics.rs"
+

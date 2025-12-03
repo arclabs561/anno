@@ -66,7 +66,7 @@
 //! - **Candle** (native): `cargo build --features candle`
 
 use crate::entity::EntityCategory;
-use crate::sync::{lock, try_lock, Mutex};
+use crate::sync::{try_lock, Mutex};
 use crate::{Entity, EntityType, Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1395,6 +1395,9 @@ impl GLiNER2Candle {
                 Error::Retrieval(format!("weights not found and conversion failed: {}", e))
             })?;
 
+        // SAFETY: VarBuilder::from_mmaped_safetensors uses unsafe internally for memory mapping.
+        // The weights_path is validated to exist before this call, and the safetensors format
+        // is validated by the library. This is a safe FFI boundary.
         let vb = unsafe {
             VarBuilder::from_mmaped_safetensors(&[weights_path], DType::F32, &device)
                 .map_err(|e| Error::Retrieval(format!("varbuilder: {}", e)))?

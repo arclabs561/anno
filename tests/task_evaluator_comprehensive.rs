@@ -52,6 +52,7 @@ fn test_thread_local_backend_caching() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     // Run evaluation - should cache backend per thread
@@ -104,6 +105,7 @@ fn test_case_insensitive_backend_matching() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();
@@ -183,6 +185,7 @@ fn test_universal_ner_graceful_skip() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();
@@ -247,6 +250,7 @@ fn test_confidence_intervals_computation() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: true, // Enable CI computation
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();
@@ -439,6 +443,7 @@ fn test_tplinker_in_evaluation() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();
@@ -472,6 +477,7 @@ fn test_new_backends_graceful_handling() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();
@@ -580,6 +586,7 @@ fn test_parallel_evaluation_error_handling() {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+            custom_coref_resolver: None,
     };
 
     // Should not panic even if some sentences fail
@@ -619,6 +626,7 @@ fn test_full_evaluation_pipeline() {
         compute_familiarity: true,
         temporal_stratification: false,
         confidence_intervals: true,
+            custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config).unwrap();

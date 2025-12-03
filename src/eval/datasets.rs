@@ -6,7 +6,7 @@
 //! - JSON/JSONL (modern format used by OpenNER, MultiNERD, Wikiann)
 //! - HuggingFace Datasets format
 //!
-//! Modern datasets (2024-2025):
+//! Modern datasets (2024-2026):
 //! - OpenNER 1.0: 52 languages, standardized JSON
 //! - MultiNERD: Multi-ontology, JSON format
 //! - Wikiann: 282 languages, JSONL format

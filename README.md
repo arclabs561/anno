@@ -342,6 +342,27 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 | `discourse` | Event extraction, shell nouns, abstract anaphora |
 | `full` | Everything |
 
+### Static Analysis
+
+This project uses comprehensive static analysis tools:
+
+- **cargo-deny** - Dependency security and license checking
+- **cargo-machete** - Fast unused dependency detection
+- **cargo-geiger** - Unsafe code statistics
+- **OpenGrep** - Security pattern detection with custom rules
+- **Miri** - Undefined behavior detection
+- **cargo-nextest** - Faster test runner
+- **cargo-llvm-cov** - Code coverage
+
+Quick commands:
+```bash
+just static-analysis      # Run all tools
+just safety-report-full   # Comprehensive safety report
+just validate-setup       # Check tool installation
+```
+
+See [docs/STATIC_ANALYSIS_SETUP.md](docs/STATIC_ANALYSIS_SETUP.md) for details.
+
 ### Minimum Rust version policy
 
 This crate's minimum supported rustc version is 1.75.0.

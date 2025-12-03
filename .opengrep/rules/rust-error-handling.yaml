@@ -1,0 +1,133 @@
+# OpenGrep rules for error handling patterns
+# Based on bugs found and fixed in the codebase
+
+rules:
+  # ============================================================================
+  # Mutex Poisoning (Based on BUGS_FIXED.md - Deadlock Bug)
+  # ============================================================================
+  
+  - id: mutex-lock-without-poison-handling
+    patterns:
+      - pattern: |
+          let $VAR = $MUTEX.lock();
+      - not:
+          - pattern-either:
+              - pattern: .unwrap_or_else(|e| e.into_inner())
+              - pattern: .map_err
+              - pattern: match $MUTEX.lock()
+              - pattern: if let Ok
+    message: "Mutex lock without poison handling. Use unwrap_or_else(|e| e.into_inner()) to handle poisoning, or match/if-let for explicit handling. See BUGS_FIXED.md for deadlock bug example."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: reliability
+      cwe: "CWE-667: Improper Locking"
+    paths:
+      include:
+        - "**/eval/**"
+        - "**/sync.rs"
+        - "**/session_pool.rs"
+        - "**/backends/**"
+      exclude:
+        - "**/tests/**"
+
+  - id: direct-mutex-lock-bypass-helper
+    patterns:
+      - pattern: |
+          $MUTEX.lock().unwrap()
+      - not:
+          - pattern: |
+              use crate::sync::lock
+    message: "Direct mutex lock bypasses sync::lock helper. Use lock(&mutex) for proper poison handling. The sync::lock helper handles poisoning gracefully."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: reliability
+      cwe: "CWE-667: Improper Locking"
+    paths:
+      include:
+        - "**/eval/**"
+        - "**/backends/**"
+      exclude:
+        - "**/tests/**"
+        - "**/sync.rs"
+
+  - id: mutex-double-lock-deadlock
+    patterns:
+      - pattern: |
+          if let Ok($VAR1) = $MUTEX.lock() {
+            // ...
+          } else {
+            $MUTEX.lock().unwrap_or_else(...)
+          }
+    message: "Potential deadlock: locking mutex twice in if/else. Simplify to single lock with unwrap_or_else. See BUGS_FIXED.md for example fix."
+    languages: [rust]
+    severity: ERROR
+    metadata:
+      category: reliability
+      cwe: "CWE-667: Improper Locking"
+    paths:
+      include:
+        - "**/eval/**"
+        - "**/sync.rs"
+
+  # ============================================================================
+  # Error Context and Propagation
+  # ============================================================================
+  
+  - id: error-conversion-without-context
+    patterns:
+      - pattern: |
+          .map_err(|e| Error::$TYPE(format!("{}", e)))
+      - not:
+          - pattern: |
+              .map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))
+    message: "Error conversion without context. Add context about what operation failed (e.g., 'Failed to download model: {}')."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: developer-experience
+    paths:
+      include:
+        - "**/backends/**"
+        - "**/eval/**"
+
+  - id: result-propagation-without-context
+    patterns:
+      - pattern: |
+          $FUNC()?;
+      - not:
+          - pattern: |
+              $FUNC().map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))?;
+    message: "Result propagation without context. Consider adding context with map_err for better error messages."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: developer-experience
+    paths:
+      include:
+        - "**/backends/**"
+        - "**/eval/**"
+
+  # ============================================================================
+  # Error Type Consistency
+  # ============================================================================
+  
+  - id: backend-specific-error-types
+    patterns:
+      - pattern: |
+          enum $ERROR {
+            // backend-specific errors
+          }
+      - not:
+          - pattern: |
+              impl From<$ERROR> for crate::Error
+    message: "Backend-specific error type without conversion to crate::Error. Consider implementing From trait for consistency."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: maintainability
+    paths:
+      include:
+        - "**/backends/**"
+

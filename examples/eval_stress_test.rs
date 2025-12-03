@@ -57,6 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: true,
         temporal_stratification: true,
         confidence_intervals: true,
+        custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config)?;
@@ -111,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: true,
+            custom_coref_resolver: None,
         };
 
         let results = evaluator.evaluate_all(config)?;
@@ -142,6 +144,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: true,
+            custom_coref_resolver: None,
         };
 
         let results = evaluator.evaluate_all(config)?;
@@ -181,6 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: familiarity,
             temporal_stratification: temporal,
             confidence_intervals: ci,
+            custom_coref_resolver: None,
         };
 
         let results = evaluator.evaluate_all(config)?;
@@ -205,6 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: true,
         confidence_intervals: true,
+        custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config)?;

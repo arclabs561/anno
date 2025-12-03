@@ -115,7 +115,7 @@ impl BackendName {
             #[cfg(feature = "onnx")]
             "nuner" | "nunerzero" => Some(BackendName::NuNER),
             #[cfg(feature = "onnx")]
-            "w2ner" | "w2ner" => Some(BackendName::W2NER),
+            "w2ner" => Some(BackendName::W2NER),
             #[cfg(feature = "onnx")]
             "gliner2" | "gliner2onnx" => Some(BackendName::GLiNER2),
             #[cfg(feature = "onnx")]

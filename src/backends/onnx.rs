@@ -29,7 +29,7 @@ use crate::{Entity, Error, Result};
 
 #[cfg(feature = "onnx")]
 use {
-    crate::sync::{lock, try_lock, Mutex},
+    crate::sync::try_lock,
     hf_hub::api::sync::Api,
     ndarray::Array2,
     ort::{session::builder::GraphOptimizationLevel, session::Session, value::Tensor},

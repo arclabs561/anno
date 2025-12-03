@@ -443,13 +443,12 @@ impl ReportBuilder {
         let mut all_errors = Vec::new();
 
         for case in &test_cases {
-            let predictions = model.extract_entities(&case.text, None).unwrap_or_else(|e| {
-                warnings.push(format!(
-                    "Failed to extract entities for test case: {}",
-                    e
-                ));
-                Vec::new()
-            });
+            let predictions = model
+                .extract_entities(&case.text, None)
+                .unwrap_or_else(|e| {
+                    warnings.push(format!("Failed to extract entities for test case: {}", e));
+                    Vec::new()
+                });
 
             total_gold += case.gold_entities.len();
             total_predicted += predictions.len();

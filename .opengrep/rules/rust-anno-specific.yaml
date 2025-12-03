@@ -1,0 +1,95 @@
+# OpenGrep rules specific to anno codebase patterns
+# These catch common issues in this particular codebase
+
+rules:
+  # ============================================================================
+  # Entity Extraction Patterns
+  # ============================================================================
+  
+  - id: entity-offset-validation-missing
+    patterns:
+      - pattern: |
+          Entity {
+            start: $START,
+            end: $END,
+            ...
+          }
+      - not:
+          - pattern: |
+              if $START > $END {
+                return Err(...);
+              }
+    message: "Entity created without offset validation. Ensure start <= end."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/entity.rs"
+        - "**/grounded.rs"
+
+  # ============================================================================
+  # Backend Session Patterns
+  # ============================================================================
+  
+  - id: session-pool-leak
+    patterns:
+      - pattern: |
+          let $SESSION = $POOL.acquire();
+          // ... no explicit release or drop
+    message: "Session acquired but not explicitly released. Ensure proper cleanup."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: resource-management
+    paths:
+      include:
+        - "**/session_pool.rs"
+        - "**/backends/**"
+
+  # ============================================================================
+  # Evaluation Patterns
+  # ============================================================================
+  
+  - id: confidence-score-out-of-range
+    patterns:
+      - pattern: |
+          Confidence::new($SCORE)
+      - not:
+          - pattern: |
+              if !(0.0..=1.0).contains(&$SCORE) {
+                return Err(...);
+              }
+    message: "Confidence score created without range validation. Ensure 0.0 <= score <= 1.0."
+    languages: [rust]
+    severity: WARNING
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/types/confidence.rs"
+        - "**/eval/**"
+
+  # ============================================================================
+  # Graph Export Patterns
+  # ============================================================================
+  
+  - id: graph-node-without-validation
+    patterns:
+      - pattern: |
+          GraphNode::new($ID, $LABEL)
+      - not:
+          - pattern: |
+              if $ID.is_empty() {
+                return Err(...);
+              }
+    message: "Graph node created without ID validation. Ensure non-empty ID."
+    languages: [rust]
+    severity: INFO
+    metadata:
+      category: correctness
+    paths:
+      include:
+        - "**/graph.rs"
+

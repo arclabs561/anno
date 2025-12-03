@@ -30,6 +30,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: true,
+        custom_coref_resolver: None,
     };
 
     println!("Running coreference evaluation...\n");

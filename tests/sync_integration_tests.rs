@@ -27,6 +27,7 @@ mod tests {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: false,
+            custom_coref_resolver: None,
         };
 
         // Should not panic or deadlock with sync module
@@ -58,6 +59,7 @@ mod tests {
                     compute_familiarity: false,
                     temporal_stratification: false,
                     confidence_intervals: true, // This triggers cache usage
+            custom_coref_resolver: None,
                 };
                 evaluator_clone.evaluate_all(config)
             });

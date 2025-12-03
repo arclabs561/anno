@@ -27,6 +27,8 @@ clap = { version = "4", features = ["derive", "env", "wrap_help"], optional = tr
 clap_complete = { version = "4", optional = true }
 is-terminal = { version = "0.4", optional = true }
 glob = { version = "0.3", optional = true }
+indicatif = { version = "0.17", optional = true }  # Progress bars
+toml = { version = "0.8", optional = true }  # Config files
 
 # Robustness module needs rand (optional, only with eval-advanced)
 rand = { version = "0.9", optional = true }
@@ -123,7 +125,7 @@ full = ["eval-full", "onnx", "candle", "discourse"]
 production = ["onnx", "async-inference", "session-pool", "fast-lock"]
 
 # CLI binary feature
-cli = ["dep:clap", "dep:clap_complete", "dep:is-terminal"]
+cli = ["dep:clap", "dep:clap_complete", "dep:is-terminal", "dep:indicatif", "dep:toml"]
 
 # =============================================================================
 # CLI BINARY

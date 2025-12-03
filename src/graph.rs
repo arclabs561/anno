@@ -70,7 +70,7 @@
 //!
 //! # Research Background
 //!
-//! - **GraphRAG** (Microsoft, 2024): Combines knowledge graphs with vector retrieval
+//! - **GraphRAG** (Microsoft, 2024-2025): Combines knowledge graphs with vector retrieval
 //! - **Entity Linking**: Maps extracted mentions to canonical KB entities
 //! - **Coreference Resolution**: Clusters mentions referring to the same entity
 
@@ -609,6 +609,51 @@ impl GraphDocument {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+
+    /// Build graph document from a GroundedDocument.
+    ///
+    /// Converts the Signal → Track → Identity hierarchy to a graph format
+    /// suitable for RAG applications (Neo4j, NetworkX, etc.).
+    ///
+    /// # Arguments
+    /// * `doc` - The GroundedDocument to convert
+    ///
+    /// # Returns
+    /// A GraphDocument with nodes from entities and edges inferred from
+    /// co-occurrence or track relationships.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use anno::grounded::GroundedDocument;
+    /// use anno::graph::GraphDocument;
+    ///
+    /// let doc = GroundedDocument::new("doc1", "Marie Curie won the Nobel Prize.");
+    /// // ... add signals, tracks, identities ...
+    ///
+    /// let graph = GraphDocument::from_grounded_document(&doc);
+    /// println!("{}", graph.to_cypher());
+    /// ```
+    #[must_use]
+    pub fn from_grounded_document(doc: &crate::grounded::GroundedDocument) -> Self {
+        // EntityType conversion handled inline below
+
+        // Convert signals to entities
+        let entities: Vec<crate::Entity> = doc.to_entities();
+
+        // Get coref chains from tracks (if any)
+        let coref_chains = if doc.tracks.is_empty() {
+            None
+        } else {
+            Some(doc.to_coref_chains())
+        };
+
+        // No relations available in GroundedDocument yet
+        // Could be extended in the future to store relations
+        let relations: Vec<crate::entity::Relation> = Vec::new();
+
+        Self::from_extraction(&entities, &relations, coref_chains.as_deref())
     }
 }
 

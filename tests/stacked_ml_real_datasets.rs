@@ -33,6 +33,7 @@ mod real_dataset_tests {
                 compute_familiarity: false,
                 temporal_stratification: false,
                 confidence_intervals: false,
+            custom_coref_resolver: None,
                 seed: Some(42),
             };
 

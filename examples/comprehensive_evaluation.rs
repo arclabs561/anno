@@ -53,6 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         require_cached: false,
         relation_threshold: 0.5,
         confidence_intervals: true,
+        custom_coref_resolver: None,
         compute_familiarity: true,
         temporal_stratification: true,
         robustness: true,

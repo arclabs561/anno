@@ -78,7 +78,6 @@
 
 #![cfg(feature = "onnx")]
 
-use crate::sync::Mutex;
 use crate::{Entity, Error, Result};
 use std::collections::HashMap;
 use std::sync::Arc;

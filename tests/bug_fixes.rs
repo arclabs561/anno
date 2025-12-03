@@ -19,7 +19,7 @@ fn test_gliner2_division_by_zero_empty_logits() {
 
     // Simulate the fix logic: if logits.is_empty(), return empty vec
     let logits: Vec<f32> = vec![];
-    
+
     // The fix ensures this check happens before division
     if logits.is_empty() {
         // Correct behavior: return empty vec (no division attempted)
@@ -34,7 +34,10 @@ fn test_gliner2_division_by_zero_empty_logits() {
     // Verify the fix prevents the panic case
     // Old code: 1.0 / 0.0 would panic or produce infinity
     // New code: logits.is_empty() check prevents this
-    assert!(logits.is_empty(), "Empty logits should be handled gracefully");
+    assert!(
+        logits.is_empty(),
+        "Empty logits should be handled gracefully"
+    );
 }
 
 #[test]
@@ -54,13 +57,19 @@ fn test_gliner2_division_by_zero_all_neg_inf() {
     let sum_vn: f32 = exp_vn.iter().sum();
 
     // Normal case: all values are 1.0 (since max - max = 0, exp(0) = 1)
-    assert!((sum_vn - 3.0).abs() < 0.001, "Normal case should sum to 3.0");
+    assert!(
+        (sum_vn - 3.0).abs() < 0.001,
+        "Normal case should sum to 3.0"
+    );
 
     // The fix: check sum > 0.0 before division
     if sum_vn > 0.0 {
         let probs: Vec<f32> = exp_vn.iter().map(|&x| x / sum_vn).collect();
         let prob_sum: f32 = probs.iter().sum();
-        assert!((prob_sum - 1.0).abs() < 0.001, "Probabilities should sum to 1.0");
+        assert!(
+            (prob_sum - 1.0).abs() < 0.001,
+            "Probabilities should sum to 1.0"
+        );
     } else {
         // Fallback case: uniform distribution (handled by the fix)
         let uniform = 1.0 / very_negative.len() as f32;
@@ -220,7 +229,7 @@ fn test_coreference_evaluation_runs_resolver() {
     // 1. A coreference dataset to be loaded
     // 2. A backend that can extract entities
     // 3. Verification that SimpleCorefResolver is called
-    // 
+    //
     // Run with: cargo test --features eval-advanced -- --ignored
 
     use anno::eval::task_evaluator::TaskEvaluator;
@@ -332,7 +341,7 @@ fn test_resolve_inter_doc_coref_missing_document() {
 fn test_w2ner_word_position_fallback() {
     // Test for bug: word position calculation may fail if words don't appear in order
     // Fixed: fallback logic added when words aren't found at expected positions
-    // 
+    //
     // NOTE: This test requires W2NER backend initialization and model loading.
     // The fix is in the word position calculation logic, which is difficult to test
     // without a full backend setup. This test is marked #[ignore] and should be
@@ -341,7 +350,7 @@ fn test_w2ner_word_position_fallback() {
     // The fix ensures that if a word isn't found starting from pos,
     // it tries to find it from the beginning as a fallback.
     // This handles cases where tokenized words don't match original text exactly.
-    
+
     // TODO: Implement integration test that:
     // 1. Initializes W2NER backend
     // 2. Provides text with words that don't appear in tokenization order

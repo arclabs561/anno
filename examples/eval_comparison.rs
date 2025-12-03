@@ -32,10 +32,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: false,
+        custom_coref_resolver: None,
     };
 
     let config_with_ci = TaskEvalConfig {
         confidence_intervals: true,
+        custom_coref_resolver: None,
         ..config_without_ci.clone()
     };
 
@@ -83,6 +85,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             compute_familiarity: false,
             temporal_stratification: false,
             confidence_intervals: true,
+            custom_coref_resolver: None,
         };
 
         let results = evaluator.evaluate_all(config)?;
@@ -113,6 +116,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: true,
         confidence_intervals: true,
+        custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config)?;
@@ -158,6 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         compute_familiarity: false,
         temporal_stratification: false,
         confidence_intervals: true,
+        custom_coref_resolver: None,
     };
 
     let results = evaluator.evaluate_all(config)?;

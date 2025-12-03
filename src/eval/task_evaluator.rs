@@ -21,7 +21,7 @@ use crate::eval::profiling;
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
-use crate::sync::{lock, try_lock, Mutex};
+use crate::sync::{lock, Mutex};
 use crate::{Entity, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -30,13 +30,25 @@ use std::time::Instant;
 // Constants for evaluation
 /// 95% confidence interval z-score (normal distribution)
 const DEFAULT_Z_SCORE_95: f64 = 1.96;
-/// Placeholder standard deviation when actual variance cannot be computed
+/// Placeholder standard deviation when actual variance cannot be computed.
+///
+/// This value (0.05, or 5%) is used as a conservative estimate when we cannot compute
+/// actual variance from per-example scores. It represents a typical standard deviation
+/// for evaluation metrics, providing a reasonable CI width for reporting purposes.
+///
+/// Note: This is a fallback - prefer computing actual variance from per-example scores
+/// when available via `compute_confidence_intervals_from_scores()`.
 const DEFAULT_PLACEHOLDER_STD_DEV: f64 = 0.05;
 /// Maximum sample size for confidence interval computation (to avoid expensive recomputation)
 const MAX_CI_SAMPLE_SIZE: usize = 100;
 /// Minimum sample size for confidence interval computation
-const MIN_CI_SAMPLE_SIZE: usize = 1;
+///
+/// Set to 2 because confidence intervals require at least 2 samples for meaningful variance estimation.
+const MIN_CI_SAMPLE_SIZE: usize = 2;
 /// Maximum number of examples for robustness testing (performance limit)
+///
+/// Used in `compute_robustness()` to limit the number of test cases processed.
+#[cfg(feature = "eval-advanced")]
 const ROBUSTNESS_TEST_LIMIT: usize = 50;
 
 /// Stratified metrics across multiple dimensions.
@@ -74,6 +86,23 @@ pub struct ConfidenceIntervals {
     pub precision_ci: (f64, f64),
     /// Recall CI
     pub recall_ci: (f64, f64),
+}
+
+/// Cached backend enum for thread-local storage (avoids Box<dyn Any> downcast issues).
+#[allow(clippy::large_enum_variant)]
+#[cfg(feature = "eval-parallel")]
+enum CachedBackend {
+    #[cfg(feature = "onnx")]
+    NuNER(crate::backends::nuner::NuNER),
+    #[cfg(feature = "onnx")]
+    GLiNEROnnx(crate::backends::gliner_onnx::GLiNEROnnx),
+    #[cfg(feature = "onnx")]
+    GLiNER2Onnx(crate::backends::gliner2::GLiNER2Onnx),
+    #[cfg(feature = "candle")]
+    GLiNERCandle(crate::backends::gliner_candle::GLiNERCandle),
+    #[cfg(feature = "onnx")]
+    GLiNERPoly(crate::backends::gliner_poly::GLiNERPoly),
+    UniversalNER(crate::backends::universal_ner::UniversalNER),
 }
 
 /// Configuration for task evaluation.
@@ -787,8 +816,11 @@ impl TaskEvaluator {
 
             // For parallel processing, use thread-local storage to cache backends per thread
             // This avoids the need to share state across threads while still caching per thread
+            // Using CachedBackend enum instead of Box<dyn Any> to avoid downcast issues
             thread_local! {
-                static THREAD_CACHED_BACKEND: RefCell<Option<(String, Box<dyn std::any::Any>)>> = RefCell::new(None);
+                // Store (normalized_name, backend_name_used_for_creation, backend)
+                // Using enum instead of Box<dyn Any> for type safety
+                static THREAD_CACHED_BACKEND: RefCell<Option<(String, String, CachedBackend)>> = RefCell::new(None);
             }
 
             // Normalize backend name to lowercase for consistent caching
@@ -826,29 +858,28 @@ impl TaskEvaluator {
                         THREAD_CACHED_BACKEND.with(|cache| {
                             let mut cached = cache.borrow_mut();
                             // Check if we have a cached backend for this backend_name (case-insensitive)
-                            let backend_name_lower = backend_name_arc.to_lowercase();
-                            if let Some((ref cached_name, ref backend)) = *cached {
+                            let backend_name_lower = backend_name_arc.as_str().to_lowercase();
+                            if let Some((ref cached_name, ref _creation_name, ref backend)) = *cached {
                                 if cached_name.to_lowercase() == backend_name_lower {
-                                    // Use cached backend
+                                    // Use cached backend - no downcast needed, enum is type-safe
                                     return Self::extract_with_cached_backend(
-                                        backend_name_arc.as_str(),
-                                        backend.as_ref(),
+                                        backend,
                                         &text,
                                         &mapped_labels_arc
                                     );
                                 }
                             }
                             // Create and cache new backend for this thread
+                            let creation_name = backend_name_arc.as_str().to_string();
                             match Self::create_zero_shot_backend(backend_name_arc.as_str()) {
                                 Ok(new_backend) => {
                                     let result = Self::extract_with_cached_backend(
-                                        backend_name_arc.as_str(),
-                                        new_backend.as_ref(),
+                                        &new_backend,
                                         &text,
                                         &mapped_labels_arc
                                     );
-                                    // Store normalized (lowercase) name for consistent matching
-                                    *cached = Some((backend_name_lower, new_backend));
+                                    // Store normalized (lowercase) name for matching, and creation name for reference
+                                    *cached = Some((backend_name_lower, creation_name, new_backend));
                                     result
                                 }
                                 Err(e) => Err(e),
@@ -935,9 +966,10 @@ impl TaskEvaluator {
         #[cfg(not(feature = "eval-parallel"))]
         {
             // For zero-shot backends, create a cached instance once to avoid recreating for each sentence
+            // Non-parallel path still uses Box<dyn Any> for backward compatibility
             let zero_shot_backend: Option<Box<dyn std::any::Any>> =
                 if is_zero_shot && !mapped_labels.is_empty() {
-                    Some(Self::create_zero_shot_backend(backend_name)?)
+                    Some(Self::create_zero_shot_backend_any(backend_name)?)
                 } else {
                     None
                 };
@@ -989,7 +1021,12 @@ impl TaskEvaluator {
                 profiling::start("backend_inference");
                 // Run inference - use extract() for zero-shot models, extract_entities() for others
                 let entities = if let Some(ref cached) = zero_shot_backend {
-                    Self::extract_with_cached_backend(backend_name, cached, &text, &mapped_labels)
+                    Self::extract_with_cached_backend_any(
+                        backend_name,
+                        cached,
+                        &text,
+                        &mapped_labels,
+                    )
                 } else {
                     backend.extract_entities(&text, None)
                 };
@@ -1022,9 +1059,26 @@ impl TaskEvaluator {
                         }
                     }
                     Err(e) => {
-                        // Log error but continue with other sentences
-                        eprintln!(
-                            "\nWarning: Backend inference failed for sentence {}: {}",
+                        // Log error with more context but continue with other sentences
+                        let error_msg = format!("{}", e);
+                        // Categorize errors for better reporting
+                        let error_type = if error_msg.contains("ONNX")
+                            || error_msg.contains("GatherElements")
+                            || error_msg.contains("span_idx")
+                        {
+                            "ONNX inference error"
+                        } else if error_msg.contains("Mutex lock failed") {
+                            "Thread synchronization error"
+                        } else if error_msg.contains("Retrieval error") {
+                            "Model loading error"
+                        } else {
+                            "Backend error"
+                        };
+                        eprintln!("\nWarning: {} for sentence {}: {}", error_type, idx + 1, e);
+                        // Log to debug channel for detailed analysis
+                        log::debug!(
+                            "Backend '{}' failed on sentence {}: {}",
+                            backend_name,
                             idx + 1,
                             e
                         );
@@ -1085,12 +1139,15 @@ impl TaskEvaluator {
 
         // Store per-example scores for later use in stratified metrics and confidence intervals
         {
-            let mut cache_guard = try_lock(&self.per_example_scores_cache)?;
+            // Use blocking lock for cache - it's not critical path and avoids "would block" errors
+            // If lock fails (poisoned), just skip caching rather than failing the evaluation
+            let mut cache_guard = lock(&self.per_example_scores_cache);
             if !per_example_scores.is_empty() {
                 *cache_guard = Some(per_example_scores);
             } else {
                 *cache_guard = None;
             }
+            // If lock fails, continue without caching (non-critical)
         }
 
         Ok(metrics)
@@ -1151,10 +1208,89 @@ impl TaskEvaluator {
             .collect()
     }
 
-    /// Create a zero-shot backend instance and cache it (wrapped in Any for type erasure).
+    /// Create a zero-shot backend instance (returns Box<dyn Any> for non-parallel path).
     ///
     /// This avoids recreating the model for every sentence, which causes ONNX errors.
-    fn create_zero_shot_backend(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
+    #[cfg(not(feature = "eval-parallel"))]
+    fn create_zero_shot_backend_any(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
+        Self::create_zero_shot_backend_impl(backend_name)
+    }
+
+    /// Create a zero-shot backend instance (returns enum for type safety).
+    ///
+    /// This avoids recreating the model for every sentence, which causes ONNX errors.
+    #[cfg(feature = "eval-parallel")]
+    fn create_zero_shot_backend(backend_name: &str) -> Result<CachedBackend> {
+        match backend_name.to_lowercase().as_str() {
+            #[cfg(feature = "onnx")]
+            "nuner" => {
+                use crate::backends::nuner::NuNER;
+                use crate::DEFAULT_NUNER_MODEL;
+                let nuner = NuNER::from_pretrained(DEFAULT_NUNER_MODEL)?;
+                Ok(CachedBackend::NuNER(nuner))
+            }
+            #[cfg(not(feature = "onnx"))]
+            "nuner" => Err(crate::Error::FeatureNotAvailable(
+                "NuNER requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            "gliner_onnx" | "gliner" => {
+                use crate::backends::gliner_onnx::GLiNEROnnx;
+                use crate::DEFAULT_GLINER_MODEL;
+                let gliner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
+                Ok(CachedBackend::GLiNEROnnx(gliner))
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner_onnx" | "gliner" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            "gliner2" => {
+                use crate::backends::gliner2::GLiNER2Onnx;
+                use crate::DEFAULT_GLINER2_MODEL;
+                let gliner2 = GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?;
+                Ok(CachedBackend::GLiNER2Onnx(gliner2))
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner2" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER2 requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "candle")]
+            "gliner_candle" => {
+                use crate::backends::gliner_candle::GLiNERCandle;
+                use crate::DEFAULT_GLINER_MODEL;
+                let gliner = GLiNERCandle::from_pretrained(DEFAULT_GLINER_MODEL)?;
+                Ok(CachedBackend::GLiNERCandle(gliner))
+            }
+            #[cfg(not(feature = "candle"))]
+            "gliner_candle" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER Candle requires the 'candle' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            "gliner_poly" => {
+                use crate::backends::gliner_poly::GLiNERPoly;
+                use crate::DEFAULT_GLINER_MODEL;
+                let gliner_poly = GLiNERPoly::new(DEFAULT_GLINER_MODEL)?;
+                Ok(CachedBackend::GLiNERPoly(gliner_poly))
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner_poly" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER Poly requires the 'onnx' feature".to_string(),
+            )),
+            "universal_ner" => {
+                use crate::backends::universal_ner::UniversalNER;
+                let universal_ner = UniversalNER::new()?;
+                Ok(CachedBackend::UniversalNER(universal_ner))
+            }
+            _ => Err(crate::Error::InvalidInput(format!(
+                "Unknown zero-shot backend: {}",
+                backend_name
+            ))),
+        }
+    }
+
+    /// Internal implementation that creates backend as Box<dyn Any> (for non-parallel path).
+    fn create_zero_shot_backend_impl(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
         match backend_name.to_lowercase().as_str() {
             "nuner" => {
                 #[cfg(feature = "onnx")]
@@ -1245,7 +1381,63 @@ impl TaskEvaluator {
 
     /// Extract entities using cached zero-shot backend instance.
     #[allow(unused_variables)] // False positives - variables are used in feature-gated code
+    #[cfg(feature = "eval-parallel")]
     fn extract_with_cached_backend(
+        cached: &CachedBackend,
+        text: &str,
+        labels: &[String],
+    ) -> Result<Vec<Entity>> {
+        // Convert labels to &str slice
+        let label_strs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+
+        match cached {
+            #[cfg(feature = "onnx")]
+            CachedBackend::NuNER(nuner) => nuner.extract(text, &label_strs, 0.5),
+            #[cfg(not(feature = "onnx"))]
+            CachedBackend::NuNER(_) => Err(crate::Error::FeatureNotAvailable(
+                "NuNER requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            CachedBackend::GLiNEROnnx(gliner) => gliner.extract(text, &label_strs, 0.5),
+            #[cfg(not(feature = "onnx"))]
+            CachedBackend::GLiNEROnnx(_) => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            CachedBackend::GLiNER2Onnx(gliner2) => {
+                use crate::backends::gliner2::TaskSchema;
+                let schema = TaskSchema::new().with_entities(&label_strs);
+                let result = gliner2.extract(text, &schema)?;
+                Ok(result.entities)
+            }
+            #[cfg(not(feature = "onnx"))]
+            CachedBackend::GLiNER2Onnx(_) => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER2 requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "candle")]
+            CachedBackend::GLiNERCandle(gliner) => gliner.extract(text, &label_strs, 0.5),
+            #[cfg(not(feature = "candle"))]
+            CachedBackend::GLiNERCandle(_) => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER Candle requires the 'candle' feature".to_string(),
+            )),
+            #[cfg(feature = "onnx")]
+            CachedBackend::GLiNERPoly(gliner_poly) => {
+                gliner_poly.extract_with_types(text, &label_strs, 0.5)
+            }
+            #[cfg(not(feature = "onnx"))]
+            CachedBackend::GLiNERPoly(_) => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER Poly requires the 'onnx' feature".to_string(),
+            )),
+            CachedBackend::UniversalNER(universal_ner) => {
+                universal_ner.extract_with_types(text, &label_strs, 0.5)
+            }
+        }
+    }
+
+    /// Extract entities using cached zero-shot backend instance (Box<dyn Any> version for non-parallel path).
+    #[allow(unused_variables)] // False positives - variables are used in feature-gated code
+    #[cfg(not(feature = "eval-parallel"))]
+    fn extract_with_cached_backend_any(
         backend_name: &str,
         cached: &dyn std::any::Any,
         text: &str,
@@ -1552,25 +1744,50 @@ impl TaskEvaluator {
             evaluate_relations, RelationEvalConfig, RelationGold, RelationPrediction,
         };
 
-        // Load gold relations from dataset
+        // Load gold relations from dataset (try download if not cached)
         let relation_docs = match self.loader.load_relation(dataset_data.id) {
             Ok(docs) => docs,
-            Err(e) => {
-                // If relation loading fails, return empty metrics
-                eprintln!(
-                    "Warning: Failed to load relations for {:?}: {}",
-                    dataset_data.id, e
-                );
-                let mut metrics = HashMap::new();
-                metrics.insert("boundary_f1".to_string(), 0.0);
-                metrics.insert("strict_f1".to_string(), 0.0);
-                metrics.insert("num_gold_relations".to_string(), 0.0);
-                metrics.insert("num_predicted_relations".to_string(), 0.0);
-                metrics.insert(
-                    "num_sentences".to_string(),
-                    dataset_data.sentences.len() as f64,
-                );
-                return Ok(metrics);
+            Err(_) => {
+                // If not cached, try downloading (if eval-advanced feature enabled)
+                #[cfg(feature = "eval-advanced")]
+                {
+                    match self.loader.load_or_download_relation(dataset_data.id) {
+                        Ok(docs) => docs,
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to load/download relations for {:?}: {}",
+                                dataset_data.id, e
+                            );
+                            let mut metrics = HashMap::new();
+                            metrics.insert("boundary_f1".to_string(), 0.0);
+                            metrics.insert("strict_f1".to_string(), 0.0);
+                            metrics.insert("num_gold_relations".to_string(), 0.0);
+                            metrics.insert("num_predicted_relations".to_string(), 0.0);
+                            metrics.insert(
+                                "num_sentences".to_string(),
+                                dataset_data.sentences.len() as f64,
+                            );
+                            return Ok(metrics);
+                        }
+                    }
+                }
+                #[cfg(not(feature = "eval-advanced"))]
+                {
+                    eprintln!(
+                        "Warning: Relations for {:?} not cached and 'eval-advanced' feature not enabled (cannot download)",
+                        dataset_data.id
+                    );
+                    let mut metrics = HashMap::new();
+                    metrics.insert("boundary_f1".to_string(), 0.0);
+                    metrics.insert("strict_f1".to_string(), 0.0);
+                    metrics.insert("num_gold_relations".to_string(), 0.0);
+                    metrics.insert("num_predicted_relations".to_string(), 0.0);
+                    metrics.insert(
+                        "num_sentences".to_string(),
+                        dataset_data.sentences.len() as f64,
+                    );
+                    return Ok(metrics);
+                }
             }
         };
 
@@ -2394,6 +2611,10 @@ impl TaskEvaluator {
         if dataset_len == 0 {
             return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
         }
+        // If dataset is too small for meaningful CI, fall back to aggregate metrics
+        if dataset_len < MIN_CI_SAMPLE_SIZE {
+            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
+        }
         let sample_size = dataset_len.clamp(MIN_CI_SAMPLE_SIZE, MAX_CI_SAMPLE_SIZE);
         let sample: Vec<_> = dataset_data.sentences.iter().take(sample_size).collect();
 
@@ -2435,19 +2656,38 @@ impl TaskEvaluator {
             let predicted = if is_zero_shot && !mapped_labels.is_empty() {
                 // For zero-shot backends, use extract_with_types
                 // Create zero-shot backend instance (reuse thread-local cache if available)
-                match Self::create_zero_shot_backend(backend_name) {
-                    Ok(zero_shot_backend) => {
-                        match Self::extract_with_cached_backend(
-                            backend_name,
-                            zero_shot_backend.as_ref(),
-                            &text,
-                            &mapped_labels,
-                        ) {
-                            Ok(entities) => entities,
-                            Err(_) => continue,
+                #[cfg(feature = "eval-parallel")]
+                {
+                    match Self::create_zero_shot_backend(backend_name) {
+                        Ok(zero_shot_backend) => {
+                            match Self::extract_with_cached_backend(
+                                &zero_shot_backend,
+                                &text,
+                                &mapped_labels,
+                            ) {
+                                Ok(entities) => entities,
+                                Err(_) => continue,
+                            }
                         }
+                        Err(_) => continue,
                     }
-                    Err(_) => continue,
+                }
+                #[cfg(not(feature = "eval-parallel"))]
+                {
+                    match Self::create_zero_shot_backend_any(backend_name) {
+                        Ok(zero_shot_backend) => {
+                            match Self::extract_with_cached_backend_any(
+                                backend_name,
+                                zero_shot_backend.as_ref(),
+                                &text,
+                                &mapped_labels,
+                            ) {
+                                Ok(entities) => entities,
+                                Err(_) => continue,
+                            }
+                        }
+                        Err(_) => continue,
+                    }
                 }
             } else {
                 match backend.extract_entities(&text, None) {
@@ -2618,19 +2858,27 @@ impl TaskEvaluator {
             for (gold, predicted, _text) in per_example {
                 // Group by entity type and compute per-type metrics
                 let mut type_groups: HashMap<String, (Vec<Entity>, Vec<Entity>)> = HashMap::new();
-                
+
                 // Group gold entities by type
                 for entity in gold {
                     let type_str = entity.entity_type.as_label().to_string();
-                    type_groups.entry(type_str.clone()).or_default().0.push(entity.clone());
+                    type_groups
+                        .entry(type_str.clone())
+                        .or_default()
+                        .0
+                        .push(entity.clone());
                 }
-                
+
                 // Group predicted entities by type
                 for entity in predicted {
                     let type_str = entity.entity_type.as_label().to_string();
-                    type_groups.entry(type_str).or_default().1.push(entity.clone());
+                    type_groups
+                        .entry(type_str)
+                        .or_default()
+                        .1
+                        .push(entity.clone());
                 }
-                
+
                 // Compute per-type metrics
                 for (type_str, (type_gold, type_predicted)) in type_groups {
                     let result = evaluate_entities(&type_gold, &type_predicted);
