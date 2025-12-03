@@ -705,7 +705,23 @@ fn create_realistic_sentence(name: &str) -> String {
 /// Based on census data and common names from various countries.
 pub fn create_diverse_name_dataset() -> Vec<NameExample> {
     let mut names = Vec::new();
+    names.extend(european_names());
+    names.extend(african_american_names());
+    names.extend(hispanic_names());
+    names.extend(east_asian_names());
+    names.extend(south_asian_names());
+    names.extend(middle_eastern_names());
+    names.extend(african_names());
+    names
+}
 
+// =============================================================================
+// Helper functions for each ethnicity group
+// =============================================================================
+
+/// European names (English, German, French, Italian, Nordic, etc.)
+fn european_names() -> Vec<NameExample> {
+    vec![
     // === European Names ===
     names.extend(vec![
         NameExample::new(
@@ -840,10 +856,13 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Rare,
         ),
-    ]);
+    ]
+}
 
+/// Hispanic/Latino names
+fn hispanic_names() -> Vec<NameExample> {
+    vec![
     // === Hispanic Names ===
-    names.extend(vec![
         NameExample::new(
             "José",
             "García",
@@ -908,10 +927,13 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Neutral),
             NameFrequency::Moderate,
         ),
-    ]);
+    ]
+}
 
+/// East Asian names (Chinese, Japanese, Korean)
+fn east_asian_names() -> Vec<NameExample> {
+    vec![
     // === East Asian Names ===
-    names.extend(vec![
         // Chinese (Latin transliteration)
         NameExample::new(
             "Wei",
@@ -1012,10 +1034,13 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Masculine),
             NameFrequency::Common,
         ),
-    ]);
+    ]
+}
 
+/// South Asian names (Indian, Pakistani, Bangladeshi, etc.)
+fn south_asian_names() -> Vec<NameExample> {
+    vec![
     // === South Asian Names ===
-    names.extend(vec![
         NameExample::new(
             "Raj",
             "Patel",
@@ -1081,10 +1106,13 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Common,
         ),
-    ]);
+    ]
+}
 
+/// Middle Eastern names (Arabic, Persian, Turkish, etc.)
+fn middle_eastern_names() -> Vec<NameExample> {
+    vec![
     // === Middle Eastern Names ===
-    names.extend(vec![
         NameExample::new(
             "Ahmed",
             "Hassan",
@@ -1150,10 +1178,13 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Common,
         ),
-    ]);
+    ]
+}
 
+/// African names (from various African countries)
+fn african_names() -> Vec<NameExample> {
+    vec![
     // === African Names ===
-    names.extend(vec![
         NameExample::new(
             "Chidi",
             "Okonkwo",
@@ -2450,9 +2481,7 @@ pub fn create_diverse_name_dataset() -> Vec<NameExample> {
             Some(Gender::Feminine),
             NameFrequency::Common,
         ),
-    ]);
-
-    names
+    ]
 }
 
 /// Validate demographic distribution against reference (US Census proportions).
