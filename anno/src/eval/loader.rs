@@ -2464,6 +2464,7 @@ impl DatasetLoader {
 
     /// Placeholder for when hf-hub is not available.
     #[cfg(not(all(feature = "eval-advanced", feature = "onnx")))]
+    #[allow(dead_code)] // Part of trait interface, may be unused in some feature combinations
     fn try_hf_hub_download(&self, _id: DatasetId) -> Result<String> {
         Err(Error::InvalidInput("hf-hub not available".to_string()))
     }

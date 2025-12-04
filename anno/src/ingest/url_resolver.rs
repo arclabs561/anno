@@ -41,6 +41,7 @@ impl HttpResolver {
     /// Extract text from HTML content (simple, no full HTML parser).
     ///
     /// Removes HTML tags and decodes common entities.
+    #[allow(dead_code)] // Part of trait interface, may be unused in some feature combinations
     fn extract_text_from_html(&self, html: &str) -> String {
         let mut text = String::with_capacity(html.len());
         let mut in_tag = false;

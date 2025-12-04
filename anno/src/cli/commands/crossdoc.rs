@@ -1,7 +1,23 @@
 //! CrossDoc command - Cross-document coreference: cluster entities across multiple documents
 
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::io::{self, BufRead};
+use std::path::{Path, PathBuf};
 
+#[cfg(feature = "eval")]
+use glob::glob;
 
+use serde_json;
+
+use anno_coalesce::Resolver;
+use crate::{
+    Corpus, Entity, EntityType, GroundedDocument, Identity, IdentityId, IdentitySource, Location,
+    Signal,
+};
+use crate::eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
+
+use super::super::output::color;
 use super::super::parser::{ModelBackend, OutputFormat};
 
 /// Cross-document coreference: cluster entities across multiple documents

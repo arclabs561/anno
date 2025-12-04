@@ -216,6 +216,8 @@ impl ModelBackend {
 
 #[cfg(feature = "eval")]
 use anno::eval::loader::DatasetId;
+#[cfg(feature = "eval-advanced")]
+use anno::ingest::CompositeResolver;
 
 // ============================================================================
 // Main Entry Point

@@ -29,23 +29,19 @@ fn main() {
 
         for dataset_id in datasets {
             println!("Processing {}...", dataset_id.name());
-
+            
             match loader.load(dataset_id) {
                 Ok(dataset) => {
                     let dataset_dir = output_dir.join(dataset_id.name().to_lowercase());
                     fs::create_dir_all(&dataset_dir).expect("Failed to create dataset dir");
 
-                    for (idx, sentence) in dataset.sentences.iter().take(20).enumerate() {
-                        let filename =
-                            format!("{}_{:03}.txt", dataset_id.name().to_lowercase(), idx);
+                    for (idx, example) in dataset.examples.iter().take(20).enumerate() {
+                        let filename = format!("{}_{:03}.txt", dataset_id.name().to_lowercase(), idx);
                         let filepath = dataset_dir.join(&filename);
-                        fs::write(&filepath, sentence.text()).expect("Failed to write file");
+                        fs::write(&filepath, &example.text).expect("Failed to write file");
                     }
-                    println!(
-                        "  Extracted {} examples to {:?}",
-                        dataset.sentences.len().min(20),
-                        dataset_dir
-                    );
+                    println!("  Extracted {} examples to {:?}", 
+                        dataset.examples.len().min(20), dataset_dir);
                 }
                 Err(e) => {
                     eprintln!("  Failed to load {}: {}", dataset_id.name(), e);
@@ -54,3 +50,4 @@ fn main() {
         }
     }
 }
+
