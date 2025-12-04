@@ -40,12 +40,20 @@ pub use anno_core::{
     Span, SpanCandidate, Track, TrackId, TrackRef, TypeMapper, ValidationIssue,
 };
 
-// Re-export graph module for backward compatibility (anno::graph::*)
+/// Re-export graph module for backward compatibility (anno::graph::*)
+///
+/// This module re-exports all graph-related types from `anno-core`:
+/// - `GraphNode`, `GraphEdge`, `GraphDocument`
+/// - Graph export formats and utilities
 pub mod graph {
     pub use anno_core::graph::*;
 }
 
-// Re-export grounded module for backward compatibility (anno::grounded::*)
+/// Re-export grounded module for backward compatibility (anno::grounded::*)
+///
+/// This module re-exports all grounded document types from `anno-core`:
+/// - `GroundedDocument`, `Signal`, `Track`, `Identity`
+/// - Coreference resolution types and utilities
 pub mod grounded {
     pub use anno_core::grounded::*;
 }
@@ -118,7 +126,19 @@ pub trait Model: sealed::Sealed + Send + Sync {
 // Capability Marker Traits
 // =============================================================================
 
+/// Trait for models that support batch processing.
+///
+/// Models implementing this trait can process multiple texts efficiently,
+/// potentially using parallel processing or optimized batch operations.
 pub trait BatchCapable: Model {
+    /// Extract entities from multiple texts in a batch.
+    ///
+    /// # Arguments
+    /// * `texts` - Slice of text strings to process
+    /// * `language` - Optional language hint for the texts
+    ///
+    /// # Returns
+    /// A vector of entity vectors, one per input text
     fn extract_entities_batch(
         &self,
         texts: &[&str],
@@ -130,6 +150,10 @@ pub trait BatchCapable: Model {
             .collect()
     }
 
+    /// Get the optimal batch size for this model, if applicable.
+    ///
+    /// Returns `None` if the model doesn't have a specific optimal batch size,
+    /// or `Some(n)` if there's a recommended batch size for best performance.
     fn optimal_batch_size(&self) -> Option<usize> {
         None
     }

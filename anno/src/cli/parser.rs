@@ -36,6 +36,9 @@ EXAMPLES:
   anno extract "Marie Curie won the Nobel Prize."
   anno debug --coref --link-kb -t "Barack Obama met Angela Merkel. He discussed NATO."
   anno eval -t "..." -g "Marie Curie:PER:0:11"
+  anno crossdoc --directory ./docs --threshold 0.6
+  anno coalesce --directory ./docs --threshold 0.6  # alias for crossdoc
+  anno strata --input graph.json --method leiden --levels 3
   anno info
 "#
 )]

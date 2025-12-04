@@ -64,7 +64,9 @@ pub fn run(args: StrataArgs) -> Result<(), String> {
             .map_err(|e| format!("Failed to read from stdin: {}", e))?;
         content
     } else {
-        let input_path = args.input.as_ref().unwrap();
+        // Safe: we validated earlier that input is Some when stdin is false
+        let input_path = args.input.as_ref()
+            .ok_or_else(|| "Internal error: input path should be set when stdin is false".to_string())?;
         std::fs::read_to_string(input_path)
             .map_err(|e| format!("Failed to read input file {}: {}", input_path, e))?
     };

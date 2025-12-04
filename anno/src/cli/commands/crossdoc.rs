@@ -92,8 +92,10 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         // Create model
         let model = args.model.create_model()?;
 
-        if args.verbose && args.directory.is_some() {
-            eprintln!("Scanning directory: {}", args.directory.as_ref().unwrap());
+        if args.verbose {
+            if let Some(ref dir) = args.directory {
+                eprintln!("Scanning directory: {}", dir);
+            }
         }
 
         // Collect text files
@@ -131,7 +133,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         let mut doc_paths: HashMap<String, String> = HashMap::new(); // doc_id -> file_path
         let mut use_corpus = false;
         let mut corpus = Corpus::new();
-        let mut clusters_from_corpus: Option<Vec<CrossDocCluster>> = None;
+        let clusters_from_corpus: Option<Vec<CrossDocCluster>>; // Will be assigned in conditional branches
         let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
 
         // Helper function to convert Identity to CrossDocCluster with proper mention extraction
