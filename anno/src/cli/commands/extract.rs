@@ -10,9 +10,9 @@ use super::super::utils::{detect_quantifier, get_input_text, is_negated};
 
 use crate::graph::{GraphDocument, GraphExportFormat}; // Re-exported from anno-core
 use crate::grounded::{GroundedDocument, Location, Modality, Signal, SignalValidationError}; // Re-exported from anno-core
-use crate::ingest::DocumentPreprocessor;
 #[cfg(feature = "eval-advanced")]
 use crate::ingest::url_resolver::CompositeResolver;
+use crate::ingest::DocumentPreprocessor;
 
 /// Extract entities from text
 #[derive(Parser, Debug)]

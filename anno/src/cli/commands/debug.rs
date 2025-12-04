@@ -8,9 +8,9 @@ use super::super::parser::ModelBackend;
 use super::super::utils::{get_input_text, link_tracks_to_kb, resolve_coreference};
 
 use crate::grounded::{render_document_html, GroundedDocument, Location, Signal}; // Re-exported from anno-core
-use crate::ingest::DocumentPreprocessor;
 #[cfg(feature = "eval-advanced")]
 use crate::ingest::url_resolver::{CompositeResolver, UrlResolver};
+use crate::ingest::DocumentPreprocessor;
 
 /// Generate HTML debug visualization
 #[derive(Parser, Debug)]

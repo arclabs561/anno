@@ -10,7 +10,6 @@ use anno_core::{GroundedDocument, Location, Signal};
 #[cfg(feature = "eval")]
 use crate::grounded::{EvalComparison, EvalMatch}; // Re-exported from anno-core
 
-
 /// Log info message (respects quiet flag)
 pub fn log_info(msg: &str, quiet: bool) {
     if !quiet {

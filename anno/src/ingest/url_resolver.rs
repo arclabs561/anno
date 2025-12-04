@@ -179,8 +179,8 @@ impl UrlResolver for HttpResolver {
         #[cfg(feature = "eval-advanced")]
         {
             let _url = url; // Used in error messages below
-            // Reuse the download infrastructure from eval/loader
-            // Note: download_attempt is private, so we'll implement our own
+                            // Reuse the download infrastructure from eval/loader
+                            // Note: download_attempt is private, so we'll implement our own
             let response = ureq::get(url)
                 .timeout(std::time::Duration::from_secs(60))
                 .call()

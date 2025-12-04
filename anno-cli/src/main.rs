@@ -54,7 +54,8 @@ use is_terminal::IsTerminal;
 use anno::eval::backend_factory::BackendFactory;
 use anno::graph::{GraphDocument, GraphExportFormat};
 use anno::grounded::{
-    render_document_html, render_eval_html, EvalComparison, EvalMatch, GroundedDocument, Identity, Location, Modality, Quantifier, Signal, SignalValidationError,
+    render_document_html, render_eval_html, EvalComparison, EvalMatch, GroundedDocument, Identity,
+    Location, Modality, Quantifier, Signal, SignalValidationError,
 };
 use anno::ingest::DocumentPreprocessor;
 use anno::{AutoNER, Entity, HeuristicNER, Model, RegexNER, StackedNER};
@@ -80,9 +81,7 @@ use anno::{DEFAULT_GLINER2_MODEL, DEFAULT_GLINER_MODEL};
 // Use CLI module's Cli and Commands
 use anno::cli::parser::OutputFormat;
 // Import Args types directly from commands module (they're re-exported)
-use anno::cli::commands::{
-    CompareArgs, EnhanceArgs, ModelsArgs, QueryArgs,
-};
+use anno::cli::commands::{CompareArgs, EnhanceArgs, ModelsArgs, QueryArgs};
 // Import action enums from their specific modules
 use anno::cli::commands::models::ModelsAction;
 
@@ -240,12 +239,24 @@ fn main() -> ExitCode {
         Some(Commands::Dataset(args)) => dataset::run(args),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::Benchmark(args)) => benchmark::run(args),
+        #[cfg(not(feature = "eval-advanced"))]
+        Some(Commands::Benchmark(_)) => {
+            Err("Benchmark command requires 'eval-advanced' feature".to_string())
+        }
         Some(Commands::Info) => info::run(),
         Some(Commands::Models(args)) => models::run(args),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::CrossDoc(args)) => crossdoc::run(args),
+        #[cfg(not(feature = "eval-advanced"))]
+        Some(Commands::CrossDoc(_)) => {
+            Err("CrossDoc command requires 'eval-advanced' feature".to_string())
+        }
         #[cfg(feature = "eval-advanced")]
         Some(Commands::Strata(args)) => strata::run(args),
+        #[cfg(not(feature = "eval-advanced"))]
+        Some(Commands::Strata(_)) => {
+            Err("Strata command requires 'eval-advanced' feature".to_string())
+        }
         Some(Commands::Enhance(args)) => enhance::run(args),
         Some(Commands::Pipeline(args)) => pipeline::run(args),
         Some(Commands::Query(args)) => query::run(args),
@@ -516,7 +527,8 @@ fn cmd_extract(args: anno::cli::commands::ExtractArgs) -> Result<(), String> {
         }
         OutputFormat::Tree | OutputFormat::Summary => {
             return Err(
-                "Tree/Summary formats are only available for crossdoc/coalesce command.".to_string(),
+                "Tree/Summary formats are only available for crossdoc/coalesce command."
+                    .to_string(),
             );
         }
         OutputFormat::Inline => {

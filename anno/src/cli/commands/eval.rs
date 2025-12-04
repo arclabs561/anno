@@ -10,9 +10,7 @@ use super::super::output::{color, metric_colored};
 use super::super::parser::ModelBackend;
 use super::super::utils::{get_input_text, load_gold_from_file, parse_gold_spec};
 
-use crate::grounded::{
-    render_eval_html, EvalComparison, EvalMatch, Location, Signal,
-};
+use crate::grounded::{render_eval_html, EvalComparison, EvalMatch, Location, Signal};
 
 /// Evaluate predictions against gold annotations
 #[derive(Parser, Debug)]

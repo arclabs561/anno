@@ -10,7 +10,6 @@ use super::super::utils::types_match_flexible;
 #[cfg(feature = "eval-advanced")]
 use super::super::utils::create_entity_pair_relations;
 
-
 #[cfg(feature = "eval")]
 use crate::eval::loader::DatasetId;
 

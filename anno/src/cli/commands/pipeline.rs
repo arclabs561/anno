@@ -120,9 +120,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         let pb = ProgressBar::new(texts.len() as u64);
         // Template is a constant string, so unwrap is safe, but we handle it explicitly
         let style = ProgressStyle::default_bar()
-            .template(
-                "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}",
-            )
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
             .expect("Progress bar template should be valid");
         pb.set_style(style.progress_chars("#>-"));
         Some(pb)
