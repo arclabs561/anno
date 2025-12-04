@@ -16,7 +16,7 @@ default = ["eval-advanced"]
 eval-advanced = ["anno/eval-advanced"]
 
 [dependencies]
-anno = { path = "../anno", features = ["cli", "eval"] }
+anno = { path = "../anno", features = ["cli", "eval"], default-features = false }
 anno-core = { path = "../anno-core" }
 anno-coalesce = { path = "../coalesce" }
 anno-strata = { path = "../strata" }

@@ -239,24 +239,12 @@ fn main() -> ExitCode {
         Some(Commands::Dataset(args)) => dataset::run(args),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::Benchmark(args)) => benchmark::run(args),
-        #[cfg(not(feature = "eval-advanced"))]
-        Some(Commands::Benchmark(_)) => {
-            Err("Benchmark command requires 'eval-advanced' feature".to_string())
-        }
         Some(Commands::Info) => info::run(),
         Some(Commands::Models(args)) => models::run(args),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::CrossDoc(args)) => crossdoc::run(args),
-        #[cfg(not(feature = "eval-advanced"))]
-        Some(Commands::CrossDoc(_)) => {
-            Err("CrossDoc command requires 'eval-advanced' feature".to_string())
-        }
         #[cfg(feature = "eval-advanced")]
         Some(Commands::Strata(args)) => strata::run(args),
-        #[cfg(not(feature = "eval-advanced"))]
-        Some(Commands::Strata(_)) => {
-            Err("Strata command requires 'eval-advanced' feature".to_string())
-        }
         Some(Commands::Enhance(args)) => enhance::run(args),
         Some(Commands::Pipeline(args)) => pipeline::run(args),
         Some(Commands::Query(args)) => query::run(args),
