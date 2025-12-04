@@ -52,6 +52,7 @@ version = "0.2.0"
 dependencies = [
  "anno-coalesce",
  "anno-core",
+ "anno-strata",
  "candle-core",
  "candle-nn",
  "candle-transformers",

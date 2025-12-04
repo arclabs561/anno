@@ -444,7 +444,7 @@ impl EvalSystem {
         use std::time::Instant;
 
         let start = Instant::now();
-        let warnings = Vec::new();
+        let mut warnings = Vec::new();
 
         // Run standard evaluation
         #[cfg(feature = "eval-advanced")]

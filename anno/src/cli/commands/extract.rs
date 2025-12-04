@@ -11,6 +11,8 @@ use super::super::utils::{detect_quantifier, get_input_text, is_negated};
 use crate::graph::{GraphDocument, GraphExportFormat}; // Re-exported from anno-core
 use crate::grounded::{GroundedDocument, Location, Modality, Signal, SignalValidationError}; // Re-exported from anno-core
 use crate::ingest::DocumentPreprocessor;
+#[cfg(feature = "eval-advanced")]
+use crate::ingest::url_resolver::CompositeResolver;
 
 /// Extract entities from text
 #[derive(Parser, Debug)]
@@ -89,12 +91,13 @@ pub fn run(args: ExtractArgs) -> Result<(), String> {
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
     // - `debug --link-kb` adds Level 3 (Identity) via KB linking
-    // - `cross-doc` clusters Level 1 entities across multiple documents
+    // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {
         #[cfg(feature = "eval-advanced")]
         {
+            use crate::ingest::UrlResolver;
             let resolver = CompositeResolver::new();
             let resolved = resolver
                 .resolve(url)

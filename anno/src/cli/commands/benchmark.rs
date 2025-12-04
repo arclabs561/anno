@@ -1,9 +1,13 @@
 //! Benchmark command - Comprehensive evaluation across all task-dataset-backend combinations
 
+use std::fs;
+
 use clap::Parser;
 
 #[cfg(feature = "eval-advanced")]
-use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
+use crate::eval::loader::DatasetId;
+#[cfg(feature = "eval-advanced")]
+use crate::eval::task_evaluator::TaskEvaluator;
 #[cfg(feature = "eval-advanced")]
 use crate::eval::task_mapping::Task;
 

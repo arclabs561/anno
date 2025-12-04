@@ -11,8 +11,12 @@ documentation.workspace = true
 description = "Unified CLI for the anno toolbox"
 publish = false  # Binary-only crate, not published to crates.io
 
+[features]
+default = []
+eval-advanced = ["anno/eval-advanced"]
+
 [dependencies]
-anno = { path = "../anno", features = ["cli", "eval"] }
+anno = { path = "../anno", features = ["cli", "eval", "eval-advanced"] }
 anno-core = { path = "../anno-core" }
 anno-coalesce = { path = "../coalesce" }
 anno-strata = { path = "../strata" }

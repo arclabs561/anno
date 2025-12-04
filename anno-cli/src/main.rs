@@ -16,7 +16,7 @@
 //! ```text
 //! Level 1 (Signal)   : Raw detections with spans  
 //! Level 2 (Track)    : Within-document coreference chains
-//! Level 3 (Identity) : Cross-document KB-linked entities
+//! Level 3 (Identity) : Cross-document entity coalescing and KB linking
 //! ```
 //!
 //! # Usage
@@ -217,7 +217,7 @@ impl ModelBackend {
 #[cfg(feature = "eval")]
 use anno::eval::loader::DatasetId;
 #[cfg(feature = "eval-advanced")]
-use anno::ingest::CompositeResolver;
+use anno::ingest::url_resolver::CompositeResolver;
 
 // ============================================================================
 // Main Entry Point
@@ -244,6 +244,8 @@ fn main() -> ExitCode {
         Some(Commands::Models(args)) => models::run(args),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::CrossDoc(args)) => crossdoc::run(args),
+        #[cfg(feature = "eval-advanced")]
+        Some(Commands::Strata(args)) => strata::run(args),
         Some(Commands::Enhance(args)) => enhance::run(args),
         Some(Commands::Pipeline(args)) => pipeline::run(args),
         Some(Commands::Query(args)) => query::run(args),
@@ -341,12 +343,13 @@ fn cmd_extract(args: anno::cli::commands::ExtractArgs) -> Result<(), String> {
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
     // - `debug --link-kb` adds Level 3 (Identity) via KB linking
-    // - `cross-doc` clusters Level 1 entities across multiple documents
+    // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {
         #[cfg(feature = "eval-advanced")]
         {
+            use anno::ingest::UrlResolver;
             let resolver = CompositeResolver::new();
             let resolved = resolver
                 .resolve(url)
@@ -513,7 +516,7 @@ fn cmd_extract(args: anno::cli::commands::ExtractArgs) -> Result<(), String> {
         }
         OutputFormat::Tree | OutputFormat::Summary => {
             return Err(
-                "Tree/Summary formats are only available for cross-doc command.".to_string(),
+                "Tree/Summary formats are only available for crossdoc/coalesce command.".to_string(),
             );
         }
         OutputFormat::Inline => {
@@ -671,12 +674,13 @@ fn cmd_extract(args: anno::cli::commands::ExtractArgs) -> Result<(), String> {
 fn cmd_debug(args: anno::cli::commands::DebugArgs) -> Result<(), String> {
     // Level 1 + 2 (Signal → Track): Entity extraction + within-document coreference
     // With --link-kb: Level 1 + 2 + 3 (Signal → Track → Identity): Adds KB linking
-    // This builds the full hierarchy that could be used by cross-doc for better clustering
+    // This builds the full hierarchy that could be used by coalescing for better clustering
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {
         #[cfg(feature = "eval-advanced")]
         {
+            use anno::ingest::UrlResolver;
             let resolver = CompositeResolver::new();
             let resolved = resolver
                 .resolve(url)
@@ -1520,7 +1524,7 @@ fn cmd_info() -> Result<(), String> {
     println!();
 
     println!("{}:", color("1;33", "Enabled Features"));
-    let features: Vec<&str> = Vec::new();
+    let mut features: Vec<&str> = Vec::new();
     #[cfg(feature = "onnx")]
     features.push("onnx");
     #[cfg(feature = "candle")]

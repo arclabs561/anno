@@ -18,6 +18,7 @@ pub mod info;
 pub mod models;
 pub mod pipeline;
 pub mod query;
+pub mod strata;
 pub mod validate;
 
 // Re-export argument types for parser
@@ -36,4 +37,5 @@ pub use extract::ExtractArgs;
 pub use models::ModelsArgs;
 pub use pipeline::PipelineArgs;
 pub use query::QueryArgs;
+pub use strata::StrataArgs;
 pub use validate::ValidateArgs;

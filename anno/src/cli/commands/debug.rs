@@ -9,6 +9,8 @@ use super::super::utils::{get_input_text, link_tracks_to_kb, resolve_coreference
 
 use crate::grounded::{render_document_html, GroundedDocument, Location, Signal}; // Re-exported from anno-core
 use crate::ingest::DocumentPreprocessor;
+#[cfg(feature = "eval-advanced")]
+use crate::ingest::url_resolver::{CompositeResolver, UrlResolver};
 
 /// Generate HTML debug visualization
 #[derive(Parser, Debug)]
@@ -85,7 +87,7 @@ pub struct DebugArgs {
 pub fn run(args: DebugArgs) -> Result<(), String> {
     // Level 1 + 2 (Signal → Track): Entity extraction + within-document coreference
     // With --link-kb: Level 1 + 2 + 3 (Signal → Track → Identity): Adds KB linking
-    // This builds the full hierarchy that could be used by cross-doc for better clustering
+    // This builds the full hierarchy that could be used by coalescing for better clustering
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {

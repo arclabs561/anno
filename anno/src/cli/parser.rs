@@ -87,9 +87,14 @@ pub enum Commands {
     /// List and compare available models
     Models(commands::ModelsArgs),
 
-    /// Cross-document coreference: cluster entities across multiple documents
+    /// Cross-document entity coalescing: cluster entities across multiple documents
+    #[command(visible_alias = "coalesce")]
     #[cfg(feature = "eval-advanced")]
     CrossDoc(commands::CrossDocArgs),
+
+    /// Hierarchical clustering: reveal strata of abstraction
+    #[cfg(feature = "eval-advanced")]
+    Strata(commands::StrataArgs),
 
     /// Enhance entities with additional metadata
     Enhance(commands::EnhanceArgs),

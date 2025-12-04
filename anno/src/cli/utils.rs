@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
 
-use anno_core::{GroundedDocument, Identity, Location, Quantifier, Signal};
+use anno_core::{Entity, GroundedDocument, Identity, Location, Quantifier, Signal};
 
 /// Get input text from various sources (text arg, file, or stdin)
 pub fn get_input_text(
@@ -707,8 +707,8 @@ pub fn create_entity_pair_relations(
     entities: &[Entity],
     text: &str,
     relation_types: &[&str],
-) -> Vec<anno::eval::relation::RelationPrediction> {
-    use anno::eval::relation::RelationPrediction;
+) -> Vec<crate::eval::relation::RelationPrediction> {
+    use crate::eval::relation::RelationPrediction;
 
     let text_char_len = text.chars().count();
     let max_distance = 200; // Increased from 100 to catch cross-sentence relations

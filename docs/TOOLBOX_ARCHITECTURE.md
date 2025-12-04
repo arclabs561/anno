@@ -75,10 +75,13 @@ The `anno-cli` crate provides a single `anno` binary that orchestrates all crate
 anno extract "Marie Curie won the Nobel Prize"
 
 # Cross-doc entity coalescing (uses coalesce crate)
-anno coalesce --directory ./docs --threshold 0.7
+# Note: Use 'anno crossdoc' or 'anno coalesce' (alias)
+anno crossdoc --directory ./docs --threshold 0.6
+# Or: anno coalesce --directory ./docs --threshold 0.6
 
 # Hierarchical clustering (uses strata crate)
-anno extract --export-graph neo4j | anno strata --hierarchical
+# Note: Use 'anno strata' command (requires eval-advanced feature)
+anno strata --input graph.json --method leiden --levels 3
 
 # Full pipeline (uses all crates)
 anno pipeline --input ./docs --output ./graph.cypher

@@ -16,6 +16,7 @@ readme = "../README.md"
 [dependencies]
 anno-core = { path = "../anno-core" }
 anno-coalesce = { path = "../coalesce" }
+anno-strata = { path = "../strata", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -61,7 +62,7 @@ default = ["cli"]
 cli = ["clap", "clap_complete", "is-terminal", "indicatif", "toml"]
 eval = ["dirs", "glob"]
 eval-bias = ["eval"]
-eval-advanced = ["eval", "rand", "ureq", "sha2"]
+eval-advanced = ["eval", "rand", "ureq", "sha2", "anno-strata"]
 eval-full = ["eval", "eval-bias", "eval-advanced"]
 eval-parallel = ["eval", "rayon"]
 eval-profiling = ["eval"]

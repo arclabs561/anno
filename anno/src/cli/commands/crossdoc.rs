@@ -1,18 +1,13 @@
-//! CrossDoc command - Cross-document coreference: cluster entities across multiple documents
+//! CrossDoc command - Cross-document entity coalescing: cluster entities across multiple documents
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "eval")]
-use glob::glob;
-
-use serde_json;
-
 use anno_coalesce::Resolver;
 use crate::{
-    Corpus, Entity, EntityType, GroundedDocument, Identity, IdentityId, IdentitySource, Location,
+    Corpus, Entity, EntityType, GroundedDocument, Identity, IdentitySource, Location,
     Signal,
 };
 use crate::eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
@@ -20,7 +15,10 @@ use crate::eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 use super::super::output::color;
 use super::super::parser::{ModelBackend, OutputFormat};
 
-/// Cross-document coreference: cluster entities across multiple documents
+#[cfg(feature = "eval")]
+use glob::glob;
+
+/// Cross-document entity coalescing: cluster entities across multiple documents
 #[derive(clap::Parser, Debug)]
 pub struct CrossDocArgs {
     /// Directory containing text files to process (optional if --import is used)
@@ -156,7 +154,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                             // Since we're converting from GroundedDocument, we need to map signals to entities
                             // For now, use signal positions as entity indices (approximation)
                             for (pos, signal_ref) in track.signals.iter().enumerate() {
-                                if let Some(signal) = doc.get_signal(signal_ref.signal_id) {
+                                if let Some(_signal) = doc.get_signal(signal_ref.signal_id) {
                                     // Find entity index by matching signal text and position
                                     // This is approximate - in a perfect world, we'd track the mapping
                                     let entity_idx = pos; // Use position as approximation
@@ -262,7 +260,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     if line.trim().is_empty() {
                         continue;
                     }
-                    let mut doc: GroundedDocument = serde_json::from_str(&line).map_err(|e| {
+                    let doc: GroundedDocument = serde_json::from_str(&line).map_err(|e| {
                         format!("Failed to parse stdin line {}: {}", line_num + 1, e)
                     })?;
                     // Ensure tracks exist - if not, create them from signals for better clustering
@@ -305,7 +303,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                             if line.trim().is_empty() {
                                 continue;
                             }
-                            let mut doc: GroundedDocument =
+                            let doc: GroundedDocument =
                                 serde_json::from_str(&line).map_err(|e| {
                                     format!("Failed to parse stdin line {}: {}", line_num + 1, e)
                                 })?;
@@ -623,7 +621,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             };
 
             let resolver = CDCRResolver::with_config(config);
-            let mut clusters = resolver.resolve(&documents);
+            let clusters = resolver.resolve(&documents);
 
             // Filter clusters
             let mut filtered_clusters: Vec<_> = clusters
@@ -752,7 +750,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 // Simplified header - less visual noise
                 output.push_str(&format!(
                     "{}\n",
-                    color("1;36", "Cross-Document Entity Clusters")
+                    color("1;36", "Cross-Document Entity Coalescing Results")
                 ));
                 output.push_str("\n");
 
@@ -795,8 +793,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 let mut type_counts: HashMap<String, usize> = HashMap::new();
                 for cluster in &final_clusters {
                     if let Some(ref entity_type) = cluster.entity_type {
+                        let label: &str = entity_type.as_label();
                         *type_counts
-                            .entry(entity_type.as_label().to_string())
+                            .entry(label.to_string())
                             .or_insert(0) += 1;
                     }
                 }
@@ -833,7 +832,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     // Cluster header: prefix + name + type
                     let mut header = format!("{} {}", prefix, color("1", &cluster.canonical_name));
                     if let Some(ref entity_type) = cluster.entity_type {
-                        header.push_str(&format!(" ({})", entity_type.as_label()));
+                        let label: &str = entity_type.as_label();
+                        header.push_str(&format!(" ({})", label));
                     }
                     if is_cross_doc {
                         header.push_str(&format!(" {}", color("32", "[cross-doc]")));
@@ -864,7 +864,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                             .documents
                             .iter()
                             .take(max_docs_to_show)
-                            .map(|doc_id| {
+                            .map(|doc_id: &String| {
                                 let path = doc_paths
                                     .get(doc_id)
                                     .map(|p| format!("{} ({})", doc_id, p))
@@ -1056,8 +1056,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 let mut type_counts: HashMap<String, usize> = HashMap::new();
                 for cluster in &final_clusters {
                     if let Some(ref entity_type) = cluster.entity_type {
+                        let label: &str = entity_type.as_label();
                         *type_counts
-                            .entry(entity_type.as_label().to_string())
+                            .entry(label.to_string())
                             .or_insert(0) += 1;
                     }
                 }
@@ -1072,7 +1073,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 ));
                 output.push_str(&format!(
                     "{}\n",
-                    color("1;36", "  Cross-Document Coreference Summary")
+                    color("1;36", "  Cross-Document Entity Coalescing Summary")
                 ));
                 output.push_str(&format!(
                     "{}\n",
@@ -1174,5 +1175,5 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
 
 #[cfg(not(feature = "eval-advanced"))]
 pub fn run(_args: CrossDocArgs) -> Result<(), String> {
-    Err("Cross-document coreference requires 'eval-advanced' feature. Build with: cargo build --features eval-advanced".to_string())
+    Err("Cross-document entity coalescing requires 'eval-advanced' feature. Build with: cargo build --features eval-advanced".to_string())
 }
