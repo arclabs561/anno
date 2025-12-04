@@ -381,3 +381,9 @@ integrate-analysis-eval:
 # Check for historical bug patterns (regression prevention)
 check-historical-bugs:
     @./scripts/check-historical-bugs.sh
+
+# === Publish Validation ===
+
+# Validate publish readiness for all crates
+validate-publish:
+    @./scripts/validate-publish.sh

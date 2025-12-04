@@ -662,3 +662,165 @@ jobs:
           file: ./lcov.info
           flags: unittests
           name: codecov-anno
+
+  # ==========================================================================
+  # Publish Validation (cargo publish --dry-run for all crates)
+  # ==========================================================================
+  publish-validation:
+    name: Publish Validation
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      
+      - name: Validate workspace structure
+        run: |
+          echo "## Workspace Structure Validation" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cargo metadata --format-version 1 | jq -r '.workspace_members[]' | sort >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+      
+      - name: Check publish readiness (anno-core)
+        id: anno-core
+        run: |
+          echo "Checking anno-core publish readiness..."
+          if cargo publish --dry-run -p anno-core 2>&1 | grep -q "aborting upload due to dry run"; then
+            echo "status=ready" >> $GITHUB_OUTPUT
+            echo "✅ anno-core: Ready to publish" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "❌ anno-core: Publish validation failed" >> $GITHUB_STEP_SUMMARY
+            cargo publish --dry-run -p anno-core 2>&1 | grep -E "(error|warning)" | head -10 >> $GITHUB_STEP_SUMMARY || true
+          fi
+      
+      - name: Check publish readiness (anno-coalesce)
+        id: anno-coalesce
+        run: |
+          echo "Checking anno-coalesce publish readiness..."
+          if cargo publish --dry-run -p anno-coalesce 2>&1 | grep -q "aborting upload due to dry run"; then
+            echo "status=ready" >> $GITHUB_OUTPUT
+            echo "✅ anno-coalesce: Ready to publish" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "❌ anno-coalesce: Publish validation failed" >> $GITHUB_STEP_SUMMARY
+            cargo publish --dry-run -p anno-coalesce 2>&1 | grep -E "(error|warning)" | head -10 >> $GITHUB_STEP_SUMMARY || true
+          fi
+      
+      - name: Check publish readiness (anno-strata)
+        id: anno-strata
+        run: |
+          echo "Checking anno-strata publish readiness..."
+          if cargo publish --dry-run -p anno-strata 2>&1 | grep -q "aborting upload due to dry run"; then
+            echo "status=ready" >> $GITHUB_OUTPUT
+            echo "✅ anno-strata: Ready to publish" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "❌ anno-strata: Publish validation failed" >> $GITHUB_STEP_SUMMARY
+            cargo publish --dry-run -p anno-strata 2>&1 | grep -E "(error|warning)" | head -10 >> $GITHUB_STEP_SUMMARY || true
+          fi
+      
+      - name: Check publish readiness (anno)
+        id: anno
+        run: |
+          echo "Checking anno publish readiness..."
+          if cargo publish --dry-run -p anno 2>&1 | grep -q "aborting upload due to dry run"; then
+            echo "status=ready" >> $GITHUB_OUTPUT
+            echo "✅ anno: Ready to publish" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "status=error" >> $GITHUB_OUTPUT
+            echo "❌ anno: Publish validation failed" >> $GITHUB_STEP_SUMMARY
+            cargo publish --dry-run -p anno 2>&1 | grep -E "(error|warning)" | head -10 >> $GITHUB_STEP_SUMMARY || true
+          fi
+      
+      - name: Check crates.io status
+        run: |
+          echo "## Crates.io Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          for crate in anno anno-core anno-coalesce anno-strata; do
+            if curl -s "https://crates.io/api/v1/crates/$crate" 2>/dev/null | jq -r '.crate | "\(.name): v\(.max_version // "not published")"' 2>/dev/null; then
+              echo "- **$crate**: Published" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **$crate**: Not published" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+      
+      - name: Validate version requirements
+        run: |
+          echo "## Version Requirement Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for missing version requirements in workspace dependencies
+          MISSING_VERSIONS=0
+          
+          if ! grep -q 'version.*=.*"0.2.0"' coalesce/Cargo.toml 2>/dev/null || ! grep -q 'anno-core.*version' coalesce/Cargo.toml 2>/dev/null; then
+            echo "❌ coalesce/Cargo.toml: Missing version requirement for anno-core" >> $GITHUB_STEP_SUMMARY
+            MISSING_VERSIONS=$((MISSING_VERSIONS + 1))
+          else
+            echo "✅ coalesce/Cargo.toml: Version requirement present" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if ! grep -q 'version.*=.*"0.2.0"' strata/Cargo.toml 2>/dev/null || ! grep -q 'anno-core.*version' strata/Cargo.toml 2>/dev/null; then
+            echo "❌ strata/Cargo.toml: Missing version requirement for anno-core" >> $GITHUB_STEP_SUMMARY
+            MISSING_VERSIONS=$((MISSING_VERSIONS + 1))
+          else
+            echo "✅ strata/Cargo.toml: Version requirement present" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if ! grep -q 'anno-coalesce.*version' anno/Cargo.toml 2>/dev/null; then
+            echo "❌ anno/Cargo.toml: Missing version requirement for anno-coalesce" >> $GITHUB_STEP_SUMMARY
+            MISSING_VERSIONS=$((MISSING_VERSIONS + 1))
+          else
+            echo "✅ anno/Cargo.toml: Version requirement for anno-coalesce present" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if ! grep -q 'anno-strata.*version' anno/Cargo.toml 2>/dev/null; then
+            echo "❌ anno/Cargo.toml: Missing version requirement for anno-strata" >> $GITHUB_STEP_SUMMARY
+            MISSING_VERSIONS=$((MISSING_VERSIONS + 1))
+          else
+            echo "✅ anno/Cargo.toml: Version requirement for anno-strata present" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ $MISSING_VERSIONS -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️  $MISSING_VERSIONS crate(s) need version requirement fixes before publishing" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ All version requirements present" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Generate publish status report
+        run: |
+          cat > publish-validation-report.md << EOF
+          # Publish Validation Report
+          
+          Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ## Publish Readiness Status
+          
+          ### anno-core
+          $([ "${{ steps.anno-core.outputs.status }}" == "ready" ] && echo "✅ **Ready to publish**" || echo "❌ **Publish validation failed**")
+          
+          ### anno-coalesce
+          $([ "${{ steps.anno-coalesce.outputs.status }}" == "ready" ] && echo "✅ **Ready to publish**" || echo "❌ **Publish validation failed**")
+          
+          ### anno-strata
+          $([ "${{ steps.anno-strata.outputs.status }}" == "ready" ] && echo "✅ **Ready to publish**" || echo "❌ **Publish validation failed**")
+          
+          ### anno
+          $([ "${{ steps.anno.outputs.status }}" == "ready" ] && echo "✅ **Ready to publish**" || echo "❌ **Publish validation failed**")
+          
+          ## Next Steps
+          
+          See \`docs/PUBLISH_STATUS.md\` for detailed information and fixes.
+          EOF
+      
+      - name: Upload publish validation report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publish-validation-report
+          path: publish-validation-report.md
