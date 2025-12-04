@@ -20,11 +20,11 @@ EOF
 # 1. Check for backend reuse
 echo "### Backend Reuse Analysis" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-if rg -q "for.*in.*\{.*BackendFactory::create" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
+if rg -q "for.*in.*\{.*BackendFactory::create" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
     echo "WARNING: **Backend Recreation in Loops**" >> "$ANALYSIS_FILE"
     echo "Found backend creation inside loops. This is inefficient." >> "$ANALYSIS_FILE"
     echo "" >> "$ANALYSIS_FILE"
-    rg -A 3 "for.*in.*\{.*BackendFactory::create" --type rust src/eval/task_evaluator.rs 2>/dev/null | head -10 >> "$ANALYSIS_FILE" || true
+    rg -A 3 "for.*in.*\{.*BackendFactory::create" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null | head -10 >> "$ANALYSIS_FILE" || true
 else
     echo "OK: Backends created outside loops" >> "$ANALYSIS_FILE"
 fi
@@ -33,8 +33,8 @@ echo "" >> "$ANALYSIS_FILE"
 # 2. Check for per-example score caching
 echo "### Per-Example Score Caching" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-if rg -q "per_example_scores_cache" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
-    CACHE_USES=$(rg -c "per_example_scores_cache" --type rust src/eval/task_evaluator.rs 2>/dev/null || echo "0")
+if rg -q "per_example_scores_cache" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
+    CACHE_USES=$(rg -c "per_example_scores_cache" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null || echo "0")
     echo "OK: Per-example score caching implemented ($CACHE_USES uses)" >> "$ANALYSIS_FILE"
 else
     echo "WARNING: No per-example score caching found" >> "$ANALYSIS_FILE"
@@ -44,9 +44,9 @@ echo "" >> "$ANALYSIS_FILE"
 # 3. Check for parallel evaluation
 echo "### Parallel Evaluation" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-if rg -q "eval-parallel|par_iter|rayon" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
+if rg -q "eval-parallel|par_iter|rayon" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
     echo "OK: Parallel evaluation support found" >> "$ANALYSIS_FILE"
-    if rg -q "thread_local|ThreadLocal" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
+    if rg -q "thread_local|ThreadLocal" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
         echo "OK: Thread-local backend caching found" >> "$ANALYSIS_FILE"
     else
         echo "WARNING: Parallel evaluation without thread-local caching" >> "$ANALYSIS_FILE"
@@ -59,8 +59,8 @@ echo "" >> "$ANALYSIS_FILE"
 # 4. Check for confidence interval recomputation
 echo "### Confidence Interval Computation" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-if rg -q "compute_confidence_intervals" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
-    if rg -q "recreate.*backend|BackendFactory::create.*compute_confidence" --type rust src/eval/task_evaluator.rs 2>/dev/null; then
+if rg -q "compute_confidence_intervals" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
+    if rg -q "recreate.*backend|BackendFactory::create.*compute_confidence" --type rust anno/src/eval/task_evaluator.rs 2>/dev/null; then
         echo "WARNING: Confidence intervals may be recomputing predictions" >> "$ANALYSIS_FILE"
         echo "Consider using cached per-example scores instead" >> "$ANALYSIS_FILE"
     else
@@ -74,7 +74,7 @@ echo "" >> "$ANALYSIS_FILE"
 # 5. Check for task-dataset validation
 echo "### Task-Dataset Validation" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-if rg -q "is_valid_combination|task.*dataset.*compatible" --type rust src/eval/ 2>/dev/null; then
+if rg -q "is_valid_combination|task.*dataset.*compatible" --type rust anno/src/eval/ 2>/dev/null; then
     echo "OK: Task-dataset validation found" >> "$ANALYSIS_FILE"
 else
     echo "INFO: No explicit task-dataset validation found" >> "$ANALYSIS_FILE"
@@ -84,9 +84,9 @@ echo "" >> "$ANALYSIS_FILE"
 # 6. Check for metric computation patterns
 echo "### Metric Computation Patterns" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-F1_CALCS=$(rg -c "f1.*=.*2.*\*|2.*\*.*precision.*recall" --type rust src/eval/metrics.rs 2>/dev/null || echo "0")
+F1_CALCS=$(rg -c "f1.*=.*2.*\*|2.*\*.*precision.*recall" --type rust anno/src/eval/metrics.rs 2>/dev/null || echo "0")
 if [ "$F1_CALCS" -gt 0 ]; then
-    ZERO_CHECKS=$(rg -c "if.*==.*0|if.*\+.*==.*0" --type rust src/eval/metrics.rs 2>/dev/null || echo "0")
+    ZERO_CHECKS=$(rg -c "if.*==.*0|if.*\+.*==.*0" --type rust anno/src/eval/metrics.rs 2>/dev/null || echo "0")
     if [ "$ZERO_CHECKS" -lt "$F1_CALCS" ]; then
         echo "WARNING: Some F1 calculations may lack zero-checks" >> "$ANALYSIS_FILE"
     else

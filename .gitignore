@@ -27,7 +27,8 @@ repo-specific-analysis.md
 .anno_cache/
 .cache/
 .anno/
-anno/
+# Note: anno/ workspace crate is tracked, but ignore any build artifacts within it
+anno/target/
 
 # Proptest regressions (keep these in source control per proptest docs)
 # *.proptest-regressions

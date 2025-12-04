@@ -1,6 +1,7 @@
 //! Performance tests for Corpus operations on large datasets.
 
 use anno::grounded::{Corpus, GroundedDocument, Location, Signal, Track};
+use anno_coalesce::Resolver;
 use std::time::Instant;
 
 #[test]
@@ -32,7 +33,8 @@ fn test_corpus_performance_large_corpus() {
 
     // Resolve inter-doc coref
     let start = Instant::now();
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, false);
+    let resolver = Resolver::new().with_threshold(0.5).require_type_match(false);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     let coref_time = start.elapsed();
 
     println!(

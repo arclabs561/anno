@@ -1,0 +1,22 @@
+[package]
+name = "anno-coalesce"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Cross-document entity coalescing - merge mentions into canonical entities"
+
+[dependencies]
+anno-core = { path = "../anno-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true
+

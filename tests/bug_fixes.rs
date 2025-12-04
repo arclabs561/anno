@@ -4,6 +4,7 @@
 //! ensuring they don't regress.
 
 use anno::grounded::{Corpus, GroundedDocument, Location, Signal, TrackRef};
+use anno_coalesce::Resolver;
 
 #[test]
 fn test_gliner2_division_by_zero_empty_logits() {
@@ -191,7 +192,8 @@ fn test_resolve_inter_doc_coref_singleton_clusters() {
     corpus.add_document(doc2);
 
     // Resolve with high similarity threshold (so they won't cluster)
-    let created_ids = corpus.resolve_inter_doc_coref(0.9, true);
+    let resolver = Resolver::new().with_threshold(0.9).require_type_match(true);
+    let created_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
     // Should create 2 identities (one for each singleton cluster)
     assert_eq!(
@@ -255,7 +257,7 @@ fn test_identity_from_cross_doc_cluster_source_none() {
     let mut cluster = CrossDocCluster::new(1, "Test Entity");
     cluster.entity_type = Some(EntityType::Person);
 
-    let identity = anno::grounded::Identity::from_cross_doc_cluster(&cluster);
+    let identity: anno::grounded::Identity = (&cluster).into();
 
     // Source should be None (documented behavior)
     assert!(
@@ -326,7 +328,8 @@ fn test_resolve_inter_doc_coref_missing_document() {
     corpus.add_document(doc1);
 
     // Resolve coref - this should work normally
-    let created_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let created_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
     // Should create at least one identity
     assert!(!created_ids.is_empty() || corpus.documents().count() == 0);
@@ -416,7 +419,8 @@ fn test_link_track_to_kb_edge_cases() {
 fn test_resolve_inter_doc_coref_empty_corpus() {
     // Test edge case: empty corpus
     let mut corpus = Corpus::new();
-    let created_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let created_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(
         created_ids.is_empty(),
         "Empty corpus should return empty identity list"
@@ -435,7 +439,8 @@ fn test_resolve_inter_doc_coref_single_document() {
         .unwrap();
     corpus.add_document(doc);
 
-    let created_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let created_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     // Should create at least one identity (singleton cluster)
     assert!(
         !created_ids.is_empty(),

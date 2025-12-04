@@ -6,6 +6,7 @@ use anno::grounded::{
     Corpus, GroundedDocument, Identity, IdentitySource, Location, Signal, Track, TrackRef,
 };
 use anno::{Entity, EntityType};
+use anno_coalesce::Resolver;
 
 // =============================================================================
 // Corpus Basic Operations
@@ -245,7 +246,8 @@ fn test_resolve_inter_doc_coref_basic() {
     corpus.add_document(doc3);
 
     // Resolve inter-doc coref
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new().with_threshold(0.5).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
     // Should create at least one identity linking doc1 and doc3 (both have "Marie Curie")
     assert!(!identity_ids.is_empty());
@@ -292,7 +294,8 @@ fn test_resolve_inter_doc_coref_type_mismatch() {
     corpus.add_document(doc2);
 
     // With type matching required, should NOT cluster
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new().with_threshold(0.5).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
     // Should create separate identities (or none if threshold too high)
     // Actually, with require_type_match=true, they shouldn't cluster
@@ -313,7 +316,8 @@ fn test_resolve_inter_doc_coref_type_mismatch() {
 #[test]
 fn test_resolve_inter_doc_coref_empty_corpus() {
     let mut corpus = Corpus::new();
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(identity_ids.is_empty());
 }
 
@@ -323,7 +327,8 @@ fn test_resolve_inter_doc_coref_no_tracks() {
     let doc = GroundedDocument::new("doc1", "Text with no tracks.");
     corpus.add_document(doc);
 
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(identity_ids.is_empty());
 }
 
@@ -346,7 +351,8 @@ fn test_resolve_inter_doc_coref_singleton_tracks() {
     corpus.add_document(doc);
 
     // With only one track, should create one identity (or none, depending on design)
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     // Singleton tracks can still create identities
     assert!(identity_ids.len() <= 1);
 }
@@ -383,7 +389,8 @@ fn test_resolve_inter_doc_coref_threshold_variations() {
     corpus.add_document(doc2);
 
     // Low threshold: should cluster (high similarity)
-    let ids_low = corpus.resolve_inter_doc_coref(0.3, true);
+    let resolver = Resolver::new().with_threshold(0.3).require_type_match(true);
+    let ids_low = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(!ids_low.is_empty());
 
     // Note: Testing threshold variations requires separate corpus instances
@@ -460,7 +467,8 @@ fn test_link_track_to_kb_existing_identity() {
     corpus.add_document(doc1);
 
     // Resolve inter-doc coref (creates identity without KB)
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(!identity_ids.is_empty());
     let identity_id = identity_ids[0];
 
@@ -548,7 +556,8 @@ fn test_string_similarity_identical() {
     corpus.add_document(doc2);
 
     // Identical strings should cluster even with high threshold
-    let identity_ids = corpus.resolve_inter_doc_coref(0.9, true);
+    let resolver = Resolver::new().with_threshold(0.9).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(!identity_ids.is_empty());
 }
 
@@ -568,7 +577,8 @@ fn test_string_similarity_empty_strings() {
     corpus.add_document(doc2);
 
     // Should handle gracefully (empty strings have 0 similarity)
-    let identity_ids = corpus.resolve_inter_doc_coref(0.1, true);
+    let resolver = Resolver::new().with_threshold(0.1).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     // Empty strings won't cluster (similarity = 0.0)
     assert!(identity_ids.is_empty() || identity_ids.len() <= 2);
 }
@@ -589,7 +599,8 @@ fn test_string_similarity_single_word_vs_multiword() {
     corpus.add_document(doc2);
 
     // With low threshold, should cluster (Jaccard: intersection=1, union=2, sim=0.5)
-    let identity_ids = corpus.resolve_inter_doc_coref(0.4, true);
+    let resolver = Resolver::new().with_threshold(0.4).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     // Should cluster with threshold < 0.5
     assert!(!identity_ids.is_empty());
 }
@@ -632,7 +643,8 @@ fn test_full_pipeline_inter_doc_coref_then_linking() {
     corpus.add_document(doc2);
 
     // Step 1: Resolve inter-doc coref
-    let identity_ids = corpus.resolve_inter_doc_coref(0.3, true);
+    let resolver = Resolver::new().with_threshold(0.3).require_type_match(true);
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     assert!(!identity_ids.is_empty());
 
     // Step 2: Link to KB
@@ -674,7 +686,8 @@ fn test_identity_source_preservation() {
     doc1.add_track(track1);
     corpus.add_document(doc1);
 
-    let identity_ids = corpus.resolve_inter_doc_coref(0.5, true);
+    let resolver = Resolver::new();
+    let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
     if !identity_ids.is_empty() {
         let identity = corpus.get_identity(identity_ids[0]).unwrap();
         assert!(matches!(

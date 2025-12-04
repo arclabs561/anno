@@ -1,0 +1,38 @@
+[package]
+name = "anno-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Unified CLI for the anno toolbox"
+publish = false  # Binary-only crate, not published to crates.io
+
+[dependencies]
+anno = { path = "../anno", features = ["cli", "eval"] }
+anno-core = { path = "../anno-core" }
+anno-coalesce = { path = "../coalesce" }
+anno-strata = { path = "../strata" }
+
+# CLI
+clap = { workspace = true }
+clap_complete = { workspace = true }
+is-terminal = { workspace = true }
+glob = { workspace = true }
+indicatif = { workspace = true }
+toml = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[[bin]]
+name = "anno"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+

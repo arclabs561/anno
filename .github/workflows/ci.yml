@@ -24,7 +24,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo check --all-targets
+      - run: cargo check --workspace --all-targets
 
   fmt:
     name: Format
@@ -47,7 +47,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo clippy --all-targets
+      - run: cargo clippy --workspace --all-targets
 
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
@@ -61,8 +61,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo test --lib
-      - run: cargo test --test no_features
+      - run: cargo test --workspace --lib
+      - run: cargo test --workspace --test no_features
 
   # ==========================================================================
   # Evaluation framework tests
@@ -86,17 +86,17 @@ jobs:
             anno-datasets-${{ runner.os }}-
           
       - name: Build with eval features
-        run: cargo build --features "eval-advanced discourse"
+        run: cargo build --workspace --features "eval-advanced discourse"
       - name: Run library tests
-        run: cargo test --lib --features "eval-advanced discourse"
+        run: cargo test --workspace --lib --features "eval-advanced discourse"
       - name: Run eval integration tests
-        run: cargo test --test eval_integration --features "eval-advanced"
+        run: cargo test --workspace --test eval_integration --features "eval-advanced"
       - name: Run coref integration tests
-        run: cargo test --test coref_integration --features "eval-advanced"
+        run: cargo test --workspace --test coref_integration --features "eval-advanced"
       - name: Run discourse tests
-        run: cargo test --test discourse_comprehensive --features "discourse"
+        run: cargo test --workspace --test discourse_comprehensive --features "discourse"
       - name: Run new features integration
-        run: cargo test --test new_features_integration --features "eval-advanced"
+        run: cargo test --workspace --test new_features_integration --features "eval-advanced"
 
   # ==========================================================================
   # Cross-platform tests (core features only)
@@ -116,9 +116,9 @@ jobs:
           cache-all-crates: true
           key: ${{ matrix.os }}
       - name: Build
-        run: cargo build --features eval
+        run: cargo build --workspace --features eval
       - name: Test
-        run: cargo test --lib --features eval
+        run: cargo test --workspace --lib --features eval
 
   # ==========================================================================
   # ONNX backend tests (Linux only)
@@ -142,9 +142,9 @@ jobs:
             hf-models-${{ runner.os }}-
           
       - name: Build ONNX backend
-        run: cargo build --features onnx
+        run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
-        run: cargo test --lib --features onnx
+        run: cargo test --workspace --lib --features onnx
 
   # ==========================================================================
   # Candle backend tests (pure Rust)
@@ -168,9 +168,9 @@ jobs:
             hf-models-${{ runner.os }}-
           
       - name: Build Candle backend
-        run: cargo build --features candle
+        run: cargo build --workspace --features candle
       - name: Test Candle (unit)
-        run: cargo test --lib --features candle
+        run: cargo test --workspace --lib --features candle
 
   # ==========================================================================
   # MSRV (Minimum Supported Rust Version)
@@ -184,7 +184,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo check
+      - run: cargo check --workspace
 
   # ==========================================================================
   # Documentation
@@ -215,7 +215,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run property tests
-        run: cargo test --lib --features "eval-advanced" -- proptest
+        run: cargo test --workspace --lib --features "eval-advanced" -- proptest
         env:
           PROPTEST_CASES: 100
 
@@ -232,7 +232,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run regression tests
-        run: cargo test --test regression_f1 --features eval -- --nocapture
+        run: cargo test --workspace --test regression_f1 --features eval -- --nocapture
 
   # ==========================================================================
   # Examples (compile check)
@@ -247,7 +247,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Build examples (eval)
-        run: cargo build --examples --features eval
+        run: cargo build --workspace --examples --features eval
       - name: Build examples (discourse)
         run: cargo build --example discourse_pipeline --features discourse
       - name: Build examples (abstract anaphora)
@@ -468,43 +468,43 @@ jobs:
             --config auto \
             --json --output opengrep-results.json \
             --sarif-output opengrep-results.sarif \
-            src/ tests/ examples/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ tests/ examples/ || true
       - name: Run OpenGrep (custom rules - general)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-security.yaml \
             --json --output opengrep-security-results.json \
-            src/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ || true
       - name: Run OpenGrep (custom rules - NLP/ML patterns)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-nlp-ml-patterns.yaml \
             --json --output opengrep-nlp-results.json \
-            src/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ || true
       - name: Run OpenGrep (custom rules - evaluation framework)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-evaluation-framework.yaml \
             --json --output opengrep-eval-results.json \
-            src/eval/ || true
+            anno/src/eval/ || true
       - name: Run OpenGrep (custom rules - anno-specific)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-anno-specific.yaml \
             --json --output opengrep-anno-results.json \
-            src/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ || true
       - name: Run OpenGrep (custom rules - error handling)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-error-handling.yaml \
             --json --output opengrep-error-results.json \
-            src/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ || true
       - name: Run OpenGrep (custom rules - memory patterns)
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-memory-patterns.yaml \
             --json --output opengrep-memory-results.json \
-            src/ || true
+            anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ || true
       - name: Validate rules
         run: |
           chmod +x scripts/*.sh

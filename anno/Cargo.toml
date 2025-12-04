@@ -1,0 +1,84 @@
+[package]
+name = "anno"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Unified API for NER, coreference resolution, and evaluation in Rust"
+keywords = ["ner", "nlp", "entity", "extraction", "coreference", "evaluation"]
+categories = ["text-processing", "science"]
+readme = "../README.md"
+
+[dependencies]
+anno-core = { path = "../anno-core" }
+anno-coalesce = { path = "../coalesce" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
+
+# Evaluation
+rand = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
+glob = { workspace = true, optional = true }
+rayon = { workspace = true, optional = true }
+
+# ML backends
+ort = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+ndarray = { workspace = true, optional = true }
+lru = { workspace = true, optional = true }
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+safetensors = { workspace = true, optional = true }
+
+# Async
+tokio = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+crossbeam-channel = { workspace = true, optional = true }
+parking_lot = { workspace = true, optional = true }
+
+# CLI dependencies (optional)
+clap = { workspace = true, optional = true }
+clap_complete = { workspace = true, optional = true }
+is-terminal = { workspace = true, optional = true }
+indicatif = { workspace = true, optional = true }
+toml = { workspace = true, optional = true }
+
+[features]
+default = ["cli"]
+cli = ["clap", "clap_complete", "is-terminal", "indicatif", "toml"]
+eval = ["dirs", "glob"]
+eval-bias = ["eval"]
+eval-advanced = ["eval", "rand", "ureq", "sha2"]
+eval-full = ["eval", "eval-bias", "eval-advanced"]
+eval-parallel = ["eval", "rayon"]
+eval-profiling = ["eval"]
+discourse = ["eval"]
+onnx = ["ort", "tokenizers", "hf-hub", "ndarray", "lru"]
+candle = ["candle-core", "candle-nn", "candle-transformers", "tokenizers", "hf-hub", "safetensors"]
+metal = ["candle", "candle-core/metal", "candle-nn/metal", "candle-transformers/metal"]
+cuda = ["candle", "candle-core/cuda", "candle-nn/cuda", "candle-transformers/cuda"]
+async-inference = ["tokio", "futures", "onnx"]
+session-pool = ["crossbeam-channel", "onnx"]
+fast-lock = ["parking_lot"]
+full = ["eval-full", "onnx", "candle", "discourse"]
+production = ["onnx", "async-inference", "session-pool", "fast-lock"]
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[lints]
+workspace = true
+

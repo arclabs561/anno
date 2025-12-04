@@ -118,7 +118,7 @@ Models are cached locally after download. All NER models are pre-trained by thei
 
 **Using your own models**: W2NER and T5Coref support local file paths. Other backends use HuggingFace model IDs (you can upload your own models to HuggingFace). For detailed "bring your own model" instructions, see [`docs/MODEL_DOWNLOADS.md`](docs/MODEL_DOWNLOADS.md).
 
-**Box embedding training**: Training code is in `anno` (`src/backends/box_embeddings_training.rs`). The [matryoshka-box](https://github.com/arclabs561/matryoshka-box) research project extends this with matryoshka-specific features (variable dimensions, etc.). See [`docs/MATRYOSHKA_BOX_INTEGRATION.md`](docs/MATRYOSHKA_BOX_INTEGRATION.md) for details.
+**Box embedding training**: Training code is in `anno` (`anno/src/backends/box_embeddings_training.rs`). The [matryoshka-box](https://github.com/arclabs561/matryoshka-box) research project extends this with matryoshka-specific features (variable dimensions, etc.). See [`docs/MATRYOSHKA_BOX_INTEGRATION.md`](docs/MATRYOSHKA_BOX_INTEGRATION.md) for details.
 
 To download models ahead of time:
 
@@ -185,7 +185,7 @@ GLiNER2 supports zero-shot NER, text classification, and structured extraction. 
 Extract entities and relations, then export to knowledge graphs for RAG applications:
 
 ```rust
-use anno::graph::GraphDocument;
+use anno::graph::GraphDocument;  // Re-exported from anno-core
 use anno::backends::tplinker::TPLinker;
 use anno::backends::inference::RelationExtractor;
 use anno::StackedNER;
@@ -208,7 +208,7 @@ let result = rel_extractor.extract_with_relations(
 )?;
 
 // Convert relations to graph format
-use anno::entity::Relation;
+use anno::Relation;  // Re-exported from anno-core
 let relations: Vec<Relation> = result.relations.iter().map(|r| {
     let head = &result.entities[r.head_idx];
     let tail = &result.entities[r.tail_idx];
@@ -237,7 +237,7 @@ This creates a knowledge graph with:
 
 ### Example: grounded entity representation
 
-The `grounded` module provides a hierarchy for entity representation that unifies text NER and visual detection:
+The `grounded` module (from `anno-core`) provides a hierarchy for entity representation that unifies text NER and visual detection:
 
 ```rust
 use anno::grounded::{GroundedDocument, Signal, Track, Identity, Location};
@@ -317,6 +317,20 @@ println!("{}", report.summary());
 
 See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bias analysis, and dataset support.
 
+### Workspace Crates
+
+The `anno` workspace provides modular crates for different use cases:
+
+- **`anno-core`**: Foundation types (`Entity`, `GroundedDocument`, `Corpus`, `GraphDocument`) - no dependencies on other workspace crates
+- **`anno`**: Main NER library with backends, evaluation framework, and document processing
+- **`anno-coalesce`**: Cross-document entity coalescing - merge mentions into canonical entities across documents
+- **`anno-strata`**: Hierarchical clustering - reveal strata of abstraction using Leiden, RAPTOR, and other algorithms
+- **`anno-cli`**: Unified CLI that orchestrates all crates
+
+**Tagline**: **Extract. Coalesce. Stratify.**
+
+See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for complete architecture documentation.
+
 ### Related projects
 
 - **[rust-bert](https://github.com/guillaume-be/rust-bert)**: Full transformer implementations via tch-rs (requires libtorch). Covers many NLP tasks beyond NER.
@@ -328,6 +342,7 @@ See [docs/EVALUATION.md](docs/EVALUATION.md) for details on evaluation modes, bi
 - **Evaluation framework**: Comprehensive metrics, bias analysis, and calibration (unique in Rust NER)
 - **Coreference support**: Metrics (MUC, B³, CEAF, LEA, BLANC) and resolution
 - **Graph export**: Built-in Neo4j/NetworkX export for RAG applications
+- **Modular workspace**: Use individual crates (`anno-core`, `anno-coalesce`, `anno-strata`) or the full toolbox
 
 ### Feature flags
 

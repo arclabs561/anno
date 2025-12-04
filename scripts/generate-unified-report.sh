@@ -47,14 +47,14 @@ echo "## Security Pattern Detection (OpenGrep)" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 if command -v opengrep &> /dev/null; then
     echo "### Default Security Rules" >> "$REPORT_FILE"
-    opengrep scan --config auto --json src/ 2>/dev/null | jq -r '.results[] | "\(.check_id): \(.path):\(.start.line)"' | head -20 >> "$REPORT_FILE" || echo "OK: No issues found" >> "$REPORT_FILE"
+    opengrep scan --config auto --json anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ 2>/dev/null | jq -r '.results[] | "\(.check_id): \(.path):\(.start.line)"' | head -20 >> "$REPORT_FILE" || echo "OK: No issues found" >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
     
     echo "### Custom Rules Summary" >> "$REPORT_FILE"
     for rule_file in .opengrep/rules/*.yaml; do
         if [ -f "$rule_file" ]; then
             rule_name=$(basename "$rule_file" .yaml)
-            count=$(opengrep scan -f "$rule_file" --json src/ 2>/dev/null | jq '.results | length' || echo "0")
+            count=$(opengrep scan -f "$rule_file" --json anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ 2>/dev/null | jq '.results | length' || echo "0")
             echo "- $rule_name: $count findings" >> "$REPORT_FILE"
         fi
     done

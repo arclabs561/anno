@@ -1,0 +1,21 @@
+[package]
+name = "anno-strata"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+description = "Hierarchical clustering - reveal strata of abstraction (Leiden, RAPTOR, etc.). Extract. Coalesce. Stratify."
+
+[dependencies]
+anno-core = { path = "../anno-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+petgraph = "0.6"
+
+[lints]
+workspace = true
+

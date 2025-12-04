@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING**: Refactored into workspace structure with 5 crates:
+  - `anno-core`: Core types (Entity, GroundedDocument, Corpus, GraphDocument)
+  - `anno`: Main NER library (backends, evaluation, document processing)
+  - `anno-coalesce`: Cross-document entity coalescing
+  - `anno-strata`: Hierarchical clustering (Leiden, RAPTOR)
+  - `anno-cli`: Unified CLI binary
+- Updated README to document workspace structure and crate organization
+- All types from `anno-core` are re-exported in `anno` for backward compatibility
+
 ### Added
 - **GLiNER2**: Multi-task extraction (NER + classification + relations) via ONNX or Candle
 - **Coreference Resolution**: T5-based coreference resolver (`T5Coref`) and rule-based resolver (`SimpleCorefResolver`)

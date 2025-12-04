@@ -4,6 +4,7 @@
 //! not just specific examples. They catch edge cases that unit tests miss.
 
 use anno::grounded::{Corpus, GroundedDocument, Location, Signal, Track};
+use anno_coalesce::Resolver;
 use proptest::prelude::*;
 
 proptest! {
@@ -33,7 +34,8 @@ proptest! {
         }
 
         // Resolve inter-doc coref
-        let identity_ids = corpus.resolve_inter_doc_coref(0.5, false);
+        let resolver = Resolver::new().with_threshold(0.5).require_type_match(false);
+        let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
         // All identity IDs should be unique
         let mut seen = std::collections::HashSet::new();
@@ -59,7 +61,8 @@ proptest! {
         }
 
         // Resolve inter-doc coref with low threshold (should cluster all)
-        let identity_ids = corpus.resolve_inter_doc_coref(0.1, false);
+        let resolver = Resolver::new().with_threshold(0.1).require_type_match(false);
+        let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
         // All tracks should be linked to identities
         for doc in corpus.documents() {
@@ -101,7 +104,8 @@ proptest! {
         }
 
         // Resolve inter-doc coref
-        let identity_ids = corpus.resolve_inter_doc_coref(0.5, false);
+        let resolver = Resolver::new().with_threshold(0.5).require_type_match(false);
+        let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
         // Number of identities should be between 1 and total tracks
         let total_tracks = num_docs * num_tracks_per_doc;
@@ -127,7 +131,8 @@ proptest! {
         }
 
         // Resolve inter-doc coref
-        let identity_ids = corpus.resolve_inter_doc_coref(0.5, false);
+        let resolver = Resolver::new().with_threshold(0.5).require_type_match(false);
+        let identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
         // If identities were created, they should have CrossDocCoref source
         for id in identity_ids {

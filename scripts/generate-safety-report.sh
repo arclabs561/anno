@@ -49,7 +49,7 @@ if command -v opengrep &> /dev/null; then
     echo "## Security Pattern Detection (OpenGrep)" >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
     
-    opengrep scan --config auto --json --output .opengrep-tmp.json src/ 2>/dev/null || echo '{"results":[]}' > .opengrep-tmp.json
+    opengrep scan --config auto --json --output .opengrep-tmp.json anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ 2>/dev/null || echo '{"results":[]}' > .opengrep-tmp.json
     
     if command -v jq &> /dev/null; then
         FINDING_COUNT=$(jq -r '.results | length' .opengrep-tmp.json 2>/dev/null || echo "0")

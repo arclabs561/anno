@@ -107,7 +107,7 @@ if command -v cargo-geiger &> /dev/null; then
 fi
 
 if command -v opengrep &> /dev/null; then
-    opengrep scan --config auto --json src/ 2>/dev/null | jq -r '.results | length' > .opengrep-tmp.txt 2>/dev/null || echo "0" > .opengrep-tmp.txt
+    opengrep scan --config auto --json anno/ anno-core/ anno-coalesce/ anno-strata/ anno-cli/ 2>/dev/null | jq -r '.results | length' > .opengrep-tmp.txt 2>/dev/null || echo "0" > .opengrep-tmp.txt
     FINDINGS_COUNT=$(cat .opengrep-tmp.txt)
     ((TOOLS_INSTALLED++))
     rm -f .opengrep-tmp.txt
