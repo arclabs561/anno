@@ -62,7 +62,7 @@ jobs:
         with:
           cache-all-crates: true
       - run: cargo test --workspace --lib
-      - run: cargo test --workspace --test no_features
+      - run: cargo test --package anno --test no_features
 
   # ==========================================================================
   # Evaluation framework tests
@@ -90,7 +90,7 @@ jobs:
       - name: Run library tests
         run: cargo test --workspace --lib --features "eval-advanced discourse"
       - name: Run eval integration tests
-        run: cargo test --workspace --test eval_integration --features "eval-advanced"
+        run: cargo test --package anno --test eval_integration --features "eval-advanced"
       - name: Run coref integration tests
         run: cargo test --workspace --test coref_integration --features "eval-advanced"
       - name: Run discourse tests
