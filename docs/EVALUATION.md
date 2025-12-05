@@ -63,9 +63,9 @@ Per-type breakdown:
   MONEY:   P=89.2%  R=82.1%  F1=85.5%  (support: 28)
 ```
 
-### Comprehensive evaluation with TaskEvaluator
+### Multi-dataset Evaluation
 
-For more advanced evaluation scenarios, use `TaskEvaluator` which supports multiple datasets, backends, and evaluation dimensions:
+Use `TaskEvaluator` for multiple datasets, backends, and evaluation dimensions:
 
 ```rust
 use anno::eval::task_evaluator::{TaskEvaluator, TaskEvalConfig};
@@ -102,7 +102,7 @@ println!("{}", results.to_markdown());
 - Per-entity-type breakdown
 - Temporal stratification (pre/post cutoff performance)
 - Familiarity analysis (detects inflated zero-shot claims)
-- Robustness scores (typos, case changes, whitespace)
+- Robustness scores (typos, case, whitespace)
 - Chain-length stratification for coreference (if applicable)
 
 ### F1 score variants
@@ -436,7 +436,7 @@ let wikiann = loader.load_or_download(DatasetId::WikiANN)?;
 let multiconer = loader.load_or_download(DatasetId::MultiCoNER)?;
 ```
 
-See `tests/multilingual_ner_tests.rs` for comprehensive cross-lingual test coverage.
+See `tests/multilingual_ner_tests.rs` for cross-lingual test coverage.
 
 ### A Note on Evaluation Standards
 

@@ -38,7 +38,7 @@ Documentation for the `anno` crate.
 ## Reference
 
 - [TASK_DATASET_MAPPING.md](TASK_DATASET_MAPPING.md) - Task to dataset mapping
-- [TASKS_MODELS_DATASETS_EVALS_TESTS_MATRIX.md](TASKS_MODELS_DATASETS_EVALS_TESTS_MATRIX.md) - Comprehensive matrix
+- [TASKS_MODELS_DATASETS_EVALS_TESTS_MATRIX.md](TASKS_MODELS_DATASETS_EVALS_TESTS_MATRIX.md) - Task/model/dataset matrix
 - [BUGS_FIXED.md](BUGS_FIXED.md) - Bug fixes
 
 ## Archive
