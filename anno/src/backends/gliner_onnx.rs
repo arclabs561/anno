@@ -1001,7 +1001,7 @@ impl crate::Model for GLiNEROnnx {
             .iter()
             .map(|label| anno_core::EntityType::Custom {
                 name: (*label).to_string(),
-                category: crate::entity::EntityCategory::Misc,
+                category: EntityCategory::Misc,
             })
             .collect()
     }

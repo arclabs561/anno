@@ -146,7 +146,7 @@ impl BackendName {
     /// given the current feature flags.
     #[must_use]
     pub fn all_available() -> Vec<Self> {
-        let backends = vec![
+        let mut backends = vec![
             BackendName::Pattern,
             BackendName::Heuristic,
             BackendName::Stacked,

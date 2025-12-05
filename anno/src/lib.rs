@@ -261,7 +261,7 @@ pub fn auto() -> Result<Box<dyn Model>> {
 
 /// Check which backends are currently available.
 pub fn available_backends() -> Vec<(&'static str, bool)> {
-    let backends = vec![
+    let mut backends = vec![
         ("RegexNER", true),
         ("HeuristicNER", true),
         ("StackedNER", true),
