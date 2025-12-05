@@ -192,11 +192,15 @@ let entities = ner.extract(
 ⁸ **TPLinker (placeholder)**: Currently heuristic-based placeholder. Full ONNX implementation pending. Relation extraction accuracy not yet measured. Verify: `anno dataset eval --dataset docred --model tplinker --task re`.
 
 **Tasks:**
-- **NER**: All backends support Named Entity Recognition
+- **NER**: All backends support Named Entity Recognition (via `Model` trait)
 - **RelationExtraction**: GLiNER2 (via `RelationExtractor` trait), TPLinker (placeholder)
-- **DiscontinuousNER**: W2NER (non-contiguous spans)
+- **DiscontinuousNER**: W2NER (non-contiguous spans, via `DiscontinuousNER` trait)
 - **TextClassification**: GLiNER2 (multi-task)
 - **HierarchicalExtraction**: GLiNER2 (nested structures)
+- **IntraDocCoref**: Coreference resolvers (via `CoreferenceResolver` trait, requires `discourse` feature)
+- **AbstractAnaphora**: `DiscourseAwareResolver` only (requires `discourse` feature, not NER backends)
+
+**Note**: Abstract anaphora is a coreference task (resolving "this"/"that" to events/propositions), not an NER task. It requires `DiscourseAwareResolver`, not NER models. Verify: `anno dataset eval --dataset gap --model discourse-aware --task abstract-anaphora`.
 
 **⚠️ Accuracy numbers are not directly comparable**: Different backends handle different entity types and tasks. Use `anno benchmark` for comprehensive evaluation across your specific use case.
 

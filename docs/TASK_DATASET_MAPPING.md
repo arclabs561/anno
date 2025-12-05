@@ -35,7 +35,7 @@ Backend capabilities are determined by **trait implementations**, not string mat
 | **RelationExtraction** | Entity-relation-entity triples | DocRED, Re-TACRED | GLiNER2 (via `RelationExtractor` trait) |
 | **IntraDocCoref** | Within-document coreference | GAP, PreCo, LitBank | CorefResolver implementations |
 | **InterDocCoref** | Cross-document coreference | (TODO: ECB+, WikiCoref) | (TODO: Inter-doc resolvers) |
-| **AbstractAnaphora** | Event/proposition anaphora | GAP, PreCo, LitBank | DiscourseAwareResolver |
+| **AbstractAnaphora** | Event/proposition anaphora | GAP, PreCo, LitBank | `DiscourseAwareResolver` (requires `discourse` feature, not NER backends) |
 | **DiscontinuousNER** | Non-contiguous entity spans | (TODO: CADEC, ShARe13/14) | W2NER (via `DiscontinuousNER` trait) |
 | **EventExtraction** | Event triggers and arguments | (TODO: ACE 2005) | EventExtractor implementations |
 | **TextClassification** | Text/document classification | (TODO: Classification datasets) | GLiNER2 |
