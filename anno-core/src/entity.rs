@@ -161,7 +161,7 @@ impl std::fmt::Display for EntityCategory {
 /// # Example
 ///
 /// ```rust
-/// use anno::{Entity, EntityType, EntityViewport};
+/// use anno_core::{Entity, EntityType, EntityViewport};
 ///
 /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
 /// entity.viewport = Some(EntityViewport::Academic);
@@ -265,7 +265,7 @@ impl std::fmt::Display for EntityViewport {
 /// # Examples
 ///
 /// ```rust
-/// use anno::EntityType;
+/// use anno_core::EntityType;
 ///
 /// let ty = EntityType::Email;
 /// assert!(ty.category().pattern_detectable());
@@ -428,7 +428,7 @@ impl EntityType {
     /// # Examples
     ///
     /// ```rust
-    /// use anno::{EntityType, EntityCategory};
+    /// use anno_core::{EntityType, EntityCategory};
     ///
     /// // Medical entity - custom domain-specific type
     /// let disease = EntityType::custom("DISEASE", EntityCategory::Agent);
@@ -489,7 +489,7 @@ impl std::str::FromStr for EntityType {
 /// # Example
 ///
 /// ```rust
-/// use anno::{TypeMapper, EntityType, EntityCategory};
+/// use anno_core::{TypeMapper, EntityType, EntityCategory};
 ///
 /// // MIT Movie dataset mapping
 /// let mut mapper = TypeMapper::new();
@@ -765,7 +765,7 @@ impl ExtractionMethod {
     /// # Example
     ///
     /// ```rust
-    /// use anno::ExtractionMethod;
+    /// use anno_core::ExtractionMethod;
     ///
     /// assert!(ExtractionMethod::Neural.is_calibrated());
     /// assert!(!ExtractionMethod::Pattern.is_calibrated());
@@ -863,7 +863,7 @@ impl std::fmt::Display for ExtractionMethod {
 /// # Example
 ///
 /// ```rust
-/// use anno::{Lexicon, EntityType, HashMapLexicon};
+/// use anno_core::{Lexicon, EntityType, HashMapLexicon};
 ///
 /// // Create a domain-specific lexicon
 /// let mut lexicon = HashMapLexicon::new("stock_tickers");
@@ -1171,7 +1171,7 @@ impl Span {
 /// # Example
 ///
 /// ```rust,ignore
-/// use anno::DiscontinuousSpan;
+/// use anno_core::DiscontinuousSpan;
 ///
 /// // "severe pain in the abdomen" where "severe" modifies "pain"
 /// // but they're separated by other words
@@ -1690,7 +1690,7 @@ pub struct Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     /// use chrono::{TimeZone, Utc};
     ///
     /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
@@ -1719,7 +1719,7 @@ pub struct Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType, EntityViewport};
+    /// use anno_core::{Entity, EntityType, EntityViewport};
     ///
     /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
     /// entity.viewport = Some(EntityViewport::Academic);
@@ -1856,7 +1856,7 @@ impl Entity {
     ///
     /// # Examples
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     /// let mut e = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
     /// e.link_to_kb("Q7186"); // Wikidata ID
     /// ```
@@ -1875,7 +1875,7 @@ impl Entity {
     ///
     /// # Example
     /// ```
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.9)
     ///     .with_canonical_id(42);
     /// assert_eq!(entity.canonical_id, Some(42));
@@ -1953,7 +1953,7 @@ impl Entity {
     /// # Examples
     ///
     /// ```rust
-    /// use anno::{Entity, EntityType, DiscontinuousSpan};
+    /// use anno_core::{Entity, EntityType, DiscontinuousSpan};
     ///
     /// // Contiguous entity - returns character length
     /// let entity = Entity::new("Hello", EntityType::Person, 0, 5, 0.9);
@@ -1978,7 +1978,7 @@ impl Entity {
     /// # Examples
     ///
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     ///
     /// let mut entity = Entity::new("Jan 15", EntityType::Date, 0, 6, 0.95);
     /// entity.set_normalized("2024-01-15");
@@ -2112,7 +2112,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     ///
     /// let text = "Hello, 日本!";
     /// // Entity stores CHARACTER offsets: "日本" is chars 7-9
@@ -2151,7 +2151,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     ///
     /// let text = "Hello, 日本!";
     /// let entity = Entity::new("日本", EntityType::Location, 7, 9, 0.95);
@@ -2197,7 +2197,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     /// use chrono::{TimeZone, Utc};
     ///
     /// let mut entity = Entity::new("CEO", EntityType::Person, 0, 3, 0.9);
@@ -2237,7 +2237,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     /// use chrono::{TimeZone, Utc};
     ///
     /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
@@ -2274,7 +2274,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{Entity, EntityType, EntityViewport};
+    /// use anno_core::{Entity, EntityType, EntityViewport};
     ///
     /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
     /// entity.set_viewport(EntityViewport::Academic);
@@ -2334,7 +2334,7 @@ impl Entity {
     /// # Example
     ///
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     ///
     /// let text = "John works at Apple";
     /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.95);
@@ -2452,7 +2452,7 @@ impl Entity {
     /// # Example
     ///
     /// ```rust
-    /// use anno::{Entity, EntityType};
+    /// use anno_core::{Entity, EntityType};
     ///
     /// let text = "John and Jane work at Apple";
     /// let entities = vec![
@@ -2561,7 +2561,7 @@ impl std::fmt::Display for ValidationIssue {
 /// # Example
 ///
 /// ```rust
-/// use anno::{Entity, EntityType, Provenance};
+/// use anno_core::{Entity, EntityType, Provenance};
 ///
 /// let entity = Entity::builder("Marie Curie", EntityType::Person)
 ///     .span(0, 11)
@@ -2688,7 +2688,7 @@ impl EntityBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{EntityBuilder, EntityType};
+    /// use anno_core::{EntityBuilder, EntityType};
     /// use chrono::{TimeZone, Utc};
     ///
     /// let entity = EntityBuilder::new("CEO of Microsoft", EntityType::Person)
@@ -2726,7 +2726,7 @@ impl EntityBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use anno::{EntityBuilder, EntityType, EntityViewport};
+    /// use anno_core::{EntityBuilder, EntityType, EntityViewport};
     ///
     /// let entity = EntityBuilder::new("Marie Curie", EntityType::Person)
     ///     .span(0, 11)
