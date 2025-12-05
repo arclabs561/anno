@@ -37,13 +37,14 @@ trait Model {
     fn extract_entities(&self, text: &str, lang: Option<&str>) -> Result<Vec<Entity>>;
 }
 
-// Zero-shot: entity types specified at runtime
-trait ZeroShotNER: Model {
-    fn extract_with_labels(&self, text: &str, labels: &[&str], threshold: f32) -> Result<Vec<Entity>>;
+// Zero-shot: entity types specified at runtime (type hints)
+trait ZeroShotNER: Send + Sync {
+    fn extract_with_types(&self, text: &str, entity_types: &[&str], threshold: f32) -> Result<Vec<Entity>>;
+    fn extract_with_descriptions(&self, text: &str, descriptions: &[&str], threshold: f32) -> Result<Vec<Entity>>;
 }
 
 // Relation extraction: joint entity + relation
-trait RelationExtractor: Model {
+trait RelationExtractor: Send + Sync {
     fn extract_with_relations(
         &self,
         text: &str,
@@ -54,15 +55,26 @@ trait RelationExtractor: Model {
 }
 
 // Coreference: mention clustering
-trait CoreferenceResolver {
-    fn resolve(&self, text: &str) -> Result<Vec<CorefChain>>;
+trait CoreferenceResolver: Send + Sync {
+    fn resolve(&self, entities: &[Entity]) -> Vec<Entity>;
 }
 
 // Discontinuous spans (W2NER-style)
-trait DiscontinuousNER {
+trait DiscontinuousNER: Send + Sync {
     fn extract_discontinuous(&self, text: &str, labels: &[&str]) -> Result<Vec<DiscontinuousEntity>>;
 }
+
+// Gazetteer/lexicon lookup (separate from NER models)
+trait Lexicon: Send + Sync {
+    fn lookup(&self, text: &str) -> Option<(EntityType, f64)>;
+    fn contains(&self, text: &str) -> bool;
+    fn source(&self) -> &str;
+}
 ```
+
+**Type hints vs Gazetteers:**
+- **Type hints** (`ZeroShotNER::extract_with_types`): Tell model WHAT types to extract (semantic matching). Example: `["person", "organization"]` → model extracts only those types.
+- **Gazetteers** (`Lexicon` trait): Exact-match lookup of known entities. Example: `"AAPL"` → `Organization`. Currently defined but not integrated into NER pipeline (see `docs/LEXICON_DESIGN.md`).
 
 ### Backend philosophy
 

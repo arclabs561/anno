@@ -143,21 +143,37 @@ let entities = ner.extract_entities("Sarah Chen joined Microsoft in Seattle", No
 // LOC: "Seattle" [31, 38)
 ```
 
-### Zero-shot NER
+### Zero-shot NER (Type Hints)
+
+Zero-shot backends accept entity type descriptions at runtime (type hints):
 
 ```rust
 #[cfg(feature = "onnx")]
-use anno::GLiNEROnnx;
+use anno::{ZeroShotNER, GLiNEROnnx};
 
 #[cfg(feature = "onnx")]
 let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
+
+// Type hints: tell the model WHAT to extract
 #[cfg(feature = "onnx")]
-let entities = ner.extract(
+let entities = ner.extract_with_types(
     "Patient presents with diabetes, prescribed metformin 500mg",
-    &["disease", "medication", "dosage"],
+    &["disease", "medication", "dosage"],  // Type hints
+    0.5,
+)?;
+
+// Or use natural language descriptions
+#[cfg(feature = "onnx")]
+let entities = ner.extract_with_descriptions(
+    text,
+    &["a medical condition", "a pharmaceutical compound"],
     0.5,
 )?;
 ```
+
+**Type hints vs Gazetteers:**
+- **Type hints** (`extract_with_types`): Tell model WHAT types to extract (semantic matching)
+- **Gazetteers** (`Lexicon` trait): Provide exact-match lookup of known entities (not yet integrated into NER pipeline)
 
 ## Backends
 
