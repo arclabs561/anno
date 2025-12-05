@@ -26,7 +26,7 @@
 //! - Human review should focus on low-confidence predictions
 //! - False confidence is worse than admitted uncertainty
 //!
-//! See: Guo et al. (2017) "On Calibration of Modern Neural Networks"
+//! See: Guo et al. (2017) "On Calibration of Modern Neural Networks" (arXiv:1706.04599)
 //!
 //! # Key Metrics
 //!
