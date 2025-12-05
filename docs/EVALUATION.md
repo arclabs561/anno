@@ -1,20 +1,20 @@
 # Evaluation
 
-This module provides tools for measuring NER and coreference system performance. NER evaluation is complicated by the question of what counts as a "match" — should the span boundaries be exact? Does the type need to match? This library implements the SemEval-2013 evaluation modes that let you answer these questions explicitly.
+Tools for measuring NER and coreference system performance. NER evaluation requires defining what counts as a "match": exact span boundaries? Type matching? This library implements SemEval-2013 evaluation modes that answer these questions explicitly.
 
-## Quick Reference
+## Tools
 
-| Task | Tool | Example |
-|------|------|---------|
-| Basic evaluation | `ReportBuilder` | See [Basic usage](#basic-usage) |
-| Multi-dataset evaluation | `TaskEvaluator` | See [Comprehensive evaluation](#comprehensive-evaluation-with-taskevaluator) |
-| Evaluation modes | `MultiModeResults` | Strict/Partial/Type matching |
-| Coreference metrics | `CorefEvaluation` | MUC, B³, CEAF, LEA, BLANC |
-| Bias analysis | `GenderBiasEvaluator` | Gender, temporal, length bias |
-| Calibration | `CalibrationEvaluator` | Confidence score calibration |
-| Dataset loading | `DatasetLoader` | CoNLL, JSONL, DocRED formats |
+| Task | Tool |
+|------|------|
+| Basic evaluation | `ReportBuilder` |
+| Multi-dataset evaluation | `TaskEvaluator` |
+| Evaluation modes | `MultiModeResults` (Strict/Partial/Type) |
+| Coreference metrics | `CorefEvaluation` (MUC, B³, CEAF, LEA, BLANC) |
+| Bias analysis | `GenderBiasEvaluator` |
+| Calibration | `CalibrationEvaluator` |
+| Dataset loading | `DatasetLoader` (CoNLL, JSONL, DocRED) |
 
-### Basic usage
+## Basic Usage
 
 ```rust
 use anno::eval::{ReportBuilder, TestCase, SimpleGoldEntity};
