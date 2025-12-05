@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="95" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+  
+  <!-- Extract: Individual entities (dots) -->
+  <g id="extract">
+    <circle cx="60" cy="60" r="4" fill="#60a5fa"/>
+    <circle cx="80" cy="50" r="4" fill="#60a5fa"/>
+    <circle cx="50" cy="80" r="4" fill="#60a5fa"/>
+    <circle cx="70" cy="75" r="4" fill="#60a5fa"/>
+    <circle cx="90" cy="65" r="4" fill="#60a5fa"/>
+  </g>
+  
+  <!-- Coalesce: Merged entities (connected) -->
+  <g id="coalesce">
+    <circle cx="100" cy="100" r="8" fill="#34d399"/>
+    <circle cx="120" cy="95" r="6" fill="#34d399"/>
+    <circle cx="110" cy="115" r="6" fill="#34d399"/>
+    <line x1="100" y1="100" x2="120" y2="95" stroke="#34d399" stroke-width="1.5" opacity="0.6"/>
+    <line x1="100" y1="100" x2="110" y2="115" stroke="#34d399" stroke-width="1.5" opacity="0.6"/>
+    <line x1="120" y1="95" x2="110" y2="115" stroke="#34d399" stroke-width="1.5" opacity="0.6"/>
+  </g>
+  
+  <!-- Stratify: Hierarchical layers -->
+  <g id="strata">
+    <!-- Layer 1 (bottom) -->
+    <ellipse cx="100" cy="150" rx="25" ry="8" fill="#a78bfa" opacity="0.3"/>
+    <!-- Layer 2 (middle) -->
+    <ellipse cx="100" cy="140" rx="20" ry="6" fill="#a78bfa" opacity="0.5"/>
+    <!-- Layer 3 (top) -->
+    <ellipse cx="100" cy="130" rx="15" ry="4" fill="#a78bfa" opacity="0.7"/>
+    <!-- Layer 4 (peak) -->
+    <ellipse cx="100" cy="125" rx="10" ry="3" fill="#a78bfa"/>
+  </g>
+  
+  <!-- Text: "anno" -->
+  <text x="100" y="180" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="600" fill="#f1f5f9" text-anchor="middle">anno</text>
+</svg>
+
