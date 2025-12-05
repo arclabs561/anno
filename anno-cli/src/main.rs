@@ -44,7 +44,7 @@ use std::io::{self, Read};
 use std::process::ExitCode;
 use std::time::Instant;
 
-#[cfg(feature = "eval")]
+#[cfg(any(feature = "eval", feature = "eval-advanced"))]
 use glob::glob;
 
 use clap::{CommandFactory, Parser, ValueEnum};
