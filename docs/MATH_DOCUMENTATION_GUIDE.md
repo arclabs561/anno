@@ -83,10 +83,10 @@ Follow Stanford documentation style:
 
 ## Areas for Selective Enhancement
 
-### 1. Evaluation Metrics (`anno/src/eval/metrics.rs`)
+### 1. Evaluation Metrics (`anno/src/eval/modes.rs`)
 
-**Current:** Mentions P/R/F1 but no formulas
-**Enhancement:** Add concise formulas where metrics are defined:
+**Current:** ✅ Formulas added in `ModeResults::compute()`
+**Enhancement:** Complete - formulas and reference added:
 - `Precision = TP / (TP + FP)`
 - `Recall = TP / (TP + FN)`
 - `F1 = 2 × (P × R) / (P + R)`
@@ -151,6 +151,10 @@ Follow Stanford documentation style:
 ///
 /// Returns normalized value in [0.0, 1.0].
 ```
+
+## Related Projects
+
+**Note**: The `rank-*` crates (`rank-eval`, `rank-fusion`, `rank-refine`, `rank-relax`) in the parent directory also implement IR metrics (NDCG, MAP, MRR) and ranking algorithms that would benefit from similar math documentation. Those are separate repositories and out of scope for this PR.
 
 ## Key Paper References
 
