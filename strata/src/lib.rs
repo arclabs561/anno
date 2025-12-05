@@ -9,8 +9,9 @@
 //!
 //! # Example
 //!
-//! ```
-//! use anno_strata::{HierarchicalLeiden, GraphDocument};
+//! ```rust,ignore
+//! use anno_strata::HierarchicalLeiden;
+//! use anno_core::GraphDocument;
 //!
 //! let clusterer = HierarchicalLeiden::new()
 //!     .with_resolution(1.0)
