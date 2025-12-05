@@ -9,6 +9,15 @@ Add mathematical explanations only where:
 
 Avoid over-explaining simple utility functions or well-known concepts.
 
+## Style Reference
+
+Follow Stanford NLP documentation style ([Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html), [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/)):
+- Clear, technical, accessible
+- Structured sections with clear headings
+- Include formulas when needed, with brief context
+- Reference key papers for complex concepts
+- Practical examples, not pedagogical exercises
+
 ## Current State Assessment
 
 ### What We Have
@@ -76,21 +85,27 @@ Avoid over-explaining simple utility functions or well-known concepts.
 - `Recall = TP / (TP + FN)`
 - `F1 = 2 × (P × R) / (P + R)`
 
+**Reference:** [Manning et al. (2008), Chapter 8](https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-in-information-retrieval-1.html) provides standard definitions.
+
 **Rationale:** Core evaluation metrics, users need to understand what they mean.
 
 ### 2. Clustering Algorithms (`strata/src/leiden.rs`)
 
 **Current:** Has modularity formula, good as-is
-**Enhancement:** Add one-sentence intuition about resolution parameter if missing
+**Enhancement:** Add reference to Leiden algorithm paper if missing
 
-**Rationale:** Algorithm is complex, but current explanation level is appropriate.
+**Reference:** Traag et al. (2019) "From Louvain to Leiden: guaranteeing well-connected communities" - explains why Leiden improves on Louvain.
+
+**Rationale:** Algorithm is complex, paper reference provides deeper context.
 
 ### 3. Confidence Calibration (`anno/src/eval/calibration.rs`)
 
 **Current:** Lists metrics but no formulas
 **Enhancement:** Add formulas for ECE and Brier where they're computed
 
-**Rationale:** These are less well-known metrics, formulas help interpretation.
+**Reference:** Guo et al. (2017) "On Calibration of Modern Neural Networks" - standard reference for ECE and calibration metrics.
+
+**Rationale:** These are less well-known metrics, formulas and paper reference help interpretation.
 
 ### 4. Similarity Metrics (`coalesce/src/resolver.rs`)
 
@@ -131,9 +146,30 @@ Avoid over-explaining simple utility functions or well-known concepts.
 /// Returns normalized value in [0.0, 1.0].
 ```
 
-## References
+## Key Paper References
 
+When adding mathematical explanations, reference these papers for authoritative definitions:
+
+### Evaluation Metrics
+- **Precision/Recall/F1**: Manning et al. (2008) [Introduction to Information Retrieval, Chapter 8](https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-in-information-retrieval-1.html)
+- **MAP, NDCG**: Same source, standard IR evaluation measures
+
+### Clustering
+- **Leiden Algorithm**: Traag et al. (2019) "From Louvain to Leiden: guaranteeing well-connected communities" - explains modularity optimization and resolution parameter
+
+### Calibration
+- **ECE, Brier Score**: Guo et al. (2017) "On Calibration of Modern Neural Networks" - standard reference for calibration metrics
+
+### Coreference
+- **MUC, B³, CEAF**: See `anno/src/eval/coref_metrics.rs` for references (Vilain et al. 1995, Bagga & Baldwin 1998, Luo 2005, etc.)
+
+### Box Embeddings
+- **BERE, BoxTE, UKGE**: Referenced in `anno/src/backends/box_embeddings_training.rs`
+
+## Documentation Style References
+
+- [Stanford CoreNLP Documentation](https://stanfordnlp.github.io/CoreNLP/): Clear, structured, technical but accessible
+- [Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html): Excellent examples of mathematical notation in technical documentation
 - [math-in-rust-doc](https://docs.rs/math-in-rust-doc): KaTeX integration example
 - [Rustdoc documentation](https://doc.rust-lang.org/rustdoc/): Official rustdoc guide
-- Martin Gardner's style: Clear, concrete, step-by-step, puzzle-like
 

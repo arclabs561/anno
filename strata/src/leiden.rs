@@ -10,6 +10,9 @@ use std::collections::HashMap;
 /// The Leiden algorithm is an improvement over the Louvain algorithm,
 /// guaranteeing well-connected communities. This implementation provides
 /// a basic version suitable for hierarchical clustering.
+///
+/// Reference: Traag et al. (2019) "From Louvain to Leiden: guaranteeing
+/// well-connected communities". Scientific Reports 9, 5233.
 pub struct Leiden {
     resolution: f32,
     random_seed: Option<u64>,
