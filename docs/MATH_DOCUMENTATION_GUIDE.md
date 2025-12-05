@@ -1,168 +1,134 @@
-# Math Documentation Guide: Gardner-Style Explanations
+# Math Documentation Guide: Selective Mathematical Explanations
+
+## Philosophy
+
+Add mathematical explanations only where:
+1. **Relevant to the project's core purpose** (e.g., evaluation metrics, clustering algorithms)
+2. **Aligned with implementation complexity** (complex algorithms deserve more explanation)
+3. **Necessary for correct usage** (formulas that affect behavior or parameters)
+
+Avoid over-explaining simple utility functions or well-known concepts.
 
 ## Current State Assessment
 
 ### What We Have
-- ✅ Modularity formula in `strata/src/leiden.rs` (ASCII math)
-- ✅ Box embedding formulas in `anno/src/backends/box_embeddings_training.rs` (ASCII)
-- ✅ Late interaction scoring in `anno/src/backends/inference.rs` (ASCII)
-- ✅ Some similarity explanations (basic)
+- ✅ Modularity formula in `strata/src/leiden.rs` (concise, appropriate)
+- ✅ Box embedding formulas in `anno/src/backends/box_embeddings_training.rs` (research-focused)
+- ✅ Late interaction scoring in `anno/src/backends/inference.rs` (brief, technical)
+- ✅ Similarity functions (basic, sufficient)
 
-### What's Missing (Gardner-Style)
-- ❌ Step-by-step derivations with intuition
-- ❌ Concrete numerical examples
-- ❌ Visual diagrams for formulas
-- ❌ "Why this works" explanations
-- ❌ Puzzle-like examples that build understanding
+### When to Add More Detail
+- Complex algorithms (Leiden, box embeddings) → formula + brief intuition
+- Evaluation metrics (P/R/F1) → formula + when to use each
+- Calibration metrics (ECE, Brier) → formula + interpretation guidance
+- **Not needed**: Simple utilities, well-known concepts, obvious formulas
 
 ## Best Practices for Math in Rust Docs
 
 ### 1. Markup Options
 
-**Recommended: ASCII Math + KaTeX (for docs.rs)**
+**Recommended: ASCII Math (primary)**
 
 ```rust
-/// # The Formula
+/// Formula: `similarity(a, b) = (a · b) / (||a|| × ||b||)`
 ///
-/// ```text
-/// similarity(a, b) = (a · b) / (||a|| × ||b||)
-/// ```
-///
-/// Where:
-/// - `a · b` = dot product (sum of element-wise products)
-/// - `||a||` = L2 norm (Euclidean length)
-///
-/// For docs.rs rendering, we can add KaTeX:
-/// \[ \text{similarity}(a, b) = \frac{a \cdot b}{\|a\| \times \|b\|} \]
+/// Where `a · b` is dot product and `||a||` is L2 norm.
 ```
 
-**Why ASCII + KaTeX?**
-- ASCII works everywhere (offline docs, GitHub)
-- KaTeX enhances docs.rs with proper rendering
-- No external dependencies for basic viewing
-- Progressive enhancement approach
+**Why ASCII?**
+- Works everywhere (offline docs, GitHub, docs.rs)
+- No external dependencies
+- Simple and portable
 
-### 2. Gardner-Style Structure
+**Optional: KaTeX for docs.rs** (only if formula is complex and visual rendering adds value)
 
-**Template:**
+### 2. When to Add Mathematical Detail
+
+**Add formula + brief explanation:**
+- Complex algorithms (Leiden modularity, box embeddings)
+- Evaluation metrics that affect interpretation (ECE, Brier)
+- Parameters that need tuning guidance (resolution, thresholds)
+
+**Keep minimal:**
+- Well-known formulas (cosine similarity, F1 score)
+- Simple utilities (string similarity, basic math)
+- Obvious calculations
+
+**Structure for complex cases:**
 ```rust
-/// # The Problem
+/// [Brief description]
 ///
-/// [Concrete example that motivates the formula]
+/// Formula: `[ASCII formula]`
 ///
-/// # The Intuition
+/// [One sentence intuition if non-obvious]
 ///
-/// [Why this formula makes sense, step by step]
-///
-/// # The Formula
-///
-/// ```text
-/// [ASCII version]
-/// ```
-///
-/// # Worked Example
-///
-/// [Concrete numbers showing each step]
-///
-/// # Why It Works
-///
-/// [Connection to underlying principles]
+/// # Example
+/// [Code example]
 ```
 
-## Areas Needing Improvement
+## Areas for Selective Enhancement
 
-### 1. Similarity Metrics (`coalesce/src/resolver.rs`)
-
-**Current:** Basic description
-**Needed:** Gardner-style explanation with:
-- Visual diagram of cosine similarity
-- Step-by-step calculation example
-- Intuition: "Why cosine measures angle, not magnitude"
-
-### 2. Evaluation Metrics (`anno/src/eval/metrics.rs`)
+### 1. Evaluation Metrics (`anno/src/eval/metrics.rs`)
 
 **Current:** Mentions P/R/F1 but no formulas
-**Needed:**
-- Precision = TP / (TP + FP) with concrete example
-- Recall = TP / (TP + FN) with concrete example
-- F1 = 2 × (P × R) / (P + R) with harmonic mean intuition
+**Enhancement:** Add concise formulas where metrics are defined:
+- `Precision = TP / (TP + FP)`
+- `Recall = TP / (TP + FN)`
+- `F1 = 2 × (P × R) / (P + R)`
 
-### 3. Clustering Algorithms (`strata/src/leiden.rs`)
+**Rationale:** Core evaluation metrics, users need to understand what they mean.
 
-**Current:** Has modularity formula but lacks intuition
-**Needed:**
-- "What does modularity measure?" (community quality)
-- Step-by-step calculation example
-- Why resolution parameter matters
+### 2. Clustering Algorithms (`strata/src/leiden.rs`)
 
-### 4. Confidence Calibration (`anno/src/eval/calibration.rs`)
+**Current:** Has modularity formula, good as-is
+**Enhancement:** Add one-sentence intuition about resolution parameter if missing
+
+**Rationale:** Algorithm is complex, but current explanation level is appropriate.
+
+### 3. Confidence Calibration (`anno/src/eval/calibration.rs`)
 
 **Current:** Lists metrics but no formulas
-**Needed:**
-- ECE formula with binning explanation
-- Brier score with probability interpretation
-- Concrete example of well-calibrated vs poorly-calibrated
+**Enhancement:** Add formulas for ECE and Brier where they're computed
 
-## Implementation Plan
+**Rationale:** These are less well-known metrics, formulas help interpretation.
 
-### Phase 1: Add Formulas (ASCII)
-- Add P/R/F1 formulas to `metrics.rs`
-- Add cosine similarity formula to `resolver.rs`
-- Add ECE/Brier formulas to `calibration.rs`
+### 4. Similarity Metrics (`coalesce/src/resolver.rs`)
 
-### Phase 2: Add Gardner-Style Explanations
-- Worked examples with concrete numbers
-- Step-by-step derivations
-- Intuition sections
+**Current:** Basic description (sufficient)
+**Enhancement:** None needed - well-known concept, current level is appropriate
 
-### Phase 3: Add KaTeX (Optional)
-- Create `katex.html` header
-- Add to `Cargo.toml` metadata for docs.rs
-- Enhance formulas with LaTeX rendering
+## Implementation Approach
 
-## Example: Gardner-Style F1 Explanation
+**Selective enhancement only:**
+- Add formulas where metrics are computed (not everywhere they're used)
+- Add brief intuition only for non-obvious concepts
+- Keep explanations concise and technical, not pedagogical
 
+## Example: Appropriate Level of Detail
+
+**For F1 score (well-known metric):**
 ```rust
-/// Calculate F1 score (harmonic mean of precision and recall).
+/// Calculate F1 score: `F1 = 2 × (P × R) / (P + R)`
 ///
-/// # The Problem
+/// Harmonic mean of precision and recall. Returns 0.0 if both are 0.
+```
+
+**For ECE (less well-known metric):**
+```rust
+/// Expected Calibration Error (ECE).
 ///
-/// Imagine you're evaluating a NER system. You predicted 10 entities,
-/// and 8 were correct. But there were actually 12 entities in the text.
+/// Formula: `ECE = Σ(n_i / N) × |acc_i - conf_i|`
 ///
-/// - Precision: 8/10 = 0.8 (80% of predictions were correct)
-/// - Recall: 8/12 = 0.67 (67% of actual entities found)
+/// Where bins are confidence intervals [0, 0.1), [0.1, 0.2), ..., [0.9, 1.0],
+/// `n_i` is count in bin i, `acc_i` is accuracy in bin i, `conf_i` is mean confidence.
+/// Lower is better (0 = perfectly calibrated).
+```
+
+**For simple utilities:**
+```rust
+/// Compute cosine similarity between embeddings.
 ///
-/// Which is more important? Both! F1 balances them.
-///
-/// # The Formula
-///
-/// ```text
-/// F1 = 2 × (Precision × Recall) / (Precision + Recall)
-/// ```
-///
-/// # Why Harmonic Mean?
-///
-/// The harmonic mean punishes extreme imbalances. If precision is 1.0
-/// but recall is 0.1, the arithmetic mean is 0.55, but F1 is only 0.18.
-/// This reflects reality: a system that finds only 10% of entities
-/// isn't very useful, even if it's always right when it guesses.
-///
-/// # Worked Example
-///
-/// ```text
-/// Precision = 0.8, Recall = 0.67
-/// F1 = 2 × (0.8 × 0.67) / (0.8 + 0.67)
-///    = 2 × 0.536 / 1.47
-///    = 1.072 / 1.47
-///    = 0.729
-/// ```
-///
-/// # Intuition
-///
-/// F1 is always between precision and recall, closer to the smaller value.
-/// This makes it a conservative metric: you need both high precision
-/// AND high recall to get a good F1 score.
+/// Returns normalized value in [0.0, 1.0].
 ```
 
 ## References

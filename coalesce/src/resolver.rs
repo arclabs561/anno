@@ -264,51 +264,8 @@ pub fn string_similarity(a: &str, b: &str) -> f32 {
 ///
 /// Returns a value in [0.0, 1.0] where 1.0 is identical.
 ///
-/// # The Intuition
-///
-/// Cosine similarity measures the angle between two vectors, not their magnitude.
-/// This makes it ideal for embeddings: "Marie Curie" and "Marie Curie" should be
-/// similar regardless of embedding scale, and "Marie Curie" and "Albert Einstein"
-/// should be less similar even if both are famous scientists.
-///
-/// # The Formula
-///
-/// ```text
-/// cosine_similarity(a, b) = (a · b) / (||a|| × ||b||)
-///
-/// where:
-///   a · b = dot product = Σ(a_i × b_i)
-///   ||a|| = L2 norm = √(Σ(a_i²))
-/// ```
-///
-/// The result is the cosine of the angle between vectors, ranging from -1 (opposite)
-/// to +1 (identical direction). We normalize to [0, 1] by adding 1 and dividing by 2.
-///
-/// # Worked Example
-///
-/// ```text
-/// Let a = [1.0, 0.0, 0.0]  (pointing along x-axis)
-///     b = [1.0, 0.0, 0.0]  (also pointing along x-axis)
-///
-/// Step 1: Dot product
-///   a · b = (1.0 × 1.0) + (0.0 × 0.0) + (0.0 × 0.0) = 1.0
-///
-/// Step 2: Norms
-///   ||a|| = √(1.0² + 0.0² + 0.0²) = 1.0
-///   ||b|| = √(1.0² + 0.0² + 0.0²) = 1.0
-///
-/// Step 3: Cosine similarity
-///   cosine = 1.0 / (1.0 × 1.0) = 1.0
-///
-/// Step 4: Normalize to [0, 1]
-///   similarity = (1.0 + 1.0) / 2.0 = 1.0
-/// ```
-///
-/// # Why It Works
-///
-/// By normalizing vectors (dividing by their norms), we measure direction, not scale.
-/// This is crucial for embeddings: a word appearing 10 times vs 1 time shouldn't
-/// dominate similarity if the semantic meaning is the same.
+/// Formula: `cosine(a, b) = (a · b) / (||a|| × ||b||)`, normalized to [0, 1].
+/// Measures angle between vectors, not magnitude, making it suitable for embeddings.
 ///
 /// # Example
 ///
