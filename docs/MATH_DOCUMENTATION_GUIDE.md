@@ -11,12 +11,16 @@ Avoid over-explaining simple utility functions or well-known concepts.
 
 ## Style Reference
 
-Follow Stanford NLP documentation style ([Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html), [Stanford CoreNLP](https://stanfordnlp.github.io/CoreNLP/)):
-- Clear, technical, accessible
-- Structured sections with clear headings
-- Include formulas when needed, with brief context
-- Reference key papers for complex concepts
-- Practical examples, not pedagogical exercises
+Follow Stanford documentation style:
+- **Introduction to Information Retrieval** ([Manning et al. 2008](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html)): Clear, technical, accessible; structured sections; formulas with context; practical examples
+- **Stanford CoreNLP**: Structured, technical but accessible; clear headings; reference papers for complex concepts
+- **Foundations of Computer Science** ([Aho & Ullman 1992](http://infolab.stanford.edu/~ullman/focs.html)): Methodical presentation; clear definitions before explanations; illustrative examples bridging theory and practice; incremental concept building
+
+**Key principles from FOCS:**
+1. **Definition first**: State what it is before explaining how it works
+2. **Incremental building**: Introduce concepts step-by-step, building on previous understanding
+3. **Illustrative examples**: Show practical applications that bridge theory and implementation
+4. **Precise notation**: Use clear, consistent mathematical notation
 
 ## Current State Assessment
 
@@ -63,16 +67,18 @@ Follow Stanford NLP documentation style ([Introduction to Information Retrieval]
 - Simple utilities (string similarity, basic math)
 - Obvious calculations
 
-**Structure for complex cases:**
+**Structure for complex cases (FOCS-inspired):**
 ```rust
-/// [Brief description]
+/// [Definition: What it is]
 ///
 /// Formula: `[ASCII formula]`
 ///
-/// [One sentence intuition if non-obvious]
+/// [Brief intuition if non-obvious]
 ///
 /// # Example
-/// [Code example]
+/// [Practical code example showing usage]
+///
+/// Reference: [Paper/Book citation if applicable]
 ```
 
 ## Areas for Selective Enhancement
@@ -168,8 +174,26 @@ When adding mathematical explanations, reference these papers for authoritative 
 
 ## Documentation Style References
 
-- [Stanford CoreNLP Documentation](https://stanfordnlp.github.io/CoreNLP/): Clear, structured, technical but accessible
-- [Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html): Excellent examples of mathematical notation in technical documentation
+### Primary Style Guides
+- **[Foundations of Computer Science](http://infolab.stanford.edu/~ullman/focs.html)** (Aho & Ullman 1992): Methodical presentation, clear definitions, illustrative examples, incremental concept building
+- **[Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/irbook.html)** (Manning et al. 2008): Clear, technical, accessible; structured sections; formulas with context
+- **[Stanford CoreNLP Documentation](https://stanfordnlp.github.io/CoreNLP/)**: Structured, technical but accessible; clear headings; reference papers
+
+### Technical Resources
 - [math-in-rust-doc](https://docs.rs/math-in-rust-doc): KaTeX integration example
 - [Rustdoc documentation](https://doc.rust-lang.org/rustdoc/): Official rustdoc guide
+
+### Style Principles Summary
+
+**From FOCS:**
+- Definition first, then explanation
+- Build concepts incrementally
+- Illustrative examples that bridge theory and practice
+- Precise mathematical notation
+
+**From IR Book:**
+- Clear, technical, accessible
+- Formulas when needed, with brief context
+- Reference key papers for complex concepts
+- Practical examples, not pedagogical exercises
 
