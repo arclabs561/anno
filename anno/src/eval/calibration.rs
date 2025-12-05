@@ -147,6 +147,12 @@ impl CalibrationEvaluator {
     /// Evaluate calibration on predictions.
     ///
     /// Each prediction is a tuple of (confidence_score, is_correct).
+    ///
+    /// Computes:
+    /// - **ECE**: `Σ(n_i / N) × |acc_i - conf_i|` where bins partition [0, 1]
+    /// - **Brier Score**: `(1/N) × Σ(conf_i - target_i)²` where target is 1 if correct, 0 otherwise
+    ///
+    /// Reference: Guo et al. (2017) "On Calibration of Modern Neural Networks" (arXiv:1706.04599)
     pub fn evaluate(&self, predictions: &[(f64, bool)]) -> CalibrationResults {
         if predictions.is_empty() {
             return CalibrationResults {
