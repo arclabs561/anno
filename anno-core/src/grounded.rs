@@ -640,7 +640,7 @@ impl Signal<Location> {
     /// let text = "Marie Curie was a physicist.";
     /// let signal = Signal::<Location>::from_text(text, "Marie Curie", "PER", 0.95);
     /// assert!(signal.is_some());
-    /// assert_eq!(signal.unwrap().text_offsets(), Some((0, 11)));
+    /// assert_eq!(signal.expect("signal should exist").text_offsets(), Some((0, 11)));
     /// ```
     #[must_use]
     pub fn from_text(

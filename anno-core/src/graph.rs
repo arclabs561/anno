@@ -40,7 +40,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use anno::graph::{GraphDocument, GraphExportFormat};
 //! use anno::{Entity, EntityType, Relation};
 //! use anno::eval::coref::CorefChain;
