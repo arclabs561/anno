@@ -4,11 +4,11 @@
 
 ```
 anno/
-├── anno-core/      # Types: Entity, GroundedDocument, GraphDocument
-├── anno/           # NER backends, evaluation
+├── anno-core/      # Foundation: Entity, GroundedDocument, GraphDocument
+├── anno/           # NER backends, evaluation framework
 ├── coalesce/       # Cross-document entity coalescing
 ├── strata/         # Hierarchical clustering (Leiden, RAPTOR)
-└── anno-cli/       # CLI binary
+└── anno-cli/       # Unified CLI binary
 ```
 
 ## Dependencies
@@ -23,27 +23,45 @@ anno-core (no workspace deps)
             └── anno-cli
 ```
 
-## Usage
+## Philosophy
 
-### Library
+Each crate is independent. Use what you need:
+
+- `anno`: NER only
+- `anno-coalesce`: Entity resolution without NER
+- `anno-strata`: Clustering without NER
+
+Or use together via `anno-cli` or your own code.
+
+## Library Usage
+
+### NER
 
 ```rust
-// NER
 use anno::{Model, GLiNEROnnx};
+
 let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
 let entities = ner.extract_entities(text, None)?;
+```
 
-// Cross-doc coalescing
+### Cross-document Coalescing
+
+```rust
 use anno_coalesce::Resolver;
+
 let resolver = Resolver::new();
 let identities = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.7), Some(true))?;
+```
 
-// Hierarchical clustering
+### Hierarchical Clustering
+
+```rust
 use anno_strata::HierarchicalLeiden;
+
 let hierarchy = HierarchicalLeiden::cluster(&graph)?;
 ```
 
-### CLI
+## CLI Usage
 
 ```bash
 # Extract
@@ -57,12 +75,10 @@ anno crossdoc --directory ./docs --threshold 0.6
 anno strata --input graph.json --method leiden --levels 3
 ```
 
-## Philosophy
+## The Pipeline
 
-Each crate is independent. Use what you need:
+**Extract. Coalesce. Stratify.**
 
-- `anno`: NER only
-- `coalesce`: Entity resolution without NER
-- `strata`: Clustering without NER
-
-Or use together via `anno-cli` or your own code.
+1. **Extract**: Detect entities in text (NER)
+2. **Coalesce**: Merge mentions across documents into canonical entities
+3. **Stratify**: Reveal hierarchical layers of abstraction (communities, themes)
