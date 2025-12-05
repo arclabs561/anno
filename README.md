@@ -205,11 +205,11 @@ let entities = ner.extract(
 | Feature | What it enables |
 |---------|-----------------|
 | *(default)* | `RegexNER`, `HeuristicNER`, `StackedNER`, `GraphDocument` |
-| `onnx` | BERT, GLiNER, GLiNER2, NuNER, W2NER via ONNX Runtime |
-| `candle` | Pure Rust inference (`CandleNER`, `GLiNERCandle`) |
+| `onnx` | BERT, GLiNER, GLiNER2, NuNER, W2NER, TPLinker via ONNX Runtime |
+| `candle` | Pure Rust inference (`CandleNER`, `GLiNERCandle`, `GLiNER2Candle`) |
 | `eval` | Core metrics (P/R/F1), datasets, evaluation framework |
-| `eval-advanced` | Calibration, robustness, OOD detection, `crossdoc`, `strata` |
-| `discourse` | Event extraction, abstract anaphora |
+| `eval-advanced` | Calibration, robustness, OOD detection, `crossdoc`, `strata`, `rank-eval`, relation extraction evaluation |
+| `discourse` | Event extraction, abstract anaphora, coreference resolution |
 
 ## CLI Commands
 
