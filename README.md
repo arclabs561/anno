@@ -1,20 +1,16 @@
 # anno
 
-Information extraction for Rust: NER, coreference resolution, evaluation.
+Information extraction for Rust: NER, cross-document entity coalescing, hierarchical clustering.
 
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-## What
+anno is a library and command line tool for extracting named entities from text, coalescing mentions across documents into canonical entities, and stratifying entities into hierarchical clusters. Swap between regex (~400ns), transformers (~50-150ms), zero-shot NER without code changes.
 
-Unified API for named entity recognition. Swap between regex (~400ns), transformers (~50-150ms), zero-shot NER without code changes.
+**Extract. Coalesce. Stratify.**
 
-**Tagline: Extract. Coalesce. Stratify.**
-
-## Quick Start
-
-### Installation
+## Installation
 
 ```bash
 cargo install anno-cli
@@ -23,7 +19,7 @@ git clone https://github.com/arclabs561/anno
 cd anno && cargo build --release
 ```
 
-### CLI Usage
+## Usage
 
 ```bash
 # Extract entities from text
@@ -40,14 +36,14 @@ anno strata --input graph.json --method leiden --levels 3
 anno pipeline ./docs/ --output ./kb/
 ```
 
-### Library Usage
+## Library
 
 ```toml
 [dependencies]
 anno = "0.2"
 ```
 
-## Workspace Structure
+## Structure
 
 ```
 anno-core/      # Foundation: Entity, GroundedDocument, GraphDocument
@@ -68,9 +64,9 @@ anno-core (no deps)
             └── anno-cli
 ```
 
-## The Pipeline: Extract → Coalesce → Stratify
+## Pipeline
 
-### 1. Extract (NER)
+### Extract
 
 Detect entities in text: persons, organizations, locations, dates, etc.
 
@@ -83,7 +79,7 @@ let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
 // DATE: "Jan 15" [26, 32)
 ```
 
-### 2. Coalesce (Cross-document resolution)
+### Coalesce
 
 Merge mentions across documents into canonical entities.
 
@@ -98,7 +94,7 @@ let resolver = Resolver::new();
 let identities = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.7), Some(true))?;
 ```
 
-### 3. Stratify (Hierarchical clustering)
+### Stratify
 
 Reveal layers of abstraction: entities → communities → themes.
 
@@ -114,8 +110,6 @@ let hierarchy = HierarchicalLeiden::cluster(&graph)?;
 
 ## Examples
 
-### Basic extraction
-
 ```rust
 use anno::{Model, RegexNER};
 
@@ -127,7 +121,7 @@ for e in &entities {
 }
 ```
 
-### Named entities with ML
+### ML-based NER
 
 ```rust
 use anno::StackedNER;

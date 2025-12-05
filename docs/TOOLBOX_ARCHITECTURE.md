@@ -1,4 +1,4 @@
-# Anno Toolbox Architecture
+# Architecture
 
 ## Structure
 
@@ -23,17 +23,15 @@ anno-core (no workspace deps)
             └── anno-cli
 ```
 
-## Philosophy
-
 Each crate is independent. Use what you need:
 
 - `anno`: NER only
 - `anno-coalesce`: Entity resolution without NER
 - `anno-strata`: Clustering without NER
 
-Or use together via `anno-cli` or your own code.
+Or use together via `anno-cli`.
 
-## Library Usage
+## Library
 
 ### NER
 
@@ -61,7 +59,7 @@ use anno_strata::HierarchicalLeiden;
 let hierarchy = HierarchicalLeiden::cluster(&graph)?;
 ```
 
-## CLI Usage
+## CLI
 
 ```bash
 # Extract
@@ -75,10 +73,10 @@ anno crossdoc --directory ./docs --threshold 0.6
 anno strata --input graph.json --method leiden --levels 3
 ```
 
-## The Pipeline
+## Pipeline
 
-**Extract. Coalesce. Stratify.**
+Extract. Coalesce. Stratify.
 
-1. **Extract**: Detect entities in text (NER)
-2. **Coalesce**: Merge mentions across documents into canonical entities
-3. **Stratify**: Reveal hierarchical layers of abstraction (communities, themes)
+1. Extract: Detect entities in text (NER)
+2. Coalesce: Merge mentions across documents into canonical entities
+3. Stratify: Reveal hierarchical layers of abstraction (communities, themes)
