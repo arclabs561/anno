@@ -32,7 +32,7 @@
 #[cfg(feature = "onnx")]
 use crate::sync::{lock, try_lock, Mutex};
 use crate::{Entity, Error, Result};
-use anno_core::EntityType;
+use anno_core::{EntityCategory, EntityType};
 
 /// Special token IDs for GLiNER models
 const TOKEN_START: u32 = 1;
