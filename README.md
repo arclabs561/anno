@@ -85,11 +85,13 @@ let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
 
 ### Coalesce
 
-Merge mentions across documents into canonical entities.
+Cross-document entity resolution: merge mentions across documents into canonical entities.
 
-```bash
-anno crossdoc --directory ./docs --threshold 0.6
-```
+- **Input**: entities from multiple documents
+- **Output**: canonical entities (Identity) linking mentions across documents
+- **Purpose**: Identity resolution - "Marie Curie" in doc1 and "Marie Curie" in doc2 → same Identity
+- **Algorithm**: Similarity-based clustering (embeddings or string similarity)
+- **Example**: `anno crossdoc --directory ./docs --threshold 0.6`
 
 ```rust
 use anno_coalesce::Resolver;
@@ -100,17 +102,21 @@ let identities = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.7), Some(t
 
 ### Stratify
 
-Reveal layers of abstraction: entities → communities → themes.
+Hierarchical community detection: reveal layers of abstraction (communities, themes).
 
-```bash
-anno strata --input graph.json --method leiden --levels 3
-```
+- **Input**: graph of entities and relations (GraphDocument)
+- **Output**: hierarchical layers of communities at multiple resolutions
+- **Purpose**: Reveal abstraction levels (specific entities → themes → domains)
+- **Algorithm**: Leiden algorithm at multiple resolutions (modularity optimization)
+- **Example**: `anno strata --input graph.json --method leiden --levels 3`
 
 ```rust
 use anno_strata::HierarchicalLeiden;
 
 let hierarchy = HierarchicalLeiden::cluster(&graph)?;
 ```
+
+**Difference**: Coalesce resolves identity (same entity across docs). Strata organizes into hierarchies (communities, themes, abstraction layers).
 
 ## Examples
 
@@ -198,8 +204,8 @@ let entities = ner.extract(
 | `eval` | `e` | Evaluate predictions against gold |
 | `validate` | `v` | Validate JSONL annotation files |
 | `analyze` | `a` | Deep analysis with multiple models |
-| `crossdoc` | `coalesce` | Cross-document entity coalescing |
-| `strata` | - | Hierarchical clustering |
+| `crossdoc` | `coalesce` | Cross-document entity resolution (identity linking) |
+| `strata` | - | Hierarchical community detection (abstraction layers) |
 | `pipeline` | `p` | Full pipeline: extract → coalesce → stratify |
 | `info` | `i` | Show model and version info |
 | `models` | - | List and compare available models |

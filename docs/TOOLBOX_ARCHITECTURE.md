@@ -75,8 +75,26 @@ anno strata --input graph.json --method leiden --levels 3
 
 ## Pipeline
 
-Extract. Coalesce. Stratify.
+**Extract. Coalesce. Stratify.**
 
-1. Extract: Detect entities in text (NER)
-2. Coalesce: Merge mentions across documents into canonical entities
-3. Stratify: Reveal hierarchical layers of abstraction (communities, themes)
+1. **Extract**: Detect entities in text (NER)
+   - Input: raw text
+   - Output: entity mentions (Signal → Track within document)
+
+2. **Coalesce**: Cross-document entity resolution
+   - Input: entities from multiple documents (Tracks)
+   - Output: canonical entities (Identity) linking mentions across documents
+   - Purpose: Identity resolution - "Marie Curie" in doc1 and doc2 → same Identity
+   - Algorithm: Similarity-based clustering (embeddings or string similarity)
+   - Example: `anno crossdoc --directory ./docs --threshold 0.7`
+
+3. **Stratify**: Hierarchical community detection
+   - Input: graph of entities and relations (GraphDocument)
+   - Output: hierarchical layers of communities at multiple resolutions
+   - Purpose: Reveal abstraction levels (specific → themes → domains)
+   - Algorithm: Leiden algorithm at multiple resolutions (modularity optimization)
+   - Example: `anno strata --input graph.json --method leiden --levels 3`
+
+**Key Difference**: 
+- **Coalesce** = identity resolution (same entity, different documents)
+- **Strata** = hierarchical organization (communities, themes, abstraction layers)
