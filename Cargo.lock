@@ -97,6 +97,7 @@ dependencies = [
  "anno-strata",
  "clap",
  "clap_complete",
+ "dirs 5.0.1",
  "glob",
  "indicatif",
  "is-terminal",

@@ -13,8 +13,9 @@ publish = false  # Binary-only crate, not published to crates.io
 
 [features]
 default = ["eval-advanced"]
-eval = ["anno/eval"]
+eval = ["anno/eval", "dirs"]
 eval-advanced = ["eval", "anno/eval-advanced"]
+discourse = ["anno/discourse"]
 
 [dependencies]
 anno = { path = "../anno", features = ["cli", "eval"], default-features = false }
@@ -33,6 +34,7 @@ toml = { workspace = true }
 # Utilities
 serde = { workspace = true }
 serde_json = { workspace = true }
+dirs = { workspace = true, optional = true }
 
 [[bin]]
 name = "anno"
