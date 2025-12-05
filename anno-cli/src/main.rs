@@ -50,7 +50,7 @@ use glob::glob;
 use clap::{CommandFactory, Parser, ValueEnum};
 use is_terminal::IsTerminal;
 
-#[cfg(feature = "eval")]
+#[cfg(any(feature = "eval", feature = "eval-advanced"))]
 use anno::eval::backend_factory::BackendFactory;
 use anno::graph::{GraphDocument, GraphExportFormat};
 use anno::grounded::{
@@ -60,7 +60,7 @@ use anno::grounded::{
 use anno::ingest::DocumentPreprocessor;
 use anno::{AutoNER, Entity, HeuristicNER, Model, RegexNER, StackedNER};
 
-#[cfg(feature = "eval")]
+#[cfg(any(feature = "eval", feature = "eval-advanced"))]
 use anno::eval::cdcr::{CDCRConfig, CDCRResolver, Document};
 
 #[cfg(feature = "onnx")]
@@ -126,7 +126,7 @@ enum ModelBackend {
 impl ModelBackend {
     fn create_model(self) -> Result<Box<dyn Model>, String> {
         // Use BackendFactory for consistent backend creation when available
-        #[cfg(feature = "eval")]
+        #[cfg(any(feature = "eval", feature = "eval-advanced"))]
         {
             use anno::eval::backend_factory::BackendFactory;
             // Map backend enum to factory name
@@ -151,7 +151,7 @@ impl ModelBackend {
                 .map_err(|e| format!("Failed to create model '{}': {}", self.name(), e));
         }
         // Fallback to original implementation when eval feature not available
-        #[cfg(not(feature = "eval"))]
+        #[cfg(not(any(feature = "eval", feature = "eval-advanced")))]
         match self {
             Self::Pattern => Ok(Box::new(RegexNER::new())),
             Self::Heuristic => Ok(Box::new(HeuristicNER::new())),
@@ -213,7 +213,7 @@ impl ModelBackend {
 // ============================================================================
 // All Args structs are now in src/cli/commands/*.rs - these are just the handlers
 
-#[cfg(feature = "eval")]
+#[cfg(any(feature = "eval", feature = "eval-advanced"))]
 use anno::eval::loader::DatasetId;
 #[cfg(feature = "eval-advanced")]
 use anno::ingest::url_resolver::CompositeResolver;
@@ -990,7 +990,7 @@ fn cmd_eval(args: anno::cli::commands::EvalArgs) -> Result<(), String> {
     let cmp = EvalComparison::compare(&text, gold_signals, pred_signals);
 
     // Detailed analysis with eval feature
-    #[cfg(feature = "eval")]
+    #[cfg(any(feature = "eval", feature = "eval-advanced"))]
     let detailed_analysis = {
         use anno::eval::analysis::ErrorAnalysis;
         use anno::eval::GoldEntity;
@@ -1009,7 +1009,7 @@ fn cmd_eval(args: anno::cli::commands::EvalArgs) -> Result<(), String> {
 
         Some(ErrorAnalysis::analyze(&text, &entities, &gold_entities))
     };
-    #[cfg(not(feature = "eval"))]
+    #[cfg(not(any(feature = "eval", feature = "eval-advanced")))]
     let _detailed_analysis: Option<()> = None;
 
     // Output
@@ -1126,7 +1126,7 @@ fn cmd_eval(args: anno::cli::commands::EvalArgs) -> Result<(), String> {
 
         print_matches(&cmp, args.verbose);
 
-        #[cfg(feature = "eval")]
+        #[cfg(any(feature = "eval", feature = "eval-advanced"))]
         if let Some(analysis) = detailed_analysis {
             println!();
             println!("{}:", color("1;33", "Error Breakdown"));
@@ -1529,7 +1529,7 @@ fn cmd_info() -> Result<(), String> {
     features.push("onnx");
     #[cfg(feature = "candle")]
     features.push("candle");
-    #[cfg(feature = "eval")]
+    #[cfg(any(feature = "eval", feature = "eval-advanced"))]
     features.push("eval");
     #[cfg(feature = "eval-bias")]
     features.push("eval-bias");
@@ -1799,7 +1799,7 @@ fn _cmd_compare_legacy(_args: CompareArgs) -> Result<(), String> {
 
 // Helper functions for cache and config
 fn get_cache_dir() -> Result<std::path::PathBuf, String> {
-    #[cfg(feature = "eval")]
+    #[cfg(any(feature = "eval", feature = "eval-advanced"))]
     {
         use dirs::cache_dir;
         if let Some(mut cache) = cache_dir() {
@@ -1812,14 +1812,14 @@ fn get_cache_dir() -> Result<std::path::PathBuf, String> {
             Ok(std::path::PathBuf::from(".anno-cache"))
         }
     }
-    #[cfg(not(feature = "eval"))]
+    #[cfg(not(any(feature = "eval", feature = "eval-advanced")))]
     {
         Ok(std::path::PathBuf::from(".anno-cache"))
     }
 }
 
 fn get_config_dir() -> Result<std::path::PathBuf, String> {
-    #[cfg(feature = "eval")]
+    #[cfg(any(feature = "eval", feature = "eval-advanced"))]
     {
         use dirs::config_dir;
         if let Some(mut config) = config_dir() {
@@ -1832,7 +1832,7 @@ fn get_config_dir() -> Result<std::path::PathBuf, String> {
             Ok(std::path::PathBuf::from(".anno-config"))
         }
     }
-    #[cfg(not(feature = "eval"))]
+    #[cfg(not(any(feature = "eval", feature = "eval-advanced")))]
     {
         Ok(std::path::PathBuf::from(".anno-config"))
     }

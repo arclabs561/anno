@@ -13,7 +13,8 @@ publish = false  # Binary-only crate, not published to crates.io
 
 [features]
 default = ["eval-advanced"]
-eval-advanced = ["anno/eval-advanced"]
+eval = ["anno/eval"]
+eval-advanced = ["eval", "anno/eval-advanced"]
 
 [dependencies]
 anno = { path = "../anno", features = ["cli", "eval"], default-features = false }
