@@ -157,14 +157,26 @@ let entities = ner.extract(
 
 | Backend | Latency | Accuracy | Feature | Use Case |
 |---------|---------|----------|---------|----------|
-| `RegexNER` | ~400ns | ~95%* | always | Structured entities (dates, money, emails) |
-| `HeuristicNER` | ~50μs | ~65% | always | Person/Org/Location heuristics |
-| `StackedNER` | ~100μs | varies | always | Composable layered extraction |
-| `BertNEROnnx` | ~50ms | ~86% | `onnx` | Fixed 4-type NER (PER/ORG/LOC/MISC) |
-| `GLiNEROnnx` | ~100ms | ~92% | `onnx` | Zero-shot NER (custom types) |
-| `GLiNER2` | ~130ms | ~92% | `onnx`/`candle` | Multi-task (NER + classification) |
+| `RegexNER` | ~400ns | ~95%¹ | always | Structured entities (dates, money, emails) |
+| `HeuristicNER` | ~50μs | ~65%² | always | Person/Org/Location heuristics |
+| `StackedNER` | ~100μs | varies³ | always | Composable layered extraction |
+| `BertNEROnnx` | ~50ms | ~86%⁴ | `onnx` | Fixed 4-type NER (PER/ORG/LOC/MISC) |
+| `GLiNEROnnx` | ~100ms | ~92%⁵ | `onnx` | Zero-shot NER (custom types) |
+| `GLiNER2` | ~130ms | ~92%⁵ | `onnx`/`candle` | Multi-task (NER + classification) |
 
-*Pattern accuracy on structured entities only.
+**Notes:**
+
+¹ **RegexNER (~95%)**: Pattern accuracy on structured entities only (dates, money, emails, URLs). Not comparable to general NER. Verify: `anno eval --model regex --dataset synthetic` (structured entity subset).
+
+² **HeuristicNER (~65%)**: F1 on Person/Org/Location only. Heuristic rules, no ML. Verify: `anno dataset eval --dataset conll2003 --model heuristic --task ner`.
+
+³ **StackedNER (varies)**: Accuracy depends on composition. Default stack (RegexNER + HeuristicNER) ≈ 70-75% F1 on CoNLL-2003. Custom stacks vary. Verify: `anno benchmark --backends stacked --datasets conll2003`.
+
+⁴ **BertNEROnnx (~86%)**: F1 on CoNLL-2003 (PER/ORG/LOC/MISC). Fixed entity types only. Verify: `anno dataset eval --dataset conll2003 --model bert --task ner`.
+
+⁵ **GLiNER (~92%)**: Zero-shot F1 varies by entity types requested. ~92% is typical for common types (Person, Organization, Location) on CoNLL-2003. Accuracy drops for rare/domain-specific types. Verify: `anno dataset eval --dataset conll2003 --model gliner --task ner`.
+
+**⚠️ Accuracy numbers are not directly comparable**: Different backends handle different entity types and tasks. Use `anno benchmark` for comprehensive evaluation across your specific use case.
 
 ## Features
 
