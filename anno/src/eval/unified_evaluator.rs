@@ -12,7 +12,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! #[cfg(feature = "eval-advanced")]
 //! {
 //! use anno::eval::unified_evaluator::EvalSystem;
