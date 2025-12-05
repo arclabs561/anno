@@ -161,14 +161,17 @@ let entities = ner.extract(
 
 ## Backends
 
-| Backend | Latency | Accuracy | Feature | Use Case |
-|---------|---------|----------|---------|----------|
-| `RegexNER` | ~400ns | ~95%¹ | always | Structured entities (dates, money, emails) |
-| `HeuristicNER` | ~50μs | ~65%² | always | Person/Org/Location heuristics |
-| `StackedNER` | ~100μs | varies³ | always | Composable layered extraction |
-| `BertNEROnnx` | ~50ms | ~86%⁴ | `onnx` | Fixed 4-type NER (PER/ORG/LOC/MISC) |
-| `GLiNEROnnx` | ~100ms | ~92%⁵ | `onnx` | Zero-shot NER (custom types) |
-| `GLiNER2` | ~130ms | ~92%⁵ | `onnx`/`candle` | Multi-task (NER + classification) |
+| Backend | Latency | Accuracy | Feature | Tasks | Use Case |
+|---------|---------|----------|---------|-------|----------|
+| `RegexNER` | ~400ns | ~95%¹ | always | NER | Structured entities (dates, money, emails) |
+| `HeuristicNER` | ~50μs | ~65%² | always | NER | Person/Org/Location heuristics |
+| `StackedNER` | ~100μs | varies³ | always | NER | Composable layered extraction |
+| `BertNEROnnx` | ~50ms | ~86%⁴ | `onnx` | NER | Fixed 4-type NER (PER/ORG/LOC/MISC) |
+| `GLiNEROnnx` | ~100ms | ~92%⁵ | `onnx` | NER | Zero-shot NER (custom types) |
+| `NuNER` | ~80ms | ~85%⁶ | `onnx` | NER | Zero-shot NER (token-based) |
+| `W2NER` | ~120ms | ~88%⁷ | `onnx` | NER, DiscontinuousNER | Nested/discontinuous spans |
+| `GLiNER2` | ~130ms | ~92%⁵ | `onnx`/`candle` | NER, RelationExtraction, TextClassification, HierarchicalExtraction | Multi-task extraction |
+| `TPLinker` | ~150ms | placeholder⁸ | `onnx` | NER, RelationExtraction | Joint entity-relation (placeholder) |
 
 **Notes:**
 
@@ -181,6 +184,19 @@ let entities = ner.extract(
 ⁴ **BertNEROnnx (~86%)**: F1 on CoNLL-2003 (PER/ORG/LOC/MISC). Fixed entity types only. Verify: `anno dataset eval --dataset conll2003 --model bert --task ner`.
 
 ⁵ **GLiNER (~92%)**: Zero-shot F1 varies by entity types requested. ~92% is typical for common types (Person, Organization, Location) on CoNLL-2003. Accuracy drops for rare/domain-specific types. Verify: `anno dataset eval --dataset conll2003 --model gliner --task ner`.
+
+⁶ **NuNER (~85%)**: Zero-shot token-based NER. Lower accuracy than GLiNER but faster. Verify: `anno dataset eval --dataset conll2003 --model nuner --task ner`.
+
+⁷ **W2NER (~88%)**: F1 on nested/discontinuous entities. Handles non-contiguous spans (e.g., "New York" in "New ... York"). Verify: `anno dataset eval --dataset cadec --model w2ner --task discontinuous-ner`.
+
+⁸ **TPLinker (placeholder)**: Currently heuristic-based placeholder. Full ONNX implementation pending. Relation extraction accuracy not yet measured. Verify: `anno dataset eval --dataset docred --model tplinker --task re`.
+
+**Tasks:**
+- **NER**: All backends support Named Entity Recognition
+- **RelationExtraction**: GLiNER2 (via `RelationExtractor` trait), TPLinker (placeholder)
+- **DiscontinuousNER**: W2NER (non-contiguous spans)
+- **TextClassification**: GLiNER2 (multi-task)
+- **HierarchicalExtraction**: GLiNER2 (nested structures)
 
 **⚠️ Accuracy numbers are not directly comparable**: Different backends handle different entity types and tasks. Use `anno benchmark` for comprehensive evaluation across your specific use case.
 
