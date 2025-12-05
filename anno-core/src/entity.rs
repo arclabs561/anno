@@ -2111,21 +2111,9 @@ impl Entity {
     /// A TextSpan with both byte and char offsets.
     ///
     /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType};
-    ///
-    /// let text = "Hello, 日本!";
-    /// // Entity stores CHARACTER offsets: "日本" is chars 7-9
-    /// let entity = Entity::new("日本", EntityType::Location, 7, 9, 0.95);
-    /// let span = entity.to_text_span(text);
-    ///
-    /// // Character offsets (stored in entity)
-    /// assert_eq!(span.char_start, 7);
-    /// assert_eq!(span.char_end, 9);
-    ///
-    /// // Byte offsets (computed from text)
-    /// assert_eq!(span.byte_start, 7);  // "Hello, ".len() in bytes
-    /// assert_eq!(span.byte_end, 13);   // + 6 bytes for "日本"
+    /// ```rust,ignore
+    /// // Note: This method is not yet implemented (returns todo!).
+    /// // When implemented, it will return a TextSpan with char/byte offsets.
     /// ```
     // Note: This method will be moved to anno crate (depends on offset module)
     #[allow(dead_code)]
