@@ -22,15 +22,9 @@
 //!     .with_tasks(vec![Task::NER])
 //!     .with_datasets(vec![])  // All suitable datasets
 //!     .with_backends(vec!["gliner2".to_string()])
-//!     .with_bias_analysis(true)
-//!     .with_calibration(true)
 //!     .run()?;
 //!
 //! println!("Standard F1: {:.1}%", results.standard.as_ref().map(|s| s.f1 * 100.0).unwrap_or(0.0));
-//! if let Some(bias) = &results.bias {
-//!     println!("Bias parity gap: {:.1}%", bias.demographic.as_ref()
-//!         .map(|d| d.max_gap * 100.0).unwrap_or(0.0));
-//! }
 //! }
 //! ```
 
