@@ -1,5 +1,9 @@
 # anno
 
+<div align="center">
+  <img src="assets/logo-square.svg" alt="anno logo" width="120">
+</div>
+
 Information extraction for Rust: NER, cross-document entity coalescing, hierarchical clustering.
 
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
