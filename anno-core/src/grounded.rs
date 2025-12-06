@@ -574,7 +574,7 @@ impl Signal<Location> {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::{Signal, Location};
+    /// use anno_core::grounded::{Signal, Location};
     ///
     /// let text = "Marie Curie was a physicist.";
     /// let good = Signal::new(0, Location::text(0, 11), "Marie Curie", "PER", 0.9);
@@ -635,12 +635,12 @@ impl Signal<Location> {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::{Signal, Location};
+    /// use anno_core::grounded::{Signal, Location};
     ///
     /// let text = "Marie Curie was a physicist.";
     /// let signal = Signal::<Location>::from_text(text, "Marie Curie", "PER", 0.95);
     /// assert!(signal.is_some());
-    /// assert_eq!(signal.unwrap().text_offsets(), Some((0, 11)));
+    /// assert_eq!(signal.expect("signal should exist").text_offsets(), Some((0, 11)));
     /// ```
     #[must_use]
     pub fn from_text(
@@ -1071,7 +1071,7 @@ impl Identity {
 /// # Usage
 ///
 /// ```rust
-/// use anno::grounded::{GroundedDocument, Signal, Track, Identity, Location};
+/// use anno_core::grounded::{GroundedDocument, Signal, Track, Identity, Location};
 ///
 /// let mut doc = GroundedDocument::new("doc1", "Marie Curie won the Nobel Prize. She was a physicist.");
 ///
@@ -1552,7 +1552,7 @@ impl GroundedDocument {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::{GroundedDocument, Signal, Location};
+    /// use anno_core::grounded::{GroundedDocument, Signal, Location};
     ///
     /// let mut doc = GroundedDocument::new("test", "Marie Curie was a physicist.");
     /// doc.add_signal(Signal::new(0, Location::text(0, 11), "Marie Curie", "PER", 0.9));
@@ -1596,7 +1596,7 @@ impl GroundedDocument {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::GroundedDocument;
+    /// use anno_core::grounded::GroundedDocument;
     ///
     /// let mut doc = GroundedDocument::new("test", "Marie Curie was a physicist.");
     /// let id = doc.add_signal_from_text("Marie Curie", "PER", 0.95);
@@ -2070,7 +2070,7 @@ impl GroundedDocument {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::{GroundedDocument, Signal, Location};
+    /// use anno_core::grounded::{GroundedDocument, Signal, Location};
     ///
     /// let mut doc = GroundedDocument::new("doc", "Some text with entities.");
     /// doc.add_signal(Signal::new(0, Location::text(0, 4), "Some", "T", 0.9));
@@ -2442,7 +2442,7 @@ impl EvalComparison {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::{EvalComparison, Signal, Location};
+    /// use anno_core::grounded::{EvalComparison, Signal, Location};
     ///
     /// let text = "Marie Curie won the Nobel Prize.";
     /// let gold = vec![
@@ -2889,7 +2889,7 @@ impl ProcessResult {
 /// # Example
 ///
 /// ```rust,ignore
-/// use anno::grounded::process_text;
+/// use anno_core::grounded::process_text;
 ///
 /// let result = process_text("Marie Curie won the Nobel Prize.", None)?;
 /// println!("{}", result.to_html());

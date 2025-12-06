@@ -1,0 +1,188 @@
+/* GitHub-style CSS for README rendering */
+
+/* Typography - GitHub's font stack */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    font-size: 16px;
+    line-height: 1.5;
+    color: #24292e;
+    background-color: #ffffff;
+}
+
+/* Headers */
+h1 {
+    font-size: 2em;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #eaecef;
+}
+
+h2 {
+    font-size: 1.5em;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 16px;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid #eaecef;
+    line-height: 1.25; /* Ensure 0.3em calculates correctly */
+}
+
+h3 {
+    font-size: 1.25em;
+    font-weight: 600;
+    margin-top: 1em;
+    margin-bottom: 16px;
+}
+
+h4 {
+    font-size: 1em;
+    font-weight: 600;
+    margin-top: 1em;
+    margin-bottom: 16px;
+}
+
+h5, h6 {
+    font-size: 0.875em;
+    font-weight: 600;
+    margin-top: 1em;
+    margin-bottom: 16px;
+}
+
+/* Paragraphs */
+p {
+    margin-bottom: 16px;
+}
+
+/* Code blocks */
+pre {
+    background-color: #f6f8fa;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+    overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 85%;
+    line-height: 1.45;
+}
+
+pre code {
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+    font-size: 100%;
+}
+
+/* Inline code */
+code {
+    background-color: #f0f3f6;
+    border-radius: 6px;
+    padding: 0.2em 0.4em;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 85%;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+th, td {
+    border: 1px solid #dfe2e5;
+    padding: 6px 13px;
+}
+
+th {
+    background-color: #f6f8fa;
+    font-weight: 600;
+    text-align: left;
+}
+
+/* Links */
+a {
+    color: #0366d6;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+a:hover {
+    color: #005cc5;
+    text-decoration: underline;
+}
+
+a:visited {
+    color: #825081;
+}
+
+/* Lists */
+ul, ol {
+    padding-left: 2em;
+    margin-bottom: 16px;
+}
+
+li {
+    margin-bottom: 0.25em;
+}
+
+/* Blockquotes */
+blockquote {
+    padding: 0 1em;
+    color: #6a737d;
+    border-left: 0.25em solid #dfe2e5;
+    margin-bottom: 16px;
+}
+
+/* Horizontal rules */
+hr {
+    height: 1px;
+    padding: 0;
+    margin: 24px 0;
+    background-color: #e1e4e8;
+    border: 0;
+}
+
+/* Superscripts (for footnotes) */
+sup {
+    font-size: 0.75em;
+    vertical-align: super;
+    line-height: 0;
+}
+
+/* Definition lists */
+dt {
+    font-weight: 600;
+    margin-top: 1em;
+}
+
+dd {
+    margin-left: 2em;
+    margin-bottom: 0.5em;
+}
+
+/* Strong and emphasis */
+strong {
+    font-weight: 600;
+}
+
+em {
+    font-style: italic;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    box-sizing: content-box;
+    background-color: #fff;
+}
+

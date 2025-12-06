@@ -1,7 +1,5 @@
 //! Benchmark command - Comprehensive evaluation across all task-dataset-backend combinations
 
-use std::fs;
-
 use clap::Parser;
 
 #[cfg(feature = "eval-advanced")]
@@ -165,7 +163,7 @@ pub fn run(args: BenchmarkArgs) -> Result<(), String> {
 
         // Output report
         if let Some(output_path) = &args.output {
-            fs::write(output_path, &report)
+            std::fs::write(output_path, &report)
                 .map_err(|e| format!("Failed to write report to {}: {}", output_path, e))?;
             println!("Report saved to: {}", output_path);
         } else {

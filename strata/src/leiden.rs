@@ -10,6 +10,9 @@ use std::collections::HashMap;
 /// The Leiden algorithm is an improvement over the Louvain algorithm,
 /// guaranteeing well-connected communities. This implementation provides
 /// a basic version suitable for hierarchical clustering.
+///
+/// Reference: Traag et al. (2019) "From Louvain to Leiden: guaranteeing
+/// well-connected communities". Scientific Reports 9, 5233.
 pub struct Leiden {
     resolution: f32,
     random_seed: Option<u64>,
@@ -166,15 +169,17 @@ impl Default for Leiden {
 /// Modularity calculation for community detection.
 ///
 /// Modularity measures the quality of a community partition:
-/// Q = (1/2m) * Σ[A_ij - γ * (k_i * k_j / 2m)] * δ(c_i, c_j)
+/// `Q = (1/2m) × Σ[A_ij - γ × (k_i × k_j / 2m)] × δ(c_i, c_j)`
 ///
 /// Where:
-/// - m = total number of edges (sum of edge weights)
-/// - A_ij = adjacency matrix (edge weight)
-/// - k_i = degree of node i (sum of edge weights)
-/// - c_i = community of node i
-/// - γ = resolution parameter (higher = more communities)
-/// - δ = Kronecker delta (1 if same community, 0 otherwise)
+/// - `m` = total number of edges (sum of edge weights)
+/// - `A_ij` = adjacency matrix (edge weight)
+/// - `k_i` = degree of node i (sum of edge weights)
+/// - `c_i` = community of node i
+/// - `γ` = resolution parameter (higher = more, smaller communities)
+/// - `δ` = Kronecker delta (1 if same community, 0 otherwise)
+///
+/// Reference: Traag et al. (2019) "From Louvain to Leiden: guaranteeing well-connected communities"
 pub fn modularity_with_resolution<N>(
     graph: &Graph<N, f32, Undirected>,
     communities: &HashMap<NodeIndex, usize>,

@@ -320,8 +320,15 @@ fn common_mentions(pred: &[CorefChain], gold: &[CorefChain]) -> HashSet<SpanId> 
 /// Link-based metric that counts the minimum number of links needed to partition
 /// mentions into gold clusters.
 ///
+/// Formula: `Precision = |links_predicted ∩ links_gold| / |links_predicted|`
+///          `Recall = |links_predicted ∩ links_gold| / |links_gold|`
+///
+/// Where `links` are the minimum spanning tree edges for each cluster.
+///
 /// **Pros**: Simple, intuitive
 /// **Cons**: Ignores singletons, can be gamed by linking all mentions
+///
+/// Reference: Vilain et al. (1995) "A model-theoretic coreference scoring scheme"
 ///
 /// # Returns
 /// (precision, recall, f1)
@@ -419,8 +426,14 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// Per-mention metric that computes precision and recall for each mention,
 /// then averages across all mentions.
 ///
+/// Formula: For mention `m` in predicted cluster `C_p` and gold cluster `C_g`:
+///          `P(m) = |C_p ∩ C_g| / |C_p|`, `R(m) = |C_p ∩ C_g| / |C_g|`
+///          Then average over all mentions.
+///
 /// **Pros**: Gives credit for partial overlap
 /// **Cons**: Inflates scores when singletons present
+///
+/// Reference: Bagga & Baldwin (1998) "Algorithms for scoring coreference chains"
 ///
 /// # Returns
 /// (precision, recall, f1)
@@ -585,6 +598,12 @@ fn greedy_assignment(
 /// Aligns predicted and gold chains optimally, using number of shared mentions
 /// as similarity.
 ///
+/// Formula: `φ₄(C_p, C_g) = |C_p ∩ C_g|` (number of shared mentions)
+///          Optimal alignment via Hungarian algorithm, then:
+///          `Precision = Σ φ₄(C_p, C_g) / Σ |C_p|`, `Recall = Σ φ₄(C_p, C_g) / Σ |C_g|`
+///
+/// Reference: Luo (2005) "On coreference resolution performance metrics"
+///
 /// # Returns
 /// (precision, recall, f1)
 #[must_use]
@@ -648,6 +667,12 @@ pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 ///
 /// Computes resolution score for each entity based on correctly resolved links,
 /// weighted by entity importance.
+///
+/// Formula: For entity `e` with `n` mentions, importance `w(e) = n(n-1)/2`:
+///          `LEA(e) = (correct_links / total_links) × w(e)`
+///          Then aggregate: `P = Σ LEA(e) / Σ w(e)` for predicted entities
+///
+/// Reference: Moosavi & Strube (2016) "Which coreference evaluation metric do you trust?"
 ///
 /// # Returns
 /// (precision, recall, f1)
@@ -814,6 +839,12 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// - Does NOT ignore singletons
 /// - Has better discriminative power
 ///
+/// Formula: `BLANC = (Coref_F1 + NonCoref_F1) / 2`
+///          Where Coref_F1 and NonCoref_F1 are F1 scores for coreference
+///          and non-coreference pairs respectively (Rand index components).
+///
+/// Reference: Recasens & Hovy (2010) "BLANC: Implementing the Rand index for coreference evaluation"
+///
 /// # Returns
 /// (precision, recall, f1)
 #[must_use]
@@ -915,6 +946,11 @@ pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, 
 ///
 /// Computes the unweighted average of MUC, B³, and CEAFe F1 scores.
 /// This is the standard metric used in CoNLL-2011 and CoNLL-2012 shared tasks.
+///
+/// Formula: `CoNLL_F1 = (MUC_F1 + B³_F1 + CEAFe_F1) / 3`
+///
+/// **Note**: A single CoNLL F1 score can be "uninformative, or even misleading"
+/// (Thalken 2024). Consider reporting per-chain-length metrics via `CorefChainStats`.
 ///
 /// # Returns
 /// Average F1 score

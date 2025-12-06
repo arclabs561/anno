@@ -88,6 +88,18 @@ mod sealed {
     #[cfg(feature = "onnx")]
     impl Sealed for super::GLiNEROnnx {}
 
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::albert::ALBERTNER {}
+
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::deberta_v3::DeBERTaV3NER {}
+
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::gliner_poly::GLiNERPoly {}
+
+    #[cfg(feature = "onnx")]
+    impl Sealed for super::backends::gliner2::GLiNER2Onnx {}
+
     #[cfg(feature = "candle")]
     impl Sealed for super::CandleNER {}
 
@@ -249,7 +261,7 @@ pub fn auto() -> Result<Box<dyn Model>> {
 
 /// Check which backends are currently available.
 pub fn available_backends() -> Vec<(&'static str, bool)> {
-    let backends = vec![
+    let mut backends = vec![
         ("RegexNER", true),
         ("HeuristicNER", true),
         ("StackedNER", true),

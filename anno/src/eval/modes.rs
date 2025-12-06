@@ -304,6 +304,13 @@ pub struct ModeResults {
 
 impl ModeResults {
     /// Compute results for a specific mode.
+    ///
+    /// Formulas:
+    /// - `Precision = TP / (TP + FP)`
+    /// - `Recall = TP / (TP + FN)`
+    /// - `F1 = 2 × (P × R) / (P + R)` (harmonic mean)
+    ///
+    /// Reference: Manning et al. (2008) [Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-in-information-retrieval-1.html)
     #[must_use]
     pub fn compute(predicted: &[Entity], gold: &[GoldEntity], mode: EvalMode) -> Self {
         let (tp, fp, fn_count) = count_matches(predicted, gold, mode);

@@ -32,7 +32,7 @@
 #[cfg(feature = "onnx")]
 use crate::sync::{lock, try_lock, Mutex};
 use crate::{Entity, Error, Result};
-use anno_core::EntityType;
+use anno_core::{EntityCategory, EntityType};
 
 /// Special token IDs for GLiNER models
 const TOKEN_START: u32 = 1;
@@ -1001,7 +1001,7 @@ impl crate::Model for GLiNEROnnx {
             .iter()
             .map(|label| anno_core::EntityType::Custom {
                 name: (*label).to_string(),
-                category: crate::entity::EntityCategory::Misc,
+                category: EntityCategory::Misc,
             })
             .collect()
     }
@@ -1038,6 +1038,10 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
     ) -> crate::Result<Vec<Entity>> {
         // GLiNER encodes labels as text, so descriptions work the same way
         self.extract(text, descriptions, threshold)
+    }
+
+    fn default_types(&self) -> &[&'static str] {
+        DEFAULT_GLINER_LABELS
     }
 }
 

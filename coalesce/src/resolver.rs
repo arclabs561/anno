@@ -96,7 +96,7 @@ impl Resolver {
         }
 
         // 2. Cluster tracks using string similarity or embeddings
-        // TODO: Use embeddings if available, fallback to string similarity
+        // Uses embeddings if available (from track.embedding), otherwise falls back to string similarity
         let mut union_find: Vec<usize> = (0..track_data.len()).collect();
 
         fn find(parent: &mut [usize], i: usize) -> usize {
@@ -263,6 +263,9 @@ pub fn string_similarity(a: &str, b: &str) -> f32 {
 /// Compute embedding similarity using cosine similarity.
 ///
 /// Returns a value in [0.0, 1.0] where 1.0 is identical.
+///
+/// Formula: `cosine(a, b) = (a · b) / (||a|| × ||b||)`, normalized to [0, 1].
+/// Measures angle between vectors, not magnitude, making it suitable for embeddings.
 ///
 /// # Example
 ///

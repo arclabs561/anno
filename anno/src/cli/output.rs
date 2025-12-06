@@ -10,7 +10,6 @@ use anno_core::{GroundedDocument, Location, Signal};
 #[cfg(feature = "eval")]
 use crate::grounded::{EvalComparison, EvalMatch}; // Re-exported from anno-core
 
-
 /// Log info message (respects quiet flag)
 pub fn log_info(msg: &str, quiet: bool) {
     if !quiet {
@@ -98,10 +97,9 @@ pub fn confidence_bar(conf: f32) -> String {
         "31"
     };
     format!(
-        "{}{} {:3.0}%",
+        "{}{}",
         color(code, &"#".repeat(filled)),
-        color("90", &".".repeat(empty)),
-        conf * 100.0
+        color("90", &".".repeat(empty))
     )
 }
 
@@ -127,6 +125,7 @@ pub fn print_signals(doc: &GroundedDocument, text: &str, verbose: bool) {
                 .map(|q| color("35", &format!(" [{:?}]", q)))
                 .unwrap_or_default();
 
+            // Show confidence bar only (percentage is redundant)
             println!(
                 "    [{:3},{:3}) {} \"{}\"{}{}",
                 start,

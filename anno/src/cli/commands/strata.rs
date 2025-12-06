@@ -1,8 +1,8 @@
 //! Strata command - Hierarchical clustering: reveal strata of abstraction
 
+use anno_core::GraphDocument;
 #[cfg(feature = "eval-advanced")]
 use anno_strata::HierarchicalLeiden;
-use anno_core::GraphDocument;
 
 use super::super::output::color;
 use super::super::parser::OutputFormat;
@@ -65,8 +65,9 @@ pub fn run(args: StrataArgs) -> Result<(), String> {
         content
     } else {
         // Safe: we validated earlier that input is Some when stdin is false
-        let input_path = args.input.as_ref()
-            .ok_or_else(|| "Internal error: input path should be set when stdin is false".to_string())?;
+        let input_path = args.input.as_ref().ok_or_else(|| {
+            "Internal error: input path should be set when stdin is false".to_string()
+        })?;
         std::fs::read_to_string(input_path)
             .map_err(|e| format!("Failed to read input file {}: {}", input_path, e))?
     };
@@ -102,7 +103,7 @@ pub fn run(args: StrataArgs) -> Result<(), String> {
     let clusterer = HierarchicalLeiden::new()
         .with_resolution(args.resolution)
         .with_levels(args.levels);
-    
+
     let clustered = clusterer
         .cluster(&graph)
         .map_err(|e| format!("Clustering failed: {}", e))?;
@@ -113,17 +114,11 @@ pub fn run(args: StrataArgs) -> Result<(), String> {
 
     // Format output
     let output = match args.format {
-        OutputFormat::Json => {
-            serde_json::to_string_pretty(&clustered)
-                .map_err(|e| format!("Failed to serialize output: {}", e))?
-        }
-        OutputFormat::Jsonl => {
-            serde_json::to_string(&clustered)
-                .map_err(|e| format!("Failed to serialize output: {}", e))?
-        }
-        OutputFormat::Human => {
-            format_human_output(&clustered, args.levels)
-        }
+        OutputFormat::Json => serde_json::to_string_pretty(&clustered)
+            .map_err(|e| format!("Failed to serialize output: {}", e))?,
+        OutputFormat::Jsonl => serde_json::to_string(&clustered)
+            .map_err(|e| format!("Failed to serialize output: {}", e))?,
+        OutputFormat::Human => format_human_output(&clustered, args.levels),
         _ => {
             return Err(format!(
                 "Format '{:?}' not supported for strata command. Use: json, jsonl, or human.",
@@ -158,23 +153,15 @@ fn format_human_output(graph: &GraphDocument, levels: usize) -> String {
         "{}\n",
         color("1;36", "Hierarchical Clustering Results")
     ));
-    output.push_str(&format!(
-        "  Nodes: {}\n",
-        graph.nodes.len()
-    ));
-    output.push_str(&format!(
-        "  Edges: {}\n",
-        graph.edges.len()
-    ));
-    output.push_str(&format!(
-        "  Levels: {}\n\n",
-        levels
-    ));
+    output.push_str(&format!("  Nodes: {}\n", graph.nodes.len()));
+    output.push_str(&format!("  Edges: {}\n", graph.edges.len()));
+    output.push_str(&format!("  Levels: {}\n\n", levels));
 
     // Group nodes by community at each level
     for level in 0..levels {
         let level_key = format!("level_{}_community", level);
-        let mut communities: std::collections::HashMap<u64, Vec<&str>> = std::collections::HashMap::new();
+        let mut communities: std::collections::HashMap<u64, Vec<&str>> =
+            std::collections::HashMap::new();
 
         for node in &graph.nodes {
             if let Some(community_id) = node.properties.get(&level_key) {
@@ -227,4 +214,3 @@ fn format_human_output(graph: &GraphDocument, levels: usize) -> String {
 
     output
 }
-

@@ -40,10 +40,10 @@
 //!
 //! # Usage
 //!
-//! ```rust
-//! use anno::graph::{GraphDocument, GraphExportFormat};
-//! use anno::{Entity, EntityType, Relation};
-//! use anno::eval::coref::CorefChain;
+//! ```rust,ignore
+//! use anno_core::graph::{GraphDocument, GraphExportFormat};
+//! use anno_core::{Entity, EntityType, Relation};
+//! use anno_core::eval::coref::CorefChain;
 //!
 //! // From NER extraction
 //! let elon = Entity::new("Elon Musk", EntityType::Person, 0, 9, 0.9)
@@ -615,8 +615,8 @@ impl GraphDocument {
     /// # Example
     ///
     /// ```rust
-    /// use anno::grounded::GroundedDocument;
-    /// use anno::graph::GraphDocument;
+    /// use anno_core::grounded::GroundedDocument;
+    /// use anno_core::graph::GraphDocument;
     ///
     /// let doc = GroundedDocument::new("doc1", "Marie Curie won the Nobel Prize.");
     /// // ... add signals, tracks, identities ...

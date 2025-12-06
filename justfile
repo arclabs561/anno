@@ -16,6 +16,10 @@ check:
 fmt:
     cargo fmt --all
 
+# Check formatting without modifying
+fmt-check:
+    cargo fmt --all -- --check
+
 # Run all unit tests
 test:
     cargo test --lib --features "eval-advanced discourse"
@@ -101,6 +105,19 @@ docs:
 # Open docs in browser
 docs-open:
     cargo doc --no-deps --features "eval-full discourse" --open
+
+# Preview README in browser with GitHub-style rendering (auto-reloads)
+# Auto-finds free port starting from 8000
+readme-preview:
+    @uv run scripts/serve_readme.py > /tmp/serve_readme.log 2>&1 & \
+    sleep 3 && \
+    PORT=$$(cat /tmp/serve_readme_port.txt 2>/dev/null || echo "8000") && \
+    open http://localhost:$$PORT/README_github_style.html && \
+    echo "✅ Preview at http://localhost:$$PORT/README_github_style.html (auto-reloads)"
+
+# Run e2e test with Playwright + Gemini VLM
+readme-test:
+    @uv run scripts/e2e_readme_test.py
 
 # === Benchmarks ===
 
@@ -317,7 +334,101 @@ analysis-full:
     @echo "   - Reports: safety-report.md, tool-comparison.md"
     @echo "   - Trends: .unsafe-code-trends/"
 
-# Quick validation before commit
+# === Git Hook Checks ===
+
+# Check for invalid filenames (spaces, duplicates)
+check-filenames:
+    @echo "Checking for files with spaces in names..."
+    @if find . -type f \( -name "*.rs" -o -name "*.toml" \) -name "* *" ! -path "./.git/*" ! -path "./target/*" ! -path "./.cargo/*" 2>/dev/null | grep -q .; then \
+        echo "❌ Error: Found files with spaces in names (invalid for Rust):"; \
+        find . -type f \( -name "*.rs" -o -name "*.toml" \) -name "* *" ! -path "./.git/*" ! -path "./target/*" ! -path "./.cargo/*"; \
+        exit 1; \
+    fi
+    @echo "Checking for duplicate test files..."
+    @if find . -type f -name "* 2.rs" ! -path "./.git/*" ! -path "./target/*" 2>/dev/null | grep -q .; then \
+        echo "❌ Error: Found duplicate test files (likely backups):"; \
+        find . -type f -name "* 2.rs" ! -path "./.git/*" ! -path "./target/*"; \
+        echo "Please remove these files before committing."; \
+        exit 1; \
+    fi
+
+# Check compilation (fast, catches syntax/type errors)
+check-compile:
+    @echo "Checking compilation..."
+    @cargo check --workspace --all-targets --message-format=short --quiet
+
+# Check test compilation
+check-tests-compile:
+    @echo "Checking test compilation..."
+    @cargo check --workspace --tests --message-format=short --quiet
+
+# Check for potential secrets (warn only, non-blocking)
+check-secrets:
+    @echo "Checking for potential secrets..."
+    @if command -v rg &> /dev/null; then \
+        if rg -i "api[_-]?key\s*=|password\s*=|secret\s*=|token\s*=|credential\s*=" \
+           --glob '!*.md' --glob '!*.txt' --glob '!target/**' \
+           --glob '!.git/**' --glob '!*.lock' --glob '!justfile' \
+           --glob '!*.sh' --glob '!docs/**' 2>/dev/null | head -5; then \
+            echo "⚠️  Warning: Potential secrets found. Review before committing."; \
+            echo "   (This is a warning, not blocking)"; \
+        fi; \
+    else \
+        echo "⚠️  ripgrep not found, skipping secrets check"; \
+    fi
+
+# Check for large files (warn only, non-blocking)
+check-large-files:
+    @echo "Checking for large files..."
+    @if find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" ! -path "./.mypy_cache/*" ! -path "./.pytest_cache/*" ! -path "./__pycache__/*" 2>/dev/null | head -1 | grep -q .; then \
+        echo "⚠️  Warning: Large files detected (>1MB):"; \
+        find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" ! -path "./.mypy_cache/*" ! -path "./.pytest_cache/*" ! -path "./__pycache__/*" 2>/dev/null | head -5; \
+        echo "   (This is a warning, not blocking)"; \
+    fi
+
+# Run clippy with warnings only (non-blocking)
+check-clippy-warn:
+    @echo "Running clippy (warnings only)..."
+    @cargo clippy --workspace --all-targets --quiet 2>&1 | head -20 || echo "⚠️  Clippy found warnings (not blocking)"
+
+# Full pre-commit checks (all blocking checks)
+pre-commit-full:
+    @just check-filenames
+    @just check-compile
+    @just check-tests-compile
+    @just fmt-check
+    @echo "✅ Pre-commit checks passed!"
+
+# Pre-commit with warnings (blocking + non-blocking)
+pre-commit-all: pre-commit-full
+    @just check-secrets
+    @just check-large-files
+    @just check-clippy-warn
+
+# Validate commit message format
+validate-commit-msg COMMIT_MSG:
+    @if [ -z "$$(echo '{{COMMIT_MSG}}' | head -c 10)" ]; then \
+        echo "❌ Error: Commit message too short (minimum 10 characters)"; \
+        echo "   Current message: '{{COMMIT_MSG}}'"; \
+        exit 1; \
+    fi
+    @if echo "{{COMMIT_MSG}}" | grep -qE "^[a-z]+(\(.+\))?: .{10,}"; then \
+        exit 0; \
+    fi
+    @if echo "{{COMMIT_MSG}}" | grep -qE "^(Merge|Revert|Release|chore\(release\))"; then \
+        exit 0; \
+    fi
+    @echo "⚠️  Warning: Commit message doesn't follow conventional format"
+    @echo "   Recommended: type(scope): description"
+    @echo "   Examples:"
+    @echo "     - feat(api): add new endpoint"
+    @echo "     - fix: resolve compilation error"
+    @echo "     - docs: update README"
+    @echo "   Current message: '{{COMMIT_MSG}}'"
+    @echo ""
+    @echo "   (This is a warning, commit will proceed)"
+
+# Quick validation before commit (legacy, kept for compatibility)
 pre-commit-check:
     @echo "Running pre-commit checks..."
     @cargo fmt --all -- --check

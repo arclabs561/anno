@@ -895,11 +895,23 @@ pub trait ZeroShotNER: Send + Sync {
     ///
     /// # Arguments
     /// * `text` - Input text
-    /// * `entity_types` - Entity type descriptions (not fixed taxonomy)
+    /// * `entity_types` - Entity type descriptions (arbitrary text, not fixed vocabulary)
+    ///   - Encoded as text embeddings via bi-encoder (semantic matching, not exact string match)
+    ///   - Any string works: `"disease"`, `"pharmaceutical compound"`, `"19th century French philosopher"`
+    ///   - **Replaces default types completely** - model only extracts the specified types
+    ///   - To include defaults, pass them explicitly: `&["person", "organization", "disease"]`
     /// * `threshold` - Confidence threshold (0.0 - 1.0)
     ///
     /// # Returns
     /// Entities with their matched types
+    ///
+    /// # Behavior
+    ///
+    /// - **Arbitrary text**: Type hints are not fixed vocabulary. They're encoded as embeddings,
+    ///   so semantic similarity determines matches (not exact string matching).
+    /// - **Replace, don't union**: This method completely replaces default entity types.
+    ///   The model only extracts the types you specify.
+    /// - **Semantic matching**: Uses cosine similarity between text span embeddings and label embeddings.
     fn extract_with_types(
         &self,
         text: &str,
@@ -912,14 +924,42 @@ pub trait ZeroShotNER: Send + Sync {
     /// # Arguments
     /// * `text` - Input text
     /// * `descriptions` - Natural language descriptions of what to extract
-    ///   e.g., "companies headquartered in Europe", "diseases affecting the heart"
+    ///   - Encoded as text embeddings (same as `extract_with_types`)
+    ///   - Examples: `"companies headquartered in Europe"`, `"diseases affecting the heart"`
+    ///   - **Replaces default types completely** - model only extracts the specified descriptions
     /// * `threshold` - Confidence threshold
+    ///
+    /// # Behavior
+    ///
+    /// Same as `extract_with_types`, but accepts natural language descriptions instead of
+    /// short type labels. Both methods encode labels as embeddings and use semantic matching.
     fn extract_with_descriptions(
         &self,
         text: &str,
         descriptions: &[&str],
         threshold: f32,
     ) -> crate::Result<Vec<Entity>>;
+
+    /// Get default entity types for this model.
+    ///
+    /// Returns the entity types used by `extract_entities()` (via `Model` trait).
+    /// Useful for extending defaults: combine with custom types and pass to `extract_with_types()`.
+    ///
+    /// # Example: Extending defaults
+    ///
+    /// ```ignore
+    /// use anno::ZeroShotNER;
+    ///
+    /// let ner: &dyn ZeroShotNER = ...;
+    /// let defaults = ner.default_types();
+    ///
+    /// // Combine defaults with custom types
+    /// let mut types: Vec<&str> = defaults.to_vec();
+    /// types.extend(&["disease", "medication"]);
+    ///
+    /// let entities = ner.extract_with_types(text, &types, 0.5)?;
+    /// ```
+    fn default_types(&self) -> &[&'static str];
 }
 
 // =============================================================================

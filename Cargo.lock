@@ -74,6 +74,7 @@ dependencies = [
  "parking_lot",
  "proptest",
  "rand",
+ "rank-eval",
  "rayon",
  "regex",
  "safetensors",
@@ -97,6 +98,7 @@ dependencies = [
  "anno-strata",
  "clap",
  "clap_complete",
+ "dirs 5.0.1",
  "glob",
  "indicatif",
  "is-terminal",
@@ -187,6 +189,12 @@ dependencies = [
  "once_cell_polyfill",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "anyhow"
+version = "1.0.100"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
 name = "arbitrary"
@@ -2511,6 +2519,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
  "rand_core",
+]
+
+[[package]]
+name = "rank-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

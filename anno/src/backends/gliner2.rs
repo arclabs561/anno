@@ -2131,6 +2131,10 @@ impl crate::Model for GLiNER2Candle {
 
 #[cfg(feature = "onnx")]
 impl ZeroShotNER for GLiNER2Onnx {
+    fn default_types(&self) -> &[&'static str] {
+        &["person", "organization", "location", "date", "event"]
+    }
+
     fn extract_with_types(
         &self,
         text: &str,
@@ -2153,6 +2157,10 @@ impl ZeroShotNER for GLiNER2Onnx {
 
 #[cfg(feature = "candle")]
 impl ZeroShotNER for GLiNER2Candle {
+    fn default_types(&self) -> &[&'static str] {
+        &["person", "organization", "location", "date", "event"]
+    }
+
     fn extract_with_types(
         &self,
         text: &str,

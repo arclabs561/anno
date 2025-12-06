@@ -5,12 +5,11 @@ use std::fs;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
-use anno_coalesce::Resolver;
-use crate::{
-    Corpus, Entity, EntityType, GroundedDocument, Identity, IdentitySource, Location,
-    Signal,
-};
 use crate::eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
+use crate::{
+    Corpus, Entity, EntityType, GroundedDocument, Identity, IdentitySource, Location, Signal,
+};
+use anno_coalesce::Resolver;
 
 use super::super::output::color;
 use super::super::parser::{ModelBackend, OutputFormat};
@@ -796,9 +795,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 for cluster in &final_clusters {
                     if let Some(ref entity_type) = cluster.entity_type {
                         let label: &str = entity_type.as_label();
-                        *type_counts
-                            .entry(label.to_string())
-                            .or_insert(0) += 1;
+                        *type_counts.entry(label.to_string()).or_insert(0) += 1;
                     }
                 }
                 if !type_counts.is_empty() {
@@ -1059,9 +1056,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 for cluster in &final_clusters {
                     if let Some(ref entity_type) = cluster.entity_type {
                         let label: &str = entity_type.as_label();
-                        *type_counts
-                            .entry(label.to_string())
-                            .or_insert(0) += 1;
+                        *type_counts.entry(label.to_string()).or_insert(0) += 1;
                     }
                 }
 
