@@ -372,9 +372,9 @@ check-secrets:
 # Check for large files (warn only, non-blocking)
 check-large-files:
     @echo "Checking for large files..."
-    @if find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" 2>/dev/null | head -1 | grep -q .; then \
+    @if find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" ! -path "./.mypy_cache/*" ! -path "./.pytest_cache/*" ! -path "./__pycache__/*" 2>/dev/null | head -1 | grep -q .; then \
         echo "⚠️  Warning: Large files detected (>1MB):"; \
-        find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" 2>/dev/null | head -5; \
+        find . -type f -size +1M ! -path "./target/*" ! -path "./.git/*" ! -path "./.cargo/*" ! -path "./*.lock" ! -path "./assets/*" ! -path "./.mypy_cache/*" ! -path "./.pytest_cache/*" ! -path "./__pycache__/*" 2>/dev/null | head -5; \
         echo "   (This is a warning, not blocking)"; \
     fi
 
