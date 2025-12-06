@@ -1,7 +1,5 @@
 <div align="center">
 
-![anno logo](assets/logo.svg)
-
 # anno
 
 Information extraction for Rust: NER and cross-document entity resolution.
