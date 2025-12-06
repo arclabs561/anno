@@ -1,0 +1,28 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="200" height="200" fill="#0f172a"/>
+<ellipse opacity="0.3" cx="100" cy="50" rx="80" ry="20" fill="#7e22ce"/>
+<ellipse opacity="0.3" cx="100" cy="60" rx="70" ry="18" fill="#7e22ce"/>
+<ellipse opacity="0.3" cx="100" cy="70" rx="60" ry="16" fill="#7e22ce"/>
+<ellipse opacity="0.3" cx="100" cy="80" rx="50" ry="14" fill="#7e22ce"/>
+<ellipse opacity="0.3" cx="100" cy="90" rx="40" ry="12" fill="#7e22ce"/>
+<g>
+<circle cx="80" cy="110" r="8" fill="#22c55e"/>
+<circle cx="95" cy="115" r="7" fill="#22c55e"/>
+<circle cx="110" cy="110" r="6" fill="#22c55e"/>
+<circle cx="100" cy="125" r="5" fill="#22c55e"/>
+<circle cx="85" cy="120" r="9" fill="#22c55e"/>
+<circle cx="92" cy="135" r="6" fill="#22c55e"/>
+<circle cx="108" cy="128" r="7" fill="#22c55e"/>
+</g>
+<circle cx="30" cy="30" r="3" fill="#3b82f6"/>
+<circle cx="170" cy="40" r="2" fill="#3b82f6"/>
+<circle cx="50" cy="160" r="2" fill="#3b82f6"/>
+<circle cx="150" cy="150" r="3" fill="#3b82f6"/>
+<circle cx="40" cy="70" r="4" fill="#3b82f6"/>
+<circle cx="160" cy="90" r="2" fill="#3b82f6"/>
+<circle cx="20" cy="100" r="3" fill="#3b82f6"/>
+<circle cx="180" cy="120" r="4" fill="#3b82f6"/>
+<circle cx="60" cy="40" r="2" fill="#3b82f6"/>
+<circle cx="140" cy="170" r="3" fill="#3b82f6"/>
+<text x="100" y="190" font-size="14" font-family="Arial, sans-serif" font-weight="bold" fill="white" text-anchor="middle">anno</text>
+</svg>

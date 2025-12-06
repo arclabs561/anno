@@ -1,0 +1,55 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="200" height="200" fill="#0f172a"/>
+<g filter="url(#glow)">
+    <ellipse cx="100" cy="60" rx="25" ry="10" fill="url(#purple)" opacity="0.7"/>
+    <ellipse cx="100" cy="75" rx="30" ry="12" fill="url(#pink)" opacity="0.7"/>
+    <ellipse cx="100" cy="90" rx="35" ry="14" fill="url(#green)" opacity="0.7"/>
+</g>
+<g filter="url(#inner-glow)">
+<circle cx="65" cy="90" r="3" fill="#007BFF"/>
+<circle cx="60" cy="85" r="3" fill="#007BFF"/>
+<circle cx="70" cy="85" r="3" fill="#007BFF"/>
+
+<circle cx="140" cy="85" r="3" fill="#28A745"/>
+<circle cx="145" cy="90" r="3" fill="#28A745"/>
+<circle cx="135" cy="90" r="3" fill="#28A745"/>
+<circle cx="140" cy="95" r="3" fill="#28A745"/>
+</g>
+<defs>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="0">
+        <stop stop-color="#8e2de2"/>
+        <stop offset="1" stop-color="#4a00e0"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="0" y1="0" x2="1" y2="0">
+        <stop stop-color="#ff6bcb"/>
+        <stop offset="1" stop-color="#da22ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="0">
+        <stop stop-color="#90ee90"/>
+        <stop offset="1" stop-color="#32cd32"/>
+    </linearGradient>
+    <filter id="glow" x="-50" y="-50" width="300" height="300" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+        <feGaussianBlur stdDeviation="5" result="blur"/>
+        <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+    </filter>
+    <filter id="inner-glow" x="-50" y="-50" width="300" height="300" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+        <feGaussianBlur stdDeviation="2" result="blur"/>
+        <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+    </filter>
+</defs>
+
+<text x="100" y="150" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#D3D3D3" text-anchor="middle" style="stroke: #808080; stroke-width: 0.3; paint-order: stroke">
+        anno
+    </text>
+
+<rect x="0" y="0" width="200" height="200" style="fill:none;stroke:none;pointer-events: all" />
+    <style>
+        svg { background: radial-gradient(circle, #1e293b, #0f172a); }
+    </style>
+</svg>
