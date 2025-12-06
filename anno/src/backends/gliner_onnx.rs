@@ -1039,6 +1039,10 @@ impl crate::backends::inference::ZeroShotNER for GLiNEROnnx {
         // GLiNER encodes labels as text, so descriptions work the same way
         self.extract(text, descriptions, threshold)
     }
+
+    fn default_types(&self) -> &[&'static str] {
+        DEFAULT_GLINER_LABELS
+    }
 }
 
 // =============================================================================

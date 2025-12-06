@@ -1,14 +1,12 @@
 # anno
 
-Information extraction for Rust: NER, cross-document entity coalescing, hierarchical clustering.
+Information extraction for Rust: NER and cross-document entity resolution.
 
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-anno is a library and command line tool for extracting named entities from text, coalescing mentions across documents into canonical entities, and stratifying entities into hierarchical clusters. Swap between regex (~400ns), transformers (~50-150ms), zero-shot NER without code changes.
-
-**Extract. Coalesce. Stratify.**
+Rust library and CLI for named entity recognition and cross-document entity resolution. Multiple backends: regex (~400ns), transformers (~50-150ms), zero-shot NER.
 
 ## Installation
 
@@ -21,20 +19,58 @@ cd anno && cargo build --release
 
 ## Usage
 
+### Extract entities
+
 ```bash
-# Extract entities from text
-anno extract "Marie Curie won the Nobel Prize in Paris"
+$ anno extract --model heuristic "Marie Curie won the Nobel Prize in Paris"
 
-# Cross-document entity coalescing (merge mentions across documents)
-anno crossdoc --directory ./docs --threshold 0.6
-# or: anno coalesce --directory ./docs --threshold 0.6
-
-# Hierarchical clustering (reveal strata of abstraction)
-anno strata --input graph.json --method leiden --levels 3
-
-# Full pipeline: extract → coalesce → stratify
-anno pipeline ./docs/ --output ./kb/
+  PER (2):
+    [  0, 11) ########..  75% "Marie Curie"
+    [ 20, 31) ######....  60% "Nobel Prize"
+  LOC (1):
+    [ 35, 40) ########..  80% "Paris"
 ```
+
+JSON output:
+```bash
+$ anno extract --format json --model heuristic "Marie Curie won the Nobel Prize in Paris"
+[{"text":"Marie Curie","type":"PER","start":0,"end":11,"confidence":0.75},...]
+```
+
+### Cross-document entity resolution
+
+```bash
+# Process directory of text files
+$ anno crossdoc --directory ./docs --model heuristic --threshold 0.6 --format tree
+
+# Or import pre-processed JSON files
+$ anno extract --file doc1.txt --export doc1.json
+$ anno extract --file doc2.txt --export doc2.json
+$ anno crossdoc --import doc1.json --import doc2.json --threshold 0.6 --format tree
+```
+
+## Common Use Cases
+
+```bash
+# Ingest directory and coalesce → see entity clusters (tree format)
+$ anno crossdoc --directory ./docs --model heuristic --threshold 0.7 --format tree
+
+# Ingest directory and coalesce → JSON output
+$ anno crossdoc --directory ./docs --model heuristic --threshold 0.7 --format json
+
+# Ingest URL and extract entities
+$ anno extract --url https://example.com/article
+
+# Ingest URL and debug (HTML visualization)
+$ anno debug --url https://example.com/article --html --output debug.html
+
+# Ingest URL and see entities in terminal (with coreference)
+$ anno debug --url https://example.com/article --coref
+```
+
+**Note**: `crossdoc` requires `eval-advanced` feature. Use `--model heuristic` for better entity detection. Import pre-processed JSON files with `--import` for best results.
+
+**More examples**: See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for advanced workflows.
 
 ## Library
 
@@ -46,37 +82,36 @@ anno = "0.2"
 ## Structure
 
 ```
-anno-core/      # Foundation: Entity, GroundedDocument, GraphDocument
-anno/           # NER backends, evaluation framework
+anno-core/      # Foundation: Entity, GroundedDocument
+anno/           # NER backends
 anno-coalesce/  # Cross-document entity resolution
-anno-strata/    # Hierarchical clustering (Leiden, RAPTOR)
-anno-cli/       # Unified CLI binary
+anno-cli/       # CLI binary
 ```
 
-**Dependency flow:**
-```
-anno-core (no deps)
-    ↑
-    ├── anno
-    ├── anno-coalesce
-    └── anno-strata
-            ↑
-            └── anno-cli
-```
+See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for full architecture.
 
 ## Pipeline
 
+Three-level hierarchy: **Signal → Track → Identity**.[^1]
+
+1. **Extract** (Signal): Detect entities in text
+2. **Coalesce** (Identity): Merge mentions across documents into canonical entities
+
+[^1]: See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for architecture details.
+
 ### Extract
 
-Detect entities in text: persons, organizations, locations, dates, etc.
+Named entity recognition: detect persons, organizations, locations, dates, etc.
+
+- **Input**: raw text
+- **Output**: entities with spans, types, confidence
+- **CLI**: `anno extract --model heuristic "text"`
 
 ```rust
 use anno::{Model, RegexNER};
 
 let ner = RegexNER::new();
 let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
-// EMAIL: "alice@acme.com" [8, 22)
-// DATE: "Jan 15" [26, 32)
 ```
 
 ### Coalesce
@@ -84,10 +119,10 @@ let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
 Cross-document entity resolution: merge mentions across documents into canonical entities.
 
 - **Input**: entities from multiple documents
-- **Output**: canonical entities (Identity) linking mentions across documents
-- **Purpose**: Identity resolution - "Marie Curie" in doc1 and "Marie Curie" in doc2 → same Identity
-- **Algorithm**: Similarity-based clustering (embeddings or string similarity)
-- **Example**: `anno crossdoc --directory ./docs --threshold 0.6`
+- **Output**: identity clusters linking mentions across documents
+- **CLI**: `anno crossdoc --directory ./docs --model heuristic --threshold 0.6 --format tree`
+- **When to use**: Processing multiple documents, need to know "Barack Obama" in doc1 and doc2 refer to the same person
+- **Note**: Requires `eval-advanced` feature. Use `--import` for pre-processed GroundedDocument JSON files.
 
 ```rust
 use anno_coalesce::Resolver;
@@ -96,153 +131,52 @@ let resolver = Resolver::new();
 let identities = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.7), Some(true))?;
 ```
 
-### Stratify
-
-Hierarchical community detection: reveal layers of abstraction (communities, themes).
-
-- **Input**: graph of entities and relations (GraphDocument)
-- **Output**: hierarchical layers of communities at multiple resolutions
-- **Purpose**: Reveal abstraction levels (specific entities → themes → domains)
-- **Algorithm**: Leiden algorithm at multiple resolutions (modularity optimization)
-- **Example**: `anno strata --input graph.json --method leiden --levels 3`
-
-```rust
-use anno_strata::HierarchicalLeiden;
-
-let hierarchy = HierarchicalLeiden::cluster(&graph)?;
-```
-
-**Difference**: Coalesce resolves identity (same entity across docs). Strata organizes into hierarchies (communities, themes, abstraction layers).
-
-## Examples
+## Library Examples
 
 ```rust
 use anno::{Model, RegexNER};
 
 let ner = RegexNER::new();
 let entities = ner.extract_entities("Contact alice@acme.com by Jan 15", None)?;
-
-for e in &entities {
-    println!("{}: \"{}\" [{}, {})", e.entity_type.as_label(), e.text, e.start, e.end);
-}
 ```
 
-### ML-based NER
-
-```rust
-use anno::StackedNER;
-
-let ner = StackedNER::default();
-let entities = ner.extract_entities("Sarah Chen joined Microsoft in Seattle", None)?;
-// PER: "Sarah Chen" [0, 10)
-// ORG: "Microsoft" [18, 27)
-// LOC: "Seattle" [31, 38)
-```
-
-### Zero-shot NER (Type Hints)
-
-Zero-shot backends accept entity type descriptions at runtime (type hints):
-
+**Zero-shot NER** (custom entity types):
 ```rust
 #[cfg(feature = "onnx")]
 use anno::{ZeroShotNER, GLiNEROnnx};
 
 #[cfg(feature = "onnx")]
 let ner = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
-
-// Type hints: tell the model WHAT to extract
 #[cfg(feature = "onnx")]
 let entities = ner.extract_with_types(
-    "Patient presents with diabetes, prescribed metformin 500mg",
-    &["disease", "medication", "dosage"],  // Type hints
-    0.5,
-)?;
-
-// Or use natural language descriptions
-#[cfg(feature = "onnx")]
-let entities = ner.extract_with_descriptions(
-    text,
-    &["a medical condition", "a pharmaceutical compound"],
+    "Patient presents with diabetes, prescribed metformin",
+    &["disease", "medication"],
     0.5,
 )?;
 ```
 
-**Type hints vs Gazetteers:**
-- **Type hints** (`extract_with_types`): Tell model WHAT types to extract (semantic matching)
-- **Gazetteers** (`Lexicon` trait): Provide exact-match lookup of known entities (not yet integrated into NER pipeline)
+**See [`docs/SCOPE.md`](docs/SCOPE.md) for complete API documentation.**
 
 ## Backends
 
-| Backend | Latency | Accuracy | Feature | Tasks | Use Case |
-|---------|---------|----------|---------|-------|----------|
-| `RegexNER` | ~400ns | ~95%¹ | always | NER | Structured entities (dates, money, emails) |
-| `HeuristicNER` | ~50μs | ~65%² | always | NER | Person/Org/Location heuristics |
-| `StackedNER` | ~100μs | varies³ | always | NER | Composable layered extraction |
-| `BertNEROnnx` | ~50ms | ~86%⁴ | `onnx` | NER | Fixed 4-type NER (PER/ORG/LOC/MISC) |
-| `GLiNEROnnx` | ~100ms | ~92%⁵ | `onnx` | NER | Zero-shot NER (custom types) |
-| `NuNER` | ~80ms | ~85%⁶ | `onnx` | NER | Zero-shot NER (token-based) |
-| `W2NER` | ~120ms | ~88%⁷ | `onnx` | NER, DiscontinuousNER | Nested/discontinuous spans |
-| `GLiNER2` | ~130ms | ~92%⁵ | `onnx`/`candle` | NER, RelationExtraction, TextClassification, HierarchicalExtraction | Multi-task extraction |
-| `TPLinker` | ~150ms | placeholder⁸ | `onnx` | NER, RelationExtraction | Joint entity-relation (placeholder) |
+| Backend | Latency | Accuracy | Feature | Use Case |
+|---------|---------|----------|---------|----------|
+| `RegexNER` | ~400ns | ~95%¹ | always | Structured entities (dates, money, emails) |
+| `HeuristicNER` | ~50μs | ~65%² | always | Person/Org/Location heuristics |
+| `GLiNEROnnx` | ~100ms | ~92%³ | `onnx` | Zero-shot NER (custom types) |
+| `BertNEROnnx` | ~50ms | ~86%⁴ | `onnx` | Fixed 4-type NER (PER/ORG/LOC/MISC) |
 
-**Notes:**
+¹ Pattern accuracy on structured entities only. ² F1 on Person/Org/Location. ³ Zero-shot F1 varies by entity types. ⁴ F1 on CoNLL-2003.
 
-¹ **RegexNER (~95%)**: Pattern accuracy on structured entities only (dates, money, emails, URLs). Not comparable to general NER. Verify: `anno eval --model regex --dataset synthetic` (structured entity subset).
-
-² **HeuristicNER (~65%)**: F1 on Person/Org/Location only. Heuristic rules, no ML. Verify: `anno dataset eval --dataset conll2003 --model heuristic --task ner`.
-
-³ **StackedNER (varies)**: Accuracy depends on composition. Default stack (RegexNER + HeuristicNER) ≈ 70-75% F1 on CoNLL-2003. Custom stacks vary. Verify: `anno benchmark --backends stacked --datasets conll2003`.
-
-⁴ **BertNEROnnx (~86%)**: F1 on CoNLL-2003 (PER/ORG/LOC/MISC). Fixed entity types only. Verify: `anno dataset eval --dataset conll2003 --model bert --task ner`.
-
-⁵ **GLiNER (~92%)**: Zero-shot F1 varies by entity types requested. ~92% is typical for common types (Person, Organization, Location) on CoNLL-2003. Accuracy drops for rare/domain-specific types. Verify: `anno dataset eval --dataset conll2003 --model gliner --task ner`.
-
-⁶ **NuNER (~85%)**: Zero-shot token-based NER. Lower accuracy than GLiNER but faster. Verify: `anno dataset eval --dataset conll2003 --model nuner --task ner`.
-
-⁷ **W2NER (~88%)**: F1 on nested/discontinuous entities. Handles non-contiguous spans (e.g., "New York" in "New ... York"). Verify: `anno dataset eval --dataset cadec --model w2ner --task discontinuous-ner`.
-
-⁸ **TPLinker (placeholder)**: Currently heuristic-based placeholder. Full ONNX implementation pending. Relation extraction accuracy not yet measured. Verify: `anno dataset eval --dataset docred --model tplinker --task re`.
-
-**Tasks:**
-- **NER**: All backends support Named Entity Recognition (via `Model` trait)
-- **RelationExtraction**: GLiNER2 (via `RelationExtractor` trait), TPLinker (placeholder)
-- **DiscontinuousNER**: W2NER (non-contiguous spans, via `DiscontinuousNER` trait)
-- **TextClassification**: GLiNER2 (multi-task)
-- **HierarchicalExtraction**: GLiNER2 (nested structures)
-- **IntraDocCoref**: Coreference resolvers (via `CoreferenceResolver` trait, requires `discourse` feature)
-- **AbstractAnaphora**: `DiscourseAwareResolver` only (requires `discourse` feature, not NER backends)
-
-**Note**: Abstract anaphora is a coreference task (resolving "this"/"that" to events/propositions), not an NER task. It requires `DiscourseAwareResolver`, not NER models. Verify: `anno dataset eval --dataset gap --model discourse-aware --task abstract-anaphora`.
-
-**⚠️ Accuracy numbers are not directly comparable**: Different backends handle different entity types and tasks. Use `anno benchmark` for comprehensive evaluation across your specific use case.
+**See [`docs/TASK_DATASET_MAPPING.md`](docs/TASK_DATASET_MAPPING.md) for complete backend list and task support.**
 
 ## Features
 
-| Feature | What it enables |
-|---------|-----------------|
-| *(default)* | `RegexNER`, `HeuristicNER`, `StackedNER`, `GraphDocument` |
-| `onnx` | BERT, GLiNER, GLiNER2, NuNER, W2NER, TPLinker via ONNX Runtime |
-| `candle` | Pure Rust inference (`CandleNER`, `GLiNERCandle`, `GLiNER2Candle`) |
-| `eval` | Core metrics (P/R/F1), datasets, evaluation framework |
-| `eval-advanced` | Calibration, robustness, OOD detection, `crossdoc`, `strata`, `rank-eval`, relation extraction evaluation |
-| `discourse` | Event extraction, abstract anaphora, coreference resolution |
+- `onnx`: BERT, GLiNER, GLiNER2 via ONNX Runtime
+- `eval`: Evaluation framework, datasets, metrics
+- `eval-advanced`: Cross-document resolution, advanced evaluation
 
-## CLI Commands
-
-| Command | Alias | Purpose |
-|---------|-------|---------|
-| `extract` | `x` | Extract entities from text |
-| `debug` | `d` | HTML visualization with coreference/KB linking |
-| `eval` | `e` | Evaluate predictions against gold |
-| `validate` | `v` | Validate JSONL annotation files |
-| `analyze` | `a` | Deep analysis with multiple models |
-| `crossdoc` | `coalesce` | Cross-document entity resolution (identity linking) |
-| `strata` | - | Hierarchical community detection (abstraction layers) |
-| `pipeline` | `p` | Full pipeline: extract → coalesce → stratify |
-| `info` | `i` | Show model and version info |
-| `models` | - | List and compare available models |
-
-Run `anno --help` for full command reference.
+**See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for complete feature list.**
 
 ## Documentation
 

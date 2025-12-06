@@ -106,10 +106,18 @@ docs:
 docs-open:
     cargo doc --no-deps --features "eval-full discourse" --open
 
-# Preview README in browser (requires grip or similar)
+# Preview README in browser with GitHub-style rendering (auto-reloads)
+# Auto-finds free port starting from 8000
 readme-preview:
-    @which grip > /dev/null && grip README.md || \
-    (python3 -m http.server 8000 > /dev/null 2>&1 & echo "Preview at http://localhost:8000/README.md" && sleep 2 && open http://localhost:8000/README.md || echo "Open README.md in your editor for preview")
+    @uv run scripts/serve_readme.py > /tmp/serve_readme.log 2>&1 & \
+    sleep 3 && \
+    PORT=$$(cat /tmp/serve_readme_port.txt 2>/dev/null || echo "8000") && \
+    open http://localhost:$$PORT/README_github_style.html && \
+    echo "✅ Preview at http://localhost:$$PORT/README_github_style.html (auto-reloads)"
+
+# Run e2e test with Playwright + Gemini VLM
+readme-test:
+    @uv run scripts/e2e_readme_test.py
 
 # === Benchmarks ===
 

@@ -73,7 +73,11 @@ trait Lexicon: Send + Sync {
 ```
 
 **Type hints vs Gazetteers:**
-- **Type hints** (`ZeroShotNER::extract_with_types`): Tell model WHAT types to extract (semantic matching). Example: `["person", "organization"]` → model extracts only those types.
+- **Type hints** (`ZeroShotNER::extract_with_types`): Tell model WHAT types to extract (semantic matching via text embeddings). 
+  - **Arbitrary text**: Not fixed vocabulary—any string is encoded as an embedding (e.g., `"disease"`, `"pharmaceutical compound"`, `"19th century French philosopher"`).
+  - **Replace, don't union**: Completely replaces default entity types. Model only extracts the specified types. To include defaults, pass them explicitly.
+  - **Semantic matching**: Uses cosine similarity between span embeddings and label embeddings (bi-encoder architecture).
+  - Example: `["person", "organization"]` → model extracts only those types, not defaults.
 - **Gazetteers** (`Lexicon` trait): Exact-match lookup of known entities. Example: `"AAPL"` → `Organization`. Currently defined but not integrated into NER pipeline (see `docs/LEXICON_DESIGN.md`).
 
 ### Backend philosophy

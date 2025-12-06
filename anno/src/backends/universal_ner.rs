@@ -113,6 +113,10 @@ impl Model for UniversalNER {
 }
 
 impl ZeroShotNER for UniversalNER {
+    fn default_types(&self) -> &[&'static str] {
+        &["person", "organization", "location"]
+    }
+
     fn extract_with_types(
         &self,
         text: &str,
