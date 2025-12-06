@@ -14,7 +14,7 @@ All naming inconsistencies have been resolved. The codebase now has consistent n
    - Both commands properly feature-gated under `eval-advanced`
 
 2. **Documentation**:
-   - `docs/TOOLBOX_ARCHITECTURE.md` updated to reflect actual CLI commands
+   - `docs/ARCHITECTURE.md` updated to reflect actual CLI commands
    - All examples use correct command names
    - Tagline "Extract. Coalesce. Stratify." consistent across all docs
 
@@ -45,7 +45,7 @@ All naming inconsistencies have been resolved. The codebase now has consistent n
 - ✅ All 17 commands properly integrated
 
 ### Documentation
-- ✅ `docs/TOOLBOX_ARCHITECTURE.md` - Accurate command examples
+- ✅ `docs/ARCHITECTURE.md` - Accurate command examples
 - ✅ `README.md` - Tagline "Extract. Coalesce. Stratify."
 - ✅ `CHANGELOG.md` - Documents workspace refactoring
 - ✅ All user-facing text uses consistent terminology

@@ -97,10 +97,9 @@ pub fn confidence_bar(conf: f32) -> String {
         "31"
     };
     format!(
-        "{}{} {:3.0}%",
+        "{}{}",
         color(code, &"#".repeat(filled)),
-        color("90", &".".repeat(empty)),
-        conf * 100.0
+        color("90", &".".repeat(empty))
     )
 }
 

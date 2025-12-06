@@ -8,7 +8,7 @@ Documentation for the `anno` crate.
 - [SCOPE.md](SCOPE.md) - What's implemented, trait hierarchy, roadmap
 - [RESEARCH.md](RESEARCH.md) - Research contributions and attribution
 - [EVALUATION.md](EVALUATION.md) - Evaluation guide
-- [TOOLBOX_ARCHITECTURE.md](TOOLBOX_ARCHITECTURE.md) - Workspace structure
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Workspace structure
 
 ## Design
 

@@ -24,7 +24,7 @@ You are a technical documentation quality inspector evaluating this README.md ag
 - **Foundations of Computer Science** (Aho & Ullman 1992): Methodical presentation; clear definitions before explanations; illustrative examples bridging theory and practice; incremental concept building
 - **Stanford CoreNLP**: Structured, technical but accessible; clear headings; reference papers for complex concepts
 
-### Content Organization (from `docs/SCOPE.md`, `docs/TOOLBOX_ARCHITECTURE.md`)
+### Content Organization (from `docs/SCOPE.md`, `docs/ARCHITECTURE.md`)
 - **Hierarchy diagrams**: Use ASCII art for structure (e.g., `Signal → Track → Identity`)
 - **Status tables**: Clear maturity levels (Mature/Stable/Experimental/Stub)
 - **Trait hierarchy**: Show code structure with examples
@@ -41,7 +41,7 @@ You are a technical documentation quality inspector evaluating this README.md ag
 ### Structure Preferences
 - **Emphasize core**: Extract, Coalesce (primary use cases)
 - **De-emphasize advanced**: Stratify is optional/advanced, most users don't need it
-- **Links over inline**: Point to detailed docs (`docs/SCOPE.md`, `docs/TOOLBOX_ARCHITECTURE.md`) rather than exhaustive inline explanations
+- **Links over inline**: Point to detailed docs (`docs/SCOPE.md`, `docs/ARCHITECTURE.md`) rather than exhaustive inline explanations
 - **Tables with footnotes**: Provide context and reproducibility commands (e.g., "¹ Pattern accuracy on structured entities only. Reproduce with: `anno benchmark --backend regex`")
 
 ## Specific Examples from Codebase
@@ -179,7 +179,7 @@ Focus on README QUALITY aligned with these standards, not CSS implementation det
 - Over-emphasizing advanced/optional features (Stratify) vs core (Extract, Coalesce)
 - Missing concrete use cases (ingest directory, URL, debug with HTML visualization)
 - Tables without footnotes explaining context and reproducibility
-- Missing links to detailed docs (should link to `docs/SCOPE.md`, `docs/TOOLBOX_ARCHITECTURE.md` rather than exhaustive inline explanations)
+- Missing links to detailed docs (should link to `docs/SCOPE.md`, `docs/ARCHITECTURE.md` rather than exhaustive inline explanations)
 - Examples that don't show actual results (library code without expected output)
 
 ## Output Format
