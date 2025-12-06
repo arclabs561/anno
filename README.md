@@ -146,7 +146,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for full architecture.
 Three-level hierarchy: **Signal → Track → Identity**.[^1]
 
 1. **Extract** (Signal): Detect entities in text
-2. **Coalesce** (Identity): Merge mentions across documents into canonical entities
+2. **Track** (Level 2): Within-document coreference - cluster mentions in same document
+3. **Coalesce** (Identity): Merge tracks across documents into canonical entities
 
 [^1]: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for architecture details.
 
