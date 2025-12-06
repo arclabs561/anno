@@ -1,8 +1,6 @@
-# anno
+<img src="assets/logo-square.png" alt="anno logo" width="200">
 
-<div align="center">
-  <img src="assets/logo-square.png" alt="anno logo" width="200">
-</div>
+# anno
 
 Information extraction for Rust: NER, cross-document entity coalescing, hierarchical clustering.
 
