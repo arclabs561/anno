@@ -1,6 +1,6 @@
 <div align="center">
 
-![anno logo](assets/logo.png)
+![anno logo](assets/logo.svg)
 
 # anno
 
