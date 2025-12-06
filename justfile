@@ -16,6 +16,10 @@ check:
 fmt:
     cargo fmt --all
 
+# Check formatting without modifying
+fmt-check:
+    cargo fmt --all -- --check
+
 # Run all unit tests
 test:
     cargo test --lib --features "eval-advanced discourse"
