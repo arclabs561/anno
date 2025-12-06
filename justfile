@@ -102,6 +102,11 @@ docs:
 docs-open:
     cargo doc --no-deps --features "eval-full discourse" --open
 
+# Preview README in browser (requires grip or similar)
+readme-preview:
+    @which grip > /dev/null && grip README.md || \
+    (python3 -m http.server 8000 > /dev/null 2>&1 & echo "Preview at http://localhost:8000/README.md" && sleep 2 && open http://localhost:8000/README.md || echo "Open README.md in your editor for preview")
+
 # === Benchmarks ===
 
 # Run NER benchmark (no execution, just compile)
