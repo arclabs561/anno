@@ -400,26 +400,157 @@ impl ReportBuilder {
 
     /// Run calibration analysis.
     #[cfg(feature = "eval-advanced")]
-    fn run_calibration_analysis<M: Model>(_model: &M) -> Result<CalibrationSummary> {
-        // TODO: Implement calibration analysis
-        // For now, return placeholder
+    fn run_calibration_analysis<M: Model>(
+        model: &M,
+        test_cases: &[TestCase],
+    ) -> Result<CalibrationSummary> {
+        use crate::eval::calibration::CalibrationEvaluator;
+
+        // Collect predictions with confidence scores
+        let mut predictions = Vec::new();
+        let mut has_calibrated_entities = false;
+
+        for case in test_cases {
+            let entities = model
+                .extract_entities(&case.text, None)
+                .unwrap_or_else(|_| Vec::new());
+
+            for entity in &entities {
+                // Check if this entity's extraction method is calibrated
+                let is_calibrated = entity
+                    .provenance
+                    .as_ref()
+                    .map(|p| p.method.is_calibrated())
+                    .unwrap_or(false);
+
+                if !is_calibrated {
+                    continue; // Skip uncalibrated entities
+                }
+
+                has_calibrated_entities = true;
+
+                // Match to gold to determine correctness
+                let is_correct = case.gold_entities.iter().any(|gold| {
+                    entity.start == gold.start
+                        && entity.end == gold.end
+                        && entity.entity_type.as_label() == gold.entity_type
+                });
+
+                predictions.push((entity.confidence, is_correct));
+            }
+        }
+
+        // If no calibrated entities found, return a warning summary
+        if !has_calibrated_entities || predictions.is_empty() {
+            return Ok(CalibrationSummary {
+                ece: 0.0,
+                mce: 0.0,
+                optimal_threshold: 0.5,
+                grade: '?', // Unknown - no calibrated predictions
+            });
+        }
+
+        // Compute calibration metrics
+        let results = CalibrationEvaluator::compute(&predictions);
+
+        // Find optimal threshold (highest accuracy with reasonable coverage)
+        let optimal_threshold = results
+            .threshold_accuracy
+            .iter()
+            .filter(|(_, metrics)| metrics.coverage >= 0.1) // At least 10% coverage
+            .max_by(|(_, a), (_, b)| {
+                a.accuracy
+                    .partial_cmp(&b.accuracy)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .and_then(|(thresh_str, _)| thresh_str.parse::<f64>().ok())
+            .unwrap_or(0.5);
+
+        // Convert ECE to grade
+        let grade = if results.ece < 0.05 {
+            'A'
+        } else if results.ece < 0.10 {
+            'B'
+        } else if results.ece < 0.15 {
+            'C'
+        } else if results.ece < 0.25 {
+            'D'
+        } else {
+            'F'
+        };
+
         Ok(CalibrationSummary {
-            ece: 0.0,
-            mce: 0.0,
-            optimal_threshold: 0.5,
-            grade: 'C',
+            ece: results.ece,
+            mce: results.mce,
+            optimal_threshold,
+            grade,
         })
     }
 
     /// Run data quality checks.
     #[cfg(feature = "eval-advanced")]
-    fn run_data_quality_checks(_test_cases: &[TestCase]) -> Result<DataQualitySummary> {
-        // TODO: Implement data quality checks
-        // For now, return placeholder
+    fn run_data_quality_checks(test_cases: &[TestCase]) -> Result<DataQualitySummary> {
+        use std::collections::{HashMap, HashSet};
+
+        if test_cases.is_empty() {
+            return Ok(DataQualitySummary {
+                leakage_detected: false,
+                redundancy_rate: 0.0,
+                ambiguous_count: 0,
+            });
+        }
+
+        // Convert test cases to format expected by DatasetQualityAnalyzer
+        // Since we only have test data (no train), we check for redundancy within test set
+        let test_data: Vec<(&str, Vec<(&str, &str)>)> = test_cases
+            .iter()
+            .map(|case| {
+                let entities: Vec<(&str, &str)> = case
+                    .gold_entities
+                    .iter()
+                    .map(|e| (e.text.as_str(), e.entity_type.as_str()))
+                    .collect();
+                (case.text.as_str(), entities)
+            })
+            .collect();
+
+        // Check for redundancy (duplicates within test set)
+        let mut seen_texts = HashSet::new();
+        let mut duplicate_count = 0;
+        for (text, _) in &test_data {
+            let normalized = text.to_lowercase();
+            if !seen_texts.insert(normalized) {
+                duplicate_count += 1;
+            }
+        }
+        let redundancy_rate = if test_data.is_empty() {
+            0.0
+        } else {
+            duplicate_count as f64 / test_data.len() as f64
+        };
+
+        // Check for ambiguous entities (same text, different types)
+        let mut text_to_types: HashMap<String, HashSet<String>> = HashMap::new();
+        for (_, entities) in &test_data {
+            for (text, entity_type) in entities {
+                text_to_types
+                    .entry(text.to_lowercase())
+                    .or_insert_with(HashSet::new)
+                    .insert(entity_type.to_string());
+            }
+        }
+        let ambiguous_count = text_to_types
+            .values()
+            .filter(|types| types.len() > 1)
+            .count();
+
+        // Note: We can't check for train-test leakage since we only have test data
+        // This would require access to training data, which is not available in this context
+
         Ok(DataQualitySummary {
-            leakage_detected: false,
-            redundancy_rate: 0.0,
-            ambiguous_count: 0,
+            leakage_detected: false, // Cannot determine without train data
+            redundancy_rate,
+            ambiguous_count,
         })
     }
 
@@ -606,7 +737,7 @@ impl ReportBuilder {
         let calibration = if self.include_calibration {
             #[cfg(feature = "eval-advanced")]
             {
-                match Self::run_calibration_analysis(model) {
+                match Self::run_calibration_analysis(model, &test_cases) {
                     Ok(cal_results) => Some(cal_results),
                     Err(e) => {
                         warnings.push(format!("Calibration analysis failed: {}", e));

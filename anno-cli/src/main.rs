@@ -44,24 +44,19 @@ use std::io::{self, Read};
 use std::process::ExitCode;
 use std::time::Instant;
 
-#[cfg(any(feature = "eval", feature = "eval-advanced"))]
-use glob::glob;
-
 use clap::{CommandFactory, Parser, ValueEnum};
 use is_terminal::IsTerminal;
 
-#[cfg(any(feature = "eval", feature = "eval-advanced"))]
-use anno::eval::backend_factory::BackendFactory;
 use anno::graph::{GraphDocument, GraphExportFormat};
 use anno::grounded::{
     render_document_html, render_eval_html, EvalComparison, EvalMatch, GroundedDocument, Identity,
     Location, Modality, Quantifier, Signal, SignalValidationError,
 };
 use anno::ingest::DocumentPreprocessor;
-use anno::{AutoNER, Entity, HeuristicNER, Model, RegexNER, StackedNER};
+use anno::{Entity, Model, StackedNER};
 
-#[cfg(any(feature = "eval", feature = "eval-advanced"))]
-use anno::eval::cdcr::{CDCRConfig, CDCRResolver, Document};
+#[cfg(not(any(feature = "eval", feature = "eval-advanced")))]
+use anno::{AutoNER, HeuristicNER, RegexNER};
 
 #[cfg(feature = "onnx")]
 // GLiNER exports available when onnx feature is enabled
@@ -128,7 +123,6 @@ impl ModelBackend {
         // Use BackendFactory for consistent backend creation when available
         #[cfg(any(feature = "eval", feature = "eval-advanced"))]
         {
-            use anno::eval::backend_factory::BackendFactory;
             // Map backend enum to factory name
             let factory_name = match self {
                 Self::Pattern => "pattern",
@@ -147,7 +141,7 @@ impl ModelBackend {
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => "gliner_candle",
             };
-            return BackendFactory::create(factory_name)
+            return anno::eval::backend_factory::BackendFactory::create(factory_name)
                 .map_err(|e| format!("Failed to create model '{}': {}", self.name(), e));
         }
         // Fallback to original implementation when eval feature not available
@@ -213,8 +207,6 @@ impl ModelBackend {
 // ============================================================================
 // All Args structs are now in src/cli/commands/*.rs - these are just the handlers
 
-#[cfg(any(feature = "eval", feature = "eval-advanced"))]
-use anno::eval::loader::DatasetId;
 #[cfg(feature = "eval-advanced")]
 use anno::ingest::url_resolver::CompositeResolver;
 

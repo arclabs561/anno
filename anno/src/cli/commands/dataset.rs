@@ -74,8 +74,62 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             println!();
         }
         DatasetAction::Info { dataset } => {
-            println!("Dataset: {}", dataset);
-            // TODO: Show stats about the dataset
+            #[cfg(feature = "eval-advanced")]
+            {
+                use crate::eval::loader::{DatasetId, DatasetLoader};
+
+                // Parse dataset ID from string
+                let dataset_id = dataset.parse::<DatasetId>().map_err(|e| {
+                    format!("Unknown dataset '{}'. Use 'anno dataset list' to see available datasets. Error: {}", dataset, e)
+                })?;
+
+                // Load dataset
+                let loader = DatasetLoader::new()
+                    .map_err(|e| format!("Failed to create dataset loader: {}", e))?;
+
+                match loader.load(dataset_id) {
+                    Ok(loaded) => {
+                        let stats = loaded.stats();
+                        println!();
+                        println!("{}", color("1;36", &format!("Dataset: {}", stats.name)));
+                        println!();
+                        println!("  Sentences: {}", stats.sentences);
+                        println!("  Tokens: {}", stats.tokens);
+                        println!("  Entities: {}", stats.entities);
+                        if stats.sentences > 0 {
+                            println!(
+                                "  Avg entities per sentence: {:.2}",
+                                stats.entities as f64 / stats.sentences as f64
+                            );
+                        }
+                        if !stats.entities_by_type.is_empty() {
+                            println!();
+                            println!("  Entity types:");
+                            let mut type_vec: Vec<_> = stats.entities_by_type.iter().collect();
+                            type_vec.sort_by(|a, b| b.1.cmp(a.1)); // Sort by count descending
+                            for (entity_type, count) in type_vec {
+                                let percentage = if stats.entities > 0 {
+                                    *count as f64 / stats.entities as f64 * 100.0
+                                } else {
+                                    0.0
+                                };
+                                println!("    {}: {} ({:.1}%)", entity_type, count, percentage);
+                            }
+                        }
+                        println!();
+                    }
+                    Err(e) => {
+                        return Err(format!("Failed to load dataset '{}': {}\n  Tip: The dataset may need to be downloaded first.", dataset, e));
+                    }
+                }
+            }
+            #[cfg(not(feature = "eval-advanced"))]
+            {
+                println!("Dataset: {}", dataset);
+                println!();
+                println!("Note: Full dataset statistics require --features eval-advanced");
+                println!("Basic info: Use 'anno dataset list' to see available datasets");
+            }
         }
         DatasetAction::Eval {
             dataset,

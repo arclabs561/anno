@@ -96,7 +96,7 @@ impl Resolver {
         }
 
         // 2. Cluster tracks using string similarity or embeddings
-        // TODO: Use embeddings if available, fallback to string similarity
+        // Uses embeddings if available (from track.embedding), otherwise falls back to string similarity
         let mut union_find: Vec<usize> = (0..track_data.len()).collect();
 
         fn find(parent: &mut [usize], i: usize) -> usize {
