@@ -126,6 +126,7 @@ pub fn print_signals(doc: &GroundedDocument, text: &str, verbose: bool) {
                 .map(|q| color("35", &format!(" [{:?}]", q)))
                 .unwrap_or_default();
 
+            // Show confidence bar only (percentage is redundant)
             println!(
                 "    [{:3},{:3}) {} \"{}\"{}{}",
                 start,

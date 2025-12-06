@@ -1,3 +1,7 @@
+<div align="center">
+
+![anno logo](assets/logo.png)
+
 # anno
 
 Information extraction for Rust: NER and cross-document entity resolution.
@@ -5,6 +9,8 @@ Information extraction for Rust: NER and cross-document entity resolution.
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions)
 [![Crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Docs](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
+
+</div>
 
 Rust library and CLI for named entity recognition and cross-document entity resolution. Multiple backends: regex (~400ns), transformers (~50-150ms), zero-shot NER.
 
@@ -51,26 +57,66 @@ $ anno crossdoc --import doc1.json --import doc2.json --threshold 0.6 --format t
 
 ## Common Use Cases
 
+### Ingest directory and coalesce → see entity clusters
+
 ```bash
-# Ingest directory and coalesce → see entity clusters (tree format)
 $ anno crossdoc --directory ./docs --model heuristic --threshold 0.7 --format tree
+```
 
-# Ingest directory and coalesce → JSON output
-$ anno crossdoc --directory ./docs --model heuristic --threshold 0.7 --format json
+Example output:
+```
+Identity 1: "Marie Curie" (3 mentions)
+  ├─ Document: doc1.txt [0, 11) confidence: 0.85
+  ├─ Document: doc2.txt [5, 16) confidence: 0.82
+  └─ Document: doc3.txt [12, 23) confidence: 0.79
 
-# Ingest URL and extract entities
-$ anno extract --url https://example.com/article
+Identity 2: "Paris" (2 mentions)
+  ├─ Document: doc1.txt [35, 40) confidence: 0.90
+  └─ Document: doc3.txt [45, 50) confidence: 0.88
+```
 
-# Ingest URL and debug (HTML visualization)
+### Ingest URL and extract entities
+
+```bash
+$ anno extract --url https://example.com/article --model heuristic
+```
+
+Example output:
+```
+ok: extracted 5 entities in 12.3ms (model: heuristic, avg confidence: 0.78, tracks: 5, identities: 0)
+
+  PER (2):
+    [  0, 11) ########.. "Marie Curie"
+    [ 20, 31) ######.... "Nobel Prize"
+  LOC (1):
+    [ 35, 40) ########.. "Paris"
+  ORG (1):
+    [ 50, 60) #######... "Acme Corp"
+  DATE (1):
+    [ 70, 78) ########.. "2024-01-15"
+
+  [PER: Marie Curie] won the [PER: Nobel Prize] in [LOC: Paris]. [ORG: Acme Corp] announced on [DATE: 2024-01-15].
+```
+
+### Ingest URL and debug (HTML visualization)
+
+```bash
 $ anno debug --url https://example.com/article --html --output debug.html
+```
 
-# Ingest URL and see entities in terminal (with coreference)
+Opens interactive HTML with entity highlighting, coreference chains, and metadata.
+
+### Ingest URL and see entities in terminal (with coreference)
+
+```bash
 $ anno debug --url https://example.com/article --coref
 ```
 
+Shows entities with intra-document coreference resolution (pronouns linked to antecedents).
+
 **Note**: `crossdoc` requires `eval-advanced` feature. Use `--model heuristic` for better entity detection. Import pre-processed JSON files with `--import` for best results.
 
-**More examples**: See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for advanced workflows.
+**More examples**: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for advanced workflows.
 
 ## Library
 
@@ -81,14 +127,19 @@ anno = "0.2"
 
 ## Structure
 
+Workspace crates (top-level directories):
+
 ```
 anno-core/      # Foundation: Entity, GroundedDocument
-anno/           # NER backends
-anno-coalesce/  # Cross-document entity resolution
+anno/           # NER backends, evaluation
+coalesce/       # Cross-document entity resolution (anno-coalesce)
+strata/         # Hierarchical clustering (anno-strata)
 anno-cli/       # CLI binary
 ```
 
-See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for full architecture.
+Each crate is independently usable. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for details.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for full architecture.
 
 ## Pipeline
 
@@ -97,7 +148,7 @@ Three-level hierarchy: **Signal → Track → Identity**.[^1]
 1. **Extract** (Signal): Detect entities in text
 2. **Coalesce** (Identity): Merge mentions across documents into canonical entities
 
-[^1]: See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for architecture details.
+[^1]: See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for architecture details.
 
 ### Extract
 
@@ -176,12 +227,12 @@ let entities = ner.extract_with_types(
 - `eval`: Evaluation framework, datasets, metrics
 - `eval-advanced`: Cross-document resolution, advanced evaluation
 
-**See [`docs/TOOLBOX_ARCHITECTURE.md`](docs/TOOLBOX_ARCHITECTURE.md) for complete feature list.**
+**See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for complete feature list.**
 
 ## Documentation
 
 - **API docs**: https://docs.rs/anno
-- **Architecture**: [docs/TOOLBOX_ARCHITECTURE.md](docs/TOOLBOX_ARCHITECTURE.md)
+- **Architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Evaluation**: [docs/EVALUATION.md](docs/EVALUATION.md)
 
 ## License
