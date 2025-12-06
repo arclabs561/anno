@@ -1,5 +1,3 @@
-<img src="assets/logo-square.png" alt="anno logo" width="200">
-
 # anno
 
 Information extraction for Rust: NER, cross-document entity coalescing, hierarchical clustering.
