@@ -55,6 +55,7 @@ use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader};
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use crate::eval::task_mapping::{backend_tasks, dataset_tasks, get_task_backends, Task};
+use crate::muxer_harness as mh;
 use muxer::{MabConfig, Outcome, Summary, Window};
 use std::collections::VecDeque;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -106,73 +107,8 @@ fn max_examples_per_dataset() -> usize {
         .unwrap_or(default)
 }
 
-fn env_bool(name: &str, default: bool) -> bool {
-    match std::env::var(name).ok().map(|v| v.trim().to_lowercase()) {
-        None => default,
-        Some(v) if v.is_empty() => default,
-        Some(v) if v == "1" || v == "true" || v == "yes" || v == "y" => true,
-        Some(v) if v == "0" || v == "false" || v == "no" || v == "n" => false,
-        _ => default,
-    }
-}
-
 fn env_usize(name: &str, default: usize) -> usize {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.trim().parse::<usize>().ok())
-        .unwrap_or(default)
-}
-
-fn env_f64(name: &str, default: f64) -> f64 {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.trim().parse::<f64>().ok())
-        .unwrap_or(default)
-}
-
-fn env_f64_opt(name: &str) -> Option<f64> {
-    std::env::var(name)
-        .ok()
-        .and_then(|s| s.trim().parse::<f64>().ok())
-}
-
-#[derive(Debug, Clone, Copy)]
-struct LatencyGuardrail {
-    max_mean_ms: Option<f64>,
-    allow_fewer: bool,
-    require_measured: bool,
-}
-
-fn latency_guardrail_from_env() -> LatencyGuardrail {
-    let profile = std::env::var("ANNO_MUXER_PROFILE")
-        .ok()
-        .unwrap_or_else(|| "off".to_string())
-        .trim()
-        .to_lowercase();
-
-    let (profile_max_ms, profile_require_measured) = match profile.as_str() {
-        "fast" => (Some(2000.0), false),
-        "fast-strict" => (Some(2000.0), true),
-        // Regression-hunting / worst-first style. Keep guardrails off by default so we don't
-        // accidentally skip the "bad but actionable" arms we’re trying to surface.
-        "regress" => (None, false),
-        _ => (None, false),
-    };
-
-    let max_mean_ms = env_f64_opt("ANNO_MUXER_MAX_MEAN_ELAPSED_MS").or(profile_max_ms);
-    // Default to "stop early" once a latency ceiling is requested, since falling back to slow
-    // arms defeats the guardrail’s intent.
-    let allow_fewer = env_bool("ANNO_MUXER_LATENCY_GUARDRAIL_ALLOW_FEWER", true);
-    let require_measured = env_bool(
-        "ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT",
-        profile_require_measured,
-    );
-
-    LatencyGuardrail {
-        max_mean_ms,
-        allow_fewer,
-        require_measured,
-    }
+    mh::env_usize(name, default)
 }
 
 fn trunc(s: &str, max_chars: usize) -> String {
@@ -188,9 +124,9 @@ struct WorstFirstConfig {
 
 fn worst_first_config_from_env() -> WorstFirstConfig {
     WorstFirstConfig {
-        exploration_c: env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
-        hard_weight: env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
-        soft_weight: env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
+        exploration_c: mh::env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
+        hard_weight: mh::env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
+        soft_weight: mh::env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
     }
 }
 
@@ -508,27 +444,8 @@ impl BackendHistory {
     }
 }
 
-fn stable_hash64(seed: u64, s: &str) -> u64 {
-    // Deterministic (not crypto): stable per process and platform.
-    // FNV-1a 64-bit with seed mixing.
-    let mut h: u64 = 14695981039346656037u64 ^ seed;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(1099511628211u64);
-    }
-    h
-}
-
 fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
-    // Deterministic sampling without external RNG dependencies.
-    let mut scored: Vec<(u64, &String)> =
-        items.iter().map(|s| (stable_hash64(seed, s), s)).collect();
-    scored.sort_by_key(|(h, s)| (*h, (*s).as_str()));
-    scored
-        .into_iter()
-        .take(k.min(items.len()))
-        .map(|(_, s)| s.clone())
-        .collect()
+    mh::pick_random_subset(seed, items, k)
 }
 
 fn junk_f1_threshold(task: Task) -> f64 {
@@ -540,30 +457,17 @@ fn junk_f1_threshold(task: Task) -> f64 {
     match task {
         // Keep this low: baselines like CRF can be ~0.05–0.15 on tough slices; we only want to
         // label “basically broken” outputs as junk.
-        Task::NER => env_f64("ANNO_MUXER_JUNK_F1_NER", 0.05),
-        Task::IntraDocCoref | Task::InterDocCoref => env_f64("ANNO_MUXER_JUNK_F1_COREF", 0.20),
+        Task::NER => mh::env_f64("ANNO_MUXER_JUNK_F1_NER", 0.05),
+        Task::IntraDocCoref | Task::InterDocCoref => mh::env_f64("ANNO_MUXER_JUNK_F1_COREF", 0.20),
         // Relation strict_f1 is often sparse on small slices; keep the default low enough
         // to distinguish “completely broken (0.0)” from “weak baseline (~0.03–0.06)”.
-        Task::RelationExtraction => env_f64("ANNO_MUXER_JUNK_F1_RELATION", 0.02),
+        Task::RelationExtraction => mh::env_f64("ANNO_MUXER_JUNK_F1_RELATION", 0.02),
         _ => 0.30,
     }
 }
 
 fn mab_config_from_env() -> MabConfig {
-    MabConfig {
-        exploration_c: env_f64("ANNO_MUXER_EXPLORATION_C", 0.8),
-        cost_weight: env_f64("ANNO_MUXER_COST_WEIGHT", 0.0).max(0.0),
-        latency_weight: env_f64("ANNO_MUXER_LATENCY_WEIGHT", 0.0).max(0.0),
-        junk_weight: env_f64("ANNO_MUXER_JUNK_WEIGHT", 0.8).max(0.0),
-        hard_junk_weight: env_f64("ANNO_MUXER_HARD_JUNK_WEIGHT", 1.6).max(0.0),
-        // Note: muxer has no built-in max-mean-latency constraint yet; we apply
-        // `ANNO_MUXER_MAX_MEAN_ELAPSED_MS` as a pre-filter in ml-only selection.
-        max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
-        max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
-        max_http_429_rate: env_f64_opt("ANNO_MUXER_MAX_HTTP_429_RATE"),
-        max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
-        ..MabConfig::default()
-    }
+    mh::mab_config_from_env()
 }
 
 fn select_backends(
@@ -584,10 +488,10 @@ fn select_backends(
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
             // with exploration to avoid fixating too early.
             let cfg = mab_config_from_env();
-            let per_dataset = env_bool("ANNO_MUXER_PER_DATASET", true);
-            let verbose = env_bool("ANNO_MUXER_VERBOSE", false);
+            let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
+            let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
-            let decisions_top = env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
+            let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!(
                 "seed={} perspective={:?} strategy={:?}",
                 seed,
@@ -604,7 +508,7 @@ fn select_backends(
                 // This is about “proper experience”: keep the default run fast and predictable.
                 // If the filter eliminates all arms, either fall back or stop early (select <K),
                 // depending on env.
-                let guard = latency_guardrail_from_env();
+                let guard = mh::latency_guardrail_from_env();
                 let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
                     let mut eligible: Vec<String> = remaining
                         .iter()
@@ -761,9 +665,9 @@ fn select_backends(
             //
             // Score: higher means "worse", with an exploration term favoring under-sampled arms.
             let wcfg = worst_first_config_from_env();
-            let verbose = env_bool("ANNO_MUXER_VERBOSE", false);
+            let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
-            let decisions_top = env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
+            let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!(
                 "seed={} perspective={:?} strategy={:?}",
                 seed,
@@ -777,7 +681,7 @@ fn select_backends(
                 let summaries = history.summaries_for(
                     &remaining,
                     datasets,
-                    env_bool("ANNO_MUXER_PER_DATASET", true),
+                    mh::env_bool("ANNO_MUXER_PER_DATASET", true),
                 );
 
                 // Explore unseen arms first (stable order), so we eventually saturate coverage.
@@ -1153,8 +1057,8 @@ fn test_randomized_matrix_sample() {
         return;
     }
 
-    let per_dataset = env_bool("ANNO_MUXER_PER_DATASET", true);
-    let backends_per_run = env_usize("ANNO_MUXER_BACKENDS_PER_RUN", 2).max(1);
+    let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
+    let backends_per_run = mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", 2).max(1);
     let chosen_backends = if per_dataset {
         select_backends(
             strategy,
@@ -1175,7 +1079,7 @@ fn test_randomized_matrix_sample() {
         )
     };
 
-    let verbose = env_bool("ANNO_MUXER_VERBOSE", false);
+    let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
     if verbose {
         eprintln!(
             "matrix-muxer: perspective={} strategy={:?} seed={} per_dataset={} datasets={:?} backends={:?}",
@@ -1189,7 +1093,7 @@ fn test_randomized_matrix_sample() {
         let profile = std::env::var("ANNO_MUXER_PROFILE")
             .ok()
             .unwrap_or_else(|| "off".to_string());
-        let guard = latency_guardrail_from_env();
+        let guard = mh::latency_guardrail_from_env();
         if guard.max_mean_ms.is_some()
             || profile.trim().to_lowercase() != "off"
             || std::env::var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS").is_ok()
@@ -1245,7 +1149,7 @@ fn test_randomized_matrix_sample() {
         // Don’t poison muxer history with “skips” (feature-gated, incompatible, etc.).
         // These are not actionable regressions for the routing policy; they’re configuration.
         if r.is_skipped() {
-            if env_bool("ANNO_MUXER_VERBOSE", false) {
+            if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
                 let err = r
                     .error
                     .as_deref()
@@ -1275,7 +1179,7 @@ fn test_randomized_matrix_sample() {
         let junk = hard_junk || f1 < thr;
         let ok = r.success && !junk;
 
-        let verbose = env_bool("ANNO_MUXER_VERBOSE", false);
+        let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
         if verbose {
             let err = r
                 .error
@@ -1337,7 +1241,7 @@ fn test_randomized_matrix_sample() {
         // - global per-backend window (back-compat + overall view)
         // - dataset-scoped per-backend window (preferred for selection within a slice)
         history.window_mut(&r.backend).push(o);
-        if env_bool("ANNO_MUXER_PER_DATASET", true) {
+        if mh::env_bool("ANNO_MUXER_PER_DATASET", true) {
             let k = BackendHistory::dataset_key(&r.backend, r.dataset);
             history.window_mut(&k).push(o);
         }

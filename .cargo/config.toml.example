@@ -10,4 +10,10 @@
 
 [patch.crates-io]
 textprep = { path = "../textprep" }
+muxer = { path = "../muxer" }
+
+# `gramdex` is a git dependency by default (so CI works without sibling checkouts).
+# If you have a local checkout, you can override it here.
+[patch."https://github.com/arclabs561/gramdex"]
+gramdex = { path = "../gramdex" }
 

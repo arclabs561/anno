@@ -186,6 +186,10 @@ pub mod tokenizer;
 #[path = "../types/mod.rs"]
 pub mod types;
 
+/// Shared helpers for muxer-backed evaluation harnesses and CLI inspection tools.
+#[cfg(feature = "eval-advanced")]
+pub mod muxer_harness;
+
 /// Geometric and topological foundations for entity resolution.
 ///
 /// Provides advanced geometric representations that complement box embeddings:

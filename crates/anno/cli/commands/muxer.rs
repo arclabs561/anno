@@ -20,6 +20,9 @@ use crate::eval::task_mapping::{backend_tasks, get_task_backends, Task};
 #[cfg(feature = "eval-advanced")]
 use muxer::MabConfig;
 
+#[cfg(feature = "eval-advanced")]
+use crate::muxer_harness as mh;
+
 /// Inspect muxer history from the randomized matrix harness.
 #[derive(Parser, Debug)]
 #[command(about = "Inspect muxer history from the randomized matrix harness")]
@@ -406,93 +409,8 @@ impl BackendHistory {
 }
 
 #[cfg(feature = "eval-advanced")]
-fn env_f64(key: &str, default: f64) -> f64 {
-    match std::env::var(key) {
-        Ok(v) => v.trim().parse::<f64>().unwrap_or(default),
-        Err(_) => default,
-    }
-}
-
-#[cfg(feature = "eval-advanced")]
-fn env_bool(key: &str, default: bool) -> bool {
-    match std::env::var(key) {
-        Ok(v) => {
-            let t = v.trim().to_lowercase();
-            matches!(t.as_str(), "1" | "true" | "yes" | "y" | "on")
-                || (!matches!(t.as_str(), "0" | "false" | "no" | "n" | "off") && default)
-        }
-        Err(_) => default,
-    }
-}
-
-#[cfg(feature = "eval-advanced")]
-fn env_f64_opt(key: &str) -> Option<f64> {
-    match std::env::var(key) {
-        Ok(v) => {
-            let t = v.trim();
-            if t.is_empty() {
-                None
-            } else {
-                t.parse::<f64>().ok()
-            }
-        }
-        Err(_) => None,
-    }
-}
-
-#[cfg(feature = "eval-advanced")]
-#[derive(Debug, Clone, Copy)]
-struct LatencyGuardrail {
-    max_mean_ms: Option<f64>,
-    allow_fewer: bool,
-    require_measured: bool,
-}
-
-#[cfg(feature = "eval-advanced")]
-fn latency_guardrail_from_env() -> LatencyGuardrail {
-    let profile = std::env::var("ANNO_MUXER_PROFILE")
-        .ok()
-        .unwrap_or_else(|| "off".to_string())
-        .trim()
-        .to_lowercase();
-
-    let (profile_max_ms, profile_require_measured) = match profile.as_str() {
-        "fast" => (Some(2000.0), false),
-        "fast-strict" => (Some(2000.0), true),
-        // Regression-hunting / worst-first style.
-        "regress" => (None, false),
-        _ => (None, false),
-    };
-
-    let max_mean_ms = env_f64_opt("ANNO_MUXER_MAX_MEAN_ELAPSED_MS").or(profile_max_ms);
-    // Default to "stop early" once a latency ceiling is requested.
-    let allow_fewer = env_bool("ANNO_MUXER_LATENCY_GUARDRAIL_ALLOW_FEWER", true);
-    let require_measured = env_bool(
-        "ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT",
-        profile_require_measured,
-    );
-
-    LatencyGuardrail {
-        max_mean_ms,
-        allow_fewer,
-        require_measured,
-    }
-}
-
-#[cfg(feature = "eval-advanced")]
 fn mab_config_from_env() -> MabConfig {
-    MabConfig {
-        exploration_c: env_f64("ANNO_MUXER_EXPLORATION_C", 0.8),
-        cost_weight: env_f64("ANNO_MUXER_COST_WEIGHT", 0.0).max(0.0),
-        latency_weight: env_f64("ANNO_MUXER_LATENCY_WEIGHT", 0.0).max(0.0),
-        junk_weight: env_f64("ANNO_MUXER_JUNK_WEIGHT", 0.8).max(0.0),
-        hard_junk_weight: env_f64("ANNO_MUXER_HARD_JUNK_WEIGHT", 1.6).max(0.0),
-        max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
-        max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
-        max_http_429_rate: env_f64_opt("ANNO_MUXER_MAX_HTTP_429_RATE"),
-        max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
-        ..MabConfig::default()
-    }
+    mh::mab_config_from_env()
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -506,21 +424,15 @@ struct WorstFirstConfig {
 #[cfg(feature = "eval-advanced")]
 fn worst_first_config_from_env() -> WorstFirstConfig {
     WorstFirstConfig {
-        exploration_c: env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
-        hard_weight: env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
-        soft_weight: env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
+        exploration_c: mh::env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
+        hard_weight: mh::env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
+        soft_weight: mh::env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
     }
 }
 
 #[cfg(feature = "eval-advanced")]
 fn stable_hash64(seed: u64, s: &str) -> u64 {
-    // Deterministic (not crypto): FNV-1a 64-bit with seed mixing.
-    let mut h: u64 = 14695981039346656037u64 ^ seed;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(1099511628211u64);
-    }
-    h
+    mh::stable_hash64(seed, s)
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -656,7 +568,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         .unwrap_or_else(|| default_history_path(perspective));
 
     let tasks = perspective.tasks();
-    let include_ml = args.include_ml || env_bool("ANNO_ML_IN_MATRIX", false);
+    let include_ml = args.include_ml || mh::env_bool("ANNO_ML_IN_MATRIX", false);
     let candidates = backend_candidates(&tasks, include_ml);
 
     let h = match BackendHistory::load(&history_path, 50) {
@@ -785,7 +697,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         } => {
             let cfg = mab_config_from_env();
             let worst_cfg = worst_first_config_from_env();
-            let guard = latency_guardrail_from_env();
+            let guard = mh::latency_guardrail_from_env();
             let ds_set: Option<BTreeSet<String>> = datasets.as_deref().map(parse_dataset_set);
             let ds_set_ref = ds_set.as_ref();
 
