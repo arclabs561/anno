@@ -7,8 +7,6 @@
 //!
 //! This module is only compiled when `eval-advanced` is enabled.
 
-#![cfg(feature = "eval-advanced")]
-
 use muxer::MabConfig;
 
 /// Latency guardrail settings applied *outside* muxer selection (anno-specific).
@@ -99,7 +97,6 @@ pub fn mab_config_from_env() -> MabConfig {
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
         max_http_429_rate: env_f64_opt("ANNO_MUXER_MAX_HTTP_429_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
-        ..MabConfig::default()
     }
 }
 
