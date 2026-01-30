@@ -301,10 +301,12 @@ impl W2NER {
 
                     // 404 / missing ONNX is common: HF repos typically don't ship `model.onnx`.
                     // We can auto-export a local ONNX model (bounded by env + CI) and proceed.
-                    let in_ci =
-                        std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
+                    //
+                    // IMPORTANT: many dev shells set `CI=1`, which should not disable auto-export
+                    // when running locally. Only treat GitHub Actions as “CI” for this purpose.
+                    let in_github_actions = std::env::var("GITHUB_ACTIONS").is_ok();
                     let auto_export = match std::env::var("ANNO_W2NER_AUTO_EXPORT").ok() {
-                        None => !in_ci,
+                        None => !in_github_actions,
                         Some(v) => {
                             let t = v.trim().to_lowercase();
                             t == "1" || t == "true" || t == "yes" || t == "y" || t == "on"
