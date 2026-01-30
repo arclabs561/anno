@@ -22,7 +22,7 @@ log = { workspace = true }
 once_cell = { workspace = true }
 bitflags = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
-gramdex = { path = "../../../gramdex", optional = true }
+gramdex = { git = "https://github.com/arclabs561/gramdex", rev = "bfc60c7b6965bec4bb176f58b0c02abc0aa2a5b3", optional = true }
 
 # CLI
 clap = { workspace = true, optional = true }
@@ -38,7 +38,7 @@ sha2 = { workspace = true, optional = true }
 dirs = { workspace = true }
 glob = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-muxer = { path = "../../../muxer", optional = true, features = ["serde"] }
+muxer = { version = "0.1.0", optional = true, default-features = false, features = ["serde"] }
 
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.
