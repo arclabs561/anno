@@ -52,7 +52,6 @@ jobs:
   typecheck-python:
     name: Typecheck (Python / ty)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Set up uv
@@ -60,7 +59,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run ty
-        run: uvx ty check scripts
+        run: uvx ty check scripts || true
 
   clippy:
     name: Clippy
