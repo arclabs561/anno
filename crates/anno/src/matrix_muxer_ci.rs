@@ -39,6 +39,9 @@
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
+//! - `ANNO_MATRIX_SWEEP`: if true, enables `test_matrix_sweep_all_backends_once` (opt-in)
+//! - `ANNO_MATRIX_SWEEP_STRICT`: if true (default when sweep enabled), fail the test on any skip/failure
+//! - `ANNO_MATRIX_SWEEP_MAX_EXAMPLES`: max examples per dataset in sweep (default: 5)
 //!
 //! Worst-first tuning (regression hunting):
 //! - `ANNO_WORST_EXPLORATION_C`: exploration coefficient for worst-first (default: 0.8)
@@ -1252,6 +1255,172 @@ fn test_randomized_matrix_sample() {
 
     // If we got here, the harness executed. Failures are recorded, not fatal.
     // (This job is intended to find regressions over time, not block all merges on flaky data.)
+}
+
+#[test]
+fn test_matrix_sweep_all_backends_once() {
+    // Opt-in: this can be expensive if you enable ML backends and caches are cold.
+    if !mh::env_bool("ANNO_MATRIX_SWEEP", false) {
+        return;
+    }
+
+    crate::env::load_dotenv();
+
+    let seed = ci_seed();
+    let perspective = MatrixPerspective::from_env();
+    let tasks = perspective.tasks();
+
+    let strict = mh::env_bool("ANNO_MATRIX_SWEEP_STRICT", true);
+    let max_examples = mh::env_usize("ANNO_MATRIX_SWEEP_MAX_EXAMPLES", 5).max(1);
+
+    let loader = DatasetLoader::new().expect("DatasetLoader::new");
+    let cached_datasets = cached_dataset_candidates(&loader);
+    if cached_datasets.is_empty() {
+        eprintln!(
+            "matrix-sweep: no cached datasets found; set ANNO_CACHE_DIR and cache it (path={:?})",
+            loader.cache_dir()
+        );
+        return;
+    }
+
+    // Pick exactly one compatible, cached dataset (stable).
+    let coref_tasks_requested = tasks.iter().any(|t| t.is_coref_family());
+    let mut coref_dataset_ok: HashMap<DatasetId, bool> = HashMap::new();
+    let eligible_cached: Vec<DatasetId> = cached_datasets
+        .iter()
+        .copied()
+        .filter(|d| {
+            let ts = dataset_tasks(*d);
+            if !tasks.iter().any(|t| ts.contains(t)) {
+                return false;
+            }
+            if coref_tasks_requested && d.is_coreference() {
+                if let Some(ok) = coref_dataset_ok.get(d) {
+                    return *ok;
+                }
+                let ok = match loader.load_coref(*d) {
+                    Ok(docs) => !docs.is_empty(),
+                    Err(_) => false,
+                };
+                coref_dataset_ok.insert(*d, ok);
+                return ok;
+            }
+            true
+        })
+        .collect();
+    if eligible_cached.is_empty() {
+        eprintln!(
+            "matrix-sweep: no cached datasets support tasks={:?} (cache_dir={:?})",
+            tasks,
+            loader.cache_dir()
+        );
+        return;
+    }
+
+    let dataset = perspective
+        .preferred_datasets()
+        .iter()
+        .copied()
+        .find(|d| eligible_cached.contains(d))
+        .unwrap_or_else(|| {
+            // Stable fallback: deterministic “random” pick among eligible.
+            let ds_strings: Vec<String> =
+                eligible_cached.iter().map(|d| format!("{d:?}")).collect();
+            let pick = mh::pick_random_subset(seed ^ 0x51EE_AAAA, &ds_strings, 1)
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| format!("{:?}", eligible_cached[0]));
+            eligible_cached
+                .iter()
+                .copied()
+                .find(|d| format!("{d:?}") == pick)
+                .unwrap_or(eligible_cached[0])
+        });
+
+    // Sweep candidate set:
+    // - reuse the same baseline/ML gating logic as the harness’ default (MlOnly) strategy,
+    //   but run *all* eligible arms in one go (after compatibility filters).
+    let mut candidates = backend_candidates(SampleStrategy::MlOnly, &tasks);
+    candidates.retain(|b| {
+        let ts = backend_tasks(b);
+        tasks.iter().any(|t| ts.contains(t))
+    });
+    candidates.retain(|b| TaskEvaluator::is_backend_compatible(b, dataset));
+
+    if candidates.is_empty() {
+        eprintln!(
+            "matrix-sweep: no backend candidates for tasks={:?} dataset={:?}",
+            tasks, dataset
+        );
+        return;
+    }
+
+    let eval = TaskEvaluator::new().expect("TaskEvaluator::new");
+    let config = TaskEvalConfig {
+        tasks,
+        datasets: vec![dataset],
+        backends: candidates.clone(),
+        max_examples: Some(max_examples),
+        seed: Some(seed),
+        require_cached: true,
+        relation_threshold: 0.5,
+        robustness: false,
+        compute_familiarity: false,
+        temporal_stratification: false,
+        confidence_intervals: false,
+        custom_coref_resolver: None,
+        coref_use_gold_mentions: std::env::var("ANNO_COREF_GOLD")
+            .ok()
+            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true")),
+    };
+
+    let results = match eval.evaluate_all(config) {
+        Ok(r) => r,
+        Err(e) => {
+            if strict {
+                panic!("matrix-sweep: evaluation returned error: {e}");
+            } else {
+                eprintln!("matrix-sweep: evaluation returned error: {e}");
+                return;
+            }
+        }
+    };
+
+    let mut bad: Vec<String> = Vec::new();
+    for r in &results.results {
+        if r.is_skipped() || !r.success {
+            let err = r
+                .error
+                .as_deref()
+                .map(|s| trunc(s, 200))
+                .unwrap_or_else(|| "-".to_string());
+            bad.push(format!(
+                "task={:?} dataset={:?} backend={} skipped={} success={} err={}",
+                r.task,
+                r.dataset,
+                r.backend,
+                r.is_skipped(),
+                r.success,
+                err
+            ));
+        }
+    }
+
+    if !bad.is_empty() {
+        eprintln!(
+            "matrix-sweep: failures={} strict={} dataset={:?} candidates={:?}",
+            bad.len(),
+            strict,
+            dataset,
+            candidates
+        );
+        for line in &bad {
+            eprintln!("matrix-sweep: {line}");
+        }
+        if strict {
+            panic!("matrix-sweep: one or more backends failed or were skipped");
+        }
+    }
 }
 
 #[test]
