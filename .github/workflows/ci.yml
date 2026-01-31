@@ -116,16 +116,10 @@ jobs:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
 
-      - name: Configure AWS credentials (access keys) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
+      # Note: we intentionally do not support access-key secrets here.
+      # GitHub Actions expressions in `if:` do not allow `secrets.*` (workflow won't parse).
       - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
@@ -384,16 +378,8 @@ jobs:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
 
-      - name: Configure AWS credentials (access keys) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
@@ -482,16 +468,8 @@ jobs:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
 
-      - name: Configure AWS credentials (access keys) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
@@ -553,16 +531,8 @@ jobs:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
 
-      - name: Configure AWS credentials (access keys) for dataset cache
-        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
-        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
