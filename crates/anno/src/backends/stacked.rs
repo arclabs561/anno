@@ -574,41 +574,41 @@ impl Default for StackedNER {
     /// 2. GLiNER (if `onnx` feature and model available) - zero-shot, broader label set
     /// 3. Pattern + Heuristic (always available) - zero dependencies
     fn default() -> Self {
-        fn no_downloads() -> bool {
-            match std::env::var("ANNO_NO_DOWNLOADS") {
-                Ok(v) => matches!(
-                    v.trim().to_ascii_lowercase().as_str(),
-                    "1" | "true" | "yes" | "y" | "on"
-                ),
-                Err(_) => false,
-            }
-        }
-
-        struct EnvVarGuard {
-            key: &'static str,
-            prev: Option<String>,
-        }
-
-        impl EnvVarGuard {
-            fn set(key: &'static str, value: &str) -> Self {
-                let prev = std::env::var(key).ok();
-                std::env::set_var(key, value);
-                Self { key, prev }
-            }
-        }
-
-        impl Drop for EnvVarGuard {
-            fn drop(&mut self) {
-                match &self.prev {
-                    Some(v) => std::env::set_var(self.key, v),
-                    None => std::env::remove_var(self.key),
-                }
-            }
-        }
-
         // Try BERT first for standard NER (usually best on PER/ORG/LOC/MISC).
         #[cfg(feature = "onnx")]
         {
+            fn no_downloads() -> bool {
+                match std::env::var("ANNO_NO_DOWNLOADS") {
+                    Ok(v) => matches!(
+                        v.trim().to_ascii_lowercase().as_str(),
+                        "1" | "true" | "yes" | "y" | "on"
+                    ),
+                    Err(_) => false,
+                }
+            }
+
+            struct EnvVarGuard {
+                key: &'static str,
+                prev: Option<String>,
+            }
+
+            impl EnvVarGuard {
+                fn set(key: &'static str, value: &str) -> Self {
+                    let prev = std::env::var(key).ok();
+                    std::env::set_var(key, value);
+                    Self { key, prev }
+                }
+            }
+
+            impl Drop for EnvVarGuard {
+                fn drop(&mut self) {
+                    match &self.prev {
+                        Some(v) => std::env::set_var(self.key, v),
+                        None => std::env::remove_var(self.key),
+                    }
+                }
+            }
+
             // Opt-out policy: allow downloads unless explicitly disabled.
             // GLiNER/BERT loaders use `hf_hub`, which honors `HF_HUB_OFFLINE=1`.
             let _offline = no_downloads().then(|| EnvVarGuard::set("HF_HUB_OFFLINE", "1"));
