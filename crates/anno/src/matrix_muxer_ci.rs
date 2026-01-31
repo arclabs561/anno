@@ -290,7 +290,7 @@ struct DecisionLog {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mab_k_round: Option<muxer::MabKRoundLog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    exp3ix_round: Option<muxer::Exp3IxRoundLog>,
+    exp3ix_rounds: Option<Vec<muxer::Exp3IxKRoundLog>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     worst_first_round: Option<WorstFirstRoundLog>,
 }
@@ -325,7 +325,7 @@ fn append_jsonl(path: &str, v: &DecisionLog) {
 #[test]
 fn test_decision_log_schema_smoke() {
     let log = DecisionLog {
-        schema_version: 4,
+        schema_version: 5,
         muxer_version: muxer::MUXER_VERSION.to_string(),
         run_id: "seed=0 slice=ner strategy=MlOnly".to_string(),
         strategy: "ml-only".to_string(),
@@ -346,14 +346,14 @@ fn test_decision_log_schema_smoke() {
             rows: Vec::new(),
         }),
         mab_k_round: None,
-        exp3ix_round: None,
+        exp3ix_rounds: None,
         worst_first_round: None,
     };
 
     let s = serde_json::to_string(&log).expect("serialize DecisionLog");
     let v: serde_json::Value = serde_json::from_str(&s).expect("parse DecisionLog JSON");
 
-    assert_eq!(v["schema_version"].as_u64(), Some(4));
+    assert_eq!(v["schema_version"].as_u64(), Some(5));
     assert_eq!(v["muxer_version"].as_str(), Some(muxer::MUXER_VERSION));
     assert_eq!(
         v["top_candidates"]["kind"].as_str(),
@@ -779,7 +779,7 @@ fn select_backends(
                     append_jsonl(
                         p,
                         &DecisionLog {
-                            schema_version: 4,
+                            schema_version: 5,
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "ml-only".to_string(),
@@ -799,7 +799,7 @@ fn select_backends(
                             eligible_arms: rl.constraints_eligible_arms.clone(),
                             top_candidates: rl.top_candidates.clone(),
                             mab_k_round: Some(rl),
-                            exp3ix_round: None,
+                            exp3ix_rounds: None,
                             worst_first_round: None,
                         },
                     );
@@ -852,7 +852,7 @@ fn select_backends(
                         append_jsonl(
                             p,
                             &DecisionLog {
-                                schema_version: 4,
+                                schema_version: 5,
                                 muxer_version: muxer::MUXER_VERSION.to_string(),
                                 run_id: run_id.clone(),
                                 strategy: "worst-first".to_string(),
@@ -873,7 +873,7 @@ fn select_backends(
                                     rows: Vec::new(),
                                 }),
                                 mab_k_round: None,
-                                exp3ix_round: None,
+                                exp3ix_rounds: None,
                                 worst_first_round: Some(WorstFirstRoundLog {
                                     remaining: remaining.clone(),
                                     chosen: pick.clone(),
@@ -966,7 +966,7 @@ fn select_backends(
                     append_jsonl(
                         p,
                         &DecisionLog {
-                            schema_version: 4,
+                            schema_version: 5,
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "worst-first".to_string(),
@@ -984,7 +984,7 @@ fn select_backends(
                             eligible_arms: None,
                             top_candidates: Some(top_candidates),
                             mab_k_round: None,
-                            exp3ix_round: None,
+                            exp3ix_rounds: None,
                             worst_first_round: Some(WorstFirstRoundLog {
                                 remaining: remaining.clone(),
                                 chosen: pick.clone(),
@@ -1598,8 +1598,7 @@ fn test_randomized_matrix_sample() {
         mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", backends_per_run_default).max(1);
 
     let mut exp3ix_state_for_update: Option<Exp3IxState> = None;
-    let mut exp3ix_chosen_for_update: Option<String> = None;
-    let mut exp3ix_prob_used_for_update: Option<f64> = None;
+    let mut exp3ix_tickets_for_update: Vec<(String, f64)> = Vec::new();
     let chosen_backends = if matches!(strategy, SampleStrategy::MlOnly)
         && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Exp3Ix)
     {
@@ -1609,7 +1608,7 @@ fn test_randomized_matrix_sample() {
         let summaries = history.summaries_for(&candidates, Some(&chosen_datasets), per_dataset);
         let guard = mh::latency_guardrail_from_env();
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
-        let gd = muxer::exp3ix_decide_persisted_guardrailed(
+        let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
             exp3ix_config_from_env(seed),
             history.exp3ix_state.clone(),
             &candidates,
@@ -1619,32 +1618,46 @@ fn test_randomized_matrix_sample() {
                 require_measured: guard.require_measured,
                 allow_fewer: guard.allow_fewer,
             },
-            0,
+            backends_per_run,
             decision_seed,
-        )
-        .expect("exp3ix decision requires non-empty candidates");
-        let d = gd.decision.clone();
-        let ex_state = gd.state.clone();
-        let prob_used = gd.prob_used;
-        let explore_first = d
-            .notes
-            .iter()
-            .any(|n| matches!(n, muxer::DecisionNote::ExploreFirst));
-        let _probs = d.probs.clone().unwrap_or_default();
+        );
+        let chosen = ex.chosen.clone();
+        assert!(
+            !chosen.is_empty(),
+            "exp3ix selection returned no arms; candidates={}",
+            candidates.len()
+        );
+        let explore_first = ex
+            .rounds
+            .first()
+            .map(|r| {
+                r.decision
+                    .notes
+                    .iter()
+                    .any(|n| matches!(n, muxer::DecisionNote::ExploreFirst))
+            })
+            .unwrap_or(false);
 
         // Keep the pre-update state (includes probs used for sampling).
-        exp3ix_state_for_update = Some(ex_state);
-        exp3ix_chosen_for_update = Some(d.chosen.clone());
-        exp3ix_prob_used_for_update = Some(prob_used);
-        let chosen = vec![d.chosen.clone()];
+        exp3ix_state_for_update = Some(ex.state.clone());
+        exp3ix_tickets_for_update = ex
+            .rounds
+            .iter()
+            .map(|r| (r.decision.chosen.clone(), r.prob_used))
+            .collect();
 
         // Optional decision logging (bounded).
         if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
+            let eligible = ex
+                .rounds
+                .first()
+                .map(|r| r.guardrail.eligible.len())
+                .unwrap_or(0);
             eprintln!(
                 "matrix-muxer: exp3ix chosen={:?} explore_first={} arms={} profile={}",
                 chosen,
                 explore_first,
-                gd.guardrail.eligible.len(),
+                eligible,
                 profile.clone().unwrap_or_else(|| "off".to_string())
             );
         }
@@ -1656,11 +1669,16 @@ fn test_randomized_matrix_sample() {
                 seed, slice_tag_for_muxer, strategy
             );
             let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
-            let exp3ix_round = muxer::log_exp3ix_guardrailed_typed(&gd, &candidates, decisions_top);
+            let exp3ix_rounds = muxer::log_exp3ix_k_rounds_typed(&ex, decisions_top);
+            let eligible_arms = ex
+                .rounds
+                .first()
+                .map(|r| r.guardrail.eligible.clone())
+                .unwrap_or_default();
             append_jsonl(
                 p,
                 &DecisionLog {
-                    schema_version: 4,
+                    schema_version: 5,
                     muxer_version: muxer::MUXER_VERSION.to_string(),
                     run_id,
                     strategy: "ml-only".to_string(),
@@ -1675,10 +1693,12 @@ fn test_randomized_matrix_sample() {
                     chosen: chosen.first().cloned(),
                     explore_first: Some(explore_first),
                     constraints_fallback_used: None,
-                    eligible_arms: Some(gd.guardrail.eligible.clone()),
-                    top_candidates: Some(exp3ix_round.top_candidates.clone()),
+                    eligible_arms: Some(eligible_arms),
+                    top_candidates: exp3ix_rounds
+                        .first()
+                        .and_then(|r| r.top_candidates.clone()),
                     mab_k_round: None,
-                    exp3ix_round: Some(exp3ix_round),
+                    exp3ix_rounds: Some(exp3ix_rounds),
                     worst_first_round: None,
                 },
             );
@@ -1906,36 +1926,35 @@ fn test_randomized_matrix_sample() {
     if matches!(strategy, SampleStrategy::MlOnly)
         && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Exp3Ix)
     {
-        if let (Some(st), Some(chosen), Some(prob_used)) = (
-            exp3ix_state_for_update,
-            exp3ix_chosen_for_update,
-            exp3ix_prob_used_for_update,
-        ) {
-            let chosen = chosen.as_str();
-            let mut sum = 0.0;
-            let mut n = 0u64;
-            for r in &results.results {
-                if r.is_skipped() {
-                    continue;
+        if let Some(mut st) = exp3ix_state_for_update {
+            for (chosen, prob_used) in exp3ix_tickets_for_update {
+                let chosen = chosen.as_str();
+                let mut sum = 0.0;
+                let mut n = 0u64;
+                for r in &results.results {
+                    if r.is_skipped() {
+                        continue;
+                    }
+                    if r.backend.as_str() != chosen {
+                        continue;
+                    }
+                    let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
+                    let reward = if r.success { f1 } else { 0.0 };
+                    sum += reward;
+                    n += 1;
                 }
-                if r.backend.as_str() != chosen {
-                    continue;
+                if n > 0 {
+                    let r01 = (sum / (n as f64)).clamp(0.0, 1.0);
+                    st = muxer::exp3ix_update_persisted(
+                        exp3ix_config_from_env(seed),
+                        st,
+                        chosen,
+                        r01,
+                        prob_used,
+                    );
                 }
-                let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
-                let reward = if r.success { f1 } else { 0.0 };
-                sum += reward;
-                n += 1;
             }
-            if n > 0 {
-                let r01 = (sum / (n as f64)).clamp(0.0, 1.0);
-                history.exp3ix_state = Some(muxer::exp3ix_update_persisted(
-                    exp3ix_config_from_env(seed),
-                    st,
-                    chosen,
-                    r01,
-                    prob_used,
-                ));
-            }
+            history.exp3ix_state = Some(st);
         }
     }
 
