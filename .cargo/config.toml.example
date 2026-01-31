@@ -15,9 +15,7 @@ textprep = { path = "../textprep" }
 # For faster local dev (edit+test without git fetch), you can override the git dependency
 # to a sibling checkout:
 [patch."https://github.com/arclabs561/muxer.git"]
-muxer = { path = "../muxer" }
-
-# `gramdex` is a git dependency by default (so CI works without sibling checkouts).
+muxer = { path = "../muxer" }# `gramdex` is a git dependency by default (so CI works without sibling checkouts).
 # If you have a local checkout, you can override it here.
 [patch."https://github.com/arclabs561/gramdex"]
 gramdex = { path = "../gramdex" }

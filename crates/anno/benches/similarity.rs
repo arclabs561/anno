@@ -1,5 +1,5 @@
-use anno::coalesce::similarity::Similarity;
 use anno::linking::candidate;
+use anno_core::coalesce::similarity::Similarity;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn bench_similarity(c: &mut Criterion) {

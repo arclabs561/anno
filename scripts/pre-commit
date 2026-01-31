@@ -5,7 +5,7 @@
 # Skip with: git commit --no-verify
 # Or set: SKIP_PRECOMMIT=1
 
-set -e
+set -euo pipefail
 
 if [ -n "$SKIP_PRECOMMIT" ]; then
     exit 0

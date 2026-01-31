@@ -77,17 +77,11 @@
 //!
 //! Anno uses feature flags to control compile-time dependencies. Here's the taxonomy:
 //!
-//! ### Evaluation Features
+//! ### Evaluation
 //!
-//! | Feature | Dependencies | Enables |
-//! |---------|--------------|---------|
-//! | `eval` | `dirs`, `rusqlite`, `ureq`, `toml` | Dataset loading, basic metrics, harness |
-//! | `eval-bias` | `eval` | Demographic/gender bias evaluation |
-//! | `eval-advanced` | `eval`, `glob`, `sha2` | Network downloads, advanced metrics |
-//! | `eval-full` | All above | Everything for comprehensive evaluation |
-//! | `eval-parallel` | `eval`, `rayon` | Parallel evaluation (multi-threaded) |
-//!
-//! **Recommendation**: Use `eval` for development, `eval-full` for benchmarking.
+//! Evaluation lives in the separate `anno-eval` crate (and the `anno` CLI lives in `anno-cli`).
+//! This keeps eval/CLI dependencies from affecting the core library and makes feature-gating
+//! much clearer.
 //!
 //! ### ML Backend Features
 //!
@@ -115,8 +109,8 @@
 //!
 //! | Feature | What it includes |
 //! |---------|------------------|
-//! | `full` | `eval-full` + `onnx` + `candle` + `discourse` + `graph` |
-//! | `default` | `onnx` (ONNX backends enabled by default) |
+//! | `full` | `onnx` + `candle` + `discourse` + `graph` |
+//! | `default` | `onnx` |
 
 #![warn(missing_docs)]
 
@@ -124,97 +118,46 @@
 // matching integration-test style imports.
 extern crate self as anno;
 
-// Module declarations (many core types live under `core/`)
-#[path = "../backends/mod.rs"]
+// Module declarations (standard Cargo layout under `src/`)
 pub mod backends;
 /// Edit distance algorithms.
-#[path = "../edit_distance.rs"]
 pub mod edit_distance;
-#[path = "../env.rs"]
 pub mod env;
-#[path = "../error.rs"]
 pub mod error;
-#[cfg(feature = "eval")]
-#[path = "../eval/mod.rs"]
-pub mod eval;
 /// Entity feature extraction for downstream ML and analysis.
-#[path = "../features.rs"]
 pub mod features;
-#[path = "../ingest/mod.rs"]
 pub mod ingest;
 /// Joint inference for coreference resolution and entity linking.
-#[path = "../joint/mod.rs"]
 pub mod joint;
 /// Keyword and keyphrase extraction (TF-IDF, YAKE, TextRank).
 #[cfg(feature = "graph")]
-#[path = "../keywords.rs"]
 pub mod keywords;
-#[path = "../lang.rs"]
 pub mod lang;
 /// Entity linking to knowledge bases.
-#[path = "../linking/mod.rs"]
 pub mod linking;
-#[path = "../offset.rs"]
 pub mod offset;
 /// Shared PageRank algorithm for graph-based ranking.
 #[cfg(feature = "graph")]
-#[path = "../pagerank.rs"]
 pub mod pagerank;
 /// Preprocessing for mention detection.
-#[path = "../preprocess/mod.rs"]
 pub mod preprocess;
 /// Entity salience and importance ranking.
 #[cfg(feature = "graph")]
-#[path = "../salience.rs"]
 pub mod salience;
-#[path = "../schema.rs"]
 pub mod schema;
-#[path = "../similarity.rs"]
 pub mod similarity;
 /// Extractive summarization.
 #[cfg(feature = "graph")]
-#[path = "../summarize.rs"]
 pub mod summarize;
-#[path = "../sync.rs"]
 pub mod sync;
 /// Temporal entity tracking, parsing, and diachronic NER.
-#[path = "../temporal.rs"]
 pub mod temporal;
 /// Language-specific tokenization for multilingual NLP.
-#[path = "../tokenizer.rs"]
 pub mod tokenizer;
-#[path = "../types/mod.rs"]
 pub mod types;
 
-/// Shared helpers for muxer-backed evaluation harnesses and CLI inspection tools.
-#[cfg(feature = "eval-advanced")]
-pub mod muxer_harness;
-
-/// Geometric and topological foundations for entity resolution.
-///
-/// Provides advanced geometric representations that complement box embeddings:
-///
-/// - `geometric::hyperbolic`: Poincaré ball embeddings for hierarchical entity types
-/// - `geometric::sheaf`: Sheaf neural networks for gradient-level transitivity
-/// - `geometric::tda`: Topological data analysis for structural diagnostics
-///
-/// These are research stubs; prefer `docs/` for repo-local entry points.
-///
-/// # When to Use What
-///
-/// | Need | Use |
-/// |------|-----|
-/// | Temporal evolution | Box embeddings (existing) |
-/// | Uncertainty quantification | Box embeddings (existing) |
-/// | Deep type hierarchies | `geometric::hyperbolic` |
-/// | Gradient-level transitivity | `geometric::sheaf` |
-/// | Structural diagnostics | `geometric::tda` |
-// geometric module archived to archive/geometric-2024-12/
-// Reason: Only used in doc comments, contains unimplemented!() calls
-// Restore when sheaf diffusion / hyperbolic embeddings are actually needed
-#[cfg(feature = "cli")]
-#[path = "../cli/mod.rs"]
-pub mod cli;
+// Note: research-only geometry experiments were archived out of `anno` to keep the public
+// surface grounded. Prefer `docs/` for repo-local design notes and experiments.
 
 /// Discourse-level analysis for coreference resolution.
 ///
@@ -230,34 +173,17 @@ pub mod cli;
 /// See `discourse::centering` for salience-based pronoun resolution and
 /// `discourse::uncertain_reference` for handling ambiguous references.
 #[cfg(feature = "discourse")]
-#[path = "../discourse/mod.rs"]
 pub mod discourse;
 
 // Re-export error types
 pub use error::{Error, Result};
 
-// Internal-only crate aliases.
-//
-// Many internal modules historically referred to `anno-core` / `anno-coalesce` as if they were
-// separate crates (`use anno_core::...`). In a single-package layout, the simplest way to keep
-// those paths working without touching every file is to alias this crate to those names.
-//
-// Note: this does *not* make `anno_core` / `anno_coalesce` available as separate crates to
-// downstream users; it only affects resolution inside this crate.
-extern crate self as anno_core;
-
 // =============================================================================
-// Single-package layout: internal modules
+// Core types live in `anno-core`
 // =============================================================================
 
-/// Core shared types (formerly a separate crate in this repo).
-pub mod core;
-
-/// Cross-document entity resolution.
-pub mod coalesce;
-
-// Re-export core types at the crate root (the public API surface).
-pub use crate::core::{
+// Re-export core types at the crate root (the `anno` public API surface).
+pub use anno_core::{
     generate_span_candidates, CorefChain, CorefDocument, CoreferenceResolver, Corpus,
     DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, EntityViewport,
     ExtractionMethod, Gender, GraphDocument, GraphEdge, GraphExportFormat, GraphNode,
@@ -266,35 +192,6 @@ pub use crate::core::{
     Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef, Span, SpanCandidate, Track,
     TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
 };
-
-/// Back-compat module path for code that expects `anno_core::coref::*` (internal use).
-pub mod coref {
-    pub use crate::core::coref::*;
-}
-
-/// Back-compat module path for code that expects `anno_core::entity::*` (internal use).
-pub mod entity {
-    pub use crate::core::entity::*;
-}
-
-/// Back-compat module path for code that expects `anno_core::dataset::*` (internal use).
-pub mod dataset {
-    pub use crate::core::dataset::*;
-}
-
-/// Re-export graph module for backward compatibility (`anno::graph::*`).
-pub mod graph {
-    pub use crate::core::graph::*;
-}
-
-/// Re-export grounded module for backward compatibility (anno::grounded::*)
-///
-/// This module re-exports all grounded document types from `anno::core`:
-/// - `GroundedDocument`, `Signal`, `Track`, `Identity`
-/// - Coreference resolution types and utilities
-pub mod grounded {
-    pub use crate::core::grounded::*;
-}
 
 // Re-export commonly used types
 pub use lang::{detect_language, Language};
@@ -1004,8 +901,4 @@ impl Model for MockModel {
     }
 }
 
-// New muxer-backed CI matrix sampler. This lives in-tree (not archived) and is intended
-// to be the stable test target for GitHub Actions.
-#[cfg(test)]
-#[cfg(feature = "eval-advanced")]
-mod matrix_muxer_ci;
+// CI matrix harness moved to `anno-eval`.

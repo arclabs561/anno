@@ -7,7 +7,7 @@
 #   - Entity counts
 #   - Sample predictions for quality inspection
 
-set -e
+set -euo pipefail
 
 ANNO="${ANNO:-./target/release/anno}"
 QUICK="${1:-}"

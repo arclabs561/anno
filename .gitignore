@@ -122,6 +122,9 @@ comprehensive_evaluation_report.md
 stress_test_report.md
 verify_new_features_report.md
 
+# Muxer history cache (ephemeral; don't commit)
+crates/anno-eval/muxer_history*.json
+
 # Temporary review/status documents (should be in docs/ or archived)
 FIXES_APPLIED.md
 REVIEW_BACKWARDS.md

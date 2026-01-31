@@ -1,0 +1,56 @@
+[package]
+name = "anno-eval"
+version = "0.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/arclabs561/anno"
+description = "Evaluation harnesses, datasets, and muxer-backed sampling for anno"
+
+[lib]
+doctest = false
+
+[dependencies]
+anno = { path = "../anno", version = "0.2.0" }
+anno-core = { path = "../anno-core", version = "0.2.0" }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+bitflags = { workspace = true }
+textprep = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+once_cell = { workspace = true }
+rand = { workspace = true }
+regex = { workspace = true }
+dirs = { workspace = true }
+toml = { workspace = true }
+ureq = { workspace = true, features = ["json"] }
+rusqlite = { workspace = true }
+sha2 = { workspace = true }
+glob = { workspace = true }
+clump = { workspace = true }
+unicode-normalization = { workspace = true }
+rayon = { workspace = true, optional = true }
+
+muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "620728225daed39d6d6ff79171a294b47cdf4fd3", default-features = false, features = ["serde", "stochastic", "contextual"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+tempfile = "3"
+
+[features]
+default = []
+parallel = ["dep:rayon"]
+discourse = ["anno/discourse"]
+eval = []
+eval-advanced = []
+eval-profiling = []
+eval-bias = []
+eval-parallel = ["parallel"]
+onnx = ["anno/onnx"]
+candle = ["anno/candle"]
+burn = ["anno/burn"]
+llm = ["anno/llm"]
+rank-eval = []
+

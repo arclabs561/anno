@@ -1,7 +1,6 @@
 //! Tests for Identity tracking and management.
 
-use anno::core::grounded::{Identity, IdentitySource};
-use anno::core::IdentityId;
+use anno::{Identity, IdentityId, IdentitySource};
 
 #[test]
 fn test_identity_creation() {

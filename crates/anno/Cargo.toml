@@ -10,6 +10,7 @@ documentation = "https://docs.rs/anno"
 keywords = ["ner", "nlp", "information-extraction", "coreference", "rust"]
 
 [dependencies]
+anno-core = { path = "../anno-core", version = "0.2.0" }
 textprep = { workspace = true }
 sketchir = { workspace = true }
 clump = { workspace = true }
@@ -24,21 +25,9 @@ bitflags = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
 gramdex = { git = "https://github.com/arclabs561/gramdex", rev = "bfc60c7b6965bec4bb176f58b0c02abc0aa2a5b3", optional = true }
 
-# CLI
-clap = { workspace = true, optional = true }
-clap_complete = { workspace = true, optional = true }
-indicatif = { workspace = true, optional = true }
-xxhash-rust = { version = "0.8.15", features = ["xxh3"], optional = true }
-toml = { workspace = true, optional = true }
-
-# Evaluation
 rand = { workspace = true }
 ureq = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
 dirs = { workspace = true }
-glob = { workspace = true, optional = true }
-rayon = { workspace = true, optional = true }
-muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "620728225daed39d6d6ff79171a294b47cdf4fd3", optional = true, default-features = false, features = ["serde", "stochastic", "contextual"] }
 
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.
@@ -65,7 +54,6 @@ itertools = { workspace = true }
 smallvec = { workspace = true }
 dashmap = { workspace = true }
 unicode-normalization = { workspace = true }
-rusqlite = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, optional = true }
@@ -79,23 +67,11 @@ criterion = { workspace = true }
 [features]
 default = ["onnx"]
 discourse = []
-cli = [
-    "dep:clap",
-    "dep:clap_complete",
-    "dep:indicatif",
-    "dep:xxhash-rust",
-    "dep:ureq",
-    "dep:tracing-subscriber",
-]
+eval = []
+eval-advanced = []
 graph = []
 gramdex = ["dep:gramdex"]
 schema = ["dep:schemars"]
-eval = ["dep:toml", "dep:ureq", "dep:rusqlite", "dep:sha2"]
-eval-bias = ["eval"]
-eval-advanced = ["eval", "dep:glob", "dep:sha2", "dep:muxer"]
-eval-parallel = ["eval", "dep:rayon"]
-eval-profiling = ["eval"]
-eval-full = ["eval-advanced", "eval-bias", "eval-parallel", "eval-profiling"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru"]
 candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:safetensors"]
 metal = ["candle"]
@@ -113,7 +89,7 @@ jiff-time = []
 production = ["async-inference", "session-pool", "fast-lock", "instrument"]
 
 # Convenience umbrella.
-full = ["eval-full", "onnx", "candle", "discourse", "graph"]
+full = ["onnx", "candle", "discourse", "graph"]
 
 # Workspace-local convenience: enable local `gramdex` integration alongside `full`.
 # This is intentionally separate from `full` so external clones aren't forced to have
@@ -121,10 +97,4 @@ full = ["eval-full", "onnx", "candle", "discourse", "graph"]
 full-workspace = ["full", "gramdex"]
 
 # Stub features referenced behind cfg gates.
-rank-eval = ["eval"]
 unicode-normalization = []
-
-[[bin]]
-name = "anno"
-path = "bin/anno.rs"
-required-features = ["cli"]
