@@ -9,7 +9,9 @@
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
 //! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
-//! - `ANNO_MATRIX_PERSPECTIVE`: `ner` | `coref` | `coalesce` | `relation` (default: `ner`)
+//! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
+//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, only use cached datasets (local default: false; CI forced true)
+//! - `ANNO_MATRIX_COVERAGE_REPORT`: if set, write a JSON coverage report to this path
 //! - `ANNO_HISTORY_FILE`: optional JSON path for muxer history
 //! - `ANNO_MAX_EXAMPLES`: max examples per dataset (default: 20 in CI, 50 locally)
 //! - `ANNO_CACHE_DIR`: cache root (datasets live under `$ANNO_CACHE_DIR/datasets`)
@@ -55,13 +57,13 @@
 #![cfg(all(test, feature = "eval-advanced"))]
 
 use crate::eval::backend_factory::BackendFactory;
-use crate::eval::loader::{DatasetId, DatasetLoader};
+use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use crate::eval::task_mapping::{backend_tasks, dataset_tasks, get_task_backends, Task};
 use crate::muxer_harness as mh;
-use muxer::{MabConfig, Outcome, Summary, Window};
+use muxer::{Exp3IxConfig, Exp3IxState, MabConfig, Outcome, Summary, Window};
 use std::collections::VecDeque;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -71,6 +73,27 @@ enum SampleStrategy {
     Random,
     MlOnly,
     WorstFirst,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum MlOnlyPolicy {
+    Exp3Ix,
+    Mab,
+}
+
+impl MlOnlyPolicy {
+    fn from_env() -> Self {
+        match std::env::var("ANNO_MUXER_MLONLY_POLICY")
+            .ok()
+            .unwrap_or_else(|| "exp3ix".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "mab" => Self::Mab,
+            "exp3ix" | "exp3-ix" | "exp3" => Self::Exp3Ix,
+            _ => Self::Exp3Ix,
+        }
+    }
 }
 
 impl SampleStrategy {
@@ -91,7 +114,24 @@ impl SampleStrategy {
 }
 
 fn in_ci() -> bool {
-    std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok()
+    // Treat only GitHub Actions as CI here.
+    //
+    // Many local dev shells set `CI=1`, but for the matrix harness we want local default
+    // behavior to be “try to fetch once, then use cache”.
+    std::env::var("GITHUB_ACTIONS").is_ok()
+}
+
+fn matrix_require_cached() -> bool {
+    // Default:
+    // - CI should be cache-only and offline
+    // - local runs default to “try to fetch”
+    //
+    // Override:
+    // - if user explicitly sets `ANNO_MATRIX_REQUIRE_CACHED`, honor it even in CI
+    if std::env::var("ANNO_MATRIX_REQUIRE_CACHED").is_ok() {
+        return mh::env_bool("ANNO_MATRIX_REQUIRE_CACHED", false);
+    }
+    in_ci()
 }
 
 fn ci_seed() -> u64 {
@@ -118,6 +158,81 @@ fn trunc(s: &str, max_chars: usize) -> String {
     s.chars().take(max_chars).collect()
 }
 
+#[test]
+fn test_exp3ix_can_outperform_mab_when_summaries_equal_but_reward_differs() {
+    // Constructed "capability gap" test:
+    // - summaries are identical, so MAB cannot distinguish arms
+    // - scalar reward differs, so EXP3-IX can learn and win
+    let slice = "capgap";
+    let seed = 0u64;
+
+    let arms = vec!["a".to_string(), "b".to_string()];
+    let cfg = Exp3IxConfig {
+        horizon: 200,
+        confidence_delta: None,
+        seed: 0,
+        decay: 1.0,
+    };
+    let mut st: Option<Exp3IxState> = None;
+
+    // Keep summaries equal forever.
+    let s = Summary {
+        calls: 10,
+        ok: 10,
+        http_429: 0,
+        junk: 0,
+        hard_junk: 0,
+        cost_units: 0,
+        elapsed_ms_sum: 0,
+    };
+
+    // MAB will deterministically pick one arm under identical summaries.
+    let mut summaries = BTreeMap::new();
+    summaries.insert("a".to_string(), s);
+    summaries.insert("b".to_string(), s);
+    let mab_choice = muxer::select_mab_explain(&arms, &summaries, mab_config_from_env())
+        .selection
+        .chosen;
+
+    // Make the MAB-chosen arm worse so EXP3-IX has an opportunity to beat it.
+    let r_a = if mab_choice == "a" { 0.6 } else { 0.9 };
+    let r_b = if mab_choice == "b" { 0.6 } else { 0.9 };
+
+    let mut total_mab = 0.0;
+    let mut total_exp3 = 0.0;
+
+    for t in 0..200u64 {
+        let (d, st2) = muxer::exp3ix_decide_persisted(
+            cfg,
+            st.take(),
+            &arms,
+            &arms,
+            seed ^ (t + 1) ^ mh::stable_hash64(0, slice),
+        )
+        .unwrap();
+        let chosen = d.chosen.clone();
+        let r = if chosen == "a" { r_a } else { r_b };
+        total_exp3 += r;
+        let p = d
+            .probs
+            .as_ref()
+            .and_then(|m| m.get(&chosen).copied())
+            .unwrap_or(0.0);
+        st = Some(muxer::exp3ix_update_persisted(cfg, st2, &chosen, r, p));
+
+        let r_mab = if mab_choice == "a" { r_a } else { r_b };
+        total_mab += r_mab;
+    }
+
+    assert!(
+        total_exp3 > total_mab + 5.0,
+        "exp3ix should beat mab in graded-reward/identical-summary scenario (exp3={} mab={} mab_choice={})",
+        total_exp3,
+        total_mab,
+        mab_choice
+    );
+}
+
 #[derive(Debug, Clone, Copy)]
 struct WorstFirstConfig {
     exploration_c: f64,
@@ -133,21 +248,33 @@ fn worst_first_config_from_env() -> WorstFirstConfig {
     }
 }
 
+fn exp3ix_config_from_env(seed: u64) -> Exp3IxConfig {
+    Exp3IxConfig {
+        horizon: mh::env_usize("ANNO_MUXER_EXP3_HORIZON", 1000).max(1),
+        confidence_delta: None,
+        seed,
+        decay: mh::env_f64("ANNO_MUXER_EXP3_DECAY", 1.0).clamp(0.01, 1.0),
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
-struct DecisionCandidate {
-    arm: String,
-    calls: u64,
-    ok_rate: f64,
-    junk_rate: f64,
-    hard_junk_rate: f64,
-    score: f64,
+struct WorstFirstRoundLog {
+    remaining: Vec<String>,
+    chosen: String,
+    explore_first: bool,
+    exploration_c: f64,
+    hard_weight: f64,
+    soft_weight: f64,
+    top_candidates: muxer::LogTopCandidates,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 struct DecisionLog {
+    schema_version: u32,
+    muxer_version: String,
     run_id: String,
     strategy: String,
-    perspective: String,
+    slice: String,
     muxer_profile: Option<String>,
     latency_guardrail_max_mean_ms: Option<u64>,
     latency_guardrail_allow_fewer: Option<bool>,
@@ -155,11 +282,17 @@ struct DecisionLog {
     round: usize,
     datasets: Vec<String>,
     remaining: Vec<String>,
-    chosen: String,
-    explore_first: bool,
+    chosen: Option<String>,
+    explore_first: Option<bool>,
     constraints_fallback_used: Option<bool>,
     eligible_arms: Option<Vec<String>>,
-    top_candidates: Vec<DecisionCandidate>,
+    top_candidates: Option<muxer::LogTopCandidates>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mab_k_round: Option<muxer::MabKRoundLog>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    exp3ix_round: Option<muxer::Exp3IxRoundLog>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    worst_first_round: Option<WorstFirstRoundLog>,
 }
 
 fn append_jsonl(path: &str, v: &DecisionLog) {
@@ -189,71 +322,100 @@ fn append_jsonl(path: &str, v: &DecisionLog) {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum MatrixPerspective {
-    Ner,
-    Coref,
-    Coalesce,
-    Relation,
+#[test]
+fn test_decision_log_schema_smoke() {
+    let log = DecisionLog {
+        schema_version: 4,
+        muxer_version: muxer::MUXER_VERSION.to_string(),
+        run_id: "seed=0 slice=ner strategy=MlOnly".to_string(),
+        strategy: "ml-only".to_string(),
+        slice: "ner".to_string(),
+        muxer_profile: None,
+        latency_guardrail_max_mean_ms: None,
+        latency_guardrail_allow_fewer: None,
+        latency_guardrail_require_measured: None,
+        round: 1,
+        datasets: vec!["WNUT-17".to_string()],
+        remaining: vec!["crf".to_string(), "stacked".to_string()],
+        chosen: Some("crf".to_string()),
+        explore_first: Some(false),
+        constraints_fallback_used: None,
+        eligible_arms: None,
+        top_candidates: Some(muxer::LogTopCandidates {
+            kind: muxer::LOG_SCORE_KIND_MAB_SCALAR.to_string(),
+            rows: Vec::new(),
+        }),
+        mab_k_round: None,
+        exp3ix_round: None,
+        worst_first_round: None,
+    };
+
+    let s = serde_json::to_string(&log).expect("serialize DecisionLog");
+    let v: serde_json::Value = serde_json::from_str(&s).expect("parse DecisionLog JSON");
+
+    assert_eq!(v["schema_version"].as_u64(), Some(4));
+    assert_eq!(v["muxer_version"].as_str(), Some(muxer::MUXER_VERSION));
+    assert_eq!(
+        v["top_candidates"]["kind"].as_str(),
+        Some(muxer::LOG_SCORE_KIND_MAB_SCALAR)
+    );
+    assert!(v["top_candidates"]["rows"].is_array());
 }
 
-impl MatrixPerspective {
-    fn from_env() -> Self {
-        match std::env::var("ANNO_MATRIX_PERSPECTIVE")
-            .ok()
-            .unwrap_or_else(|| "ner".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "coref" | "intra-coref" | "intracoref" => Self::Coref,
-            "coalesce" | "inter-coref" | "intercoref" | "cdcr" => Self::Coalesce,
-            "relation" | "rel" => Self::Relation,
-            _ => Self::Ner,
-        }
+fn matrix_task_override() -> Option<Task> {
+    let raw = std::env::var("ANNO_MATRIX_TASK").ok()?;
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
     }
-
-    fn tasks(&self) -> Vec<Task> {
-        match self {
-            Self::Ner => vec![Task::NER],
-            Self::Coref => vec![Task::IntraDocCoref],
-            Self::Coalesce => vec![Task::InterDocCoref],
-            Self::Relation => vec![Task::RelationExtraction],
-        }
+    let task = Task::from_code(t)?;
+    if !TaskEvaluator::is_task_supported(task) {
+        panic!(
+            "matrix-muxer: task override {} is not supported by TaskEvaluator (catalog-only)",
+            task.code()
+        );
     }
-
-    fn preferred_datasets(&self) -> &'static [DatasetId] {
-        match self {
-            Self::Ner => &[
-                DatasetId::WikiGold,
-                DatasetId::Wnut17,
-                DatasetId::MitRestaurant,
-                DatasetId::MitMovie,
-                DatasetId::CoNLL2003Sample,
-            ],
-            // Prefer smaller/common coref datasets that are likely to be cached.
-            Self::Coref => &[
-                DatasetId::GAP,
-                DatasetId::PreCo,
-                DatasetId::OntoNotesCoref,
-                DatasetId::LitBank,
-            ],
-            // Cross-doc / CDCR style.
-            Self::Coalesce => &[DatasetId::ECBPlus, DatasetId::WikiCoref],
-            Self::Relation => &[DatasetId::DocRED],
-        }
-    }
-
-    fn tag(&self) -> &'static str {
-        match self {
-            Self::Ner => "ner",
-            Self::Coref => "coref",
-            Self::Coalesce => "coalesce",
-            Self::Relation => "relation",
-        }
-    }
+    Some(task)
 }
 
-fn history_path(perspective: MatrixPerspective) -> PathBuf {
+fn eligible_tasks_for_run(loader: &DatasetLoader, require_cached: bool) -> Vec<Task> {
+    let mut out: Vec<Task> = Vec::new();
+    for &task in Task::all() {
+        if !TaskEvaluator::is_task_supported(task) {
+            continue;
+        }
+        // Must have at least one matrix-eligible backend under current env gating.
+        if backend_candidates(SampleStrategy::Random, &[task]).is_empty() {
+            continue;
+        }
+
+        // Must have at least one dataset candidate (loadable, and cached if required).
+        if !candidate_datasets_for_tasks(loader, &[task], require_cached).is_empty() {
+            out.push(task);
+        }
+    }
+
+    out.sort_by_key(|t| t.code());
+    out.dedup();
+    out
+}
+
+fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool) -> Option<Task> {
+    if let Some(t) = matrix_task_override() {
+        return Some(t);
+    }
+    let tasks = eligible_tasks_for_run(loader, require_cached);
+    if tasks.is_empty() {
+        return None;
+    }
+    let items: Vec<String> = tasks.iter().map(|t| t.code().to_string()).collect();
+    let chosen = mh::pick_random_subset(seed ^ 0xC0DE_CAFE, &items, 1)
+        .into_iter()
+        .next()?;
+    tasks.into_iter().find(|t| t.code() == chosen)
+}
+
+fn history_path(slice_tag: &str) -> PathBuf {
     if let Ok(p) = std::env::var("ANNO_HISTORY_FILE") {
         return PathBuf::from(p);
     }
@@ -281,8 +443,8 @@ fn history_path(perspective: MatrixPerspective) -> PathBuf {
     }
     let salt = salt_slug();
     let suffix = match salt.as_deref() {
-        None => format!("muxer_history.{}.json", perspective.tag()),
-        Some(s) => format!("muxer_history.{}.salt={}.json", perspective.tag(), s),
+        None => format!("muxer_history.{slice_tag}.json"),
+        Some(s) => format!("muxer_history.{slice_tag}.salt={s}.json"),
     };
 
     // Prefer ANNO_CACHE_DIR so it matches CI caching.
@@ -302,12 +464,23 @@ fn history_path(perspective: MatrixPerspective) -> PathBuf {
     PathBuf::from(".").join(suffix)
 }
 
+fn slice_for_run(
+    seed: u64,
+    loader: &DatasetLoader,
+    require_cached: bool,
+) -> Option<(String, Vec<Task>)> {
+    let task = selected_task_for_run(seed, loader, require_cached)?;
+    Some((task.code().to_string(), vec![task]))
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct BackendHistory {
     #[serde(default)]
     version: u32,
     window_cap: usize,
     windows: BTreeMap<String, Window>,
+    #[serde(default)]
+    exp3ix_state: Option<Exp3IxState>,
 }
 
 impl BackendHistory {
@@ -327,6 +500,8 @@ impl BackendHistory {
             window_cap: usize,
             #[serde(default)]
             windows: BTreeMap<String, WindowSerde>,
+            #[serde(default)]
+            exp3ix_state: Option<Exp3IxState>,
         }
 
         let bytes = fs::read(path).ok();
@@ -369,6 +544,7 @@ impl BackendHistory {
                     version: 3,
                     window_cap: cap,
                     windows,
+                    exp3ix_state: h.exp3ix_state,
                 };
             }
         }
@@ -377,6 +553,7 @@ impl BackendHistory {
             version: 3,
             window_cap: window_cap.max(1),
             windows: BTreeMap::new(),
+            exp3ix_state: None,
         }
     }
 
@@ -476,6 +653,7 @@ fn mab_config_from_env() -> MabConfig {
 fn select_backends(
     strategy: SampleStrategy,
     seed: u64,
+    slice_tag: &str,
     history: &BackendHistory,
     candidates_in_order: &[String],
     datasets: Option<&[DatasetId]>,
@@ -495,78 +673,45 @@ fn select_backends(
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
-            let run_id = format!(
-                "seed={} perspective={:?} strategy={:?}",
-                seed,
-                MatrixPerspective::from_env(),
-                strategy
+            let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
+
+            let guard = mh::latency_guardrail_from_env();
+            let mk = muxer::select_mab_k_guardrailed_explain_full(
+                candidates_in_order,
+                |remaining| history.summaries_for(remaining, datasets, per_dataset),
+                cfg,
+                muxer::LatencyGuardrailConfig {
+                    max_mean_ms: guard.max_mean_ms,
+                    require_measured: guard.require_measured,
+                    allow_fewer: guard.allow_fewer,
+                },
+                k,
             );
 
-            let mut remaining: Vec<String> = candidates_in_order.to_vec();
-            let mut chosen: Vec<String> = Vec::new();
-            for round in 0..k.min(remaining.len()) {
-                let summaries = history.summaries_for(&remaining, datasets, per_dataset);
-
-                // Optional latency guardrail: filter out arms whose mean latency (ms) is too high.
-                // This is about “proper experience”: keep the default run fast and predictable.
-                // If the filter eliminates all arms, either fall back or stop early (select <K),
-                // depending on env.
-                let guard = mh::latency_guardrail_from_env();
-                let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
-                    let mut eligible: Vec<String> = remaining
-                        .iter()
-                        .filter(|a| {
-                            let s = summaries.get(*a).copied().unwrap_or_default();
-                            if guard.require_measured && s.calls == 0 {
-                                return false;
-                            }
-                            s.mean_elapsed_ms() <= ms
-                        })
-                        .cloned()
-                        .collect();
-                    if eligible.is_empty() {
-                        if guard.allow_fewer && !chosen.is_empty() {
-                            if verbose {
-                                eprintln!(
-                                    "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
-                                    ms,
-                                    chosen.len()
-                                );
-                            }
-                            Vec::new()
-                        } else {
-                            if verbose {
-                                eprintln!(
-                                    "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
-                                    ms
-                                );
-                            }
-                            remaining.clone()
-                        }
-                    } else {
-                        eligible.sort();
-                        eligible
-                    }
-                } else {
-                    remaining.clone()
-                };
-
-                if pick_from.is_empty() {
-                    break;
-                }
-
-                // Use muxer’s “explain” API so we can surface constraints/explore-first decisions
-                // when debugging the harness.
-                let d = muxer::select_mab_explain(&pick_from, &summaries, cfg);
+            for (round, r) in mk.rounds.iter().enumerate() {
+                let d = &r.mab;
                 if verbose {
                     eprintln!(
                         "matrix-muxer: mab round={} remaining={} chosen={} explore_first={} constraints_fallback={}",
                         round + 1,
-                        pick_from.len(),
+                        r.guardrail.eligible.len(),
                         d.selection.chosen,
                         d.explore_first,
                         d.constraints_fallback_used
                     );
+                    if guard.max_mean_ms.is_some() && r.guardrail.stop_early {
+                        eprintln!(
+                            "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                            guard.max_mean_ms.unwrap_or(0.0),
+                            round
+                        );
+                    }
+                    if guard.max_mean_ms.is_some() && r.guardrail.fallback_used {
+                        eprintln!(
+                            "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
+                            guard.max_mean_ms.unwrap_or(0.0)
+                        );
+                    }
                     if d.constraints_fallback_used {
                         eprintln!(
                             "matrix-muxer: mab constraints filtered all arms; fell back to full set (eligible={})",
@@ -576,6 +721,7 @@ fn select_backends(
                     if d.explore_first {
                         eprintln!("matrix-muxer: mab explore-first chose an untried arm");
                     }
+                    // Keep selection debugging bounded: show only a few candidate rows by scalar score.
                     // Keep selection debugging bounded: show only a few candidate rows by scalar score.
                     let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
                     for c in &d.selection.candidates {
@@ -602,64 +748,64 @@ fn select_backends(
                         );
                     }
                 }
-                let pick = d.selection.chosen.clone();
-
-                if let Some(ref p) = decisions_path {
-                    let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
-                    for c in &d.selection.candidates {
-                        let score = c.objective_success
-                            - cfg.cost_weight * c.mean_cost_units
-                            - cfg.latency_weight * c.mean_elapsed_ms
-                            - cfg.hard_junk_weight * c.hard_junk_rate
-                            - cfg.junk_weight * c.soft_junk_rate;
-                        rows.push((score, c));
+            }
+            if verbose {
+                if let Some(ref s) = mk.stop {
+                    if guard.max_mean_ms.is_some() && s.guardrail.stop_early {
+                        eprintln!(
+                            "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                            guard.max_mean_ms.unwrap_or(0.0),
+                            mk.chosen.len()
+                        );
                     }
-                    rows.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name)));
-                    let top_candidates: Vec<DecisionCandidate> = rows
-                        .into_iter()
-                        .take(decisions_top)
-                        .map(|(score, c)| DecisionCandidate {
-                            arm: c.name.clone(),
-                            calls: c.calls,
-                            ok_rate: c.ok_rate,
-                            junk_rate: c.junk_rate,
-                            hard_junk_rate: c.hard_junk_rate,
-                            score,
-                        })
-                        .collect();
-                    let ds: Vec<String> = datasets
-                        .unwrap_or(&[])
-                        .iter()
-                        .map(|d| format!("{d:?}"))
-                        .collect();
-                    let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+                    if guard.max_mean_ms.is_some() && s.guardrail.fallback_used {
+                        eprintln!(
+                            "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
+                            guard.max_mean_ms.unwrap_or(0.0)
+                        );
+                    }
+                }
+            }
+
+            if let Some(ref p) = decisions_path {
+                let round_logs = muxer::log_mab_k_rounds_typed(&mk, decisions_top);
+                let ds: Vec<String> = datasets
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|d| format!("{d:?}"))
+                    .collect();
+                let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+                for rl in round_logs {
                     append_jsonl(
                         p,
                         &DecisionLog {
+                            schema_version: 4,
+                            muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "ml-only".to_string(),
-                            perspective: format!("{:?}", MatrixPerspective::from_env()),
-                            muxer_profile: profile,
+                            slice: slice_tag.to_string(),
+                            muxer_profile: profile.clone(),
                             latency_guardrail_max_mean_ms: guard
                                 .max_mean_ms
                                 .map(|x| x.round() as u64),
                             latency_guardrail_allow_fewer: Some(guard.allow_fewer),
                             latency_guardrail_require_measured: Some(guard.require_measured),
-                            round: round + 1,
-                            datasets: ds,
-                            remaining: remaining.clone(),
-                            chosen: pick.clone(),
-                            explore_first: d.explore_first,
-                            constraints_fallback_used: Some(d.constraints_fallback_used),
-                            eligible_arms: Some(d.eligible_arms.clone()),
-                            top_candidates,
+                            round: rl.round,
+                            datasets: ds.clone(),
+                            remaining: rl.remaining.clone(),
+                            chosen: rl.chosen.clone(),
+                            explore_first: rl.explore_first,
+                            constraints_fallback_used: rl.constraints_fallback_used,
+                            eligible_arms: rl.constraints_eligible_arms.clone(),
+                            top_candidates: rl.top_candidates.clone(),
+                            mab_k_round: Some(rl),
+                            exp3ix_round: None,
+                            worst_first_round: None,
                         },
                     );
                 }
-                remaining.retain(|b| b != &pick);
-                chosen.push(pick);
             }
-            chosen
+            mk.chosen
         }
         SampleStrategy::WorstFirst => {
             // Worst-first selection is intentionally *not* muxer::select_mab:
@@ -671,12 +817,7 @@ fn select_backends(
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
-            let run_id = format!(
-                "seed={} perspective={:?} strategy={:?}",
-                seed,
-                MatrixPerspective::from_env(),
-                strategy
-            );
+            let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
             let mut remaining: Vec<String> = candidates_in_order.to_vec();
             let mut chosen: Vec<String> = Vec::new();
 
@@ -711,9 +852,11 @@ fn select_backends(
                         append_jsonl(
                             p,
                             &DecisionLog {
+                                schema_version: 4,
+                                muxer_version: muxer::MUXER_VERSION.to_string(),
                                 run_id: run_id.clone(),
                                 strategy: "worst-first".to_string(),
-                                perspective: format!("{:?}", MatrixPerspective::from_env()),
+                                slice: slice_tag.to_string(),
                                 muxer_profile: profile,
                                 latency_guardrail_max_mean_ms: None,
                                 latency_guardrail_allow_fewer: None,
@@ -721,11 +864,28 @@ fn select_backends(
                                 round: round + 1,
                                 datasets: ds,
                                 remaining: remaining.clone(),
-                                chosen: pick.clone(),
-                                explore_first: true,
+                                chosen: Some(pick.clone()),
+                                explore_first: Some(true),
                                 constraints_fallback_used: None,
                                 eligible_arms: None,
-                                top_candidates: Vec::new(),
+                                top_candidates: Some(muxer::LogTopCandidates {
+                                    kind: "worst_first".to_string(),
+                                    rows: Vec::new(),
+                                }),
+                                mab_k_round: None,
+                                exp3ix_round: None,
+                                worst_first_round: Some(WorstFirstRoundLog {
+                                    remaining: remaining.clone(),
+                                    chosen: pick.clone(),
+                                    explore_first: true,
+                                    exploration_c: wcfg.exploration_c,
+                                    hard_weight: wcfg.hard_weight,
+                                    soft_weight: wcfg.soft_weight,
+                                    top_candidates: muxer::LogTopCandidates {
+                                        kind: "worst_first".to_string(),
+                                        rows: Vec::new(),
+                                    },
+                                }),
                             },
                         );
                     }
@@ -782,18 +942,21 @@ fn select_backends(
                     }
                 }
                 if let Some(ref p) = decisions_path {
-                    let top_candidates: Vec<DecisionCandidate> = rows
-                        .iter()
-                        .take(decisions_top)
-                        .map(|(score, arm, s)| DecisionCandidate {
-                            arm: arm.clone(),
-                            calls: s.calls,
-                            ok_rate: s.ok_rate(),
-                            junk_rate: s.junk_rate(),
-                            hard_junk_rate: s.hard_junk_rate(),
-                            score: *score,
-                        })
-                        .collect();
+                    let top_candidates: muxer::LogTopCandidates = muxer::LogTopCandidates {
+                        kind: "worst_first".to_string(),
+                        rows: rows
+                            .iter()
+                            .take(decisions_top.max(1))
+                            .map(|(score, arm, s)| muxer::LogTopCandidate {
+                                arm: arm.clone(),
+                                score: *score,
+                                calls: Some(s.calls),
+                                ok_rate: Some(s.ok_rate()),
+                                junk_rate: Some(s.junk_rate()),
+                                hard_junk_rate: Some(s.hard_junk_rate()),
+                            })
+                            .collect(),
+                    };
                     let ds: Vec<String> = datasets
                         .unwrap_or(&[])
                         .iter()
@@ -803,9 +966,11 @@ fn select_backends(
                     append_jsonl(
                         p,
                         &DecisionLog {
+                            schema_version: 4,
+                            muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "worst-first".to_string(),
-                            perspective: format!("{:?}", MatrixPerspective::from_env()),
+                            slice: slice_tag.to_string(),
                             muxer_profile: profile,
                             latency_guardrail_max_mean_ms: None,
                             latency_guardrail_allow_fewer: None,
@@ -813,11 +978,36 @@ fn select_backends(
                             round: round + 1,
                             datasets: ds,
                             remaining: remaining.clone(),
-                            chosen: pick.clone(),
-                            explore_first: false,
+                            chosen: Some(pick.clone()),
+                            explore_first: Some(false),
                             constraints_fallback_used: None,
                             eligible_arms: None,
-                            top_candidates,
+                            top_candidates: Some(top_candidates),
+                            mab_k_round: None,
+                            exp3ix_round: None,
+                            worst_first_round: Some(WorstFirstRoundLog {
+                                remaining: remaining.clone(),
+                                chosen: pick.clone(),
+                                explore_first: false,
+                                exploration_c: wcfg.exploration_c,
+                                hard_weight: wcfg.hard_weight,
+                                soft_weight: wcfg.soft_weight,
+                                top_candidates: muxer::LogTopCandidates {
+                                    kind: "worst_first".to_string(),
+                                    rows: rows
+                                        .iter()
+                                        .take(decisions_top.max(1))
+                                        .map(|(score, arm, s)| muxer::LogTopCandidate {
+                                            arm: arm.clone(),
+                                            score: *score,
+                                            calls: Some(s.calls),
+                                            ok_rate: Some(s.ok_rate()),
+                                            junk_rate: Some(s.junk_rate()),
+                                            hard_junk_rate: Some(s.hard_junk_rate()),
+                                        })
+                                        .collect(),
+                                },
+                            }),
                         },
                     );
                 }
@@ -830,12 +1020,19 @@ fn select_backends(
     }
 }
 
-fn backend_candidates(strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> {
+fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> {
     // Start from what is actually feature-enabled in this build.
-    let available: BTreeSet<String> = BackendFactory::available_backends()
+    let mut available: BTreeSet<String> = BackendFactory::available_backends()
         .into_iter()
         .map(|s| s.to_string())
         .collect();
+    if tasks.iter().any(|t| t.is_coref_family()) {
+        available.extend(
+            crate::eval::backend_factory::BackendFactory::available_coref_resolvers()
+                .into_iter()
+                .map(|s| s.to_string()),
+        );
+    }
 
     // Keep the matrix aligned with what the evaluator will actually run:
     // TaskEvaluator filters explicit backends through `get_task_backends(task)`.
@@ -850,6 +1047,21 @@ fn backend_candidates(strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> {
     let allow_ml = std::env::var("ANNO_ML_IN_MATRIX")
         .ok()
         .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+
+    // Some supported tasks have only ML-ish implementations in this repo. Allow them without requiring
+    // global `ANNO_ML_IN_MATRIX=1`, otherwise they never get tested.
+    let allow_task_baseline_ml = tasks.iter().any(|t| {
+        matches!(
+            t,
+            Task::DiscontinuousNER
+                | Task::EventExtraction
+                | Task::TextClassification
+                | Task::SpeechActClassification
+                | Task::Temporal
+                | Task::DiscourseRelations
+                | Task::DiscourseSegmentation
+        )
+    });
 
     let mut out: Vec<String> = Vec::new();
     // Some ML backends require gated HuggingFace models. If no token is present, they will always
@@ -894,48 +1106,400 @@ fn backend_candidates(strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> {
         }
 
         // Everything else is treated as optional/ML-ish.
-        if allow_ml && available.contains(b) {
+        if (allow_ml || allow_task_baseline_ml) && available.contains(b) {
             out.push(b.to_string());
         }
     }
 
-    match strategy {
-        SampleStrategy::Random => {
-            // Include the full available set, but keep a stable order.
-            let mut all: Vec<String> = available.into_iter().collect();
-            all.sort();
-            // Also include coref resolvers when coref tasks are requested.
-            if tasks.iter().any(|t| t.is_coref_family()) {
-                for b in ["coref_resolver", "mention_ranking", "box"] {
-                    if !all.iter().any(|x| x == b) {
-                        all.push(b.to_string());
-                    }
-                }
-                all.sort();
-                all.dedup();
-            }
-            all
+    // Regardless of strategy, only return backends that are allowed for the requested tasks.
+    //
+    // Sampling policy (random vs ml-only vs worst-first) controls *how we pick*, not which
+    // backends are even eligible for the task slice.
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn candidate_datasets_for_tasks(
+    loader: &DatasetLoader,
+    tasks: &[Task],
+    require_cached: bool,
+) -> Vec<DatasetId> {
+    let mut out: Vec<DatasetId> = Vec::new();
+    let temporal_requested = tasks.iter().any(|t| *t == Task::Temporal);
+    for &ds in DatasetId::all() {
+        let ts = dataset_tasks(ds);
+        if !tasks.iter().any(|t| ts.contains(t)) {
+            continue;
         }
-        SampleStrategy::MlOnly | SampleStrategy::WorstFirst => {
-            out.sort();
-            out.dedup();
-            out
+        // Current contract: `temporal` runs through the NER-style evaluator (BIO tagging).
+        // Avoid scheduling “temporal-but-not-NER” datasets (e.g., temporal RE) until a dedicated
+        // temporal evaluator exists.
+        if temporal_requested && ts.contains(&Task::Temporal) && !ts.contains(&Task::NER) {
+            continue;
         }
+        let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
+            continue;
+        };
+        if require_cached && !loader.is_cached(loadable) {
+            continue;
+        }
+        out.push(ds);
+    }
+    out.sort_by_key(|d| format!("{d:?}"));
+    out.dedup();
+    out
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DistributionReport {
+    require_cached: bool,
+    iterations: usize,
+    chosen_task_counts: BTreeMap<String, u64>,
+    chosen_dataset_counts: BTreeMap<String, u64>,
+    chosen_backend_counts: BTreeMap<String, u64>,
+    per_task_dataset_counts: BTreeMap<String, BTreeMap<String, u64>>,
+    per_task_backend_counts: BTreeMap<String, BTreeMap<String, u64>>,
+}
+
+#[test]
+fn test_matrix_distribution_report() {
+    let Ok(path) = std::env::var("ANNO_MATRIX_DISTRIBUTION_REPORT") else {
+        return;
+    };
+    let path = path.trim();
+    if path.is_empty() {
+        return;
+    }
+
+    crate::env::load_dotenv();
+    let loader = DatasetLoader::new().expect("DatasetLoader::new");
+    let require_cached = matrix_require_cached();
+
+    let iters = mh::env_usize("ANNO_MATRIX_DISTRIBUTION_ITERS", 200).max(1);
+    let datasets_per_run = mh::env_usize("ANNO_MUXER_DATASETS_PER_RUN", 2).max(1);
+    let backends_per_run = mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", 2).max(1);
+
+    // Precompute eligibility once; this test is about distribution, not download/IO.
+    let eligible_tasks = eligible_tasks_for_run(&loader, require_cached);
+    if eligible_tasks.is_empty() {
+        panic!(
+            "matrix-dist: no eligible tasks (require_cached={} cache_dir={:?})",
+            require_cached,
+            loader.cache_dir()
+        );
+    }
+
+    let mut task_to_datasets: BTreeMap<String, Vec<DatasetId>> = BTreeMap::new();
+    let mut task_to_backends: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for &t in &eligible_tasks {
+        let tag = t.code().to_string();
+        task_to_datasets.insert(
+            tag.clone(),
+            candidate_datasets_for_tasks(&loader, &[t], require_cached),
+        );
+        task_to_backends.insert(
+            tag.clone(),
+            backend_candidates(SampleStrategy::Random, &[t]),
+        );
+    }
+
+    let mut task_counts: BTreeMap<String, u64> = BTreeMap::new();
+    let mut ds_counts: BTreeMap<String, u64> = BTreeMap::new();
+    let mut be_counts: BTreeMap<String, u64> = BTreeMap::new();
+    let mut per_task_ds: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
+    let mut per_task_be: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
+
+    for i in 0..iters {
+        let seed = (ci_seed() ^ 0xD157_0000).wrapping_add(i as u64);
+        let task_idx =
+            (mh::stable_hash64(seed ^ 0x51EE_AAAA, "task") as usize) % eligible_tasks.len();
+        let task = eligible_tasks[task_idx];
+        let slice_tag = task.code().to_string();
+        let datasets = task_to_datasets
+            .get(&slice_tag)
+            .cloned()
+            .unwrap_or_default();
+        let backends_all = task_to_backends
+            .get(&slice_tag)
+            .cloned()
+            .unwrap_or_default();
+
+        if datasets.is_empty() || backends_all.is_empty() {
+            continue;
+        };
+        *task_counts.entry(slice_tag.clone()).or_insert(0) += 1;
+
+        // Pick datasets uniformly within-task.
+        let mut chosen_datasets: Vec<DatasetId> = Vec::new();
+        for j in 0..datasets_per_run {
+            let idx = (mh::stable_hash64(seed ^ 0xDADA_BEEF ^ (j as u64), "dataset") as usize)
+                % datasets.len();
+            chosen_datasets.push(datasets[idx]);
+        }
+        chosen_datasets.sort_by_key(|d| format!("{d:?}"));
+        chosen_datasets.dedup();
+        for ds in &chosen_datasets {
+            let ds_s = format!("{ds:?}");
+            *ds_counts.entry(ds_s.clone()).or_insert(0) += 1;
+            *per_task_ds
+                .entry(slice_tag.clone())
+                .or_default()
+                .entry(ds_s)
+                .or_insert(0) += 1;
+        }
+
+        // Backends: filter to those compatible with the chosen datasets, then sample.
+        let mut candidates = backends_all;
+        candidates.retain(|b| {
+            chosen_datasets
+                .iter()
+                .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
+        });
+        if candidates.is_empty() {
+            continue;
+        }
+        let picked = mh::pick_random_subset(seed ^ 0xBADC_0FFE, &candidates, backends_per_run);
+        for b in &picked {
+            *be_counts.entry(b.clone()).or_insert(0) += 1;
+            *per_task_be
+                .entry(slice_tag.clone())
+                .or_default()
+                .entry(b.clone())
+                .or_insert(0) += 1;
+        }
+    }
+
+    let report = DistributionReport {
+        require_cached,
+        iterations: iters,
+        chosen_task_counts: task_counts,
+        chosen_dataset_counts: ds_counts,
+        chosen_backend_counts: be_counts,
+        per_task_dataset_counts: per_task_ds,
+        per_task_backend_counts: per_task_be,
+    };
+
+    let content =
+        serde_json::to_string_pretty(&report).expect("distribution report JSON should serialize");
+    if let Err(e) = std::fs::write(path, content) {
+        panic!("failed to write ANNO_MATRIX_DISTRIBUTION_REPORT to {path}: {e}");
     }
 }
 
-fn cached_dataset_candidates(loader: &DatasetLoader) -> Vec<DatasetId> {
-    // Prefer cached datasets only; TaskEvaluator can filter further by task support.
-    let mut out = Vec::new();
-    for &ds in DatasetId::all() {
-        let Ok(loadable) = crate::eval::LoadableDatasetId::try_from(ds) else {
-            continue;
-        };
-        if loader.is_cached(loadable) {
-            out.push(ds);
-        }
+fn coref_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
+    if !ds.is_coreference() {
+        return true;
     }
-    out
+    if require_cached {
+        loader
+            .load_coref(ds)
+            .map(|docs| !docs.is_empty())
+            .unwrap_or(false)
+    } else {
+        loader
+            .load_or_download_coref(ds)
+            .map(|docs| !docs.is_empty())
+            .unwrap_or(false)
+    }
+}
+
+fn choose_datasets_for_run(
+    seed: u64,
+    loader: &DatasetLoader,
+    tasks: &[Task],
+    require_cached: bool,
+    datasets_per_run: usize,
+) -> Vec<DatasetId> {
+    let candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
+    if candidates.is_empty() || datasets_per_run == 0 {
+        return Vec::new();
+    }
+
+    let ds_strings: Vec<String> = candidates.iter().map(|d| format!("{d:?}")).collect();
+    let chosen_ds_strings =
+        mh::pick_random_subset(seed ^ 0xDADA_BEEF, &ds_strings, datasets_per_run);
+    let mut chosen: Vec<DatasetId> = candidates
+        .iter()
+        .copied()
+        .filter(|d| chosen_ds_strings.contains(&format!("{d:?}")))
+        .collect();
+
+    chosen.sort_by_key(|d| format!("{d:?}"));
+    chosen.dedup();
+    chosen.truncate(datasets_per_run);
+
+    // 3) For coref-family tasks, ensure we don't pick datasets that load to empty docs.
+    let coref_tasks_requested = tasks.iter().any(|t| t.is_coref_family());
+    if coref_tasks_requested {
+        chosen.retain(|d| coref_dataset_is_usable(loader, *d, require_cached));
+    }
+
+    chosen
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct CoverageRow {
+    task: String,
+    candidate_datasets: usize,
+    cached_candidate_datasets: usize,
+    available_backends: Vec<String>,
+    runnable_pairs: usize,
+    notes: Vec<String>,
+}
+
+#[test]
+fn test_matrix_coverage_report() {
+    let Ok(path) = std::env::var("ANNO_MATRIX_COVERAGE_REPORT") else {
+        return;
+    };
+    let path = path.trim();
+    if path.is_empty() {
+        return;
+    }
+
+    crate::env::load_dotenv();
+    let loader = DatasetLoader::new().expect("DatasetLoader::new");
+    let require_cached = matrix_require_cached();
+
+    let available_models: BTreeSet<String> = BackendFactory::available_backends()
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect();
+    let available_coref: BTreeSet<String> =
+        crate::eval::backend_factory::BackendFactory::available_coref_resolvers()
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+
+    let mut rows: Vec<CoverageRow> = Vec::new();
+    for &task in Task::all() {
+        if !TaskEvaluator::is_task_supported(task) {
+            // Keep catalogued tasks visible, but mark as non-runnable until an evaluator exists.
+            rows.push(CoverageRow {
+                task: task.code().to_string(),
+                candidate_datasets: candidate_datasets_for_tasks(&loader, &[task], false).len(),
+                cached_candidate_datasets: candidate_datasets_for_tasks(&loader, &[task], true)
+                    .len(),
+                available_backends: Vec::new(),
+                runnable_pairs: 0,
+                notes: vec!["task is catalogued but not supported by TaskEvaluator".to_string()],
+            });
+            continue;
+        }
+        let is_coref = task.is_coref_family();
+        let available: &BTreeSet<String> = if is_coref {
+            // For coref-family tasks, include coreference resolvers which are not `Model`s.
+            // (They are evaluated as “arms” by TaskEvaluator.)
+            //
+            // Note: We intentionally do *not* include model backends here unless they
+            // explicitly advertise coref-family support in `get_task_backends(task)`.
+            &available_coref
+        } else {
+            &available_models
+        };
+        let candidates = candidate_datasets_for_tasks(&loader, &[task], false);
+        let cached_candidates = candidate_datasets_for_tasks(&loader, &[task], true);
+
+        // Backends that are feature-enabled for this task (ignoring matrix gating like `ANNO_ML_IN_MATRIX`).
+        let mut feature_backends: Vec<String> = get_task_backends(task)
+            .iter()
+            .map(|b| b.to_string())
+            .filter(|b| available.contains(b))
+            .collect();
+        feature_backends.sort();
+        feature_backends.dedup();
+
+        // Backends that the matrix harness will actually consider under current env gating.
+        let mut backends: Vec<String> = backend_candidates(SampleStrategy::Random, &[task]);
+        backends.sort();
+        backends.dedup();
+
+        // Conservative notion of “runnable”: we have at least one backend *and* at least one
+        // dataset candidate, filtered by the evaluator’s dataset compatibility gate.
+        let mut runnable_pairs: usize = 0;
+        for b in &backends {
+            for &ds in &candidates {
+                if require_cached {
+                    let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
+                        continue;
+                    };
+                    if !loader.is_cached(loadable) {
+                        continue;
+                    }
+                }
+                if TaskEvaluator::is_backend_compatible(b, ds) {
+                    runnable_pairs += 1;
+                }
+            }
+        }
+
+        let mut notes: Vec<String> = Vec::new();
+        if backends.is_empty() {
+            if !feature_backends.is_empty() {
+                // Most common reasons:
+                // - ML gating (`ANNO_ML_IN_MATRIX`): feature-enabled, but excluded from matrix by default.
+                // - Missing HF token: some arms are gated because they'd always skip.
+                if feature_backends.iter().any(|b| b == "w2ner") && !crate::env::has_hf_token() {
+                    notes.push(
+                        "backends exist but are gated (set HF_API_TOKEN to enable w2ner)"
+                            .to_string(),
+                    );
+                }
+                if feature_backends.iter().any(|b| {
+                    matches!(
+                        b.as_str(),
+                        "bert_onnx"
+                            | "candle_ner"
+                            | "nuner"
+                            | "gliner_onnx"
+                            | "gliner_candle"
+                            | "gliner2"
+                            | "w2ner"
+                            | "deberta_v3"
+                            | "albert"
+                            | "universal_ner"
+                    )
+                }) && std::env::var("ANNO_ML_IN_MATRIX")
+                    .ok()
+                    .is_none_or(|v| !(v == "1" || v.eq_ignore_ascii_case("true")))
+                {
+                    notes
+                        .push("backends exist but are gated (set ANNO_ML_IN_MATRIX=1)".to_string());
+                }
+            } else {
+                notes.push("no backends available in this feature set".to_string());
+            }
+        }
+        if candidates.is_empty() {
+            notes.push("no datasets loadable for this task".to_string());
+        }
+        if require_cached && cached_candidates.is_empty() {
+            notes.push("no cached datasets available for this task".to_string());
+        }
+
+        rows.push(CoverageRow {
+            task: task.code().to_string(),
+            candidate_datasets: candidates.len(),
+            cached_candidate_datasets: cached_candidates.len(),
+            available_backends: backends,
+            runnable_pairs,
+            notes,
+        });
+    }
+
+    rows.sort_by(|a, b| a.task.cmp(&b.task));
+    let out = serde_json::json!({
+        "require_cached": require_cached,
+        "cache_dir": format!("{:?}", loader.cache_dir()),
+        "rows": rows,
+    });
+
+    let content =
+        serde_json::to_string_pretty(&out).expect("coverage report JSON should serialize");
+    if let Err(e) = std::fs::write(path, content) {
+        panic!("failed to write ANNO_MATRIX_COVERAGE_REPORT to {path}: {e}");
+    }
 }
 
 #[test]
@@ -944,91 +1508,59 @@ fn test_randomized_matrix_sample() {
 
     let seed = ci_seed();
     let strategy = SampleStrategy::from_env();
-    let perspective = MatrixPerspective::from_env();
-    let hist_path = history_path(perspective);
     let window_cap = env_usize("ANNO_MUXER_WINDOW_CAP", 50);
 
     let loader = DatasetLoader::new().expect("DatasetLoader::new");
-    let cached_datasets = cached_dataset_candidates(&loader);
+    let require_cached = matrix_require_cached();
 
-    // If CI cache is cold, do not fail the whole build; this job is intended to be best-effort.
-    // (Other jobs provide strict compile/test guarantees.)
-    if cached_datasets.is_empty() {
+    let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, require_cached) else {
         eprintln!(
-            "matrix-muxer: no cached datasets found; set ANNO_CACHE_DIR and cache it in CI (path={:?})",
+            "matrix-muxer: no eligible tasks (require_cached={} cache_dir={:?})",
+            require_cached,
             loader.cache_dir()
         );
         return;
-    }
+    };
 
-    let mut history = BackendHistory::load(&hist_path, window_cap);
-
-    let tasks = perspective.tasks();
-
-    // Datasets: choose a small number of cached datasets, biased toward small/common ones.
-    // Keep this deterministic and stable across runs.
+    // Datasets: choose a small number of compatible datasets.
     //
-    // Important: for coref-family tasks, "dataset file exists" is not sufficient:
-    // `TaskEvaluator` loads coreference documents via `loader.load_coref()` and will
-    // treat "empty docs" as "not cached" when `require_cached=1`. Some catalog
-    // datasets have placeholder coref loaders and will return empty docs even when a
-    // cache file exists. We filter those out here to avoid poisoning muxer history
-    // with configuration/loader failures.
-    let coref_tasks_requested = tasks.iter().any(|t| t.is_coref_family());
-    let mut coref_dataset_ok: HashMap<DatasetId, bool> = HashMap::new();
-    let eligible_cached: Vec<DatasetId> = cached_datasets
-        .iter()
-        .copied()
-        .filter(|d| {
-            let ts = dataset_tasks(*d);
-            if !tasks.iter().any(|t| ts.contains(t)) {
-                return false;
-            }
-            if coref_tasks_requested && d.is_coreference() {
-                if let Some(ok) = coref_dataset_ok.get(d) {
-                    return *ok;
-                }
-                let ok = match loader.load_coref(*d) {
-                    Ok(docs) => !docs.is_empty(),
-                    Err(_) => false,
-                };
-                coref_dataset_ok.insert(*d, ok);
-                return ok;
-            }
-            true
-        })
-        .collect();
-    if eligible_cached.is_empty() {
+    // Local default is “try to fetch” (require_cached=false): we pay the download cost once
+    // and reuse the cache on subsequent runs. CI remains cache-only and offline.
+    let datasets_per_run_default = if require_cached { 2 } else { 3 };
+    let datasets_per_run =
+        env_usize("ANNO_MUXER_DATASETS_PER_RUN", datasets_per_run_default).max(1);
+    let chosen_datasets =
+        choose_datasets_for_run(seed, &loader, &tasks, require_cached, datasets_per_run);
+    if chosen_datasets.is_empty() {
         eprintln!(
-            "matrix-muxer: no cached datasets support tasks={:?} (cache_dir={:?})",
+            "matrix-muxer: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
             tasks,
+            require_cached,
             loader.cache_dir()
         );
         return;
     }
 
-    let datasets_per_run = env_usize("ANNO_MUXER_DATASETS_PER_RUN", 2).max(1);
-    let mut chosen_datasets: Vec<DatasetId> = perspective
-        .preferred_datasets()
-        .iter()
-        .copied()
-        .filter(|d| eligible_cached.contains(d))
-        .take(datasets_per_run)
-        .collect();
-    if chosen_datasets.len() < datasets_per_run {
-        // Fallback: deterministic sample of whatever is cached.
-        let ds_strings: Vec<String> = eligible_cached.iter().map(|d| format!("{:?}", d)).collect();
-        let chosen_ds_strings =
-            pick_random_subset(seed ^ 0xDADA_BEEF, &ds_strings, datasets_per_run);
-        chosen_datasets.extend(
-            eligible_cached
-                .into_iter()
-                .filter(|d| chosen_ds_strings.contains(&format!("{:?}", d))),
-        );
-        chosen_datasets.sort_by_key(|d| format!("{:?}", d));
-        chosen_datasets.dedup();
-        chosen_datasets.truncate(datasets_per_run);
-    }
+    // Make muxer history facet-aware by scoping to a coarse dataset slice.
+    //
+    // This does NOT change task/dataset sampling; it only changes how muxer learns and selects
+    // backends, so different domains/languages don't collapse into one average history.
+    //
+    // Default: enabled. Set `ANNO_MUXER_SLICE_BY_DATASET_FACETS=0` to revert to task-only.
+    let slice_tag_for_muxer = mh::muxer_slice_tag(
+        &slice_tag,
+        &chosen_datasets,
+        mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true),
+    )
+    .unwrap_or_else(|e| {
+        eprintln!("matrix-muxer: invalid muxer slice tag: {e} (falling back to task-only)");
+        // `slice_tag` here is a task code (e.g. `ner`) and should always parse.
+        mh::SliceTag::parse(&slice_tag).unwrap()
+    })
+    .to_string();
+
+    let hist_path = history_path(&slice_tag_for_muxer);
+    let mut history = BackendHistory::load(&hist_path, window_cap);
 
     // Backends: choose a *tiny* subset per run (keep this test fast).
     //
@@ -1061,11 +1593,127 @@ fn test_randomized_matrix_sample() {
     }
 
     let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-    let backends_per_run = mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", 2).max(1);
-    let chosen_backends = if per_dataset {
+    let backends_per_run_default = if require_cached { 2 } else { 3 };
+    let backends_per_run =
+        mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", backends_per_run_default).max(1);
+
+    let mut exp3ix_state_for_update: Option<Exp3IxState> = None;
+    let mut exp3ix_chosen_for_update: Option<String> = None;
+    let mut exp3ix_prob_used_for_update: Option<f64> = None;
+    let chosen_backends = if matches!(strategy, SampleStrategy::MlOnly)
+        && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Exp3Ix)
+    {
+        let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+
+        // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
+        let summaries = history.summaries_for(&candidates, Some(&chosen_datasets), per_dataset);
+        let guard = mh::latency_guardrail_from_env();
+        let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
+        let gd = muxer::exp3ix_decide_persisted_guardrailed(
+            exp3ix_config_from_env(seed),
+            history.exp3ix_state.clone(),
+            &candidates,
+            &summaries,
+            muxer::LatencyGuardrailConfig {
+                max_mean_ms: guard.max_mean_ms,
+                require_measured: guard.require_measured,
+                allow_fewer: guard.allow_fewer,
+            },
+            0,
+            decision_seed,
+        )
+        .expect("exp3ix decision requires non-empty candidates");
+        let d = gd.decision.clone();
+        let ex_state = gd.state.clone();
+        let prob_used = gd.prob_used;
+        let explore_first = d
+            .notes
+            .iter()
+            .any(|n| matches!(n, muxer::DecisionNote::ExploreFirst));
+        let _probs = d.probs.clone().unwrap_or_default();
+
+        // Keep the pre-update state (includes probs used for sampling).
+        exp3ix_state_for_update = Some(ex_state);
+        exp3ix_chosen_for_update = Some(d.chosen.clone());
+        exp3ix_prob_used_for_update = Some(prob_used);
+        let chosen = vec![d.chosen.clone()];
+
+        // Optional decision logging (bounded).
+        if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
+            eprintln!(
+                "matrix-muxer: exp3ix chosen={:?} explore_first={} arms={} profile={}",
+                chosen,
+                explore_first,
+                gd.guardrail.eligible.len(),
+                profile.clone().unwrap_or_else(|| "off".to_string())
+            );
+        }
+        let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+        if let Some(ref p) = decisions_path {
+            let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
+            let run_id = format!(
+                "seed={} slice={} strategy={:?}",
+                seed, slice_tag_for_muxer, strategy
+            );
+            let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
+            let exp3ix_round = muxer::log_exp3ix_guardrailed_typed(&gd, &candidates, decisions_top);
+            append_jsonl(
+                p,
+                &DecisionLog {
+                    schema_version: 4,
+                    muxer_version: muxer::MUXER_VERSION.to_string(),
+                    run_id,
+                    strategy: "ml-only".to_string(),
+                    slice: slice_tag_for_muxer.to_string(),
+                    muxer_profile: profile.clone(),
+                    latency_guardrail_max_mean_ms: guard.max_mean_ms.map(|x| x.round() as u64),
+                    latency_guardrail_allow_fewer: Some(guard.allow_fewer),
+                    latency_guardrail_require_measured: Some(guard.require_measured),
+                    round: 1,
+                    datasets: ds,
+                    remaining: candidates.clone(),
+                    chosen: chosen.first().cloned(),
+                    explore_first: Some(explore_first),
+                    constraints_fallback_used: None,
+                    eligible_arms: Some(gd.guardrail.eligible.clone()),
+                    top_candidates: Some(exp3ix_round.top_candidates.clone()),
+                    mab_k_round: None,
+                    exp3ix_round: Some(exp3ix_round),
+                    worst_first_round: None,
+                },
+            );
+        }
+        chosen
+    } else if matches!(strategy, SampleStrategy::MlOnly)
+        && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Mab)
+    {
+        // Fall back to legacy deterministic MAB selection (may return K backends).
+        if per_dataset {
+            select_backends(
+                strategy,
+                seed,
+                &slice_tag_for_muxer,
+                &history,
+                &candidates,
+                Some(&chosen_datasets),
+                backends_per_run,
+            )
+        } else {
+            select_backends(
+                strategy,
+                seed,
+                &slice_tag_for_muxer,
+                &history,
+                &candidates,
+                None,
+                backends_per_run,
+            )
+        }
+    } else if per_dataset {
         select_backends(
             strategy,
             seed,
+            &slice_tag_for_muxer,
             &history,
             &candidates,
             Some(&chosen_datasets),
@@ -1075,6 +1723,7 @@ fn test_randomized_matrix_sample() {
         select_backends(
             strategy,
             seed,
+            &slice_tag_for_muxer,
             &history,
             &candidates,
             None,
@@ -1085,8 +1734,8 @@ fn test_randomized_matrix_sample() {
     let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
     if verbose {
         eprintln!(
-            "matrix-muxer: perspective={} strategy={:?} seed={} per_dataset={} datasets={:?} backends={:?}",
-            perspective.tag(),
+            "matrix-muxer: slice={} strategy={:?} seed={} per_dataset={} datasets={:?} backends={:?}",
+            slice_tag_for_muxer,
             strategy,
             seed,
             per_dataset,
@@ -1119,7 +1768,7 @@ fn test_randomized_matrix_sample() {
         backends: chosen_backends.clone(),
         max_examples: Some(max_examples_per_dataset()),
         seed: Some(seed),
-        require_cached: true,
+        require_cached,
         relation_threshold: 0.5,
         robustness: false,
         compute_familiarity: false,
@@ -1250,6 +1899,46 @@ fn test_randomized_matrix_sample() {
         }
     }
 
+    // Update EXP3-IX state (ml-only policy) from the scalar reward signal.
+    //
+    // Reward mapping: we use the task-appropriate primary F1 clamped to [0, 1], and 0 on failure.
+    // This intentionally differs from the MAB Summary (which is more "binary quality" oriented).
+    if matches!(strategy, SampleStrategy::MlOnly)
+        && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Exp3Ix)
+    {
+        if let (Some(st), Some(chosen), Some(prob_used)) = (
+            exp3ix_state_for_update,
+            exp3ix_chosen_for_update,
+            exp3ix_prob_used_for_update,
+        ) {
+            let chosen = chosen.as_str();
+            let mut sum = 0.0;
+            let mut n = 0u64;
+            for r in &results.results {
+                if r.is_skipped() {
+                    continue;
+                }
+                if r.backend.as_str() != chosen {
+                    continue;
+                }
+                let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
+                let reward = if r.success { f1 } else { 0.0 };
+                sum += reward;
+                n += 1;
+            }
+            if n > 0 {
+                let r01 = (sum / (n as f64)).clamp(0.0, 1.0);
+                history.exp3ix_state = Some(muxer::exp3ix_update_persisted(
+                    exp3ix_config_from_env(seed),
+                    st,
+                    chosen,
+                    r01,
+                    prob_used,
+                ));
+            }
+        }
+    }
+
     // Persist history best-effort for future runs.
     history.save(&hist_path);
 
@@ -1267,75 +1956,37 @@ fn test_matrix_sweep_all_backends_once() {
     crate::env::load_dotenv();
 
     let seed = ci_seed();
-    let perspective = MatrixPerspective::from_env();
-    let tasks = perspective.tasks();
+    let loader = DatasetLoader::new().expect("DatasetLoader::new");
+    let require_cached = matrix_require_cached();
+
+    // Sweep is an explicit “prove things run” tool: require an explicit task so the user knows
+    // what they are validating.
+    let Some(task) = matrix_task_override() else {
+        let msg = "matrix-sweep: set ANNO_MATRIX_TASK to choose what to validate (e.g. ner, intra-coref, re)";
+        if mh::env_bool("ANNO_MATRIX_SWEEP_STRICT", true) {
+            panic!("{msg}");
+        }
+        eprintln!("{msg}");
+        return;
+    };
+    let tasks = vec![task];
 
     let strict = mh::env_bool("ANNO_MATRIX_SWEEP_STRICT", true);
     let max_examples = mh::env_usize("ANNO_MATRIX_SWEEP_MAX_EXAMPLES", 5).max(1);
-
-    let loader = DatasetLoader::new().expect("DatasetLoader::new");
-    let cached_datasets = cached_dataset_candidates(&loader);
-    if cached_datasets.is_empty() {
-        eprintln!(
-            "matrix-sweep: no cached datasets found; set ANNO_CACHE_DIR and cache it (path={:?})",
-            loader.cache_dir()
-        );
-        return;
-    }
-
-    // Pick exactly one compatible, cached dataset (stable).
-    let coref_tasks_requested = tasks.iter().any(|t| t.is_coref_family());
-    let mut coref_dataset_ok: HashMap<DatasetId, bool> = HashMap::new();
-    let eligible_cached: Vec<DatasetId> = cached_datasets
-        .iter()
-        .copied()
-        .filter(|d| {
-            let ts = dataset_tasks(*d);
-            if !tasks.iter().any(|t| ts.contains(t)) {
-                return false;
-            }
-            if coref_tasks_requested && d.is_coreference() {
-                if let Some(ok) = coref_dataset_ok.get(d) {
-                    return *ok;
-                }
-                let ok = match loader.load_coref(*d) {
-                    Ok(docs) => !docs.is_empty(),
-                    Err(_) => false,
-                };
-                coref_dataset_ok.insert(*d, ok);
-                return ok;
-            }
-            true
-        })
-        .collect();
-    if eligible_cached.is_empty() {
-        eprintln!(
-            "matrix-sweep: no cached datasets support tasks={:?} (cache_dir={:?})",
+    let chosen = choose_datasets_for_run(seed ^ 0x51EE_AAAA, &loader, &tasks, require_cached, 1);
+    let Some(&dataset) = chosen.first() else {
+        let msg = format!(
+            "matrix-sweep: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
             tasks,
+            require_cached,
             loader.cache_dir()
         );
+        if strict {
+            panic!("{msg}");
+        }
+        eprintln!("{msg}");
         return;
-    }
-
-    let dataset = perspective
-        .preferred_datasets()
-        .iter()
-        .copied()
-        .find(|d| eligible_cached.contains(d))
-        .unwrap_or_else(|| {
-            // Stable fallback: deterministic “random” pick among eligible.
-            let ds_strings: Vec<String> =
-                eligible_cached.iter().map(|d| format!("{d:?}")).collect();
-            let pick = mh::pick_random_subset(seed ^ 0x51EE_AAAA, &ds_strings, 1)
-                .into_iter()
-                .next()
-                .unwrap_or_else(|| format!("{:?}", eligible_cached[0]));
-            eligible_cached
-                .iter()
-                .copied()
-                .find(|d| format!("{d:?}") == pick)
-                .unwrap_or(eligible_cached[0])
-        });
+    };
 
     // Sweep candidate set:
     // - reuse the same baseline/ML gating logic as the harness’ default (MlOnly) strategy,
@@ -1348,10 +1999,14 @@ fn test_matrix_sweep_all_backends_once() {
     candidates.retain(|b| TaskEvaluator::is_backend_compatible(b, dataset));
 
     if candidates.is_empty() {
-        eprintln!(
+        let msg = format!(
             "matrix-sweep: no backend candidates for tasks={:?} dataset={:?}",
             tasks, dataset
         );
+        if strict {
+            panic!("{msg}");
+        }
+        eprintln!("{msg}");
         return;
     }
 
@@ -1362,7 +2017,7 @@ fn test_matrix_sweep_all_backends_once() {
         backends: candidates.clone(),
         max_examples: Some(max_examples),
         seed: Some(seed),
-        require_cached: true,
+        require_cached,
         relation_threshold: 0.5,
         robustness: false,
         compute_familiarity: false,

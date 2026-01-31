@@ -29,7 +29,11 @@
 //! | `ANNO_CACHE_DIR` | Custom cache directory for models/datasets |
 //! | `ANNO_CI_SEED` | Fixed seed for reproducible CI testing |
 //! | `ANNO_SAMPLE_STRATEGY` | Backend sampling strategy (random, ml-only, worst-first) |
-//! | `ANNO_MATRIX_PERSPECTIVE` | CI matrix slice (ner, coref, coalesce, relation) |
+//! | `ANNO_MATRIX_TASK` | Optional task override for matrix harness (e.g. discontinuous-ner, events, ned) |
+//! | `ANNO_MATRIX_REQUIRE_CACHED` | If true, matrix harness/sweeps only use cached datasets (local default false; CI forced true) |
+//! | `ANNO_MATRIX_COVERAGE_REPORT` | If set, write a JSON coverage report to this path during tests |
+//! | `ANNO_MATRIX_DISTRIBUTION_REPORT` | If set, write a JSON selection-distribution report to this path during tests |
+//! | `ANNO_MATRIX_DISTRIBUTION_ITERS` | Number of simulated selections to run for distribution report (default 200) |
 //! | `ANNO_ML_IN_MATRIX` | Include ML-ish backends in CI matrix (1/true to enable) |
 //! | `ANNO_HISTORY_FILE` | Override muxer history JSON path for matrix harness |
 //! | `ANNO_MUXER_WINDOW_CAP` | Muxer history window size (per arm) |
@@ -51,6 +55,9 @@
 //! | `ANNO_MUXER_HISTORY_SALT` | Optional suffix to isolate muxer history files (useful when semantics change) |
 //! | `ANNO_MUXER_DECISIONS_FILE` | Optional path to write selection decisions as JSONL |
 //! | `ANNO_MUXER_DECISIONS_TOP` | Max candidate rows included per decision (JSONL; default 8) |
+//! | `ANNO_MUXER_MLONLY_POLICY` | `ml-only`: choose `exp3ix` (default) or `mab` |
+//! | `ANNO_MUXER_EXP3_HORIZON` | EXP3-IX: horizon parameter (default 1000) |
+//! | `ANNO_MUXER_EXP3_DECAY` | EXP3-IX: exponential decay per update (0.01..=1.0; default 1.0) |
 //! | `ANNO_WORST_EXPLORATION_C` | Worst-first exploration coefficient (default 0.8) |
 //! | `ANNO_WORST_HARD_WEIGHT` | Worst-first weight for hard failures (default 1.0) |
 //! | `ANNO_WORST_SOFT_WEIGHT` | Worst-first weight for soft junk (default 0.0) |

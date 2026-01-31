@@ -232,6 +232,20 @@ pub enum DatasetAction {
         #[arg(short, long)]
         dataset: String,
     },
+
+    /// Summarize dataset facets (language/domain/categories/tasks).
+    ///
+    /// Optionally compare against a matrix distribution report JSON (from `ANNO_MATRIX_DISTRIBUTION_REPORT`)
+    /// to show which facets are being exercised ("touched") by the matrix.
+    Facets {
+        /// Path to a matrix distribution report JSON (optional).
+        #[arg(long, value_name = "PATH")]
+        touched_report: Option<String>,
+
+        /// Print a gap report: facets that are under-touched vs their registry prevalence.
+        #[arg(long)]
+        gaps: bool,
+    },
 }
 
 /// Execute the dataset command.
@@ -257,6 +271,20 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             {
                 let _ = dataset;
                 return Err("Dataset download requires --features eval-advanced".to_string());
+            }
+        }
+        DatasetAction::Facets {
+            touched_report,
+            gaps,
+        } => {
+            #[cfg(feature = "eval")]
+            {
+                run_facets(touched_report.as_deref(), gaps)?;
+            }
+            #[cfg(not(feature = "eval"))]
+            {
+                let _ = (touched_report, gaps);
+                return Err("Dataset facets require --features eval".to_string());
             }
         }
         DatasetAction::Eval {
@@ -3533,4 +3561,252 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
             message: format!("Connection error: {}", e),
         },
     }
+}
+
+// =============================================================================
+// Facet report (registry vs touched)
+// =============================================================================
+
+#[cfg(feature = "eval")]
+fn run_facets(touched_report: Option<&str>, gaps: bool) -> Result<(), String> {
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::fs;
+    use std::io::Write;
+
+    use crate::eval::loader::DatasetId;
+
+    fn bump(map: &mut BTreeMap<String, u64>, k: impl Into<String>) {
+        *map.entry(k.into()).or_insert(0) += 1;
+    }
+
+    macro_rules! outln {
+        ($out:expr, $($arg:tt)*) => {{
+            if let Err(e) = writeln!($out, $($arg)*) {
+                if e.kind() == std::io::ErrorKind::BrokenPipe {
+                    return Ok(());
+                }
+                return Err(format!("stdout: {}", e));
+            }
+        }};
+    }
+
+    fn pct(n: u64, d: u64) -> f64 {
+        if d == 0 {
+            0.0
+        } else {
+            (n as f64) * 100.0 / (d as f64)
+        }
+    }
+
+    fn touched_set_from_report(path: &str) -> Result<BTreeSet<String>, String> {
+        let content = fs::read_to_string(path).map_err(|e| format!("read {}: {}", path, e))?;
+        let v: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| format!("parse {}: {}", path, e))?;
+        let obj = v
+            .get("chosen_dataset_counts")
+            .and_then(|x| x.as_object())
+            .ok_or_else(|| "distribution JSON missing chosen_dataset_counts".to_string())?;
+        Ok(obj.keys().cloned().collect())
+    }
+
+    let all: Vec<DatasetId> = DatasetId::all().to_vec();
+    let total = all.len() as u64;
+
+    let touched: Option<BTreeSet<String>> = match touched_report {
+        None => None,
+        Some(p) if p.trim().is_empty() => None,
+        Some(p) => Some(touched_set_from_report(p.trim())?),
+    };
+    let touched_total = touched.as_ref().map(|set| set.len() as u64).unwrap_or(0);
+
+    let mut out = std::io::BufWriter::new(std::io::stdout());
+
+    // --- aggregate all ---
+    let mut lang_all: BTreeMap<String, u64> = BTreeMap::new();
+    let mut domain_all: BTreeMap<String, u64> = BTreeMap::new();
+    let mut access_all: BTreeMap<String, u64> = BTreeMap::new();
+    let mut cat_all: BTreeMap<String, u64> = BTreeMap::new();
+    let mut tasks_all: BTreeMap<String, u64> = BTreeMap::new();
+
+    // --- aggregate touched ---
+    let mut lang_touched: BTreeMap<String, u64> = BTreeMap::new();
+    let mut domain_touched: BTreeMap<String, u64> = BTreeMap::new();
+    let mut access_touched: BTreeMap<String, u64> = BTreeMap::new();
+    let mut cat_touched: BTreeMap<String, u64> = BTreeMap::new();
+    let mut tasks_touched: BTreeMap<String, u64> = BTreeMap::new();
+
+    for ds in &all {
+        bump(&mut lang_all, ds.language());
+        bump(&mut domain_all, ds.domain());
+        bump(&mut access_all, format!("{:?}", ds.access_status()));
+        for &c in ds.categories() {
+            bump(&mut cat_all, c);
+        }
+        for &t in ds.tasks() {
+            bump(&mut tasks_all, t);
+        }
+
+        if let Some(tset) = touched.as_ref() {
+            let name = format!("{ds:?}");
+            if tset.contains(&name) {
+                bump(&mut lang_touched, ds.language());
+                bump(&mut domain_touched, ds.domain());
+                bump(&mut access_touched, format!("{:?}", ds.access_status()));
+                for &c in ds.categories() {
+                    bump(&mut cat_touched, c);
+                }
+                for &t in ds.tasks() {
+                    bump(&mut tasks_touched, t);
+                }
+            }
+        }
+    }
+
+    outln!(&mut out, "Datasets: {}", total);
+    if let Some(p) = touched_report {
+        if touched.is_some() {
+            outln!(&mut out, "Touched: {} (from {})", touched_total, p.trim());
+        }
+    }
+
+    fn print_top(
+        out: &mut impl Write,
+        title: &str,
+        map: &BTreeMap<String, u64>,
+        top: usize,
+        denom: u64,
+    ) -> Result<(), String> {
+        outln!(out, "");
+        outln!(out, "{} (top {})", title, top);
+        let mut items: Vec<(&String, &u64)> = map.iter().collect();
+        items.sort_by(|a, b| b.1.cmp(a.1).then_with(|| a.0.cmp(b.0)));
+        for (k, v) in items.into_iter().take(top) {
+            outln!(out, "  {:22} {:5} ({:4.1}%)", k, v, pct(*v, denom));
+        }
+        Ok(())
+    }
+
+    print_top(&mut out, "Languages (all)", &lang_all, 12, total)?;
+    print_top(&mut out, "Domains (all)", &domain_all, 12, total)?;
+    print_top(&mut out, "Access (all)", &access_all, 12, total)?;
+    print_top(&mut out, "Categories (all)", &cat_all, 15, total)?;
+    print_top(&mut out, "Tasks (all)", &tasks_all, 15, total)?;
+
+    if touched.is_some() {
+        print_top(
+            &mut out,
+            "Languages (touched)",
+            &lang_touched,
+            12,
+            touched_total,
+        )?;
+        print_top(
+            &mut out,
+            "Domains (touched)",
+            &domain_touched,
+            12,
+            touched_total,
+        )?;
+        print_top(
+            &mut out,
+            "Access (touched)",
+            &access_touched,
+            12,
+            touched_total,
+        )?;
+        print_top(
+            &mut out,
+            "Categories (touched)",
+            &cat_touched,
+            15,
+            touched_total,
+        )?;
+        print_top(
+            &mut out,
+            "Tasks (touched)",
+            &tasks_touched,
+            15,
+            touched_total,
+        )?;
+    }
+
+    if gaps && touched.is_some() {
+        fn gap_table(
+            out: &mut impl Write,
+            title: &str,
+            all: &BTreeMap<String, u64>,
+            touched: &BTreeMap<String, u64>,
+            total: u64,
+            touched_total: u64,
+        ) -> Result<(), String> {
+            outln!(out, "");
+            outln!(out, "Under-touched {} (min_all=6)", title);
+            let mut rows: Vec<(f64, String, u64, u64, f64, f64)> = Vec::new();
+            for (k, na) in all {
+                if *na < 6 {
+                    continue;
+                }
+                let nt = *touched.get(k).unwrap_or(&0);
+                let pa = (*na as f64) / (total as f64);
+                let pt = (nt as f64) / (touched_total as f64);
+                rows.push((
+                    (pt - pa) * 100.0,
+                    k.clone(),
+                    *na,
+                    nt,
+                    pa * 100.0,
+                    pt * 100.0,
+                ));
+            }
+            rows.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            for (gap_pp, k, na, nt, pa, pt) in rows.into_iter().take(12) {
+                outln!(
+                    out,
+                    "  {:22} all={:4} ({:4.1}%) touched={:4} ({:4.1}%) gap={:5.1}pp",
+                    k,
+                    na,
+                    pa,
+                    nt,
+                    pt,
+                    gap_pp
+                );
+            }
+            Ok(())
+        }
+
+        gap_table(
+            &mut out,
+            "domains",
+            &domain_all,
+            &domain_touched,
+            total,
+            touched_total,
+        )?;
+        gap_table(
+            &mut out,
+            "access",
+            &access_all,
+            &access_touched,
+            total,
+            touched_total,
+        )?;
+        gap_table(
+            &mut out,
+            "categories",
+            &cat_all,
+            &cat_touched,
+            total,
+            touched_total,
+        )?;
+        gap_table(
+            &mut out,
+            "tasks",
+            &tasks_all,
+            &tasks_touched,
+            total,
+            touched_total,
+        )?;
+    }
+
+    Ok(())
 }

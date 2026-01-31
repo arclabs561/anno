@@ -306,6 +306,28 @@ pub struct TaskEvaluator {
 }
 
 impl TaskEvaluator {
+    /// True if this task has a real end-to-end evaluation path implemented in `TaskEvaluator`.
+    ///
+    /// Tasks may be "catalogued" (present in the dataset registry and task mapping) without
+    /// having an evaluation pipeline yet; those tasks should not be scheduled by the matrix.
+    pub fn is_task_supported(task: Task) -> bool {
+        matches!(
+            task,
+            Task::NER
+                | Task::DiscontinuousNER
+                | Task::RelationExtraction
+                | Task::IntraDocCoref
+                | Task::InterDocCoref
+                | Task::AbstractAnaphora
+                | Task::TextClassification
+                | Task::EventExtraction
+                | Task::SpeechActClassification
+                | Task::Temporal
+                | Task::DiscourseRelations
+                | Task::DiscourseSegmentation
+        )
+    }
+
     /// Build the prediction-cache "version" tag for a backend.
     ///
     /// The prediction cache key includes `(text_hash, backend, version, labels)`.
@@ -319,10 +341,20 @@ impl TaskEvaluator {
     /// - optional `ANNO_PREDICTION_CACHE_SALT` (force-bust for local edits)
     fn prediction_cache_version(backend_version: &str) -> String {
         let pkg = env!("CARGO_PKG_VERSION");
+        let code_id = std::env::var("ANNO_PREDICTION_CACHE_CODE_ID").ok();
         let salt = std::env::var("ANNO_PREDICTION_CACHE_SALT").ok();
-        match salt.as_deref() {
-            None | Some("") => format!("{}|anno={}", backend_version, pkg),
-            Some(s) => format!("{}|anno={}|salt={}", backend_version, pkg, s),
+        match (code_id.as_deref(), salt.as_deref()) {
+            (None | Some(""), None | Some("")) => format!("{}|anno={}", backend_version, pkg),
+            (Some(code), None | Some("")) => {
+                format!("{}|anno={}|code={}", backend_version, pkg, code)
+            }
+            (None | Some(""), Some(salt)) => {
+                format!("{}|anno={}|salt={}", backend_version, pkg, salt)
+            }
+            (Some(code), Some(salt)) => format!(
+                "{}|anno={}|code={}|salt={}",
+                backend_version, pkg, code, salt
+            ),
         }
     }
 
@@ -431,7 +463,7 @@ impl TaskEvaluator {
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
                 let eligible_indices: Vec<usize> = match task {
-                    Task::NER => dataset_data
+                    Task::NER | Task::DiscontinuousNER | Task::EventExtraction => dataset_data
                         .sentences
                         .iter()
                         .enumerate()
@@ -952,7 +984,11 @@ impl TaskEvaluator {
         // Run task-specific evaluation
         // Note: Coref tasks don't use BackendFactory (they use create_coref_resolver)
         match task {
-            Task::NER | Task::DiscontinuousNER => {
+            Task::NER
+            | Task::DiscontinuousNER
+            | Task::EventExtraction
+            | Task::Temporal
+            | Task::DiscourseSegmentation => {
                 let backend = BackendFactory::create(backend_name)?;
                 // Check availability before evaluation
                 if !backend.is_available() {
@@ -980,16 +1016,13 @@ impl TaskEvaluator {
                 }
                 self.evaluate_relation_task(backend_name, &*backend, dataset_data, config)
             }
-            _ => {
-                // Placeholder for other tasks
-                let mut metrics = HashMap::new();
-                metrics.insert("validation_passed".to_string(), 1.0);
-                metrics.insert(
-                    "num_examples".to_string(),
-                    dataset_data.sentences.len() as f64,
-                );
-                Ok(metrics)
+            Task::TextClassification | Task::SpeechActClassification | Task::DiscourseRelations => {
+                self.evaluate_text_classification_task(backend_name, dataset, dataset_data, config)
             }
+            _ => Err(crate::Error::InvalidInput(format!(
+                "Task {} is catalogued but not yet supported by TaskEvaluator",
+                task.code()
+            ))),
         }
     }
 
@@ -2728,6 +2761,153 @@ impl TaskEvaluator {
 
         Ok(metrics)
     }
+
+    /// Evaluate text classification task.
+    ///
+    /// Loader encodes the gold label as the `B-<LABEL>` tag on the single token for each example.
+    fn evaluate_text_classification_task(
+        &self,
+        backend_name: &str,
+        dataset: DatasetId,
+        dataset_data: &LoadedDataset,
+        _config: &TaskEvalConfig,
+    ) -> Result<HashMap<String, f64>> {
+        use crate::eval::metrics::ClassificationMetrics;
+
+        // For now, only GLiNER2 is wired for classification in this repo.
+        let backend_name_norm = backend_name.to_lowercase();
+        if backend_name_norm != "gliner2"
+            && backend_name_norm != "gliner2onnx"
+            && backend_name_norm != "gliner2_candle"
+            && backend_name_norm != "gliner2candle"
+        {
+            return Err(crate::Error::InvalidInput(format!(
+                "Text classification currently only supports gliner2 backends (got {})",
+                backend_name
+            )));
+        }
+
+        // Prefer registry class labels when available, otherwise derive from gold labels in the data.
+        let mut labels: Vec<String> = dataset
+            .entity_types()
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        if labels.is_empty() {
+            for s in &dataset_data.sentences {
+                let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
+                let gold = tag
+                    .strip_prefix("B-")
+                    .or_else(|| tag.strip_prefix("I-"))
+                    .unwrap_or(tag)
+                    .trim();
+                if gold.is_empty() || gold == "O" {
+                    continue;
+                }
+                labels.push(gold.to_string());
+            }
+            labels.sort();
+            labels.dedup();
+        }
+        if labels.is_empty() {
+            return Err(crate::Error::InvalidInput(format!(
+                "Dataset {:?} has no class labels (neither registry entity_types nor gold labels in loaded data)",
+                dataset
+            )));
+        }
+        let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+
+        // Create backend instance for classification.
+        #[cfg(feature = "onnx")]
+        let extractor = if backend_name_norm == "gliner2" || backend_name_norm == "gliner2onnx" {
+            use crate::backends::gliner2::GLiNER2Onnx;
+            use crate::DEFAULT_GLINER2_MODEL;
+            Some(GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?)
+        } else {
+            None
+        };
+        #[cfg(not(feature = "onnx"))]
+        let extractor: Option<()> = None;
+
+        #[cfg(all(feature = "candle", feature = "onnx"))]
+        let extractor_candle =
+            if backend_name_norm == "gliner2_candle" || backend_name_norm == "gliner2candle" {
+                use crate::backends::gliner2::GLiNER2Candle;
+                use crate::DEFAULT_GLINER2_MODEL;
+                Some(GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL)?)
+            } else {
+                None
+            };
+        #[cfg(not(all(feature = "candle", feature = "onnx")))]
+        let extractor_candle: Option<()> = None;
+
+        if extractor.is_none() && extractor_candle.is_none() {
+            return Err(crate::Error::FeatureNotAvailable(
+                "Text classification requires a gliner2 backend with 'onnx' (and optionally 'candle') enabled"
+                    .to_string(),
+            ));
+        }
+
+        let schema = crate::backends::gliner2::TaskSchema::new().with_classification(
+            "topic",
+            &label_refs,
+            false,
+        );
+
+        let mut m = ClassificationMetrics::new();
+        for s in &dataset_data.sentences {
+            let text = s.text();
+            if text.trim().is_empty() {
+                continue;
+            }
+            let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
+            let gold = tag
+                .strip_prefix("B-")
+                .or_else(|| tag.strip_prefix("I-"))
+                .unwrap_or(tag)
+                .to_string();
+            if gold.is_empty() || gold == "O" {
+                continue;
+            }
+
+            #[cfg(feature = "onnx")]
+            let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor {
+                let r = gliner2.extract(&text, &schema)?;
+                r.classifications
+                    .get("topic")
+                    .map(|c| c.labels.clone())
+                    .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            #[cfg(all(feature = "candle", feature = "onnx"))]
+            let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor_candle {
+                let r = gliner2.extract(&text, &schema)?;
+                r.classifications
+                    .get("topic")
+                    .map(|c| c.labels.clone())
+                    .unwrap_or_default()
+            } else {
+                pred_labels
+            };
+            #[cfg(not(any(feature = "onnx", all(feature = "candle", feature = "onnx"))))]
+            let pred_labels: Vec<String> = Vec::new();
+
+            let pred = pred_labels
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "Unknown".to_string());
+            m.add(&pred, &gold);
+        }
+
+        let mut metrics = HashMap::new();
+        metrics.insert("accuracy".to_string(), m.accuracy());
+        metrics.insert("macro_f1".to_string(), m.macro_f1());
+        metrics.insert("micro_f1".to_string(), m.micro_f1());
+        metrics.insert("weighted_f1".to_string(), m.weighted_f1());
+        metrics.insert("num_examples".to_string(), m.total as f64);
+        Ok(metrics)
+    }
 }
 
 impl Default for TaskEvaluator {
@@ -4135,6 +4315,53 @@ mod tests {
         assert!(tasks.contains(&Task::NER));
         assert!(tasks.contains(&Task::RelationExtraction));
         assert!(tasks.contains(&Task::TextClassification));
+    }
+
+    #[test]
+    fn test_event_extraction_can_be_scored_like_ner() {
+        use crate::eval::loader::{
+            AnnotatedSentence, AnnotatedToken, DataSource, DatasetMetadata, LoadedDataset,
+        };
+        use crate::{AnyModel, Entity, EntityType};
+
+        // One example with an "event type" label encoded as BIO, like the loader parsers do.
+        let ds = LoadedDataset {
+            id: DatasetId::MAVEN,
+            sentences: vec![AnnotatedSentence {
+                tokens: vec![AnnotatedToken {
+                    text: "boom".to_string(),
+                    ner_tag: "B-EventType".to_string(),
+                }],
+                source_dataset: DatasetId::MAVEN,
+            }],
+            loaded_at: "now".to_string(),
+            source_url: "test".to_string(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+
+        // A trivial backend that predicts exactly that span/type.
+        let ty = EntityType::from_label("EventType");
+        let m = AnyModel::new(
+            "event-dummy",
+            "dummy event trigger extractor",
+            vec![ty.clone()],
+            move |_text, _lang| Ok(vec![Entity::new("boom", ty.clone(), 0, 4, 1.0)]),
+        );
+
+        let eval = TaskEvaluator::new().expect("TaskEvaluator::new");
+        let metrics = eval
+            .evaluate_ner_task(
+                "event-dummy",
+                &m,
+                DatasetId::MAVEN,
+                &ds,
+                &TaskEvalConfig::default(),
+            )
+            .expect("evaluate_ner_task");
+
+        assert!(metrics.get("f1").copied().unwrap_or(0.0) >= 0.99);
     }
 
     // =========================================================================

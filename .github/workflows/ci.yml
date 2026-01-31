@@ -15,6 +15,7 @@ permissions:
   contents: read
   checks: write
   security-events: write
+  id-token: write
 
 jobs:
   # ==========================================================================
@@ -59,7 +60,7 @@ jobs:
         with:
           enable-cache: true
       - name: Run ty
-        run: uvx ty check scripts || true
+        run: uvx ty check scripts
 
   clippy:
     name: Clippy
@@ -103,13 +104,39 @@ jobs:
         with:
           cache-all-crates: true
       
+      - name: Set ANNO cache dir (matches actions/cache)
+        run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
+
+      # Optional: enable S3 dataset cache via AWS OIDC (no long-lived secrets).
+      # Configure the role ARN as a repo variable: Settings → Secrets and variables → Actions → Variables.
+      - name: Configure AWS credentials (OIDC) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Configure AWS credentials (access keys) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Enable S3 dataset cache (when AWS is configured)
+        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        run: |
+          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
+          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
+
       - name: Cache datasets
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v2
+          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-
+            anno-datasets-${{ runner.os }}-v3-
           
       - name: Build with eval features
         run: cargo build --workspace --features "eval-advanced discourse"
@@ -347,13 +374,37 @@ jobs:
         with:
           cache-all-crates: true
       
+      - name: Set ANNO cache dir (matches actions/cache)
+        run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Configure AWS credentials (access keys) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Enable S3 dataset cache (when AWS is configured)
+        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        run: |
+          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
+          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
+
       - name: Cache datasets
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v2
+          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-
+            anno-datasets-${{ runner.os }}-v3-
       
       - name: Run randomized matrix test
         run: |
@@ -361,6 +412,10 @@ jobs:
         env:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
+          # Allow cache warm-up on push to main; keep PRs offline.
+          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          # Keep downloads bounded if enabled.
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
       
       - name: Run worst-first matrix test
         run: |
@@ -368,6 +423,8 @@ jobs:
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
 
   # ==========================================================================
   # F1 Regression Tests
@@ -415,6 +472,30 @@ jobs:
         with:
           cache-all-crates: true
 
+      - name: Set ANNO cache dir (matches actions/cache)
+        run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Configure AWS credentials (access keys) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Enable S3 dataset cache (when AWS is configured)
+        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
+        run: |
+          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
+          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
+
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -427,9 +508,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v2
+          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-
+            anno-datasets-${{ runner.os }}-v3-
 
       - name: Run sanity check evaluations
         run: ./scripts/eval-sanity.sh
@@ -462,6 +543,30 @@ jobs:
         with:
           cache-all-crates: true
 
+      - name: Set ANNO cache dir (matches actions/cache)
+        run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Configure AWS credentials (access keys) for dataset cache
+        if: ${{ vars.ANNO_AWS_ROLE_ARN == '' && secrets.ANNO_AWS_ACCESS_KEY_ID != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.ANNO_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.ANNO_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
+
+      - name: Enable S3 dataset cache (when AWS is configured)
+        if: ${{ (vars.ANNO_AWS_ROLE_ARN != '' || secrets.ANNO_AWS_ACCESS_KEY_ID != '') && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
+        run: |
+          echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
+          echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
+
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -474,9 +579,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v2
+          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-
+            anno-datasets-${{ runner.os }}-v3-
 
       - name: Run full evaluations
         run: ./scripts/eval-full.sh
@@ -514,7 +619,6 @@ jobs:
   cargo-deny:
     name: Cargo Deny
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

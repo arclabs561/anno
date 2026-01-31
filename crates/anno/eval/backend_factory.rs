@@ -429,6 +429,15 @@ impl BackendFactory {
         backends
     }
 
+    /// List all available coreference resolvers.
+    ///
+    /// Coreference resolvers are *not* `Model`s, so they are kept separate from
+    /// [`Self::available_backends`]. They are used by `TaskEvaluator` for coref-family tasks.
+    #[must_use]
+    pub fn available_coref_resolvers() -> Vec<&'static str> {
+        vec!["coref_resolver", "mention_ranking", "box"]
+    }
+
     /// Check if a backend is available (feature-enabled).
     #[must_use]
     pub fn is_available(backend_name: &str) -> bool {

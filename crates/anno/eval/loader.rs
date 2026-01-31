@@ -1532,6 +1532,52 @@ impl DatasetLoader {
         self.s3_bucket.as_deref()
     }
 
+    /// Snapshot of cached dataset manifest entries (cloned).
+    ///
+    /// This is intended for tooling (CLI/scripts) that wants to iterate cached datasets
+    /// without holding the manifest lock for a long time.
+    #[must_use]
+    pub fn cached_manifest_entries(&self) -> Vec<CacheManifestEntry> {
+        let Ok(manifest) = self.manifest.read() else {
+            return Vec::new();
+        };
+        let mut out: Vec<CacheManifestEntry> = manifest.entries.values().cloned().collect();
+        out.sort_by(|a, b| a.dataset_id.cmp(&b.dataset_id));
+        out
+    }
+
+    /// Upload a locally cached dataset (by `DatasetId`) to S3, using its manifest entry.
+    ///
+    /// This uses the same object layout as `load_or_download()`'s best-effort upload:
+    /// - `datasets/<cache_filename>` (legacy/mutable key)
+    /// - `datasets/by-sha256/<sha>/<cache_filename>` (immutable snapshot)
+    /// - `datasets/<cache_filename>.latest.json` (pointer)
+    /// - `datasets/<cache_filename>.manifest.json` (sidecar metadata)
+    #[cfg(feature = "eval-advanced")]
+    pub fn upload_cached_dataset_to_s3(&self, bucket: &str, id: DatasetId) -> Result<()> {
+        let key = id.cache_filename();
+        let entry = {
+            let guard = self
+                .manifest
+                .read()
+                .map_err(|_| Error::InvalidInput("cache manifest lock poisoned".to_string()))?;
+            guard
+                .get(key)
+                .cloned()
+                .ok_or_else(|| Error::InvalidInput(format!("No manifest entry for {}", key)))?
+        };
+        let path = self.cache_path_for(id);
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            Error::InvalidInput(format!(
+                "Failed to read cached dataset {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+        Self::enforce_max_download_bytes(content.len(), "local cache (sync-s3)")?;
+        self.upload_to_s3(bucket, id, &content, &entry)
+    }
+
     #[must_use]
     fn cache_path_for(&self, id: DatasetId) -> PathBuf {
         self.cache_dir.join(id.cache_filename())
@@ -2006,6 +2052,27 @@ impl DatasetLoader {
             }
 
             return Err(Error::InvalidInput(error_msg));
+        }
+
+        // If the registry marks this dataset as HuggingFace-accessible and provides an HF id,
+        // prefer fetching via datasets-server (even if the registry `url` is a paper/GitHub homepage).
+        if id.access_status() == super::dataset_registry::DatasetAccessibility::HuggingFace {
+            if let Some(hf_ds) = id.hf_id().map(|s| s.to_string()) {
+                if let Ok((config, split)) = self.resolve_hf_config_split(&hf_ds) {
+                    let base = Self::hf_rows_url(&hf_ds, &config, &split);
+                    match self.download_hf_dataset_paginated(id, &base) {
+                        Ok(content) => return Ok((content, base)),
+                        Err(_e) => {
+                            // Fall back to downloading a raw file from the dataset repo.
+                            if let Ok((content, resolved)) =
+                                self.download_hf_dataset_file_from_hub(&hf_ds)
+                            {
+                                return Ok((content, resolved));
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // HuggingFace dataset pages are common in the registry. Convert them into a
@@ -3267,6 +3334,7 @@ impl DatasetLoader {
 
         // Extract tag names from features if available (for integer tag mapping)
         let tag_names = self.extract_tag_names_from_features(&parsed);
+        let class_names = self.extract_class_names_from_features(&parsed);
 
         let rows = parsed
             .get("rows")
@@ -3279,47 +3347,258 @@ impl DatasetLoader {
                 None => continue,
             };
 
-            let tokens = match row.get("tokens").and_then(|v| v.as_array()) {
-                Some(t) => t,
-                None => continue,
-            };
+            // Primary path: token-level NER rows (`tokens` + `ner_tags`)
+            if let (Some(tokens), Some(ner_tags)) = (
+                row.get("tokens").and_then(|v| v.as_array()),
+                row.get("ner_tags").and_then(|v| v.as_array()),
+            ) {
+                if tokens.len() != ner_tags.len() {
+                    continue;
+                }
 
-            let ner_tags = match row.get("ner_tags").and_then(|v| v.as_array()) {
-                Some(t) => t,
-                None => continue,
-            };
+                let mut annotated_tokens = Vec::new();
+                for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
+                    let text = token.as_str().unwrap_or("").to_string();
 
-            if tokens.len() != ner_tags.len() {
+                    // Handle both integer and string tags
+                    let ner_tag = if let Some(tag_idx) = tag.as_u64() {
+                        // Integer tag - map using feature names or default
+                        tag_names
+                            .get(tag_idx as usize)
+                            .cloned()
+                            .unwrap_or_else(|| format!("TAG_{}", tag_idx))
+                    } else if let Some(tag_str) = tag.as_str() {
+                        // String tag - use directly
+                        tag_str.to_string()
+                    } else {
+                        "O".to_string()
+                    };
+
+                    annotated_tokens.push(AnnotatedToken { text, ner_tag });
+                }
+
+                if !annotated_tokens.is_empty() {
+                    sentences.push(AnnotatedSentence {
+                        tokens: annotated_tokens,
+                        source_dataset: id,
+                    });
+                }
                 continue;
             }
 
-            let mut annotated_tokens = Vec::new();
-            for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
-                let text = token.as_str().unwrap_or("").to_string();
+            // Fallback: temporal standoff rows (`text` + `*_expressions` with char offsets).
+            //
+            // Some HF datasets expose TIMEX/EVENT spans as character ranges in lists like:
+            // - `time_expressions`: [{start_char, end_char, ...}, ...]
+            // - `event_expressions`: ...
+            // - `signal_expressions`: ...
+            //
+            // We tokenize `text` by whitespace and assign BIO tags based on overlap with any span.
+            if let Some(text) = row.get("text").and_then(|v| v.as_str()).map(str::trim) {
+                let has_temporal_spans = row
+                    .get("time_expressions")
+                    .and_then(|v| v.as_array())
+                    .is_some()
+                    || row
+                        .get("event_expressions")
+                        .and_then(|v| v.as_array())
+                        .is_some()
+                    || row
+                        .get("signal_expressions")
+                        .and_then(|v| v.as_array())
+                        .is_some();
 
-                // Handle both integer and string tags
-                let ner_tag = if let Some(tag_idx) = tag.as_u64() {
-                    // Integer tag - map using feature names or default
-                    tag_names
-                        .get(tag_idx as usize)
+                if has_temporal_spans && !text.is_empty() {
+                    fn spans_from_array(
+                        arr: Option<&Vec<serde_json::Value>>,
+                    ) -> Vec<(usize, usize)> {
+                        let mut out = Vec::new();
+                        let Some(arr) = arr else { return out };
+                        for item in arr {
+                            let Some(s) = item.get("start_char").and_then(|v| v.as_u64()) else {
+                                continue;
+                            };
+                            let Some(e) = item.get("end_char").and_then(|v| v.as_u64()) else {
+                                continue;
+                            };
+                            let s = s as usize;
+                            let e = e as usize;
+                            if e > s {
+                                out.push((s, e));
+                            }
+                        }
+                        out
+                    }
+
+                    fn overlaps(token_s: usize, token_e: usize, spans: &[(usize, usize)]) -> bool {
+                        spans.iter().any(|(s, e)| token_s < *e && token_e > *s)
+                    }
+
+                    // Tokenize by whitespace, tracking char offsets (Rust `char` count).
+                    let mut tokens: Vec<(String, usize, usize)> = Vec::new();
+                    let mut cur = String::new();
+                    let mut cur_start: Option<usize> = None;
+
+                    for (i, ch) in text.chars().enumerate() {
+                        if ch.is_whitespace() {
+                            if let Some(s) = cur_start.take() {
+                                let e = i;
+                                if !cur.is_empty() {
+                                    tokens.push((std::mem::take(&mut cur), s, e));
+                                } else {
+                                    cur.clear();
+                                }
+                            }
+                        } else {
+                            if cur_start.is_none() {
+                                cur_start = Some(i);
+                            }
+                            cur.push(ch);
+                        }
+                    }
+                    if let Some(s) = cur_start.take() {
+                        let e = text.chars().count();
+                        if !cur.is_empty() {
+                            tokens.push((cur, s, e));
+                        }
+                    }
+
+                    if tokens.is_empty() {
+                        continue;
+                    }
+
+                    let timex_spans =
+                        spans_from_array(row.get("time_expressions").and_then(|v| v.as_array()));
+                    let event_spans =
+                        spans_from_array(row.get("event_expressions").and_then(|v| v.as_array()));
+                    let signal_spans =
+                        spans_from_array(row.get("signal_expressions").and_then(|v| v.as_array()));
+
+                    let mut annotated_tokens = Vec::with_capacity(tokens.len());
+                    let mut prev_label: Option<&'static str> = None;
+                    for (tok, s, e) in tokens {
+                        let label = if overlaps(s, e, &timex_spans) {
+                            Some("TIMEX")
+                        } else if overlaps(s, e, &event_spans) {
+                            Some("EVENT")
+                        } else if overlaps(s, e, &signal_spans) {
+                            Some("SIGNAL")
+                        } else {
+                            None
+                        };
+
+                        let ner_tag = match (label, prev_label) {
+                            (None, _) => {
+                                prev_label = None;
+                                "O".to_string()
+                            }
+                            (Some(l), Some(p)) if l == p => format!("I-{}", l),
+                            (Some(l), _) => {
+                                prev_label = Some(l);
+                                format!("B-{}", l)
+                            }
+                        };
+
+                        annotated_tokens.push(AnnotatedToken { text: tok, ner_tag });
+                    }
+
+                    sentences.push(AnnotatedSentence {
+                        tokens: annotated_tokens,
+                        source_dataset: id,
+                    });
+                    continue;
+                }
+            }
+
+            // Fallback: DISRPT-style CoNLL-U rows for discourse segmentation.
+            //
+            // DISRPT `*.conllu` configs are exported via HF datasets-server as arrays:
+            // - `form`: token surface strings
+            // - `misc`: per-token features, including `Seg=B-seg` (segment boundary) or `Seg=O`
+            //
+            // We convert boundaries into BIO tags of a single entity type (`SEG`), treating each
+            // segment (EDU) as an entity span.
+            if let (Some(forms), Some(misc)) = (
+                row.get("form").and_then(|v| v.as_array()),
+                row.get("misc").and_then(|v| v.as_array()),
+            ) {
+                if !forms.is_empty() && forms.len() == misc.len() {
+                    let mut annotated_tokens = Vec::with_capacity(forms.len());
+                    let mut in_seg = false;
+                    for (i, (f, m)) in forms.iter().zip(misc.iter()).enumerate() {
+                        let tok = f.as_str().unwrap_or("").to_string();
+                        let misc_s = m.as_str().unwrap_or("");
+                        let start = misc_s.contains("Seg=B-seg");
+                        let ner_tag = if i == 0 || start {
+                            in_seg = true;
+                            "B-SEG".to_string()
+                        } else if in_seg {
+                            "I-SEG".to_string()
+                        } else {
+                            "O".to_string()
+                        };
+                        annotated_tokens.push(AnnotatedToken { text: tok, ner_tag });
+                    }
+
+                    sentences.push(AnnotatedSentence {
+                        tokens: annotated_tokens,
+                        source_dataset: id,
+                    });
+                    continue;
+                }
+            }
+
+            // Fallback: classification-ish rows (`<text>` + `label`).
+            //
+            // We encode the gold label as `B-<LABEL>` on a single token, matching the loader's
+            // convention for other classification datasets.
+            let text = if let Some(s) = row.get("text").and_then(|v| v.as_str()) {
+                s.trim().to_string()
+            } else if let (Some(a), Some(b)) = (
+                row.get("unit1_txt").and_then(|v| v.as_str()),
+                row.get("unit2_txt").and_then(|v| v.as_str()),
+            ) {
+                format!("{} [SEP] {}", a.trim(), b.trim())
+            } else if let (Some(a), Some(b)) = (
+                row.get("sentence1").and_then(|v| v.as_str()),
+                row.get("sentence2").and_then(|v| v.as_str()),
+            ) {
+                format!("{} [SEP] {}", a.trim(), b.trim())
+            } else if let (Some(a), Some(b)) = (
+                row.get("premise").and_then(|v| v.as_str()),
+                row.get("hypothesis").and_then(|v| v.as_str()),
+            ) {
+                format!("{} [SEP] {}", a.trim(), b.trim())
+            } else {
+                continue;
+            };
+            if text.trim().is_empty() {
+                continue;
+            }
+
+            let label_value = row.get("label").or_else(|| row.get("labels"));
+            let label = match label_value {
+                Some(v) if v.is_string() => v.as_str().unwrap_or("").to_string(),
+                Some(v) if v.is_number() => {
+                    let idx = v.as_u64().unwrap_or(0) as usize;
+                    class_names
+                        .get(idx)
                         .cloned()
-                        .unwrap_or_else(|| format!("TAG_{}", tag_idx))
-                } else if let Some(tag_str) = tag.as_str() {
-                    // String tag - use directly
-                    tag_str.to_string()
-                } else {
-                    "O".to_string()
-                };
-
-                annotated_tokens.push(AnnotatedToken { text, ner_tag });
+                        .unwrap_or_else(|| format!("LABEL_{}", idx))
+                }
+                _ => "label".to_string(),
+            };
+            if label.trim().is_empty() {
+                continue;
             }
 
-            if !annotated_tokens.is_empty() {
-                sentences.push(AnnotatedSentence {
-                    tokens: annotated_tokens,
-                    source_dataset: id,
-                });
-            }
+            sentences.push(AnnotatedSentence {
+                tokens: vec![AnnotatedToken {
+                    text,
+                    ner_tag: format!("B-{}", label),
+                }],
+                source_dataset: id,
+            });
         }
 
         if sentences.is_empty() {
@@ -3368,6 +3647,31 @@ impl DatasetLoader {
         }
 
         tag_names
+    }
+
+    /// Extract class label names for `label` fields in HF API features metadata.
+    fn extract_class_names_from_features(&self, parsed: &serde_json::Value) -> Vec<String> {
+        let mut names = Vec::new();
+        if let Some(features) = parsed.get("features").and_then(|v| v.as_array()) {
+            for feature in features {
+                let name = feature.get("name").and_then(|v| v.as_str());
+                if name == Some("label") {
+                    if let Some(label_names) = feature
+                        .get("type")
+                        .and_then(|t| t.get("names"))
+                        .and_then(|n| n.as_array())
+                    {
+                        for n in label_names {
+                            if let Some(s) = n.as_str() {
+                                names.push(s.to_string());
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        names
     }
 
     /// Parse TweetNER7 JSON format.
@@ -8580,6 +8884,76 @@ g1\tJohn met Mary. He waved.\tHe\t14\tJohn\t0\tTRUE\tMary\t9\tFALSE\thttp://exam
             .unwrap();
         assert_eq!(ds.sentences.len(), 1);
         assert_eq!(ds.sentences[0].tokens[0].ner_tag, "B-PER");
+    }
+
+    #[test]
+    fn test_parse_hf_api_response_temporal_standoff_smoke() {
+        let sample = r#"{
+  "features":[{"name":"text"},{"name":"time_expressions"}],
+  "rows":[{"row_idx":0,"row":{
+    "text":"A 10/30/89 .",
+    "time_expressions":[{"text":"10/30/89","start_char":2,"end_char":10,"tid":"t1","type":"DATE","value":"1989-10-30"}],
+    "event_expressions":[],
+    "signal_expressions":[]
+  }}]
+}"#;
+        let loader = DatasetLoader::new().unwrap();
+        let ds = loader
+            .parse_hf_api_response(sample, DatasetId::TimexRecognitionSentenceOriginal)
+            .unwrap();
+        assert_eq!(ds.sentences.len(), 1);
+        assert_eq!(ds.sentences[0].tokens.len(), 3);
+        assert_eq!(ds.sentences[0].tokens[0].text, "A");
+        assert_eq!(ds.sentences[0].tokens[0].ner_tag, "O");
+        assert_eq!(ds.sentences[0].tokens[1].text, "10/30/89");
+        assert_eq!(ds.sentences[0].tokens[1].ner_tag, "B-TIMEX");
+        assert_eq!(ds.sentences[0].tokens[2].text, ".");
+        assert_eq!(ds.sentences[0].tokens[2].ner_tag, "O");
+    }
+
+    #[test]
+    fn test_parse_hf_api_response_pairwise_discourse_smoke() {
+        let sample = r#"{
+  "features":[{"name":"unit1_txt"},{"name":"unit2_txt"},{"name":"label"}],
+  "rows":[{"row_idx":0,"row":{
+    "unit1_txt":"Because it rained",
+    "unit2_txt":"the game was canceled",
+    "label":"Cause"
+  }}]
+}"#;
+        let loader = DatasetLoader::new().unwrap();
+        let ds = loader
+            .parse_hf_api_response(sample, DatasetId::DisrptEngDepScidtbRels)
+            .unwrap();
+        assert_eq!(ds.sentences.len(), 1);
+        assert_eq!(ds.sentences[0].tokens.len(), 1);
+        assert_eq!(
+            ds.sentences[0].tokens[0].text,
+            "Because it rained [SEP] the game was canceled"
+        );
+        assert_eq!(ds.sentences[0].tokens[0].ner_tag, "B-Cause");
+    }
+
+    #[test]
+    fn test_parse_hf_api_response_disrpt_conllu_seg_smoke() {
+        let sample = r#"{
+  "features":[{"name":"form"},{"name":"misc"}],
+  "rows":[{"row_idx":0,"row":{
+    "form":["We","propose","a","method","."],
+    "misc":["Seg=B-seg","Seg=O","Seg=O","Seg=B-seg","Seg=O"]
+  }}]
+}"#;
+        let loader = DatasetLoader::new().unwrap();
+        let ds = loader
+            .parse_hf_api_response(sample, DatasetId::DisrptEngDepScidtbConlluSeg)
+            .unwrap();
+        assert_eq!(ds.sentences.len(), 1);
+        let tags: Vec<&str> = ds.sentences[0]
+            .tokens
+            .iter()
+            .map(|t| t.ner_tag.as_str())
+            .collect();
+        assert_eq!(tags, vec!["B-SEG", "I-SEG", "I-SEG", "B-SEG", "I-SEG"]);
     }
 
     #[test]

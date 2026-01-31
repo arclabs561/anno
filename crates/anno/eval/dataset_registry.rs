@@ -608,6 +608,18 @@ macro_rules! define_datasets {
                 }
             }
 
+            /// Parse a `DatasetId` from a cache filename (like `Wnut17.cache`).
+            ///
+            /// This is the inverse of `cache_filename()` and is intended for tooling that
+            /// iterates the local cache manifest or filesystem and needs to recover the enum.
+            #[must_use]
+            pub fn from_cache_filename(s: &str) -> Option<Self> {
+                match s {
+                    $(concat!(stringify!($variant), ".cache") => Some(Self::$variant),)*
+                    _ => None,
+                }
+            }
+
             /// Get all dataset IDs.
             #[must_use]
             pub fn all() -> &'static [DatasetId] {
@@ -2881,12 +2893,108 @@ define_datasets! {
         year: 2022,
         format: "TSV",
         size_hint: "20 subsets, ~130k examples total",
-        notes: "Compilation of PDTB, STAC, GUM (discourse relations), Emergent (stance), SarcasmV2, SwitchBoard/MRDA (speech acts), Verifiability, Persuasion, Squinky, EmoBank. DOWNLOADED to anno cache.",
+        notes: "Compilation of PDTB, STAC, GUM (discourse relations), Emergent (stance), SarcasmV2, SwitchBoard/MRDA (speech acts), Verifiability, Persuasion, Squinky, EmoBank. Not directly loadable by anno (HF viewer runs arbitrary code; data is not stored as raw files).",
         splits: ["train", "dev", "test"],
         tasks: ["discourse_relations", "speech_act_classification"],
-        hf_id: "pragmeval",
-        access_status: HuggingFace,
+        access_status: Public,
         categories: [abstract_anaphora, dialogue],
+    },
+
+    // =========================================================================
+    // Speech acts / dialogue acts (classification)
+    // =========================================================================
+    ViraDialogActsLive {
+        name: "ViRA Dialog Acts (Live)",
+        description: "Dialogue act classification dataset (text + label). Suitable as a speech-act baseline.",
+        url: "https://huggingface.co/datasets/ibm-research/vira-dialog-acts-live",
+        entity_types: [],
+        language: "en",
+        domain: "dialogue",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "HF datasets-server provides `text` and integer `label` per example; loader derives label names from gold labels if registry entity_types is empty.",
+        splits: ["train", "validation", "test"],
+        tasks: ["speech_act_classification"],
+        hf_id: "ibm-research/vira-dialog-acts-live",
+        access_status: HuggingFace,
+        categories: [dialogue],
+    },
+
+    // =========================================================================
+    // Discourse relations (classification)
+    // =========================================================================
+    DisrptEngDepScidtbRels {
+        name: "DISRPT (eng.dep.scidtb.rels)",
+        description: "DISRPT discourse relation classification (SciDTB, English, dependency framework).",
+        url: "https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.rels&split=train&offset=0&length=100",
+        entity_types: [],
+        language: "en",
+        domain: "scientific",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "HF rows include `unit1_txt`, `unit2_txt`, and string `label`. Loader joins unit texts with ` [SEP] ` and evaluates as text classification.",
+        splits: ["train", "validation", "test"],
+        tasks: ["discourse_relations"],
+        hf_id: "multilingual-discourse-hub/disrpt",
+        access_status: HuggingFace,
+        categories: [abstract_anaphora],
+    },
+    DisrptDeuRstPccRels {
+        name: "DISRPT (deu.rst.pcc.rels)",
+        description: "DISRPT discourse relation classification (PCC, German, RST framework).",
+        url: "https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.rels&split=train&offset=0&length=100",
+        entity_types: [],
+        language: "de",
+        domain: "news",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "Same row schema as English SciDTB rels: `unit1_txt`, `unit2_txt`, and string `label`.",
+        splits: ["train", "validation", "test"],
+        tasks: ["discourse_relations"],
+        hf_id: "multilingual-discourse-hub/disrpt",
+        access_status: HuggingFace,
+        categories: [abstract_anaphora, multilingual],
+    },
+
+    // =========================================================================
+    // Discourse segmentation (EDU boundaries) via DISRPT CoNLL-U exports
+    // =========================================================================
+    DisrptEngDepScidtbConlluSeg {
+        name: "DISRPT (eng.dep.scidtb.conllu, Seg)",
+        description: "Discourse unit segmentation (EDU boundaries) from DISRPT CoNLL-U export (SciDTB, English).",
+        url: "https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=eng.dep.scidtb.conllu&split=train&offset=0&length=100",
+        entity_types: ["SEG"],
+        language: "en",
+        domain: "scientific",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "HF rows contain token arrays (`form`) and per-token `misc` with `Seg=B-seg` boundaries. Loader converts segments into BIO tags of type `SEG`.",
+        splits: ["train", "validation", "test"],
+        tasks: ["discourse_segmentation"],
+        hf_id: "multilingual-discourse-hub/disrpt",
+        access_status: HuggingFace,
+        categories: [abstract_anaphora],
+    },
+    DisrptDeuRstPccConlluSeg {
+        name: "DISRPT (deu.rst.pcc.conllu, Seg)",
+        description: "Discourse unit segmentation (EDU boundaries) from DISRPT CoNLL-U export (PCC, German).",
+        url: "https://datasets-server.huggingface.co/rows?dataset=multilingual-discourse-hub%2Fdisrpt&config=deu.rst.pcc.conllu&split=train&offset=0&length=100",
+        entity_types: ["SEG"],
+        language: "de",
+        domain: "news",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "Same row schema as English SciDTB conllu: `form` tokens and `misc` with `Seg=B-seg` boundaries.",
+        splits: ["train", "validation", "test"],
+        tasks: ["discourse_segmentation"],
+        hf_id: "multilingual-discourse-hub/disrpt",
+        access_status: HuggingFace,
+        categories: [abstract_anaphora, multilingual],
     },
     // DISRPT 2025: Unified cross-framework discourse benchmark
     DISRPT2025 {
@@ -3947,6 +4055,23 @@ define_datasets! {
         splits: ["train", "test"],
         tasks: ["ner", "temporal"],
         categories: [ner],
+    },
+    TimexRecognitionSentenceOriginal {
+        name: "TIMEX Recognition (Sentence, Original)",
+        description: "Sentence-level temporal extraction dataset with TIMEX spans (and optional EVENT/SIGNAL). Provided as HF rows with character offsets.",
+        url: "https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original",
+        entity_types: ["TIMEX", "EVENT", "SIGNAL"],
+        language: "en",
+        domain: "news",
+        license: "Research",
+        year: 2024,
+        format: "HF-rows",
+        notes: "HF datasets-server export contains `text` plus standoff spans in `time_expressions`/`event_expressions`/`signal_expressions` with `start_char`/`end_char` offsets; loader converts to token-level BIO for NER-style scoring.",
+        splits: ["train", "validation", "test"],
+        tasks: ["ner", "temporal", "events"],
+        hf_id: "mdg-nlp/timex-recognition-sentence-original",
+        access_status: HuggingFace,
+        categories: [ner, temporal],
     },
     TimeBank12 {
         name: "TimeBank 1.2",
@@ -7151,7 +7276,8 @@ define_datasets! {
         year: 2022,
         format: "JSONL",
         notes: "Temporal reasoning; event-time relations",
-        categories: [ner, temporal],
+        tasks: ["temporal"],
+        categories: [temporal],
     },
 
     TRIDIS {

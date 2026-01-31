@@ -31,9 +31,30 @@ pub struct MuxerArgs {
     #[arg(long)]
     pub history_file: Option<PathBuf>,
 
+    /// Slice tag to inspect (matches the matrix harness slice codes, e.g. `ner`, `temporal`,
+    /// `discourse-segmentation`).
+    ///
+    /// If set, this overrides `--perspective` (which is legacy / coarse).
+    #[arg(long)]
+    pub slice: Option<String>,
+
     /// Perspective to inspect (controls tasks + preferred datasets in the matrix harness).
     #[arg(long, value_enum)]
     pub perspective: Option<MuxerPerspective>,
+
+    /// Scope muxer history by dataset facets (language/domain), matching the matrix harness.
+    ///
+    /// This is only used when we can infer facets (see `--facet-datasets`).
+    #[arg(long, default_value_t = true)]
+    pub slice_by_dataset_facets: bool,
+
+    /// Dataset IDs used to compute the facet-aware history slice tag.
+    ///
+    /// Example: `--facet-datasets DisrptEngDepScidtbConlluSeg,DisrptDeuRstPccConlluSeg`
+    ///
+    /// If omitted, we fall back to the non-facet history filename.
+    #[arg(long)]
+    pub facet_datasets: Option<String>,
 
     /// Sampling strategy (as used by the matrix harness).
     #[arg(long, value_enum)]
@@ -238,6 +259,23 @@ struct SummarySerde {
 }
 
 impl SummarySerde {
+    fn wilson_95_ci(ok: u64, calls: u64) -> (f64, f64) {
+        // Wilson score interval for a Bernoulli proportion at 95% confidence.
+        // Used as a cheap “sample size / confidence” indicator for ok_rate.
+        if calls == 0 {
+            return (0.0, 0.0);
+        }
+        let n = calls as f64;
+        let k = ok as f64;
+        let p = (k / n).clamp(0.0, 1.0);
+        let z = 1.96_f64;
+        let z2 = z * z;
+        let denom = 1.0 + z2 / n;
+        let center = (p + z2 / (2.0 * n)) / denom;
+        let half = (z * ((p * (1.0 - p) / n) + (z2 / (4.0 * n * n))).sqrt()) / denom;
+        ((center - half).max(0.0), (center + half).min(1.0))
+    }
+
     fn from_window(w: &WindowSerde) -> Self {
         let mut out = SummarySerde::default();
         out.calls = w.buf.len() as u64;
@@ -257,6 +295,15 @@ impl SummarySerde {
             0.0
         } else {
             (self.ok as f64) / (self.calls as f64)
+        }
+    }
+
+    fn ok_rate_95_hw(&self) -> f64 {
+        if self.calls == 0 {
+            0.0
+        } else {
+            let (lo, hi) = Self::wilson_95_ci(self.ok, self.calls);
+            (hi - lo) / 2.0
         }
     }
 
@@ -444,7 +491,7 @@ fn parse_dataset_set(s: &str) -> BTreeSet<String> {
         .collect()
 }
 
-fn default_history_path(perspective: MuxerPerspective) -> PathBuf {
+fn default_history_path(slice_tag: &str) -> PathBuf {
     if let Ok(p) = std::env::var("ANNO_HISTORY_FILE") {
         return PathBuf::from(p);
     }
@@ -466,8 +513,8 @@ fn default_history_path(perspective: MuxerPerspective) -> PathBuf {
             })
             .filter(|s| !s.is_empty());
         match salt.as_deref() {
-            None => format!("muxer_history.{}.json", perspective.tag()),
-            Some(s) => format!("muxer_history.{}.salt={}.json", perspective.tag(), s),
+            None => format!("muxer_history.{}.json", slice_tag),
+            Some(s) => format!("muxer_history.{}.salt={}.json", slice_tag, s),
         }
     };
     if let Ok(dir) = std::env::var("ANNO_CACHE_DIR") {
@@ -563,11 +610,49 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         }
     });
 
+    // Slice tag + tasks (prefer explicit slice to avoid the legacy “perspective” limitation).
+    let (slice_tag_base, tasks) = match args.slice.as_deref() {
+        None => (mh::SliceTag::parse(perspective.tag())?, perspective.tasks()),
+        Some(s) => {
+            let s = s.trim();
+            if s.is_empty() {
+                return Err("--slice was set but empty".to_string());
+            }
+            let Some(t) = Task::from_code(s) else {
+                return Err(format!(
+                    "Unknown slice '{}' (expected a task code like `ner`, `temporal`, `discourse-segmentation`)",
+                    s
+                ));
+            };
+            (mh::SliceTag::parse(t.code())?, vec![t])
+        }
+    };
+
+    // If requested, scope history file by dataset facets (language/domain), matching the harness.
+    // This requires a dataset set. Otherwise we stick to the base slice tag.
+    let slice_tag_for_history = {
+        let slice_by_facets = args.slice_by_dataset_facets
+            && mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true);
+        let ds_raw = args.facet_datasets.as_deref().unwrap_or("").trim();
+        if slice_by_facets && !ds_raw.is_empty() {
+            use crate::eval::loader::DatasetId;
+            let ds_set = parse_dataset_set(ds_raw);
+            let mut datasets: Vec<DatasetId> = Vec::new();
+            for ds_s in ds_set {
+                let ds: DatasetId = ds_s.parse().map_err(|e| {
+                    format!("Invalid dataset id '{}' for --facet-datasets: {}", ds_s, e)
+                })?;
+                datasets.push(ds);
+            }
+            mh::muxer_slice_tag(slice_tag_base.as_str(), &datasets, true)?
+        } else {
+            slice_tag_base.clone()
+        }
+    };
+
     let history_path = args
         .history_file
-        .unwrap_or_else(|| default_history_path(perspective));
-
-    let tasks = perspective.tasks();
+        .unwrap_or_else(|| default_history_path(slice_tag_for_history.as_str()));
     let include_ml = args.include_ml || mh::env_bool("ANNO_ML_IN_MATRIX", false);
     let candidates = backend_candidates(&tasks, include_ml);
 
@@ -589,7 +674,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             println!("History file: {}", history_path.display());
             println!("Version: {}", h.version);
             println!("Window cap: {}", h.window_cap);
-            println!("Perspective: {} ({:?})", perspective.tag(), tasks);
+            println!("Slice: {} ({:?})", slice_tag_for_history, tasks);
             println!(
                 "Strategy: {} ({})",
                 strategy.to_env_str(),
@@ -637,29 +722,30 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             }
 
             // Show a small per-arm table sorted by (calls desc, name).
-            let mut rows: Vec<(u64, f64, f64, f64, f64, String)> = Vec::new();
+            let mut rows: Vec<(u64, f64, f64, f64, f64, f64, String)> = Vec::new();
             for a in &candidates {
                 let s = summaries.get(a).copied().unwrap_or_default();
                 rows.push((
                     s.calls,
                     s.ok_rate(),
+                    s.ok_rate_95_hw(),
                     s.junk_rate(),
                     s.hard_junk_rate(),
                     s.mean_elapsed_ms(),
                     a.clone(),
                 ));
             }
-            rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.5.cmp(&b.5)));
+            rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.6.cmp(&b.6)));
 
             println!("\nBy calls (windowed):");
             println!(
-                "{:<16} {:>5} {:>6} {:>6} {:>6} {:>9}",
-                "arm", "calls", "ok", "junk", "hard", "mean_ms"
+                "{:<16} {:>5} {:>12} {:>6} {:>6} {:>9}",
+                "arm", "calls", "ok95(+/-)", "junk", "hard", "mean_ms"
             );
-            for (calls, ok, junk, hard, mean_ms, arm) in rows.iter().take(20) {
+            for (calls, ok, ok_hw, junk, hard, mean_ms, arm) in rows.iter().take(20) {
                 println!(
-                    "{:<16} {:>5} {:>6.2} {:>6.2} {:>6.2} {:>9.0}",
-                    arm, calls, ok, junk, hard, mean_ms
+                    "{:<16} {:>5} {:>6.2}+/-{:>4.2} {:>6.2} {:>6.2} {:>9.0}",
+                    arm, calls, ok, ok_hw, junk, hard, mean_ms
                 );
 
                 if show_datasets {
@@ -670,10 +756,11 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         println!("  datasets (top {}):", top_datasets);
                         for (ds, s) in per_ds.into_iter().take(top_datasets.max(1)) {
                             println!(
-                                "    {:<18} calls={:>4} ok={:>5.2} junk={:>5.2} hard={:>5.2} mean_ms={:>6.0}",
+                                "    {:<18} calls={:>4} ok95={:>4.2}+/-{:>4.2} junk={:>5.2} hard={:>5.2} mean_ms={:>6.0}",
                                 ds,
                                 s.calls,
                                 s.ok_rate(),
+                                s.ok_rate_95_hw(),
                                 s.junk_rate(),
                                 s.hard_junk_rate(),
                                 s.mean_elapsed_ms()
@@ -703,7 +790,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
             println!("=== muxer decide ===\n");
             println!("History file: {}", history_path.display());
-            println!("Perspective: {} ({:?})", perspective.tag(), tasks);
+            println!("Slice: {} ({:?})", slice_tag_for_history, tasks);
             println!("Strategy: {}", strategy.to_env_str());
             if let Some(ds) = ds_set_ref {
                 println!("Datasets: {:?}", ds.iter().collect::<Vec<_>>());
@@ -979,7 +1066,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
             println!("=== muxer regress ===\n");
             println!("History file: {}", history_path.display());
-            println!("Perspective: {} ({:?})", perspective.tag(), tasks);
+            println!("Slice: {} ({:?})", slice_tag_for_history, tasks);
             println!("Candidate arms: {}", candidates.len());
             if let Some(ds) = ds_set_ref {
                 println!("Datasets: {:?}", ds.iter().collect::<Vec<_>>());

@@ -63,6 +63,12 @@ pub enum Task {
     MachineTranslation,
     /// Language modeling
     LanguageModeling,
+    /// Temporal extraction / temporal information (catalogued from registries).
+    ///
+    /// Note: this is distinct from `HierarchicalExtraction`. Some registries use "temporal"
+    /// to mean time expressions, event ordering, or temporal relations; we keep it separate
+    /// so we don't mislabel temporal datasets as hierarchical.
+    Temporal,
     /// Hierarchical Structure Extraction: extract nested structures
     HierarchicalExtraction,
     /// Discourse relations (e.g., PDTB-style)
@@ -92,6 +98,7 @@ impl Task {
             Task::PosTagging,
             Task::MachineTranslation,
             Task::LanguageModeling,
+            Task::Temporal,
             Task::HierarchicalExtraction,
             Task::DiscourseRelations,
             Task::DiscourseCoherence,
@@ -116,6 +123,7 @@ impl Task {
             Task::PosTagging => "Part-of-speech Tagging",
             Task::MachineTranslation => "Machine Translation",
             Task::LanguageModeling => "Language Modeling",
+            Task::Temporal => "Temporal",
             Task::HierarchicalExtraction => "Hierarchical Structure Extraction",
             Task::DiscourseRelations => "Discourse Relations",
             Task::DiscourseCoherence => "Discourse Coherence",
@@ -140,6 +148,7 @@ impl Task {
             Task::PosTagging => "pos",
             Task::MachineTranslation => "mt",
             Task::LanguageModeling => "lm",
+            Task::Temporal => "temporal",
             Task::HierarchicalExtraction => "hierarchical",
             Task::DiscourseRelations => "discourse-relations",
             Task::DiscourseCoherence => "discourse-coherence",
@@ -160,7 +169,8 @@ impl Task {
     /// - DiscontinuousNER: "discontinuous-ner", "discontinuous_ner", "dner"
     /// - EventExtraction: "events", "event_extraction", "event-extraction"
     /// - TextClassification: "classification", "text-classification", "bias_evaluation", "qa", "harmonic_analysis"
-    /// - HierarchicalExtraction: "hierarchical", "temporal"
+    /// - Temporal: "temporal", "timex"
+    /// - HierarchicalExtraction: "hierarchical"
     pub fn from_code(code: &str) -> Option<Self> {
         match code.to_lowercase().as_str() {
             // NER family
@@ -223,10 +233,11 @@ impl Task {
             // Language modeling
             "lm" | "language_modeling" | "language-modeling" => Some(Task::LanguageModeling),
 
-            // Hierarchical Extraction (includes temporal)
-            "hierarchical" | "hierarchical-extraction" | "he" | "temporal" => {
-                Some(Task::HierarchicalExtraction)
-            }
+            // Temporal
+            "temporal" | "timex" | "time_expressions" | "time-expressions" => Some(Task::Temporal),
+
+            // Hierarchical Extraction
+            "hierarchical" | "hierarchical-extraction" | "he" => Some(Task::HierarchicalExtraction),
 
             // Discourse tasks (catalogued in the registry; evaluation may be stubbed for now)
             "discourse_relations" | "discourse-relations" => Some(Task::DiscourseRelations),
@@ -244,10 +255,7 @@ impl Task {
 
     /// Check if this task is in the NER family (NER, discontinuous NER, NED).
     pub fn is_ner_family(&self) -> bool {
-        matches!(
-            self,
-            Task::NER | Task::DiscontinuousNER | Task::NED | Task::HierarchicalExtraction
-        )
+        matches!(self, Task::NER | Task::DiscontinuousNER | Task::NED)
     }
 
     /// Check if this task is in the coreference family.
@@ -317,6 +325,9 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
             DatasetId::FinNER,
             DatasetId::LegalNER,
             DatasetId::SciERCNER,
+            // Constructed languages (CoNLL-U)
+            DatasetId::TaggedPBCEsperanto,
+            DatasetId::TaggedPBCKlingon,
             // Note: These variants were referenced but not added to enum
             // Using existing variants: CoNLL2003Sample, Wnut17, BC5CDR, NCBIDisease
         ],
@@ -367,17 +378,21 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         Task::PosTagging => &[],
         Task::MachineTranslation => &[],
         Task::LanguageModeling => &[],
+        Task::Temporal => &[DatasetId::TimexRecognitionSentenceOriginal],
         Task::HierarchicalExtraction => {
             // GLiNER2 can do hierarchical extraction, but we don't have dedicated datasets yet
             &[]
         }
-        Task::DiscourseRelations
-        | Task::DiscourseCoherence
-        | Task::DiscourseSegmentation
-        | Task::SpeechActClassification => {
-            // Catalogued in the registry, but we don't have end-to-end eval datasets/pipelines yet.
-            &[]
-        }
+        Task::DiscourseRelations => &[
+            DatasetId::DisrptEngDepScidtbRels,
+            DatasetId::DisrptDeuRstPccRels,
+        ],
+        Task::SpeechActClassification => &[DatasetId::ViraDialogActsLive],
+        Task::DiscourseSegmentation => &[
+            DatasetId::DisrptEngDepScidtbConlluSeg,
+            DatasetId::DisrptDeuRstPccConlluSeg,
+        ],
+        Task::DiscourseCoherence => &[],
     }
 }
 
@@ -411,7 +426,14 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner2" | "GLiNER2" | "GLiNER2Onnx" | "GLiNER2Candle" => &[
             Task::NER,
             Task::TextClassification,
+            Task::SpeechActClassification,
+            Task::Temporal,
             Task::HierarchicalExtraction,
+            Task::DiscourseRelations,
+            Task::DiscourseSegmentation,
+            // Treat event trigger extraction as “entities” with event-type labels.
+            // This makes event datasets runnable even before a dedicated event pipeline exists.
+            Task::EventExtraction,
             Task::RelationExtraction, // Via RelationExtractor trait
         ],
 

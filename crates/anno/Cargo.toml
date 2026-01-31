@@ -38,7 +38,7 @@ sha2 = { workspace = true, optional = true }
 dirs = { workspace = true }
 glob = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
-muxer = { version = "0.1.0", optional = true, default-features = false, features = ["serde"] }
+muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "61a2ea29fb8de373aef535c1f2f8a658eb23ebcd", optional = true, default-features = false, features = ["serde", "stochastic", "contextual"] }
 
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.

@@ -9,6 +9,8 @@
 
 use muxer::MabConfig;
 
+use std::fmt;
+
 /// Latency guardrail settings applied *outside* muxer selection (anno-specific).
 #[derive(Debug, Clone, Copy)]
 pub struct LatencyGuardrail {
@@ -102,13 +104,26 @@ pub fn mab_config_from_env() -> MabConfig {
 
 /// Deterministic (not crypto) stable hash used for “random” sampling.
 pub fn stable_hash64(seed: u64, s: &str) -> u64 {
-    // Deterministic (not crypto): FNV-1a 64-bit with seed mixing.
-    let mut h: u64 = 14695981039346656037u64 ^ seed;
+    // Deterministic (not crypto): FNV-1a string hash, then SplitMix64 finalizer.
+    //
+    // Motivation: we use these hashes for sampling fairness (task/dataset/backends). Raw FNV
+    // has visible structure; a SplitMix64-style mix gives a much more uniform distribution
+    // without adding RNG dependencies.
+    let mut h: u64 = 14695981039346656037u64;
     for b in s.as_bytes() {
         h ^= *b as u64;
         h = h.wrapping_mul(1099511628211u64);
     }
-    h
+    splitmix64(seed ^ h)
+}
+
+#[inline]
+fn splitmix64(mut x: u64) -> u64 {
+    x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    let mut z = x;
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
 }
 
 /// Deterministic “random subset” used by the harness and CLI.
@@ -122,4 +137,179 @@ pub fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> 
         .take(k.min(items.len()))
         .map(|(_, s)| s.clone())
         .collect()
+}
+
+// =============================================================================
+// Slice + facet typing (shared: harness + CLI)
+// =============================================================================
+
+/// A stable, filename-safe tag identifying the muxer “slice”.
+///
+/// This intentionally encodes “what is being averaged together” in history:
+/// - task code (e.g. `ner`, `temporal`, `discourse-segmentation`)
+/// - optionally dataset facets (e.g. `.lang=en.dom=news`)
+///
+/// We keep this as a dedicated type so we don't accidentally mix:
+/// - task codes (inputs)
+/// - history filenames (storage)
+/// - human labels (display)
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SliceTag(String);
+
+impl SliceTag {
+    /// Parse a slice tag from user/config input.
+    ///
+    /// Contract: must be ASCII and filename-safe; we keep it strict because it
+    /// influences local file paths.
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        let t = raw.trim();
+        if t.is_empty() {
+            return Err("slice tag is empty".to_string());
+        }
+        let mut out = String::new();
+        for ch in t.chars() {
+            let ch = ch.to_ascii_lowercase();
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '=') {
+                out.push(ch);
+            } else {
+                return Err(format!("invalid character '{}' in slice tag", ch));
+            }
+            if out.len() >= 128 {
+                break;
+            }
+        }
+        if out.is_empty() {
+            return Err("slice tag became empty after normalization".to_string());
+        }
+        Ok(Self(out))
+    }
+
+    /// Return the normalized, filename-safe tag string.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for SliceTag {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// A coarse summary of a facet value set.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FacetSlug {
+    /// No facet data (should be rare; defensive).
+    Unknown,
+    /// Multiple facet values present in the dataset set.
+    Mixed,
+    /// Exactly one facet value (canonical, lowercase, filename-safe).
+    Single(String),
+}
+
+impl FacetSlug {
+    /// Return the normalized facet slug as a string (`unknown` / `mixed` / `<value>`).
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown => "unknown",
+            Self::Mixed => "mixed",
+            Self::Single(s) => s.as_str(),
+        }
+    }
+}
+
+fn facet_slug(values: &[&'static str]) -> FacetSlug {
+    let mut uniq: Vec<&'static str> = values.iter().copied().collect();
+    uniq.sort();
+    uniq.dedup();
+    if uniq.is_empty() {
+        FacetSlug::Unknown
+    } else if uniq.len() == 1 {
+        // Keep consistent with SliceTag's expectations.
+        let v = uniq[0].trim().to_ascii_lowercase();
+        let safe = v
+            .chars()
+            .take(64)
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '=') {
+                    ch
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        if safe.is_empty() {
+            FacetSlug::Unknown
+        } else {
+            FacetSlug::Single(safe)
+        }
+    } else {
+        FacetSlug::Mixed
+    }
+}
+
+/// Coarse dataset facet summary used for muxer history scoping.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DatasetFacetSummary {
+    /// Language facet summary for the chosen dataset set.
+    pub language: FacetSlug,
+    /// Domain facet summary for the chosen dataset set.
+    pub domain: FacetSlug,
+}
+
+/// Compute the effective muxer slice tag (optionally facet-scoped).
+#[cfg(feature = "eval-advanced")]
+pub fn muxer_slice_tag(
+    task_code: &str,
+    datasets: &[crate::eval::loader::DatasetId],
+    slice_by_dataset_facets: bool,
+) -> Result<SliceTag, String> {
+    let base = SliceTag::parse(task_code)?;
+    if !slice_by_dataset_facets {
+        return Ok(base);
+    }
+    let langs: Vec<&'static str> = datasets.iter().map(|d| d.language()).collect();
+    let domains: Vec<&'static str> = datasets.iter().map(|d| d.domain()).collect();
+    let summary = DatasetFacetSummary {
+        language: facet_slug(&langs),
+        domain: facet_slug(&domains),
+    };
+    let tagged = format!(
+        "{}.lang={}.dom={}",
+        base.as_str(),
+        summary.language.as_str(),
+        summary.domain.as_str()
+    );
+    SliceTag::parse(&tagged)
+}
+
+#[cfg(all(test, feature = "eval-advanced"))]
+mod tests {
+    use super::*;
+    use crate::eval::loader::DatasetId;
+
+    #[test]
+    fn test_slice_tag_parse_rejects_pathy_chars() {
+        assert!(SliceTag::parse("ner").is_ok());
+        assert!(SliceTag::parse("ner.lang=en.dom=news").is_ok());
+        assert!(SliceTag::parse("ner/../../oops").is_err());
+        assert!(SliceTag::parse("ner lang=en").is_err());
+    }
+
+    #[test]
+    fn test_muxer_slice_tag_facet_scoping() {
+        let d1 = DatasetId::Wnut17; // en + social_media
+        let d2 = DatasetId::GermEvalDiscontinuous; // de + (some non-en domain)
+
+        let base = muxer_slice_tag("ner", &[d1], false).expect("task-only slice");
+        assert_eq!(base.as_str(), "ner");
+
+        let scoped = muxer_slice_tag("ner", &[d1], true).expect("facet slice");
+        assert!(scoped.as_str().starts_with("ner.lang="));
+
+        let mixed = muxer_slice_tag("ner", &[d1, d2], true).expect("mixed facet slice");
+        assert!(mixed.as_str().contains(".lang=mixed."));
+    }
 }
