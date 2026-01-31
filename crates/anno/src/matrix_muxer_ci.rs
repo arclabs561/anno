@@ -1694,9 +1694,7 @@ fn test_randomized_matrix_sample() {
                     explore_first: Some(explore_first),
                     constraints_fallback_used: None,
                     eligible_arms: Some(eligible_arms),
-                    top_candidates: exp3ix_rounds
-                        .first()
-                        .and_then(|r| r.top_candidates.clone()),
+                    top_candidates: exp3ix_rounds.first().and_then(|r| r.top_candidates.clone()),
                     mab_k_round: None,
                     exp3ix_rounds: Some(exp3ix_rounds),
                     worst_first_round: None,
