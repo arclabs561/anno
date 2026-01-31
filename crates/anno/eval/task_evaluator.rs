@@ -2772,8 +2772,6 @@ impl TaskEvaluator {
         dataset_data: &LoadedDataset,
         _config: &TaskEvalConfig,
     ) -> Result<HashMap<String, f64>> {
-        use crate::eval::metrics::ClassificationMetrics;
-
         // For now, only GLiNER2 is wired for classification in this repo.
         let backend_name_norm = backend_name.to_lowercase();
         if backend_name_norm != "gliner2"
@@ -2815,98 +2813,114 @@ impl TaskEvaluator {
                 dataset
             )));
         }
-        let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
+        // If we don't have any compiled gliner2 backend (neither onnx nor candle),
+        // classification is not available even if `eval` is enabled.
+        #[cfg(any(feature = "onnx", feature = "candle"))]
+        {
+            use crate::eval::metrics::ClassificationMetrics;
 
-        // Create backend instance for classification.
-        #[cfg(feature = "onnx")]
-        let extractor = if backend_name_norm == "gliner2" || backend_name_norm == "gliner2onnx" {
-            use crate::backends::gliner2::GLiNER2Onnx;
-            use crate::DEFAULT_GLINER2_MODEL;
-            Some(GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?)
-        } else {
-            None
-        };
-        #[cfg(not(feature = "onnx"))]
-        let extractor: Option<()> = None;
+            let label_refs: Vec<&str> = labels.iter().map(|s| s.as_str()).collect();
 
-        #[cfg(all(feature = "candle", feature = "onnx"))]
-        let extractor_candle =
-            if backend_name_norm == "gliner2_candle" || backend_name_norm == "gliner2candle" {
-                use crate::backends::gliner2::GLiNER2Candle;
+            // Create backend instance for classification.
+            #[cfg(feature = "onnx")]
+            let extractor = if backend_name_norm == "gliner2" || backend_name_norm == "gliner2onnx"
+            {
+                use crate::backends::gliner2::GLiNER2Onnx;
                 use crate::DEFAULT_GLINER2_MODEL;
-                Some(GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL)?)
+                Some(GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?)
             } else {
                 None
             };
-        #[cfg(not(all(feature = "candle", feature = "onnx")))]
-        let extractor_candle: Option<()> = None;
+            #[cfg(not(feature = "onnx"))]
+            let extractor: Option<()> = None;
 
-        if extractor.is_none() && extractor_candle.is_none() {
-            return Err(crate::Error::FeatureNotAvailable(
-                "Text classification requires a gliner2 backend with 'onnx' (and optionally 'candle') enabled"
-                    .to_string(),
-            ));
-        }
-
-        let schema = crate::backends::gliner2::TaskSchema::new().with_classification(
-            "topic",
-            &label_refs,
-            false,
-        );
-
-        let mut m = ClassificationMetrics::new();
-        for s in &dataset_data.sentences {
-            let text = s.text();
-            if text.trim().is_empty() {
-                continue;
-            }
-            let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
-            let gold = tag
-                .strip_prefix("B-")
-                .or_else(|| tag.strip_prefix("I-"))
-                .unwrap_or(tag)
-                .to_string();
-            if gold.is_empty() || gold == "O" {
-                continue;
-            }
-
-            #[cfg(feature = "onnx")]
-            let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor {
-                let r = gliner2.extract(&text, &schema)?;
-                r.classifications
-                    .get("topic")
-                    .map(|c| c.labels.clone())
-                    .unwrap_or_default()
-            } else {
-                Vec::new()
-            };
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor_candle {
-                let r = gliner2.extract(&text, &schema)?;
-                r.classifications
-                    .get("topic")
-                    .map(|c| c.labels.clone())
-                    .unwrap_or_default()
-            } else {
-                pred_labels
-            };
-            #[cfg(not(any(feature = "onnx", all(feature = "candle", feature = "onnx"))))]
-            let pred_labels: Vec<String> = Vec::new();
+            let extractor_candle =
+                if backend_name_norm == "gliner2_candle" || backend_name_norm == "gliner2candle" {
+                    use crate::backends::gliner2::GLiNER2Candle;
+                    use crate::DEFAULT_GLINER2_MODEL;
+                    Some(GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL)?)
+                } else {
+                    None
+                };
+            #[cfg(not(all(feature = "candle", feature = "onnx")))]
+            let extractor_candle: Option<()> = None;
 
-            let pred = pred_labels
-                .first()
-                .cloned()
-                .unwrap_or_else(|| "Unknown".to_string());
-            m.add(&pred, &gold);
+            if extractor.is_none() && extractor_candle.is_none() {
+                return Err(crate::Error::FeatureNotAvailable(
+                    "Text classification requires a gliner2 backend with 'onnx' (and optionally 'candle') enabled"
+                        .to_string(),
+                ));
+            }
+
+            let schema = crate::backends::gliner2::TaskSchema::new().with_classification(
+                "topic",
+                &label_refs,
+                false,
+            );
+
+            let mut m = ClassificationMetrics::new();
+            for s in &dataset_data.sentences {
+                let text = s.text();
+                if text.trim().is_empty() {
+                    continue;
+                }
+                let tag = s.tokens.first().map(|t| t.ner_tag.as_str()).unwrap_or("O");
+                let gold = tag
+                    .strip_prefix("B-")
+                    .or_else(|| tag.strip_prefix("I-"))
+                    .unwrap_or(tag)
+                    .to_string();
+                if gold.is_empty() || gold == "O" {
+                    continue;
+                }
+
+                #[cfg(feature = "onnx")]
+                let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor {
+                    let r = gliner2.extract(&text, &schema)?;
+                    r.classifications
+                        .get("topic")
+                        .map(|c| c.labels.clone())
+                        .unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                #[cfg(all(feature = "candle", feature = "onnx"))]
+                let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor_candle {
+                    let r = gliner2.extract(&text, &schema)?;
+                    r.classifications
+                        .get("topic")
+                        .map(|c| c.labels.clone())
+                        .unwrap_or_default()
+                } else {
+                    pred_labels
+                };
+                #[cfg(not(any(feature = "onnx", all(feature = "candle", feature = "onnx"))))]
+                let pred_labels: Vec<String> = Vec::new();
+
+                let pred = pred_labels
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown".to_string());
+                m.add(&pred, &gold);
+            }
+
+            let mut metrics = HashMap::new();
+            metrics.insert("accuracy".to_string(), m.accuracy());
+            metrics.insert("macro_f1".to_string(), m.macro_f1());
+            metrics.insert("micro_f1".to_string(), m.micro_f1());
+            metrics.insert("weighted_f1".to_string(), m.weighted_f1());
+            metrics.insert("num_examples".to_string(), m.total as f64);
+            Ok(metrics)
         }
 
-        let mut metrics = HashMap::new();
-        metrics.insert("accuracy".to_string(), m.accuracy());
-        metrics.insert("macro_f1".to_string(), m.macro_f1());
-        metrics.insert("micro_f1".to_string(), m.micro_f1());
-        metrics.insert("weighted_f1".to_string(), m.weighted_f1());
-        metrics.insert("num_examples".to_string(), m.total as f64);
-        Ok(metrics)
+        #[cfg(not(any(feature = "onnx", feature = "candle")))]
+        {
+            Err(crate::Error::FeatureNotAvailable(
+                "Text classification requires a gliner2 backend with 'onnx' or 'candle' enabled"
+                    .to_string(),
+            ))
+        }
     }
 }
 

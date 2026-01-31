@@ -59,8 +59,9 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
+          cache-dependency-glob: ty.toml
       - name: Run ty
-        run: uvx ty check scripts
+        run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
 
   clippy:
     name: Clippy

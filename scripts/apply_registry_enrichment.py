@@ -19,7 +19,7 @@ def load_enrichment():
     with open(ENRICHMENT_FILE) as f:
         return json.load(f)
 
-def update_registry(content: str, s3_matches: dict, hf_additions: dict) -> str:
+def update_registry(content: str, s3_matches: dict, hf_additions: dict) -> tuple[str, int]:
     """Update registry content with enrichment data."""
     
     updates_applied = 0

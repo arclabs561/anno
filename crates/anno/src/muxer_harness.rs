@@ -221,7 +221,7 @@ impl FacetSlug {
 }
 
 fn facet_slug(values: &[&'static str]) -> FacetSlug {
-    let mut uniq: Vec<&'static str> = values.iter().copied().collect();
+    let mut uniq: Vec<&'static str> = values.to_vec();
     uniq.sort();
     uniq.dedup();
     if uniq.is_empty() {
