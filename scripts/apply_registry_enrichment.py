@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno/eval/dataset_registry.rs"
+REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno-eval/src/eval/dataset_registry.rs"
 ENRICHMENT_FILE = Path(__file__).parent / "registry_enrichment.json"
 S3_BUCKET = "arc-anno-data"
 

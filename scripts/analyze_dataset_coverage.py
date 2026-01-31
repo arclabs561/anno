@@ -8,7 +8,7 @@ from pathlib import Path
 from collections import defaultdict
 
 CACHE_DIR = Path.home() / "Library/Caches/anno/datasets"
-REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno/eval/dataset_registry.rs"
+REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno-eval/src/eval/dataset_registry.rs"
 
 def get_cached_files():
     """Get all files in the local cache."""

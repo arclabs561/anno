@@ -19,7 +19,7 @@ from pathlib import Path
 def get_loader_datasets():
     """Extract DatasetId variants from loader.rs."""
     result = subprocess.run(
-        ['rg', '-o', r'DatasetId::([A-Za-z0-9_]+)', 'crates/anno/eval/loader.rs'],
+        ["rg", "-o", r"DatasetId::([A-Za-z0-9_]+)", "crates/anno-eval/src/eval/loader.rs"],
         capture_output=True,
         text=True
     )

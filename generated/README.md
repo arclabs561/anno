@@ -9,7 +9,7 @@ This directory contains **auto-generated artifacts** derived from the Rust sourc
 The canonical source for dataset metadata is:
 
 ```
-crates/anno/eval/dataset_registry.rs
+crates/anno-eval/src/eval/dataset_registry.rs
 ```
 
 The `define_datasets!` macro in that file generates all dataset-related code.

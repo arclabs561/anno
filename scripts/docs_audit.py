@@ -125,8 +125,9 @@ def check_banned_strings(repo_root: Path) -> int:
         r"\bdocs/design/",
         r"\bdocs/research/",
         r"\bdocs/reference/",
-        # Old crate name.
-        r"\banno-cli\b",
+        # Old pre-split paths.
+        r"\bcrates/anno/cli/",
+        r"\bcrates/anno/eval/",
     ]
     patterns = [(s, re.compile(s)) for s in banned]
 

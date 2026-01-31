@@ -166,7 +166,11 @@ def main():
         default="generated/datasets_generated.json",
         help="Input JSON file",
     )
-    parser.add_argument("--loader", default="crates/anno/eval/loader.rs", help="Existing loader.rs")
+    parser.add_argument(
+        "--loader",
+        default="crates/anno-eval/src/eval/loader.rs",
+        help="Existing loader.rs",
+    )
     parser.add_argument("--output", help="Output file (default: stdout)")
     parser.add_argument("--missing-only", action="store_true", help="Only show missing datasets")
     parser.add_argument("--section", choices=["enum", "url", "name", "desc", "all"], 

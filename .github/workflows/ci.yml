@@ -726,7 +726,7 @@ jobs:
           opengrep scan \
             -f .opengrep/rules/rust-evaluation-framework.yaml \
             --json --output opengrep-eval-results.json \
-            crates/anno/eval/ || true
+            crates/anno-eval/ || true
       - name: Run OpenGrep (custom rules - anno-specific)
         run: |
           opengrep scan \

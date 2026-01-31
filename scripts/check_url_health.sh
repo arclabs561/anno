@@ -8,7 +8,7 @@ echo "=== Dataset URL Health Check ==="
 echo ""
 
 # Extract all URLs from dataset registry
-REGISTRY_FILE="crates/anno/eval/dataset_registry.rs"
+REGISTRY_FILE="crates/anno-eval/src/eval/dataset_registry.rs"
 
 if [[ ! -f "$REGISTRY_FILE" ]]; then
     echo "Error: Registry file not found: $REGISTRY_FILE"

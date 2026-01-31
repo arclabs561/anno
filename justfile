@@ -501,7 +501,7 @@ opengrep-custom:
     @which opengrep > /dev/null || (echo "Install: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash" && exit 1)
     opengrep scan -f .opengrep/rules/rust-security.yaml --json --output opengrep-security-results.json crates/anno/
     opengrep scan -f .opengrep/rules/rust-nlp-ml-patterns.yaml --json --output opengrep-nlp-results.json crates/anno/
-    opengrep scan -f .opengrep/rules/rust-evaluation-framework.yaml --json --output opengrep-eval-results.json crates/anno/eval/
+    opengrep scan -f .opengrep/rules/rust-evaluation-framework.yaml --json --output opengrep-eval-results.json crates/anno-eval/
     opengrep scan -f .opengrep/rules/rust-anno-specific.yaml --json --output opengrep-anno-results.json crates/anno/
     opengrep scan -f .opengrep/rules/rust-error-handling.yaml --json --output opengrep-error-results.json crates/anno/
     opengrep scan -f .opengrep/rules/rust-memory-patterns.yaml --json --output opengrep-memory-results.json crates/anno/

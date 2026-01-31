@@ -2,8 +2,8 @@
 //!
 //! Goal: keep selection semantics (env parsing, guardrails, deterministic sampling) consistent
 //! between:
-//! - `crates/anno/src/matrix_muxer_ci.rs` (the CI-friendly matrix harness)
-//! - `crates/anno/cli/commands/muxer.rs` (the `anno muxer` inspection tool)
+//! - `crates/anno-eval/src/matrix_muxer_ci.rs` (the CI-friendly matrix harness)
+//! - `crates/anno-cli/src/cli/commands/muxer.rs` (the `anno muxer` inspection tool)
 //!
 //! This module is only compiled when `eval-advanced` is enabled.
 

@@ -19,7 +19,7 @@ echo "Fixing core benchmark URLs..."
 echo "================================"
 
 # Backup original file
-cp crates/anno/eval/dataset_registry.rs crates/anno/eval/dataset_registry.rs.backup
+cp crates/anno-eval/src/eval/dataset_registry.rs crates/anno-eval/src/eval/dataset_registry.rs.backup
 
 # Note: This script identifies URLs to update. Manual editing required.
 # The URLs below are research-backed alternatives from HuggingFace and official sources.
@@ -61,4 +61,4 @@ EOF
 
 echo ""
 echo "URL research complete. Manual updates required in dataset_registry.rs"
-echo "Backup created at: crates/anno/eval/dataset_registry.rs.backup"
+echo "Backup created at: crates/anno-eval/src/eval/dataset_registry.rs.backup"

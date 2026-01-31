@@ -21,7 +21,7 @@ import urllib.error
 import ssl
 
 CACHE_DIR = Path.home() / "Library/Caches/anno/datasets"
-REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno/eval/dataset_registry.rs"
+REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno-eval/src/eval/dataset_registry.rs"
 S3_BUCKET = "arc-anno-data"
 OUTPUT_FILE = Path(__file__).parent.parent / "scripts/registry_enrichment.json"
 

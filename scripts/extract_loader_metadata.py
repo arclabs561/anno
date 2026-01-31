@@ -158,7 +158,11 @@ def generate_registry_entry(variant: str, metadata: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Extract loader metadata for registry")
-    parser.add_argument("--loader", default="crates/anno/eval/loader.rs", help="Path to loader.rs")
+    parser.add_argument(
+        "--loader",
+        default="crates/anno-eval/src/eval/loader.rs",
+        help="Path to loader.rs",
+    )
     parser.add_argument("--missing", help="File with list of missing variants")
     parser.add_argument("--output", help="Output file (default: stdout)")
     args = parser.parse_args()

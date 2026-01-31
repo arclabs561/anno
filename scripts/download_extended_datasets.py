@@ -8,7 +8,7 @@ Download extended datasets for Anno evaluation.
 
 All datasets are REAL - no synthetic data generation.
 
-The Rust dataset registry (`crates/anno/eval/dataset_registry.rs`) is the source of truth.
+The Rust dataset registry (`crates/anno-eval/src/eval/dataset_registry.rs`) is the source of truth.
 This script pulls HuggingFace IDs from the generated config and also supports direct URL downloads.
 
 Usage:

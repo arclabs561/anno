@@ -9,13 +9,13 @@ echo ""
 
 ISSUES=0
 
-ENTITY_RS="crates/anno/src/core/entity.rs"
-GROUNDED_RS="crates/anno/src/core/grounded.rs"
-CONFIDENCE_RS="crates/anno/types/confidence.rs"
-EVAL_TASK_RS="crates/anno/eval/task_evaluator.rs"
-EVAL_DIR="crates/anno/eval/"
-BACKENDS_DIR="crates/anno/backends/"
-METRICS_RS="crates/anno/eval/metrics.rs"
+ENTITY_RS="crates/anno-core/src/core/entity.rs"
+GROUNDED_RS="crates/anno-core/src/core/grounded.rs"
+CONFIDENCE_RS="crates/anno/src/types/confidence.rs"
+EVAL_TASK_RS="crates/anno-eval/src/eval/task_evaluator.rs"
+EVAL_DIR="crates/anno-eval/src/eval/"
+BACKENDS_DIR="crates/anno/src/backends/"
+METRICS_RS="crates/anno-eval/src/eval/metrics.rs"
 
 # 1. Check for text offset validation
 echo "## Text Offset Validation"
@@ -35,7 +35,7 @@ fi
 echo ""
 echo "## Confidence Score Validation"
 echo ""
-if rg -q "Confidence::new" --type rust crates/anno/ 2>/dev/null; then
+if rg -q "Confidence::new" --type rust crates/anno crates/anno-core 2>/dev/null; then
     if ! rg -q "0\\.0\\..*=1\\.0|\\(0\\.0\\.\\.=1\\.0\\)|\\.contains\\(&value\\)" --type rust "$CONFIDENCE_RS" 2>/dev/null; then
         echo "WARNING:  Potential missing confidence score range validation"
         ((ISSUES++))
