@@ -2583,6 +2583,35 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         exp3ix_state: None,
     };
 
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_max = std::env::var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS").ok();
+    let old_req = std::env::var("ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT").ok();
+    let old_nov = std::env::var("ANNO_MUXER_NOVELTY").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r1 = Restore {
+        k: "ANNO_MUXER_MAX_MEAN_ELAPSED_MS",
+        v: old_max,
+    };
+    let _r2 = Restore {
+        k: "ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT",
+        v: old_req,
+    };
+    let _r3 = Restore {
+        k: "ANNO_MUXER_NOVELTY",
+        v: old_nov,
+    };
+
     std::env::set_var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS", "2");
     std::env::set_var("ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT", "1");
     std::env::set_var("ANNO_MUXER_NOVELTY", "0"); // don't short-circuit into novelty selection
@@ -2603,5 +2632,75 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
     assert!(
         chosen.is_empty(),
         "arm should be filtered as unmeasured (observed calls == 0) despite prior"
+    );
+}
+
+#[test]
+fn test_novelty_still_triggers_under_priors() {
+    // Regression test: with priors enabled, "calls" may be non-zero in smoothed summaries
+    // even when an arm has never been tried in this slice. Novelty should still pick the
+    // slice-unseen arm.
+    let mut prior = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let mut w = Window::new(50);
+    for _ in 0..10 {
+        w.push(Outcome {
+            ok: true,
+            http_429: false,
+            junk: false,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1,
+        });
+    }
+    prior.windows.insert("stacked".to_string(), w);
+
+    let current = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_nov = std::env::var("ANNO_MUXER_NOVELTY").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r = Restore {
+        k: "ANNO_MUXER_NOVELTY",
+        v: old_nov,
+    };
+
+    std::env::set_var("ANNO_MUXER_NOVELTY", "1");
+
+    let chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &current,
+        Some(&prior),
+        &["stacked".to_string()],
+        None,
+        1,
+        6,
+    );
+    assert_eq!(
+        chosen.as_slice(),
+        &["stacked".to_string()],
+        "novelty should pick the slice-unseen arm even when priors exist"
     );
 }
