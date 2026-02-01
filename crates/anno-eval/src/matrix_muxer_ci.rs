@@ -773,6 +773,42 @@ fn select_backends(
         return Vec::new();
     }
 
+    fn apply_latency_guardrail_observed(
+        seed: u64,
+        remaining: &[String],
+        history: &BackendHistory,
+        datasets: Option<&[DatasetId]>,
+        per_dataset: bool,
+        guard: mh::LatencyGuardrail,
+    ) -> (Vec<String>, bool) {
+        // Returns (eligible, stop_early).
+        let Some(max_ms) = guard.max_mean_ms else {
+            return (remaining.to_vec(), false);
+        };
+        let mut eligible: Vec<String> = remaining
+            .iter()
+            .filter(|b| {
+                let s = history.observed_summary_for(b, datasets, per_dataset);
+                if guard.require_measured && s.calls == 0 {
+                    return false;
+                }
+                s.mean_elapsed_ms() <= max_ms
+            })
+            .cloned()
+            .collect();
+        eligible.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4755_4152, b)); // "GUAR"
+
+        if eligible.is_empty() {
+            if guard.allow_fewer {
+                return (Vec::new(), true);
+            }
+            // Fallback: ignore the guardrail.
+            return (remaining.to_vec(), false);
+        }
+
+        (eligible, false)
+    }
+
     match strategy {
         SampleStrategy::Random => pick_random_subset(seed, candidates_in_order, k),
         SampleStrategy::MlOnly => {
@@ -827,15 +863,36 @@ fn select_backends(
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
 
             let guard = mh::latency_guardrail_from_env();
-            let mk = muxer::select_mab_k_guardrailed_explain_full(
+            let (eligible, stop_early) = apply_latency_guardrail_observed(
+                seed,
                 candidates_in_order,
+                history,
+                datasets,
+                per_dataset,
+                guard,
+            );
+            if stop_early && verbose {
+                eprintln!(
+                    "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early",
+                    guard.max_mean_ms.unwrap_or(0.0)
+                );
+            }
+            // If we stop early, return what we already chose (handled by caller); at this layer,
+            // treat as “no more choices”.
+            if stop_early {
+                return Vec::new();
+            }
+            let mk = muxer::select_mab_k_guardrailed_explain_full(
+                &eligible,
                 |remaining| {
                     history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
                 },
                 cfg,
                 muxer::LatencyGuardrailConfig {
-                    max_mean_ms: guard.max_mean_ms,
-                    require_measured: guard.require_measured,
+                    // Latency guardrail is applied on observed summaries above, so priors can't
+                    // mask "require measured" or skew mean latency.
+                    max_mean_ms: None,
+                    require_measured: false,
                     allow_fewer: guard.allow_fewer,
                 },
                 k,
@@ -2493,5 +2550,58 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         s.ok_rate() > 0.5,
         "facet prior should bias ok_rate upward; got ok_rate={}",
         s.ok_rate()
+    );
+}
+
+#[test]
+fn test_latency_guardrail_require_measured_uses_observed_calls() {
+    // Regression test: prior smoothing should not make an arm count as “measured” for the
+    // latency guardrail. `require_measured` must be based on observed calls.
+    let mut prior = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let mut w = Window::new(50);
+    for _ in 0..10 {
+        w.push(Outcome {
+            ok: true,
+            http_429: false,
+            junk: false,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1,
+        });
+    }
+    prior.windows.insert("stacked".to_string(), w);
+
+    let current = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+
+    std::env::set_var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS", "2");
+    std::env::set_var("ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT", "1");
+    std::env::set_var("ANNO_MUXER_NOVELTY", "0"); // don't short-circuit into novelty selection
+
+    let chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &current,
+        Some(&prior),
+        &["stacked".to_string()],
+        None,
+        1,
+        6,
+    );
+
+    // With require_measured=1 and no observed calls, we must not pick it.
+    assert!(
+        chosen.is_empty(),
+        "arm should be filtered as unmeasured (observed calls == 0) despite prior"
     );
 }

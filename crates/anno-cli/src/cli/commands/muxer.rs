@@ -1012,11 +1012,47 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             let mut eligible: Vec<String> = remaining
                                 .iter()
                                 .filter(|a| {
-                                    let s = summaries.get(*a).copied().unwrap_or_default();
-                                    if guard.require_measured && s.calls == 0 {
+                                    // Observed (no-prior) mean latency + calls.
+                                    let mut obs_calls = 0u64;
+                                    let mut obs_elapsed_sum = 0u64;
+                                    if per_dataset {
+                                        let prefix = format!("{a}@@");
+                                        for (k, w) in &h.windows {
+                                            if !k.starts_with(&prefix) {
+                                                continue;
+                                            }
+                                            if let Some(ds) = ds_set_ref {
+                                                let suffix = k.strip_prefix(&prefix).unwrap_or("");
+                                                if !ds.contains(suffix) {
+                                                    continue;
+                                                }
+                                            }
+                                            obs_calls =
+                                                obs_calls.saturating_add(w.buf.len() as u64);
+                                            for o in &w.buf {
+                                                obs_elapsed_sum =
+                                                    obs_elapsed_sum.saturating_add(o.elapsed_ms);
+                                            }
+                                        }
+                                    }
+                                    if obs_calls == 0 {
+                                        if let Some(w) = h.windows.get(*a) {
+                                            obs_calls = w.buf.len() as u64;
+                                            for o in &w.buf {
+                                                obs_elapsed_sum =
+                                                    obs_elapsed_sum.saturating_add(o.elapsed_ms);
+                                            }
+                                        }
+                                    }
+                                    if guard.require_measured && obs_calls == 0 {
                                         return false;
                                     }
-                                    s.mean_elapsed_ms() <= ms
+                                    let mean_ms = if obs_calls == 0 {
+                                        0.0
+                                    } else {
+                                        (obs_elapsed_sum as f64) / (obs_calls as f64)
+                                    };
+                                    mean_ms <= ms
                                 })
                                 .cloned()
                                 .collect();
