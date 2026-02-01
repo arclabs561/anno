@@ -758,6 +758,42 @@ fn mab_config_from_env() -> MabConfig {
     mh::mab_config_from_env()
 }
 
+fn apply_latency_guardrail_observed(
+    seed: u64,
+    remaining: &[String],
+    history: &BackendHistory,
+    datasets: Option<&[DatasetId]>,
+    per_dataset: bool,
+    guard: mh::LatencyGuardrail,
+) -> (Vec<String>, bool) {
+    // Returns (eligible, stop_early).
+    let Some(max_ms) = guard.max_mean_ms else {
+        return (remaining.to_vec(), false);
+    };
+    let mut eligible: Vec<String> = remaining
+        .iter()
+        .filter(|b| {
+            let s = history.observed_summary_for(b, datasets, per_dataset);
+            if guard.require_measured && s.calls == 0 {
+                return false;
+            }
+            s.mean_elapsed_ms() <= max_ms
+        })
+        .cloned()
+        .collect();
+    eligible.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4755_4152, b)); // "GUAR"
+
+    if eligible.is_empty() {
+        if guard.allow_fewer {
+            return (Vec::new(), true);
+        }
+        // Fallback: ignore the guardrail.
+        return (remaining.to_vec(), false);
+    }
+
+    (eligible, false)
+}
+
 fn select_backends(
     strategy: SampleStrategy,
     seed: u64,
@@ -771,42 +807,6 @@ fn select_backends(
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
-    }
-
-    fn apply_latency_guardrail_observed(
-        seed: u64,
-        remaining: &[String],
-        history: &BackendHistory,
-        datasets: Option<&[DatasetId]>,
-        per_dataset: bool,
-        guard: mh::LatencyGuardrail,
-    ) -> (Vec<String>, bool) {
-        // Returns (eligible, stop_early).
-        let Some(max_ms) = guard.max_mean_ms else {
-            return (remaining.to_vec(), false);
-        };
-        let mut eligible: Vec<String> = remaining
-            .iter()
-            .filter(|b| {
-                let s = history.observed_summary_for(b, datasets, per_dataset);
-                if guard.require_measured && s.calls == 0 {
-                    return false;
-                }
-                s.mean_elapsed_ms() <= max_ms
-            })
-            .cloned()
-            .collect();
-        eligible.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4755_4152, b)); // "GUAR"
-
-        if eligible.is_empty() {
-            if guard.allow_fewer {
-                return (Vec::new(), true);
-            }
-            // Fallback: ignore the guardrail.
-            return (remaining.to_vec(), false);
-        }
-
-        (eligible, false)
     }
 
     match strategy {
@@ -1927,37 +1927,103 @@ fn test_randomized_matrix_sample() {
         let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
 
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
+        let guard = mh::latency_guardrail_from_env();
+        // 0) Optional novelty: pick slice-unseen arms first even under priors.
+        let mut prechosen: Vec<String> = Vec::new();
+        if mh::novelty_from_env() {
+            let mut unseen: Vec<String> = Vec::new();
+            for b in &candidates {
+                if history
+                    .observed_summary_for(b, Some(&chosen_datasets), per_dataset)
+                    .calls
+                    == 0
+                {
+                    unseen.push(b.clone());
+                }
+            }
+            if !unseen.is_empty() {
+                unseen.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
+                prechosen = unseen
+                    .into_iter()
+                    .take(backends_per_run.min(candidates.len()))
+                    .collect();
+            }
+        }
+
+        // 1) Apply latency guardrail on *observed* stats so priors can't fake measurement.
+        let remaining_after_pre: Vec<String> = candidates
+            .iter()
+            .cloned()
+            .filter(|b| !prechosen.contains(b))
+            .collect();
+        let (eligible_guarded, stop_early) = apply_latency_guardrail_observed(
+            seed ^ 0xE8D3_1A00,
+            &remaining_after_pre,
+            &history,
+            Some(&chosen_datasets),
+            per_dataset,
+            guard,
+        );
+        let eligible = if stop_early && !prechosen.is_empty() {
+            Vec::new()
+        } else if eligible_guarded.is_empty() && guard.allow_fewer && !prechosen.is_empty() {
+            Vec::new()
+        } else if eligible_guarded.is_empty() {
+            // Fall back if guardrail filtered everything and we haven't selected anything yet.
+            remaining_after_pre.clone()
+        } else {
+            eligible_guarded
+        };
+
+        // 2) Build summaries (may include priors) for the eligible set.
         let summaries = history.summaries_for(
             prior_history.as_ref(),
-            &candidates,
+            &eligible,
             Some(&chosen_datasets),
             per_dataset,
             prior_calls,
         );
-        let guard = mh::latency_guardrail_from_env();
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
-        let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
-            exp3ix_config_from_env(seed),
-            history.exp3ix_state.clone(),
-            &candidates,
-            &summaries,
-            muxer::LatencyGuardrailConfig {
-                max_mean_ms: guard.max_mean_ms,
-                require_measured: guard.require_measured,
-                allow_fewer: guard.allow_fewer,
-            },
-            backends_per_run,
-            decision_seed,
-        );
-        let chosen = ex.chosen.clone();
-        assert!(
-            !chosen.is_empty(),
-            "exp3ix selection returned no arms; candidates={}",
-            candidates.len()
-        );
-        let explore_first = ex
-            .rounds
-            .first()
+        let mut chosen = prechosen;
+        let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
+        if chosen.len() < backends_per_run && !eligible.is_empty() {
+            let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
+                exp3ix_config_from_env(seed),
+                history.exp3ix_state.clone(),
+                &eligible,
+                &summaries,
+                muxer::LatencyGuardrailConfig {
+                    // Guardrail is applied above on observed stats.
+                    max_mean_ms: None,
+                    require_measured: false,
+                    allow_fewer: guard.allow_fewer,
+                },
+                backends_per_run - chosen.len(),
+                decision_seed,
+            );
+
+            let picked = ex.chosen.clone();
+            assert!(
+                !picked.is_empty() || guard.allow_fewer,
+                "exp3ix selection returned no arms; eligible={}",
+                eligible.len()
+            );
+
+            // Keep the pre-update state (includes probs used for sampling).
+            exp3ix_state_for_update = Some(ex.state.clone());
+            exp3ix_tickets_for_update = ex
+                .rounds
+                .iter()
+                .map(|r| (r.decision.chosen.clone(), r.prob_used))
+                .collect();
+
+            chosen.extend(picked);
+            exp3ix_explain = Some(ex);
+        }
+
+        let explore_first = exp3ix_explain
+            .as_ref()
+            .and_then(|ex| ex.rounds.first())
             .map(|r| {
                 r.decision
                     .notes
@@ -1966,19 +2032,11 @@ fn test_randomized_matrix_sample() {
             })
             .unwrap_or(false);
 
-        // Keep the pre-update state (includes probs used for sampling).
-        exp3ix_state_for_update = Some(ex.state.clone());
-        exp3ix_tickets_for_update = ex
-            .rounds
-            .iter()
-            .map(|r| (r.decision.chosen.clone(), r.prob_used))
-            .collect();
-
         // Optional decision logging (bounded).
         if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
-            let eligible = ex
-                .rounds
-                .first()
+            let eligible = exp3ix_explain
+                .as_ref()
+                .and_then(|ex| ex.rounds.first())
                 .map(|r| r.guardrail.eligible.len())
                 .unwrap_or(0);
             eprintln!(
@@ -1997,37 +2055,42 @@ fn test_randomized_matrix_sample() {
                 seed, slice_tag_for_muxer, strategy
             );
             let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
-            let exp3ix_rounds = muxer::log_exp3ix_k_rounds_typed(&ex, decisions_top);
-            let eligible_arms = ex
-                .rounds
-                .first()
-                .map(|r| r.guardrail.eligible.clone())
-                .unwrap_or_default();
-            append_jsonl(
-                p,
-                &DecisionLog {
-                    schema_version: 5,
-                    muxer_version: muxer::MUXER_VERSION.to_string(),
-                    run_id,
-                    strategy: "ml-only".to_string(),
-                    slice: slice_tag_for_muxer.to_string(),
-                    muxer_profile: profile.clone(),
-                    latency_guardrail_max_mean_ms: guard.max_mean_ms.map(|x| x.round() as u64),
-                    latency_guardrail_allow_fewer: Some(guard.allow_fewer),
-                    latency_guardrail_require_measured: Some(guard.require_measured),
-                    round: 1,
-                    datasets: ds,
-                    remaining: candidates.clone(),
-                    chosen: chosen.first().cloned(),
-                    explore_first: Some(explore_first),
-                    constraints_fallback_used: None,
-                    eligible_arms: Some(eligible_arms),
-                    top_candidates: exp3ix_rounds.first().and_then(|r| r.top_candidates.clone()),
-                    mab_k_round: None,
-                    exp3ix_rounds: Some(exp3ix_rounds),
-                    worst_first_round: None,
-                },
-            );
+            if let Some(ex) = exp3ix_explain.as_ref() {
+                let exp3ix_rounds = muxer::log_exp3ix_k_rounds_typed(ex, decisions_top);
+                let eligible_arms = ex
+                    .rounds
+                    .first()
+                    .map(|r| r.guardrail.eligible.clone())
+                    .unwrap_or_default();
+                append_jsonl(
+                    p,
+                    &DecisionLog {
+                        schema_version: 5,
+                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        run_id,
+                        strategy: "ml-only".to_string(),
+                        slice: slice_tag_for_muxer.to_string(),
+                        muxer_profile: profile.clone(),
+                        // Guardrail is applied on observed stats above; keep logging consistent with env.
+                        latency_guardrail_max_mean_ms: guard.max_mean_ms.map(|x| x.round() as u64),
+                        latency_guardrail_allow_fewer: Some(guard.allow_fewer),
+                        latency_guardrail_require_measured: Some(guard.require_measured),
+                        round: 1,
+                        datasets: ds,
+                        remaining: eligible.clone(),
+                        chosen: chosen.first().cloned(),
+                        explore_first: Some(explore_first),
+                        constraints_fallback_used: None,
+                        eligible_arms: Some(eligible_arms),
+                        top_candidates: exp3ix_rounds
+                            .first()
+                            .and_then(|r| r.top_candidates.clone()),
+                        mab_k_round: None,
+                        exp3ix_rounds: Some(exp3ix_rounds),
+                        worst_first_round: None,
+                    },
+                );
+            }
         }
         chosen
     } else if matches!(strategy, SampleStrategy::MlOnly)
