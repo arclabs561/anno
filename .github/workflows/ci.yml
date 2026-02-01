@@ -334,7 +334,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo doc --no-deps --features "eval-full discourse"
+      # Document library crates only to avoid filename collisions between the
+      # `anno` library crate and the `anno` binary (package `anno-cli`).
+      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval-advanced discourse"
         env:
           RUSTDOCFLAGS: -D warnings
 

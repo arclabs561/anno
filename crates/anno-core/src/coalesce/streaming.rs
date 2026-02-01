@@ -677,7 +677,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 /// - "Barack Obama" vs "obama" → high similarity
 /// - "NVIDIA" vs "Nvidia Corp" → medium similarity
 ///
-/// For word-level similarity (phrase matching), use [`super::string_similarity`].
+/// For word-level similarity (phrase matching), prefer `textprep::similarity` utilities.
 ///
 /// # Algorithm
 ///

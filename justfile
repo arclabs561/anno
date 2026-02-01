@@ -191,7 +191,7 @@ eval-quick:
     # Fast, bounded benchmark run that writes an artifact under ./reports/.
     # Note: this may still download datasets/models unless caches are already warm.
     mkdir -p reports
-    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+    cargo run --release -p anno-cli --bin anno --features "eval-advanced onnx" -- benchmark \
         --tasks ner \
         --datasets CoNLL2003Sample,WikiGold,Wnut17,WikiANN,MasakhaNER \
         --backends heuristic,stacked,bert_onnx,gliner_onnx \
@@ -201,7 +201,7 @@ eval-quick:
 # Wider local eval (still bounded, but broader than eval-quick)
 eval-wide MAX_EXAMPLES="50":
     mkdir -p reports
-    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+    cargo run --release -p anno-cli --bin anno --features "eval-advanced onnx" -- benchmark \
         --tasks ner \
         --datasets CoNLL2003Sample,WikiGold,Wnut17,WikiANN,MasakhaNER,MultiCoNERv2,MultiNERD \
         --backends heuristic,stacked,bert_onnx,gliner_onnx,nuner \
@@ -217,9 +217,9 @@ eval-sanity:
 regenerate-datasets:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo test -p anno --features eval generate_datasets_json -- --ignored
-    cargo test -p anno --features eval generate_datasets_jsonl -- --ignored
-    cargo test -p anno --features eval generate_datasets_markdown -- --ignored
+    cargo test -p anno-eval generate_datasets_json -- --ignored
+    cargo test -p anno-eval generate_datasets_jsonl -- --ignored
+    cargo test -p anno-eval generate_datasets_markdown -- --ignored
     python3 scripts/generate_download_configs.py \
         --input generated/datasets_generated.json \
         --output generated/download_configs_generated.json \
@@ -232,7 +232,7 @@ regenerate-datasets:
 # - just eval-profile ner-zeroshot-multilingual 20
 eval-profile PROFILE MAX_EXAMPLES="20":
     mkdir -p reports
-    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+    cargo run --release -p anno-cli --bin anno --features "eval-advanced onnx" -- benchmark \
         --profile {{PROFILE}} \
         --max-examples {{MAX_EXAMPLES}} \
         --output reports/eval-{{PROFILE}}.md \
@@ -249,7 +249,7 @@ eval-full-limit MAX_EXAMPLES:
 
 # Run evaluation with specific seed
 eval-seed SEED MAX_EXAMPLES="20":
-    cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+    cargo run --release -p anno-cli --bin anno --features "eval-advanced onnx" -- benchmark \
         --max-examples {{MAX_EXAMPLES}} \
         --seed {{SEED}} \
         --cached-only \
@@ -292,11 +292,11 @@ test-models:
 
 # Build docs
 docs:
-    cargo doc --no-deps --features "eval-full discourse"
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval-advanced discourse"
 
 # Open docs in browser
 docs-open:
-    cargo doc --no-deps --features "eval-full discourse" --open
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval-advanced discourse" --open
 
 # Check internal docs markdown links (fast, no network).
 docs-links:
@@ -907,7 +907,7 @@ spot-eval-quick:
 
 # Local evaluation (no AWS, runs on this machine)
 eval-local BACKENDS="heuristic,stacked" DATASETS="WikiGold" MAX="50":
-    @cargo build --release -p anno --features "cli,eval-advanced" > /dev/null
+    @cargo build --release -p anno-cli --features "eval-advanced onnx" > /dev/null
     @uv run scripts/spot/orchestrate.py local \
         --backends "{{BACKENDS}}" \
         --datasets "{{DATASETS}}" \
@@ -915,7 +915,7 @@ eval-local BACKENDS="heuristic,stacked" DATASETS="WikiGold" MAX="50":
 
 # Local quick eval (zero-dep backends only, fast)
 eval-local-quick:
-    @cargo build --release -p anno --features "cli,eval-advanced" > /dev/null
+    @cargo build --release -p anno-cli --features "eval-advanced onnx" > /dev/null
     @uv run scripts/spot/orchestrate.py local \
         --profile quick \
         --datasets "WikiGold,CoNLL2003Sample" \

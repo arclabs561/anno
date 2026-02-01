@@ -19,7 +19,7 @@ mkdir -p reports
 # - news + wikipedia + social
 # - multilingual/low-resource datasets
 # - both classical + ML-capable backends (feature-gated; some may skip)
-cargo run --release --bin anno --features "cli,eval-advanced" -- benchmark \
+cargo run --release -p anno-cli --bin anno --features "eval-advanced onnx" -- benchmark \
     --tasks ner \
     --datasets CoNLL2003Sample,WikiGold,Wnut17,WikiANN,MasakhaNER \
     --backends heuristic,stacked,bert_onnx,gliner_onnx \

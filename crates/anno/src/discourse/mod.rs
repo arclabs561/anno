@@ -174,9 +174,9 @@
 //!
 //! # See Also
 //!
-//! - [`crate::eval::incremental_coref`] — Incremental coreference with EntityMemory
+//! - `anno-eval::eval::incremental_coref` — Incremental coreference with EntityMemory
 //! - [`crate::backends::mention_ranking`] — Mention-ranking coreference
-//! - [`crate::eval::coref_resolver`] — Discourse-aware coreference resolution
+//! - `anno-eval::eval::coref_resolver` — Discourse-aware coreference resolution
 
 pub mod centering;
 pub mod dialogue;

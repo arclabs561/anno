@@ -297,9 +297,7 @@ impl<'de> Deserialize<'de> for CharOffset {
 /// - When calling `str::get(start..end)` or `str[start..end]`
 /// - When parsing byte-oriented formats
 ///
-/// Use [`bytes_to_chars`] to convert to `CharOffset` for entity storage.
-///
-/// [`bytes_to_chars`]: crate::offset::bytes_to_chars
+/// Use `anno::offset::bytes_to_chars` to convert to `CharOffset` for entity storage.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Debug)]
 #[repr(transparent)]
 pub struct ByteOffset(usize);

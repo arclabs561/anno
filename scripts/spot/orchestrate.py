@@ -585,7 +585,7 @@ def cmd_local(args, config: Config):
     if not anno_bin.exists():
         anno_bin = Path("target/debug/anno")
     if not anno_bin.exists():
-        console.print("[red]Error: anno binary not found. Run 'cargo build --release -p anno --features cli,eval-advanced' first.[/red]")
+        console.print("[red]Error: anno binary not found. Run 'cargo build --release -p anno-cli --features eval-advanced' first.[/red]")
         return
     
     for i, task in enumerate(tasks, 1):

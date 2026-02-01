@@ -30,11 +30,13 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 
 `anno` is a single publishable crate. Major feature flags:
 - `default = ["onnx"]`
-- `cli`: enables the `anno` binary
 - `candle`: pure-Rust transformer backend (GPU via platform support)
-- `eval-full`: evaluation umbrella (datasets, metrics, robustness/bias tooling)
+- `eval-advanced`: enables evaluation-adjacent helpers (used by `anno-cli` benchmarking)
+- `discourse`: discourse-level analysis
 
 Treat feature flags as **capability toggles**: depend on the narrowest set you need.
+
+Note: the `anno` binary lives in the separate `anno-cli` crate (package `anno-cli`, bin `anno`).
 
 ## Integration posture
 

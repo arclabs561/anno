@@ -64,11 +64,11 @@
 //! | [`coref`] | `Mention`, `CorefChain`, `CorefDocument` |
 //! | [`graph`] | Export to Neo4j, GraphML, JSON-LD |
 //! | [`dataset`] | `DatasetSpec`, `CustomDataset`, `DatasetRegistry` |
-//! | [`calibration`](crate::core::calibration) | Confidence score calibration |
-//! | [`historical`](crate::core::historical) | Ancient language provenance (BCE dates, epigraphy) |
-//! | [`provenance`](crate::core::provenance) | Document origin tracking |
+//! | [`calibration`] | Confidence score calibration |
+//! | [`historical`] | Ancient language provenance (BCE dates, epigraphy) |
+//! | [`provenance`] | Document origin tracking |
 //! | [`types`] | `Gender`, `MentionType`, `PhiFeatures`, `TypeLabel` |
-//! | [`provisional`](crate::core::provisional) | Experimental types (`BoxEmbedding`) |
+//! | [`provisional`] | Experimental types (`BoxEmbedding`) |
 //!
 //! ## Design Philosophy
 //!

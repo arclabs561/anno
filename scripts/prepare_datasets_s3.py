@@ -77,7 +77,7 @@ def check_anno_binary():
         if path.exists():
             return path
     
-    logger.error("anno binary not found. Build with: cargo build --release --bin anno --features cli,eval-advanced")
+    logger.error("anno binary not found. Build with: cargo build --release -p anno-cli --bin anno --features eval-advanced")
     return None
 
 def download_dataset(anno_bin: Path, dataset: str, s3_bucket: str) -> bool:

@@ -302,11 +302,13 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
                 // Optional: prefetch relation-capable GLiNER2 weights as well.
                 #[cfg(feature = "onnx")]
                 {
-                    if include_relation && matches!(backend, ModelBackend::Gliner2) {
+                    use super::super::parser::ModelBackend;
+
+                    if _include_relation && matches!(backend, ModelBackend::Gliner2) {
                         // Match the dataset CLI’s default relation model id.
                         let rel_id = "onnx-community/gliner-multitask-large-v0.5";
                         print!("  {} gliner2(relation) ... ", color("36", "→"));
-                        match crate::backends::gliner2::GLiNER2Onnx::from_pretrained(rel_id) {
+                        match anno::backends::gliner2::GLiNER2Onnx::from_pretrained(rel_id) {
                             Ok(_m) => println!("{}", color("32", "ok")),
                             Err(e) => {
                                 any_err = true;

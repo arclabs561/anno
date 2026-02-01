@@ -341,10 +341,10 @@ fn uri_safe(s: &str) -> String {
 /// Export to N-Triples format (RDF triples for knowledge graphs).
 ///
 /// Generates triples:
-/// - Entity type assertions: <entity> <rdf:type> <EntityType>
-/// - Entity text: <entity> <rdfs:label> "text"
-/// - Entity position: <entity> <anno:startOffset> "N"
-/// - Entity provenance: <entity> <prov:hadPrimarySource> <document>
+/// - Entity type assertions: `<entity> <rdf:type> <EntityType>`
+/// - Entity text: `<entity> <rdfs:label> "text"`
+/// - Entity position: `<entity> <anno:startOffset> "N"`
+/// - Entity provenance: `<entity> <prov:hadPrimarySource> <document>`
 ///
 /// For relations (when available), also generates:
 /// - <head_entity> <relation_type> <tail_entity>
