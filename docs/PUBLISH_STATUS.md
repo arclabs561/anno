@@ -7,7 +7,7 @@ This repo publishes a single crate: `anno`.
 - **Published / intended to be published**:
   - `anno` (the public facade crate)
 - **Not intended to be published**:
-  - legacy internal crates kept for history under `crates/` (they are not workspace members)
+  - `anno-core`, `anno-eval`, `anno-cli` (workspace crates used for internal structure/tooling)
 
 ## CI checks
 

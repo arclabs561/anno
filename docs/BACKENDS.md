@@ -23,8 +23,10 @@ anno models recommend
 Run your own benchmark/eval and keep the results as artifacts, not prose:
 
 ```bash
-anno benchmark --help
 anno eval --help
+
+# `benchmark` is feature-gated (build `anno-cli` with `--features eval-advanced`)
+anno benchmark --help
 ```
 
 If these commands write reports, treat the output directory (commonly `reports/`) as the source of truth for results.

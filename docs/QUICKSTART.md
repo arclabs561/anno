@@ -4,22 +4,26 @@ This is a short, practical starting point for using `anno` via the CLI and as a 
 
 ## Install
 
-From crates.io:
+As a Rust library (from crates.io):
 
-```bash
-# The `anno` CLI binary is behind the `cli` feature.
-cargo install anno --features cli
-#
-# If you want a minimal, no-ML-deps build of the CLI:
-# cargo install anno --no-default-features --features cli
+Add `anno` to your `Cargo.toml`:
+
+```toml
+[dependencies]
+anno = "0.2"
 ```
 
-From source (recommended if you want optional backends like ONNX/Candle, and required for some subcommands like `cross-doc`):
+CLI (from source): the `anno` binary lives in the `anno-cli` crate (package `anno-cli`, bin `anno`).
 
 ```bash
 git clone https://github.com/arclabs561/anno
 cd anno
-cargo build --release -p anno --bin anno --features "cli eval-advanced"
+
+# Minimal build (no ML backends):
+cargo build --release -p anno-cli --bin anno
+
+# Recommended for most workflows (enables downloads + ONNX ML backends):
+cargo build --release -p anno-cli --bin anno --features "eval-advanced onnx"
 ```
 
 ## CLI: extract entities

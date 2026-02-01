@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- Workspace refactor: 4 crates (`anno-core`, `anno`, `anno-coalesce`, `anno-tier`)
+- Workspace refactor: split into `anno-core`, `anno`, `anno-eval`, `anno-cli`
 - `PatternNER` → `RegexNER`
 
 ### Added
@@ -26,7 +26,7 @@
 ### Changed
 - `GLiNERv2` → `GLiNER`, `GLiNERNER` → `GLiNEROnnx`
 - `LayeredNER`/`TieredNER` → `StackedNER`
-- Entity uses byte offsets consistently
+- Entity uses character offsets consistently
 
 ## [0.1.0] - 2025-11-26
 

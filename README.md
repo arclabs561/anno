@@ -28,5 +28,7 @@ cargo doc -p anno --no-deps --features "eval-advanced discourse"
 Install the CLI:
 
 ```sh
-cargo install anno --features cli
+# This repo’s CLI binary lives in `crates/anno-cli` (bin name: `anno`).
+# Install from source:
+cargo install --path crates/anno-cli --bin anno --features "eval-advanced onnx"
 ```

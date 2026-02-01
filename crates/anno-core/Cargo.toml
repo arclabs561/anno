@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
 description = "Core types and invariants for anno"
+publish = false
 
 [dependencies]
 textprep = { workspace = true }
