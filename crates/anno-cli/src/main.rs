@@ -89,8 +89,6 @@ fn main() -> ExitCode {
         Some(Commands::Models(args)) => models::run(args).map_err(CliError::from),
         #[cfg(feature = "eval-advanced")]
         Some(Commands::CrossDoc(args)) => crossdoc::run(args).map_err(CliError::from),
-        #[cfg(feature = "eval-advanced")]
-        Some(Commands::Tier(args)) => tier::run(args).map_err(CliError::from),
         Some(Commands::Enhance(args)) => enhance::run(args).map_err(CliError::from),
         Some(Commands::Pipeline(args)) => pipeline::run(args).map_err(CliError::from),
         Some(Commands::Query(args)) => query::run(args).map_err(CliError::from),

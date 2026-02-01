@@ -38,9 +38,6 @@ pub mod watch;
 pub mod benchmark;
 #[cfg(feature = "eval-advanced")]
 pub mod crossdoc;
-#[cfg(feature = "eval-advanced")]
-#[path = "strata.rs"]
-pub mod tier;
 
 // Re-export argument types for parser
 pub use analyze::AnalyzeArgs;
@@ -75,5 +72,3 @@ pub use benchmark::BenchmarkArgs;
 pub use crossdoc::CrossDocArgs;
 #[cfg(feature = "eval-advanced")]
 pub use muxer::MuxerArgs;
-#[cfg(feature = "eval-advanced")]
-pub use tier::TierArgs;

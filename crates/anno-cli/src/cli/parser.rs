@@ -36,9 +36,9 @@ EXAMPLES:
   anno extract "Marie Curie was born in Paris."
   anno debug --coref --link-kb -t "Barack Obama met Angela Merkel. He discussed NATO."
   anno eval -t "..." -g "Marie Curie:PER:0:11"
+  # Note: cross-doc/coalesce require building with `--features eval-advanced`.
   anno cross-doc ./docs --threshold 0.6
   anno coalesce ./docs --threshold 0.6  # alias for cross-doc
-  anno tier --input graph.json --method leiden --levels 3
   anno info
 "#
 )]
@@ -100,10 +100,6 @@ pub enum Commands {
     #[command(visible_alias = "coalesce")]
     #[cfg(feature = "eval-advanced")]
     CrossDoc(commands::CrossDocArgs),
-
-    /// Hierarchical clustering: reveal tier of abstraction
-    #[cfg(feature = "eval-advanced")]
-    Tier(commands::TierArgs),
 
     /// Enhance entities with additional metadata
     Enhance(commands::EnhanceArgs),
