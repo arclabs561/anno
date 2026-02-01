@@ -41,6 +41,7 @@
 //! - `ANNO_MUXER_JUNK_F1_RELATION`: junk threshold for strict F1 (default: 0.10)
 //! - `ANNO_MUXER_PRIOR_CALLS`: pseudo-call prior budget for smoothing (default: 6)
 //! - `ANNO_MUXER_PRIOR_BY_FACETS`: if true (default), prefer facet-matched priors (lang+domain)
+//! - `ANNO_MUXER_NOVELTY`: if true (default), explore unseen arms within a slice before MAB/worst-first
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
@@ -775,10 +776,51 @@ fn select_backends(
     match strategy {
         SampleStrategy::Random => pick_random_subset(seed, candidates_in_order, k),
         SampleStrategy::MlOnly => {
+            // Prior smoothing can hide within-slice cold starts. If enabled, force a small amount
+            // of novelty/coverage by picking unseen arms (in this slice) first, deterministically.
+            //
+            // This is intentionally outside muxer proper: it is a routing policy choice, not a
+            // core scoring change.
+            let novelty = mh::novelty_from_env();
+            let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
+            if novelty {
+                let mut unseen: Vec<String> = Vec::new();
+                for b in candidates_in_order {
+                    let calls = history.observed_summary_for(b, datasets, per_dataset).calls;
+                    if calls == 0 {
+                        unseen.push(b.clone());
+                    }
+                }
+                if !unseen.is_empty() {
+                    // Deterministic "shuffle" by seed.
+                    unseen.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
+                    let take = k.min(unseen.len());
+                    let mut chosen = unseen.into_iter().take(take).collect::<Vec<_>>();
+                    if chosen.len() == k {
+                        return chosen;
+                    }
+                    // Fall through to muxer selection for remaining arms.
+                    let mut remaining: Vec<String> = candidates_in_order.to_vec();
+                    remaining.retain(|b| !chosen.contains(b));
+                    let rest = select_backends(
+                        strategy,
+                        seed ^ 0x515C_E11A,
+                        slice_tag,
+                        history,
+                        prior,
+                        &remaining,
+                        datasets,
+                        k - chosen.len(),
+                        prior_calls,
+                    );
+                    chosen.extend(rest);
+                    return chosen;
+                }
+            }
+
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
             // with exploration to avoid fixating too early.
             let cfg = mab_config_from_env();
-            let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
@@ -942,10 +984,16 @@ fn select_backends(
                 );
 
                 // Explore unseen arms first (stable order), so we eventually saturate coverage.
-                if let Some(unseen) = remaining
-                    .iter()
-                    .find(|b| summaries.get(*b).copied().unwrap_or_default().calls == 0)
-                {
+                if let Some(unseen) = remaining.iter().find(|b| {
+                    history
+                        .observed_summary_for(
+                            b,
+                            datasets,
+                            mh::env_bool("ANNO_MUXER_PER_DATASET", true),
+                        )
+                        .calls
+                        == 0
+                }) {
                     let pick = unseen.clone();
                     if verbose {
                         eprintln!(

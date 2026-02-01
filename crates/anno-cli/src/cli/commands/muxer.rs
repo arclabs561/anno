@@ -963,6 +963,49 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 println!("\nround {}:", round + 1);
                 match strategy {
                     MuxerStrategy::MlOnly => {
+                        // Optional novelty: if priors are enabled, "calls" may be non-zero even
+                        // when an arm has never been tried in this slice. Keep coverage moving by
+                        // exploring slice-unseen arms first.
+                        if mh::novelty_from_env() {
+                            let mut unseen: Vec<String> = Vec::new();
+                            for b in &remaining {
+                                // Observed (no-prior) calls:
+                                let mut obs_calls = 0u64;
+                                if per_dataset {
+                                    let prefix = format!("{b}@@");
+                                    for (k, w) in &h.windows {
+                                        if !k.starts_with(&prefix) {
+                                            continue;
+                                        }
+                                        if let Some(ds) = ds_set_ref {
+                                            let suffix = k.strip_prefix(&prefix).unwrap_or("");
+                                            if !ds.contains(suffix) {
+                                                continue;
+                                            }
+                                        }
+                                        obs_calls = obs_calls.saturating_add(w.buf.len() as u64);
+                                    }
+                                }
+                                if obs_calls == 0 {
+                                    // Fallback to global key if per-dataset yielded none.
+                                    obs_calls =
+                                        h.windows.get(b).map(|w| w.buf.len() as u64).unwrap_or(0);
+                                }
+                                if obs_calls == 0 {
+                                    unseen.push(b.clone());
+                                }
+                            }
+                            if !unseen.is_empty() {
+                                unseen.sort_by_key(|b| mh::stable_hash64(0x4E4F_5645, b));
+                                let pick = unseen[0].clone();
+                                println!("  chosen: {}", pick);
+                                println!("  note: novelty (slice-unseen arm)");
+                                remaining.retain(|bb| bb != &pick);
+                                chosen.push(pick);
+                                continue;
+                            }
+                        }
+
                         // Optional latency guardrail: filter out arms whose mean latency is too high.
                         // If filter removes all arms, fall back to the full remaining set.
                         let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
@@ -1082,10 +1125,30 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     }
                     MuxerStrategy::WorstFirst => {
                         // Explore unseen arms first (stable order) to saturate coverage.
-                        if let Some(unseen) = remaining
-                            .iter()
-                            .find(|b| summaries.get(*b).copied().unwrap_or_default().calls == 0)
-                        {
+                        if let Some(unseen) = remaining.iter().find(|b| {
+                            // Observed (no-prior) calls:
+                            let mut obs_calls = 0u64;
+                            if per_dataset {
+                                let prefix = format!("{b}@@");
+                                for (k, w) in &h.windows {
+                                    if !k.starts_with(&prefix) {
+                                        continue;
+                                    }
+                                    if let Some(ds) = ds_set_ref {
+                                        let suffix = k.strip_prefix(&prefix).unwrap_or("");
+                                        if !ds.contains(suffix) {
+                                            continue;
+                                        }
+                                    }
+                                    obs_calls = obs_calls.saturating_add(w.buf.len() as u64);
+                                }
+                            }
+                            if obs_calls == 0 {
+                                obs_calls =
+                                    h.windows.get(*b).map(|w| w.buf.len() as u64).unwrap_or(0);
+                            }
+                            obs_calls == 0
+                        }) {
                             let pick = unseen.clone();
                             println!("  chosen: {}", pick);
                             println!("  note: explore-first (untried arm)");

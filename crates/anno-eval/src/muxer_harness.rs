@@ -32,6 +32,14 @@ pub fn prior_by_facets_from_env() -> bool {
     env_bool("ANNO_MUXER_PRIOR_BY_FACETS", true)
 }
 
+/// If true (default), force at least some within-slice exploration even when priors are enabled.
+///
+/// Motivation: prior smoothing can otherwise “mask” that an arm has never been tried in the
+/// current facet/dataset slice, preventing muxer’s built-in explore-first behavior.
+pub fn novelty_from_env() -> bool {
+    env_bool("ANNO_MUXER_NOVELTY", true)
+}
+
 /// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
 #[cfg(feature = "eval-advanced")]
 pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
