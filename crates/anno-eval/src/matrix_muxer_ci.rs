@@ -1175,6 +1175,18 @@ fn candidate_datasets_for_tasks(
     let mut out: Vec<DatasetId> = Vec::new();
     let temporal_requested = tasks.contains(&Task::Temporal);
     for ds in candidates {
+        // CI policy: avoid non-automatable sources unless explicitly requested.
+        //
+        // The registry contains many useful-but-not-directly-downloadable datasets (gated corpora,
+        // dead links, “contact authors”, etc.). Those are still valuable, but running them in CI
+        // wastes matrix budget and mostly produces hard-junk outcomes.
+        if in_ci()
+            && !require_cached
+            && !mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false)
+            && !ds.is_automatable_download()
+        {
+            continue;
+        }
         let ts = dataset_tasks(ds);
         // Current contract: `temporal` runs through the NER-style evaluator (BIO tagging).
         // Avoid scheduling “temporal-but-not-NER” datasets (e.g., temporal RE) until a dedicated
