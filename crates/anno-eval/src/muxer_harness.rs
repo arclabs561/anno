@@ -122,6 +122,105 @@ where
     }
 }
 
+/// Result of filling up to `k` picks using the shared policy pipeline.
+#[derive(Debug, Clone)]
+pub struct PolicyFill {
+    /// Final chosen arms (order-preserving).
+    pub chosen: Vec<String>,
+    /// The policy plan computed for this step.
+    pub plan: PolicyPlan,
+    /// The eligible set that the algorithm selector actually saw.
+    pub eligible_used: Vec<String>,
+    /// True if the guardrail filtered all arms and we fell back to the unguarded remaining set.
+    pub fallback_used: bool,
+    /// True if the guardrail requested stop-early and we honored it.
+    pub stopped_early: bool,
+}
+
+/// Shared muxer “policy pipeline”: novelty → observed guardrail → fill the remaining \(k\).
+///
+/// This helper centralizes the last bit of glue so CI harness and CLI cannot drift.
+///
+/// Semantics note:
+/// - If the guardrail requests stop-early but we have **zero** picks so far, we **fall back**
+///   to the unguarded remaining set so callers don't accidentally pick nothing.
+pub fn policy_fill_k_observed_with<F, P>(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    novelty_enabled: bool,
+    guard: LatencyGuardrail,
+    mut observed: F,
+    mut pick_rest: P,
+) -> PolicyFill
+where
+    F: FnMut(&str) -> (u64, u64),
+    P: FnMut(&[String], usize) -> Vec<String>,
+{
+    let plan = policy_plan_observed(seed, arms, k, novelty_enabled, guard, &mut observed);
+    let mut chosen = plan.prechosen.clone();
+
+    if chosen.len() >= k {
+        return PolicyFill {
+            chosen,
+            plan,
+            eligible_used: Vec::new(),
+            fallback_used: false,
+            stopped_early: false,
+        };
+    }
+
+    // If guardrail says “stop early”, only honor it if we already picked something.
+    if plan.stop_early && !chosen.is_empty() {
+        return PolicyFill {
+            chosen,
+            eligible_used: Vec::new(),
+            plan,
+            fallback_used: false,
+            stopped_early: true,
+        };
+    }
+
+    // If the guardrail filtered everything:
+    // - If we have picks already and allow_fewer, stop.
+    // - Otherwise, fall back to the unguarded remaining set so we can still pick something.
+    let mut eligible_used = plan.eligible.clone();
+    let mut fallback_used = false;
+    let mut stopped_early = false;
+    if eligible_used.is_empty() {
+        if guard.allow_fewer && !chosen.is_empty() {
+            stopped_early = true;
+            return PolicyFill {
+                chosen,
+                eligible_used,
+                plan,
+                fallback_used,
+                stopped_early,
+            };
+        }
+        eligible_used = arms
+            .iter()
+            .filter(|b| !chosen.contains(*b))
+            .cloned()
+            .collect();
+        fallback_used = true;
+    }
+
+    let remaining_k = k.saturating_sub(chosen.len());
+    if remaining_k > 0 && !eligible_used.is_empty() {
+        let rest = pick_rest(&eligible_used, remaining_k);
+        chosen.extend(rest);
+    }
+
+    PolicyFill {
+        chosen,
+        plan,
+        eligible_used,
+        fallback_used,
+        stopped_early,
+    }
+}
+
 /// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
 #[cfg(feature = "eval-advanced")]
 pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
@@ -311,6 +410,28 @@ mod prior_tests {
         assert_eq!(plan.prechosen, vec!["a".to_string()]);
         assert!(plan.eligible.is_empty());
         assert!(plan.stop_early);
+    }
+
+    #[test]
+    fn test_policy_fill_falls_back_if_stop_early_would_pick_nothing() {
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(1.0),
+            allow_fewer: true,
+            require_measured: true,
+        };
+        let arms = vec!["a".to_string()];
+        let fill = policy_fill_k_observed_with(
+            0,
+            &arms,
+            1,
+            false,
+            guard,
+            |_b| (0, 0),
+            |xs, _k| vec![xs[0].clone()],
+        );
+        assert_eq!(fill.chosen, vec!["a".to_string()]);
+        assert!(fill.fallback_used);
+        assert!(!fill.stopped_early);
     }
 }
 

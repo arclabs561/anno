@@ -787,7 +787,8 @@ fn select_backends(
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
 
             let guard = mh::latency_guardrail_from_env();
-            let plan = mh::policy_plan_observed(
+            let mut mk_opt = None;
+            let fill = mh::policy_fill_k_observed_with(
                 seed,
                 candidates_in_order,
                 k,
@@ -797,122 +798,126 @@ fn select_backends(
                     let s = history.observed_summary_for(b, datasets, per_dataset);
                     (s.calls, s.elapsed_ms_sum)
                 },
+                |eligible, remaining_k| {
+                    let mk = muxer::select_mab_k_guardrailed_explain_full(
+                        eligible,
+                        |remaining| {
+                            history.summaries_for(
+                                prior,
+                                remaining,
+                                datasets,
+                                per_dataset,
+                                prior_calls,
+                            )
+                        },
+                        cfg,
+                        muxer::LatencyGuardrailConfig {
+                            // Latency guardrail is applied on observed summaries above, so priors can't
+                            // mask "require measured" or skew mean latency.
+                            max_mean_ms: None,
+                            require_measured: false,
+                            allow_fewer: guard.allow_fewer,
+                        },
+                        remaining_k,
+                    );
+                    let chosen = mk.chosen.clone();
+                    mk_opt = Some(mk);
+                    chosen
+                },
             );
-            let mut out = plan.prechosen.clone();
-            if out.len() >= k {
-                return out;
-            }
-            if plan.stop_early {
-                return out;
-            }
-            if plan.eligible.is_empty() {
-                return out;
-            }
-            let remaining_k = k - out.len();
 
-            if plan.stop_early && verbose {
+            if fill.stopped_early && verbose {
                 eprintln!(
                     "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early",
                     guard.max_mean_ms.unwrap_or(0.0)
                 );
             }
-            let mk = muxer::select_mab_k_guardrailed_explain_full(
-                &plan.eligible,
-                |remaining| {
-                    history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
-                },
-                cfg,
-                muxer::LatencyGuardrailConfig {
-                    // Latency guardrail is applied on observed summaries above, so priors can't
-                    // mask "require measured" or skew mean latency.
-                    max_mean_ms: None,
-                    require_measured: false,
-                    allow_fewer: guard.allow_fewer,
-                },
-                remaining_k,
-            );
 
-            for (round, r) in mk.rounds.iter().enumerate() {
-                let d = &r.mab;
+            if let Some(mk) = mk_opt.as_ref() {
+                for (round, r) in mk.rounds.iter().enumerate() {
+                    let d = &r.mab;
+                    if verbose {
+                        eprintln!(
+                            "matrix-muxer: mab round={} remaining={} chosen={} explore_first={} constraints_fallback={}",
+                            round + 1,
+                            r.guardrail.eligible.len(),
+                            d.selection.chosen,
+                            d.explore_first,
+                            d.constraints_fallback_used
+                        );
+                        if guard.max_mean_ms.is_some() && r.guardrail.stop_early {
+                            eprintln!(
+                                "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                                guard.max_mean_ms.unwrap_or(0.0),
+                                round
+                            );
+                        }
+                        if guard.max_mean_ms.is_some() && r.guardrail.fallback_used {
+                            eprintln!(
+                                "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
+                                guard.max_mean_ms.unwrap_or(0.0)
+                            );
+                        }
+                        if d.constraints_fallback_used {
+                            eprintln!(
+                                "matrix-muxer: mab constraints filtered all arms; fell back to full set (eligible={})",
+                                d.eligible_arms.len()
+                            );
+                        }
+                        if d.explore_first {
+                            eprintln!("matrix-muxer: mab explore-first chose an untried arm");
+                        }
+                        // Keep selection debugging bounded: show only a few candidate rows by scalar score.
+                        // Keep selection debugging bounded: show only a few candidate rows by scalar score.
+                        let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
+                        for c in &d.selection.candidates {
+                            let score = c.objective_success
+                                - cfg.cost_weight * c.mean_cost_units
+                                - cfg.latency_weight * c.mean_elapsed_ms
+                                - cfg.hard_junk_weight * c.hard_junk_rate
+                                - cfg.junk_weight * c.soft_junk_rate;
+                            rows.push((score, c));
+                        }
+                        rows.sort_by(|a, b| {
+                            b.0.total_cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name))
+                        });
+                        for (score, c) in rows.into_iter().take(5) {
+                            eprintln!(
+                                "matrix-muxer: mab cand arm={} calls={} ok={:.2} junk={:.2} hard={:.2} mean_ms={:.0} ucb={:.2} obj_ok={:.2} score={:.2}",
+                                c.name,
+                                c.calls,
+                                c.ok_rate,
+                                c.junk_rate,
+                                c.hard_junk_rate,
+                                c.mean_elapsed_ms,
+                                c.ucb,
+                                c.objective_success,
+                                score
+                            );
+                        }
+                    }
+                }
                 if verbose {
-                    eprintln!(
-                        "matrix-muxer: mab round={} remaining={} chosen={} explore_first={} constraints_fallback={}",
-                        round + 1,
-                        r.guardrail.eligible.len(),
-                        d.selection.chosen,
-                        d.explore_first,
-                        d.constraints_fallback_used
-                    );
-                    if guard.max_mean_ms.is_some() && r.guardrail.stop_early {
-                        eprintln!(
-                            "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
-                            guard.max_mean_ms.unwrap_or(0.0),
-                            round
-                        );
-                    }
-                    if guard.max_mean_ms.is_some() && r.guardrail.fallback_used {
-                        eprintln!(
-                            "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
-                            guard.max_mean_ms.unwrap_or(0.0)
-                        );
-                    }
-                    if d.constraints_fallback_used {
-                        eprintln!(
-                            "matrix-muxer: mab constraints filtered all arms; fell back to full set (eligible={})",
-                            d.eligible_arms.len()
-                        );
-                    }
-                    if d.explore_first {
-                        eprintln!("matrix-muxer: mab explore-first chose an untried arm");
-                    }
-                    // Keep selection debugging bounded: show only a few candidate rows by scalar score.
-                    // Keep selection debugging bounded: show only a few candidate rows by scalar score.
-                    let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
-                    for c in &d.selection.candidates {
-                        let score = c.objective_success
-                            - cfg.cost_weight * c.mean_cost_units
-                            - cfg.latency_weight * c.mean_elapsed_ms
-                            - cfg.hard_junk_weight * c.hard_junk_rate
-                            - cfg.junk_weight * c.soft_junk_rate;
-                        rows.push((score, c));
-                    }
-                    rows.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name)));
-                    for (score, c) in rows.into_iter().take(5) {
-                        eprintln!(
-                            "matrix-muxer: mab cand arm={} calls={} ok={:.2} junk={:.2} hard={:.2} mean_ms={:.0} ucb={:.2} obj_ok={:.2} score={:.2}",
-                            c.name,
-                            c.calls,
-                            c.ok_rate,
-                            c.junk_rate,
-                            c.hard_junk_rate,
-                            c.mean_elapsed_ms,
-                            c.ucb,
-                            c.objective_success,
-                            score
-                        );
-                    }
-                }
-            }
-            if verbose {
-                if let Some(ref s) = mk.stop {
-                    if guard.max_mean_ms.is_some() && s.guardrail.stop_early {
-                        eprintln!(
-                            "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
-                            guard.max_mean_ms.unwrap_or(0.0),
-                            mk.chosen.len()
-                        );
-                    }
-                    if guard.max_mean_ms.is_some() && s.guardrail.fallback_used {
-                        eprintln!(
-                            "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
-                            guard.max_mean_ms.unwrap_or(0.0)
-                        );
+                    if let Some(ref s) = mk.stop {
+                        if guard.max_mean_ms.is_some() && s.guardrail.stop_early {
+                            eprintln!(
+                                "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                                guard.max_mean_ms.unwrap_or(0.0),
+                                mk.chosen.len()
+                            );
+                        }
+                        if guard.max_mean_ms.is_some() && s.guardrail.fallback_used {
+                            eprintln!(
+                                "matrix-muxer: ml-only latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
+                                guard.max_mean_ms.unwrap_or(0.0)
+                            );
+                        }
                     }
                 }
             }
 
-            if let Some(ref p) = decisions_path {
-                let round_logs = muxer::log_mab_k_rounds_typed(&mk, decisions_top);
+            if let (Some(ref p), Some(mk)) = (decisions_path.as_ref(), mk_opt.as_ref()) {
+                let round_logs = muxer::log_mab_k_rounds_typed(mk, decisions_top);
                 let ds: Vec<String> = datasets
                     .unwrap_or(&[])
                     .iter()
@@ -949,8 +954,7 @@ fn select_backends(
                     );
                 }
             }
-            out.extend(mk.chosen);
-            out
+            fill.chosen
         }
         SampleStrategy::WorstFirst => {
             // Worst-first selection is intentionally *not* muxer::select_mab:
@@ -1863,7 +1867,9 @@ fn test_randomized_matrix_sample() {
 
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
         let guard = mh::latency_guardrail_from_env();
-        let plan = mh::policy_plan_observed(
+        let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
+        let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
+        let fill = mh::policy_fill_k_observed_with(
             seed ^ 0xE8D3_1A00,
             &candidates,
             backends_per_run,
@@ -1873,55 +1879,50 @@ fn test_randomized_matrix_sample() {
                 let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
                 (s.calls, s.elapsed_ms_sum)
             },
+            |eligible, remaining_k| {
+                // Build summaries (may include priors) for the eligible set.
+                let summaries = history.summaries_for(
+                    prior_history.as_ref(),
+                    eligible,
+                    Some(&chosen_datasets),
+                    per_dataset,
+                    prior_calls,
+                );
+                let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
+                    exp3ix_config_from_env(seed),
+                    history.exp3ix_state.clone(),
+                    eligible,
+                    &summaries,
+                    muxer::LatencyGuardrailConfig {
+                        // Guardrail is applied above on observed stats.
+                        max_mean_ms: None,
+                        require_measured: false,
+                        allow_fewer: guard.allow_fewer,
+                    },
+                    remaining_k,
+                    decision_seed,
+                );
+
+                let picked = ex.chosen.clone();
+                assert!(
+                    !picked.is_empty() || guard.allow_fewer,
+                    "exp3ix selection returned no arms; eligible={}",
+                    eligible.len()
+                );
+
+                // Keep the pre-update state (includes probs used for sampling).
+                exp3ix_state_for_update = Some(ex.state.clone());
+                exp3ix_tickets_for_update = ex
+                    .rounds
+                    .iter()
+                    .map(|r| (r.decision.chosen.clone(), r.prob_used))
+                    .collect();
+
+                exp3ix_explain = Some(ex);
+                picked
+            },
         );
-        let prechosen = plan.prechosen.clone();
-        let eligible = plan.eligible.clone();
-
-        // 2) Build summaries (may include priors) for the eligible set.
-        let summaries = history.summaries_for(
-            prior_history.as_ref(),
-            &eligible,
-            Some(&chosen_datasets),
-            per_dataset,
-            prior_calls,
-        );
-        let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
-        let mut chosen = prechosen;
-        let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
-        if chosen.len() < backends_per_run && !eligible.is_empty() && !plan.stop_early {
-            let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
-                exp3ix_config_from_env(seed),
-                history.exp3ix_state.clone(),
-                &eligible,
-                &summaries,
-                muxer::LatencyGuardrailConfig {
-                    // Guardrail is applied above on observed stats.
-                    max_mean_ms: None,
-                    require_measured: false,
-                    allow_fewer: guard.allow_fewer,
-                },
-                backends_per_run - chosen.len(),
-                decision_seed,
-            );
-
-            let picked = ex.chosen.clone();
-            assert!(
-                !picked.is_empty() || guard.allow_fewer,
-                "exp3ix selection returned no arms; eligible={}",
-                eligible.len()
-            );
-
-            // Keep the pre-update state (includes probs used for sampling).
-            exp3ix_state_for_update = Some(ex.state.clone());
-            exp3ix_tickets_for_update = ex
-                .rounds
-                .iter()
-                .map(|r| (r.decision.chosen.clone(), r.prob_used))
-                .collect();
-
-            chosen.extend(picked);
-            exp3ix_explain = Some(ex);
-        }
+        let chosen = fill.chosen;
 
         let explore_first = exp3ix_explain
             .as_ref()
@@ -1979,7 +1980,7 @@ fn test_randomized_matrix_sample() {
                         latency_guardrail_require_measured: Some(guard.require_measured),
                         round: 1,
                         datasets: ds,
-                        remaining: eligible.clone(),
+                        remaining: eligible_arms.clone(),
                         chosen: chosen.first().cloned(),
                         explore_first: Some(explore_first),
                         constraints_fallback_used: None,

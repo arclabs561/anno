@@ -1006,97 +1006,77 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 println!("\nround {}:", round + 1);
                 match strategy {
                     MuxerStrategy::MlOnly => {
-                        // Optional novelty: if priors are enabled, "calls" may be non-zero even
-                        // when an arm has never been tried in this slice. Keep coverage moving by
-                        // exploring slice-unseen arms first.
-                        if mh::novelty_from_env() {
-                            let picks = mh::novelty_pick_unseen(
-                                mh::stable_hash64(0x4E4F_5645, &format!("round={round}")), // "NOVE"
-                                &remaining,
-                                1,
-                                true,
-                                |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset).0,
-                            );
-                            if let Some(pick) = picks.first().cloned() {
-                                println!("  chosen: {}", pick);
-                                println!("  note: novelty (slice-unseen arm)");
-                                remaining.retain(|bb| bb != &pick);
-                                chosen.push(pick);
-                                continue;
-                            }
+                        // Use the exact same policy pipeline as the CI harness: novelty → observed
+                        // latency guardrail → muxer MAB pick.
+                        let mut guard_step = guard;
+                        // If we haven't picked anything yet, don't allow stop-early; fall back so we
+                        // don't return an empty decision on a strict/unmeasured guardrail.
+                        if chosen.is_empty() {
+                            guard_step.allow_fewer = false;
                         }
 
-                        // Optional latency guardrail: filter out arms whose mean latency is too high.
-                        // If filter removes all arms, fall back to the full remaining set.
-                        let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
-                            let (mut eligible, stop_early) = mh::guardrail_filter_observed_elapsed(
-                                mh::stable_hash64(0x4755_4152, &format!("round={round}")), // "GUAR"
-                                &remaining,
-                                guard,
-                                |b| {
-                                    let (calls, elapsed_sum) =
-                                        h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
-                                    (calls, elapsed_sum)
-                                },
-                            );
-                            if stop_early {
-                                if guard.allow_fewer && !chosen.is_empty() {
-                                    println!(
-                                        "  note: latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
-                                        ms,
-                                        chosen.len()
+                        let mut d_opt = None;
+                        let fill = mh::policy_fill_k_observed_with(
+                            mh::stable_hash64(0x504C_414E, &format!("round={round}")), // "PLAN"
+                            &remaining,
+                            1,
+                            mh::novelty_from_env(),
+                            guard_step,
+                            |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset),
+                            |eligible, _k| {
+                                let mut m: BTreeMap<String, muxer::Summary> = BTreeMap::new();
+                                for a in eligible {
+                                    let s = summaries.get(a).copied().unwrap_or_default();
+                                    m.insert(
+                                        a.clone(),
+                                        muxer::Summary {
+                                            calls: s.calls,
+                                            ok: s.ok,
+                                            http_429: s.http_429,
+                                            junk: s.junk,
+                                            hard_junk: s.hard_junk,
+                                            cost_units: s.cost_units,
+                                            elapsed_ms_sum: s.elapsed_ms_sum,
+                                        },
                                     );
-                                    Vec::new()
-                                } else {
-                                    remaining.clone()
                                 }
-                            } else if eligible.is_empty() {
-                                if guard.allow_fewer && !chosen.is_empty() {
-                                    println!(
-                                        "  note: latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
-                                        ms,
-                                        chosen.len()
-                                    );
-                                    Vec::new()
-                                } else {
-                                    println!(
-                                        "  note: latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
-                                        ms
-                                    );
-                                    remaining.clone()
-                                }
-                            } else {
-                                eligible.sort();
-                                eligible
-                            }
-                        } else {
-                            remaining.clone()
+
+                                let d = muxer::select_mab_explain(eligible, &m, cfg);
+                                let pick = d.selection.chosen.clone();
+                                d_opt = Some(d);
+                                vec![pick]
+                            },
+                        );
+
+                        let Some(pick) = fill.chosen.first().cloned() else {
+                            // Stop-early (or nothing eligible) with allow_fewer: end the loop.
+                            break;
                         };
 
-                        if pick_from.is_empty() {
+                        println!("  chosen: {}", pick);
+                        if !fill.plan.prechosen.is_empty() {
+                            println!("  note: novelty (slice-unseen arm)");
+                        }
+                        if fill.fallback_used {
+                            if let Some(ms) = guard.max_mean_ms {
+                                println!(
+                                    "  note: latency guardrail filtered all arms (max_mean_ms={:.0}); falling back",
+                                    ms
+                                );
+                            }
+                        }
+                        if fill.stopped_early && guard.allow_fewer {
+                            if let Some(ms) = guard.max_mean_ms {
+                                println!(
+                                    "  note: latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                                    ms,
+                                    chosen.len()
+                                );
+                            }
                             break;
                         }
 
-                        let mut m: BTreeMap<String, muxer::Summary> = BTreeMap::new();
-                        for a in &pick_from {
-                            let s = summaries.get(a).copied().unwrap_or_default();
-                            m.insert(
-                                a.clone(),
-                                muxer::Summary {
-                                    calls: s.calls,
-                                    ok: s.ok,
-                                    http_429: s.http_429,
-                                    junk: s.junk,
-                                    hard_junk: s.hard_junk,
-                                    cost_units: s.cost_units,
-                                    elapsed_ms_sum: s.elapsed_ms_sum,
-                                },
-                            );
-                        }
-
-                        let d = muxer::select_mab_explain(&pick_from, &m, cfg);
-                        let pick = d.selection.chosen.clone();
-                        println!("  chosen: {}", pick);
+                        let d = d_opt.expect("mab explain should be set when we picked");
                         if d.constraints_fallback_used {
                             println!("  note: constraints filtered all arms (fallback used)");
                         }
