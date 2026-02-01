@@ -193,6 +193,14 @@ pub use anno_core::{
     TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
 };
 
+/// `anno-core`’s stable types under a namespaced module.
+///
+/// This exists for readability in downstream codebases (e.g. `anno::core::Entity`)
+/// and mirrors the structure of the internal `anno-core` crate.
+pub mod core {
+    pub use anno_core::core::*;
+}
+
 // Re-export commonly used types
 pub use lang::{detect_language, Language};
 pub use offset::{

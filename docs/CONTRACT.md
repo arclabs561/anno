@@ -13,7 +13,7 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 ## Primary interoperability contract
 
 - **Offsets are character offsets** (Unicode scalar values), not byte offsets.
-- **Core types are the interface**: downstream code should integrate against `anno::core` types (`Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`, `Corpus`, `GraphDocument`) and treat them as the stable “shape”.
+- **Core types are the interface**: downstream code should integrate against the stable shapes re-exported by `anno` (or via `anno::core::*`) (`Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`, `Corpus`, `GraphDocument`) and treat them as the stable “shape”.
 
 ## Scope (what’s in / out)
 
@@ -42,7 +42,7 @@ Note: the `anno` binary lives in the separate `anno-cli` crate (package `anno-cl
 
 - **Upstream**: `textprep` / `sketchir` handle text cleaning + lightweight structure; `anno` consumes the resulting text.
 - **Downstream**: other code can safely:
-  - index/store entities/tracks/identities (using the `anno::core` shapes),
+  - index/store entities/tracks/identities (using the stable `anno` shapes),
   - join with other signals (audio/vision/etc.) using the shared offset discipline,
   - export graphs via `GraphDocument` without importing graph-algorithm choices into `anno`.
 
