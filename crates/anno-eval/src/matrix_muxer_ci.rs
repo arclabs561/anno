@@ -758,42 +758,6 @@ fn mab_config_from_env() -> MabConfig {
     mh::mab_config_from_env()
 }
 
-fn apply_latency_guardrail_observed(
-    seed: u64,
-    remaining: &[String],
-    history: &BackendHistory,
-    datasets: Option<&[DatasetId]>,
-    per_dataset: bool,
-    guard: mh::LatencyGuardrail,
-) -> (Vec<String>, bool) {
-    // Returns (eligible, stop_early).
-    let Some(max_ms) = guard.max_mean_ms else {
-        return (remaining.to_vec(), false);
-    };
-    let mut eligible: Vec<String> = remaining
-        .iter()
-        .filter(|b| {
-            let s = history.observed_summary_for(b, datasets, per_dataset);
-            if guard.require_measured && s.calls == 0 {
-                return false;
-            }
-            s.mean_elapsed_ms() <= max_ms
-        })
-        .cloned()
-        .collect();
-    eligible.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4755_4152, b)); // "GUAR"
-
-    if eligible.is_empty() {
-        if guard.allow_fewer {
-            return (Vec::new(), true);
-        }
-        // Fallback: ignore the guardrail.
-        return (remaining.to_vec(), false);
-    }
-
-    (eligible, false)
-}
-
 fn select_backends(
     strategy: SampleStrategy,
     seed: u64,
@@ -863,14 +827,11 @@ fn select_backends(
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
 
             let guard = mh::latency_guardrail_from_env();
-            let (eligible, stop_early) = apply_latency_guardrail_observed(
-                seed,
-                candidates_in_order,
-                history,
-                datasets,
-                per_dataset,
-                guard,
-            );
+            let (eligible, stop_early) =
+                mh::guardrail_filter_observed(seed, candidates_in_order, guard, |b| {
+                    let s = history.observed_summary_for(b, datasets, per_dataset);
+                    (s.calls, s.mean_elapsed_ms())
+                });
             if stop_early && verbose {
                 eprintln!(
                     "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early",
@@ -1956,14 +1917,11 @@ fn test_randomized_matrix_sample() {
             .cloned()
             .filter(|b| !prechosen.contains(b))
             .collect();
-        let (eligible_guarded, stop_early) = apply_latency_guardrail_observed(
-            seed ^ 0xE8D3_1A00,
-            &remaining_after_pre,
-            &history,
-            Some(&chosen_datasets),
-            per_dataset,
-            guard,
-        );
+        let (eligible_guarded, stop_early) =
+            mh::guardrail_filter_observed(seed ^ 0xE8D3_1A00, &remaining_after_pre, guard, |b| {
+                let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
+                (s.calls, s.mean_elapsed_ms())
+            });
         let eligible = if stop_early && !prechosen.is_empty() {
             Vec::new()
         } else if eligible_guarded.is_empty() && guard.allow_fewer && !prechosen.is_empty() {

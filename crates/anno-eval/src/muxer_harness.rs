@@ -99,6 +99,47 @@ pub fn apply_prior_counts_to_summary(out: &mut Summary, prior: Summary, target_c
     out.hard_junk = out.hard_junk.min(out.calls);
 }
 
+/// Apply the latency guardrail using *observed* (non-smoothed) stats.
+///
+/// This is a muxer-side routing helper: it keeps guardrails meaningful when prior smoothing is
+/// enabled by ensuring `require_measured` and `max_mean_ms` are based on real observations.
+///
+/// Returns `(eligible_arms, stop_early)`.
+pub fn guardrail_filter_observed<F>(
+    seed: u64,
+    arms: &[String],
+    guard: LatencyGuardrail,
+    mut observed: F,
+) -> (Vec<String>, bool)
+where
+    F: FnMut(&str) -> (u64, f64),
+{
+    let Some(max_ms) = guard.max_mean_ms else {
+        return (arms.to_vec(), false);
+    };
+    let mut eligible: Vec<String> = arms
+        .iter()
+        .filter(|b| {
+            let (calls, mean_ms) = observed(b.as_str());
+            if guard.require_measured && calls == 0 {
+                return false;
+            }
+            mean_ms <= max_ms
+        })
+        .cloned()
+        .collect();
+    eligible.sort_by_key(|b| stable_hash64(seed ^ 0x4755_4152, b)); // "GUAR"
+
+    if eligible.is_empty() {
+        if guard.allow_fewer {
+            return (Vec::new(), true);
+        }
+        return (arms.to_vec(), false);
+    }
+
+    (eligible, false)
+}
+
 #[cfg(test)]
 mod prior_tests {
     use super::*;

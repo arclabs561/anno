@@ -1032,24 +1032,33 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         // Optional latency guardrail: filter out arms whose mean latency is too high.
                         // If filter removes all arms, fall back to the full remaining set.
                         let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
-                            let mut eligible: Vec<String> = remaining
-                                .iter()
-                                .filter(|a| {
-                                    let (obs_calls, obs_elapsed_sum) =
-                                        h.observed_calls_and_elapsed(a, ds_set_ref, per_dataset);
-                                    if guard.require_measured && obs_calls == 0 {
-                                        return false;
-                                    }
-                                    let mean_ms = if obs_calls == 0 {
+                            let (mut eligible, stop_early) = mh::guardrail_filter_observed(
+                                mh::stable_hash64(0x4755_4152, &format!("round={round}")), // "GUAR"
+                                &remaining,
+                                guard,
+                                |b| {
+                                    let (calls, elapsed_sum) =
+                                        h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
+                                    let mean_ms = if calls == 0 {
                                         0.0
                                     } else {
-                                        (obs_elapsed_sum as f64) / (obs_calls as f64)
+                                        (elapsed_sum as f64) / (calls as f64)
                                     };
-                                    mean_ms <= ms
-                                })
-                                .cloned()
-                                .collect();
-                            if eligible.is_empty() {
+                                    (calls, mean_ms)
+                                },
+                            );
+                            if stop_early {
+                                if guard.allow_fewer && !chosen.is_empty() {
+                                    println!(
+                                        "  note: latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
+                                        ms,
+                                        chosen.len()
+                                    );
+                                    Vec::new()
+                                } else {
+                                    remaining.clone()
+                                }
+                            } else if eligible.is_empty() {
                                 if guard.allow_fewer && !chosen.is_empty() {
                                     println!(
                                         "  note: latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early (chosen={})",
