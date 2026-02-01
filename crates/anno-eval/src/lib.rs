@@ -9,8 +9,10 @@
 // They are hidden from docs because `anno-eval`'s public surface should primarily be `eval::*`.
 #[doc(hidden)]
 pub use anno::{
-    DiscontinuousEntity, DiscontinuousNER, Entity, EntityType, Error, HeuristicNER, Model,
-    Provenance, RegexNER, RelationExtractor, RelationTriple, Result, StackedNER,
+    backends, BertNEROnnx, DiscontinuousEntity, DiscontinuousNER, Entity, EntityType, Error,
+    GLiNEROnnx, HeuristicNER, Model, Provenance, RegexNER, RelationExtractor, RelationTriple,
+    Result, StackedNER, DEFAULT_BERT_ONNX_MODEL, DEFAULT_GLINER2_MODEL, DEFAULT_GLINER_MODEL,
+    DEFAULT_NUNER_MODEL, DEFAULT_W2NER_MODEL,
 };
 
 // Some eval modules use `crate::discourse::*` when the `discourse` feature is enabled.
