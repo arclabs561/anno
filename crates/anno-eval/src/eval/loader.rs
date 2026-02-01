@@ -1453,10 +1453,7 @@ impl DatasetLoader {
         let cache_dir = if let Ok(custom_dir) = std::env::var("ANNO_CACHE_DIR") {
             PathBuf::from(custom_dir).join("datasets")
         } else {
-            #[cfg(feature = "eval")]
             let base_dir = dirs::cache_dir().unwrap_or_else(|| PathBuf::from("."));
-            #[cfg(not(feature = "eval"))]
-            let base_dir = PathBuf::from(".");
             base_dir.join("anno").join("datasets")
         };
 
