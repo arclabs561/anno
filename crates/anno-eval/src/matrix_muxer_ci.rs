@@ -4,18 +4,19 @@
 //! - compiles under `--features eval-advanced` (no `cli` feature required)
 //! - uses `muxer` for deterministic, windowed MAB-style backend selection
 //! - respects `ANNO_CI_SEED` and `ANNO_SAMPLE_STRATEGY`
-//! - only evaluates cached datasets when running in CI (fast + offline)
+//! - prefers cache in CI, but can still download to avoid no-op runs
 //!
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
 //! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
-//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, only use cached datasets (local default: false; CI forced true)
+//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, prefer cache, but allow fallback downloads when empty
 //! - `ANNO_MATRIX_COVERAGE_REPORT`: if set, write a JSON coverage report to this path
 //! - `ANNO_HISTORY_FILE`: optional JSON path for muxer history
 //! - `ANNO_MAX_EXAMPLES`: max examples per dataset (default: 20 in CI, 50 locally)
 //! - `ANNO_CACHE_DIR`: cache root (datasets live under `$ANNO_CACHE_DIR/datasets`)
 //! - `ANNO_ML_IN_MATRIX`: include ML-ish backends in candidates (`1`/`true`)
+//! - `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY`: if `1`/`true`, fall back to downloads when cache-only selection yields nothing
 //!
 //! Muxer tuning (optional; defaults keep the harness stable/fast):
 //! - `ANNO_MUXER_WINDOW_CAP`: window size per arm (default: 50)
@@ -59,7 +60,9 @@
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
-use crate::eval::task_mapping::{backend_tasks, dataset_tasks, get_task_backends, Task};
+use crate::eval::task_mapping::{
+    backend_tasks, dataset_tasks, get_task_backends, get_task_datasets, Task,
+};
 use crate::muxer_harness as mh;
 use muxer::{Exp3IxConfig, Exp3IxState, MabConfig, Outcome, Summary, Window};
 use std::collections::VecDeque;
@@ -123,7 +126,7 @@ fn in_ci() -> bool {
 
 fn matrix_require_cached() -> bool {
     // Default:
-    // - CI should be cache-only and offline
+    // - CI prefers cache, but can fall back to downloads when needed
     // - local runs default to “try to fetch”
     //
     // Override:
@@ -426,8 +429,10 @@ fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool
                 .iter()
                 .copied()
                 .filter(|t| match p.as_str() {
-                    "ner" => t.code().contains("ner"),
-                    "re" | "relation" | "relation_extraction" => t.code().contains("re"),
+                    "ner" => matches!(t, Task::NER | Task::DiscontinuousNER),
+                    "re" | "relation" | "relation_extraction" => {
+                        matches!(t, Task::RelationExtraction)
+                    }
                     "coref" => t.is_coref_family(),
                     "temporal" => *t == Task::Temporal,
                     _ => true,
@@ -1069,14 +1074,17 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     let allowed: BTreeSet<&'static str> =
         tasks.iter().flat_map(|t| get_task_backends(*t)).collect();
 
-    // CI default: baselines only.
-    //
-    // Rationale: the default feature set enables `onnx`, so ML backends are *available*
-    // but can be expensive and flaky if model caches are cold. Make ML opt-in via env:
-    // `ANNO_ML_IN_MATRIX=1`.
-    let allow_ml = std::env::var("ANNO_ML_IN_MATRIX")
+    // CI policy: include ML by default (it should be exercised regularly).
+    // Local policy: keep ML opt-in unless explicitly enabled.
+    let allow_ml = match std::env::var("ANNO_ML_IN_MATRIX")
         .ok()
-        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"));
+        .map(|v| v.trim().to_string())
+    {
+        Some(v) if v == "0" || v.eq_ignore_ascii_case("false") => false,
+        Some(v) if v == "1" || v.eq_ignore_ascii_case("true") => true,
+        Some(_) => in_ci(),
+        None => in_ci(),
+    };
 
     // Some supported tasks have only ML-ish implementations in this repo. Allow them without requiring
     // global `ANNO_ML_IN_MATRIX=1`, otherwise they never get tested.
@@ -1155,85 +1163,29 @@ fn candidate_datasets_for_tasks(
     tasks: &[Task],
     require_cached: bool,
 ) -> Vec<DatasetId> {
-    // Default policy: avoid triggering large/slow downloads for coref-family tasks in the
-    // randomized harness when not cache-only. Opt in explicitly if you want this locally.
-    if !require_cached
-        && tasks.iter().any(|t| t.is_coref_family())
-        && !mh::env_bool("ANNO_MATRIX_ALLOW_COREF_DOWNLOADS", false)
-    {
-        return Vec::new();
+    let mut candidates: Vec<DatasetId> = Vec::new();
+    for &t in tasks {
+        for ds in get_task_datasets(t) {
+            candidates.push(ds);
+        }
     }
-
-    // Matrix harness needs datasets that are actually runnable.
-    //
-    // `DatasetId::url` in the registry is not universally a direct download link (many entries
-    // are paper/homepage URLs), so for the *downloadable* path we apply a conservative filter.
-    fn looks_like_direct_download_url(url: &str) -> bool {
-        let u = url.trim();
-        if u.is_empty() {
-            return false;
-        }
-        // Common non-download “reference” URLs.
-        if u.contains("doi.org") || u.contains("aclanthology.org") {
-            return false;
-        }
-        if u.ends_with(".pdf") {
-            return false;
-        }
-        // GitHub repository pages are HTML; require raw/release-style URLs.
-        if u.starts_with("https://github.com/") {
-            if !u.contains("/raw/") && !u.contains("/releases/download/") {
-                return false;
-            }
-        }
-        if u.contains("raw.githubusercontent.com/") {
-            return true;
-        }
-
-        // Heuristic: require a file-like URL (extension) for direct HTTP downloads.
-        // Many dataset registry entries are “homepages” that return HTML or 4xx.
-        let path = u.split('?').next().unwrap_or(u);
-        let lower = path.to_ascii_lowercase();
-        let has_known_ext = [
-            ".zip", ".tar.gz", ".tgz", ".gz", ".json", ".jsonl", ".csv", ".tsv", ".txt", ".conll",
-            ".conllu", ".bio",
-        ]
-        .iter()
-        .any(|ext| lower.ends_with(ext));
-        if !has_known_ext {
-            return false;
-        }
-        true
-    }
+    candidates.sort_by_key(|d| format!("{d:?}"));
+    candidates.dedup();
 
     let mut out: Vec<DatasetId> = Vec::new();
     let temporal_requested = tasks.contains(&Task::Temporal);
-    for &ds in DatasetId::all() {
+    for ds in candidates {
         let ts = dataset_tasks(ds);
-        if !tasks.iter().any(|t| ts.contains(t)) {
-            continue;
-        }
         // Current contract: `temporal` runs through the NER-style evaluator (BIO tagging).
         // Avoid scheduling “temporal-but-not-NER” datasets (e.g., temporal RE) until a dedicated
         // temporal evaluator exists.
         if temporal_requested && ts.contains(&Task::Temporal) && !ts.contains(&Task::NER) {
             continue;
         }
-        // When not cache-only, avoid scheduling datasets that cannot be fetched directly.
-        if !require_cached {
-            // HuggingFace datasets are fetched via datasets-server; they often have homepage URLs.
-            if ds.access_status()
-                != crate::eval::dataset_registry::DatasetAccessibility::HuggingFace
-                && ds.hf_id().is_none()
-                && !looks_like_direct_download_url(ds.download_url())
-            {
-                continue;
-            }
-        }
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             continue;
         };
-        if require_cached && !loader.is_cached(loadable) {
+        if require_cached && !loader.is_cached(loadable) && !loader.s3_enabled() {
             continue;
         }
         out.push(ds);
@@ -1605,32 +1557,61 @@ fn test_randomized_matrix_sample() {
     let loader = DatasetLoader::new().expect("DatasetLoader::new");
     let require_cached = matrix_require_cached();
 
-    let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, require_cached) else {
-        eprintln!(
-            "matrix-muxer: no eligible tasks (require_cached={} cache_dir={:?})",
-            require_cached,
-            loader.cache_dir()
-        );
-        return;
-    };
+    let try_download_on_empty = mh::env_bool("ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY", false);
+
+    let (slice_tag, tasks, require_cached_for_run) =
+        if let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, require_cached) {
+            (slice_tag, tasks, require_cached)
+        } else if require_cached && try_download_on_empty {
+            // Cache-only selection yielded nothing. Fall back to “try to fetch once” so CI
+            // doesn't silently become a no-op when caches are cold.
+            //
+            // This will still use S3 first if configured.
+            let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, false) else {
+                eprintln!(
+                    "matrix-muxer: no eligible tasks even after download fallback (cache_dir={:?})",
+                    loader.cache_dir()
+                );
+                return;
+            };
+            (slice_tag, tasks, false)
+        } else {
+            eprintln!(
+                "matrix-muxer: no eligible tasks (require_cached={} cache_dir={:?})",
+                require_cached,
+                loader.cache_dir()
+            );
+            return;
+        };
 
     // Datasets: choose a small number of compatible datasets.
     //
-    // Local default is “try to fetch” (require_cached=false): we pay the download cost once
-    // and reuse the cache on subsequent runs. CI remains cache-only and offline.
-    let datasets_per_run_default = if require_cached { 2 } else { 3 };
+    // Local default is “try to fetch”: we pay the download cost once and reuse cache later.
+    // CI prefers cache, but may fall back to downloads when caches are cold.
+    let datasets_per_run_default = if require_cached_for_run { 2 } else { 3 };
     let datasets_per_run =
         env_usize("ANNO_MUXER_DATASETS_PER_RUN", datasets_per_run_default).max(1);
-    let chosen_datasets =
-        choose_datasets_for_run(seed, &loader, &tasks, require_cached, datasets_per_run);
+    let mut chosen_datasets = choose_datasets_for_run(
+        seed,
+        &loader,
+        &tasks,
+        require_cached_for_run,
+        datasets_per_run,
+    );
     if chosen_datasets.is_empty() {
-        eprintln!(
-            "matrix-muxer: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
-            tasks,
-            require_cached,
-            loader.cache_dir()
-        );
-        return;
+        if require_cached_for_run && try_download_on_empty {
+            chosen_datasets =
+                choose_datasets_for_run(seed, &loader, &tasks, false, datasets_per_run);
+        }
+        if chosen_datasets.is_empty() {
+            eprintln!(
+                "matrix-muxer: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
+                tasks,
+                require_cached_for_run,
+                loader.cache_dir()
+            );
+            return;
+        }
     }
 
     // Make muxer history facet-aware by scoping to a coarse dataset slice.

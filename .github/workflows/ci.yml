@@ -387,6 +387,14 @@ jobs:
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
 
+      - name: Cache HF models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ runner.os }}-v2
+          restore-keys: |
+            hf-models-${{ runner.os }}-
+
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -395,23 +403,63 @@ jobs:
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
       
-      - name: Run randomized matrix test
-        run: |
-          cargo test -p anno-eval --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
+      - name: Build matrix harness (enable ML backends)
+        run: cargo build -p anno-eval --features "onnx,eval-advanced"
+
+      - name: Run randomized matrix test (NER)
+        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
         env:
+          ANNO_MATRIX_PERSPECTIVE: ner
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
-          # Allow cache warm-up on push to main; keep PRs offline.
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
+          # Prefer cache in PRs, but fall back to downloads if empty.
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           # Keep downloads bounded if enabled.
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+
+      - name: Run randomized matrix test (RE)
+        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        env:
+          ANNO_MATRIX_PERSPECTIVE: re
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
+          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+
+      - name: Run randomized matrix test (Coref)
+        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        env:
+          ANNO_MATRIX_PERSPECTIVE: coref
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
+          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+
+      - name: Run randomized matrix test (Temporal)
+        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        env:
+          ANNO_MATRIX_PERSPECTIVE: temporal
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
+          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       
       - name: Run worst-first matrix test
         run: |
-          cargo test -p anno-eval --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
 

@@ -692,16 +692,14 @@ impl TaskEvaluator {
                 if !datasets_used.contains(dataset) {
                     datasets_used.push(*dataset);
                 }
-
-                // Check if dataset is cached (if required)
-                if config.require_cached {
-                    let Ok(loadable) = crate::eval::LoadableDatasetId::try_from(*dataset) else {
-                        continue;
-                    };
-                    if !self.loader.is_cached(loadable) {
-                        continue;
-                    }
-                }
+                // Note: `require_cached` is treated as “prefer cache” rather than “never download”.
+                // The loader’s strategy is:
+                // - local cache
+                // - S3 cache (if enabled)
+                // - URL download
+                //
+                // CI uses S3 (when configured) to keep matrix runs stable, but it should still
+                // attempt downloads when caches are cold to avoid a no-op run.
 
                 // Get compatible backends for this task
                 let backends: Vec<String> = if config.backends.is_empty() {
@@ -1976,12 +1974,6 @@ impl TaskEvaluator {
             match self.loader.load_coref(dataset_data.id) {
                 Ok(docs) => {
                     if docs.is_empty() {
-                        if config.require_cached {
-                            return Err(crate::Error::InvalidInput(format!(
-                                "Coreference dataset {:?} not cached (require_cached=1)",
-                                dataset_data.id
-                            )));
-                        }
                         // If load_coref returns empty, try downloading first
                         #[cfg(feature = "eval-advanced")]
                         {
@@ -2006,12 +1998,6 @@ impl TaskEvaluator {
                     }
                 }
                 Err(e) => {
-                    if config.require_cached {
-                        return Err(crate::Error::InvalidInput(format!(
-                            "Coreference dataset {:?} not cached: {} (require_cached=1)",
-                            dataset_data.id, e
-                        )));
-                    }
                     // Try downloading if not cached
                     #[cfg(feature = "eval-advanced")]
                     {
