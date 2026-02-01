@@ -1360,6 +1360,48 @@ fn coref_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached
     }
 }
 
+fn relation_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
+    if !ds.is_relation_extraction() {
+        return true;
+    }
+    if require_cached {
+        loader
+            .load_relation(ds)
+            .map(|docs| !docs.is_empty())
+            .unwrap_or(false)
+    } else {
+        loader
+            .load_or_download_relation(ds)
+            .map(|docs| !docs.is_empty())
+            .unwrap_or(false)
+    }
+}
+
+fn general_dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
+    let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
+        return false;
+    };
+    let loaded = if require_cached {
+        loader.load(loadable)
+    } else {
+        loader.load_or_download(loadable)
+    };
+    match loaded {
+        Ok(d) => !d.sentences.is_empty(),
+        Err(_) => false,
+    }
+}
+
+fn dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool) -> bool {
+    if ds.is_relation_extraction() {
+        return relation_dataset_is_usable(loader, ds, require_cached);
+    }
+    if ds.is_coreference() {
+        return coref_dataset_is_usable(loader, ds, require_cached);
+    }
+    general_dataset_is_usable(loader, ds, require_cached)
+}
+
 fn choose_datasets_for_run(
     seed: u64,
     loader: &DatasetLoader,
@@ -1372,25 +1414,30 @@ fn choose_datasets_for_run(
         return Vec::new();
     }
 
-    let ds_strings: Vec<String> = candidates.iter().map(|d| format!("{d:?}")).collect();
-    let chosen_ds_strings =
-        mh::pick_random_subset(seed ^ 0xDADA_BEEF, &ds_strings, datasets_per_run);
-    let mut chosen: Vec<DatasetId> = candidates
+    // Deterministic pseudo-random order (stable hash), then take the first K that are
+    // usable under the current cache/download setting.
+    //
+    // This keeps selection stable while avoiding “wasted” runs on datasets that are nominally
+    // registered but cannot be loaded/downloaded (or parse to empty) in this environment.
+    let mut scored: Vec<(u64, DatasetId)> = candidates
         .iter()
         .copied()
-        .filter(|d| chosen_ds_strings.contains(&format!("{d:?}")))
+        .map(|d| (mh::stable_hash64(seed ^ 0xDADA_BEEF, &format!("{d:?}")), d))
         .collect();
+    scored.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then_with(|| format!("{:?}", a.1).cmp(&format!("{:?}", b.1)))
+    });
 
-    chosen.sort_by_key(|d| format!("{d:?}"));
-    chosen.dedup();
-    chosen.truncate(datasets_per_run);
-
-    // 3) For coref-family tasks, ensure we don't pick datasets that load to empty docs.
-    let coref_tasks_requested = tasks.iter().any(|t| t.is_coref_family());
-    if coref_tasks_requested {
-        chosen.retain(|d| coref_dataset_is_usable(loader, *d, require_cached));
+    let mut chosen: Vec<DatasetId> = Vec::new();
+    for (_, ds) in scored {
+        if chosen.len() >= datasets_per_run {
+            break;
+        }
+        if dataset_is_usable(loader, ds, require_cached) {
+            chosen.push(ds);
+        }
     }
-
     chosen
 }
 
