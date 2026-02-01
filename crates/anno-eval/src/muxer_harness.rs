@@ -40,6 +40,39 @@ pub fn novelty_from_env() -> bool {
     env_bool("ANNO_MUXER_NOVELTY", true)
 }
 
+/// Deterministically pick up to `k` "unseen" arms for novelty/coverage.
+///
+/// An arm is "unseen" if `observed_calls(arm) == 0` (i.e., no observed evaluations in the current
+/// slice). This intentionally ignores priors/smoothing.
+///
+/// This helper is domain-agnostic: callers provide the observation function.
+pub fn novelty_pick_unseen<F>(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    novelty_enabled: bool,
+    mut observed_calls: F,
+) -> Vec<String>
+where
+    F: FnMut(&str) -> u64,
+{
+    if !novelty_enabled || k == 0 || arms.is_empty() {
+        return Vec::new();
+    }
+    let mut unseen: Vec<String> = arms
+        .iter()
+        .filter(|b| observed_calls(b.as_str()) == 0)
+        .cloned()
+        .collect();
+    if unseen.is_empty() {
+        return Vec::new();
+    }
+    // Deterministic shuffle by seed.
+    unseen.sort_by_key(|b| stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
+    unseen.truncate(k.min(unseen.len()));
+    unseen
+}
+
 /// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
 #[cfg(feature = "eval-advanced")]
 pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
@@ -198,6 +231,15 @@ mod prior_tests {
             guardrail_filter_observed_elapsed(0, &arms, guard, |_b| (0, 0));
         assert!(eligible.is_empty());
         assert!(stop_early);
+    }
+
+    #[test]
+    fn test_novelty_pick_unseen_deterministic() {
+        let arms = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let pick1 = novelty_pick_unseen(123, &arms, 2, true, |b| if b == "b" { 1 } else { 0 });
+        let pick2 = novelty_pick_unseen(123, &arms, 2, true, |b| if b == "b" { 1 } else { 0 });
+        assert_eq!(pick1, pick2);
+        assert!(!pick1.contains(&"b".to_string()));
     }
 }
 

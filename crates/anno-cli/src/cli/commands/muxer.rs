@@ -1010,17 +1010,14 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         // when an arm has never been tried in this slice. Keep coverage moving by
                         // exploring slice-unseen arms first.
                         if mh::novelty_from_env() {
-                            let mut unseen: Vec<String> = Vec::new();
-                            for b in &remaining {
-                                let (obs_calls, _) =
-                                    h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
-                                if obs_calls == 0 {
-                                    unseen.push(b.clone());
-                                }
-                            }
-                            if !unseen.is_empty() {
-                                unseen.sort_by_key(|b| mh::stable_hash64(0x4E4F_5645, b));
-                                let pick = unseen[0].clone();
+                            let picks = mh::novelty_pick_unseen(
+                                mh::stable_hash64(0x4E4F_5645, &format!("round={round}")), // "NOVE"
+                                &remaining,
+                                1,
+                                true,
+                                |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset).0,
+                            );
+                            if let Some(pick) = picks.first().cloned() {
                                 println!("  chosen: {}", pick);
                                 println!("  note: novelty (slice-unseen arm)");
                                 remaining.retain(|bb| bb != &pick);

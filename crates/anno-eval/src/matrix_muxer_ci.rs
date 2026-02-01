@@ -784,24 +784,17 @@ fn select_backends(
             let novelty = mh::novelty_from_env();
             let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
             if novelty {
-                let mut unseen: Vec<String> = Vec::new();
-                for b in candidates_in_order {
-                    let calls = history.observed_summary_for(b, datasets, per_dataset).calls;
-                    if calls == 0 {
-                        unseen.push(b.clone());
-                    }
-                }
-                if !unseen.is_empty() {
-                    // Deterministic "shuffle" by seed.
-                    unseen.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
-                    let take = k.min(unseen.len());
-                    let mut chosen = unseen.into_iter().take(take).collect::<Vec<_>>();
+                let chosen = mh::novelty_pick_unseen(seed, candidates_in_order, k, novelty, |b| {
+                    history.observed_summary_for(b, datasets, per_dataset).calls
+                });
+                if !chosen.is_empty() {
                     if chosen.len() == k {
                         return chosen;
                     }
                     // Fall through to muxer selection for remaining arms.
                     let mut remaining: Vec<String> = candidates_in_order.to_vec();
                     remaining.retain(|b| !chosen.contains(b));
+                    let mut out = chosen;
                     let rest = select_backends(
                         strategy,
                         seed ^ 0x515C_E11A,
@@ -810,11 +803,11 @@ fn select_backends(
                         prior,
                         &remaining,
                         datasets,
-                        k - chosen.len(),
+                        k - out.len(),
                         prior_calls,
                     );
-                    chosen.extend(rest);
-                    return chosen;
+                    out.extend(rest);
+                    return out;
                 }
             }
 
@@ -1890,26 +1883,17 @@ fn test_randomized_matrix_sample() {
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
         let guard = mh::latency_guardrail_from_env();
         // 0) Optional novelty: pick slice-unseen arms first even under priors.
-        let mut prechosen: Vec<String> = Vec::new();
-        if mh::novelty_from_env() {
-            let mut unseen: Vec<String> = Vec::new();
-            for b in &candidates {
-                if history
+        let prechosen = mh::novelty_pick_unseen(
+            seed,
+            &candidates,
+            backends_per_run,
+            mh::novelty_from_env(),
+            |b| {
+                history
                     .observed_summary_for(b, Some(&chosen_datasets), per_dataset)
                     .calls
-                    == 0
-                {
-                    unseen.push(b.clone());
-                }
-            }
-            if !unseen.is_empty() {
-                unseen.sort_by_key(|b| mh::stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
-                prechosen = unseen
-                    .into_iter()
-                    .take(backends_per_run.min(candidates.len()))
-                    .collect();
-            }
-        }
+            },
+        );
 
         // 1) Apply latency guardrail on *observed* stats so priors can't fake measurement.
         let remaining_after_pre: Vec<String> = candidates
