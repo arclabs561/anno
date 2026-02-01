@@ -338,22 +338,39 @@ impl TaskEvaluator {
     /// Components:
     /// - `backend.version()` (model identity)
     /// - `anno` crate version (`CARGO_PKG_VERSION`)
+    /// - optional CI commit id (`GITHUB_SHA`) when present
     /// - optional `ANNO_PREDICTION_CACHE_SALT` (force-bust for local edits)
     fn prediction_cache_version(backend_version: &str) -> String {
         let pkg = env!("CARGO_PKG_VERSION");
-        let code_id = std::env::var("ANNO_PREDICTION_CACHE_CODE_ID").ok();
+        let code_id = std::env::var("ANNO_PREDICTION_CACHE_CODE_ID")
+            .ok()
+            .or_else(|| std::env::var("GITHUB_SHA").ok());
         let salt = std::env::var("ANNO_PREDICTION_CACHE_SALT").ok();
+        let feat = format!(
+            "onnx={} candle={} burn={}",
+            cfg!(feature = "onnx") as u8,
+            cfg!(feature = "candle") as u8,
+            cfg!(feature = "burn") as u8
+        );
         match (code_id.as_deref(), salt.as_deref()) {
-            (None | Some(""), None | Some("")) => format!("{}|anno={}", backend_version, pkg),
+            (None | Some(""), None | Some("")) => {
+                format!("{}|anno={}|feat={}", backend_version, pkg, feat)
+            }
             (Some(code), None | Some("")) => {
-                format!("{}|anno={}|code={}", backend_version, pkg, code)
+                format!(
+                    "{}|anno={}|feat={}|code={}",
+                    backend_version, pkg, feat, code
+                )
             }
             (None | Some(""), Some(salt)) => {
-                format!("{}|anno={}|salt={}", backend_version, pkg, salt)
+                format!(
+                    "{}|anno={}|feat={}|salt={}",
+                    backend_version, pkg, feat, salt
+                )
             }
             (Some(code), Some(salt)) => format!(
-                "{}|anno={}|code={}|salt={}",
-                backend_version, pkg, code, salt
+                "{}|anno={}|feat={}|code={}|salt={}",
+                backend_version, pkg, feat, code, salt
             ),
         }
     }
