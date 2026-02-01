@@ -7,7 +7,7 @@ repository = "https://github.com/arclabs561/anno"
 description = "CLI for anno"
 
 [dependencies]
-anno = { path = "../anno", version = "0.2.0", features = ["onnx"] }
+anno = { path = "../anno", version = "0.2.0" }
 anno-eval = { path = "../anno-eval", version = "0.2.0" }
 anno-core = { path = "../anno-core", version = "0.2.0" }
 

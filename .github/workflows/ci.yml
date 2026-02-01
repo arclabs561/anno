@@ -158,9 +158,9 @@ jobs:
           cache-all-crates: true
           key: ${{ matrix.os }}
       - name: Build
-        run: cargo build --workspace --no-default-features --features eval
+        run: cargo build --workspace --no-default-features
       - name: Test
-        run: cargo test --workspace --no-default-features --lib --features eval
+        run: cargo test --workspace --no-default-features --lib
 
   # ==========================================================================
   # ONNX backend tests (Linux only)
@@ -426,7 +426,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run regression tests
-        run: cargo test -p anno --lib --features eval regression_ -- --nocapture
+        run: cargo test -p anno-eval --lib --features "eval-advanced discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
 
   # ==========================================================================
   # Examples (compile check)
@@ -441,7 +441,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Build examples (eval)
-        run: cargo build --workspace --examples --features eval
+        run: cargo build --workspace --examples --features "eval-advanced discourse"
       - name: Build examples (discourse)
         run: cargo build --workspace --examples --features discourse
 

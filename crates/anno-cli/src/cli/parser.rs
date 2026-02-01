@@ -289,7 +289,7 @@ impl ModelBackend {
         }
         #[cfg(not(feature = "eval"))]
         {
-            use crate::{AutoNER, HeuristicNER, RegexNER, StackedNER};
+            use anno::{AutoNER, HeuristicNER, RegexNER, StackedNER};
             match self {
                 // Always available
                 Self::Pattern => Ok(Box::new(RegexNER::new())),
@@ -297,36 +297,36 @@ impl ModelBackend {
                 Self::Minimal => Ok(Box::new(HeuristicNER::new())),
                 Self::Auto => Ok(Box::new(AutoNER::new())),
                 Self::Stacked => Ok(Box::new(StackedNER::default())),
-                Self::Crf => Ok(Box::new(crate::backends::crf::CrfNER::new())),
-                Self::Hmm => Ok(Box::new(crate::backends::hmm::HmmNER::new())),
-                Self::Ensemble => Ok(Box::new(crate::backends::ensemble::EnsembleNER::default())),
-                Self::BiLstmCrf => Ok(Box::new(crate::backends::bilstm_crf::BiLstmCrfNER::new())),
-                Self::Tplinker => crate::backends::tplinker::TPLinker::new()
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::Crf => Ok(Box::new(anno::backends::crf::CrfNER::new())),
+                Self::Hmm => Ok(Box::new(anno::backends::hmm::HmmNER::new())),
+                Self::Ensemble => Ok(Box::new(anno::backends::ensemble::EnsembleNER::default())),
+                Self::BiLstmCrf => Ok(Box::new(anno::backends::bilstm_crf::BiLstmCrfNER::new())),
+                Self::Tplinker => anno::backends::tplinker::TPLinker::new()
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to create TPLinker: {}", e)),
-                Self::UniversalNer => crate::backends::universal_ner::UniversalNER::new()
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::UniversalNer => anno::backends::universal_ner::UniversalNER::new()
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to create UniversalNER: {}", e)),
                 // ONNX
                 #[cfg(feature = "onnx")]
-                Self::Gliner => crate::GLiNEROnnx::new(crate::DEFAULT_GLINER_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::Gliner => anno::GLiNEROnnx::new(anno::DEFAULT_GLINER_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER: {}\n  Tip: Use 'anno models info gliner' to check model status.", e)),
                 #[cfg(feature = "onnx")]
-                Self::Gliner2 => crate::backends::gliner2::GLiNER2Onnx::from_pretrained(crate::DEFAULT_GLINER2_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::Gliner2 => anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER2: {}\n  Tip: Use 'anno models info gliner2' to check model status.", e)),
                 #[cfg(feature = "onnx")]
-                Self::Nuner => crate::backends::nuner::NuNER::from_pretrained(crate::DEFAULT_NUNER_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::Nuner => anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load NuNER: {}\n  Tip: Use 'anno models info nuner' to check model status.", e)),
                 #[cfg(feature = "onnx")]
                 Self::W2ner => {
                     // Allow override via environment variable for custom/exported models
                     let model_path = std::env::var("W2NER_MODEL_PATH")
-                        .unwrap_or_else(|_| crate::DEFAULT_W2NER_MODEL.to_string());
-                    crate::backends::w2ner::W2NER::from_pretrained(&model_path)
-                        .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                        .unwrap_or_else(|_| anno::DEFAULT_W2NER_MODEL.to_string());
+                    anno::backends::w2ner::W2NER::from_pretrained(&model_path)
+                        .map(|m| Box::new(m) as Box<dyn anno::Model>)
                         .map_err(|e| format!(
                             "W2NER model unavailable: {}\n\n\
                              Options:\n\
@@ -340,15 +340,15 @@ impl ModelBackend {
                         ))
                 }
                 #[cfg(feature = "onnx")]
-                Self::BertOnnx => crate::backends::onnx::BertNEROnnx::new(crate::DEFAULT_BERT_ONNX_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::BertOnnx => anno::backends::onnx::BertNEROnnx::new(anno::DEFAULT_BERT_ONNX_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load BERT ONNX: {}", e)),
                 #[cfg(feature = "onnx")]
                 Self::DebertaV3 => {
                     // Support custom export via environment variable
                     if let Ok(model_path) = std::env::var("DEBERTA_MODEL_PATH") {
-                        crate::backends::deberta_v3::DeBERTaV3NER::new(&model_path)
-                            .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                        anno::backends::deberta_v3::DeBERTaV3NER::new(&model_path)
+                            .map(|m| Box::new(m) as Box<dyn anno::Model>)
                             .map_err(|e| format!("DeBERTa-v3 failed to load from {}: {}", model_path, e))
                     } else {
                         Err("DeBERTa-v3 requires custom ONNX export.\n\
@@ -361,8 +361,8 @@ impl ModelBackend {
                 Self::Albert => {
                     // Support custom export via environment variable
                     if let Ok(model_path) = std::env::var("ALBERT_MODEL_PATH") {
-                        crate::backends::albert::ALBERTNER::new(&model_path)
-                            .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                        anno::backends::albert::ALBERTNER::new(&model_path)
+                            .map(|m| Box::new(m) as Box<dyn anno::Model>)
                             .map_err(|e| format!("ALBERT failed to load from {}: {}", model_path, e))
                     } else {
                         Err("ALBERT requires custom ONNX export.\n\
@@ -370,13 +370,13 @@ impl ModelBackend {
                     }
                 }
                 #[cfg(feature = "onnx")]
-                Self::GlinerPoly => crate::backends::gliner_poly::GLiNERPoly::new("onnx-community/gliner_small-v2.1")
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::GlinerPoly => anno::backends::gliner_poly::GLiNERPoly::new("onnx-community/gliner_small-v2.1")
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER Poly: {}", e)),
                 // Candle
                 #[cfg(feature = "candle")]
-                Self::GlinerCandle => crate::backends::gliner_candle::GLiNERCandle::from_pretrained(crate::DEFAULT_GLINER_CANDLE_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::GlinerCandle => anno::backends::gliner_candle::GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!(
                         "GLiNER-Candle model unavailable: {}\n\n\
                          GLiNER Candle is experimental and has compatibility issues with\n\
@@ -386,8 +386,8 @@ impl ModelBackend {
                         e
                     )),
                 #[cfg(feature = "candle")]
-                Self::CandleNer => crate::backends::candle::CandleNER::from_pretrained(crate::DEFAULT_CANDLE_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::CandleNer => anno::backends::candle::CandleNER::from_pretrained(anno::DEFAULT_CANDLE_MODEL)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!(
                         "CandleNER model unavailable: {}\n\n\
                          The model may lack tokenizer.json or safetensors files.\n\n\
@@ -398,8 +398,8 @@ impl ModelBackend {
                     )),
                 // Burn
                 #[cfg(feature = "burn")]
-                Self::Burn => crate::backends::burn::BurnNER::new()
-                    .map(|m| Box::new(m) as Box<dyn crate::Model>)
+                Self::Burn => anno::backends::burn::BurnNER::new()
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!(
                         "BurnNER unavailable: {}\n\n\
                          BurnNER is experimental. For production use:\n\
