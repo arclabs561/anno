@@ -375,40 +375,6 @@ impl BackendHistory {
         Ok(h)
     }
 
-    fn apply_prior_counts(out: &mut SummarySerde, prior: SummarySerde, target_calls: u64) {
-        if target_calls == 0 || out.calls >= target_calls {
-            return;
-        }
-        if prior.calls == 0 {
-            return;
-        }
-        let need = target_calls.saturating_sub(out.calls);
-        if need == 0 {
-            return;
-        }
-
-        let need_f = need as f64;
-        let ok = (need_f * prior.ok_rate()).round() as u64;
-        let http_429 = (need_f * prior.http_429_rate()).round() as u64;
-        let junk = (need_f * prior.junk_rate()).round() as u64;
-        let hard_junk = (need_f * prior.hard_junk_rate()).round() as u64;
-        let cost_units = (need_f * prior.mean_cost_units()).round() as u64;
-        let elapsed_ms_sum = (need_f * prior.mean_elapsed_ms()).round() as u64;
-
-        out.calls = out.calls.saturating_add(need);
-        out.ok = out.ok.saturating_add(ok.min(need));
-        out.http_429 = out.http_429.saturating_add(http_429.min(need));
-        out.junk = out.junk.saturating_add(junk.min(need));
-        out.hard_junk = out.hard_junk.saturating_add(hard_junk.min(need));
-        out.cost_units = out.cost_units.saturating_add(cost_units);
-        out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(elapsed_ms_sum);
-
-        out.ok = out.ok.min(out.calls);
-        out.http_429 = out.http_429.min(out.calls);
-        out.junk = out.junk.min(out.calls);
-        out.hard_junk = out.hard_junk.min(out.calls);
-    }
-
     fn summaries_for(
         &self,
         prior: Option<&BackendHistory>,
@@ -467,7 +433,36 @@ impl BackendHistory {
                     .filter(|s| s.calls > 0)
                     .or_else(|| prior.and_then(|h| h.windows.get(a).map(SummarySerde::from_window)))
                     .unwrap_or_default();
-                Self::apply_prior_counts(&mut obs, prior_s, prior_calls);
+
+                // Reuse the shared helper (same semantics as the CI harness).
+                let mut out_m = muxer::Summary {
+                    calls: obs.calls,
+                    ok: obs.ok,
+                    http_429: obs.http_429,
+                    junk: obs.junk,
+                    hard_junk: obs.hard_junk,
+                    cost_units: obs.cost_units,
+                    elapsed_ms_sum: obs.elapsed_ms_sum,
+                };
+                let prior_m = muxer::Summary {
+                    calls: prior_s.calls,
+                    ok: prior_s.ok,
+                    http_429: prior_s.http_429,
+                    junk: prior_s.junk,
+                    hard_junk: prior_s.hard_junk,
+                    cost_units: prior_s.cost_units,
+                    elapsed_ms_sum: prior_s.elapsed_ms_sum,
+                };
+                mh::apply_prior_counts_to_summary(&mut out_m, prior_m, prior_calls);
+                obs = SummarySerde {
+                    calls: out_m.calls,
+                    ok: out_m.ok,
+                    http_429: out_m.http_429,
+                    junk: out_m.junk,
+                    hard_junk: out_m.hard_junk,
+                    cost_units: out_m.cost_units,
+                    elapsed_ms_sum: out_m.elapsed_ms_sum,
+                };
             }
 
             out.insert(a.clone(), obs);
@@ -733,7 +728,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     } else {
         None
     };
-    let prior_calls = mh::env_usize("ANNO_MUXER_PRIOR_CALLS", 6) as u64;
+    let prior_calls = mh::prior_calls_from_env();
     let include_ml = args.include_ml || mh::env_bool("ANNO_ML_IN_MATRIX", false);
     let candidates = backend_candidates(&tasks, include_ml);
 

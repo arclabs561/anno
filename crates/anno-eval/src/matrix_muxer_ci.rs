@@ -668,45 +668,6 @@ impl BackendHistory {
             .unwrap_or_default()
     }
 
-    fn apply_prior_counts(out: &mut Summary, prior: Summary, target_calls: u64) {
-        if target_calls == 0 || out.calls >= target_calls {
-            return;
-        }
-        if prior.calls == 0 {
-            return;
-        }
-        let need = target_calls.saturating_sub(out.calls);
-        if need == 0 {
-            return;
-        }
-
-        // Convert prior rates to pseudo-counts. This is intentionally approximate: it’s only
-        // meant to smooth early decisions when a slice is new/sparse.
-        let need_f = need as f64;
-        let ok = (need_f * prior.ok_rate()).round() as u64;
-        let http_429 = (need_f * prior.http_429_rate()).round() as u64;
-        let junk = (need_f * prior.junk_rate()).round() as u64;
-        let hard_junk = (need_f * prior.hard_junk_rate()).round() as u64;
-        let mean_cost = prior.mean_cost_units();
-        let mean_ms = prior.mean_elapsed_ms();
-        let cost_units = (need_f * mean_cost).round() as u64;
-        let elapsed_ms_sum = (need_f * mean_ms).round() as u64;
-
-        out.calls = out.calls.saturating_add(need);
-        out.ok = out.ok.saturating_add(ok.min(need));
-        out.http_429 = out.http_429.saturating_add(http_429.min(need));
-        out.junk = out.junk.saturating_add(junk.min(need));
-        out.hard_junk = out.hard_junk.saturating_add(hard_junk.min(need));
-        out.cost_units = out.cost_units.saturating_add(cost_units);
-        out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(elapsed_ms_sum);
-
-        // Defensive invariant: counts must not exceed calls.
-        out.ok = out.ok.min(out.calls);
-        out.http_429 = out.http_429.min(out.calls);
-        out.junk = out.junk.min(out.calls);
-        out.hard_junk = out.hard_junk.min(out.calls);
-    }
-
     fn summaries_for(
         &self,
         prior: Option<&BackendHistory>,
@@ -720,7 +681,7 @@ impl BackendHistory {
             let mut s = self.observed_summary_for(a, datasets, per_dataset);
             if prior_calls > 0 {
                 let prior_s = self.global_summary_for(prior, a);
-                Self::apply_prior_counts(&mut s, prior_s, prior_calls);
+                mh::apply_prior_counts_to_summary(&mut s, prior_s, prior_calls);
             }
             out.insert(a.clone(), s);
         }
@@ -1774,7 +1735,7 @@ fn test_randomized_matrix_sample() {
     } else {
         None
     };
-    let prior_calls = mh::env_usize("ANNO_MUXER_PRIOR_CALLS", 6) as u64;
+    let prior_calls = mh::prior_calls_from_env();
 
     // Backends: choose a *tiny* subset per run (keep this test fast).
     //
