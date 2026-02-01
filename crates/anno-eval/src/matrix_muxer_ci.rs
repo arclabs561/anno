@@ -776,40 +776,7 @@ fn select_backends(
     match strategy {
         SampleStrategy::Random => pick_random_subset(seed, candidates_in_order, k),
         SampleStrategy::MlOnly => {
-            // Prior smoothing can hide within-slice cold starts. If enabled, force a small amount
-            // of novelty/coverage by picking unseen arms (in this slice) first, deterministically.
-            //
-            // This is intentionally outside muxer proper: it is a routing policy choice, not a
-            // core scoring change.
-            let novelty = mh::novelty_from_env();
             let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-            if novelty {
-                let chosen = mh::novelty_pick_unseen(seed, candidates_in_order, k, novelty, |b| {
-                    history.observed_summary_for(b, datasets, per_dataset).calls
-                });
-                if !chosen.is_empty() {
-                    if chosen.len() == k {
-                        return chosen;
-                    }
-                    // Fall through to muxer selection for remaining arms.
-                    let mut remaining: Vec<String> = candidates_in_order.to_vec();
-                    remaining.retain(|b| !chosen.contains(b));
-                    let mut out = chosen;
-                    let rest = select_backends(
-                        strategy,
-                        seed ^ 0x515C_E11A,
-                        slice_tag,
-                        history,
-                        prior,
-                        &remaining,
-                        datasets,
-                        k - out.len(),
-                        prior_calls,
-                    );
-                    out.extend(rest);
-                    return out;
-                }
-            }
 
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
             // with exploration to avoid fixating too early.
@@ -820,24 +787,37 @@ fn select_backends(
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
 
             let guard = mh::latency_guardrail_from_env();
-            let (eligible, stop_early) =
-                mh::guardrail_filter_observed_elapsed(seed, candidates_in_order, guard, |b| {
+            let plan = mh::policy_plan_observed(
+                seed,
+                candidates_in_order,
+                k,
+                mh::novelty_from_env(),
+                guard,
+                |b| {
                     let s = history.observed_summary_for(b, datasets, per_dataset);
                     (s.calls, s.elapsed_ms_sum)
-                });
-            if stop_early && verbose {
+                },
+            );
+            let mut out = plan.prechosen.clone();
+            if out.len() >= k {
+                return out;
+            }
+            if plan.stop_early {
+                return out;
+            }
+            if plan.eligible.is_empty() {
+                return out;
+            }
+            let remaining_k = k - out.len();
+
+            if plan.stop_early && verbose {
                 eprintln!(
                     "matrix-muxer: ml-only latency guardrail filtered all remaining arms (max_mean_ms={:.0}); stopping early",
                     guard.max_mean_ms.unwrap_or(0.0)
                 );
             }
-            // If we stop early, return what we already chose (handled by caller); at this layer,
-            // treat as “no more choices”.
-            if stop_early {
-                return Vec::new();
-            }
             let mk = muxer::select_mab_k_guardrailed_explain_full(
-                &eligible,
+                &plan.eligible,
                 |remaining| {
                     history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
                 },
@@ -849,7 +829,7 @@ fn select_backends(
                     require_measured: false,
                     allow_fewer: guard.allow_fewer,
                 },
-                k,
+                remaining_k,
             );
 
             for (round, r) in mk.rounds.iter().enumerate() {
@@ -969,7 +949,8 @@ fn select_backends(
                     );
                 }
             }
-            mk.chosen
+            out.extend(mk.chosen);
+            out
         }
         SampleStrategy::WorstFirst => {
             // Worst-first selection is intentionally *not* muxer::select_mab:
@@ -1882,44 +1863,19 @@ fn test_randomized_matrix_sample() {
 
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
         let guard = mh::latency_guardrail_from_env();
-        // 0) Optional novelty: pick slice-unseen arms first even under priors.
-        let prechosen = mh::novelty_pick_unseen(
-            seed,
+        let plan = mh::policy_plan_observed(
+            seed ^ 0xE8D3_1A00,
             &candidates,
             backends_per_run,
             mh::novelty_from_env(),
-            |b| {
-                history
-                    .observed_summary_for(b, Some(&chosen_datasets), per_dataset)
-                    .calls
-            },
-        );
-
-        // 1) Apply latency guardrail on *observed* stats so priors can't fake measurement.
-        let remaining_after_pre: Vec<String> = candidates
-            .iter()
-            .cloned()
-            .filter(|b| !prechosen.contains(b))
-            .collect();
-        let (eligible_guarded, stop_early) = mh::guardrail_filter_observed_elapsed(
-            seed ^ 0xE8D3_1A00,
-            &remaining_after_pre,
             guard,
             |b| {
                 let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
                 (s.calls, s.elapsed_ms_sum)
             },
         );
-        let eligible = if stop_early && !prechosen.is_empty() {
-            Vec::new()
-        } else if eligible_guarded.is_empty() && guard.allow_fewer && !prechosen.is_empty() {
-            Vec::new()
-        } else if eligible_guarded.is_empty() {
-            // Fall back if guardrail filtered everything and we haven't selected anything yet.
-            remaining_after_pre.clone()
-        } else {
-            eligible_guarded
-        };
+        let prechosen = plan.prechosen.clone();
+        let eligible = plan.eligible.clone();
 
         // 2) Build summaries (may include priors) for the eligible set.
         let summaries = history.summaries_for(
@@ -1932,7 +1888,7 @@ fn test_randomized_matrix_sample() {
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
         let mut chosen = prechosen;
         let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
-        if chosen.len() < backends_per_run && !eligible.is_empty() {
+        if chosen.len() < backends_per_run && !eligible.is_empty() && !plan.stop_early {
             let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
                 exp3ix_config_from_env(seed),
                 history.exp3ix_state.clone(),

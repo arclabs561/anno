@@ -73,6 +73,55 @@ where
     unseen
 }
 
+/// Planned policy result for a single selection step.
+///
+/// This is intentionally “muxer-side”: it only depends on observed stats, novelty, and guardrails,
+/// not on task semantics.
+#[derive(Debug, Clone)]
+pub struct PolicyPlan {
+    /// Arms to pre-pick for novelty/coverage (slice-unseen).
+    pub prechosen: Vec<String>,
+    /// Arms eligible for the algorithmic selector after applying observed guardrails.
+    pub eligible: Vec<String>,
+    /// If true, the observed guardrail filtered all remaining arms and requested stop-early.
+    pub stop_early: bool,
+}
+
+/// Compute the muxer policy plan: novelty pre-picks + observed latency guardrail.
+///
+/// Returns:
+/// - `prechosen`: up to `k` unseen arms (deterministic).
+/// - `eligible`: remaining arms after removing `prechosen` and applying observed guardrails.
+/// - `stop_early`: if true, the caller should not pick additional arms beyond `prechosen`.
+pub fn policy_plan_observed<F>(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    novelty_enabled: bool,
+    guard: LatencyGuardrail,
+    mut observed: F,
+) -> PolicyPlan
+where
+    F: FnMut(&str) -> (u64, u64),
+{
+    let prechosen = novelty_pick_unseen(seed, arms, k, novelty_enabled, |b| observed(b).0);
+
+    let remaining: Vec<String> = arms
+        .iter()
+        .filter(|b| !prechosen.contains(*b))
+        .cloned()
+        .collect();
+
+    let (eligible, stop_early) =
+        guardrail_filter_observed_elapsed(seed ^ 0x504C_414E, &remaining, guard, observed); // "PLAN"
+
+    PolicyPlan {
+        prechosen,
+        eligible,
+        stop_early,
+    }
+}
+
 /// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
 #[cfg(feature = "eval-advanced")]
 pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
@@ -240,6 +289,28 @@ mod prior_tests {
         let pick2 = novelty_pick_unseen(123, &arms, 2, true, |b| if b == "b" { 1 } else { 0 });
         assert_eq!(pick1, pick2);
         assert!(!pick1.contains(&"b".to_string()));
+    }
+
+    #[test]
+    fn test_policy_plan_observed_stop_early_keeps_prechosen() {
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(1.0),
+            allow_fewer: true,
+            require_measured: true,
+        };
+        let arms = vec!["a".to_string(), "b".to_string()];
+        // Only `a` is unseen -> it will be prechosen; remaining `b` is unmeasured and should be
+        // filtered by guardrail, causing stop_early.
+        let plan = policy_plan_observed(0, &arms, 1, true, guard, |arm| {
+            if arm == "a" {
+                (0, 0)
+            } else {
+                (0, 0)
+            }
+        });
+        assert_eq!(plan.prechosen, vec!["a".to_string()]);
+        assert!(plan.eligible.is_empty());
+        assert!(plan.stop_early);
     }
 }
 
