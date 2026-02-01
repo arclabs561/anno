@@ -1032,19 +1032,14 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         // Optional latency guardrail: filter out arms whose mean latency is too high.
                         // If filter removes all arms, fall back to the full remaining set.
                         let pick_from: Vec<String> = if let Some(ms) = guard.max_mean_ms {
-                            let (mut eligible, stop_early) = mh::guardrail_filter_observed(
+                            let (mut eligible, stop_early) = mh::guardrail_filter_observed_elapsed(
                                 mh::stable_hash64(0x4755_4152, &format!("round={round}")), // "GUAR"
                                 &remaining,
                                 guard,
                                 |b| {
                                     let (calls, elapsed_sum) =
                                         h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
-                                    let mean_ms = if calls == 0 {
-                                        0.0
-                                    } else {
-                                        (elapsed_sum as f64) / (calls as f64)
-                                    };
-                                    (calls, mean_ms)
+                                    (calls, elapsed_sum)
                                 },
                             );
                             if stop_early {

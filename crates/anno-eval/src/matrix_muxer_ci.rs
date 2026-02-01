@@ -828,9 +828,9 @@ fn select_backends(
 
             let guard = mh::latency_guardrail_from_env();
             let (eligible, stop_early) =
-                mh::guardrail_filter_observed(seed, candidates_in_order, guard, |b| {
+                mh::guardrail_filter_observed_elapsed(seed, candidates_in_order, guard, |b| {
                     let s = history.observed_summary_for(b, datasets, per_dataset);
-                    (s.calls, s.mean_elapsed_ms())
+                    (s.calls, s.elapsed_ms_sum)
                 });
             if stop_early && verbose {
                 eprintln!(
@@ -1917,11 +1917,15 @@ fn test_randomized_matrix_sample() {
             .cloned()
             .filter(|b| !prechosen.contains(b))
             .collect();
-        let (eligible_guarded, stop_early) =
-            mh::guardrail_filter_observed(seed ^ 0xE8D3_1A00, &remaining_after_pre, guard, |b| {
+        let (eligible_guarded, stop_early) = mh::guardrail_filter_observed_elapsed(
+            seed ^ 0xE8D3_1A00,
+            &remaining_after_pre,
+            guard,
+            |b| {
                 let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
-                (s.calls, s.mean_elapsed_ms())
-            });
+                (s.calls, s.elapsed_ms_sum)
+            },
+        );
         let eligible = if stop_early && !prechosen.is_empty() {
             Vec::new()
         } else if eligible_guarded.is_empty() && guard.allow_fewer && !prechosen.is_empty() {

@@ -140,6 +140,29 @@ where
     (eligible, false)
 }
 
+/// Like `guardrail_filter_observed`, but the observation function returns the raw elapsed-ms sum.
+///
+/// This centralizes mean-latency calculation so callers only provide raw counters.
+pub fn guardrail_filter_observed_elapsed<F>(
+    seed: u64,
+    arms: &[String],
+    guard: LatencyGuardrail,
+    mut observed: F,
+) -> (Vec<String>, bool)
+where
+    F: FnMut(&str) -> (u64, u64),
+{
+    guardrail_filter_observed(seed, arms, guard, |b| {
+        let (calls, elapsed_ms_sum) = observed(b);
+        let mean_ms = if calls == 0 {
+            0.0
+        } else {
+            (elapsed_ms_sum as f64) / (calls as f64)
+        };
+        (calls, mean_ms)
+    })
+}
+
 #[cfg(test)]
 mod prior_tests {
     use super::*;
@@ -161,6 +184,20 @@ mod prior_tests {
         assert!(out.ok <= out.calls);
         assert!(out.junk <= out.calls);
         assert!(out.hard_junk <= out.calls);
+    }
+
+    #[test]
+    fn test_guardrail_filter_observed_elapsed_require_measured() {
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(10.0),
+            allow_fewer: true,
+            require_measured: true,
+        };
+        let arms = vec!["a".to_string()];
+        let (eligible, stop_early) =
+            guardrail_filter_observed_elapsed(0, &arms, guard, |_b| (0, 0));
+        assert!(eligible.is_empty());
+        assert!(stop_early);
     }
 }
 
