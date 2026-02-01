@@ -39,6 +39,7 @@
 //! - `ANNO_MUXER_JUNK_F1_NER`: junk threshold for NER F1 (default: 0.05)
 //! - `ANNO_MUXER_JUNK_F1_COREF`: junk threshold for CoNLL F1 (default: 0.20)
 //! - `ANNO_MUXER_JUNK_F1_RELATION`: junk threshold for strict F1 (default: 0.10)
+//! - `ANNO_MUXER_PRIOR_CALLS`: pseudo-call prior budget for smoothing (default: 6)
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
@@ -612,47 +613,115 @@ impl BackendHistory {
         format!("{backend}@@{:?}", dataset)
     }
 
+    fn global_summary_for(&self, prior: Option<&BackendHistory>, backend: &str) -> Summary {
+        let s = self
+            .windows
+            .get(backend)
+            .map(|w| w.summary())
+            .unwrap_or_default();
+        if s.calls > 0 {
+            return s;
+        }
+        prior
+            .and_then(|h| h.windows.get(backend).map(|w| w.summary()))
+            .unwrap_or_default()
+    }
+
+    fn observed_summary_for(
+        &self,
+        backend: &str,
+        datasets: Option<&[DatasetId]>,
+        per_dataset: bool,
+    ) -> Summary {
+        // Prefer dataset-scoped windows when we have a dataset slice:
+        // this avoids "objective bleed" across unrelated datasets while still allowing
+        // a stable per-backend decision.
+        if per_dataset {
+            if let Some(datasets) = datasets {
+                let mut agg = Summary::default();
+                for &ds in datasets {
+                    let k = Self::dataset_key(backend, ds);
+                    if let Some(w) = self.windows.get(&k) {
+                        let s = w.summary();
+                        if s.calls == 0 {
+                            continue;
+                        }
+                        agg.calls = agg.calls.saturating_add(s.calls);
+                        agg.ok = agg.ok.saturating_add(s.ok);
+                        agg.http_429 = agg.http_429.saturating_add(s.http_429);
+                        agg.junk = agg.junk.saturating_add(s.junk);
+                        agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
+                        agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
+                        agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
+                    }
+                }
+                if agg.calls > 0 {
+                    return agg;
+                }
+            }
+        }
+        // Fallback: global per-backend window (older history files, or when dataset-scoped windows
+        // are not yet populated).
+        self.windows
+            .get(backend)
+            .map(|w| w.summary())
+            .unwrap_or_default()
+    }
+
+    fn apply_prior_counts(out: &mut Summary, prior: Summary, target_calls: u64) {
+        if target_calls == 0 || out.calls >= target_calls {
+            return;
+        }
+        if prior.calls == 0 {
+            return;
+        }
+        let need = target_calls.saturating_sub(out.calls);
+        if need == 0 {
+            return;
+        }
+
+        // Convert prior rates to pseudo-counts. This is intentionally approximate: it’s only
+        // meant to smooth early decisions when a slice is new/sparse.
+        let need_f = need as f64;
+        let ok = (need_f * prior.ok_rate()).round() as u64;
+        let http_429 = (need_f * prior.http_429_rate()).round() as u64;
+        let junk = (need_f * prior.junk_rate()).round() as u64;
+        let hard_junk = (need_f * prior.hard_junk_rate()).round() as u64;
+        let mean_cost = prior.mean_cost_units();
+        let mean_ms = prior.mean_elapsed_ms();
+        let cost_units = (need_f * mean_cost).round() as u64;
+        let elapsed_ms_sum = (need_f * mean_ms).round() as u64;
+
+        out.calls = out.calls.saturating_add(need);
+        out.ok = out.ok.saturating_add(ok.min(need));
+        out.http_429 = out.http_429.saturating_add(http_429.min(need));
+        out.junk = out.junk.saturating_add(junk.min(need));
+        out.hard_junk = out.hard_junk.saturating_add(hard_junk.min(need));
+        out.cost_units = out.cost_units.saturating_add(cost_units);
+        out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(elapsed_ms_sum);
+
+        // Defensive invariant: counts must not exceed calls.
+        out.ok = out.ok.min(out.calls);
+        out.http_429 = out.http_429.min(out.calls);
+        out.junk = out.junk.min(out.calls);
+        out.hard_junk = out.hard_junk.min(out.calls);
+    }
+
     fn summaries_for(
         &self,
+        prior: Option<&BackendHistory>,
         arms: &[String],
         datasets: Option<&[DatasetId]>,
         per_dataset: bool,
+        prior_calls: u64,
     ) -> BTreeMap<String, Summary> {
         let mut out = BTreeMap::new();
         for a in arms {
-            // Prefer dataset-scoped windows when we have a dataset slice:
-            // this avoids "objective bleed" across unrelated datasets while still allowing
-            // a stable per-backend decision.
-            if per_dataset {
-                if let Some(datasets) = datasets {
-                    let mut agg = Summary::default();
-                    for &ds in datasets {
-                        let k = Self::dataset_key(a, ds);
-                        if let Some(w) = self.windows.get(&k) {
-                            let s = w.summary();
-                            if s.calls == 0 {
-                                continue;
-                            }
-                            agg.calls = agg.calls.saturating_add(s.calls);
-                            agg.ok = agg.ok.saturating_add(s.ok);
-                            agg.http_429 = agg.http_429.saturating_add(s.http_429);
-                            agg.junk = agg.junk.saturating_add(s.junk);
-                            agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
-                            agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
-                            agg.elapsed_ms_sum =
-                                agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
-                        }
-                    }
-                    if agg.calls > 0 {
-                        out.insert(a.clone(), agg);
-                        continue;
-                    }
-                }
+            let mut s = self.observed_summary_for(a, datasets, per_dataset);
+            if prior_calls > 0 {
+                let prior_s = self.global_summary_for(prior, a);
+                Self::apply_prior_counts(&mut s, prior_s, prior_calls);
             }
-
-            // Fallback: global per-backend window (older history files, or when dataset-scoped windows
-            // are not yet populated).
-            let s = self.windows.get(a).map(|w| w.summary()).unwrap_or_default();
             out.insert(a.clone(), s);
         }
         out
@@ -690,9 +759,11 @@ fn select_backends(
     seed: u64,
     slice_tag: &str,
     history: &BackendHistory,
+    prior: Option<&BackendHistory>,
     candidates_in_order: &[String],
     datasets: Option<&[DatasetId]>,
     k: usize,
+    prior_calls: u64,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -713,7 +784,9 @@ fn select_backends(
             let guard = mh::latency_guardrail_from_env();
             let mk = muxer::select_mab_k_guardrailed_explain_full(
                 candidates_in_order,
-                |remaining| history.summaries_for(remaining, datasets, per_dataset),
+                |remaining| {
+                    history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
+                },
                 cfg,
                 muxer::LatencyGuardrailConfig {
                     max_mean_ms: guard.max_mean_ms,
@@ -858,9 +931,11 @@ fn select_backends(
 
             for round in 0..k.min(remaining.len()) {
                 let summaries = history.summaries_for(
+                    prior,
                     &remaining,
                     datasets,
                     mh::env_bool("ANNO_MUXER_PER_DATASET", true),
+                    prior_calls,
                 );
 
                 // Explore unseen arms first (stable order), so we eventually saturate coverage.
@@ -1693,6 +1768,13 @@ fn test_randomized_matrix_sample() {
 
     let hist_path = history_path(&slice_tag_for_muxer);
     let mut history = BackendHistory::load(&hist_path, window_cap);
+    let prior_hist_path = history_path(&slice_tag);
+    let prior_history = if prior_hist_path != hist_path {
+        Some(BackendHistory::load(&prior_hist_path, window_cap))
+    } else {
+        None
+    };
+    let prior_calls = mh::env_usize("ANNO_MUXER_PRIOR_CALLS", 6) as u64;
 
     // Backends: choose a *tiny* subset per run (keep this test fast).
     //
@@ -1737,7 +1819,13 @@ fn test_randomized_matrix_sample() {
         let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
 
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
-        let summaries = history.summaries_for(&candidates, Some(&chosen_datasets), per_dataset);
+        let summaries = history.summaries_for(
+            prior_history.as_ref(),
+            &candidates,
+            Some(&chosen_datasets),
+            per_dataset,
+            prior_calls,
+        );
         let guard = mh::latency_guardrail_from_env();
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
         let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
@@ -1844,9 +1932,11 @@ fn test_randomized_matrix_sample() {
                 seed,
                 &slice_tag_for_muxer,
                 &history,
+                prior_history.as_ref(),
                 &candidates,
                 Some(&chosen_datasets),
                 backends_per_run,
+                prior_calls,
             )
         } else {
             select_backends(
@@ -1854,9 +1944,11 @@ fn test_randomized_matrix_sample() {
                 seed,
                 &slice_tag_for_muxer,
                 &history,
+                prior_history.as_ref(),
                 &candidates,
                 None,
                 backends_per_run,
+                prior_calls,
             )
         }
     } else if per_dataset {
@@ -1865,9 +1957,11 @@ fn test_randomized_matrix_sample() {
             seed,
             &slice_tag_for_muxer,
             &history,
+            prior_history.as_ref(),
             &candidates,
             Some(&chosen_datasets),
             backends_per_run,
+            prior_calls,
         )
     } else {
         select_backends(
@@ -1875,9 +1969,11 @@ fn test_randomized_matrix_sample() {
             seed,
             &slice_tag_for_muxer,
             &history,
+            prior_history.as_ref(),
             &candidates,
             None,
             backends_per_run,
+            prior_calls,
         )
     };
 

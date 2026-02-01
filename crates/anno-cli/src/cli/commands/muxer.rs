@@ -325,11 +325,27 @@ impl SummarySerde {
         }
     }
 
+    fn http_429_rate(&self) -> f64 {
+        if self.calls == 0 {
+            0.0
+        } else {
+            (self.http_429 as f64) / (self.calls as f64)
+        }
+    }
+
     fn mean_elapsed_ms(&self) -> f64 {
         if self.calls == 0 {
             0.0
         } else {
             (self.elapsed_ms_sum as f64) / (self.calls as f64)
+        }
+    }
+
+    fn mean_cost_units(&self) -> f64 {
+        if self.calls == 0 {
+            0.0
+        } else {
+            (self.cost_units as f64) / (self.calls as f64)
         }
     }
 
@@ -359,14 +375,51 @@ impl BackendHistory {
         Ok(h)
     }
 
+    fn apply_prior_counts(out: &mut SummarySerde, prior: SummarySerde, target_calls: u64) {
+        if target_calls == 0 || out.calls >= target_calls {
+            return;
+        }
+        if prior.calls == 0 {
+            return;
+        }
+        let need = target_calls.saturating_sub(out.calls);
+        if need == 0 {
+            return;
+        }
+
+        let need_f = need as f64;
+        let ok = (need_f * prior.ok_rate()).round() as u64;
+        let http_429 = (need_f * prior.http_429_rate()).round() as u64;
+        let junk = (need_f * prior.junk_rate()).round() as u64;
+        let hard_junk = (need_f * prior.hard_junk_rate()).round() as u64;
+        let cost_units = (need_f * prior.mean_cost_units()).round() as u64;
+        let elapsed_ms_sum = (need_f * prior.mean_elapsed_ms()).round() as u64;
+
+        out.calls = out.calls.saturating_add(need);
+        out.ok = out.ok.saturating_add(ok.min(need));
+        out.http_429 = out.http_429.saturating_add(http_429.min(need));
+        out.junk = out.junk.saturating_add(junk.min(need));
+        out.hard_junk = out.hard_junk.saturating_add(hard_junk.min(need));
+        out.cost_units = out.cost_units.saturating_add(cost_units);
+        out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(elapsed_ms_sum);
+
+        out.ok = out.ok.min(out.calls);
+        out.http_429 = out.http_429.min(out.calls);
+        out.junk = out.junk.min(out.calls);
+        out.hard_junk = out.hard_junk.min(out.calls);
+    }
+
     fn summaries_for(
         &self,
+        prior: Option<&BackendHistory>,
         arms: &[String],
         datasets: Option<&BTreeSet<String>>,
         per_dataset: bool,
+        prior_calls: u64,
     ) -> BTreeMap<String, SummarySerde> {
         let mut out = BTreeMap::new();
         for a in arms {
+            let mut obs = SummarySerde::default();
             if per_dataset {
                 // Prefer aggregating dataset-scoped windows if present:
                 // keys of the form `{backend}@@{DatasetId}` are written by the matrix harness.
@@ -392,18 +445,32 @@ impl BackendHistory {
                     agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
                 }
                 if agg.calls > 0 {
-                    out.insert(a.clone(), agg);
-                    continue;
+                    obs = agg;
                 }
             }
 
-            // Fallback: older history files (or global-only) use the backend name directly.
-            let s = self
-                .windows
-                .get(a)
-                .map(SummarySerde::from_window)
-                .unwrap_or_default();
-            out.insert(a.clone(), s);
+            if obs.calls == 0 {
+                // Fallback: older history files (or global-only) use the backend name directly.
+                obs = self
+                    .windows
+                    .get(a)
+                    .map(SummarySerde::from_window)
+                    .unwrap_or_default();
+            }
+
+            // Borrow a small pseudo-count prior when this slice is sparse (facet-scoped cold start).
+            if prior_calls > 0 && obs.calls < prior_calls {
+                let prior_s = self
+                    .windows
+                    .get(a)
+                    .map(SummarySerde::from_window)
+                    .filter(|s| s.calls > 0)
+                    .or_else(|| prior.and_then(|h| h.windows.get(a).map(SummarySerde::from_window)))
+                    .unwrap_or_default();
+                Self::apply_prior_counts(&mut obs, prior_s, prior_calls);
+            }
+
+            out.insert(a.clone(), obs);
         }
         out
     }
@@ -656,7 +723,17 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
     let history_path = args
         .history_file
+        .clone()
         .unwrap_or_else(|| default_history_path(slice_tag_for_history.as_str()));
+    // Optional: when inspecting a facet-scoped history (lang/domain), also load the base
+    // task history as a tiny prior to reduce cold-start instability.
+    let prior_history = if args.history_file.is_none() && slice_tag_for_history != slice_tag_base {
+        let base_path = default_history_path(slice_tag_base.as_str());
+        BackendHistory::load(&base_path, 50).ok()
+    } else {
+        None
+    };
+    let prior_calls = mh::env_usize("ANNO_MUXER_PRIOR_CALLS", 6) as u64;
     let include_ml = args.include_ml || mh::env_bool("ANNO_ML_IN_MATRIX", false);
     let candidates = backend_candidates(&tasks, include_ml);
 
@@ -686,7 +763,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             );
             println!("Candidate arms: {}", candidates.len());
 
-            let summaries = h.summaries_for(&candidates, None, true);
+            let summaries =
+                h.summaries_for(prior_history.as_ref(), &candidates, None, true, prior_calls);
             let has_dataset_scoped_keys = h.windows.keys().any(|k| k.contains("@@"));
             if has_dataset_scoped_keys {
                 let mut dataset_scoped_arms = 0usize;
@@ -840,7 +918,13 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             let mut remaining = candidates.clone();
             let mut chosen: Vec<String> = Vec::new();
             for round in 0..k.min(remaining.len()) {
-                let summaries = h.summaries_for(&remaining, ds_set_ref, per_dataset);
+                let summaries = h.summaries_for(
+                    prior_history.as_ref(),
+                    &remaining,
+                    ds_set_ref,
+                    per_dataset,
+                    prior_calls,
+                );
 
                 println!("\nround {}:", round + 1);
                 match strategy {
