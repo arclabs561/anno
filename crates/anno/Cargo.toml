@@ -68,7 +68,8 @@ criterion = { workspace = true }
 default = ["onnx"]
 discourse = []
 eval = []
-eval-advanced = []
+# Enables evaluation-adjacent tooling (CLI helpers, URL ingestion, etc.).
+eval-advanced = ["dep:ureq"]
 graph = []
 gramdex = ["dep:gramdex"]
 schema = ["dep:schemars"]

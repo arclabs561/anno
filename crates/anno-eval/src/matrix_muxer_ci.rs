@@ -1126,7 +1126,7 @@ fn candidate_datasets_for_tasks(
     require_cached: bool,
 ) -> Vec<DatasetId> {
     let mut out: Vec<DatasetId> = Vec::new();
-    let temporal_requested = tasks.iter().any(|t| *t == Task::Temporal);
+    let temporal_requested = tasks.contains(&Task::Temporal);
     for &ds in DatasetId::all() {
         let ts = dataset_tasks(ds);
         if !tasks.iter().any(|t| ts.contains(t)) {

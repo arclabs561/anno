@@ -207,7 +207,7 @@ pub enum MuxerStrategy {
 }
 
 impl MuxerStrategy {
-    fn to_env_str(&self) -> &'static str {
+    fn to_env_str(self) -> &'static str {
         match self {
             Self::Random => "random",
             Self::MlOnly => "ml-only",
@@ -277,8 +277,10 @@ impl SummarySerde {
     }
 
     fn from_window(w: &WindowSerde) -> Self {
-        let mut out = SummarySerde::default();
-        out.calls = w.buf.len() as u64;
+        let mut out = SummarySerde {
+            calls: w.buf.len() as u64,
+            ..Default::default()
+        };
         for o in &w.buf {
             out.ok += o.ok as u64;
             out.http_429 += o.http_429 as u64;
@@ -441,8 +443,10 @@ impl BackendHistory {
             return SummarySerde::default();
         }
         let take = recent.max(1).min(n);
-        let mut out = SummarySerde::default();
-        out.calls = take as u64;
+        let mut out = SummarySerde {
+            calls: take as u64,
+            ..Default::default()
+        };
         for o in w.buf.iter().skip(n - take) {
             out.ok += o.ok as u64;
             out.http_429 += o.http_429 as u64;
@@ -1098,7 +1102,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             }
 
             let mut rows: Vec<Row> = Vec::new();
-            for (k, _w) in &h.windows {
+            for k in h.windows.keys() {
                 // If a dataset filter is present, only consider dataset-scoped keys.
                 let (arm, ds_opt) = if let Some((a, ds)) = k.split_once("@@") {
                     (a.to_string(), Some(ds.to_string()))
@@ -1190,7 +1194,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
             // Also show “worst currently” (useful to choose what to run next even without deltas).
             let mut current: Vec<(f64, String, Option<String>, SummarySerde)> = Vec::new();
-            for (k, _w) in &h.windows {
+            for k in h.windows.keys() {
                 let (arm, ds_opt) = if let Some((a, ds)) = k.split_once("@@") {
                     (a.to_string(), Some(ds.to_string()))
                 } else {

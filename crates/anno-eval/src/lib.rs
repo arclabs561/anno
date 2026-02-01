@@ -13,6 +13,10 @@ pub use anno::{
     Provenance, RegexNER, RelationExtractor, RelationTriple, Result, StackedNER,
 };
 
+// Some eval modules use `crate::discourse::*` when the `discourse` feature is enabled.
+#[cfg(feature = "discourse")]
+pub use anno::discourse;
+
 pub mod muxer_harness;
 
 #[path = "eval/mod.rs"]

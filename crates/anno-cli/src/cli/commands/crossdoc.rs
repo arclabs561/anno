@@ -1153,7 +1153,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
 #[cfg(all(test, feature = "eval-advanced"))]
 mod tests {
     use super::context_snippet;
-    use crate::offset::TextSpan;
+    use anno::offset::TextSpan;
 
     #[test]
     fn test_context_snippet_uses_char_offsets_and_is_unicode_safe() {
