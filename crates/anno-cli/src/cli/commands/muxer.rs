@@ -558,6 +558,49 @@ impl BackendHistory {
         }
         out
     }
+
+    /// Compute observed (non-smoothed) stats for an arm under the current dataset scope.
+    ///
+    /// Returns `(calls, elapsed_ms_sum)`.
+    fn observed_calls_and_elapsed(
+        &self,
+        arm: &str,
+        datasets: Option<&BTreeSet<String>>,
+        per_dataset: bool,
+    ) -> (u64, u64) {
+        let mut calls = 0u64;
+        let mut elapsed_ms_sum = 0u64;
+
+        if per_dataset {
+            let prefix = format!("{arm}@@");
+            for (k, w) in &self.windows {
+                if !k.starts_with(&prefix) {
+                    continue;
+                }
+                if let Some(ds) = datasets {
+                    let suffix = k.strip_prefix(&prefix).unwrap_or("");
+                    if !ds.contains(suffix) {
+                        continue;
+                    }
+                }
+                calls = calls.saturating_add(w.buf.len() as u64);
+                for o in &w.buf {
+                    elapsed_ms_sum = elapsed_ms_sum.saturating_add(o.elapsed_ms);
+                }
+            }
+        }
+
+        if calls == 0 {
+            if let Some(w) = self.windows.get(arm) {
+                calls = w.buf.len() as u64;
+                for o in &w.buf {
+                    elapsed_ms_sum = elapsed_ms_sum.saturating_add(o.elapsed_ms);
+                }
+            }
+        }
+
+        (calls, elapsed_ms_sum)
+    }
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -969,28 +1012,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         if mh::novelty_from_env() {
                             let mut unseen: Vec<String> = Vec::new();
                             for b in &remaining {
-                                // Observed (no-prior) calls:
-                                let mut obs_calls = 0u64;
-                                if per_dataset {
-                                    let prefix = format!("{b}@@");
-                                    for (k, w) in &h.windows {
-                                        if !k.starts_with(&prefix) {
-                                            continue;
-                                        }
-                                        if let Some(ds) = ds_set_ref {
-                                            let suffix = k.strip_prefix(&prefix).unwrap_or("");
-                                            if !ds.contains(suffix) {
-                                                continue;
-                                            }
-                                        }
-                                        obs_calls = obs_calls.saturating_add(w.buf.len() as u64);
-                                    }
-                                }
-                                if obs_calls == 0 {
-                                    // Fallback to global key if per-dataset yielded none.
-                                    obs_calls =
-                                        h.windows.get(b).map(|w| w.buf.len() as u64).unwrap_or(0);
-                                }
+                                let (obs_calls, _) =
+                                    h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
                                 if obs_calls == 0 {
                                     unseen.push(b.clone());
                                 }
@@ -1012,38 +1035,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             let mut eligible: Vec<String> = remaining
                                 .iter()
                                 .filter(|a| {
-                                    // Observed (no-prior) mean latency + calls.
-                                    let mut obs_calls = 0u64;
-                                    let mut obs_elapsed_sum = 0u64;
-                                    if per_dataset {
-                                        let prefix = format!("{a}@@");
-                                        for (k, w) in &h.windows {
-                                            if !k.starts_with(&prefix) {
-                                                continue;
-                                            }
-                                            if let Some(ds) = ds_set_ref {
-                                                let suffix = k.strip_prefix(&prefix).unwrap_or("");
-                                                if !ds.contains(suffix) {
-                                                    continue;
-                                                }
-                                            }
-                                            obs_calls =
-                                                obs_calls.saturating_add(w.buf.len() as u64);
-                                            for o in &w.buf {
-                                                obs_elapsed_sum =
-                                                    obs_elapsed_sum.saturating_add(o.elapsed_ms);
-                                            }
-                                        }
-                                    }
-                                    if obs_calls == 0 {
-                                        if let Some(w) = h.windows.get(*a) {
-                                            obs_calls = w.buf.len() as u64;
-                                            for o in &w.buf {
-                                                obs_elapsed_sum =
-                                                    obs_elapsed_sum.saturating_add(o.elapsed_ms);
-                                            }
-                                        }
-                                    }
+                                    let (obs_calls, obs_elapsed_sum) =
+                                        h.observed_calls_and_elapsed(a, ds_set_ref, per_dataset);
                                     if guard.require_measured && obs_calls == 0 {
                                         return false;
                                     }
@@ -1162,27 +1155,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     MuxerStrategy::WorstFirst => {
                         // Explore unseen arms first (stable order) to saturate coverage.
                         if let Some(unseen) = remaining.iter().find(|b| {
-                            // Observed (no-prior) calls:
-                            let mut obs_calls = 0u64;
-                            if per_dataset {
-                                let prefix = format!("{b}@@");
-                                for (k, w) in &h.windows {
-                                    if !k.starts_with(&prefix) {
-                                        continue;
-                                    }
-                                    if let Some(ds) = ds_set_ref {
-                                        let suffix = k.strip_prefix(&prefix).unwrap_or("");
-                                        if !ds.contains(suffix) {
-                                            continue;
-                                        }
-                                    }
-                                    obs_calls = obs_calls.saturating_add(w.buf.len() as u64);
-                                }
-                            }
-                            if obs_calls == 0 {
-                                obs_calls =
-                                    h.windows.get(*b).map(|w| w.buf.len() as u64).unwrap_or(0);
-                            }
+                            let (obs_calls, _) =
+                                h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
                             obs_calls == 0
                         }) {
                             let pick = unseen.clone();
