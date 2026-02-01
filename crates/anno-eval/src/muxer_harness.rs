@@ -12,6 +12,9 @@ use muxer::Summary;
 
 use std::fmt;
 
+#[cfg(feature = "eval-advanced")]
+use crate::eval::loader::DatasetId;
+
 /// Pseudo-call prior budget for muxer smoothing.
 ///
 /// When building summaries for selection, we can “top up” sparse slices (e.g. facet-scoped
@@ -21,6 +24,33 @@ use std::fmt;
 /// statistically rigorous hierarchical model.
 pub fn prior_calls_from_env() -> u64 {
     env_usize("ANNO_MUXER_PRIOR_CALLS", 6) as u64
+}
+
+/// If true (default), allow borrowing priors from datasets matching the current slice facets
+/// (language + domain) when available.
+pub fn prior_by_facets_from_env() -> bool {
+    env_bool("ANNO_MUXER_PRIOR_BY_FACETS", true)
+}
+
+/// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
+#[cfg(feature = "eval-advanced")]
+pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
+    if datasets.is_empty() {
+        return None;
+    }
+    let mut langs: Vec<&'static str> = datasets.iter().map(|d| d.language()).collect();
+    langs.sort();
+    langs.dedup();
+    if langs.len() != 1 {
+        return None;
+    }
+    let mut doms: Vec<&'static str> = datasets.iter().map(|d| d.domain()).collect();
+    doms.sort();
+    doms.dedup();
+    if doms.len() != 1 {
+        return None;
+    }
+    Some((langs[0], doms[0]))
 }
 
 /// Apply a pseudo-count prior to a muxer `Summary` until it reaches `target_calls`.
@@ -59,6 +89,30 @@ pub fn apply_prior_counts_to_summary(out: &mut Summary, prior: Summary, target_c
     out.http_429 = out.http_429.min(out.calls);
     out.junk = out.junk.min(out.calls);
     out.hard_junk = out.hard_junk.min(out.calls);
+}
+
+#[cfg(test)]
+mod prior_tests {
+    use super::*;
+
+    #[test]
+    fn test_apply_prior_counts_to_summary_tops_up_calls() {
+        let mut out = Summary::default();
+        let prior = Summary {
+            calls: 100,
+            ok: 80,
+            http_429: 0,
+            junk: 10,
+            hard_junk: 5,
+            cost_units: 200,
+            elapsed_ms_sum: 1000,
+        };
+        apply_prior_counts_to_summary(&mut out, prior, 10);
+        assert_eq!(out.calls, 10);
+        assert!(out.ok <= out.calls);
+        assert!(out.junk <= out.calls);
+        assert!(out.hard_junk <= out.calls);
+    }
 }
 
 /// Latency guardrail settings applied *outside* muxer selection (anno-specific).

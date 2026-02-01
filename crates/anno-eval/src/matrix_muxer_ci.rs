@@ -40,6 +40,7 @@
 //! - `ANNO_MUXER_JUNK_F1_COREF`: junk threshold for CoNLL F1 (default: 0.20)
 //! - `ANNO_MUXER_JUNK_F1_RELATION`: junk threshold for strict F1 (default: 0.10)
 //! - `ANNO_MUXER_PRIOR_CALLS`: pseudo-call prior budget for smoothing (default: 6)
+//! - `ANNO_MUXER_PRIOR_BY_FACETS`: if true (default), prefer facet-matched priors (lang+domain)
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
@@ -613,20 +614,6 @@ impl BackendHistory {
         format!("{backend}@@{:?}", dataset)
     }
 
-    fn global_summary_for(&self, prior: Option<&BackendHistory>, backend: &str) -> Summary {
-        let s = self
-            .windows
-            .get(backend)
-            .map(|w| w.summary())
-            .unwrap_or_default();
-        if s.calls > 0 {
-            return s;
-        }
-        prior
-            .and_then(|h| h.windows.get(backend).map(|w| w.summary()))
-            .unwrap_or_default()
-    }
-
     fn observed_summary_for(
         &self,
         backend: &str,
@@ -668,6 +655,49 @@ impl BackendHistory {
             .unwrap_or_default()
     }
 
+    fn base_prior_summary_for(prior: &BackendHistory, backend: &str) -> Summary {
+        prior
+            .windows
+            .get(backend)
+            .map(|w| w.summary())
+            .unwrap_or_default()
+    }
+
+    fn facet_prior_summary_for(
+        prior: &BackendHistory,
+        backend: &str,
+        lang: &'static str,
+        dom: &'static str,
+    ) -> Summary {
+        // Aggregate dataset-scoped windows from the *prior* history, filtered to datasets whose
+        // facets match the current slice.
+        let prefix = format!("{backend}@@");
+        let mut agg = Summary::default();
+        for (k, w) in &prior.windows {
+            let Some(suffix) = k.strip_prefix(&prefix) else {
+                continue;
+            };
+            let Ok(ds) = suffix.parse::<DatasetId>() else {
+                continue;
+            };
+            if ds.language() != lang || ds.domain() != dom {
+                continue;
+            }
+            let s = w.summary();
+            if s.calls == 0 {
+                continue;
+            }
+            agg.calls = agg.calls.saturating_add(s.calls);
+            agg.ok = agg.ok.saturating_add(s.ok);
+            agg.http_429 = agg.http_429.saturating_add(s.http_429);
+            agg.junk = agg.junk.saturating_add(s.junk);
+            agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
+            agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
+            agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
+        }
+        agg
+    }
+
     fn summaries_for(
         &self,
         prior: Option<&BackendHistory>,
@@ -680,8 +710,20 @@ impl BackendHistory {
         for a in arms {
             let mut s = self.observed_summary_for(a, datasets, per_dataset);
             if prior_calls > 0 {
-                let prior_s = self.global_summary_for(prior, a);
-                mh::apply_prior_counts_to_summary(&mut s, prior_s, prior_calls);
+                if let Some(prior) = prior {
+                    let mut prior_s = Self::base_prior_summary_for(prior, a);
+                    if mh::prior_by_facets_from_env() && per_dataset {
+                        if let Some(datasets) = datasets {
+                            if let Some((lang, dom)) = mh::facet_prior_filter(datasets) {
+                                let facet = Self::facet_prior_summary_for(prior, a, lang, dom);
+                                if facet.calls > 0 {
+                                    prior_s = facet;
+                                }
+                            }
+                        }
+                    }
+                    mh::apply_prior_counts_to_summary(&mut s, prior_s, prior_calls);
+                }
             }
             out.insert(a.clone(), s);
         }
@@ -2337,4 +2379,71 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
         &[("strict_f1", 0.9)],
     );
     assert_eq!(rel_ok.primary_f1(), Some(0.9));
+}
+
+#[test]
+fn test_muxer_prior_prefers_facet_matched_history() {
+    // Ensure facet-scoped slices borrow from the most relevant prior when possible.
+    //
+    // Setup:
+    // - prior history has dataset-scoped windows for backend `stacked` on:
+    //   - Wnut17 (en + social_media) = always ok
+    //   - GermEvalDiscontinuous (de + ... ) = always junk
+    // - current history is empty
+    // - dataset slice is [Wnut17], so facet prior should pick the Wnut17 window.
+    let mut prior = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+
+    let mut wnut = Window::new(50);
+    for _ in 0..10 {
+        wnut.push(Outcome {
+            ok: true,
+            http_429: false,
+            junk: false,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1,
+        });
+    }
+    prior.windows.insert(
+        BackendHistory::dataset_key("stacked", DatasetId::Wnut17),
+        wnut,
+    );
+
+    let mut de = Window::new(50);
+    for _ in 0..10 {
+        de.push(Outcome {
+            ok: false,
+            http_429: false,
+            junk: true,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1,
+        });
+    }
+    prior.windows.insert(
+        BackendHistory::dataset_key("stacked", DatasetId::GermEvalDiscontinuous),
+        de,
+    );
+
+    let current = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+
+    let arms = vec!["stacked".to_string()];
+    let summaries = current.summaries_for(Some(&prior), &arms, Some(&[DatasetId::Wnut17]), true, 6);
+    let s = summaries.get("stacked").copied().unwrap_or_default();
+    assert!(s.calls >= 6);
+    assert!(
+        s.ok_rate() > 0.5,
+        "facet prior should bias ok_rate upward; got ok_rate={}",
+        s.ok_rate()
+    );
 }

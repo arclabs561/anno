@@ -12,6 +12,8 @@ use std::path::PathBuf;
 #[cfg(feature = "eval-advanced")]
 use anno_eval::eval::backend_factory::BackendFactory;
 #[cfg(feature = "eval-advanced")]
+use anno_eval::eval::loader::DatasetId;
+#[cfg(feature = "eval-advanced")]
 use anno_eval::eval::task_mapping::{backend_tasks, get_task_backends, Task};
 
 // Note: `muxer` is an optional dependency enabled by `eval-advanced`.
@@ -426,13 +428,50 @@ impl BackendHistory {
 
             // Borrow a small pseudo-count prior when this slice is sparse (facet-scoped cold start).
             if prior_calls > 0 && obs.calls < prior_calls {
-                let prior_s = self
-                    .windows
-                    .get(a)
-                    .map(SummarySerde::from_window)
-                    .filter(|s| s.calls > 0)
-                    .or_else(|| prior.and_then(|h| h.windows.get(a).map(SummarySerde::from_window)))
+                // Build a prior summary from the provided history (task-wide), optionally
+                // preferring facet-matched dataset windows when we can infer a (lang,domain) filter.
+                let mut prior_s = prior
+                    .and_then(|h| h.windows.get(a).map(SummarySerde::from_window))
                     .unwrap_or_default();
+                if mh::prior_by_facets_from_env() && per_dataset {
+                    if let Some(ds_set) = datasets {
+                        let mut parsed: Vec<DatasetId> = Vec::new();
+                        for ds_s in ds_set {
+                            if let Ok(ds) = ds_s.parse::<DatasetId>() {
+                                parsed.push(ds);
+                            }
+                        }
+                        if let Some(prior_hist) = prior {
+                            if let Some((lang, dom)) = mh::facet_prior_filter(&parsed) {
+                                let prefix = format!("{a}@@");
+                                let mut agg = SummarySerde::default();
+                                for (k, w) in &prior_hist.windows {
+                                    let Some(suffix) = k.strip_prefix(&prefix) else {
+                                        continue;
+                                    };
+                                    let Ok(ds) = suffix.parse::<DatasetId>() else {
+                                        continue;
+                                    };
+                                    if ds.language() != lang || ds.domain() != dom {
+                                        continue;
+                                    }
+                                    let s = SummarySerde::from_window(w);
+                                    agg.calls = agg.calls.saturating_add(s.calls);
+                                    agg.ok = agg.ok.saturating_add(s.ok);
+                                    agg.http_429 = agg.http_429.saturating_add(s.http_429);
+                                    agg.junk = agg.junk.saturating_add(s.junk);
+                                    agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
+                                    agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
+                                    agg.elapsed_ms_sum =
+                                        agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
+                                }
+                                if agg.calls > 0 {
+                                    prior_s = agg;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Reuse the shared helper (same semantics as the CI harness).
                 let mut out_m = muxer::Summary {
