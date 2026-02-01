@@ -168,79 +168,67 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
             }
         }
     } else {
-        // Try to parse as cross-doc clusters (requires eval feature)
-        #[cfg(feature = "eval")]
+        // Try to parse as cross-doc clusters (requires cross-doc support).
+        #[cfg(feature = "eval-advanced")]
         {
             if let Ok(clusters) =
-                serde_json::from_str::<Vec<anno_eval::eval::cdcr::CrossDocCluster>>(&json_content)
+                serde_json::from_str::<Vec<anno_eval::cdcr::CrossDocCluster>>(&json_content)
                     .map_err(|e| format_error("parse cross-doc clusters JSON", &e.to_string()))
             {
-                // Query cross-doc clusters
-                #[cfg(feature = "eval-advanced")]
-                {
-                    let mut filtered: Vec<_> = clusters.iter().collect();
+                let mut filtered: Vec<_> = clusters.iter().collect();
 
-                    // Apply filters
-                    if let Some(ref filter_type) = args.r#type {
-                        filtered.retain(|c| {
-                            c.entity_type
-                                .as_ref()
-                                .map(|t| t.as_label().eq_ignore_ascii_case(filter_type))
-                                .unwrap_or(false)
-                        });
-                    }
-
-                    if let Some(ref entity_text) = args.entity {
-                        filtered.retain(|c| {
-                            c.canonical_name
-                                .to_lowercase()
-                                .contains(&entity_text.to_lowercase())
-                        });
-                    }
-
-                    // Output results
-                    match args.format {
-                        OutputFormat::Tree => {
-                            for cluster in &filtered {
-                                println!("Cluster {}: {}", cluster.id, cluster.canonical_name);
-                                for (doc_id, entity_idx) in &cluster.mentions {
-                                    println!("  - entity[{}] (doc: {})", entity_idx, doc_id);
-                                }
-                                println!();
-                            }
-                        }
-                        OutputFormat::Json | OutputFormat::Grounded => {
-                            let output = serde_json::to_string_pretty(&filtered)
-                                .map_err(|e| format!("Failed to serialize: {}", e))?;
-                            if let Some(output_path) = &args.output {
-                                fs::write(output_path, output)
-                                    .map_err(|e| format!("Failed to write output: {}", e))?;
-                            } else {
-                                println!("{}", output);
-                            }
-                        }
-                        _ => {
-                            println!("Found {} clusters:", filtered.len());
-                            for cluster in &filtered {
-                                println!(
-                                    "  {}: {} mentions across {} documents",
-                                    cluster.canonical_name,
-                                    cluster.mentions.len(),
-                                    cluster.doc_count()
-                                );
-                            }
-                        }
-                    }
-                    return Ok(());
+                // Apply filters
+                if let Some(ref filter_type) = args.r#type {
+                    filtered.retain(|c| {
+                        c.entity_type
+                            .as_ref()
+                            .map(|t| t.as_label().eq_ignore_ascii_case(filter_type))
+                            .unwrap_or(false)
+                    });
                 }
 
-                #[cfg(not(feature = "eval-advanced"))]
-                {
-                    let _clusters = clusters; // Suppress unused variable warning
-                    return Err(
-                        "Cross-doc cluster querying requires 'eval-advanced' feature".to_string(),
-                    );
+                if let Some(ref entity_text) = args.entity {
+                    filtered.retain(|c| {
+                        c.canonical_name
+                            .to_lowercase()
+                            .contains(&entity_text.to_lowercase())
+                    });
                 }
+
+                // Output results
+                match args.format {
+                    OutputFormat::Tree => {
+                        for cluster in &filtered {
+                            println!("Cluster {}: {}", cluster.id, cluster.canonical_name);
+                            for (doc_id, entity_idx) in &cluster.mentions {
+                                println!("  - entity[{}] (doc: {})", entity_idx, doc_id);
+                            }
+                            println!();
+                        }
+                    }
+                    OutputFormat::Json | OutputFormat::Grounded => {
+                        let output = serde_json::to_string_pretty(&filtered)
+                            .map_err(|e| format!("Failed to serialize: {}", e))?;
+                        if let Some(output_path) = &args.output {
+                            fs::write(output_path, output)
+                                .map_err(|e| format!("Failed to write output: {}", e))?;
+                        } else {
+                            println!("{}", output);
+                        }
+                    }
+                    _ => {
+                        println!("Found {} clusters:", filtered.len());
+                        for cluster in &filtered {
+                            println!(
+                                "  {}: {} mentions across {} documents",
+                                cluster.canonical_name,
+                                cluster.mentions.len(),
+                                cluster.doc_count()
+                            );
+                        }
+                    }
+                }
+                return Ok(());
             }
         }
 

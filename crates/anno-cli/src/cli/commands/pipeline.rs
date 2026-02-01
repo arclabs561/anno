@@ -182,7 +182,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
     if args.cross_doc {
         #[cfg(feature = "eval-advanced")]
         {
-            use anno_eval::eval::cdcr::{CDCRConfig, CDCRResolver, Document};
+            use anno_eval::cdcr::{CDCRConfig, CDCRResolver, Document};
 
             // Convert GroundedDocuments to CDCR Documents
             let cdcr_docs: Vec<Document> = documents

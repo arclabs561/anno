@@ -22,6 +22,14 @@ pub mod muxer_harness;
 #[path = "eval/mod.rs"]
 pub mod eval;
 
+/// Cross-document coreference / clustering (CDCR).
+///
+/// This is re-exported at the crate root so downstream code (notably the CLI)
+/// doesn't need to import it from the `eval::*` namespace.
+pub mod cdcr {
+    pub use crate::eval::cdcr::*;
+}
+
 // CI-friendly matrix harness (tests).
 #[cfg(test)]
 mod matrix_muxer_ci;
