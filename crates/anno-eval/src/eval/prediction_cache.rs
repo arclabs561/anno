@@ -8,7 +8,15 @@
 //! 1. **Same backend, different datasets**: Predictions cached per-text, reused
 //! 2. **Same dataset, different backends**: Gold parsed once, predictions per-backend
 //! 3. **Re-scoring with updated metrics**: No re-inference needed
-//! 4. **CI regression detection**: Compare against cached baseline predictions
+//! 4. **Local iteration**: reuse predictions across repeated runs
+//!
+//! # Important correctness note
+//!
+//! This cache is inherently **implementation-sensitive**:
+//! - changes to tokenization/normalization/decoding can change predictions
+//! - some baselines use a coarse `Model::version()` (default is `"1"`)
+//!
+//! Treat cache reuse in CI with caution; prefer invalidating by commit id / feature set.
 //!
 //! # Cache Key Design
 //!

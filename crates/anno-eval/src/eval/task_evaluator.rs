@@ -344,7 +344,22 @@ impl TaskEvaluator {
         let pkg = env!("CARGO_PKG_VERSION");
         let code_id = std::env::var("ANNO_PREDICTION_CACHE_CODE_ID")
             .ok()
-            .or_else(|| std::env::var("GITHUB_SHA").ok());
+            .or_else(|| std::env::var("GITHUB_SHA").ok())
+            .or_else(|| {
+                // Best-effort: in local dev, invalidate on git HEAD so cache doesn’t silently
+                // survive code changes when `backend.version()` is coarse (many baselines return "1").
+                //
+                // This is intentionally soft: if git isn’t available (or we’re not in a repo),
+                // we just don’t include a code id.
+                std::process::Command::new("git")
+                    .args(["rev-parse", "HEAD"])
+                    .output()
+                    .ok()
+                    .filter(|o| o.status.success())
+                    .and_then(|o| String::from_utf8(o.stdout).ok())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            });
         let salt = std::env::var("ANNO_PREDICTION_CACHE_SALT").ok();
         let feat = format!(
             "onnx={} candle={} burn={}",
