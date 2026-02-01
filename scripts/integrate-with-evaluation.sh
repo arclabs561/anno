@@ -32,8 +32,8 @@ If variance is too small (population variance), CIs will be too narrow.
 
 **Command**:
 \`\`\`bash
-# Run evaluation
-cargo run --example eval_basic --features eval
+# Run a small, bounded evaluation (cached-only)
+just eval-sanity
 
 # Check CI widths in output
 # Narrow CIs may indicate population variance instead of sample variance
@@ -49,7 +49,7 @@ If entities have invalid offsets, evaluation will fail or produce warnings.
 **Command**:
 \`\`\`bash
 # Run evaluation with validation
-cargo test --test eval_integration --features eval-advanced
+cargo test --workspace --lib --features "eval-advanced discourse"
 
 # Check for validation errors in output
 \`\`\`
@@ -64,7 +64,7 @@ If backends are recreated, evaluation will be slower.
 **Command**:
 \`\`\`bash
 # Benchmark evaluation performance
-cargo bench --bench evaluation_performance --features eval-parallel
+cargo bench -p anno
 
 # Compare with/without backend reuse
 \`\`\`
@@ -79,7 +79,7 @@ are outside [0.0, 1.0]. This would indicate a bug.
 **Command**:
 \`\`\`bash
 # Run evaluation and extract confidence scores
-cargo run --example eval_basic --features eval | grep -i confidence
+just eval-sanity | rg -i confidence
 
 # Check for values outside [0.0, 1.0]
 \`\`\`
@@ -100,7 +100,7 @@ cargo run --example eval_basic --features eval | grep -i confidence
 just analysis-nlp-ml > static-analysis.txt
 
 # 2. Run evaluation
-cargo run --example eval_basic --features eval > evaluation-output.txt
+just eval-sanity > evaluation-output.txt
 
 # 3. Cross-reference
 # - If static analysis finds "missing offset validation" but evaluation passes,

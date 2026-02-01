@@ -56,9 +56,9 @@ test-all:
 t FILTER:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --no-default-features --features "cli eval"
+        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --no-default-features
     else
-        cargo test -p anno --no-default-features --features "cli eval" -- '{{FILTER}}'
+        cargo test -p anno --no-default-features -- '{{FILTER}}'
     fi
 
 # Quick single-test run with full features
@@ -148,16 +148,17 @@ profile-install:
 # Simulate full CI pipeline locally (fast checks only)
 ci: fmt
     just docs-audit
-    cargo check --all-targets
-    cargo clippy --all-targets
-    cargo test --lib
-    cargo test --test no_features
-    ANNO_MAX_EXAMPLES=10 cargo test --lib --features "eval-advanced discourse"
-    cargo test --test eval_integration --features "eval-advanced"
-    cargo test --test coreference_tests --features "eval-advanced"
-    cargo test --test discourse_proptest --features "discourse"
-    cargo test --test features_comprehensive --features "eval-advanced"
-    cargo test --test regression_tests --features eval
+    cargo fmt --all -- --check
+    cargo check --workspace --all-targets
+    cargo clippy --workspace --lib --features "eval-advanced discourse" -- -D warnings
+    cargo test --package anno --no-default-features --lib
+    cargo test --package anno --lib
+    cargo build --workspace --features "eval-advanced discourse"
+    cargo test --workspace --lib --features "eval-advanced discourse"
+    cargo test --package anno --tests --features "eval-advanced discourse"
+    cargo build --workspace --no-default-features
+    cargo test --workspace --no-default-features --lib
+    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval-advanced discourse"
     @echo "CI simulation passed"
 
 # Simulate CI with sanity evals (includes small random sample evals)
@@ -175,12 +176,12 @@ matrix strategy="random" seed="" perspective="ner":
     export ANNO_SAMPLE_STRATEGY={{strategy}}
     export ANNO_MATRIX_PERSPECTIVE={{perspective}}
     if [ -n "{{seed}}" ]; then export ANNO_CI_SEED={{seed}}; fi
-    cargo test -p anno --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
 
 # Run matrix test with ML backends (requires onnx/candle features)
 matrix-ml:
     @echo "Running ML-focused matrix test..."
-    @ANNO_SAMPLE_STRATEGY=ml-only ANNO_ML_IN_MATRIX=1 cargo test -p anno --lib --features "eval-advanced onnx" test_randomized_matrix_sample -- --nocapture
+    @ANNO_SAMPLE_STRATEGY=ml-only ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --lib --features "eval-advanced onnx" test_randomized_matrix_sample -- --nocapture
 
 # Show backend availability matrix
 matrix-backends:
@@ -339,17 +340,18 @@ typecheck-python:
 
 # Run NER benchmark (no execution, just compile)
 bench-check:
-    cargo bench --no-run --features eval
+    cargo bench -p anno --no-run
 
 # Run benchmarks
 bench:
-    cargo bench --features eval
+    cargo bench -p anno
 
 # === Utilities ===
 
 # Download evaluation datasets
 download-datasets:
-    cargo test --test real_datasets --features eval-advanced -- --ignored download
+    @echo "Deprecated: legacy real_datasets test was removed/split. Use the CLI to warm caches instead."
+    @echo "Example: just eval-quick (writes reports/ and will download datasets/models unless cached)."
 
 # Clean build artifacts
 clean:
@@ -373,7 +375,7 @@ cache-warm:
 
 # Build release binary
 build-release:
-    cargo build --release --features "eval-full discourse onnx"
+    cargo build --release -p anno-cli --bin anno --features "eval-advanced discourse onnx"
 
 # Run clippy with stricter lints
 clippy-strict:
@@ -396,16 +398,8 @@ test-count:
 # === Quick Examples ===
 
 # Run quickstart example (no deps)
-example-quickstart:
-    cargo run --example quickstart
-
-# Run eval example (needs eval feature)
-example-eval:
-    cargo run --example eval_basic --features eval
-
-# Run GLiNER2 example (needs onnx feature + model download)
-example-gliner2:
-    cargo run --example gliner2_multitask --features onnx
+example-minimal:
+    cargo run -p anno --example minimal
 
 # === Mutation Testing ===
 
@@ -952,7 +946,7 @@ ci-matrix-local SEED="42" PERSPECTIVE="ner":
     ANNO_CI_SEED="{{SEED}}" \
     ANNO_MATRIX_PERSPECTIVE="{{PERSPECTIVE}}" \
     ANNO_SAMPLE_STRATEGY=worst-first \
-    cargo test -p anno --lib --features "eval-advanced" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval-advanced" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
 
 # Legacy: spot “badness history” export is not wired into the muxer JSON format by default.
 spot-export-badness:

@@ -664,7 +664,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         Ok(h) => h,
         Err(e) => {
             return Err(format!(
-                "{e}\nHint: run the matrix harness at least once (e.g. `ANNO_ML_IN_MATRIX=1 cargo test -p anno --features eval-advanced test_randomized_matrix_sample -- --nocapture`)."
+                "{e}\nHint: run the matrix harness at least once (e.g. `ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --features \"eval-advanced onnx\" test_randomized_matrix_sample -- --nocapture`)."
             ));
         }
     };

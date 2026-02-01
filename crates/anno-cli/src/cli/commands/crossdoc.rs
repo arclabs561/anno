@@ -141,7 +141,7 @@ fn context_snippet<'a>(
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
     #[cfg(not(feature = "eval"))]
-    return Err("Cross-document coreference requires 'eval' feature. Build with: cargo build --features eval".to_string());
+    return Err("Cross-document coreference requires 'eval' feature. Build with: cargo build -p anno-cli --features eval".to_string());
 
     #[cfg(feature = "eval")]
     {

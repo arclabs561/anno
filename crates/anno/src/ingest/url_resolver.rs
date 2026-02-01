@@ -273,7 +273,7 @@ impl UrlResolver for HttpResolver {
             let _url = url;
             Err(crate::Error::InvalidInput(
                 "URL resolution requires 'eval-advanced' feature. \
-                 Enable it with: cargo build --features eval-advanced"
+                 Enable it with: cargo build -p anno-cli --features eval-advanced"
                     .to_string(),
             ))
         }

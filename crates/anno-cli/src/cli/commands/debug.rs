@@ -117,7 +117,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
         {
             #[allow(unused_variables)]
             let _url = url;
-            return Err("URL resolution requires 'eval-advanced' feature. Enable with: cargo build --features eval-advanced".to_string());
+            return Err("URL resolution requires 'eval-advanced' feature. Enable with: cargo build -p anno-cli --features eval-advanced".to_string());
         }
     } else {
         get_input_text(&args.text, args.file.as_deref(), &args.positional)?

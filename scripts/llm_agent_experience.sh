@@ -8,7 +8,7 @@ ANNO=${ANNO:-./target/debug/anno}
 
 if [ ! -x "$ANNO" ]; then
   echo "error: anno binary not found at: $ANNO"
-  echo "Build with: cargo build -p anno --bin anno"
+  echo "Build with: cargo build -p anno-cli --bin anno"
   exit 1
 fi
 
@@ -74,7 +74,7 @@ echo "3c. GLiNER backend (ML)"
 if $ANNO extract --help | grep -q "gliner"; then
   $ANNO extract --model gliner 'Angela Merkel led Germany for 16 years.'
 else
-  echo "(skipped) GLiNER backend not available in this build. Rebuild with: cargo build -p anno --features onnx --bin anno"
+  echo "(skipped) GLiNER backend not available in this build. Rebuild with: cargo build -p anno-cli --features onnx --bin anno"
 fi
 echo ""
 
@@ -121,7 +121,7 @@ echo "5a. Cross-document entity resolution"
 if $ANNO --help | grep -q "^  cross-doc"; then
   $ANNO cross-doc "$TESTDIR/" --threshold 0.5 --format summary
 else
-  echo "(skipped) cross-doc requires eval-advanced build. Rebuild with: cargo build -p anno --features eval-advanced --bin anno"
+  echo "(skipped) cross-doc requires eval-advanced build. Rebuild with: cargo build -p anno-cli --features eval-advanced --bin anno"
 fi
 echo ""
 

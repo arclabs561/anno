@@ -270,7 +270,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             #[cfg(not(feature = "eval-advanced"))]
             {
                 let _ = dataset;
-                return Err("Dataset download requires --features eval-advanced".to_string());
+                return Err(
+                    "Dataset download requires --features eval-advanced (build: cargo build -p anno-cli --features eval-advanced)"
+                        .to_string(),
+                );
             }
         }
         DatasetAction::Facets {
@@ -284,7 +287,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             #[cfg(not(feature = "eval"))]
             {
                 let _ = (touched_report, gaps);
-                return Err("Dataset facets require --features eval".to_string());
+                return Err(
+                    "Dataset facets require --features eval (build: cargo build -p anno-cli --features eval)"
+                        .to_string(),
+                );
             }
         }
         DatasetAction::Eval {

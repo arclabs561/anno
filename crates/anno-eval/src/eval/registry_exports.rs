@@ -90,7 +90,9 @@ fn write_markdown(path: &Path, datasets: &[DatasetExport]) {
 
     let mut out = String::new();
     out.push_str("<!-- Auto-generated from the Rust dataset registry. DO NOT EDIT MANUALLY. -->\n");
-    out.push_str("<!-- Run: cargo test -p anno --features eval generate_datasets_markdown -- --ignored -->\n\n");
+    out.push_str(
+        "<!-- Run: cargo test -p anno-eval generate_datasets_markdown -- --ignored -->\n\n",
+    );
     out.push_str("# Dataset Registry\n\n");
     out.push_str(&format!("**Total datasets: {}**\n\n", datasets.len()));
     out.push_str("## All Datasets\n\n");

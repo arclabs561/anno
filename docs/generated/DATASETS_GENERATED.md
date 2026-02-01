@@ -1,5 +1,5 @@
 <!-- Auto-generated from the Rust dataset registry. DO NOT EDIT MANUALLY. -->
-<!-- Run: cargo test -p anno --features eval generate_datasets_markdown -- --ignored -->
+<!-- Run: cargo test -p anno-eval generate_datasets_markdown -- --ignored -->
 
 # Dataset Registry
 

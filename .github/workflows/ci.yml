@@ -397,7 +397,7 @@ jobs:
       
       - name: Run randomized matrix test
         run: |
-          cargo test -p anno --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
@@ -408,7 +408,7 @@ jobs:
       
       - name: Run worst-first matrix test
         run: |
-          cargo test -p anno --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "eval-advanced" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}

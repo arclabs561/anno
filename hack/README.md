@@ -23,12 +23,10 @@ Use these for docs/tests without licensing ambiguity:
 ./target/debug/anno cross-doc testdata/fixtures/cross_doc --format tree --threshold 0.3
 ```
 
-## Extraction Script
-
-To extract dataset texts into a local directory (not tracked):
+## Building the binary
 
 ```bash
-cargo run --example extract_dataset_texts --features eval-advanced
+cargo build -p anno-cli --bin anno
 ```
 
 Note: some popular datasets/news sources have redistribution restrictions. Keep any "real data"

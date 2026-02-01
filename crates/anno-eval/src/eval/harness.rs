@@ -134,7 +134,7 @@ impl EvalConfig {
     ///
     /// ```bash
     /// # Limit to 20 examples per dataset
-    /// ANNO_MAX_EXAMPLES=20 cargo test --features eval-advanced
+    /// ANNO_MAX_EXAMPLES=20 cargo test -p anno-eval --features eval-advanced
     /// ```
     pub fn ci_aware() -> Self {
         let in_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();

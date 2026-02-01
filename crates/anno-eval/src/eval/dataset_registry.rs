@@ -118,11 +118,11 @@
 //! # Adding a New Dataset
 //!
 //! 1. Add an entry in `define_datasets!` below
-//! 2. Run tests to verify: `cargo test -p anno --features eval`
+//! 2. Run tests to verify: `cargo test -p anno-eval`
 //! 3. Regenerate exports:
-//!    - `cargo test -p anno --features eval generate_datasets_json -- --ignored`
-//!    - `cargo test -p anno --features eval generate_datasets_jsonl -- --ignored`
-//!    - `cargo test -p anno --features eval generate_datasets_markdown -- --ignored`
+//!    - `cargo test -p anno-eval generate_datasets_json -- --ignored`
+//!    - `cargo test -p anno-eval generate_datasets_jsonl -- --ignored`
+//!    - `cargo test -p anno-eval generate_datasets_markdown -- --ignored`
 //! 4. If the dataset should be *loadable*, ensure `eval::loader::LoadableDatasetId`
 //!    maps it to a parsing plan.
 //!
@@ -133,7 +133,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::DatasetId;
+//! use anno_eval::eval::DatasetId;
 //!
 //! let id = DatasetId::WikiGold;
 //! assert_eq!(id.name(), "WikiGold");
@@ -1139,7 +1139,7 @@ pub use optional_field_num;
 //
 // To add a dataset:
 // 1. Add an entry below with all metadata
-// 2. Run tests: `cargo test -p anno --features eval`
+// 2. Run tests: `cargo test -p anno-eval`
 // 3. The TOML is generated automatically for documentation
 //
 // Categories available:
