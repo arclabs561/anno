@@ -67,7 +67,10 @@ criterion = { workspace = true }
 [features]
 default = ["onnx"]
 discourse = []
+# Legacy name: this gate historically meant “evaluation-ish / research modules”.
+# Prefer `analysis` going forward (kept as an alias to avoid breaking downstreams).
 eval = []
+analysis = ["eval"]
 # Enables evaluation-adjacent tooling (CLI helpers, URL ingestion, etc.).
 eval-advanced = ["dep:ureq"]
 graph = []

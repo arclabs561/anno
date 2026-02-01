@@ -1058,8 +1058,8 @@ impl BoxEmbeddingTrainer {
     ///
     /// `CorefEvaluation` with all standard metrics
     ///
-    /// Requires `eval` feature for access to standard coref metrics.
-    #[cfg(feature = "eval")]
+    /// Requires `analysis` (or legacy `eval`) feature for access to standard coref metrics.
+    #[cfg(any(feature = "analysis", feature = "eval"))]
     pub fn evaluate_standard_metrics(
         &self,
         examples: &[TrainingExample],

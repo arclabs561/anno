@@ -238,9 +238,9 @@ pub fn cache_dir() -> std::path::PathBuf {
         return std::path::PathBuf::from(dir);
     }
 
-    // When eval feature is enabled, use platform-specific cache directories
-    // (the eval feature enables the dirs crate)
-    #[cfg(feature = "eval")]
+    // When analysis/eval feature is enabled, use platform-specific cache directories
+    // (this gate enables the `dirs` crate dependency)
+    #[cfg(any(feature = "analysis", feature = "eval"))]
     {
         #[cfg(target_os = "macos")]
         {

@@ -378,7 +378,7 @@ pub use burn::{BurnConfig, BurnNER};
 // Simple resolvers for evaluation pipelines (eval feature only)
 // NOTE: These live in eval/ and are for evaluation, not production.
 // For production coreference, use `MentionRankingCoref` above.
-#[cfg(feature = "eval")]
+#[cfg(any(feature = "analysis", feature = "eval"))]
 pub use crate::eval::coref_resolver::{BoxCorefResolver, CorefConfig, SimpleCorefResolver};
 #[cfg(all(feature = "eval", feature = "discourse"))]
 pub use crate::eval::coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
