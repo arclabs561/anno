@@ -3,9 +3,6 @@
 use clap::{Parser, Subcommand};
 use std::fs;
 
-#[cfg(feature = "eval")]
-use anno_eval::eval::prediction_cache::PredictionCache;
-
 use super::super::output::{color, format_size};
 use super::super::utils::get_cache_dir;
 
@@ -125,17 +122,6 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
             } else {
                 println!("Cache directory does not exist");
             }
-
-            #[cfg(feature = "eval")]
-            {
-                let pred_path = PredictionCache::default_path();
-                let pred_cache = PredictionCache::load_or_create(&pred_path);
-                if let Err(e) = pred_cache.clear() {
-                    eprintln!("Warning: Failed to clear prediction cache: {}", e);
-                } else {
-                    println!("{} Prediction cache cleared", color("32", "✓"));
-                }
-            }
         }
         CacheAction::Stats => {
             if !cache_dir.exists() {
@@ -161,24 +147,7 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
 
             #[cfg(feature = "eval")]
             {
-                let pred_path = PredictionCache::default_path();
-                let pred_cache = PredictionCache::load_or_create(&pred_path);
-                if pred_cache.is_enabled() {
-                    let stats = pred_cache.stats();
-                    println!("\nPrediction Cache ({})", pred_path.display());
-                    println!("  Total predictions: {}", stats.total_entries);
-                    if !stats.by_backend.is_empty() {
-                        println!("  By backend:");
-                        // Sort backends for consistent output
-                        let mut backends: Vec<_> = stats.by_backend.iter().collect();
-                        backends.sort_by_key(|(k, _)| *k);
-                        for (backend, count) in backends {
-                            println!("    {}: {}", backend, count);
-                        }
-                    }
-                } else {
-                    println!("\nPrediction Cache: <empty>");
-                }
+                // Prediction cache has been removed (it was implementation-sensitive and could mask regressions).
             }
         }
         CacheAction::Invalidate { model, file } => {

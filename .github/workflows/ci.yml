@@ -377,8 +377,6 @@ jobs:
       
       - name: Set ANNO cache dir (matches actions/cache)
         run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-      - name: Put prediction cache in runner temp
-        run: echo "ANNO_PREDICTION_CACHE=$RUNNER_TEMP/anno/predictions.jsonl" >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
@@ -521,8 +519,6 @@ jobs:
 
       - name: Set ANNO cache dir (matches actions/cache)
         run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-      - name: Put prediction cache in runner temp
-        run: echo "ANNO_PREDICTION_CACHE=$RUNNER_TEMP/anno/predictions.jsonl" >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
@@ -602,8 +598,6 @@ jobs:
 
       - name: Set ANNO cache dir (matches actions/cache)
         run: echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-      - name: Put prediction cache in runner temp
-        run: echo "ANNO_PREDICTION_CACHE=$RUNNER_TEMP/anno/predictions.jsonl" >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}

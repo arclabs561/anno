@@ -94,7 +94,6 @@ Treat this directory as a runner, not a benchmark; measure your own spend and wa
 | `orchestrate.py` | Generate tasks, monitor progress, aggregate results |
 | `monitor.py` | Live worker monitoring via SSM |
 | `aggregate.py` | Local aggregation utilities for results |
-| `merge_cache.py` | Merge/cache helpers for spot runs |
 
 ## Environment Variables
 
@@ -131,28 +130,10 @@ On-demand fetch with local caching:
 - Datasets: `ANNO_S3_CACHE=1` enables S3 fallback
 - Models: `HF_HOME=/mnt/cache/models` for ONNX models
 
-### Prediction Caching (Incremental Eval)
+### Prediction caching
 
-For frequent/cheap re-evaluation, cache predictions:
-
-| Layer | What's Cached | Key | Storage |
-|-------|---------------|-----|---------|
-| **Dataset** | Parsed gold annotations | DatasetId | S3 + local |
-| **Predictions** | NER output per text | (text_hash, backend, version) | JSONL |
-| **Metrics** | Final scores | (backend, dataset, seed) | `reports/eval-results.jsonl` |
-
-**Why this matters:**
-- Re-scoring against new gold data: No re-inference needed
-- Adding new metrics: Just re-compute from cached predictions
-- Cross-node sharing: S3 as shared prediction cache
-
-```bash
-# Check prediction cache stats
-anno cache stats
-
-# Invalidate predictions for updated model
-anno cache invalidate --model gliner
-```
+Removed: prediction caching was implementation-sensitive and could silently mask regressions. Spot
+workers rely on dataset/model caching (S3 + local) and recompute predictions as needed.
 
 ## Manual Commands
 

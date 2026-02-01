@@ -874,10 +874,6 @@ spot-summary:
 spot-summarize:
     @uv run scripts/spot/aggregate.py --llm
 
-# Merge prediction cache shards from all workers
-spot-merge-cache:
-    @uv run scripts/spot/merge_cache.py
-
 # Cancel fleet and clean up
 spot-teardown:
     @uv run scripts/spot/orchestrate.py teardown

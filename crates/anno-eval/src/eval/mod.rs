@@ -288,7 +288,6 @@ pub mod loader;
 pub mod metrics;
 pub mod modes;
 pub mod ner_metrics;
-pub mod prediction_cache;
 pub mod prelude;
 pub mod relation;
 pub mod report;

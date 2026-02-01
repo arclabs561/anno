@@ -56,22 +56,10 @@ setup_cache_volume() {
     log_info "Setting up cache directory at $CACHE_MOUNT..."
     
     # Create directory structure on root volume (100 GiB, no separate EBS)
-    mkdir -p "$CACHE_MOUNT"/{cargo,rustup,sccache,target,datasets,models,predictions}
+    mkdir -p "$CACHE_MOUNT"/{cargo,rustup,sccache,target,datasets,models}
     chown -R "$(whoami):$(whoami)" "$CACHE_MOUNT" 2>/dev/null || true
     
     log_info "Cache directory ready"
-}
-
-setup_prediction_cache() {
-    local cache_file="${CACHE_MOUNT}/predictions/predictions.jsonl"
-    export ANNO_PREDICTION_CACHE="$cache_file"
-    
-    if [[ ! -f "$cache_file" ]]; then
-        log_info "Downloading merged prediction cache from S3..."
-        aws s3 cp "s3://$BUCKET/cache/predictions-merged.jsonl" "$cache_file" 2>/dev/null || log_info "No existing cache found, starting fresh"
-    else
-        log_info "Using existing local prediction cache"
-    fi
 }
 
 setup_rust_env() {
@@ -183,7 +171,7 @@ process_task() {
     # Set HF_HOME for ONNX model loading
     export HF_HOME="${CACHE_MOUNT}/models"
     
-    # Run evaluation using anno benchmark (uses TaskEvaluator + PredictionCache)
+    # Run evaluation using anno benchmark (uses TaskEvaluator)
     # Monitor memory usage and detect OOM (exit code 137 = SIGKILL)
     local exit_code=0
     local anno_bin="$CARGO_TARGET_DIR/release/anno"
@@ -279,12 +267,6 @@ cleanup() {
     # Sync any remaining data
     sync
     
-    # Upload prediction cache shard
-    if [[ -f "${ANNO_PREDICTION_CACHE:-}" ]]; then
-        log_info "Uploading prediction cache shard..."
-        aws s3 cp "$ANNO_PREDICTION_CACHE" "s3://$BUCKET/cache/predictions-${INSTANCE_ID}.jsonl" 2>/dev/null || log_warn "Failed to upload prediction cache"
-    fi
-    
     log_info "Cleanup complete"
 }
 
@@ -300,7 +282,6 @@ main() {
     # Setup
     setup_cache_volume
     setup_rust_env
-    setup_prediction_cache
     sync_from_s3
     clone_and_build
     
