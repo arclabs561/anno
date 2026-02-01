@@ -404,9 +404,39 @@ fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool
     if let Some(t) = matrix_task_override() {
         return Some(t);
     }
-    let tasks = eligible_tasks_for_run(loader, require_cached);
+    let mut tasks = eligible_tasks_for_run(loader, require_cached);
     if tasks.is_empty() {
         return None;
+    }
+
+    // Optional coarse “perspective” hint for task selection.
+    //
+    // This is intentionally soft guidance: if the requested perspective yields no eligible tasks,
+    // we fall back to the full eligible set.
+    //
+    // Supported values:
+    // - ner
+    // - re / relation
+    // - coref
+    // - temporal
+    if let Ok(p) = std::env::var("ANNO_MATRIX_PERSPECTIVE") {
+        let p = p.trim().to_ascii_lowercase();
+        if !p.is_empty() && p != "mixed" {
+            let filtered: Vec<Task> = tasks
+                .iter()
+                .copied()
+                .filter(|t| match p.as_str() {
+                    "ner" => t.code().contains("ner"),
+                    "re" | "relation" | "relation_extraction" => t.code().contains("re"),
+                    "coref" => t.is_coref_family(),
+                    "temporal" => *t == Task::Temporal,
+                    _ => true,
+                })
+                .collect();
+            if !filtered.is_empty() {
+                tasks = filtered;
+            }
+        }
     }
     let items: Vec<String> = tasks.iter().map(|t| t.code().to_string()).collect();
     let chosen = mh::pick_random_subset(seed ^ 0xC0DE_CAFE, &items, 1)
@@ -1125,6 +1155,57 @@ fn candidate_datasets_for_tasks(
     tasks: &[Task],
     require_cached: bool,
 ) -> Vec<DatasetId> {
+    // Default policy: avoid triggering large/slow downloads for coref-family tasks in the
+    // randomized harness when not cache-only. Opt in explicitly if you want this locally.
+    if !require_cached
+        && tasks.iter().any(|t| t.is_coref_family())
+        && !mh::env_bool("ANNO_MATRIX_ALLOW_COREF_DOWNLOADS", false)
+    {
+        return Vec::new();
+    }
+
+    // Matrix harness needs datasets that are actually runnable.
+    //
+    // `DatasetId::url` in the registry is not universally a direct download link (many entries
+    // are paper/homepage URLs), so for the *downloadable* path we apply a conservative filter.
+    fn looks_like_direct_download_url(url: &str) -> bool {
+        let u = url.trim();
+        if u.is_empty() {
+            return false;
+        }
+        // Common non-download “reference” URLs.
+        if u.contains("doi.org") || u.contains("aclanthology.org") {
+            return false;
+        }
+        if u.ends_with(".pdf") {
+            return false;
+        }
+        // GitHub repository pages are HTML; require raw/release-style URLs.
+        if u.starts_with("https://github.com/") {
+            if !u.contains("/raw/") && !u.contains("/releases/download/") {
+                return false;
+            }
+        }
+        if u.contains("raw.githubusercontent.com/") {
+            return true;
+        }
+
+        // Heuristic: require a file-like URL (extension) for direct HTTP downloads.
+        // Many dataset registry entries are “homepages” that return HTML or 4xx.
+        let path = u.split('?').next().unwrap_or(u);
+        let lower = path.to_ascii_lowercase();
+        let has_known_ext = [
+            ".zip", ".tar.gz", ".tgz", ".gz", ".json", ".jsonl", ".csv", ".tsv", ".txt", ".conll",
+            ".conllu", ".bio",
+        ]
+        .iter()
+        .any(|ext| lower.ends_with(ext));
+        if !has_known_ext {
+            return false;
+        }
+        true
+    }
+
     let mut out: Vec<DatasetId> = Vec::new();
     let temporal_requested = tasks.contains(&Task::Temporal);
     for &ds in DatasetId::all() {
@@ -1137,6 +1218,17 @@ fn candidate_datasets_for_tasks(
         // temporal evaluator exists.
         if temporal_requested && ts.contains(&Task::Temporal) && !ts.contains(&Task::NER) {
             continue;
+        }
+        // When not cache-only, avoid scheduling datasets that cannot be fetched directly.
+        if !require_cached {
+            // HuggingFace datasets are fetched via datasets-server; they often have homepage URLs.
+            if ds.access_status()
+                != crate::eval::dataset_registry::DatasetAccessibility::HuggingFace
+                && ds.hf_id().is_none()
+                && !looks_like_direct_download_url(ds.download_url())
+            {
+                continue;
+            }
         }
         let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
             continue;
