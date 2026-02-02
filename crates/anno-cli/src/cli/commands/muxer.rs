@@ -109,6 +109,10 @@ pub enum MuxerAction {
         #[arg(long, default_value_t = 8)]
         top_runs: usize,
 
+        /// Window size for simple within-run outcome trend stats (first-N vs last-N).
+        #[arg(long, default_value_t = 10)]
+        trend_window: usize,
+
         /// Print by-chosen-arm failure-kind totals.
         #[arg(long, default_value_t = true)]
         by_arm: bool,
@@ -231,6 +235,13 @@ struct DecisionLogLite {
 
 #[derive(Debug, Default)]
 struct DecisionsAgg {
+    // Input accounting (avoid silent drops).
+    lines_total: u64,
+    lines_parsed_decision: u64,
+    lines_parsed_outcome: u64,
+    lines_skipped_invalid: u64,
+    lines_skipped_filtered: u64,
+
     total_rows: u64,
     // Selection-time decision records (reflect history at selection time).
     decision_rows: u64,
@@ -255,6 +266,14 @@ struct DecisionsAgg {
     outcome_kinds_total: BTreeMap<String, u64>,
     outcome_by_arm: BTreeMap<String, BTreeMap<String, u64>>,
     outcome_by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+
+    // Outcome trend: first-N vs last-N (based on JSONL order within a run).
+    outcome_trend_n: usize,
+    outcome_first_n: u64,
+    outcome_first_ok: u64,
+    outcome_first_junk: u64,
+    outcome_first_hard: u64,
+    outcome_tail: std::collections::VecDeque<(bool, bool, bool)>,
 }
 
 fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
@@ -275,116 +294,22 @@ fn top_kinds_line(counts: &BTreeMap<String, u64>, k: usize) -> String {
 }
 
 fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
-    let mut agg = DecisionsAgg::default();
-    for line in s.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        // First, try to parse an observed-outcome record appended after evaluation.
-        #[derive(Debug, Clone, serde::Deserialize)]
-        struct OutcomeLine {
-            #[serde(default)]
-            record_type: String,
-            #[serde(default)]
-            dataset: String,
-            #[serde(default)]
-            backend: String,
-            #[serde(default)]
-            fail_kind: Option<String>,
-            #[serde(default)]
-            ok: bool,
-            #[serde(default)]
-            junk: bool,
-            #[serde(default)]
-            hard_junk: bool,
-        }
-        if let Ok(o) = serde_json::from_str::<OutcomeLine>(line) {
-            if o.record_type == "outcome" && !o.backend.is_empty() && !o.dataset.is_empty() {
-                agg.total_rows += 1;
-                agg.outcome_rows += 1;
-                agg.outcome_ok += o.ok as u64;
-                agg.outcome_junk += o.junk as u64;
-                agg.outcome_hard_junk += o.hard_junk as u64;
-                if let Some(kind) = o.fail_kind.as_ref() {
-                    agg.outcome_rows_with_fail_kind += 1;
-                    *agg.outcome_kinds_total.entry(kind.clone()).or_insert(0) += 1;
-                    *agg.outcome_by_arm
-                        .entry(o.backend.clone())
-                        .or_default()
-                        .entry(kind.clone())
-                        .or_insert(0) += 1;
-                    *agg.outcome_by_dataset
-                        .entry(o.dataset.clone())
-                        .or_default()
-                        .entry(kind.clone())
-                        .or_insert(0) += 1;
-                }
-                continue;
-            }
-        }
-
-        // Fall back to selection decision records (historical, selection-time).
-        let Ok(row) = serde_json::from_str::<DecisionLogLite>(line) else {
-            continue;
-        };
-        agg.total_rows += 1;
-        agg.decision_rows += 1;
-        if row.chosen.is_some() {
-            agg.decision_rows_with_chosen += 1;
-        }
-        if row.constraints_fallback_used.unwrap_or(false) {
-            agg.decision_constraints_fallback_used += 1;
-        }
-        if row.explore_first.unwrap_or(false) {
-            agg.decision_explore_first += 1;
-        }
-
-        if let (Some(chosen), Some(tc)) = (row.chosen.as_ref(), row.top_candidates.as_ref()) {
-            if !tc.rows.is_empty() {
-                if let Some((idx, _)) = tc.rows.iter().enumerate().find(|(_i, r)| r.arm == *chosen)
-                {
-                    let rank = (idx as u64) + 1;
-                    agg.chosen_rank_rows += 1;
-                    agg.chosen_rank_sum += rank;
-                    if rank == 1 {
-                        agg.chosen_rank_1 += 1;
-                    }
-                }
-            }
-        }
-
-        let Some(kinds) = row.chosen_fail_kinds_top.as_ref() else {
-            continue;
-        };
-        if kinds.is_empty() {
-            continue;
-        }
-        agg.decision_rows_with_fail_kinds += 1;
-        add_kind_counts(&mut agg.decision_kinds_total, kinds);
-
-        if let Some(chosen) = row.chosen.as_ref() {
-            let entry = agg.decision_by_arm.entry(chosen.clone()).or_default();
-            add_kind_counts(entry, kinds);
-        }
-        for ds in &row.datasets {
-            let entry = agg.decision_by_dataset.entry(ds.clone()).or_default();
-            add_kind_counts(entry, kinds);
-        }
-    }
-    agg
+    decisions_aggregate_grouped_by_run(s, None, 10).0
 }
 
 fn decisions_aggregate_grouped_by_run(
     s: &str,
     run_filter: Option<&str>,
+    trend_window: usize,
 ) -> (DecisionsAgg, BTreeMap<String, DecisionsAgg>) {
     let mut by_run: BTreeMap<String, DecisionsAgg> = BTreeMap::new();
     let mut all = DecisionsAgg::default();
+    let trend_window = trend_window.max(1);
+    all.outcome_trend_n = trend_window;
 
     for line in s.lines() {
         let line = line.trim();
+        all.lines_total += 1;
         if line.is_empty() {
             continue;
         }
@@ -414,6 +339,7 @@ fn decisions_aggregate_grouped_by_run(
                 if let Some(f) = run_filter {
                     if !o.run_id.contains(f) {
                         // If filter is set and we can read run_id, respect it.
+                        all.lines_skipped_filtered += 1;
                         continue;
                     }
                 }
@@ -423,15 +349,32 @@ fn decisions_aggregate_grouped_by_run(
                     o.run_id.clone()
                 };
                 let entry = by_run.entry(key).or_default();
+                if entry.outcome_trend_n == 0 {
+                    entry.outcome_trend_n = trend_window;
+                }
 
                 // Update both the global and per-run aggregates by reusing the same logic:
                 // we simulate the minimal effects of decisions_aggregate_from_jsonl here.
                 for agg in [&mut all, entry] {
                     agg.total_rows += 1;
+                    agg.lines_parsed_outcome += 1;
                     agg.outcome_rows += 1;
                     agg.outcome_ok += o.ok as u64;
                     agg.outcome_junk += o.junk as u64;
                     agg.outcome_hard_junk += o.hard_junk as u64;
+
+                    // Trend update (JSONL order).
+                    if agg.outcome_first_n < (agg.outcome_trend_n as u64) {
+                        agg.outcome_first_n += 1;
+                        agg.outcome_first_ok += o.ok as u64;
+                        agg.outcome_first_junk += o.junk as u64;
+                        agg.outcome_first_hard += o.hard_junk as u64;
+                    }
+                    agg.outcome_tail.push_back((o.ok, o.junk, o.hard_junk));
+                    while agg.outcome_tail.len() > agg.outcome_trend_n {
+                        agg.outcome_tail.pop_front();
+                    }
+
                     if let Some(kind) = o.fail_kind.as_ref() {
                         agg.outcome_rows_with_fail_kind += 1;
                         *agg.outcome_kinds_total.entry(kind.clone()).or_insert(0) += 1;
@@ -453,10 +396,12 @@ fn decisions_aggregate_grouped_by_run(
 
         // Decision lines.
         let Ok(d) = serde_json::from_str::<DecisionLogLite>(line) else {
+            all.lines_skipped_invalid += 1;
             continue;
         };
         if let Some(f) = run_filter {
             if !d.run_id.contains(f) {
+                all.lines_skipped_filtered += 1;
                 continue;
             }
         }
@@ -470,6 +415,7 @@ fn decisions_aggregate_grouped_by_run(
         for agg in [&mut all, entry] {
             agg.total_rows += 1;
             agg.decision_rows += 1;
+            agg.lines_parsed_decision += 1;
             if d.chosen.is_some() {
                 agg.decision_rows_with_chosen += 1;
             }
@@ -1260,7 +1206,7 @@ mod decisions_tests {
 {"schema_version":6,"run_id":"r2 slice=coref","strategy":"ml-only","slice":"coref","datasets":["D2"],"round":1,"chosen":"b","top_candidates":{"kind":"mab","rows":[{"arm":"b","score":1.0}]},"constraints_fallback_used":false,"explore_first":false}
 {"schema_version":1,"record_type":"outcome","run_id":"r2 slice=coref","strategy":"ml-only","slice":"coref","dataset":"D2","backend":"b","ok":false,"junk":true,"hard_junk":true,"fail_kind":"timeout"}
 "#;
-        let (all, by_run) = decisions_aggregate_grouped_by_run(jsonl, Some("slice=ner"));
+        let (all, by_run) = decisions_aggregate_grouped_by_run(jsonl, Some("slice=ner"), 2);
         assert_eq!(by_run.len(), 1);
         let a = by_run.get("r1 slice=ner").expect("r1 present");
         assert_eq!(a.decision_rows, 1);
@@ -1502,6 +1448,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             by_run,
             run_filter,
             top_runs,
+            trend_window,
             by_arm,
             by_dataset,
         } => {
@@ -1517,10 +1464,19 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
             let s = String::from_utf8_lossy(&bytes);
-            let (agg, by_run_map) = decisions_aggregate_grouped_by_run(&s, run_filter.as_deref());
+            let (agg, by_run_map) =
+                decisions_aggregate_grouped_by_run(&s, run_filter.as_deref(), trend_window);
 
             println!("=== muxer decisions summary ===\n");
             println!("File: {}", path.display());
+            println!(
+                "Lines: total={} parsed_decision={} parsed_outcome={} skipped_invalid={} skipped_filtered={}",
+                agg.lines_total,
+                agg.lines_parsed_decision,
+                agg.lines_parsed_outcome,
+                agg.lines_skipped_invalid,
+                agg.lines_skipped_filtered
+            );
             println!("Rows: {}", agg.total_rows);
             println!("Decision rows: {}", agg.decision_rows);
             println!(
@@ -1552,6 +1508,27 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     (agg.outcome_ok as f64) / (agg.outcome_rows as f64),
                     (agg.outcome_junk as f64) / (agg.outcome_rows as f64),
                     (agg.outcome_hard_junk as f64) / (agg.outcome_rows as f64)
+                );
+
+                // Trend: compare first-N vs last-N outcomes (best-effort; last-N is based on tail).
+                let first_n = agg.outcome_first_n.max(1) as f64;
+                let last_n = (agg.outcome_tail.len().max(1)) as f64;
+                let (last_ok, last_junk, last_hard) = agg.outcome_tail.iter().fold(
+                    (0u64, 0u64, 0u64),
+                    |(ok, junk, hard), (o, j, h)| {
+                        (ok + (*o as u64), junk + (*j as u64), hard + (*h as u64))
+                    },
+                );
+                println!(
+                    "Outcome trend (first {} vs last {}): ok={:.2}→{:.2} junk={:.2}→{:.2} hard={:.2}→{:.2}",
+                    agg.outcome_first_n,
+                    agg.outcome_tail.len(),
+                    (agg.outcome_first_ok as f64) / first_n,
+                    (last_ok as f64) / last_n,
+                    (agg.outcome_first_junk as f64) / first_n,
+                    (last_junk as f64) / last_n,
+                    (agg.outcome_first_hard as f64) / first_n,
+                    (last_hard as f64) / last_n
                 );
             }
             if agg.decision_rows > 0 {
