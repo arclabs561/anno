@@ -14,12 +14,15 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | BERT-NER | Sequence labeling | No | HuggingFace |
 | W2NER | Word-word grids (nested) | No | HuggingFace |
 
-### Classical (pre-2015, built-in weights)
+### Classical (pre-2015, algorithms with heuristic parameters)
 
 | Model | Method | Notes |
 |-------|--------|-------|
-| CRF | Conditional Random Fields | Dominant 2001-2015 |
+| CRF | Conditional Random Fields | Dominant 2001-2015; can load trained weights |
 | HMM | Hidden Markov Model | First statistical NER (1997) |
+
+These are methods, not specific trained models. Default parameters are hand-tuned heuristics.
+CRF can optionally load trained weights via `CrfNER::with_weights("crf_weights.json")`.
 
 ### Rule-based (no weights)
 
