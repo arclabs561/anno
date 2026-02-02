@@ -176,6 +176,22 @@ struct DecisionsFailKindCount {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+struct TopCandidateLite {
+    #[serde(default)]
+    arm: String,
+    #[serde(default)]
+    score: f64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct TopCandidatesLite {
+    #[serde(default)]
+    kind: String,
+    #[serde(default)]
+    rows: Vec<TopCandidateLite>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
 struct DecisionLogLite {
     #[serde(default)]
     schema_version: u32,
@@ -192,6 +208,8 @@ struct DecisionLogLite {
     #[serde(default)]
     chosen: Option<String>,
     #[serde(default)]
+    top_candidates: Option<TopCandidatesLite>,
+    #[serde(default)]
     chosen_fail_kinds_top: Option<Vec<DecisionsFailKindCount>>,
     #[serde(default)]
     constraints_fallback_used: Option<bool>,
@@ -202,19 +220,29 @@ struct DecisionLogLite {
 #[derive(Debug, Default)]
 struct DecisionsAgg {
     total_rows: u64,
-    rows_with_chosen: u64,
-    rows_with_fail_kinds: u64,
-    constraints_fallback_used: u64,
-    explore_first: u64,
-    kinds_total: BTreeMap<String, u64>,
-    by_arm: BTreeMap<String, BTreeMap<String, u64>>,
-    by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+    // Selection-time decision records (reflect history at selection time).
+    decision_rows: u64,
+    decision_rows_with_chosen: u64,
+    decision_rows_with_fail_kinds: u64,
+    decision_constraints_fallback_used: u64,
+    decision_explore_first: u64,
+    decision_kinds_total: BTreeMap<String, u64>,
+    decision_by_arm: BTreeMap<String, BTreeMap<String, u64>>,
+    decision_by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+
+    // Learning-health: chosen rank among logged top candidates (when available).
+    chosen_rank_rows: u64,
+    chosen_rank_sum: u64,
+    chosen_rank_1: u64,
 
     outcome_rows: u64,
     outcome_rows_with_fail_kind: u64,
     outcome_ok: u64,
     outcome_junk: u64,
     outcome_hard_junk: u64,
+    outcome_kinds_total: BTreeMap<String, u64>,
+    outcome_by_arm: BTreeMap<String, BTreeMap<String, u64>>,
+    outcome_by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
 }
 
 fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
@@ -269,13 +297,13 @@ fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
                 agg.outcome_hard_junk += o.hard_junk as u64;
                 if let Some(kind) = o.fail_kind.as_ref() {
                     agg.outcome_rows_with_fail_kind += 1;
-                    *agg.kinds_total.entry(kind.clone()).or_insert(0) += 1;
-                    *agg.by_arm
+                    *agg.outcome_kinds_total.entry(kind.clone()).or_insert(0) += 1;
+                    *agg.outcome_by_arm
                         .entry(o.backend.clone())
                         .or_default()
                         .entry(kind.clone())
                         .or_insert(0) += 1;
-                    *agg.by_dataset
+                    *agg.outcome_by_dataset
                         .entry(o.dataset.clone())
                         .or_default()
                         .entry(kind.clone())
@@ -290,30 +318,46 @@ fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
             continue;
         };
         agg.total_rows += 1;
+        agg.decision_rows += 1;
         if row.chosen.is_some() {
-            agg.rows_with_chosen += 1;
+            agg.decision_rows_with_chosen += 1;
         }
         if row.constraints_fallback_used.unwrap_or(false) {
-            agg.constraints_fallback_used += 1;
+            agg.decision_constraints_fallback_used += 1;
         }
         if row.explore_first.unwrap_or(false) {
-            agg.explore_first += 1;
+            agg.decision_explore_first += 1;
         }
+
+        if let (Some(chosen), Some(tc)) = (row.chosen.as_ref(), row.top_candidates.as_ref()) {
+            if !tc.rows.is_empty() {
+                if let Some((idx, _)) = tc.rows.iter().enumerate().find(|(_i, r)| r.arm == *chosen)
+                {
+                    let rank = (idx as u64) + 1;
+                    agg.chosen_rank_rows += 1;
+                    agg.chosen_rank_sum += rank;
+                    if rank == 1 {
+                        agg.chosen_rank_1 += 1;
+                    }
+                }
+            }
+        }
+
         let Some(kinds) = row.chosen_fail_kinds_top.as_ref() else {
             continue;
         };
         if kinds.is_empty() {
             continue;
         }
-        agg.rows_with_fail_kinds += 1;
-        add_kind_counts(&mut agg.kinds_total, kinds);
+        agg.decision_rows_with_fail_kinds += 1;
+        add_kind_counts(&mut agg.decision_kinds_total, kinds);
 
         if let Some(chosen) = row.chosen.as_ref() {
-            let entry = agg.by_arm.entry(chosen.clone()).or_default();
+            let entry = agg.decision_by_arm.entry(chosen.clone()).or_default();
             add_kind_counts(entry, kinds);
         }
         for ds in &row.datasets {
-            let entry = agg.by_dataset.entry(ds.clone()).or_default();
+            let entry = agg.decision_by_dataset.entry(ds.clone()).or_default();
             add_kind_counts(entry, kinds);
         }
     }
@@ -1001,26 +1045,48 @@ mod decisions_tests {
     #[test]
     fn test_decisions_aggregate_counts_total_and_by_arm_and_by_dataset() {
         let jsonl = r#"
-{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","chosen_fail_kinds_top":[{"kind":"timeout","count":2}],"constraints_fallback_used":false,"explore_first":false}
-{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true}
+{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","top_candidates":{"kind":"worst_first","rows":[{"arm":"a","score":1.0},{"arm":"b","score":0.5}]},"chosen_fail_kinds_top":[{"kind":"timeout","count":2}],"constraints_fallback_used":false,"explore_first":false}
+{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","top_candidates":{"kind":"worst_first","rows":[{"arm":"a","score":1.0},{"arm":"b","score":0.5}]},"chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true}
 {"schema_version":1,"record_type":"outcome","run_id":"r1","strategy":"worst-first","slice":"ner","dataset":"D2","backend":"b","ok":false,"junk":true,"hard_junk":false,"fail_kind":"low_signal"}
 "#;
         let agg = decisions_aggregate_from_jsonl(jsonl);
         assert_eq!(agg.total_rows, 3);
-        assert_eq!(agg.rows_with_chosen, 2);
-        assert_eq!(agg.rows_with_fail_kinds, 2);
-        assert_eq!(agg.constraints_fallback_used, 1);
-        assert_eq!(agg.explore_first, 1);
+        assert_eq!(agg.decision_rows, 2);
+        assert_eq!(agg.decision_rows_with_chosen, 2);
+        assert_eq!(agg.decision_rows_with_fail_kinds, 2);
+        assert_eq!(agg.decision_constraints_fallback_used, 1);
+        assert_eq!(agg.decision_explore_first, 1);
         assert_eq!(agg.outcome_rows, 1);
         assert_eq!(agg.outcome_rows_with_fail_kind, 1);
         assert_eq!(agg.outcome_ok, 0);
         assert_eq!(agg.outcome_junk, 1);
         assert_eq!(agg.outcome_hard_junk, 0);
-        assert_eq!(agg.kinds_total.get("timeout").copied().unwrap_or(0), 2);
-        // low_signal counted once from decision row + once from outcome row.
-        assert_eq!(agg.kinds_total.get("low_signal").copied().unwrap_or(0), 2);
+        assert_eq!(agg.chosen_rank_rows, 2);
+        assert_eq!(agg.chosen_rank_1, 1);
+        assert_eq!(agg.chosen_rank_sum, 3); // ranks: a=1, b=2
         assert_eq!(
-            agg.by_arm
+            agg.decision_kinds_total
+                .get("timeout")
+                .copied()
+                .unwrap_or(0),
+            2
+        );
+        assert_eq!(
+            agg.decision_kinds_total
+                .get("low_signal")
+                .copied()
+                .unwrap_or(0),
+            1
+        );
+        assert_eq!(
+            agg.outcome_kinds_total
+                .get("low_signal")
+                .copied()
+                .unwrap_or(0),
+            1
+        );
+        assert_eq!(
+            agg.decision_by_arm
                 .get("a")
                 .and_then(|m| m.get("timeout"))
                 .copied()
@@ -1028,12 +1094,12 @@ mod decisions_tests {
             2
         );
         assert_eq!(
-            agg.by_dataset
+            agg.outcome_by_dataset
                 .get("D2")
                 .and_then(|m| m.get("low_signal"))
                 .copied()
                 .unwrap_or(0),
-            2
+            1
         );
     }
 }
@@ -1282,15 +1348,30 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             println!("=== muxer decisions summary ===\n");
             println!("File: {}", path.display());
             println!("Rows: {}", agg.total_rows);
-            println!("Rows with chosen: {}", agg.rows_with_chosen);
+            println!("Decision rows: {}", agg.decision_rows);
             println!(
-                "Rows with chosen_fail_kinds_top: {}",
-                agg.rows_with_fail_kinds
+                "Decision rows with chosen: {}",
+                agg.decision_rows_with_chosen
+            );
+            println!(
+                "Decision rows with chosen_fail_kinds_top: {}",
+                agg.decision_rows_with_fail_kinds
             );
             println!(
                 "Outcome rows: {} (with fail_kind: {})",
                 agg.outcome_rows, agg.outcome_rows_with_fail_kind
             );
+            if agg.chosen_rank_rows > 0 {
+                println!(
+                    "Chosen rank: avg={:.2} rank1={}/{} ({:.1}%)",
+                    (agg.chosen_rank_sum as f64) / (agg.chosen_rank_rows as f64),
+                    agg.chosen_rank_1,
+                    agg.chosen_rank_rows,
+                    (agg.chosen_rank_1 as f64) * 100.0 / (agg.chosen_rank_rows as f64)
+                );
+            } else {
+                println!("Chosen rank: (no top_candidates+chosen overlap)");
+            }
             if agg.outcome_rows > 0 {
                 println!(
                     "Outcome rates: ok={:.2} junk={:.2} hard={:.2}",
@@ -1299,49 +1380,85 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     (agg.outcome_hard_junk as f64) / (agg.outcome_rows as f64)
                 );
             }
-            if agg.total_rows > 0 {
+            if agg.decision_rows > 0 {
                 println!(
                     "Constraints fallback used: {} ({:.1}%)",
-                    agg.constraints_fallback_used,
-                    (agg.constraints_fallback_used as f64) * 100.0 / (agg.total_rows as f64)
+                    agg.decision_constraints_fallback_used,
+                    (agg.decision_constraints_fallback_used as f64) * 100.0
+                        / (agg.decision_rows as f64)
                 );
                 println!(
                     "Explore-first chosen: {} ({:.1}%)",
-                    agg.explore_first,
-                    (agg.explore_first as f64) * 100.0 / (agg.total_rows as f64)
+                    agg.decision_explore_first,
+                    (agg.decision_explore_first as f64) * 100.0 / (agg.decision_rows as f64)
                 );
             }
-            if !agg.kinds_total.is_empty() {
-                println!("\nTop failure kinds:");
-                println!("  {}", top_kinds_line(&agg.kinds_total, 8));
+            if !agg.outcome_kinds_total.is_empty() {
+                println!("\nTop failure kinds (observed outcomes):");
+                println!("  {}", top_kinds_line(&agg.outcome_kinds_total, 8));
             } else {
-                println!("\nTop failure kinds: (none recorded)");
+                println!("\nTop failure kinds (observed outcomes): (none recorded)");
+            }
+            if !agg.decision_kinds_total.is_empty() {
+                println!("\nTop failure kinds (selection-time history):");
+                println!("  {}", top_kinds_line(&agg.decision_kinds_total, 8));
             }
 
-            if by_arm && !agg.by_arm.is_empty() {
+            if by_arm && !agg.outcome_by_arm.is_empty() {
                 let mut rows: Vec<(u64, String)> = agg
-                    .by_arm
+                    .outcome_by_arm
                     .iter()
                     .map(|(arm, m)| (m.values().sum::<u64>(), arm.clone()))
                     .collect();
                 rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-                println!("\nBy chosen arm (top {}):", top.max(1));
+                println!("\nBy backend (observed outcomes; top {}):", top.max(1));
                 for (_tot, arm) in rows.into_iter().take(top.max(1)) {
-                    let line = top_kinds_line(agg.by_arm.get(&arm).unwrap(), 5);
+                    let line = top_kinds_line(agg.outcome_by_arm.get(&arm).unwrap(), 5);
                     println!("  {:<18} {}", arm, line);
                 }
             }
 
-            if by_dataset && !agg.by_dataset.is_empty() {
+            if by_dataset && !agg.outcome_by_dataset.is_empty() {
                 let mut rows: Vec<(u64, String)> = agg
-                    .by_dataset
+                    .outcome_by_dataset
                     .iter()
                     .map(|(ds, m)| (m.values().sum::<u64>(), ds.clone()))
                     .collect();
                 rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-                println!("\nBy dataset (top {}):", top.max(1));
+                println!("\nBy dataset (observed outcomes; top {}):", top.max(1));
                 for (_tot, ds) in rows.into_iter().take(top.max(1)) {
-                    let line = top_kinds_line(agg.by_dataset.get(&ds).unwrap(), 5);
+                    let line = top_kinds_line(agg.outcome_by_dataset.get(&ds).unwrap(), 5);
+                    println!("  {:<28} {}", ds, line);
+                }
+            }
+
+            // Also print selection-time breakdowns (best-effort; often empty on early runs).
+            if by_arm && !agg.decision_by_arm.is_empty() {
+                let mut rows: Vec<(u64, String)> = agg
+                    .decision_by_arm
+                    .iter()
+                    .map(|(arm, m)| (m.values().sum::<u64>(), arm.clone()))
+                    .collect();
+                rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                println!(
+                    "\nBy chosen arm (selection-time history; top {}):",
+                    top.max(1)
+                );
+                for (_tot, arm) in rows.into_iter().take(top.max(1)) {
+                    let line = top_kinds_line(agg.decision_by_arm.get(&arm).unwrap(), 5);
+                    println!("  {:<18} {}", arm, line);
+                }
+            }
+            if by_dataset && !agg.decision_by_dataset.is_empty() {
+                let mut rows: Vec<(u64, String)> = agg
+                    .decision_by_dataset
+                    .iter()
+                    .map(|(ds, m)| (m.values().sum::<u64>(), ds.clone()))
+                    .collect();
+                rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                println!("\nBy dataset (selection-time history; top {}):", top.max(1));
+                for (_tot, ds) in rows.into_iter().take(top.max(1)) {
+                    let line = top_kinds_line(agg.decision_by_dataset.get(&ds).unwrap(), 5);
                     println!("  {:<28} {}", ds, line);
                 }
             }
