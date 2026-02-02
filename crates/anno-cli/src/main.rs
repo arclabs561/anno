@@ -126,6 +126,7 @@ fn main() -> ExitCode {
                 model: ModelBackend::default(),
                 labels: vec![],
                 types: None,
+                extract_types: None,
                 threshold: None,
                 expected_types: None,
                 format: OutputFormat::default(),

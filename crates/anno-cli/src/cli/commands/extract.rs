@@ -43,6 +43,12 @@ pub struct ExtractArgs {
     #[arg(long, value_name = "CSV")]
     pub types: Option<String>,
 
+    /// Zero-shot entity types to extract (comma-separated).
+    /// Only works with zero-shot capable models (e.g., gliner).
+    /// Example: --extract-types "SCIENTIST,ELEMENT,AWARD"
+    #[arg(long, value_name = "CSV")]
+    pub extract_types: Option<String>,
+
     /// Minimum confidence threshold (0.0-1.0).
     ///
     /// Entities with confidence below this value are discarded before output.
@@ -165,12 +171,26 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     }
 
     let text = raw_text;
-    let model = args.model.create_model().map_err(CliError::from)?;
+
+    // Parse zero-shot extract types if provided
+    let extract_types: Option<Vec<String>> = args.extract_types.as_ref().map(|csv| {
+        csv.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    });
 
     let start = Instant::now();
-    let entities = model
-        .extract_entities(&text, None)
-        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?;
+    let entities = if let Some(ref custom_types) = extract_types {
+        // Zero-shot extraction with custom types
+        extract_with_custom_types(&args.model, &text, custom_types, args.threshold, args.quiet)?
+    } else {
+        // Standard extraction
+        let model = args.model.create_model().map_err(CliError::from)?;
+        model
+            .extract_entities(&text, None)
+            .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
+    };
     let elapsed = start.elapsed();
 
     let mut entities = entities;
@@ -567,6 +587,59 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     }
 
     Ok(())
+}
+
+/// Extract entities using zero-shot models with custom entity types.
+fn extract_with_custom_types(
+    backend: &super::super::parser::ModelBackend,
+    text: &str,
+    custom_types: &[String],
+    threshold: Option<f64>,
+    quiet: bool,
+) -> Result<Vec<anno::Entity>, CliError> {
+    use super::super::output::color;
+
+    let threshold = threshold.unwrap_or(0.5) as f32;
+    let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
+
+    // Try to use zero-shot capable backends
+    #[cfg(feature = "onnx")]
+    {
+        use super::super::parser::ModelBackend;
+        use anno::backends::inference::ZeroShotNER;
+
+        match backend {
+            ModelBackend::Gliner => {
+                let model = anno::GLiNEROnnx::new(anno::DEFAULT_GLINER_MODEL)
+                    .map_err(|e| CliError::from(format!("Failed to create GLiNER model: {}", e)))?;
+                return model
+                    .extract_with_types(text, &type_refs, threshold)
+                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
+            }
+            ModelBackend::Gliner2 => {
+                let model =
+                    anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
+                        .map_err(|e| CliError::from(format!("Failed to create GLiNER2 model: {}", e)))?;
+                return model
+                    .extract_with_types(text, &type_refs, threshold)
+                    .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
+            }
+            _ => {}
+        }
+    }
+
+    // Fallback: warn and use standard extraction
+    if !quiet {
+        eprintln!(
+            "{} --extract-types requires a zero-shot model (gliner, gliner2, nuner). Using standard extraction.",
+            color("33", "warning:")
+        );
+    }
+
+    let model = backend.create_model().map_err(CliError::from)?;
+    model
+        .extract_entities(text, None)
+        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))
 }
 
 fn get_context_window(text: &str, start: usize, end: usize, window: usize) -> (String, String) {

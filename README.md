@@ -31,14 +31,25 @@ DATE:1 "March 15"
 MONEY:1 "$50K"
 ```
 
-Coreference (linking "He" to its referent):
+Zero-shot custom entity types (with GLiNER):
 
 ```sh
-anno debug --coref -t "Alan Turing broke the Enigma code. He founded theoretical computer science."
+anno extract --model gliner --extract-types "SCIENTIST,AWARD" --text "Marie Curie won the Nobel Prize."
 ```
 
 ```text
-Coreference: "Alan Turing" → "He"
+scientist:1 "Marie Curie"
+award:1 "Nobel Prize"
+```
+
+Coreference (linking "She" to its referent):
+
+```sh
+anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized mobile computing."
+```
+
+```text
+Coreference: "Sophie Wilson" → "She"
 ```
 
 ## Install
