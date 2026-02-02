@@ -274,6 +274,9 @@ struct DecisionsAgg {
     outcome_first_junk: u64,
     outcome_first_hard: u64,
     outcome_tail: std::collections::VecDeque<(bool, bool, bool)>,
+    // For "newly appearing fail kinds": keep the last 2N outcome fail_kinds so we can compare
+    // recent-N vs previous-N within a run (best-effort; based on JSONL order).
+    outcome_fail_kind_tail_2n: std::collections::VecDeque<Option<String>>,
 }
 
 fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
@@ -291,6 +294,34 @@ fn top_kinds_line(counts: &BTreeMap<String, u64>, k: usize) -> String {
         .map(|(v, k)| format!("{k}={v}"))
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn outcome_new_fail_kinds_from_tail_2n(
+    tail_2n: &std::collections::VecDeque<Option<String>>,
+    n: usize,
+) -> Vec<String> {
+    use std::collections::BTreeSet;
+
+    let n = n.max(1);
+    let len = tail_2n.len();
+    if len == 0 {
+        return Vec::new();
+    }
+    let split = len.saturating_sub(n);
+
+    let mut prev: BTreeSet<String> = BTreeSet::new();
+    for opt in tail_2n.iter().take(split) {
+        if let Some(k) = opt.as_ref() {
+            prev.insert(k.clone());
+        }
+    }
+    let mut recent: BTreeSet<String> = BTreeSet::new();
+    for opt in tail_2n.iter().skip(split) {
+        if let Some(k) = opt.as_ref() {
+            recent.insert(k.clone());
+        }
+    }
+    recent.difference(&prev).cloned().collect()
 }
 
 fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
@@ -373,6 +404,11 @@ fn decisions_aggregate_grouped_by_run(
                     agg.outcome_tail.push_back((o.ok, o.junk, o.hard_junk));
                     while agg.outcome_tail.len() > agg.outcome_trend_n {
                         agg.outcome_tail.pop_front();
+                    }
+                    agg.outcome_fail_kind_tail_2n
+                        .push_back(o.fail_kind.as_ref().map(|s| s.to_string()));
+                    while agg.outcome_fail_kind_tail_2n.len() > agg.outcome_trend_n * 2 {
+                        agg.outcome_fail_kind_tail_2n.pop_front();
                     }
 
                     if let Some(kind) = o.fail_kind.as_ref() {
@@ -1257,6 +1293,20 @@ mod decisions_tests {
         assert_eq!(all.decision_rows, 1);
         assert_eq!(all.outcome_rows, 1);
     }
+
+    #[test]
+    fn test_outcome_new_fail_kinds_from_tail_2n_detects_new_kind() {
+        use std::collections::VecDeque;
+        let mut q: VecDeque<Option<String>> = VecDeque::new();
+        // prev window (n=2): timeout, timeout
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(Some("timeout".to_string()));
+        // recent window: timeout, dataset
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(Some("dataset".to_string()));
+        let newly = outcome_new_fail_kinds_from_tail_2n(&q, 2);
+        assert_eq!(newly, vec!["dataset".to_string()]);
+    }
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -1628,6 +1678,20 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         agg.outcome_trend_n.max(1)
                     );
                 }
+
+                // Newly appearing failure kinds (best-effort): only meaningful for a single run.
+                if by_run_map.len() <= 1 {
+                    let newly = outcome_new_fail_kinds_from_tail_2n(
+                        &agg.outcome_fail_kind_tail_2n,
+                        agg.outcome_trend_n,
+                    );
+                    if !newly.is_empty() {
+                        println!(
+                            "New outcome fail_kinds (recent vs prev): {}",
+                            newly.into_iter().take(8).collect::<Vec<_>>().join(" ")
+                        );
+                    }
+                }
             }
             if agg.decision_rows > 0 {
                 println!(
@@ -1778,6 +1842,16 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             (a.outcome_first_hard as f64) / first_n,
                             (last_hard as f64) / last_n
                         );
+                        let newly = outcome_new_fail_kinds_from_tail_2n(
+                            &a.outcome_fail_kind_tail_2n,
+                            a.outcome_trend_n,
+                        );
+                        if !newly.is_empty() {
+                            println!(
+                                "    new_fail_kinds: {}",
+                                newly.into_iter().take(8).collect::<Vec<_>>().join(" ")
+                            );
+                        }
                     }
                     if !a.outcome_kinds_total.is_empty() {
                         println!(
