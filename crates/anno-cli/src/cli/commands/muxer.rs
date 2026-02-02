@@ -87,6 +87,25 @@ pub enum MuxerAction {
         top_datasets: usize,
     },
 
+    /// Summarize a muxer decision log JSONL (written by the matrix harness).
+    Decisions {
+        /// Path to a decisions JSONL file (defaults to `ANNO_MUXER_DECISIONS_FILE`).
+        #[arg(long)]
+        file: Option<PathBuf>,
+
+        /// Max rows to print for by-arm / by-dataset tables.
+        #[arg(long, default_value_t = 20)]
+        top: usize,
+
+        /// Print by-chosen-arm failure-kind totals.
+        #[arg(long, default_value_t = true)]
+        by_arm: bool,
+
+        /// Print by-dataset failure-kind totals (attributes counts to each dataset in the row).
+        #[arg(long, default_value_t = true)]
+        by_dataset: bool,
+    },
+
     /// Preview what the muxer selector would pick next (using current history).
     Decide {
         /// Number of arms to choose (without replacement), like the matrix harness.
@@ -148,6 +167,106 @@ pub enum MuxerAction {
         #[arg(long, default_value_t = false)]
         include_global: bool,
     },
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct DecisionsFailKindCount {
+    kind: String,
+    count: u64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct DecisionLogLite {
+    #[serde(default)]
+    schema_version: u32,
+    #[serde(default)]
+    run_id: String,
+    #[serde(default)]
+    strategy: String,
+    #[serde(default)]
+    slice: String,
+    #[serde(default)]
+    datasets: Vec<String>,
+    #[serde(default)]
+    round: u32,
+    #[serde(default)]
+    chosen: Option<String>,
+    #[serde(default)]
+    chosen_fail_kinds_top: Option<Vec<DecisionsFailKindCount>>,
+    #[serde(default)]
+    constraints_fallback_used: Option<bool>,
+    #[serde(default)]
+    explore_first: Option<bool>,
+}
+
+#[derive(Debug, Default)]
+struct DecisionsAgg {
+    total_rows: u64,
+    rows_with_chosen: u64,
+    rows_with_fail_kinds: u64,
+    constraints_fallback_used: u64,
+    explore_first: u64,
+    kinds_total: BTreeMap<String, u64>,
+    by_arm: BTreeMap<String, BTreeMap<String, u64>>,
+    by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+}
+
+fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
+    for k in kinds {
+        *dst.entry(k.kind.clone()).or_insert(0) += k.count;
+    }
+}
+
+fn top_kinds_line(counts: &BTreeMap<String, u64>, k: usize) -> String {
+    let mut pairs: Vec<(u64, String)> = counts.iter().map(|(k, v)| (*v, k.clone())).collect();
+    pairs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    pairs
+        .into_iter()
+        .take(k.max(1))
+        .map(|(v, k)| format!("{k}={v}"))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
+    let mut agg = DecisionsAgg::default();
+    for line in s.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let Ok(row) = serde_json::from_str::<DecisionLogLite>(line) else {
+            continue;
+        };
+        agg.total_rows += 1;
+        if row.chosen.is_some() {
+            agg.rows_with_chosen += 1;
+        }
+        if row.constraints_fallback_used.unwrap_or(false) {
+            agg.constraints_fallback_used += 1;
+        }
+        if row.explore_first.unwrap_or(false) {
+            agg.explore_first += 1;
+        }
+        let Some(kinds) = row.chosen_fail_kinds_top.as_ref() else {
+            continue;
+        };
+        if kinds.is_empty() {
+            continue;
+        }
+        agg.rows_with_fail_kinds += 1;
+        add_kind_counts(&mut agg.kinds_total, kinds);
+
+        if let Some(chosen) = row.chosen.as_ref() {
+            let entry = agg.by_arm.entry(chosen.clone()).or_default();
+            add_kind_counts(entry, kinds);
+        }
+        for ds in &row.datasets {
+            let entry = agg.by_dataset.entry(ds.clone()).or_default();
+            add_kind_counts(entry, kinds);
+        }
+    }
+    agg
 }
 
 /// Scoring mode for `anno muxer regress`.
@@ -379,6 +498,24 @@ impl BackendHistory {
         }
         if h.window_cap == 0 {
             h.window_cap = default_window_cap.max(1);
+        }
+        let cap = h.window_cap.max(1);
+
+        // Defensive: older or hand-edited history files may contain unbounded buffers. Truncate
+        // windows and failure-kind deques to the configured cap, keeping the most-recent entries.
+        for w in h.windows.values_mut() {
+            if w.cap == 0 {
+                w.cap = cap;
+            }
+            if w.buf.len() > cap {
+                let keep_from = w.buf.len() - cap;
+                w.buf = w.buf.split_off(keep_from);
+            }
+        }
+        for q in h.fail_kinds.values_mut() {
+            while q.len() > cap {
+                q.pop_front();
+            }
         }
         Ok(h)
     }
@@ -685,6 +822,106 @@ mod fail_kinds_tests {
         let c = h.failure_kind_counts_for_arm("a", None, true);
         assert_eq!(c.get("timeout").copied().unwrap_or(0), 2);
     }
+
+    #[test]
+    fn test_backend_history_load_truncates_windows_and_fail_kinds_to_cap() {
+        let mut h = BackendHistory {
+            version: 3,
+            window_cap: 3,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+        };
+        h.windows.insert(
+            "a".to_string(),
+            WindowSerde {
+                cap: 0,
+                buf: vec![
+                    OutcomeSerde {
+                        ok: true,
+                        ..Default::default()
+                    },
+                    OutcomeSerde {
+                        ok: false,
+                        ..Default::default()
+                    },
+                    OutcomeSerde {
+                        ok: true,
+                        ..Default::default()
+                    },
+                    OutcomeSerde {
+                        ok: false,
+                        ..Default::default()
+                    },
+                ],
+            },
+        );
+        let mut q = VecDeque::new();
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(None);
+        q.push_back(Some("backend".to_string()));
+        h.fail_kinds.insert("a".to_string(), q);
+
+        let bytes = serde_json::to_vec(&h).expect("serialize BackendHistory");
+        let mut path = std::env::temp_dir();
+        path.push(format!(
+            "anno_muxer_history_test_{}.json",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, bytes).expect("write temp history");
+
+        let loaded = BackendHistory::load(&path, 50).expect("load history");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(loaded.window_cap, 3);
+        let w = loaded.windows.get("a").expect("window a");
+        assert_eq!(w.cap, 3);
+        assert_eq!(w.buf.len(), 3, "window buf truncated to cap");
+        let fk = loaded.fail_kinds.get("a").expect("fail_kinds a");
+        assert_eq!(fk.len(), 3, "fail_kinds deque truncated to cap");
+        // We keep most-recent entries.
+        assert_eq!(fk.back().and_then(|x| x.as_deref()), Some("backend"));
+    }
+}
+
+#[cfg(test)]
+mod decisions_tests {
+    use super::*;
+
+    #[test]
+    fn test_decisions_aggregate_counts_total_and_by_arm_and_by_dataset() {
+        let jsonl = r#"
+{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","chosen_fail_kinds_top":[{"kind":"timeout","count":2}],"constraints_fallback_used":false,"explore_first":false}
+{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true}
+"#;
+        let agg = decisions_aggregate_from_jsonl(jsonl);
+        assert_eq!(agg.total_rows, 2);
+        assert_eq!(agg.rows_with_chosen, 2);
+        assert_eq!(agg.rows_with_fail_kinds, 2);
+        assert_eq!(agg.constraints_fallback_used, 1);
+        assert_eq!(agg.explore_first, 1);
+        assert_eq!(agg.kinds_total.get("timeout").copied().unwrap_or(0), 2);
+        assert_eq!(agg.kinds_total.get("low_signal").copied().unwrap_or(0), 1);
+        assert_eq!(
+            agg.by_arm
+                .get("a")
+                .and_then(|m| m.get("timeout"))
+                .copied()
+                .unwrap_or(0),
+            2
+        );
+        assert_eq!(
+            agg.by_dataset
+                .get("D2")
+                .and_then(|m| m.get("low_signal"))
+                .copied()
+                .unwrap_or(0),
+            1
+        );
+    }
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -908,6 +1145,82 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     };
 
     match args.action {
+        MuxerAction::Decisions {
+            file,
+            top,
+            by_arm,
+            by_dataset,
+        } => {
+            let path = file
+                .or_else(|| {
+                    std::env::var("ANNO_MUXER_DECISIONS_FILE")
+                        .ok()
+                        .map(PathBuf::from)
+                })
+                .ok_or_else(|| {
+                    "Missing --file and ANNO_MUXER_DECISIONS_FILE is not set".to_string()
+                })?;
+            let bytes = std::fs::read(&path)
+                .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+            let s = String::from_utf8_lossy(&bytes);
+            let agg = decisions_aggregate_from_jsonl(&s);
+
+            println!("=== muxer decisions summary ===\n");
+            println!("File: {}", path.display());
+            println!("Rows: {}", agg.total_rows);
+            println!("Rows with chosen: {}", agg.rows_with_chosen);
+            println!(
+                "Rows with chosen_fail_kinds_top: {}",
+                agg.rows_with_fail_kinds
+            );
+            if agg.total_rows > 0 {
+                println!(
+                    "Constraints fallback used: {} ({:.1}%)",
+                    agg.constraints_fallback_used,
+                    (agg.constraints_fallback_used as f64) * 100.0 / (agg.total_rows as f64)
+                );
+                println!(
+                    "Explore-first chosen: {} ({:.1}%)",
+                    agg.explore_first,
+                    (agg.explore_first as f64) * 100.0 / (agg.total_rows as f64)
+                );
+            }
+            if !agg.kinds_total.is_empty() {
+                println!("\nTop failure kinds:");
+                println!("  {}", top_kinds_line(&agg.kinds_total, 8));
+            } else {
+                println!("\nTop failure kinds: (none recorded)");
+            }
+
+            if by_arm && !agg.by_arm.is_empty() {
+                let mut rows: Vec<(u64, String)> = agg
+                    .by_arm
+                    .iter()
+                    .map(|(arm, m)| (m.values().sum::<u64>(), arm.clone()))
+                    .collect();
+                rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                println!("\nBy chosen arm (top {}):", top.max(1));
+                for (_tot, arm) in rows.into_iter().take(top.max(1)) {
+                    let line = top_kinds_line(agg.by_arm.get(&arm).unwrap(), 5);
+                    println!("  {:<18} {}", arm, line);
+                }
+            }
+
+            if by_dataset && !agg.by_dataset.is_empty() {
+                let mut rows: Vec<(u64, String)> = agg
+                    .by_dataset
+                    .iter()
+                    .map(|(ds, m)| (m.values().sum::<u64>(), ds.clone()))
+                    .collect();
+                rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                println!("\nBy dataset (top {}):", top.max(1));
+                for (_tot, ds) in rows.into_iter().take(top.max(1)) {
+                    let line = top_kinds_line(agg.by_dataset.get(&ds).unwrap(), 5);
+                    println!("  {:<28} {}", ds, line);
+                }
+            }
+        }
+
         MuxerAction::Stats {
             show_datasets,
             top_datasets,
@@ -1024,6 +1337,25 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                 s.hard_junk_rate(),
                                 s.mean_elapsed_ms()
                             );
+
+                            // Optional triage: per-dataset failure kinds (best-effort).
+                            if s.junk > 0 || s.hard_junk > 0 {
+                                let mut ds_set = BTreeSet::new();
+                                ds_set.insert(ds.clone());
+                                let fk_ds = h.failure_kind_counts_for_arm(arm, Some(&ds_set), true);
+                                if !fk_ds.is_empty() {
+                                    let mut pairs: Vec<(u64, String)> =
+                                        fk_ds.into_iter().map(|(k, v)| (v, k)).collect();
+                                    pairs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                                    let top = pairs
+                                        .into_iter()
+                                        .take(3)
+                                        .map(|(v, k)| format!("{k}={v}"))
+                                        .collect::<Vec<_>>()
+                                        .join(" ");
+                                    println!("      fail_kinds: {}", top);
+                                }
+                            }
                         }
                     }
                 }
