@@ -1660,6 +1660,27 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         junk_rate,
                         hard_rate
                     );
+                    if a.outcome_rows > 0 {
+                        let first_n = a.outcome_first_n.max(1) as f64;
+                        let last_n = (a.outcome_tail.len().max(1)) as f64;
+                        let (last_ok, last_junk, last_hard) = a.outcome_tail.iter().fold(
+                            (0u64, 0u64, 0u64),
+                            |(ok, junk, hard), (o, j, h)| {
+                                (ok + (*o as u64), junk + (*j as u64), hard + (*h as u64))
+                            },
+                        );
+                        println!(
+                            "    trend (first {} vs last {}): ok={:.2}→{:.2} junk={:.2}→{:.2} hard={:.2}→{:.2}",
+                            a.outcome_first_n,
+                            a.outcome_tail.len(),
+                            (a.outcome_first_ok as f64) / first_n,
+                            (last_ok as f64) / last_n,
+                            (a.outcome_first_junk as f64) / first_n,
+                            (last_junk as f64) / last_n,
+                            (a.outcome_first_hard as f64) / first_n,
+                            (last_hard as f64) / last_n
+                        );
+                    }
                     if !a.outcome_kinds_total.is_empty() {
                         println!(
                             "    top_outcome_kinds: {}",
