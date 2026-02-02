@@ -149,3 +149,4 @@ generated/datasets.toml
 # Archived review documents (not actively maintained)
 docs/archive/
 reports/eval-comprehensive.jsonl
+muxer_decisions.jsonl
