@@ -893,6 +893,32 @@ mod prior_tests {
         });
         assert_eq!(out, vec!["b".to_string()]);
     }
+
+    #[test]
+    fn test_select_k_without_replacement_by_with_meta_preserves_meta_and_ignores_unknown() {
+        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let out = select_k_without_replacement_by_with_meta(0, &items, 3, |_seed, _rem, _k| {
+            vec![
+                ("b".to_string(), 11u32),
+                ("x".to_string(), 99u32), // unknown -> ignored
+                ("a".to_string(), 22u32),
+                ("b".to_string(), 33u32), // duplicate -> ignored
+            ]
+        });
+        assert_eq!(
+            out,
+            vec![("b".to_string(), 11u32), ("a".to_string(), 22u32)]
+        );
+    }
+
+    #[test]
+    fn test_select_k_without_replacement_by_with_meta_breaks_on_no_progress() {
+        let items = vec!["a".to_string(), "b".to_string()];
+        let out = select_k_without_replacement_by_with_meta(0, &items, 2, |_seed, _rem, _k| {
+            vec![("x".to_string(), 0u8)]
+        });
+        assert!(out.is_empty());
+    }
 }
 
 /// Latency guardrail settings applied *outside* muxer selection (anno-specific).
