@@ -14,15 +14,18 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | BERT-NER | Sequence labeling | No | HuggingFace |
 | W2NER | Word-word grids (nested) | No | HuggingFace |
 
-### Classical (pre-2015, algorithms with heuristic parameters)
+### Classical (pre-2015)
 
 | Model | Method | Notes |
 |-------|--------|-------|
-| CRF | Conditional Random Fields | Dominant 2001-2015; can load trained weights |
-| HMM | Hidden Markov Model | First statistical NER (1997) |
+| CRF | Conditional Random Fields | Dominant 2001-2015; ships heuristic params, can load trained |
+| HMM | Hidden Markov Model | Historical baseline (superseded by CRF in 2001) |
 
-These are methods, not specific trained models. Default parameters are hand-tuned heuristics.
-CRF can optionally load trained weights via `CrfNER::with_weights("crf_weights.json")`.
+**Status**: These ship with hand-tuned heuristic weights, not trained models.
+
+- CRF can load trained weights: `CrfNER::with_weights("crf_weights.json")`
+- Training script: `uv run scripts/train_crf_weights.py` (trains on CoNLL-2003)
+- **Gap**: No pre-trained weights are currently distributed
 
 ### Rule-based (no weights)
 

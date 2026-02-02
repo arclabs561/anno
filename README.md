@@ -18,7 +18,8 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 | `bert-onnx` | No | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Traditional fixed-label NER |
 | `pattern` | No | None | Regex (dates, emails, money) |
 | `heuristic` | No | None | Capitalization + context |
-| `crf`, `hmm` | No | Heuristic | Classical methods with hand-tuned parameters |
+| `crf` | No | Heuristic | CRF with hand-tuned params; can load trained weights |
+| `hmm` | No | Heuristic | Historical baseline (superseded by CRF in 2001) |
 | `ensemble` | No | Varies | Weighted voting across backends |
 
 ML backends require `--features onnx`. All weights download from HuggingFace on first use.
