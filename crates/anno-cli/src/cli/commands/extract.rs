@@ -617,9 +617,10 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Gliner2 => {
-                let model =
-                    anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
-                        .map_err(|e| CliError::from(format!("Failed to create GLiNER2 model: {}", e)))?;
+                let model = anno::backends::gliner2::GLiNER2Onnx::from_pretrained(
+                    anno::DEFAULT_GLINER2_MODEL,
+                )
+                .map_err(|e| CliError::from(format!("Failed to create GLiNER2 model: {}", e)))?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
