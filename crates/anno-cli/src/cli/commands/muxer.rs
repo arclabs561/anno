@@ -1210,16 +1210,10 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         chosen.push(pick);
                     }
                     MuxerStrategy::Random => {
-                        // Deterministic “random” (stable hash) to keep `decide` reproducible.
-                        let seed = 0u64;
-                        let mut scored: Vec<(u64, String)> = remaining
-                            .iter()
-                            .map(|a| (stable_hash64(seed, a), a.clone()))
-                            .collect();
-                        scored.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
-                        let pick = scored
-                            .first()
-                            .map(|x| x.1.clone())
+                        // Deterministic “random subset” (shared helper) to keep `decide` reproducible.
+                        let pick = mh::pick_random_subset(0, &remaining, 1)
+                            .into_iter()
+                            .next()
                             .unwrap_or_else(|| remaining[0].clone());
                         println!("  chosen: {}", pick);
                         remaining.retain(|b| b != &pick);
