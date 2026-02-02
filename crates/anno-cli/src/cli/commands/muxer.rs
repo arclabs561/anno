@@ -97,6 +97,18 @@ pub enum MuxerAction {
         #[arg(long, default_value_t = 20)]
         top: usize,
 
+        /// Show a small per-run breakdown (grouped by run_id).
+        #[arg(long, default_value_t = true)]
+        by_run: bool,
+
+        /// Optional substring filter for run_id (e.g. "slice=ner" or "seed=42").
+        #[arg(long)]
+        run_filter: Option<String>,
+
+        /// Max runs to print in the per-run breakdown.
+        #[arg(long, default_value_t = 8)]
+        top_runs: usize,
+
         /// Print by-chosen-arm failure-kind totals.
         #[arg(long, default_value_t = true)]
         by_arm: bool,
@@ -362,6 +374,143 @@ fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
         }
     }
     agg
+}
+
+fn decisions_aggregate_grouped_by_run(
+    s: &str,
+    run_filter: Option<&str>,
+) -> (DecisionsAgg, BTreeMap<String, DecisionsAgg>) {
+    let mut by_run: BTreeMap<String, DecisionsAgg> = BTreeMap::new();
+    let mut all = DecisionsAgg::default();
+
+    for line in s.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        // Outcome lines.
+        #[derive(Debug, Clone, serde::Deserialize)]
+        struct OutcomeLine {
+            #[serde(default)]
+            record_type: String,
+            #[serde(default)]
+            run_id: String,
+            #[serde(default)]
+            dataset: String,
+            #[serde(default)]
+            backend: String,
+            #[serde(default)]
+            fail_kind: Option<String>,
+            #[serde(default)]
+            ok: bool,
+            #[serde(default)]
+            junk: bool,
+            #[serde(default)]
+            hard_junk: bool,
+        }
+        if let Ok(o) = serde_json::from_str::<OutcomeLine>(line) {
+            if o.record_type == "outcome" && !o.backend.is_empty() && !o.dataset.is_empty() {
+                if let Some(f) = run_filter {
+                    if !o.run_id.contains(f) {
+                        // If filter is set and we can read run_id, respect it.
+                        continue;
+                    }
+                }
+                let key = if o.run_id.is_empty() {
+                    "(missing run_id)".to_string()
+                } else {
+                    o.run_id.clone()
+                };
+                let entry = by_run.entry(key).or_default();
+
+                // Update both the global and per-run aggregates by reusing the same logic:
+                // we simulate the minimal effects of decisions_aggregate_from_jsonl here.
+                for agg in [&mut all, entry] {
+                    agg.total_rows += 1;
+                    agg.outcome_rows += 1;
+                    agg.outcome_ok += o.ok as u64;
+                    agg.outcome_junk += o.junk as u64;
+                    agg.outcome_hard_junk += o.hard_junk as u64;
+                    if let Some(kind) = o.fail_kind.as_ref() {
+                        agg.outcome_rows_with_fail_kind += 1;
+                        *agg.outcome_kinds_total.entry(kind.clone()).or_insert(0) += 1;
+                        *agg.outcome_by_arm
+                            .entry(o.backend.clone())
+                            .or_default()
+                            .entry(kind.clone())
+                            .or_insert(0) += 1;
+                        *agg.outcome_by_dataset
+                            .entry(o.dataset.clone())
+                            .or_default()
+                            .entry(kind.clone())
+                            .or_insert(0) += 1;
+                    }
+                }
+                continue;
+            }
+        }
+
+        // Decision lines.
+        let Ok(d) = serde_json::from_str::<DecisionLogLite>(line) else {
+            continue;
+        };
+        if let Some(f) = run_filter {
+            if !d.run_id.contains(f) {
+                continue;
+            }
+        }
+        let key = if d.run_id.is_empty() {
+            "(missing run_id)".to_string()
+        } else {
+            d.run_id.clone()
+        };
+        let entry = by_run.entry(key).or_default();
+
+        for agg in [&mut all, entry] {
+            agg.total_rows += 1;
+            agg.decision_rows += 1;
+            if d.chosen.is_some() {
+                agg.decision_rows_with_chosen += 1;
+            }
+            if d.constraints_fallback_used.unwrap_or(false) {
+                agg.decision_constraints_fallback_used += 1;
+            }
+            if d.explore_first.unwrap_or(false) {
+                agg.decision_explore_first += 1;
+            }
+            if let (Some(chosen), Some(tc)) = (d.chosen.as_ref(), d.top_candidates.as_ref()) {
+                if !tc.rows.is_empty() {
+                    if let Some((idx, _)) =
+                        tc.rows.iter().enumerate().find(|(_i, r)| r.arm == *chosen)
+                    {
+                        let rank = (idx as u64) + 1;
+                        agg.chosen_rank_rows += 1;
+                        agg.chosen_rank_sum += rank;
+                        if rank == 1 {
+                            agg.chosen_rank_1 += 1;
+                        }
+                    }
+                }
+            }
+            if let Some(kinds) = d.chosen_fail_kinds_top.as_ref() {
+                if !kinds.is_empty() {
+                    agg.decision_rows_with_fail_kinds += 1;
+                    add_kind_counts(&mut agg.decision_kinds_total, kinds);
+                    if let Some(chosen) = d.chosen.as_ref() {
+                        let m = agg.decision_by_arm.entry(chosen.clone()).or_default();
+                        add_kind_counts(m, kinds);
+                    }
+                    for ds in &d.datasets {
+                        let m = agg.decision_by_dataset.entry(ds.clone()).or_default();
+                        add_kind_counts(m, kinds);
+                    }
+                }
+            }
+        }
+    }
+
+    (all, by_run)
 }
 
 /// Scoring mode for `anno muxer regress`.
@@ -1102,6 +1251,28 @@ mod decisions_tests {
             1
         );
     }
+
+    #[test]
+    fn test_decisions_aggregate_grouped_by_run_applies_filter_and_counts() {
+        let jsonl = r#"
+{"schema_version":6,"run_id":"r1 slice=ner","strategy":"ml-only","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","top_candidates":{"kind":"mab","rows":[{"arm":"a","score":1.0}]},"constraints_fallback_used":false,"explore_first":false}
+{"schema_version":1,"record_type":"outcome","run_id":"r1 slice=ner","strategy":"ml-only","slice":"ner","dataset":"D1","backend":"a","ok":true,"junk":false,"hard_junk":false}
+{"schema_version":6,"run_id":"r2 slice=coref","strategy":"ml-only","slice":"coref","datasets":["D2"],"round":1,"chosen":"b","top_candidates":{"kind":"mab","rows":[{"arm":"b","score":1.0}]},"constraints_fallback_used":false,"explore_first":false}
+{"schema_version":1,"record_type":"outcome","run_id":"r2 slice=coref","strategy":"ml-only","slice":"coref","dataset":"D2","backend":"b","ok":false,"junk":true,"hard_junk":true,"fail_kind":"timeout"}
+"#;
+        let (all, by_run) = decisions_aggregate_grouped_by_run(jsonl, Some("slice=ner"));
+        assert_eq!(by_run.len(), 1);
+        let a = by_run.get("r1 slice=ner").expect("r1 present");
+        assert_eq!(a.decision_rows, 1);
+        assert_eq!(a.outcome_rows, 1);
+        assert_eq!(a.outcome_ok, 1);
+        assert_eq!(a.outcome_junk, 0);
+        assert_eq!(a.chosen_rank_rows, 1);
+        assert_eq!(a.chosen_rank_1, 1);
+        // Global reflects the filtered view as well.
+        assert_eq!(all.decision_rows, 1);
+        assert_eq!(all.outcome_rows, 1);
+    }
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -1328,6 +1499,9 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         MuxerAction::Decisions {
             file,
             top,
+            by_run,
+            run_filter,
+            top_runs,
             by_arm,
             by_dataset,
         } => {
@@ -1343,7 +1517,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             let bytes = std::fs::read(&path)
                 .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
             let s = String::from_utf8_lossy(&bytes);
-            let agg = decisions_aggregate_from_jsonl(&s);
+            let (agg, by_run_map) = decisions_aggregate_grouped_by_run(&s, run_filter.as_deref());
 
             println!("=== muxer decisions summary ===\n");
             println!("File: {}", path.display());
@@ -1460,6 +1634,61 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 for (_tot, ds) in rows.into_iter().take(top.max(1)) {
                     let line = top_kinds_line(agg.decision_by_dataset.get(&ds).unwrap(), 5);
                     println!("  {:<28} {}", ds, line);
+                }
+            }
+
+            if by_run {
+                let mut runs: Vec<(u64, String)> = by_run_map
+                    .iter()
+                    .map(|(run_id, a)| (a.outcome_rows + a.decision_rows, run_id.clone()))
+                    .collect();
+                runs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                println!("\nBy run_id (top {}):", top_runs.max(1));
+                for (_w, run_id) in runs.into_iter().take(top_runs.max(1)) {
+                    let a = by_run_map.get(&run_id).unwrap();
+                    let rank1_pct = if a.chosen_rank_rows > 0 {
+                        (a.chosen_rank_1 as f64) * 100.0 / (a.chosen_rank_rows as f64)
+                    } else {
+                        0.0
+                    };
+                    let avg_rank = if a.chosen_rank_rows > 0 {
+                        (a.chosen_rank_sum as f64) / (a.chosen_rank_rows as f64)
+                    } else {
+                        0.0
+                    };
+                    let ok_rate = if a.outcome_rows > 0 {
+                        (a.outcome_ok as f64) / (a.outcome_rows as f64)
+                    } else {
+                        0.0
+                    };
+                    let junk_rate = if a.outcome_rows > 0 {
+                        (a.outcome_junk as f64) / (a.outcome_rows as f64)
+                    } else {
+                        0.0
+                    };
+                    let hard_rate = if a.outcome_rows > 0 {
+                        (a.outcome_hard_junk as f64) / (a.outcome_rows as f64)
+                    } else {
+                        0.0
+                    };
+                    println!(
+                        "  {:<52} rows={} dec={} out={} rank1={:.0}% avg_rank={:.2} ok={:.2} junk={:.2} hard={:.2}",
+                        run_id,
+                        a.total_rows,
+                        a.decision_rows,
+                        a.outcome_rows,
+                        rank1_pct,
+                        avg_rank,
+                        ok_rate,
+                        junk_rate,
+                        hard_rate
+                    );
+                    if !a.outcome_kinds_total.is_empty() {
+                        println!(
+                            "    top_outcome_kinds: {}",
+                            top_kinds_line(&a.outcome_kinds_total, 3)
+                        );
+                    }
                 }
             }
         }
