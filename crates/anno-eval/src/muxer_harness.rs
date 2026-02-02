@@ -208,8 +208,22 @@ where
 
     let remaining_k = k.saturating_sub(chosen.len());
     if remaining_k > 0 && !eligible_used.is_empty() {
+        // Defensive: the algorithm picker is expected to return <= remaining_k picks from
+        // `eligible_used`, without duplicates. Enforce those invariants here so callers can't
+        // accidentally violate the contract and create surprising output.
         let rest = pick_rest(&eligible_used, remaining_k);
-        chosen.extend(rest);
+        for b in rest {
+            if chosen.len() >= k {
+                break;
+            }
+            if !eligible_used.contains(&b) {
+                continue;
+            }
+            if chosen.contains(&b) {
+                continue;
+            }
+            chosen.push(b);
+        }
     }
 
     PolicyFill {
@@ -434,22 +448,17 @@ where
     FObs: FnMut(&str) -> u64,
     FSum: FnMut(&str) -> (u64, f64, f64),
 {
-    let mut remaining: Vec<String> = arms.to_vec();
-    let mut out: Vec<(String, bool)> = Vec::new();
-    for round in 0..k.min(remaining.len()) {
-        let Some((pick, explore_first)) = worst_first_pick_one(
-            seed ^ (round as u64),
-            &remaining,
+    select_k_without_replacement_by_with_meta(seed, arms, k, |seed_round, remaining, _k| {
+        worst_first_pick_one(
+            seed_round,
+            remaining,
             cfg,
             |b| observed_calls(b),
             |b| summary(b),
-        ) else {
-            break;
-        };
-        remaining.retain(|b| b != &pick);
-        out.push((pick, explore_first));
-    }
-    out
+        )
+        .map(|(b, explore_first)| vec![(b, explore_first)])
+        .unwrap_or_default()
+    })
 }
 
 #[cfg(test)]
@@ -637,6 +646,89 @@ mod prior_tests {
     }
 
     #[test]
+    fn test_policy_fill_adversarial_invariants_small_fuzz() {
+        // Adversarial “property-ish” test: exercise many small cases to catch drift.
+        // We keep it deterministic and light (no heavy eval / IO).
+        fn lcg(mut x: u64) -> u64 {
+            x = x
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            x
+        }
+
+        for seed in 0u64..100 {
+            let mut x = seed ^ 0xA11C_E5E1;
+            let n = (lcg(x) % 9 + 2) as usize; // 2..=10 arms
+            x = lcg(x);
+            let k = ((lcg(x) % (n as u64)) + 1) as usize;
+            x = lcg(x);
+
+            let arms = (0..n).map(|i| format!("arm{i}")).collect::<Vec<_>>();
+            let novelty = (x & 1) == 1;
+            x = lcg(x);
+
+            // Guardrail: sometimes active, sometimes off.
+            let guard = LatencyGuardrail {
+                max_mean_ms: if (x & 1) == 1 { Some(10.0) } else { None },
+                allow_fewer: true,
+                require_measured: (x & 2) == 2,
+            };
+            x = lcg(x);
+
+            // Observations: calls 0..=3, elapsed chosen so mean_ms is either 0, 5, or 50.
+            // This ensures some arms are filtered when max_mean_ms=10.
+            let mut obs: std::collections::BTreeMap<String, (u64, u64)> = Default::default();
+            for a in &arms {
+                x = lcg(x);
+                let calls = (x % 4) as u64;
+                x = lcg(x);
+                let mean_bucket = (x % 3) as u64; // 0,1,2
+                let mean_ms = match mean_bucket {
+                    0 => 0,
+                    1 => 5,
+                    _ => 50,
+                };
+                let elapsed_sum = calls.saturating_mul(mean_ms);
+                obs.insert(a.clone(), (calls, elapsed_sum));
+            }
+
+            let mut algo_calls = 0usize;
+            let fill = policy_fill_k_observed_with(
+                seed,
+                &arms,
+                k,
+                novelty,
+                guard,
+                |b| *obs.get(b).unwrap(),
+                |eligible, k_rem| {
+                    algo_calls += 1;
+                    // Adversarial-ish algorithm: may return duplicates or extra elements.
+                    let mut out = pick_random_subset(seed ^ 0xBEEF, eligible, k_rem);
+                    if !out.is_empty() {
+                        out.push(out[0].clone()); // duplicate
+                    }
+                    out.push("not_in_set".to_string()); // invalid
+                    out
+                },
+            );
+
+            // Invariants: chosen is a subset, unique, and bounded by k.
+            assert!(fill.chosen.len() <= k);
+            let chosen_set: std::collections::BTreeSet<String> =
+                fill.chosen.iter().cloned().collect();
+            assert_eq!(chosen_set.len(), fill.chosen.len());
+            for c in &fill.chosen {
+                assert!(arms.contains(c));
+            }
+
+            // If we stopped early we must not have called the algorithm picker.
+            if fill.stopped_early {
+                assert_eq!(algo_calls, 0);
+            }
+        }
+    }
+
+    #[test]
     fn test_worst_first_pick_prefers_unseen() {
         let remaining = vec!["a".to_string(), "b".to_string()];
         let (pick, explore_first) = worst_first_pick_one(
@@ -774,6 +866,32 @@ mod prior_tests {
             ]
         });
         assert_eq!(out, vec!["b".to_string(), "a".to_string()]);
+    }
+
+    #[test]
+    fn test_select_k_without_replacement_by_breaks_on_no_progress() {
+        // Adversarial: picker never returns a valid remaining item; driver must terminate.
+        let items = vec!["a".to_string(), "b".to_string()];
+        let out = select_k_without_replacement_by(0, &items, 2, |_seed, _rem, _k| {
+            vec!["x".to_string(), "x".to_string()]
+        });
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn test_select_k_without_replacement_by_handles_partial_progress_then_stalls() {
+        // Adversarial: first call makes progress, subsequent calls only repeat already-chosen items.
+        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let mut calls = 0usize;
+        let out = select_k_without_replacement_by(0, &items, 3, |_seed, _rem, _k| {
+            calls += 1;
+            if calls == 1 {
+                vec!["b".to_string()]
+            } else {
+                vec!["b".to_string(), "x".to_string()]
+            }
+        });
+        assert_eq!(out, vec!["b".to_string()]);
     }
 }
 
@@ -1057,6 +1175,50 @@ pub fn muxer_slice_tag(
 /// This is intended to reduce duplicated “remaining/chosen” plumbing across selection strategies.
 /// Callers provide a picker that can return up to `k_remaining` candidates for the current
 /// remaining set; the driver enforces de-duplication and ordering.
+pub fn select_k_without_replacement_by_with_meta<F, M>(
+    seed: u64,
+    items: &[String],
+    k: usize,
+    mut pick: F,
+) -> Vec<(String, M)>
+where
+    F: FnMut(u64, &[String], usize) -> Vec<(String, M)>,
+{
+    if k == 0 || items.is_empty() {
+        return Vec::new();
+    }
+    let mut remaining: Vec<String> = items.to_vec();
+    let mut out: Vec<(String, M)> = Vec::new();
+
+    while !remaining.is_empty() && out.len() < k {
+        let need = k - out.len();
+        let batch = pick(seed ^ (out.len() as u64), &remaining, need);
+        if batch.is_empty() {
+            break;
+        }
+        let mut made_progress = false;
+        for (b, meta) in batch {
+            if out.len() >= k {
+                break;
+            }
+            if !remaining.contains(&b) {
+                continue;
+            }
+            if out.iter().any(|(x, _)| x == &b) {
+                continue;
+            }
+            remaining.retain(|x| x != &b);
+            out.push((b, meta));
+            made_progress = true;
+        }
+        if !made_progress {
+            break;
+        }
+    }
+    out
+}
+
+/// Convenience wrapper over `select_k_without_replacement_by_with_meta` when no meta is needed.
 pub fn select_k_without_replacement_by<F>(
     seed: u64,
     items: &[String],
@@ -1066,38 +1228,12 @@ pub fn select_k_without_replacement_by<F>(
 where
     F: FnMut(u64, &[String], usize) -> Vec<String>,
 {
-    if k == 0 || items.is_empty() {
-        return Vec::new();
-    }
-    let mut remaining: Vec<String> = items.to_vec();
-    let mut out: Vec<String> = Vec::new();
-
-    while !remaining.is_empty() && out.len() < k {
-        let need = k - out.len();
-        let batch = pick(seed ^ (out.len() as u64), &remaining, need);
-        if batch.is_empty() {
-            break;
-        }
-        let mut made_progress = false;
-        for b in batch {
-            if out.len() >= k {
-                break;
-            }
-            if !remaining.contains(&b) {
-                continue;
-            }
-            if out.contains(&b) {
-                continue;
-            }
-            remaining.retain(|x| x != &b);
-            out.push(b);
-            made_progress = true;
-        }
-        if !made_progress {
-            break;
-        }
-    }
-    out
+    select_k_without_replacement_by_with_meta(seed, items, k, |s, rem, need| {
+        pick(s, rem, need).into_iter().map(|b| (b, ())).collect()
+    })
+    .into_iter()
+    .map(|(b, _)| b)
+    .collect()
 }
 
 #[cfg(all(test, feature = "eval-advanced"))]
