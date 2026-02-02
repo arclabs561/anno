@@ -16,10 +16,9 @@ anno - A unified information extraction toolkit
 
 CAPABILITIES:
   • Named Entity Recognition (NER) - detect persons, orgs, locations, etc.
-  • Coreference Resolution - link mentions to same entity ("She" → "Marie Curie")
-  • Relation Extraction - extract (head, relation, tail) triples
+  • Zero-shot Extraction - define custom entity types (--extract-types)
+  • Coreference Resolution - link mentions to same entity ("She" → referent)
   • Entity Linking - connect entities to knowledge bases (when configured)
-  • Event Extraction - discourse-level event extraction
 
 SIGNAL → TRACK → IDENTITY HIERARCHY:
   Level 1 (Signal)   : Raw detections/mentions with spans
@@ -33,12 +32,10 @@ BACKENDS:
   • extra backends via feature flags (e.g., Candle); see `anno models list`
 
 EXAMPLES:
-  anno extract "Marie Curie was born in Paris."
-  anno debug --coref --link-kb -t "Barack Obama met Angela Merkel. He discussed NATO."
-  anno eval -t "..." -g "Marie Curie:PER:0:11"
-  # Note: cross-doc/coalesce require building with `--features eval-advanced`.
-  anno cross-doc ./docs --threshold 0.6
-  anno coalesce ./docs --threshold 0.6  # alias for cross-doc
+  anno extract "Ada Lovelace worked with Charles Babbage in London."
+  anno extract --model gliner --extract-types "DRUG,SYMPTOM" -t "Aspirin treats headaches."
+  anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+  anno cross-doc ./docs --threshold 0.6  # requires --features eval-advanced
   anno info
 "#
 )]
