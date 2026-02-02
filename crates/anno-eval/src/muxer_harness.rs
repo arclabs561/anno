@@ -543,6 +543,100 @@ mod prior_tests {
     }
 
     #[test]
+    fn test_policy_fill_novelty_then_stop_early_does_not_fallback() {
+        // Difficult seam: novelty can create a non-empty chosen set, after which the observed
+        // guardrail can stop-early. In that case we must *not* fall back and pick more.
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(10.0),
+            allow_fewer: true,
+            require_measured: true,
+        };
+        let arms = vec!["unseen".to_string(), "slow".to_string(), "fast".to_string()];
+
+        // unseen => prechosen; then guardrail filters remaining (measured but too slow) so it stops early.
+        let fill = policy_fill_k_observed_with(
+            123,
+            &arms,
+            2,
+            true,
+            guard,
+            |b| {
+                if b == "unseen" {
+                    (0, 0)
+                } else {
+                    // Measured but too slow: mean_ms = 1000/10 = 100 > max_mean_ms
+                    (10, 1000)
+                }
+            },
+            |_eligible, _k| unreachable!("algorithm should not be called on stop-early"),
+        );
+        assert_eq!(fill.chosen, vec!["unseen".to_string()]);
+        assert!(fill.stopped_early);
+        assert!(!fill.fallback_used);
+    }
+
+    #[test]
+    fn test_policy_fill_partial_novelty_invokes_algorithm_on_remaining_k() {
+        // Difficult seam: novelty might pick < k; ensure the algorithm is invoked with eligible
+        // excluding prechosen and with remaining_k only.
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(100.0),
+            allow_fewer: false,
+            require_measured: false,
+        };
+        let arms = vec!["u1".to_string(), "m1".to_string(), "m2".to_string()];
+        let mut saw_args: Option<(Vec<String>, usize)> = None;
+        let fill = policy_fill_k_observed_with(
+            0,
+            &arms,
+            2,
+            true,
+            guard,
+            |b| {
+                // Only u1 is unseen.
+                if b == "u1" {
+                    (0, 0)
+                } else {
+                    (10, 10)
+                }
+            },
+            |eligible, k| {
+                saw_args = Some((eligible.to_vec(), k));
+                vec![eligible[0].clone()]
+            },
+        );
+        assert_eq!(fill.chosen.len(), 2);
+        assert!(fill.chosen.contains(&"u1".to_string()));
+        let (eligible, k) = saw_args.expect("algorithm called");
+        assert_eq!(k, 1);
+        assert!(!eligible.contains(&"u1".to_string()));
+    }
+
+    #[test]
+    fn test_policy_fill_fallback_used_when_guardrail_filters_all_and_no_picks_yet() {
+        // Difficult seam: guardrail filters all arms (stop_early), but because we have no picks
+        // yet the policy should fall back to remaining and still pick something.
+        let guard = LatencyGuardrail {
+            max_mean_ms: Some(1.0),
+            allow_fewer: true,
+            require_measured: true,
+        };
+        let arms = vec!["a".to_string(), "b".to_string()];
+        let fill = policy_fill_k_observed_with(
+            999,
+            &arms,
+            1,
+            false,
+            guard,
+            |_b| (0, 0),
+            |eligible, _k| vec![eligible[0].clone()],
+        );
+        assert_eq!(fill.chosen.len(), 1);
+        assert!(fill.fallback_used);
+        assert!(!fill.stopped_early);
+    }
+
+    #[test]
     fn test_worst_first_pick_prefers_unseen() {
         let remaining = vec!["a".to_string(), "b".to_string()];
         let (pick, explore_first) = worst_first_pick_one(
