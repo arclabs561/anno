@@ -4,7 +4,7 @@ Information extraction: named entity recognition and coreference.
 
 Dual-licensed under MIT or Apache-2.0.
 
-API docs: `https://docs.rs/anno` (rustdoc).
+API docs: [docs.rs/anno](https://docs.rs/anno)
 
 ```sh
 anno extract --text "Marie Curie was born in Warsaw."
@@ -15,20 +15,20 @@ anno extract --text "Marie Curie was born in Warsaw."
 [Warsaw] LOCATION
 ```
 
-More: `docs/QUICKSTART.md`.
-Docs index: `docs/README.md`.
-Contract: `docs/CONTRACT.md`.
+See `docs/QUICKSTART.md` for 5-minute setup.
+Full docs: `docs/README.md`.
+Interface contract: `docs/CONTRACT.md`.
+
+## Install
+
+The CLI binary lives in `crates/anno-cli` (bin name: `anno`).
+
+```sh
+cargo install --path crates/anno-cli --bin anno --features "eval-advanced onnx"
+```
 
 Build rustdocs locally:
 
 ```sh
 cargo doc -p anno --no-deps --features "eval-advanced discourse"
-```
-
-Install the CLI:
-
-```sh
-# This repo’s CLI binary lives in `crates/anno-cli` (bin name: `anno`).
-# Install from source:
-cargo install --path crates/anno-cli --bin anno --features "eval-advanced onnx"
 ```

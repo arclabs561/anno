@@ -7,7 +7,9 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
 homepage = "https://github.com/arclabs561/anno"
 documentation = "https://docs.rs/anno"
+readme = "../../README.md"
 keywords = ["ner", "nlp", "information-extraction", "coreference", "rust"]
+categories = ["text-processing"]
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.2.0" }
