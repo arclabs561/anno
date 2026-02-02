@@ -2540,6 +2540,96 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
 }
 
 #[test]
+fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
+    // Tougher regression test: with multiple arms, require_measured must exclude arms that are
+    // only “measured” via priors, and still allow selection of a truly observed arm.
+    let mut prior = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let mut w_prior = Window::new(50);
+    for _ in 0..10 {
+        w_prior.push(Outcome {
+            ok: true,
+            http_429: false,
+            junk: false,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1, // fast
+        });
+    }
+    prior.windows.insert("prior_only".to_string(), w_prior);
+
+    // Current history has only one arm observed (measured_fast).
+    let mut current = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let mut w_obs = Window::new(50);
+    for _ in 0..3 {
+        w_obs.push(Outcome {
+            ok: true,
+            http_429: false,
+            junk: false,
+            hard_junk: false,
+            cost_units: 1,
+            elapsed_ms: 1, // fast
+        });
+    }
+    current.windows.insert("measured_fast".to_string(), w_obs);
+
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_max = std::env::var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS").ok();
+    let old_req = std::env::var("ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT").ok();
+    let old_nov = std::env::var("ANNO_MUXER_NOVELTY").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r1 = Restore {
+        k: "ANNO_MUXER_MAX_MEAN_ELAPSED_MS",
+        v: old_max,
+    };
+    let _r2 = Restore {
+        k: "ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT",
+        v: old_req,
+    };
+    let _r3 = Restore {
+        k: "ANNO_MUXER_NOVELTY",
+        v: old_nov,
+    };
+
+    std::env::set_var("ANNO_MUXER_MAX_MEAN_ELAPSED_MS", "2");
+    std::env::set_var("ANNO_MUXER_LATENCY_GUARDRAIL_REQUIRE_MEASUREMENT", "1");
+    std::env::set_var("ANNO_MUXER_NOVELTY", "0");
+
+    let chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &current,
+        Some(&prior),
+        &["prior_only".to_string(), "measured_fast".to_string()],
+        None,
+        1,
+        6,
+    );
+    assert_eq!(chosen, vec!["measured_fast".to_string()]);
+}
+
+#[test]
 fn test_novelty_still_triggers_under_priors() {
     // Regression test: with priors enabled, "calls" may be non-zero in smoothed summaries
     // even when an arm has never been tried in this slice. Novelty should still pick the
