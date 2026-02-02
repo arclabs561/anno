@@ -1477,6 +1477,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 agg.lines_skipped_invalid,
                 agg.lines_skipped_filtered
             );
+            println!("Runs: {}", by_run_map.len());
             println!("Rows: {}", agg.total_rows);
             println!("Decision rows: {}", agg.decision_rows);
             println!(
@@ -1510,26 +1511,37 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     (agg.outcome_hard_junk as f64) / (agg.outcome_rows as f64)
                 );
 
-                // Trend: compare first-N vs last-N outcomes (best-effort; last-N is based on tail).
-                let first_n = agg.outcome_first_n.max(1) as f64;
-                let last_n = (agg.outcome_tail.len().max(1)) as f64;
-                let (last_ok, last_junk, last_hard) = agg.outcome_tail.iter().fold(
-                    (0u64, 0u64, 0u64),
-                    |(ok, junk, hard), (o, j, h)| {
-                        (ok + (*o as u64), junk + (*j as u64), hard + (*h as u64))
-                    },
-                );
-                println!(
-                    "Outcome trend (first {} vs last {}): ok={:.2}→{:.2} junk={:.2}→{:.2} hard={:.2}→{:.2}",
-                    agg.outcome_first_n,
-                    agg.outcome_tail.len(),
-                    (agg.outcome_first_ok as f64) / first_n,
-                    (last_ok as f64) / last_n,
-                    (agg.outcome_first_junk as f64) / first_n,
-                    (last_junk as f64) / last_n,
-                    (agg.outcome_first_hard as f64) / first_n,
-                    (last_hard as f64) / last_n
-                );
+                // Trend: compare first-N vs last-N outcomes (best-effort).
+                //
+                // Important: if the file mixes multiple run_ids, a global "trend" is misleading
+                // because JSONL ordering can interleave runs. In that case, defer to the per-run
+                // trends printed below.
+                if by_run_map.len() <= 1 {
+                    let first_n = agg.outcome_first_n.max(1) as f64;
+                    let last_n = (agg.outcome_tail.len().max(1)) as f64;
+                    let (last_ok, last_junk, last_hard) = agg.outcome_tail.iter().fold(
+                        (0u64, 0u64, 0u64),
+                        |(ok, junk, hard), (o, j, h)| {
+                            (ok + (*o as u64), junk + (*j as u64), hard + (*h as u64))
+                        },
+                    );
+                    println!(
+                        "Outcome trend (first {} vs last {}): ok={:.2}→{:.2} junk={:.2}→{:.2} hard={:.2}→{:.2}",
+                        agg.outcome_first_n,
+                        agg.outcome_tail.len(),
+                        (agg.outcome_first_ok as f64) / first_n,
+                        (last_ok as f64) / last_n,
+                        (agg.outcome_first_junk as f64) / first_n,
+                        (last_junk as f64) / last_n,
+                        (agg.outcome_first_hard as f64) / first_n,
+                        (last_hard as f64) / last_n
+                    );
+                } else {
+                    println!(
+                        "Outcome trend: (multiple run_ids; see per-run trends below; window={})",
+                        agg.outcome_trend_n.max(1)
+                    );
+                }
             }
             if agg.decision_rows > 0 {
                 println!(
