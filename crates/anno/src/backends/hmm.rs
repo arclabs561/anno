@@ -105,8 +105,20 @@ use serde_json as _;
 
 #[derive(Debug, Clone)]
 struct HmmParams {
+    states: Vec<String>,
     initial: Vec<f64>,
     transitions: Vec<Vec<f64>>,
+    backoff: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+struct HmmBackoff {
+    /// len_bucket -> probs per state index (aligned with `states`)
+    len: HashMap<String, Vec<f64>>,
+    /// boolean feature -> P(feature_present | state) per state index
+    bool_present: HashMap<String, Vec<f64>>,
+    /// Stable list of boolean features to include absent probabilities.
+    bool_keys: Vec<String>,
 }
 
 /// HMM configuration.
@@ -150,6 +162,8 @@ pub struct HmmNER {
     /// Vocabulary for unknown word handling.
     #[allow(dead_code)] // Reserved for OOV handling
     vocab: HashMap<String, usize>,
+    /// Optional bundled emission backoff (small, trained).
+    backoff: Option<HmmBackoff>,
 }
 
 impl HmmNER {
@@ -159,9 +173,27 @@ impl HmmNER {
         Self::with_config(HmmConfig::default())
     }
 
+    /// Create a new HMM NER model using only heuristic parameters (no bundled params).
+    ///
+    /// This is useful for E2E evaluation comparisons (heuristic vs bundled-trained).
+    #[must_use]
+    pub fn new_heuristic() -> Self {
+        Self::with_config_no_bundled(HmmConfig::default())
+    }
+
     /// Create with custom configuration.
     #[must_use]
     pub fn with_config(config: HmmConfig) -> Self {
+        Self::with_config_internal(config, true)
+    }
+
+    /// Create with custom configuration, skipping bundled params even if the feature is enabled.
+    #[must_use]
+    pub fn with_config_no_bundled(config: HmmConfig) -> Self {
+        Self::with_config_internal(config, false)
+    }
+
+    fn with_config_internal(config: HmmConfig, allow_bundled: bool) -> Self {
         let states = vec![
             "O".to_string(),
             "B-PER".to_string(),
@@ -211,17 +243,36 @@ impl HmmNER {
             initial,
             emissions,
             vocab: HashMap::new(),
+            backoff: None,
         };
 
         // Optional bundled params (priors + transitions only). These are small enough to ship,
         // and they don't embed word identity emissions.
-        if let Some(p) = Self::bundled_params() {
-            if p.initial.len() == m.states.len()
-                && p.transitions.len() == m.states.len()
-                && p.transitions.iter().all(|r| r.len() == m.states.len())
-            {
-                m.initial = p.initial;
-                m.transitions = p.transitions;
+        if allow_bundled {
+            if let Some(p) = Self::bundled_params() {
+                if p.states == m.states
+                    && p.initial.len() == m.states.len()
+                    && p.transitions.len() == m.states.len()
+                    && p.transitions.iter().all(|r| r.len() == m.states.len())
+                {
+                    let backoff = HmmBackoff::from_params(&p);
+                    m.backoff = Some(backoff);
+                    // Default posture: keep heuristic dynamics (priors/transitions) and only
+                    // use bundled params for emission backoff. In practice, bundling dynamics
+                    // can reduce recall significantly when evaluated out-of-domain.
+                    //
+                    // Opt in to bundled dynamics explicitly if you want them.
+                    let use_dynamics = std::env::var("ANNO_HMM_USE_BUNDLED_DYNAMICS")
+                        .ok()
+                        .is_some_and(|v| {
+                            let s = v.trim();
+                            s == "1" || s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("yes")
+                        });
+                    if use_dynamics {
+                        m.initial = p.initial.clone();
+                        m.transitions = p.transitions.clone();
+                    }
+                }
             }
         }
 
@@ -236,11 +287,28 @@ impl HmmNER {
                 .get_or_init(|| {
                     let s = include_str!("hmm_params.json");
                     let v: serde_json::Value = serde_json::from_str(s).ok()?;
-                    let initial = v.get("initial")?.as_array()?.iter().map(|x| x.as_f64()).collect::<Option<Vec<_>>>()?;
+                    let states = v
+                        .get("states")?
+                        .as_array()?
+                        .iter()
+                        .map(|x| x.as_str().map(|s| s.to_string()))
+                        .collect::<Option<Vec<_>>>()?;
+                    let initial = v
+                        .get("initial")?
+                        .as_array()?
+                        .iter()
+                        .map(|x| x.as_f64())
+                        .collect::<Option<Vec<_>>>()?;
                     let transitions = v.get("transitions")?.as_array()?.iter().map(|row| {
                         row.as_array()?.iter().map(|x| x.as_f64()).collect::<Option<Vec<_>>>()
                     }).collect::<Option<Vec<_>>>()?;
-                    Some(HmmParams { initial, transitions })
+                    let backoff = v.get("backoff")?.clone();
+                    Some(HmmParams {
+                        states,
+                        initial,
+                        transitions,
+                        backoff,
+                    })
                 })
                 .clone();
         }
@@ -612,6 +680,35 @@ impl HmmNER {
             return prob;
         }
 
+        // If we have bundled backoff emissions, prefer them over heuristics.
+        // These are compact, trained probabilities over generic word features (no word identity).
+        if let Some(b) = self.backoff.as_ref() {
+            // Emission score uses a naive Bayes factorization:
+            //   P(features | state) = P(len_bucket | state) * Π_f P(f|state)^(present) * (1-P(f|state))^(absent)
+            // We only use the small set of features in the bundled table.
+            let lb = Self::len_bucket(word);
+            let mut sum_log = 0.0f64;
+            if let Some(p) = b.len.get(lb).and_then(|v| v.get(state_idx).copied()) {
+                sum_log += p.max(1e-12).ln();
+            } else {
+                sum_log += (1e-12f64).ln();
+            }
+            let feats = Self::bool_features(word);
+            for k in &b.bool_keys {
+                let present = feats.get(k.as_str()).copied().unwrap_or(false);
+                let p_present = b
+                    .bool_present
+                    .get(k)
+                    .and_then(|v| v.get(state_idx).copied())
+                    .unwrap_or(1e-12)
+                    .clamp(1e-12, 1.0 - 1e-12);
+                let p = if present { p_present } else { 1.0 - p_present };
+                sum_log += p.max(1e-12).ln();
+            }
+            let score = sum_log.exp();
+            return score.max(self.config.smoothing);
+        }
+
         // Heuristic emissions based on word features
         let state = &self.states[state_idx];
         let is_capitalized = word.chars().next().is_some_and(|c| c.is_uppercase());
@@ -931,6 +1028,90 @@ impl HmmNER {
                 self.emissions
                     .insert((state_idx, word), count as f64 / total);
             }
+        }
+    }
+
+    fn len_bucket(word: &str) -> &'static str {
+        let n = word.chars().count();
+        if n <= 1 {
+            "len:1"
+        } else if n == 2 {
+            "len:2"
+        } else if n == 3 {
+            "len:3"
+        } else if (4..=5).contains(&n) {
+            "len:4_5"
+        } else if (6..=8).contains(&n) {
+            "len:6_8"
+        } else {
+            "len:9p"
+        }
+    }
+
+    fn bool_features(word: &str) -> HashMap<&'static str, bool> {
+        let is_capitalized = word.chars().next().is_some_and(|c| c.is_uppercase());
+        let is_all_caps =
+            word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) && word.chars().count() > 1;
+        let is_digit = !word.is_empty() && word.chars().all(|c| c.is_ascii_digit());
+        let has_digit = word.chars().any(|c| c.is_ascii_digit());
+        let has_hyphen = word.contains('-');
+        let has_dot = word.contains('.');
+        let mut m = HashMap::new();
+        m.insert("is_capitalized", is_capitalized);
+        m.insert("is_all_caps", is_all_caps);
+        m.insert("is_digit", is_digit);
+        m.insert("has_digit", has_digit);
+        m.insert("has_hyphen", has_hyphen);
+        m.insert("has_dot", has_dot);
+        m
+    }
+}
+
+impl HmmBackoff {
+    fn from_params(p: &HmmParams) -> Self {
+        // backoff schema:
+        // {
+        //   "len": { bucket: { state: prob } },
+        //   "bool": { feat: { state: p_present } }
+        // }
+        let mut len: HashMap<String, Vec<f64>> = HashMap::new();
+        let mut bool_present: HashMap<String, Vec<f64>> = HashMap::new();
+
+        if let Some(obj) = p.backoff.as_object() {
+            if let Some(len_obj) = obj.get("len").and_then(|v| v.as_object()) {
+                for (bucket, distv) in len_obj {
+                    let mut v = vec![1e-12; p.states.len()];
+                    if let Some(dist) = distv.as_object() {
+                        for (i, state) in p.states.iter().enumerate() {
+                            if let Some(x) = dist.get(state).and_then(|x| x.as_f64()) {
+                                v[i] = x;
+                            }
+                        }
+                    }
+                    len.insert(bucket.clone(), v);
+                }
+            }
+            if let Some(bool_obj) = obj.get("bool").and_then(|v| v.as_object()) {
+                for (feat, distv) in bool_obj {
+                    let mut v = vec![1e-12; p.states.len()];
+                    if let Some(dist) = distv.as_object() {
+                        for (i, state) in p.states.iter().enumerate() {
+                            if let Some(x) = dist.get(state).and_then(|x| x.as_f64()) {
+                                v[i] = x;
+                            }
+                        }
+                    }
+                    bool_present.insert(feat.clone(), v);
+                }
+            }
+        }
+
+        let mut bool_keys: Vec<String> = bool_present.keys().cloned().collect();
+        bool_keys.sort();
+        Self {
+            len,
+            bool_present,
+            bool_keys,
         }
     }
 }

@@ -345,6 +345,17 @@ impl CrfNER {
         }
     }
 
+    /// Create a CRF NER model using only the built-in heuristic weight table.
+    ///
+    /// This is useful for E2E evaluation comparisons (heuristic vs bundled-trained) and for
+    /// builds that want deterministic behavior without any bundled assets.
+    #[must_use]
+    pub fn new_heuristic() -> Self {
+        let mut m = Self::new();
+        m.weights = Self::default_weights();
+        m
+    }
+
     fn shipped_weights() -> Option<HashMap<String, f64>> {
         #[cfg(feature = "bundled-crf-weights")]
         {

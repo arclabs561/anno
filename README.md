@@ -18,11 +18,11 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 | `bert-onnx` | No | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Traditional fixed-label NER |
 | `pattern` | No | None | Regex (dates, emails, money) |
 | `heuristic` | No | None | Capitalization + context |
-| `crf` | No | Bundled (feature) | CRF with bundled trained weights when enabled; can load custom weights |
-| `hmm` | No | Heuristic | Historical baseline (comparison/education) |
+| `crf` | No | Bundled (`bundled-crf-weights`) | CRF with bundled trained weights when enabled; can load custom weights |
+| `hmm` | No | Bundled (`bundled-hmm-params`) | HMM with optional bundled params (compact); baseline/education |
 | `ensemble` | No | Varies | Weighted voting across backends |
 
-ML backends require `--features onnx`. All weights download from HuggingFace on first use.
+ML backends require `--features onnx`. ONNX model weights download from HuggingFace on first use.
 
 ## Examples
 
@@ -74,6 +74,7 @@ Coreference: "Sophie Wilson" → "She"
 ## Install
 
 ```sh
+# From this repo:
 cargo install --path crates/anno-cli --bin anno --features "onnx eval-advanced"
 ```
 

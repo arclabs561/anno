@@ -37,6 +37,7 @@ import argparse
 import pycrfsuite
 from datasets import load_dataset
 from collections import defaultdict
+from collections import Counter
 
 
 def word_shape(word: str) -> str:
@@ -64,6 +65,7 @@ def word2features(sent, i):
     
     features = [
         'bias',
+        f'word.lower={word.lower()}',
         f'word.shape={word_shape(word)}',
         f'word.isdigit={word.isdigit()}',
         f'word.istitle={word.istitle()}',
@@ -82,6 +84,7 @@ def word2features(sent, i):
     if i > 0:
         word1 = sent[i-1][0]
         features.extend([
+            f'-1:word.lower={word1.lower()}',
             f'-1:word.istitle={word1.istitle()}',
             f'-1:word.isupper={word1.isupper()}',
             f'-1:word.shape={word_shape(word1)}',
@@ -92,6 +95,7 @@ def word2features(sent, i):
     if i < len(sent)-1:
         word1 = sent[i+1][0]
         features.extend([
+            f'+1:word.lower={word1.lower()}',
             f'+1:word.istitle={word1.istitle()}',
             f'+1:word.isupper={word1.isupper()}',
             f'+1:word.shape={word_shape(word1)}',
@@ -161,6 +165,17 @@ def train_crf(dataset_id, config, out_weights_path, out_model_path, max_train_se
     
     print(f"Train sentences: {len(train_sents)}")
     print(f"Test sentences: {len(test_sents)}")
+
+    # Build a bounded “shippable vocab” for word.lower features.
+    # Token-identity features can explode weight count; we keep only frequent words.
+    wc = Counter()
+    for s in train_sents:
+        for tok, _pos, _lab in s:
+            wc[tok.lower()] += 1
+    vocab_top_k = 2000
+    vocab_min_count = 20
+    keep_words = {w for (w, c) in wc.most_common(vocab_top_k) if c >= vocab_min_count}
+    print(f"Shippable vocab: {len(keep_words)} words (top_k={vocab_top_k}, min_count={vocab_min_count})")
     
     # Extract features
     print("Extracting features...")
@@ -194,14 +209,26 @@ def train_crf(dataset_id, config, out_weights_path, out_model_path, max_train_se
     
     # Get state features (emission features).
     #
-    # Compact export: keep only features that generalize. Avoid token-identity features
-    # (word.lower=...) which explode the weights size and are not shippable.
+    # Compact export:
+    # - Keep general features (shape/affix/case/context).
+    # - Keep token identity only for a bounded frequent vocab (to keep size shippable).
     weights = {}
     info = tagger.info()
     
     for (attr, label), weight in info.state_features.items():
-        if attr.startswith("word.lower=") or attr.startswith("-1:word.lower=") or attr.startswith("+1:word.lower="):
-            continue
+        if attr.startswith("word.lower="):
+            w = attr[len("word.lower="):]
+            if w not in keep_words:
+                continue
+        if attr.startswith("-1:word.lower="):
+            # Keep context identity smaller: only keep if token is frequent.
+            w = attr[len("-1:word.lower="):]
+            if w not in keep_words:
+                continue
+        if attr.startswith("+1:word.lower="):
+            w = attr[len("+1:word.lower="):]
+            if w not in keep_words:
+                continue
         key = f"{attr}:{label}"
         weights[key] = weight
     

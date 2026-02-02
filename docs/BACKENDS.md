@@ -34,7 +34,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
   - CoNLL-2003 note: CoNLL-2003’s English text is derived from Reuters/RCV1 and is commonly treated as redistribution-restricted; the CoNLL site notes it “only make[s] available the annotations” and requires separate Reuters corpus access: `http://www.clips.uantwerpen.be/conll2003/ner/`
 
 - Training script (HMM params): `uv run scripts/train_hmm_params.py`
-  - Output: `crates/anno/src/backends/hmm_params.json` (priors + transitions only; emissions remain heuristic)
+  - Output: `crates/anno/src/backends/hmm_params.json` (priors + transitions + compact emission backoff; no word-identity emissions)
 
 Pointers (for “what good looks like” in classical NER):
 

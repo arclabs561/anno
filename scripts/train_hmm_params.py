@@ -6,16 +6,17 @@
 # ]
 # ///
 """
-Train small HMM parameters (priors + transitions) on a redistributable NER dataset.
+Train compact HMM parameters for real E2E NER evaluation.
 
 What we ship:
 - `crates/anno/src/backends/hmm_params.json` containing:
   - label list (BIO tags)
   - initial probabilities
   - transition probabilities
+-  - compact emission backoff tables over generic word features (no word identity)
 
-What we *do not* ship:
-- word emission tables (they explode in size and are dataset-specific).
+What we do *not* ship:
+- per-word emission tables (they explode in size and are dataset-specific).
 
 Default dataset:
 - WikiANN (PAN-X) via `unimelb-nlp/wikiann`, config `en`.
@@ -42,6 +43,44 @@ DEFAULT_LABELS = [
     "B-MISC",
     "I-MISC",
 ]
+
+def word_features(word: str):
+    # Keep this aligned with the Rust HMM backoff feature extractor:
+    # small, generic, and not word-identity based.
+    w = word or ""
+    is_capitalized = w[:1].isupper() if w else False
+    is_all_caps = w.isupper() and len(w) > 1
+    is_digit = w.isdigit()
+    has_digit = any(c.isdigit() for c in w)
+    has_hyphen = "-" in w
+    has_dot = "." in w
+    n = len(w)
+    if n <= 1:
+        len_bucket = "len:1"
+    elif n == 2:
+        len_bucket = "len:2"
+    elif n == 3:
+        len_bucket = "len:3"
+    elif 4 <= n <= 5:
+        len_bucket = "len:4_5"
+    elif 6 <= n <= 8:
+        len_bucket = "len:6_8"
+    else:
+        len_bucket = "len:9p"
+    feats = [len_bucket]
+    if is_capitalized:
+        feats.append("is_capitalized")
+    if is_all_caps:
+        feats.append("is_all_caps")
+    if is_digit:
+        feats.append("is_digit")
+    if has_digit:
+        feats.append("has_digit")
+    if has_hyphen:
+        feats.append("has_hyphen")
+    if has_dot:
+        feats.append("has_dot")
+    return feats
 
 
 def extract_label_names(split, tags_field="ner_tags"):
@@ -76,6 +115,62 @@ def train_initial_and_transitions(tag_seqs, labels, smoothing=1e-6):
     init = normalize(init)
     trans = [normalize(row) for row in trans]
     return init, trans
+
+def train_backoff_features(sentences, labels, smoothing=1e-6):
+    """
+    Train a compact emission backoff model as P(feature | state).
+
+    We model:
+    - len bucket as a categorical feature: P(len_bucket | state)
+    - boolean features as Bernoulli: P(feat_present | state)
+
+    At inference time we compute:
+      P(features | state) ≈ P(len_bucket|state) * Π_f [present ? P(f|state) : (1-P(f|state))]
+    """
+    idx = {l: i for i, l in enumerate(labels)}
+    n = len(labels)
+    state_counts = [0.0] * n
+
+    # len_bucket -> counts per state
+    len_buckets = ["len:1", "len:2", "len:3", "len:4_5", "len:6_8", "len:9p"]
+    len_counts = {b: [0.0] * n for b in len_buckets}
+
+    bool_feats = ["is_capitalized", "is_all_caps", "is_digit", "has_digit", "has_hyphen", "has_dot"]
+    bool_counts = {f: [0.0] * n for f in bool_feats}
+
+    for tokens, tags in sentences:
+        for w, y in zip(tokens, tags):
+            yi = idx.get(y, 0)
+            state_counts[yi] += 1.0
+            feats = word_features(w)
+            # One len bucket is always present.
+            lb = feats[0]
+            if lb in len_counts:
+                len_counts[lb][yi] += 1.0
+            # Other features are boolean-present markers.
+            for f in feats[1:]:
+                if f in bool_counts:
+                    bool_counts[f][yi] += 1.0
+
+    # Normalize.
+    backoff_len = {}
+    for b, vec in len_counts.items():
+        out = {}
+        for i, state in enumerate(labels):
+            denom = state_counts[i] + smoothing * len(len_buckets)
+            out[state] = (vec[i] + smoothing) / max(denom, 1e-12)
+        backoff_len[b] = out
+
+    backoff_bool = {}
+    for f, vec in bool_counts.items():
+        out = {}
+        for i, state in enumerate(labels):
+            # Bernoulli with add-k smoothing for present/absent.
+            denom = state_counts[i] + 2.0 * smoothing
+            out[state] = (vec[i] + smoothing) / max(denom, 1e-12)
+        backoff_bool[f] = out
+
+    return {"len": backoff_len, "bool": backoff_bool}
 
 
 def seq_logprob(tags, init, trans, idx):
@@ -138,12 +233,20 @@ def main():
 
     max_n = args.max_train_sents
     tag_seqs = []
+    train_pairs = []
     for ex in train_split:
-        tag_seqs.append(map_seq(ex[args.tags_field]))
+        tags = map_seq(ex[args.tags_field])
+        toks = ex.get("tokens") or ex.get("text") or None
+        # WikiANN provides tokens field; keep generic fallback.
+        if toks is None:
+            toks = ex.get("words") or ex.get("tokens") or []
+        train_pairs.append((toks, tags))
+        tag_seqs.append(tags)
         if max_n and len(tag_seqs) >= max_n:
             break
 
     init, trans = train_initial_and_transitions(tag_seqs, labels, smoothing=args.smoothing)
+    backoff = train_backoff_features(train_pairs, labels, smoothing=args.smoothing)
 
     # Lightweight “is this sane?” evaluation: Markov-chain perplexity on heldout label sequences.
     # This does NOT evaluate extraction quality (we are not modeling emissions), but it does
@@ -159,14 +262,15 @@ def main():
         eval_stats = eval_markov_chain(test_seqs, labels, init, trans)
 
     payload = {
-        "schema_version": 1,
+        "schema_version": 3,
         "dataset": args.dataset,
         "config": args.config,
         "max_train_sents": len(tag_seqs),
         "smoothing": args.smoothing,
-        "labels": labels,
+        "states": labels,
         "initial": init,
         "transitions": trans,
+        "backoff": backoff,
         "eval": eval_stats,
     }
 
