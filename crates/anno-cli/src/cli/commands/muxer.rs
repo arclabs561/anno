@@ -212,6 +212,9 @@ struct DecisionsAgg {
 
     outcome_rows: u64,
     outcome_rows_with_fail_kind: u64,
+    outcome_ok: u64,
+    outcome_junk: u64,
+    outcome_hard_junk: u64,
 }
 
 fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
@@ -250,11 +253,20 @@ fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
             backend: String,
             #[serde(default)]
             fail_kind: Option<String>,
+            #[serde(default)]
+            ok: bool,
+            #[serde(default)]
+            junk: bool,
+            #[serde(default)]
+            hard_junk: bool,
         }
         if let Ok(o) = serde_json::from_str::<OutcomeLine>(line) {
             if o.record_type == "outcome" && !o.backend.is_empty() && !o.dataset.is_empty() {
                 agg.total_rows += 1;
                 agg.outcome_rows += 1;
+                agg.outcome_ok += o.ok as u64;
+                agg.outcome_junk += o.junk as u64;
+                agg.outcome_hard_junk += o.hard_junk as u64;
                 if let Some(kind) = o.fail_kind.as_ref() {
                     agg.outcome_rows_with_fail_kind += 1;
                     *agg.kinds_total.entry(kind.clone()).or_insert(0) += 1;
@@ -1001,6 +1013,9 @@ mod decisions_tests {
         assert_eq!(agg.explore_first, 1);
         assert_eq!(agg.outcome_rows, 1);
         assert_eq!(agg.outcome_rows_with_fail_kind, 1);
+        assert_eq!(agg.outcome_ok, 0);
+        assert_eq!(agg.outcome_junk, 1);
+        assert_eq!(agg.outcome_hard_junk, 0);
         assert_eq!(agg.kinds_total.get("timeout").copied().unwrap_or(0), 2);
         // low_signal counted once from decision row + once from outcome row.
         assert_eq!(agg.kinds_total.get("low_signal").copied().unwrap_or(0), 2);
@@ -1276,6 +1291,14 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 "Outcome rows: {} (with fail_kind: {})",
                 agg.outcome_rows, agg.outcome_rows_with_fail_kind
             );
+            if agg.outcome_rows > 0 {
+                println!(
+                    "Outcome rates: ok={:.2} junk={:.2} hard={:.2}",
+                    (agg.outcome_ok as f64) / (agg.outcome_rows as f64),
+                    (agg.outcome_junk as f64) / (agg.outcome_rows as f64),
+                    (agg.outcome_hard_junk as f64) / (agg.outcome_rows as f64)
+                );
+            }
             if agg.total_rows > 0 {
                 println!(
                     "Constraints fallback used: {} ({:.1}%)",
