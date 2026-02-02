@@ -1137,9 +1137,11 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         let (pick, explore_first) = mh::worst_first_pick_one(
                             mh::stable_hash64(0x574F_5253, &format!("round={round}")), // "WORS"
                             &remaining,
-                            worst_cfg.exploration_c,
-                            worst_cfg.hard_weight,
-                            worst_cfg.soft_weight,
+                            mh::WorstFirstConfig {
+                                exploration_c: worst_cfg.exploration_c,
+                                hard_weight: worst_cfg.hard_weight,
+                                soft_weight: worst_cfg.soft_weight,
+                            },
                             |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset).0,
                             |b| {
                                 let s = summaries.get(b).copied().unwrap_or_default();

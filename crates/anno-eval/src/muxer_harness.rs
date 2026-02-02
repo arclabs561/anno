@@ -352,12 +352,21 @@ where
 ///   \(score = hard_weight * hard_junk + soft_weight * soft_junk + exploration_c * sqrt(ln(total_calls) / calls)\).
 ///
 /// This helper is domain-agnostic: callers supply observed calls and summary rates/calls.
+#[derive(Debug, Clone, Copy)]
+pub struct WorstFirstConfig {
+    /// Exploration coefficient for the worst-first score.
+    pub exploration_c: f64,
+    /// Weight applied to hard-junk (instability) rate.
+    pub hard_weight: f64,
+    /// Weight applied to soft-junk rate.
+    pub soft_weight: f64,
+}
+
+/// Pick one arm for "worst-first" regression hunting.
 pub fn worst_first_pick_one<FObs, FSum>(
     seed: u64,
     remaining: &[String],
-    exploration_c: f64,
-    hard_weight: f64,
-    soft_weight: f64,
+    cfg: WorstFirstConfig,
     mut observed_calls: FObs,
     mut summary: FSum,
 ) -> Option<(String, bool)>
@@ -393,8 +402,8 @@ where
 
     for row in &mut scored {
         let calls = (row.2 as f64).max(1.0);
-        let exploration = exploration_c * ((total_calls_f.ln() / calls).sqrt());
-        let score = hard_weight * row.3 + soft_weight * row.4 + exploration;
+        let exploration = cfg.exploration_c * ((total_calls_f.ln() / calls).sqrt());
+        let score = cfg.hard_weight * row.3 + cfg.soft_weight * row.4 + exploration;
         row.0 = score;
     }
 
@@ -408,6 +417,39 @@ where
     });
     let pick = scored.first().map(|r| r.1.clone())?;
     Some((pick, false))
+}
+
+/// Pick up to `k` arms for worst-first regression hunting (without replacement).
+///
+/// Returns a list of `(arm, explore_first)` pairs in selection order.
+pub fn worst_first_pick_k<FObs, FSum>(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    cfg: WorstFirstConfig,
+    mut observed_calls: FObs,
+    mut summary: FSum,
+) -> Vec<(String, bool)>
+where
+    FObs: FnMut(&str) -> u64,
+    FSum: FnMut(&str) -> (u64, f64, f64),
+{
+    let mut remaining: Vec<String> = arms.to_vec();
+    let mut out: Vec<(String, bool)> = Vec::new();
+    for round in 0..k.min(remaining.len()) {
+        let Some((pick, explore_first)) = worst_first_pick_one(
+            seed ^ (round as u64),
+            &remaining,
+            cfg,
+            |b| observed_calls(b),
+            |b| summary(b),
+        ) else {
+            break;
+        };
+        remaining.retain(|b| b != &pick);
+        out.push((pick, explore_first));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -506,9 +548,11 @@ mod prior_tests {
         let (pick, explore_first) = worst_first_pick_one(
             0,
             &remaining,
-            0.8,
-            1.0,
-            0.0,
+            WorstFirstConfig {
+                exploration_c: 0.8,
+                hard_weight: 1.0,
+                soft_weight: 0.0,
+            },
             |b| if b == "b" { 0 } else { 1 },
             |_b| (10, 0.0, 0.0),
         )
@@ -523,9 +567,11 @@ mod prior_tests {
         let (pick, explore_first) = worst_first_pick_one(
             0,
             &remaining,
-            0.0,
-            1.0,
-            0.0,
+            WorstFirstConfig {
+                exploration_c: 0.0,
+                hard_weight: 1.0,
+                soft_weight: 0.0,
+            },
             |_b| 1,
             |b| {
                 if b == "a" {
@@ -538,6 +584,88 @@ mod prior_tests {
         .unwrap();
         assert!(!explore_first);
         assert_eq!(pick, "b");
+    }
+
+    #[test]
+    fn test_worst_first_pick_k_covers_unseen_first_without_duplicates() {
+        let arms = (0..10).map(|i| format!("b{i}")).collect::<Vec<_>>();
+        let unseen: std::collections::BTreeSet<String> =
+            ["b1", "b3", "b7"].iter().map(|s| s.to_string()).collect();
+        let picks = worst_first_pick_k(
+            123,
+            &arms,
+            5,
+            WorstFirstConfig {
+                exploration_c: 0.8,
+                hard_weight: 1.0,
+                soft_weight: 0.0,
+            },
+            |b| if unseen.contains(b) { 0 } else { 5 },
+            |_b| (10, 0.1, 0.0),
+        );
+        let chosen: Vec<String> = picks.iter().map(|p| p.0.clone()).collect();
+        let chosen_set: std::collections::BTreeSet<String> = chosen.iter().cloned().collect();
+        assert_eq!(chosen.len(), chosen_set.len());
+        // The first |unseen| picks must all come from unseen.
+        for (arm, explore) in picks.iter().take(unseen.len()) {
+            assert!(unseen.contains(arm));
+            assert!(*explore);
+        }
+    }
+
+    #[test]
+    fn test_worst_first_pick_is_deterministic_on_exact_ties() {
+        // Seam: when all arms have identical stats, worst-first should be deterministic and use
+        // only the seed+name tie-breaker.
+        let remaining = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let seed = 42u64;
+        let cfg = WorstFirstConfig {
+            exploration_c: 0.0,
+            hard_weight: 1.0,
+            soft_weight: 1.0,
+        };
+        let (pick1, explore1) =
+            worst_first_pick_one(seed, &remaining, cfg, |_b| 1, |_b| (10, 0.2, 0.2)).unwrap();
+        let (pick2, explore2) =
+            worst_first_pick_one(seed, &remaining, cfg, |_b| 1, |_b| (10, 0.2, 0.2)).unwrap();
+        assert_eq!(pick1, pick2);
+        assert_eq!(explore1, explore2);
+        assert!(!explore1);
+
+        // Tie-break contract: smallest stable hash under the worst-first salt.
+        let expected = remaining
+            .iter()
+            .min_by_key(|b| stable_hash64(seed ^ 0x574F_5253, b))
+            .unwrap()
+            .clone();
+        assert_eq!(pick1, expected);
+    }
+
+    #[test]
+    fn test_worst_first_pick_exploration_favors_low_calls_when_rates_equal() {
+        // When rates are equal, exploration should bias toward lower-sample arms.
+        let remaining = vec!["low_calls".to_string(), "high_calls".to_string()];
+        let cfg = WorstFirstConfig {
+            exploration_c: 1.0,
+            hard_weight: 1.0,
+            soft_weight: 0.0,
+        };
+        let (pick, explore_first) = worst_first_pick_one(
+            0,
+            &remaining,
+            cfg,
+            |_b| 1,
+            |b| {
+                if b == "low_calls" {
+                    (2, 0.2, 0.0)
+                } else {
+                    (200, 0.2, 0.0)
+                }
+            },
+        )
+        .unwrap();
+        assert!(!explore_first);
+        assert_eq!(pick, "low_calls");
     }
 }
 

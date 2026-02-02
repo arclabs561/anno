@@ -983,9 +983,11 @@ fn select_backends(
                 let (pick, explore_first) = mh::worst_first_pick_one(
                     seed ^ 0x574F_5253 ^ (round as u64),
                     &remaining,
-                    wcfg.exploration_c,
-                    wcfg.hard_weight,
-                    wcfg.soft_weight,
+                    mh::WorstFirstConfig {
+                        exploration_c: wcfg.exploration_c,
+                        hard_weight: wcfg.hard_weight,
+                        soft_weight: wcfg.soft_weight,
+                    },
                     |b| history.observed_summary_for(b, datasets, per_dataset).calls,
                     |b| {
                         let s = summaries.get(b).copied().unwrap_or_default();
