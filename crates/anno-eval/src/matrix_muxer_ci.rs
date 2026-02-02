@@ -9,6 +9,8 @@
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
 //! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
+//! - `ANNO_MUXER_MODE`: optional mode default (`bug-hunt` | `perf-estimate`). Used only when
+//!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
 //! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, prefer cache, but allow fallback downloads when empty
 //! - `ANNO_MATRIX_COVERAGE_REPORT`: if set, write a JSON coverage report to this path
@@ -84,6 +86,31 @@ enum SampleStrategy {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum MuxerMode {
+    BugHunt,
+    PerfEstimate,
+}
+
+impl MuxerMode {
+    fn from_env() -> Option<Self> {
+        let v = std::env::var("ANNO_MUXER_MODE").ok()?;
+        let t = v.trim().to_ascii_lowercase();
+        if t.is_empty() {
+            return None;
+        }
+        match t.as_str() {
+            "bug" | "bug-hunt" | "bughunt" | "triage" | "regress" | "regression" => {
+                Some(Self::BugHunt)
+            }
+            "perf" | "perf-estimate" | "perfestimate" | "estimate" | "measurement" => {
+                Some(Self::PerfEstimate)
+            }
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 enum MlOnlyPolicy {
     Exp3Ix,
     Mab,
@@ -106,17 +133,21 @@ impl MlOnlyPolicy {
 
 impl SampleStrategy {
     fn from_env() -> Self {
-        match std::env::var("ANNO_SAMPLE_STRATEGY")
-            .ok()
-            .unwrap_or_else(|| "ml-only".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "random" => Self::Random,
-            "worst-first" | "worstfirst" => Self::WorstFirst,
-            // Historical default in the legacy harness.
-            "ml-only" | "mlonly" | "ml" => Self::MlOnly,
-            _ => Self::MlOnly,
+        // Explicit strategy wins.
+        if let Ok(s) = std::env::var("ANNO_SAMPLE_STRATEGY") {
+            match s.trim().to_ascii_lowercase().as_str() {
+                "random" => return Self::Random,
+                "worst-first" | "worstfirst" => return Self::WorstFirst,
+                "ml-only" | "mlonly" | "ml" => return Self::MlOnly,
+                _ => {}
+            }
+        }
+
+        // Otherwise, mode chooses the default.
+        match MuxerMode::from_env() {
+            Some(MuxerMode::BugHunt) => Self::WorstFirst,
+            Some(MuxerMode::PerfEstimate) => Self::MlOnly,
+            None => Self::MlOnly,
         }
     }
 }
@@ -261,6 +292,23 @@ fn worst_first_config_from_env() -> WorstFirstConfig {
         exploration_c: mh::env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
         hard_weight: mh::env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
         soft_weight,
+    }
+}
+
+fn default_control_k_for_mode() -> usize {
+    // Perf-estimate mode wants some unbiased "coverage" anchor to reduce selection bias when
+    // interpreting estimated dataset performance. Bug-hunt mode wants to spend budget on failures.
+    //
+    // Keep CI default off unless explicitly set.
+    if in_ci() {
+        return 0;
+    }
+    if std::env::var("ANNO_MUXER_CONTROL_K").is_ok() {
+        return 0;
+    }
+    match MuxerMode::from_env() {
+        Some(MuxerMode::PerfEstimate) => 1,
+        _ => 0,
     }
 }
 
@@ -961,8 +1009,11 @@ fn select_backends(
         SampleStrategy::Random => pick_random_subset(seed, candidates_in_order, k),
         SampleStrategy::MlOnly => {
             // Optional selection-bias anchor: reserve K deterministic-random "control" picks.
-            // Default is off; intended for counterfactual coverage measurement.
-            let control_k = mh::control_k_from_env()
+            //
+            // Perf-estimate mode defaults to 1 locally (unless explicitly overridden) to reduce
+            // selection bias in performance interpretation.
+            let control_k = default_control_k_for_mode()
+                .max(mh::control_k_from_env())
                 .min(k)
                 .min(candidates_in_order.len());
             let control = if control_k > 0 {

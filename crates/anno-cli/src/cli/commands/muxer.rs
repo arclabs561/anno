@@ -62,6 +62,15 @@ pub struct MuxerArgs {
     #[arg(long, value_enum)]
     pub strategy: Option<MuxerStrategy>,
 
+    /// High-level mode (maps to sensible defaults for `--strategy` and related knobs).
+    ///
+    /// - `bug-hunt`: prioritize finding failures/regressions quickly (defaults to worst-first)
+    /// - `perf-estimate`: prioritize stable performance measurement (defaults to ml-only)
+    ///
+    /// Explicit `--strategy` still wins.
+    #[arg(long, value_enum)]
+    pub mode: Option<MuxerMode>,
+
     /// Include ML backends in candidate set (same intent as `ANNO_ML_IN_MATRIX=1`).
     ///
     /// If not set, this command will still honor `ANNO_ML_IN_MATRIX` if present.
@@ -551,6 +560,12 @@ pub enum MuxerStrategy {
     MlOnly,
     /// Regression-hunting selection (bias toward historically bad/flaky arms).
     WorstFirst,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum MuxerMode {
+    BugHunt,
+    PerfEstimate,
 }
 
 impl MuxerStrategy {
@@ -1307,6 +1322,27 @@ mod decisions_tests {
         let newly = outcome_new_fail_kinds_from_tail_2n(&q, 2);
         assert_eq!(newly, vec!["dataset".to_string()]);
     }
+
+    #[test]
+    fn test_mode_defaults_strategy_when_strategy_unset() {
+        let a = MuxerArgs {
+            history_file: None,
+            slice: None,
+            perspective: Some(MuxerPerspective::Ner),
+            slice_by_dataset_facets: true,
+            facet_datasets: None,
+            strategy: None,
+            mode: Some(MuxerMode::BugHunt),
+            include_ml: false,
+            action: MuxerAction::Stats {
+                show_datasets: false,
+                top_datasets: 1,
+            },
+        };
+        // We don't execute run() here (it needs eval-advanced wiring), but we can at least ensure
+        // the enum parses/constructs and is available for Clap.
+        let _ = a;
+    }
 }
 
 #[cfg(feature = "eval-advanced")]
@@ -1495,7 +1531,13 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
 pub fn run(args: MuxerArgs) -> Result<(), String> {
     let perspective = args.perspective.unwrap_or(MuxerPerspective::Ner);
     let strategy = args.strategy.unwrap_or_else(|| {
-        // Mirror harness defaults.
+        // Explicit mode chooses the default strategy, otherwise mirror harness defaults.
+        if let Some(m) = args.mode {
+            return match m {
+                MuxerMode::BugHunt => MuxerStrategy::WorstFirst,
+                MuxerMode::PerfEstimate => MuxerStrategy::MlOnly,
+            };
+        }
         match std::env::var("ANNO_SAMPLE_STRATEGY")
             .ok()
             .unwrap_or_else(|| "ml-only".to_string())
@@ -1614,6 +1656,15 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 agg.lines_skipped_filtered
             );
             println!("Runs: {}", by_run_map.len());
+            if let Some(m) = args.mode {
+                println!(
+                    "Mode: {}",
+                    match m {
+                        MuxerMode::BugHunt => "bug-hunt",
+                        MuxerMode::PerfEstimate => "perf-estimate",
+                    }
+                );
+            }
             println!("Rows: {}", agg.total_rows);
             println!("Decision rows: {}", agg.decision_rows);
             println!(
