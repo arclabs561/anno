@@ -224,6 +224,12 @@ struct BackendHistory {
     version: u32,
     window_cap: usize,
     windows: BTreeMap<String, WindowSerde>,
+    /// Optional triage metadata recorded by the matrix harness (parallel to `windows`).
+    ///
+    /// Keys match `windows` keys. Each entry is a deque of optional coarse failure kinds, aligned
+    /// with the corresponding window buffer (best-effort).
+    #[serde(default)]
+    fail_kinds: BTreeMap<String, std::collections::VecDeque<Option<String>>>,
 }
 
 #[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
@@ -528,6 +534,48 @@ impl BackendHistory {
         rows
     }
 
+    fn failure_kind_counts_for_arm(
+        &self,
+        arm: &str,
+        datasets: Option<&BTreeSet<String>>,
+        per_dataset: bool,
+    ) -> BTreeMap<String, u64> {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let mut saw_any = false;
+
+        if per_dataset {
+            let prefix = format!("{arm}@@");
+            for k in self.fail_kinds.keys() {
+                if !k.starts_with(&prefix) {
+                    continue;
+                }
+                if let Some(ds) = datasets {
+                    let suffix = k.strip_prefix(&prefix).unwrap_or("");
+                    if !ds.contains(suffix) {
+                        continue;
+                    }
+                }
+                saw_any = true;
+                if let Some(buf) = self.fail_kinds.get(k) {
+                    for kind in buf.iter().flatten() {
+                        *counts.entry(kind.clone()).or_insert(0) += 1;
+                    }
+                }
+            }
+            if saw_any && !counts.is_empty() {
+                return counts;
+            }
+        }
+
+        // Fallback: global per-backend key.
+        if let Some(buf) = self.fail_kinds.get(arm) {
+            for kind in buf.iter().flatten() {
+                *counts.entry(kind.clone()).or_insert(0) += 1;
+            }
+        }
+        counts
+    }
+
     fn summary_for_key(&self, key: &str) -> SummarySerde {
         self.windows
             .get(key)
@@ -600,6 +648,42 @@ impl BackendHistory {
         }
 
         (calls, elapsed_ms_sum)
+    }
+}
+
+#[cfg(test)]
+mod fail_kinds_tests {
+    use super::*;
+    use std::collections::VecDeque;
+
+    #[test]
+    fn test_failure_kind_counts_for_arm_missing_is_empty() {
+        let h = BackendHistory {
+            version: 3,
+            window_cap: 50,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+        };
+        let c = h.failure_kind_counts_for_arm("a", None, true);
+        assert!(c.is_empty());
+    }
+
+    #[test]
+    fn test_failure_kind_counts_for_arm_aggregates_dataset_scoped() {
+        let mut h = BackendHistory {
+            version: 3,
+            window_cap: 50,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+        };
+        let mut q = VecDeque::new();
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(None);
+        q.push_back(Some("timeout".to_string()));
+        h.fail_kinds.insert("a@@Wnut17".to_string(), q);
+
+        let c = h.failure_kind_counts_for_arm("a", None, true);
+        assert_eq!(c.get("timeout").copied().unwrap_or(0), 2);
     }
 }
 
@@ -906,6 +990,23 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     "{:<16} {:>5} {:>6.2}+/-{:>4.2} {:>6.2} {:>6.2} {:>9.0}",
                     arm, calls, ok, ok_hw, junk, hard, mean_ms
                 );
+
+                // Optional triage: show top coarse failure kinds (hard failures only, best-effort).
+                if *hard > 0.0 {
+                    let fk = h.failure_kind_counts_for_arm(arm, None, true);
+                    if !fk.is_empty() {
+                        let mut pairs: Vec<(u64, String)> =
+                            fk.into_iter().map(|(k, v)| (v, k)).collect();
+                        pairs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                        let top = pairs
+                            .into_iter()
+                            .take(3)
+                            .map(|(v, k)| format!("{k}={v}"))
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        println!("  fail_kinds: {}", top);
+                    }
+                }
 
                 if show_datasets {
                     let per_ds = h.dataset_breakdown_for_arm(arm);
