@@ -1274,10 +1274,22 @@ struct WorstFirstConfig {
 
 #[cfg(feature = "eval-advanced")]
 fn worst_first_config_from_env() -> WorstFirstConfig {
+    // Keep CLI parity with the harness: locally, include some soft junk so worst-first surfaces
+    // "broken outputs" (low_signal) in addition to hard failures. CI stays hard-only by default.
+    let default_soft = if std::env::var("GITHUB_ACTIONS").is_ok() {
+        0.0
+    } else {
+        0.2
+    };
+    let soft_weight = std::env::var("ANNO_WORST_SOFT_WEIGHT")
+        .ok()
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .unwrap_or(default_soft)
+        .max(0.0);
     WorstFirstConfig {
         exploration_c: mh::env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
         hard_weight: mh::env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
-        soft_weight: mh::env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
+        soft_weight,
     }
 }
 

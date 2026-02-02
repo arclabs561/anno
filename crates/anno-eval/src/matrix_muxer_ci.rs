@@ -54,7 +54,7 @@
 //! Worst-first tuning (regression hunting):
 //! - `ANNO_WORST_EXPLORATION_C`: exploration coefficient for worst-first (default: 0.8)
 //! - `ANNO_WORST_HARD_WEIGHT`: weight for hard failures in worst-first (default: 1.0)
-//! - `ANNO_WORST_SOFT_WEIGHT`: weight for soft junk in worst-first (default: 0.0)
+//! - `ANNO_WORST_SOFT_WEIGHT`: weight for soft junk in worst-first (default: 0.2 locally, 0.0 in CI)
 //!
 //! Notes:
 //! - “worst-first” here means “prioritize historically bad outcomes” where “bad” is
@@ -249,10 +249,18 @@ struct WorstFirstConfig {
 }
 
 fn worst_first_config_from_env() -> WorstFirstConfig {
+    // Local default: include some soft junk so worst-first also surfaces "broken outputs" (low_signal)
+    // regressions, not just hard failures. Keep CI default strict to avoid churn.
+    let default_soft = if in_ci() { 0.0 } else { 0.2 };
+    let soft_weight = std::env::var("ANNO_WORST_SOFT_WEIGHT")
+        .ok()
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .unwrap_or(default_soft)
+        .max(0.0);
     WorstFirstConfig {
         exploration_c: mh::env_f64("ANNO_WORST_EXPLORATION_C", 0.8).max(0.0),
         hard_weight: mh::env_f64("ANNO_WORST_HARD_WEIGHT", 1.0).max(0.0),
-        soft_weight: mh::env_f64("ANNO_WORST_SOFT_WEIGHT", 0.0).max(0.0),
+        soft_weight,
     }
 }
 
