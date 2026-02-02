@@ -2294,9 +2294,15 @@ fn test_randomized_matrix_sample() {
             elapsed_ms: dur_ms as u64,
         };
         let fail_kind = if hard_junk {
-            r.error
-                .as_deref()
-                .map(|e| mh::classify_failure_kind(e).to_string())
+            Some(
+                r.error
+                    .as_deref()
+                    .map(|e| mh::classify_failure_kind(e).to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
+            )
+        } else if junk {
+            // Soft failure: quality/junk threshold.
+            Some("low_signal".to_string())
         } else {
             None
         };

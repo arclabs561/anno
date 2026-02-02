@@ -991,21 +991,20 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     arm, calls, ok, ok_hw, junk, hard, mean_ms
                 );
 
-                // Optional triage: show top coarse failure kinds (hard failures only, best-effort).
-                if *hard > 0.0 {
-                    let fk = h.failure_kind_counts_for_arm(arm, None, true);
-                    if !fk.is_empty() {
-                        let mut pairs: Vec<(u64, String)> =
-                            fk.into_iter().map(|(k, v)| (v, k)).collect();
-                        pairs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-                        let top = pairs
-                            .into_iter()
-                            .take(3)
-                            .map(|(v, k)| format!("{k}={v}"))
-                            .collect::<Vec<_>>()
-                            .join(" ");
-                        println!("  fail_kinds: {}", top);
-                    }
+                // Optional triage: show top coarse failure kinds (best-effort).
+                // Includes `low_signal` (junk) and other coarse categories for hard failures.
+                let fk = h.failure_kind_counts_for_arm(arm, None, true);
+                if !fk.is_empty() && (*junk > 0.0 || *hard > 0.0) {
+                    let mut pairs: Vec<(u64, String)> =
+                        fk.into_iter().map(|(k, v)| (v, k)).collect();
+                    pairs.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                    let top = pairs
+                        .into_iter()
+                        .take(3)
+                        .map(|(v, k)| format!("{k}={v}"))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    println!("  fail_kinds: {}", top);
                 }
 
                 if show_datasets {
