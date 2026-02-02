@@ -1134,26 +1134,31 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         chosen.push(pick);
                     }
                     MuxerStrategy::WorstFirst => {
-                        // Explore unseen arms first (stable order) to saturate coverage.
-                        if let Some(unseen) = remaining.iter().find(|b| {
-                            let (obs_calls, _) =
-                                h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset);
-                            obs_calls == 0
-                        }) {
-                            let pick = unseen.clone();
-                            println!("  chosen: {}", pick);
-                            println!("  note: explore-first (untried arm)");
-                            remaining.retain(|b| b != &pick);
-                            chosen.push(pick);
-                            continue;
-                        }
+                        let (pick, explore_first) = mh::worst_first_pick_one(
+                            mh::stable_hash64(0x574F_5253, &format!("round={round}")), // "WORS"
+                            &remaining,
+                            worst_cfg.exploration_c,
+                            worst_cfg.hard_weight,
+                            worst_cfg.soft_weight,
+                            |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset).0,
+                            |b| {
+                                let s = summaries.get(b).copied().unwrap_or_default();
+                                let hard = s.hard_junk_rate();
+                                let soft = (s.junk_rate() - hard).max(0.0);
+                                (s.calls, hard, soft)
+                            },
+                        )
+                        .unwrap_or_else(|| (remaining[0].clone(), false));
 
+                        // Keep candidate display: compute the same score rows as before.
                         let total_calls: f64 = remaining
                             .iter()
-                            .map(|a| summaries.get(a).copied().unwrap_or_default().calls as f64)
+                            .map(|a| {
+                                (summaries.get(a).copied().unwrap_or_default().calls as f64)
+                                    .max(1.0)
+                            })
                             .sum::<f64>()
                             .max(1.0);
-
                         let mut rows: Vec<(f64, String, SummarySerde, f64, f64)> = Vec::new();
                         for a in &remaining {
                             let s = summaries.get(a).copied().unwrap_or_default();
@@ -1169,11 +1174,10 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         }
                         rows.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
 
-                        let pick = rows
-                            .first()
-                            .map(|r| r.1.clone())
-                            .unwrap_or_else(|| remaining[0].clone());
                         println!("  chosen: {}", pick);
+                        if explore_first {
+                            println!("  note: explore-first (untried arm)");
+                        }
                         if show_frontier {
                             println!("  frontier: (n/a for worst-first)");
                         }

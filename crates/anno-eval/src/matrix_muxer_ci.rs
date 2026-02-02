@@ -979,111 +979,47 @@ fn select_backends(
                     prior_calls,
                 );
 
-                // Explore unseen arms first (stable order), so we eventually saturate coverage.
-                if let Some(unseen) = remaining.iter().find(|b| {
-                    history
-                        .observed_summary_for(
-                            b,
-                            datasets,
-                            mh::env_bool("ANNO_MUXER_PER_DATASET", true),
-                        )
-                        .calls
-                        == 0
-                }) {
-                    let pick = unseen.clone();
-                    if verbose {
-                        eprintln!(
-                            "matrix-muxer: worst-first round={} remaining={} chosen={} explore_first=true",
-                            round + 1,
-                            remaining.len(),
-                            pick
-                        );
-                    }
-                    if let Some(ref p) = decisions_path {
-                        let ds: Vec<String> = datasets
-                            .unwrap_or(&[])
-                            .iter()
-                            .map(|d| format!("{d:?}"))
-                            .collect();
-                        let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
-                        append_jsonl(
-                            p,
-                            &DecisionLog {
-                                schema_version: 5,
-                                muxer_version: muxer::MUXER_VERSION.to_string(),
-                                run_id: run_id.clone(),
-                                strategy: "worst-first".to_string(),
-                                slice: slice_tag.to_string(),
-                                muxer_profile: profile,
-                                latency_guardrail_max_mean_ms: None,
-                                latency_guardrail_allow_fewer: None,
-                                latency_guardrail_require_measured: None,
-                                round: round + 1,
-                                datasets: ds,
-                                remaining: remaining.clone(),
-                                chosen: Some(pick.clone()),
-                                explore_first: Some(true),
-                                constraints_fallback_used: None,
-                                eligible_arms: None,
-                                top_candidates: Some(muxer::LogTopCandidates {
-                                    kind: "worst_first".to_string(),
-                                    rows: Vec::new(),
-                                }),
-                                mab_k_round: None,
-                                exp3ix_rounds: None,
-                                worst_first_round: Some(WorstFirstRoundLog {
-                                    remaining: remaining.clone(),
-                                    chosen: pick.clone(),
-                                    explore_first: true,
-                                    exploration_c: wcfg.exploration_c,
-                                    hard_weight: wcfg.hard_weight,
-                                    soft_weight: wcfg.soft_weight,
-                                    top_candidates: muxer::LogTopCandidates {
-                                        kind: "worst_first".to_string(),
-                                        rows: Vec::new(),
-                                    },
-                                }),
-                            },
-                        );
-                    }
-                    remaining.retain(|b| b != &pick);
-                    chosen.push(pick);
-                    continue;
-                }
+                let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
+                let (pick, explore_first) = mh::worst_first_pick_one(
+                    seed ^ 0x574F_5253 ^ (round as u64),
+                    &remaining,
+                    wcfg.exploration_c,
+                    wcfg.hard_weight,
+                    wcfg.soft_weight,
+                    |b| history.observed_summary_for(b, datasets, per_dataset).calls,
+                    |b| {
+                        let s = summaries.get(b).copied().unwrap_or_default();
+                        (s.calls, s.hard_junk_rate(), s.soft_junk_rate())
+                    },
+                )
+                .unwrap_or_else(|| (remaining[round].clone(), false));
 
+                // Keep verbose candidate debug: compute the same rows as before for printing.
                 let total_calls: f64 = summaries
                     .values()
-                    .map(|s| s.calls as f64)
+                    .map(|s| (s.calls as f64).max(1.0))
                     .sum::<f64>()
                     .max(1.0);
-
                 let mut rows: Vec<(f64, String, Summary)> = Vec::new();
                 for b in &remaining {
                     let s = summaries.get(b).copied().unwrap_or_default();
                     let calls = (s.calls as f64).max(1.0);
                     let hard_junk = s.hard_junk_rate();
                     let soft_junk = s.soft_junk_rate();
-
-                    // Regression hunting should prioritize *instability* (hard failures) over
-                    // “low quality” (soft junk / low F1), otherwise weak-but-working baselines
-                    // dominate the schedule forever.
                     let exploration = wcfg.exploration_c * ((total_calls.ln() / calls).sqrt());
                     let score =
                         wcfg.hard_weight * hard_junk + wcfg.soft_weight * soft_junk + exploration;
                     rows.push((score, b.clone(), s));
                 }
-
                 rows.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-                let pick = rows
-                    .first()
-                    .map(|(_, b, _)| b.clone())
-                    .unwrap_or_else(|| remaining[round].clone());
+
                 if verbose {
                     eprintln!(
-                        "matrix-muxer: worst-first round={} remaining={} chosen={} explore_first=false",
+                        "matrix-muxer: worst-first round={} remaining={} chosen={} explore_first={}",
                         round + 1,
                         remaining.len(),
-                        pick
+                        pick,
+                        explore_first
                     );
                     for (score, arm, s) in rows.iter().take(5) {
                         eprintln!(
@@ -1136,7 +1072,7 @@ fn select_backends(
                             datasets: ds,
                             remaining: remaining.clone(),
                             chosen: Some(pick.clone()),
-                            explore_first: Some(false),
+                            explore_first: Some(explore_first),
                             constraints_fallback_used: None,
                             eligible_arms: None,
                             top_candidates: Some(top_candidates),
@@ -1145,7 +1081,7 @@ fn select_backends(
                             worst_first_round: Some(WorstFirstRoundLog {
                                 remaining: remaining.clone(),
                                 chosen: pick.clone(),
-                                explore_first: false,
+                                explore_first,
                                 exploration_c: wcfg.exploration_c,
                                 hard_weight: wcfg.hard_weight,
                                 soft_weight: wcfg.soft_weight,

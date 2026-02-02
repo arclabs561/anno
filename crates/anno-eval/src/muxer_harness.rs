@@ -344,6 +344,72 @@ where
     })
 }
 
+/// Pick one arm for "worst-first" regression hunting.
+///
+/// Policy:
+/// - Prefer an *unseen* arm first (observed_calls == 0) to saturate coverage.
+/// - Otherwise pick the arm with the highest "worse" score:
+///   \(score = hard_weight * hard_junk + soft_weight * soft_junk + exploration_c * sqrt(ln(total_calls) / calls)\).
+///
+/// This helper is domain-agnostic: callers supply observed calls and summary rates/calls.
+pub fn worst_first_pick_one<FObs, FSum>(
+    seed: u64,
+    remaining: &[String],
+    exploration_c: f64,
+    hard_weight: f64,
+    soft_weight: f64,
+    mut observed_calls: FObs,
+    mut summary: FSum,
+) -> Option<(String, bool)>
+where
+    FObs: FnMut(&str) -> u64,
+    FSum: FnMut(&str) -> (u64, f64, f64), // (calls, hard_junk_rate, soft_junk_rate)
+{
+    if remaining.is_empty() {
+        return None;
+    }
+
+    // Explore unseen arms first (stable order by deterministic hash).
+    let mut unseen: Vec<String> = remaining
+        .iter()
+        .filter(|b| observed_calls(b.as_str()) == 0)
+        .cloned()
+        .collect();
+    if !unseen.is_empty() {
+        unseen.sort_by_key(|b| stable_hash64(seed ^ 0x574F_5253, b)); // "WORS"
+        return Some((unseen[0].clone(), true));
+    }
+
+    // Otherwise score by "worse" objective + exploration.
+    let mut total_calls_f: f64 = 0.0;
+    let mut scored: Vec<(f64, String, u64, f64, f64)> = Vec::new();
+    for b in remaining {
+        let (calls_u64, hard, soft) = summary(b.as_str());
+        let calls = (calls_u64 as f64).max(1.0);
+        total_calls_f += calls;
+        scored.push((0.0, b.clone(), calls_u64, hard, soft));
+    }
+    let total_calls_f = total_calls_f.max(1.0);
+
+    for row in &mut scored {
+        let calls = (row.2 as f64).max(1.0);
+        let exploration = exploration_c * ((total_calls_f.ln() / calls).sqrt());
+        let score = hard_weight * row.3 + soft_weight * row.4 + exploration;
+        row.0 = score;
+    }
+
+    scored.sort_by(|a, b| {
+        b.0.total_cmp(&a.0)
+            .then_with(|| {
+                stable_hash64(seed ^ 0x574F_5253, &a.1)
+                    .cmp(&stable_hash64(seed ^ 0x574F_5253, &b.1))
+            })
+            .then_with(|| a.1.cmp(&b.1))
+    });
+    let pick = scored.first().map(|r| r.1.clone())?;
+    Some((pick, false))
+}
+
 #[cfg(test)]
 mod prior_tests {
     use super::*;
@@ -432,6 +498,46 @@ mod prior_tests {
         assert_eq!(fill.chosen, vec!["a".to_string()]);
         assert!(fill.fallback_used);
         assert!(!fill.stopped_early);
+    }
+
+    #[test]
+    fn test_worst_first_pick_prefers_unseen() {
+        let remaining = vec!["a".to_string(), "b".to_string()];
+        let (pick, explore_first) = worst_first_pick_one(
+            0,
+            &remaining,
+            0.8,
+            1.0,
+            0.0,
+            |b| if b == "b" { 0 } else { 1 },
+            |_b| (10, 0.0, 0.0),
+        )
+        .unwrap();
+        assert!(explore_first);
+        assert_eq!(pick, "b");
+    }
+
+    #[test]
+    fn test_worst_first_pick_scores_worse_higher() {
+        let remaining = vec!["a".to_string(), "b".to_string()];
+        let (pick, explore_first) = worst_first_pick_one(
+            0,
+            &remaining,
+            0.0,
+            1.0,
+            0.0,
+            |_b| 1,
+            |b| {
+                if b == "a" {
+                    (10, 0.1, 0.0)
+                } else {
+                    (10, 0.9, 0.0)
+                }
+            },
+        )
+        .unwrap();
+        assert!(!explore_first);
+        assert_eq!(pick, "b");
     }
 }
 
