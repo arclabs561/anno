@@ -5,7 +5,7 @@ This page is intentionally minimal: it avoids benchmark numbers and “working s
 ## Choose by constraints
 
 - **No ML deps**: build with `default-features = false` and use `pattern`, `heuristic`, or `stacked`.
-- **Zero-shot custom types**: use `gliner` (requires `onnx`).
+- **Zero-shot custom types**: use `--model gliner --extract-types "TYPE1,TYPE2"` (requires `onnx`).
 - **Pure Rust inference**: use Candle backends (requires `candle`).
 
 ## Source of truth (generated at runtime)

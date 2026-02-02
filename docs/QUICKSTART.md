@@ -6,14 +6,12 @@ This is a short, practical starting point for using `anno` via the CLI and as a 
 
 As a Rust library (from crates.io):
 
-Add `anno` to your `Cargo.toml`:
-
 ```toml
 [dependencies]
 anno = "0.2"
 ```
 
-CLI (from source): the `anno` binary lives in the `anno-cli` crate (package `anno-cli`, bin `anno`).
+CLI (from source):
 
 ```bash
 git clone https://github.com/arclabs561/anno
@@ -22,50 +20,69 @@ cd anno
 # Minimal build (no ML backends):
 cargo build --release -p anno-cli --bin anno
 
-# Recommended for most workflows (enables downloads + ONNX ML backends):
-cargo build --release -p anno-cli --bin anno --features "eval-advanced onnx"
+# Recommended (ONNX ML backends + zero-shot):
+cargo build --release -p anno-cli --bin anno --features "onnx eval-advanced"
 ```
 
 ## CLI: extract entities
 
-Prefer `--text` / `--file` over positional text for now (it avoids known arg-order/input-parsing pitfalls).
-
 ```bash
-anno extract --text "Marie Curie was born in Paris."
+anno extract --text "Ada Lovelace worked with Charles Babbage in London."
 ```
 
-Pattern-only extraction (emails/dates/money/urls, etc.):
+Pattern-only extraction (emails, dates, money):
 
 ```bash
-anno extract --model pattern --text "Email bob@acme.com on 2024-01-15 for $100."
+anno extract --model pattern --text "Email jobs@acme.com by 2024-01-15 for \$100."
+```
+
+Zero-shot custom entity types (requires `--features onnx`):
+
+```bash
+anno extract --model gliner --extract-types "SCIENTIST,INVENTION" \
+  --text "Ada Lovelace described the first algorithm."
 ```
 
 Machine-readable output:
 
 ```bash
-anno extract --model pattern --format tsv --text "Email bob@acme.com on 2024-01-15 for $100."
+anno extract --format json --text "Ada Lovelace worked in London."
 ```
 
-## CLI: within-document coreference
+## CLI: coreference
+
+Link pronouns to their referents:
 
 ```bash
-anno pipeline --coref --text "Marie Curie was born in Paris. She moved to Paris."
+anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
 ```
 
 ## CLI: cross-document clustering
 
-Cross-document clustering requires the `eval-advanced` feature (see `docs/BACKENDS.md`).
+Cluster entities across multiple documents (requires `--features eval-advanced`):
 
 ```bash
 anno cross-doc ./docs --threshold 0.6 --format tree
 ```
 
-## Offsets (Unicode)
+## Library usage
 
-Offsets are **character offsets**, not byte offsets. See `docs/CONTRACT.md`.
+```rust
+use anno::{Model, StackedNER};
 
-## Next docs
+let ner = StackedNER::default();
+let entities = ner.extract_entities("Ada Lovelace worked in London.", None)?;
+
+for e in entities {
+    println!("{} [{}..{}] {:?}", e.text, e.start, e.end, e.entity_type);
+}
+```
+
+## Offsets
+
+Offsets are **character offsets** (Unicode scalar values), not byte offsets. See `docs/CONTRACT.md`.
+
+## Next
 
 - `docs/CONTRACT.md` — scope + guarantees
 - `docs/BACKENDS.md` — backend selection and feature flags
-

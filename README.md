@@ -31,18 +31,19 @@ DATE:1 "March 15"
 MONEY:1 "$50K"
 ```
 
-Zero-shot custom entity types (with GLiNER):
+Zero-shot extraction (define your own entity types):
 
 ```sh
-anno extract --model gliner --extract-types "SCIENTIST,AWARD" --text "Marie Curie won the Nobel Prize."
+anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
+  --text "Aspirin can treat headaches and reduce fever."
 ```
 
 ```text
-scientist:1 "Marie Curie"
-award:1 "Nobel Prize"
+drug:1 "Aspirin"
+symptom:2 "headaches" "fever"
 ```
 
-Coreference (linking "She" to its referent):
+Coreference resolution:
 
 ```sh
 anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized mobile computing."
@@ -54,18 +55,14 @@ Coreference: "Sophie Wilson" → "She"
 
 ## Install
 
-The CLI binary lives in `crates/anno-cli`.
-
 ```sh
 cargo install --path crates/anno-cli --bin anno --features "onnx eval-advanced"
 ```
 
-See `docs/QUICKSTART.md` for 5-minute setup.
-Full docs: `docs/README.md`.
-Interface contract: `docs/CONTRACT.md`.
+See `docs/QUICKSTART.md` for library usage and more examples.
 
-Build rustdocs locally:
+## Docs
 
-```sh
-cargo doc -p anno --no-deps --features "eval-advanced discourse"
-```
+- `docs/QUICKSTART.md` — 5-minute setup
+- `docs/CONTRACT.md` — interface contract
+- `docs/BACKENDS.md` — backend selection
