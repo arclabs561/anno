@@ -761,6 +761,20 @@ mod prior_tests {
         assert!(!explore_first);
         assert_eq!(pick, "low_calls");
     }
+
+    #[test]
+    fn test_select_k_without_replacement_by_dedups_and_preserves_order() {
+        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let out = select_k_without_replacement_by(0, &items, 3, |_seed, _rem, _k| {
+            vec![
+                "b".to_string(),
+                "b".to_string(),
+                "a".to_string(),
+                "x".to_string(), // not in remaining -> ignored
+            ]
+        });
+        assert_eq!(out, vec!["b".to_string(), "a".to_string()]);
+    }
 }
 
 /// Latency guardrail settings applied *outside* muxer selection (anno-specific).
@@ -1036,6 +1050,54 @@ pub fn muxer_slice_tag(
         summary.domain.as_str()
     );
     SliceTag::parse(&tagged)
+}
+
+/// Shared “select K without replacement” driver.
+///
+/// This is intended to reduce duplicated “remaining/chosen” plumbing across selection strategies.
+/// Callers provide a picker that can return up to `k_remaining` candidates for the current
+/// remaining set; the driver enforces de-duplication and ordering.
+pub fn select_k_without_replacement_by<F>(
+    seed: u64,
+    items: &[String],
+    k: usize,
+    mut pick: F,
+) -> Vec<String>
+where
+    F: FnMut(u64, &[String], usize) -> Vec<String>,
+{
+    if k == 0 || items.is_empty() {
+        return Vec::new();
+    }
+    let mut remaining: Vec<String> = items.to_vec();
+    let mut out: Vec<String> = Vec::new();
+
+    while !remaining.is_empty() && out.len() < k {
+        let need = k - out.len();
+        let batch = pick(seed ^ (out.len() as u64), &remaining, need);
+        if batch.is_empty() {
+            break;
+        }
+        let mut made_progress = false;
+        for b in batch {
+            if out.len() >= k {
+                break;
+            }
+            if !remaining.contains(&b) {
+                continue;
+            }
+            if out.contains(&b) {
+                continue;
+            }
+            remaining.retain(|x| x != &b);
+            out.push(b);
+            made_progress = true;
+        }
+        if !made_progress {
+            break;
+        }
+    }
+    out
 }
 
 #[cfg(all(test, feature = "eval-advanced"))]
