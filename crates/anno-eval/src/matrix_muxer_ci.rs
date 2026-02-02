@@ -310,7 +310,7 @@ struct DecisionLog {
     worst_first_round: Option<WorstFirstRoundLog>,
 }
 
-fn append_jsonl(path: &str, v: &DecisionLog) {
+fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     if path.trim().is_empty() {
         return;
     }
@@ -335,6 +335,28 @@ fn append_jsonl(path: &str, v: &DecisionLog) {
             eprintln!("matrix-muxer: failed to open decision log file {path}: {e}");
         }
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct DecisionOutcomeLog {
+    // Independent schema for post-run outcome events.
+    schema_version: u32,
+    record_type: String,
+    muxer_version: String,
+    run_id: String,
+    strategy: String,
+    slice: String,
+    dataset: String,
+    backend: String,
+    ok: bool,
+    junk: bool,
+    hard_junk: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fail_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    elapsed_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cost_units: Option<u64>,
 }
 
 #[test]
@@ -2306,6 +2328,34 @@ fn test_randomized_matrix_sample() {
         } else {
             None
         };
+
+        // Optional: append an "observed outcome" event to the decision JSONL. This complements the
+        // earlier selection decision logs (which reflect *history at selection time*).
+        if let Ok(p) = std::env::var("ANNO_MUXER_DECISIONS_FILE") {
+            let run_id = format!(
+                "seed={} slice={} strategy={:?}",
+                seed, slice_tag_for_muxer, strategy
+            );
+            append_jsonl(
+                &p,
+                &DecisionOutcomeLog {
+                    schema_version: 1,
+                    record_type: "outcome".to_string(),
+                    muxer_version: muxer::MUXER_VERSION.to_string(),
+                    run_id,
+                    strategy: format!("{:?}", strategy).to_lowercase(),
+                    slice: slice_tag_for_muxer.to_string(),
+                    dataset: format!("{:?}", r.dataset),
+                    backend: r.backend.clone(),
+                    ok,
+                    junk,
+                    hard_junk,
+                    fail_kind: fail_kind.clone(),
+                    elapsed_ms: Some(dur_ms as u64),
+                    cost_units: Some(r.num_examples as u64),
+                },
+            );
+        }
         // Update both:
         // - global per-backend window (back-compat + overall view)
         // - dataset-scoped per-backend window (preferred for selection within a slice)

@@ -209,6 +209,9 @@ struct DecisionsAgg {
     kinds_total: BTreeMap<String, u64>,
     by_arm: BTreeMap<String, BTreeMap<String, u64>>,
     by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+
+    outcome_rows: u64,
+    outcome_rows_with_fail_kind: u64,
 }
 
 fn add_kind_counts(dst: &mut BTreeMap<String, u64>, kinds: &[DecisionsFailKindCount]) {
@@ -235,6 +238,42 @@ fn decisions_aggregate_from_jsonl(s: &str) -> DecisionsAgg {
         if line.is_empty() {
             continue;
         }
+
+        // First, try to parse an observed-outcome record appended after evaluation.
+        #[derive(Debug, Clone, serde::Deserialize)]
+        struct OutcomeLine {
+            #[serde(default)]
+            record_type: String,
+            #[serde(default)]
+            dataset: String,
+            #[serde(default)]
+            backend: String,
+            #[serde(default)]
+            fail_kind: Option<String>,
+        }
+        if let Ok(o) = serde_json::from_str::<OutcomeLine>(line) {
+            if o.record_type == "outcome" && !o.backend.is_empty() && !o.dataset.is_empty() {
+                agg.total_rows += 1;
+                agg.outcome_rows += 1;
+                if let Some(kind) = o.fail_kind.as_ref() {
+                    agg.outcome_rows_with_fail_kind += 1;
+                    *agg.kinds_total.entry(kind.clone()).or_insert(0) += 1;
+                    *agg.by_arm
+                        .entry(o.backend.clone())
+                        .or_default()
+                        .entry(kind.clone())
+                        .or_insert(0) += 1;
+                    *agg.by_dataset
+                        .entry(o.dataset.clone())
+                        .or_default()
+                        .entry(kind.clone())
+                        .or_insert(0) += 1;
+                }
+                continue;
+            }
+        }
+
+        // Fall back to selection decision records (historical, selection-time).
         let Ok(row) = serde_json::from_str::<DecisionLogLite>(line) else {
             continue;
         };
@@ -713,6 +752,37 @@ impl BackendHistory {
         counts
     }
 
+    fn failure_kind_counts_for_key(&self, key: &str) -> BTreeMap<String, u64> {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let Some(buf) = self.fail_kinds.get(key) else {
+            return counts;
+        };
+        for kind in buf.iter().flatten() {
+            *counts.entry(kind.clone()).or_insert(0) += 1;
+        }
+        counts
+    }
+
+    fn failure_kind_counts_recent_for_key(
+        &self,
+        key: &str,
+        recent: usize,
+    ) -> BTreeMap<String, u64> {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let Some(buf) = self.fail_kinds.get(key) else {
+            return counts;
+        };
+        let n = buf.len();
+        if n == 0 {
+            return counts;
+        }
+        let take = recent.max(1).min(n);
+        for kind in buf.iter().skip(n - take).flatten() {
+            *counts.entry(kind.clone()).or_insert(0) += 1;
+        }
+        counts
+    }
+
     fn summary_for_key(&self, key: &str) -> SummarySerde {
         self.windows
             .get(key)
@@ -885,6 +955,31 @@ mod fail_kinds_tests {
         // We keep most-recent entries.
         assert_eq!(fk.back().and_then(|x| x.as_deref()), Some("backend"));
     }
+
+    #[test]
+    fn test_failure_kind_counts_recent_for_key_counts_only_tail() {
+        let mut h = BackendHistory {
+            version: 3,
+            window_cap: 50,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+        };
+        let mut q = VecDeque::new();
+        q.push_back(Some("timeout".to_string()));
+        q.push_back(None);
+        q.push_back(Some("dataset".to_string()));
+        q.push_back(Some("timeout".to_string()));
+        h.fail_kinds.insert("a@@D1".to_string(), q);
+
+        let all = h.failure_kind_counts_for_key("a@@D1");
+        assert_eq!(all.get("timeout").copied().unwrap_or(0), 2);
+        assert_eq!(all.get("dataset").copied().unwrap_or(0), 1);
+
+        let rec2 = h.failure_kind_counts_recent_for_key("a@@D1", 2);
+        assert_eq!(rec2.get("timeout").copied().unwrap_or(0), 1);
+        assert_eq!(rec2.get("dataset").copied().unwrap_or(0), 1);
+        assert_eq!(rec2.len(), 2);
+    }
 }
 
 #[cfg(test)]
@@ -896,15 +991,19 @@ mod decisions_tests {
         let jsonl = r#"
 {"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","chosen_fail_kinds_top":[{"kind":"timeout","count":2}],"constraints_fallback_used":false,"explore_first":false}
 {"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true}
+{"schema_version":1,"record_type":"outcome","run_id":"r1","strategy":"worst-first","slice":"ner","dataset":"D2","backend":"b","ok":false,"junk":true,"hard_junk":false,"fail_kind":"low_signal"}
 "#;
         let agg = decisions_aggregate_from_jsonl(jsonl);
-        assert_eq!(agg.total_rows, 2);
+        assert_eq!(agg.total_rows, 3);
         assert_eq!(agg.rows_with_chosen, 2);
         assert_eq!(agg.rows_with_fail_kinds, 2);
         assert_eq!(agg.constraints_fallback_used, 1);
         assert_eq!(agg.explore_first, 1);
+        assert_eq!(agg.outcome_rows, 1);
+        assert_eq!(agg.outcome_rows_with_fail_kind, 1);
         assert_eq!(agg.kinds_total.get("timeout").copied().unwrap_or(0), 2);
-        assert_eq!(agg.kinds_total.get("low_signal").copied().unwrap_or(0), 1);
+        // low_signal counted once from decision row + once from outcome row.
+        assert_eq!(agg.kinds_total.get("low_signal").copied().unwrap_or(0), 2);
         assert_eq!(
             agg.by_arm
                 .get("a")
@@ -919,7 +1018,7 @@ mod decisions_tests {
                 .and_then(|m| m.get("low_signal"))
                 .copied()
                 .unwrap_or(0),
-            1
+            2
         );
     }
 }
@@ -1172,6 +1271,10 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             println!(
                 "Rows with chosen_fail_kinds_top: {}",
                 agg.rows_with_fail_kinds
+            );
+            println!(
+                "Outcome rows: {} (with fail_kind: {})",
+                agg.outcome_rows, agg.outcome_rows_with_fail_kind
             );
             if agg.total_rows > 0 {
                 println!(
@@ -1794,6 +1897,17 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     r.rec.calls,
                     r.base.calls
                 );
+
+                // Optional triage: show coarse failure kinds for this exact key, comparing recent vs
+                // full-window baseline. (Best-effort; fail_kinds may be absent in older histories.)
+                let fk_rec = h.failure_kind_counts_recent_for_key(&r.key, recent);
+                if !fk_rec.is_empty() {
+                    let fk_base = h.failure_kind_counts_for_key(&r.key);
+                    println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
+                    if !fk_base.is_empty() {
+                        println!("  fail_kinds (base):   {}", top_kinds_line(&fk_base, 3));
+                    }
+                }
             }
 
             // Also show “worst currently” (useful to choose what to run next even without deltas).
@@ -1851,6 +1965,17 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     rec.junk_rate(),
                     rec.hard_junk_rate()
                 );
+
+                // Optional triage: show coarse failure kinds for the same key used to compute this row.
+                let key = if let Some(ds) = ds_opt.as_deref() {
+                    format!("{arm}@@{ds}")
+                } else {
+                    arm.clone()
+                };
+                let fk_rec = h.failure_kind_counts_recent_for_key(&key, recent);
+                if !fk_rec.is_empty() {
+                    println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
+                }
             }
         }
     }
