@@ -6,6 +6,21 @@ Dual-licensed under MIT or Apache-2.0.
 
 API docs: [docs.rs/anno](https://docs.rs/anno)
 
+## Backends
+
+| Backend | Zero-shot | Weights | Notes |
+|---------|-----------|---------|-------|
+| `stacked` (default) | No | HuggingFace | BERT/GLiNER + regex + heuristic |
+| `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
+| `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
+| `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
+| `bert-onnx` | No | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Traditional fixed-label NER |
+| `pattern` | No | None | Regex (dates, emails, money) |
+| `heuristic` | No | None | Capitalization + context |
+| `crf`, `hmm` | No | Built-in | Classical statistical (pre-2015) |
+
+ML backends require `--features onnx`. All weights download from HuggingFace on first use.
+
 ## Examples
 
 Named entities:
