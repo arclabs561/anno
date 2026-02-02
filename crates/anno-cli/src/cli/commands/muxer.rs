@@ -64,8 +64,8 @@ pub struct MuxerArgs {
 
     /// High-level mode (maps to sensible defaults for `--strategy` and related knobs).
     ///
-    /// - `bug-hunt`: prioritize finding failures/regressions quickly (defaults to worst-first)
-    /// - `perf-estimate`: prioritize stable performance measurement (defaults to ml-only)
+    /// - `triage`: prioritize finding failures/regressions quickly (defaults to worst-first)
+    /// - `measure`: prioritize stable performance measurement (defaults to ml-only)
     ///
     /// Explicit `--strategy` still wins.
     #[arg(long, value_enum)]
@@ -564,8 +564,15 @@ pub enum MuxerStrategy {
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum MuxerMode {
-    BugHunt,
-    PerfEstimate,
+    #[value(alias = "bug-hunt", alias = "bughunt", alias = "regress")]
+    Triage,
+    #[value(
+        alias = "perf-estimate",
+        alias = "perfestimate",
+        alias = "estimate",
+        alias = "measurement"
+    )]
+    Measure,
 }
 
 impl MuxerStrategy {
@@ -1332,7 +1339,7 @@ mod decisions_tests {
             slice_by_dataset_facets: true,
             facet_datasets: None,
             strategy: None,
-            mode: Some(MuxerMode::BugHunt),
+            mode: Some(MuxerMode::Triage),
             include_ml: false,
             action: MuxerAction::Stats {
                 show_datasets: false,
@@ -1534,8 +1541,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         // Explicit mode chooses the default strategy, otherwise mirror harness defaults.
         if let Some(m) = args.mode {
             return match m {
-                MuxerMode::BugHunt => MuxerStrategy::WorstFirst,
-                MuxerMode::PerfEstimate => MuxerStrategy::MlOnly,
+                MuxerMode::Triage => MuxerStrategy::WorstFirst,
+                MuxerMode::Measure => MuxerStrategy::MlOnly,
             };
         }
         match std::env::var("ANNO_SAMPLE_STRATEGY")
@@ -1660,8 +1667,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 println!(
                     "Mode: {}",
                     match m {
-                        MuxerMode::BugHunt => "bug-hunt",
-                        MuxerMode::PerfEstimate => "perf-estimate",
+                        MuxerMode::Triage => "triage",
+                        MuxerMode::Measure => "measure",
                     }
                 );
             }

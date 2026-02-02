@@ -9,7 +9,7 @@
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
 //! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
-//! - `ANNO_MUXER_MODE`: optional mode default (`bug-hunt` | `perf-estimate`). Used only when
+//! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure`). Used only when
 //!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
 //! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, prefer cache, but allow fallback downloads when empty
@@ -87,8 +87,8 @@ enum SampleStrategy {
 
 #[derive(Debug, Clone, Copy)]
 enum MuxerMode {
-    BugHunt,
-    PerfEstimate,
+    Triage,
+    Measure,
 }
 
 impl MuxerMode {
@@ -99,11 +99,14 @@ impl MuxerMode {
             return None;
         }
         match t.as_str() {
-            "bug" | "bug-hunt" | "bughunt" | "triage" | "regress" | "regression" => {
-                Some(Self::BugHunt)
-            }
+            // Preferred names:
+            "triage" => Some(Self::Triage),
+            "measure" => Some(Self::Measure),
+
+            // Back-compat aliases:
+            "bug" | "bug-hunt" | "bughunt" | "regress" | "regression" => Some(Self::Triage),
             "perf" | "perf-estimate" | "perfestimate" | "estimate" | "measurement" => {
-                Some(Self::PerfEstimate)
+                Some(Self::Measure)
             }
             _ => None,
         }
@@ -145,8 +148,8 @@ impl SampleStrategy {
 
         // Otherwise, mode chooses the default.
         match MuxerMode::from_env() {
-            Some(MuxerMode::BugHunt) => Self::WorstFirst,
-            Some(MuxerMode::PerfEstimate) => Self::MlOnly,
+            Some(MuxerMode::Triage) => Self::WorstFirst,
+            Some(MuxerMode::Measure) => Self::MlOnly,
             None => Self::MlOnly,
         }
     }
@@ -307,7 +310,7 @@ fn default_control_k_for_mode() -> usize {
         return 0;
     }
     match MuxerMode::from_env() {
-        Some(MuxerMode::PerfEstimate) => 1,
+        Some(MuxerMode::Measure) => 1,
         _ => 0,
     }
 }
