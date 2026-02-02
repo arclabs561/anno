@@ -583,6 +583,14 @@ impl crate::Model for BertNEROnnx {
         true
     }
 
+    fn name(&self) -> &'static str {
+        "bert-onnx"
+    }
+
+    fn description(&self) -> &'static str {
+        "BERT-based NER using ONNX Runtime (PER/ORG/LOC/MISC)"
+    }
+
     fn version(&self) -> String {
         // Version depends on the model weights and quantization status
         format!(

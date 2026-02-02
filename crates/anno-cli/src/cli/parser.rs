@@ -500,6 +500,30 @@ mod tests {
         assert!(matches!(ModelBackend::default(), ModelBackend::Stacked));
     }
 
+    /// Verify stacked default uses ML backends when available, not just naive pattern/heuristic.
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_stacked_default_has_ml_backend_when_available() {
+        use anno::StackedNER;
+        let ner = StackedNER::default();
+        let stats = ner.stats();
+
+        // With onnx AND model available: 3 layers (ML + regex + heuristic)
+        // With onnx but offline/no model: 2 layers (regex + heuristic)
+        if stats.layer_count == 3 {
+            let has_ml = stats.layer_names.iter().any(|name| {
+                let n = name.to_lowercase();
+                n.contains("bert") || n.contains("gliner")
+            });
+            assert!(
+                has_ml,
+                "Default stacked with 3 layers should include ML backend. Layers: {:?}",
+                stats.layer_names
+            );
+        }
+        // 2 layers is acceptable fallback when ML models aren't available
+    }
+
     #[test]
     fn test_output_format_default_is_human() {
         assert!(matches!(OutputFormat::default(), OutputFormat::Human));

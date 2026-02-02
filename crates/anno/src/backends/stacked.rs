@@ -1053,6 +1053,32 @@ mod tests {
         }
     }
 
+    /// Verify stacked default includes an ML backend when onnx is enabled and models are available.
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_default_includes_ml_backend_when_available() {
+        let ner = StackedNER::default();
+        let stats = ner.stats();
+
+        // With onnx AND model available: 3 layers (ML + regex + heuristic)
+        // With onnx but no model: 2 layers (regex + heuristic)
+        if stats.layer_count == 3 {
+            let has_ml = stats.layer_names.iter().any(|name| {
+                let n = name.to_lowercase();
+                n.contains("bert") || n.contains("gliner")
+            });
+            assert!(
+                has_ml,
+                "StackedNER with 3 layers should include an ML backend. Got layers: {:?}",
+                stats.layer_names
+            );
+        } else {
+            assert_eq!(stats.layer_count, 2);
+            assert!(stats.layer_names.iter().any(|n| n.contains("regex")));
+            assert!(stats.layer_names.iter().any(|n| n.contains("heuristic")));
+        }
+    }
+
     // =========================================================================
     // Builder Tests
     // =========================================================================
