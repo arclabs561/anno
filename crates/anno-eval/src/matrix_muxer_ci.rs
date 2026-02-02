@@ -42,6 +42,7 @@
 //! - `ANNO_MUXER_PRIOR_CALLS`: pseudo-call prior budget for smoothing (default: 6)
 //! - `ANNO_MUXER_PRIOR_BY_FACETS`: if true (default), prefer facet-matched priors (lang+domain)
 //! - `ANNO_MUXER_NOVELTY`: if true (default), explore unseen arms within a slice before MAB/worst-first
+//! - `ANNO_MUXER_CONTROL_K`: reserve K deterministic-random “control” picks (default: 0/off)
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
@@ -810,6 +811,20 @@ fn select_backends(
     match strategy {
         SampleStrategy::Random => pick_random_subset(seed, candidates_in_order, k),
         SampleStrategy::MlOnly => {
+            // Optional selection-bias anchor: reserve K deterministic-random "control" picks.
+            // Default is off; intended for counterfactual coverage measurement.
+            let control_k = mh::control_k_from_env()
+                .min(k)
+                .min(candidates_in_order.len());
+            let control = if control_k > 0 {
+                mh::pick_random_subset(seed ^ 0xC0E1_1A11, candidates_in_order, control_k)
+            } else {
+                Vec::new()
+            };
+            let remaining_k = k.saturating_sub(control.len());
+            let mut candidates_for_muxer: Vec<String> = candidates_in_order.to_vec();
+            candidates_for_muxer.retain(|b| !control.contains(b));
+
             let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
 
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
@@ -824,8 +839,8 @@ fn select_backends(
             let mut mk_opt = None;
             let fill = mh::policy_fill_k_observed_with(
                 seed,
-                candidates_in_order,
-                k,
+                &candidates_for_muxer,
+                remaining_k,
                 mh::novelty_from_env(),
                 guard,
                 |b| {
@@ -988,7 +1003,10 @@ fn select_backends(
                     );
                 }
             }
-            fill.chosen
+            let mut out = control;
+            out.extend(fill.chosen);
+            out.truncate(k);
+            out
         }
         SampleStrategy::WorstFirst => {
             // Worst-first selection is intentionally *not* muxer::select_mab:
@@ -1839,12 +1857,25 @@ fn test_randomized_matrix_sample() {
 
         // Build eligible set + decide under latency guardrail in muxer (single shared semantics).
         let guard = mh::latency_guardrail_from_env();
+        // Optional selection-bias anchor: reserve K deterministic-random control picks.
+        let control_k = mh::control_k_from_env()
+            .min(backends_per_run)
+            .min(candidates.len());
+        let control = if control_k > 0 {
+            mh::pick_random_subset(seed ^ 0xC0E1_1A11, &candidates, control_k)
+        } else {
+            Vec::new()
+        };
+        let remaining_k = backends_per_run.saturating_sub(control.len());
+        let mut candidates_for_policy = candidates.clone();
+        candidates_for_policy.retain(|b| !control.contains(b));
+
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
         let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
         let fill = mh::policy_fill_k_observed_with(
             seed ^ 0xE8D3_1A00,
-            &candidates,
-            backends_per_run,
+            &candidates_for_policy,
+            remaining_k,
             mh::novelty_from_env(),
             guard,
             |b| {
@@ -1894,7 +1925,9 @@ fn test_randomized_matrix_sample() {
                 picked
             },
         );
-        let chosen = fill.chosen;
+        let mut chosen = control;
+        chosen.extend(fill.chosen);
+        chosen.truncate(backends_per_run);
 
         let explore_first = exp3ix_explain
             .as_ref()
@@ -2674,6 +2707,51 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         6,
     );
     assert_eq!(chosen, vec!["measured_fast".to_string()]);
+}
+
+#[test]
+fn test_control_k_prefix_is_deterministic_and_reserved() {
+    // Regression test: control picks should be a deterministic prefix and must not be re-picked.
+    let old = std::env::var("ANNO_MUXER_CONTROL_K").ok();
+    struct Restore(Option<String>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.0.as_deref() {
+                None => std::env::remove_var("ANNO_MUXER_CONTROL_K"),
+                Some(v) => std::env::set_var("ANNO_MUXER_CONTROL_K", v),
+            }
+        }
+    }
+    let _r = Restore(old);
+    std::env::set_var("ANNO_MUXER_CONTROL_K", "1");
+
+    let history = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let arms = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let expected = mh::pick_random_subset(0 ^ 0xC0E1_1A11, &arms, 1)
+        .first()
+        .cloned()
+        .unwrap();
+    let chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &history,
+        None,
+        &arms,
+        None,
+        2,
+        0,
+    );
+    assert!(!chosen.is_empty());
+    assert_eq!(chosen[0], expected);
+    assert_eq!(chosen.len(), 2);
+    assert_ne!(chosen[0], chosen[1]);
 }
 
 #[test]

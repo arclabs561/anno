@@ -40,6 +40,14 @@ pub fn novelty_from_env() -> bool {
     env_bool("ANNO_MUXER_NOVELTY", true)
 }
 
+/// Reserve a small “control” budget of picks to mitigate selection bias (default: 0/off).
+///
+/// If non-zero, callers should take `k_control` arms from a deterministic random subset and only
+/// use muxer policies for the remaining \(k - k_control\) picks.
+pub fn control_k_from_env() -> usize {
+    env_usize("ANNO_MUXER_CONTROL_K", 0)
+}
+
 /// Deterministically pick up to `k` "unseen" arms for novelty/coverage.
 ///
 /// An arm is "unseen" if `observed_calls(arm) == 0` (i.e., no observed evaluations in the current
