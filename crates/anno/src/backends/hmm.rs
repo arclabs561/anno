@@ -128,6 +128,12 @@ pub struct HmmConfig {
     pub smoothing: f64,
     /// Use log probabilities for numerical stability.
     pub use_log_probs: bool,
+    /// Optional penalty applied to non-O emissions when using bundled backoff.
+    ///
+    /// Values < 1.0 reduce spurious entities; values > 1.0 increase recall but may over-tag.
+    pub non_o_emission_scale: f64,
+    /// If true, prefer bundled priors/transitions (when available) instead of heuristic dynamics.
+    pub use_bundled_dynamics: bool,
 }
 
 impl Default for HmmConfig {
@@ -135,6 +141,11 @@ impl Default for HmmConfig {
         Self {
             smoothing: 1e-10,
             use_log_probs: true,
+            // Tuned to reduce spurious tagging when bundled params are enabled.
+            non_o_emission_scale: 0.5,
+            // When bundled params are available, use their dynamics by default.
+            // This keeps the "trained" path genuinely end-to-end.
+            use_bundled_dynamics: true,
         }
     }
 }
@@ -257,17 +268,17 @@ impl HmmNER {
                 {
                     let backoff = HmmBackoff::from_params(&p);
                     m.backoff = Some(backoff);
-                    // Default posture: keep heuristic dynamics (priors/transitions) and only
-                    // use bundled params for emission backoff. In practice, bundling dynamics
-                    // can reduce recall significantly when evaluated out-of-domain.
+                    // Prefer bundled dynamics when configured (the default config does),
+                    // since the bundled params are intended to be a real end-to-end baseline.
                     //
-                    // Opt in to bundled dynamics explicitly if you want them.
-                    let use_dynamics = std::env::var("ANNO_HMM_USE_BUNDLED_DYNAMICS")
+                    // You can force-enable via env var, or force-disable via config.
+                    let use_dynamics_env = std::env::var("ANNO_HMM_USE_BUNDLED_DYNAMICS")
                         .ok()
                         .is_some_and(|v| {
                             let s = v.trim();
                             s == "1" || s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("yes")
                         });
+                    let use_dynamics = m.config.use_bundled_dynamics || use_dynamics_env;
                     if use_dynamics {
                         m.initial = p.initial.clone();
                         m.transitions = p.transitions.clone();
@@ -705,7 +716,11 @@ impl HmmNER {
                 let p = if present { p_present } else { 1.0 - p_present };
                 sum_log += p.max(1e-12).ln();
             }
-            let score = sum_log.exp();
+            let mut score = sum_log.exp().max(self.config.smoothing);
+            // State 0 is "O" in our state list.
+            if state_idx != 0 {
+                score *= self.config.non_o_emission_scale.max(1e-6);
+            }
             return score.max(self.config.smoothing);
         }
 

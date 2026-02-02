@@ -35,6 +35,8 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 - Training script (HMM params): `uv run scripts/train_hmm_params.py`
   - Output: `crates/anno/src/backends/hmm_params.json` (priors + transitions + compact emission backoff; no word-identity emissions)
+  - Default behavior (when `bundled-hmm-params` is enabled): `HmmNER::new()` uses the bundled params for a real end-to-end baseline.
+    - You can disable bundled dynamics via `HmmConfig { use_bundled_dynamics: false, ..Default::default() }` (or `ANNO_HMM_NO_BUNDLED_DYNAMICS=1`).
 
 Pointers (for “what good looks like” in classical NER):
 

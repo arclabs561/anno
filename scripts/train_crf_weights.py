@@ -13,9 +13,9 @@ This script trains a CRF model using python-crfsuite and exports feature weights
 Rust CRF backend.
 
 Why “compact”:
-- We intentionally avoid token-identity features (like `word.lower=google`) so the weights file
-  stays small enough to ship in the crate.
-- We keep shape/affix/casing/context and transition features, which generalize better.
+- We keep general features (shape/affix/casing/context and transitions).
+- We include token-identity features (`word.lower=...`) only for a **bounded frequent vocab** so the
+  weights file stays small enough to ship in the crate.
 
 Default dataset:
 - `unimelb-nlp/wikiann` (WikiANN / PAN-X). The Hugging Face dataset card/discussion indicate

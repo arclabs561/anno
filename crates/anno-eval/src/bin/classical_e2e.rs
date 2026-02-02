@@ -8,7 +8,7 @@
 
 use anno_eval::eval::loader::{DatasetLoader, LoadableDatasetId};
 use anno_eval::eval::ner_metrics::evaluate_entities;
-use anno_eval::backends::{CrfNER, HmmNER};
+use anno_eval::backends::{CrfNER, HmmConfig, HmmNER};
 use anno_eval::{Model, Result};
 
 fn print_row(name: &str, r: &anno_eval::eval::ner_metrics::NerEvalResults) {
@@ -59,13 +59,36 @@ fn main() -> Result<()> {
     let loader = DatasetLoader::new()?;
     let ds = loader.load_or_download(id)?;
     let stats = ds.stats();
-    println!("dataset={} sentences={} entities={}", stats.name, stats.sentences, stats.entities);
+    let used = ds.sentences.len().min(max_sentences);
+    println!(
+        "dataset={} sentences_total={} sentences_used={} entities_total={}",
+        stats.name, stats.sentences, used, stats.entities
+    );
+
+    let mut hmm_config = HmmConfig::default();
+    if let Ok(s) = std::env::var("ANNO_HMM_NON_O_EMISSION_SCALE") {
+        if let Ok(x) = s.parse::<f64>() {
+            hmm_config.non_o_emission_scale = x;
+        }
+    }
+    if let Ok(v) = std::env::var("ANNO_HMM_USE_BUNDLED_DYNAMICS") {
+        let s = v.trim();
+        if s == "1" || s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("yes") {
+            hmm_config.use_bundled_dynamics = true;
+        }
+    }
+    if let Ok(v) = std::env::var("ANNO_HMM_NO_BUNDLED_DYNAMICS") {
+        let s = v.trim();
+        if s == "1" || s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("yes") {
+            hmm_config.use_bundled_dynamics = false;
+        }
+    }
 
     // Models
     let crf_heur = CrfNER::new_heuristic();
     let crf = CrfNER::new();
     let hmm_heur = HmmNER::new_heuristic();
-    let hmm = HmmNER::new();
+    let hmm = HmmNER::with_config(hmm_config.clone());
 
     let r_crf_heur = eval_model(&crf_heur, &ds, max_sentences)?;
     let r_crf = eval_model(&crf, &ds, max_sentences)?;
@@ -84,6 +107,10 @@ fn main() -> Result<()> {
         "features: bundled-crf-weights={} bundled-hmm-params={}",
         cfg!(feature = "bundled-crf-weights"),
         cfg!(feature = "bundled-hmm-params")
+    );
+    println!(
+        "hmm: non_o_emission_scale={} use_bundled_dynamics={}",
+        hmm_config.non_o_emission_scale, hmm_config.use_bundled_dynamics
     );
 
     Ok(())
