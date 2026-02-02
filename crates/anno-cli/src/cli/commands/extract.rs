@@ -632,7 +632,7 @@ fn extract_with_custom_types(
     // Fallback: warn and use standard extraction
     if !quiet {
         eprintln!(
-            "{} --extract-types requires a zero-shot model (gliner, gliner2). Falling back to standard extraction.",
+            "{} --extract-types requires --model gliner or --model gliner2. Ignoring custom types.",
             color("33", "warning:")
         );
     }
