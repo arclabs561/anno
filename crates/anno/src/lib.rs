@@ -61,6 +61,19 @@
 //! let entities = ner.extract_entities("John met Mary in Paris.", None).unwrap();
 //! ```
 //!
+//! For zero-shot extraction with custom types (requires `onnx` feature):
+//!
+//! ```rust,ignore
+//! use anno::{GLiNEROnnx, ZeroShotNER, DEFAULT_GLINER_MODEL};
+//!
+//! let ner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
+//! let entities = ner.extract_with_types(
+//!     "Aspirin treats headaches and fever.",
+//!     &["drug", "symptom"],
+//!     0.5,
+//! )?;
+//! ```
+//!
 //! For coreference (Level 2):
 //!
 //! ```rust,ignore
