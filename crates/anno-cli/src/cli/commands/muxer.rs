@@ -1148,6 +1148,27 @@ mod fail_kinds_tests {
         assert_eq!(rec2.get("dataset").copied().unwrap_or(0), 1);
         assert_eq!(rec2.len(), 2);
     }
+
+    #[test]
+    fn test_failure_kind_counts_prev_for_key_excludes_tail() {
+        let mut h = BackendHistory {
+            version: 3,
+            window_cap: 50,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+        };
+        let mut q = VecDeque::new();
+        q.push_back(Some("timeout".to_string())); // prev
+        q.push_back(Some("dataset".to_string())); // prev
+        q.push_back(Some("timeout".to_string())); // tail
+        q.push_back(Some("backend".to_string())); // tail
+        h.fail_kinds.insert("k".to_string(), q);
+
+        let prev2 = h.failure_kind_counts_prev_for_key("k", 2);
+        assert_eq!(prev2.get("timeout").copied().unwrap_or(0), 1);
+        assert_eq!(prev2.get("dataset").copied().unwrap_or(0), 1);
+        assert!(prev2.get("backend").is_none());
+    }
 }
 
 #[cfg(test)]
@@ -1502,7 +1523,11 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             by_dataset,
         } => {
             let path = file
-                .or_else(|| std::env::var("ANNO_MUXER_DECISIONS_FILE").ok().map(PathBuf::from))
+                .or_else(|| {
+                    std::env::var("ANNO_MUXER_DECISIONS_FILE")
+                        .ok()
+                        .map(PathBuf::from)
+                })
                 .unwrap_or_else(default_decisions_path);
             let bytes = std::fs::read(&path)
                 .map_err(|e| {
@@ -2326,14 +2351,26 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     r.base.calls
                 );
 
-                // Optional triage: show coarse failure kinds for this exact key, comparing recent vs
-                // full-window baseline. (Best-effort; fail_kinds may be absent in older histories.)
+                // Optional triage: show coarse failure kinds for this exact key, comparing the last
+                // N outcomes vs the preceding outcomes in the same window. (Best-effort; fail_kinds
+                // may be absent in older histories.)
                 let fk_rec = h.failure_kind_counts_recent_for_key(&r.key, recent);
                 if !fk_rec.is_empty() {
-                    let fk_base = h.failure_kind_counts_for_key(&r.key);
+                    let fk_prev = h.failure_kind_counts_prev_for_key(&r.key, recent);
                     println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
-                    if !fk_base.is_empty() {
-                        println!("  fail_kinds (base):   {}", top_kinds_line(&fk_base, 3));
+                    if !fk_prev.is_empty() {
+                        println!("  fail_kinds (prev):   {}", top_kinds_line(&fk_prev, 3));
+                    }
+                    // Surface newly-appearing kinds (recent>0, prev==0).
+                    let mut newly: Vec<String> = fk_rec
+                        .iter()
+                        .filter(|(k, v)| **v > 0 && fk_prev.get(*k).copied().unwrap_or(0) == 0)
+                        .map(|(k, _)| k.clone())
+                        .collect();
+                    newly.sort();
+                    if !newly.is_empty() {
+                        let shown = newly.into_iter().take(5).collect::<Vec<_>>().join(" ");
+                        println!("  new_fail_kinds:      {}", shown);
                     }
                 }
             }
@@ -2402,7 +2439,11 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 };
                 let fk_rec = h.failure_kind_counts_recent_for_key(&key, recent);
                 if !fk_rec.is_empty() {
+                    let fk_prev = h.failure_kind_counts_prev_for_key(&key, recent);
                     println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
+                    if !fk_prev.is_empty() {
+                        println!("  fail_kinds (prev):   {}", top_kinds_line(&fk_prev, 3));
+                    }
                 }
             }
         }

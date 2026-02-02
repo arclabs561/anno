@@ -6,7 +6,7 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 
 `anno` turns **UTF-8 text** into **structured extractions**:
 
-- **NER**: span detection + entity typing
+- **NER**: span detection + entity typing (fixed or zero-shot custom types)
 - **Within-document coreference**: cluster mentions into tracks
 - **Cross-document coalescing**: cluster tracks across documents into identities
 
@@ -19,6 +19,7 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 
 **In scope**
 - Inference-time extraction (regex/heuristics/ML backends).
+- Zero-shot extraction with custom entity types (via GLiNER, `--extract-types`).
 - Evaluation + dataset loading behind feature flags (for benchmarking, not required for usage).
 
 **Out of scope by design**

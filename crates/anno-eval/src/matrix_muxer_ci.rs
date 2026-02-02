@@ -568,7 +568,11 @@ fn decisions_path() -> Option<String> {
                 out.push('_');
             }
         }
-        if out.is_empty() { None } else { Some(out) }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
     let salt = salt_slug();
     let suffix = match salt.as_deref() {
@@ -577,7 +581,12 @@ fn decisions_path() -> Option<String> {
     };
 
     if let Ok(dir) = std::env::var("ANNO_CACHE_DIR") {
-        return Some(PathBuf::from(dir).join(suffix).to_string_lossy().to_string());
+        return Some(
+            PathBuf::from(dir)
+                .join(suffix)
+                .to_string_lossy()
+                .to_string(),
+        );
     }
     #[cfg(feature = "eval")]
     {
@@ -585,7 +594,12 @@ fn decisions_path() -> Option<String> {
             return Some(base.join("anno").join(suffix).to_string_lossy().to_string());
         }
     }
-    Some(PathBuf::from(".").join(suffix).to_string_lossy().to_string())
+    Some(
+        PathBuf::from(".")
+            .join(suffix)
+            .to_string_lossy()
+            .to_string(),
+    )
 }
 
 fn slice_for_run(
