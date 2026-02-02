@@ -14,10 +14,12 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
+| `w2ner` | No | [ljynlp/w2ner-bert-base](https://huggingface.co/ljynlp/w2ner-bert-base) | Nested/discontinuous entities |
 | `bert-onnx` | No | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Traditional fixed-label NER |
 | `pattern` | No | None | Regex (dates, emails, money) |
 | `heuristic` | No | None | Capitalization + context |
 | `crf`, `hmm` | No | Built-in | Classical statistical (pre-2015) |
+| `ensemble` | No | Varies | Weighted voting across backends |
 
 ML backends require `--features onnx`. All weights download from HuggingFace on first use.
 
