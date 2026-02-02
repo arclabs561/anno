@@ -45,6 +45,7 @@
 //! - `ANNO_MUXER_CONTROL_K`: reserve K deterministic-random “control” picks (default: 0/off)
 //! - `ANNO_MUXER_VERBOSE`: print chosen slice + per-result outcomes (`1`/`true`)
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
+//! - `ANNO_MUXER_DECISIONS_DEFAULT`: if true (default locally, false in CI), write decisions JSONL to a default cache file
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
 //! - `ANNO_MATRIX_SWEEP`: if true, enables `test_matrix_sweep_all_backends_once` (opt-in)
 //! - `ANNO_MATRIX_SWEEP_STRICT`: if true (default when sweep enabled), fail the test on any skip/failure
@@ -538,6 +539,55 @@ fn history_path(slice_tag: &str) -> PathBuf {
     PathBuf::from(".").join(suffix)
 }
 
+fn decisions_path() -> Option<String> {
+    if let Ok(p) = std::env::var("ANNO_MUXER_DECISIONS_FILE") {
+        let t = p.trim();
+        if !t.is_empty() {
+            return Some(t.to_string());
+        }
+    }
+    if in_ci() {
+        return None;
+    }
+    if !mh::env_bool("ANNO_MUXER_DECISIONS_DEFAULT", true) {
+        return None;
+    }
+
+    fn salt_slug() -> Option<String> {
+        // Keep this separate from history salt so you can rotate logs independently.
+        let s = std::env::var("ANNO_MUXER_DECISIONS_SALT").ok()?;
+        let t = s.trim();
+        if t.is_empty() {
+            return None;
+        }
+        let mut out = String::new();
+        for ch in t.chars().take(64) {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                out.push(ch);
+            } else {
+                out.push('_');
+            }
+        }
+        if out.is_empty() { None } else { Some(out) }
+    }
+    let salt = salt_slug();
+    let suffix = match salt.as_deref() {
+        None => "muxer_decisions.jsonl".to_string(),
+        Some(s) => format!("muxer_decisions.salt={s}.jsonl"),
+    };
+
+    if let Ok(dir) = std::env::var("ANNO_CACHE_DIR") {
+        return Some(PathBuf::from(dir).join(suffix).to_string_lossy().to_string());
+    }
+    #[cfg(feature = "eval")]
+    {
+        if let Some(base) = dirs::cache_dir() {
+            return Some(base.join("anno").join(suffix).to_string_lossy().to_string());
+        }
+    }
+    Some(PathBuf::from(".").join(suffix).to_string_lossy().to_string())
+}
+
 fn slice_for_run(
     seed: u64,
     loader: &DatasetLoader,
@@ -914,7 +964,7 @@ fn select_backends(
             // with exploration to avoid fixating too early.
             let cfg = mab_config_from_env();
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
-            let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+            let decisions_path = decisions_path();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
 
@@ -1103,7 +1153,7 @@ fn select_backends(
             // Score: higher means "worse", with an exploration term favoring under-sampled arms.
             let wcfg = worst_first_config_from_env();
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
-            let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+            let decisions_path = decisions_path();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
             let mut remaining: Vec<String> = candidates_in_order.to_vec();
@@ -2048,7 +2098,7 @@ fn test_randomized_matrix_sample() {
                 profile.clone().unwrap_or_else(|| "off".to_string())
             );
         }
-        let decisions_path = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+        let decisions_path = decisions_path();
         if let Some(ref p) = decisions_path {
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!(
@@ -2331,13 +2381,13 @@ fn test_randomized_matrix_sample() {
 
         // Optional: append an "observed outcome" event to the decision JSONL. This complements the
         // earlier selection decision logs (which reflect *history at selection time*).
-        if let Ok(p) = std::env::var("ANNO_MUXER_DECISIONS_FILE") {
+        if let Some(ref p) = decisions_path() {
             let run_id = format!(
                 "seed={} slice={} strategy={:?}",
                 seed, slice_tag_for_muxer, strategy
             );
             append_jsonl(
-                &p,
+                p,
                 &DecisionOutcomeLog {
                     schema_version: 1,
                     record_type: "outcome".to_string(),

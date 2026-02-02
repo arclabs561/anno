@@ -934,6 +934,23 @@ impl BackendHistory {
         counts
     }
 
+    fn failure_kind_counts_prev_for_key(&self, key: &str, recent: usize) -> BTreeMap<String, u64> {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let Some(buf) = self.fail_kinds.get(key) else {
+            return counts;
+        };
+        let n = buf.len();
+        if n == 0 {
+            return counts;
+        }
+        let drop = recent.max(1).min(n);
+        let take = n.saturating_sub(drop);
+        for kind in buf.iter().take(take).flatten() {
+            *counts.entry(kind.clone()).or_insert(0) += 1;
+        }
+        counts
+    }
+
     fn summary_for_key(&self, key: &str) -> SummarySerde {
         self.windows
             .get(key)
@@ -1292,6 +1309,38 @@ fn default_history_path(slice_tag: &str) -> PathBuf {
         .join(suffix)
 }
 
+fn default_decisions_path() -> PathBuf {
+    // Keep consistent with the matrix harness default.
+    let suffix = {
+        let salt = std::env::var("ANNO_MUXER_DECISIONS_SALT")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                let mut out = String::new();
+                for ch in s.chars().take(64) {
+                    if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+                        out.push(ch);
+                    } else {
+                        out.push('_');
+                    }
+                }
+                out
+            })
+            .filter(|s| !s.is_empty());
+        match salt.as_deref() {
+            None => "muxer_decisions.jsonl".to_string(),
+            Some(s) => format!("muxer_decisions.salt={}.jsonl", s),
+        }
+    };
+    if let Ok(dir) = std::env::var("ANNO_CACHE_DIR") {
+        return PathBuf::from(dir).join(suffix);
+    }
+    dirs::cache_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("anno")
+        .join(suffix)
+}
 fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
     // Start from what is actually feature-enabled in this build.
     let available: BTreeSet<String> = BackendFactory::available_backends()
@@ -1453,16 +1502,16 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             by_dataset,
         } => {
             let path = file
-                .or_else(|| {
-                    std::env::var("ANNO_MUXER_DECISIONS_FILE")
-                        .ok()
-                        .map(PathBuf::from)
-                })
-                .ok_or_else(|| {
-                    "Missing --file and ANNO_MUXER_DECISIONS_FILE is not set".to_string()
-                })?;
+                .or_else(|| std::env::var("ANNO_MUXER_DECISIONS_FILE").ok().map(PathBuf::from))
+                .unwrap_or_else(default_decisions_path);
             let bytes = std::fs::read(&path)
-                .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+                .map_err(|e| {
+                    format!(
+                        "Failed to read {}: {}\nHint: run the matrix harness to generate decisions, or set ANNO_MUXER_DECISIONS_FILE.",
+                        path.display(),
+                        e
+                    )
+                })?;
             let s = String::from_utf8_lossy(&bytes);
             let (agg, by_run_map) =
                 decisions_aggregate_grouped_by_run(&s, run_filter.as_deref(), trend_window);

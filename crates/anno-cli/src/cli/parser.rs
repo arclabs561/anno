@@ -494,4 +494,25 @@ mod tests {
         assert_eq!(ModelBackend::Heuristic.name(), "heuristic");
         assert_eq!(ModelBackend::Stacked.name(), "stacked");
     }
+
+    #[test]
+    fn test_model_backend_default_is_stacked() {
+        assert!(matches!(ModelBackend::default(), ModelBackend::Stacked));
+    }
+
+    #[test]
+    fn test_output_format_default_is_human() {
+        assert!(matches!(OutputFormat::default(), OutputFormat::Human));
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_zero_shot_models_exist() {
+        // Verify zero-shot capable models are available when onnx feature is enabled
+        let gliner_name = ModelBackend::Gliner.name();
+        assert_eq!(gliner_name, "gliner");
+
+        let gliner2_name = ModelBackend::Gliner2.name();
+        assert_eq!(gliner2_name, "gliner2");
+    }
 }

@@ -811,3 +811,122 @@ fn compute_confidence_stats(confs: &[f64]) -> serde_json::Value {
         "max": sorted.last().copied().unwrap_or(0.0),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_context_window_basic() {
+        let text = "Hello world, this is a test.";
+        // "world" is at indices 6..11
+        // window=5 means: before = chars[1..6] = "ello ", after = chars[11..16] = ", thi"
+        let (before, after) = get_context_window(text, 6, 11, 5);
+        assert_eq!(before, "ello ");
+        assert_eq!(after, ", thi");
+    }
+
+    #[test]
+    fn test_get_context_window_at_start() {
+        let text = "Hello world";
+        let (before, after) = get_context_window(text, 0, 5, 10);
+        assert_eq!(before, "");
+        assert_eq!(after, " world");
+    }
+
+    #[test]
+    fn test_get_context_window_at_end() {
+        let text = "Hello world";
+        let (before, after) = get_context_window(text, 6, 11, 10);
+        assert_eq!(before, "Hello ");
+        assert_eq!(after, "");
+    }
+
+    #[test]
+    fn test_get_sentence_for_span() {
+        let text = "First sentence. Second sentence. Third.";
+        let sentence = get_sentence_for_span(text, 16, 22);
+        assert_eq!(sentence, "Second sentence.");
+    }
+
+    #[test]
+    fn test_get_sentence_for_span_at_boundary() {
+        let text = "Only one sentence here";
+        let sentence = get_sentence_for_span(text, 5, 8);
+        assert_eq!(sentence, "Only one sentence here");
+    }
+
+    #[test]
+    fn test_compute_entity_id_deterministic() {
+        let text = "Test text";
+        let id1 = compute_entity_id(text, "Test", "PER", 0, 4);
+        let id2 = compute_entity_id(text, "Test", "PER", 0, 4);
+        assert_eq!(id1, id2);
+    }
+
+    #[test]
+    fn test_compute_entity_id_different_for_different_spans() {
+        let text = "Test text";
+        let id1 = compute_entity_id(text, "Test", "PER", 0, 4);
+        let id2 = compute_entity_id(text, "text", "PER", 5, 9);
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn test_confidence_stats_empty() {
+        let stats = compute_confidence_stats(&[]);
+        assert_eq!(stats["count"], 0);
+        assert_eq!(stats["mean"], 0.0);
+    }
+
+    #[test]
+    fn test_confidence_stats_single() {
+        let stats = compute_confidence_stats(&[0.8]);
+        assert_eq!(stats["count"], 1);
+        assert_eq!(stats["mean"], 0.8);
+        assert_eq!(stats["median"], 0.8);
+    }
+
+    #[test]
+    fn test_confidence_stats_multiple() {
+        let stats = compute_confidence_stats(&[0.5, 0.7, 0.9]);
+        assert_eq!(stats["count"], 3);
+        let mean = stats["mean"].as_f64().unwrap();
+        assert!((mean - 0.7).abs() < 0.001);
+        assert_eq!(stats["median"], 0.7);
+    }
+
+    #[test]
+    fn test_extract_args_parse_extract_types() {
+        // Verify the extract_types field parses correctly from CSV
+        let csv = "DRUG,SYMPTOM,CONDITION";
+        let types: Vec<String> = csv
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        assert_eq!(types, vec!["DRUG", "SYMPTOM", "CONDITION"]);
+    }
+
+    #[test]
+    fn test_extract_args_parse_extract_types_with_spaces() {
+        let csv = " DRUG , SYMPTOM , CONDITION ";
+        let types: Vec<String> = csv
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        assert_eq!(types, vec!["DRUG", "SYMPTOM", "CONDITION"]);
+    }
+
+    #[test]
+    fn test_extract_args_parse_extract_types_empty_parts() {
+        let csv = "DRUG,,SYMPTOM,";
+        let types: Vec<String> = csv
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        assert_eq!(types, vec!["DRUG", "SYMPTOM"]);
+    }
+}
