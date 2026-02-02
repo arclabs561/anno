@@ -240,6 +240,8 @@ struct DecisionLogLite {
     constraints_fallback_used: Option<bool>,
     #[serde(default)]
     explore_first: Option<bool>,
+    #[serde(default)]
+    control_arms: Option<Vec<String>>,
 }
 
 #[derive(Debug, Default)]
@@ -261,6 +263,8 @@ struct DecisionsAgg {
     decision_kinds_total: BTreeMap<String, u64>,
     decision_by_arm: BTreeMap<String, BTreeMap<String, u64>>,
     decision_by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+    // Union of control arms seen for this run (best-effort).
+    control_arms: BTreeSet<String>,
 
     // Learning-health: chosen rank among logged top candidates (when available).
     chosen_rank_rows: u64,
@@ -272,9 +276,16 @@ struct DecisionsAgg {
     outcome_ok: u64,
     outcome_junk: u64,
     outcome_hard_junk: u64,
+    // Outcome stats restricted to control arms (best-effort).
+    outcome_control_rows: u64,
+    outcome_control_ok: u64,
+    outcome_control_junk: u64,
+    outcome_control_hard: u64,
     outcome_kinds_total: BTreeMap<String, u64>,
     outcome_by_arm: BTreeMap<String, BTreeMap<String, u64>>,
     outcome_by_dataset: BTreeMap<String, BTreeMap<String, u64>>,
+    // For each fail_kind, count backend@@dataset pairs (actionable clusters).
+    outcome_kind_pairs: BTreeMap<String, BTreeMap<String, u64>>,
 
     // Outcome trend: first-N vs last-N (based on JSONL order within a run).
     outcome_trend_n: usize,
@@ -423,6 +434,12 @@ fn decisions_aggregate_grouped_by_run(
                     if let Some(kind) = o.fail_kind.as_ref() {
                         agg.outcome_rows_with_fail_kind += 1;
                         *agg.outcome_kinds_total.entry(kind.clone()).or_insert(0) += 1;
+                        let pair = format!("{}@@{}", o.backend, o.dataset);
+                        *agg.outcome_kind_pairs
+                            .entry(kind.clone())
+                            .or_default()
+                            .entry(pair)
+                            .or_insert(0) += 1;
                         *agg.outcome_by_arm
                             .entry(o.backend.clone())
                             .or_default()
@@ -433,6 +450,14 @@ fn decisions_aggregate_grouped_by_run(
                             .or_default()
                             .entry(kind.clone())
                             .or_insert(0) += 1;
+                    }
+
+                    // Control-only stats (best-effort; requires a prior decision line with control_arms).
+                    if agg.control_arms.contains(&o.backend) {
+                        agg.outcome_control_rows += 1;
+                        agg.outcome_control_ok += o.ok as u64;
+                        agg.outcome_control_junk += o.junk as u64;
+                        agg.outcome_control_hard += o.hard_junk as u64;
                     }
                 }
                 continue;
@@ -469,6 +494,11 @@ fn decisions_aggregate_grouped_by_run(
             }
             if d.explore_first.unwrap_or(false) {
                 agg.decision_explore_first += 1;
+            }
+            if let Some(c) = d.control_arms.as_ref() {
+                for a in c {
+                    agg.control_arms.insert(a.clone());
+                }
             }
             if let (Some(chosen), Some(tc)) = (d.chosen.as_ref(), d.top_candidates.as_ref()) {
                 if !tc.rows.is_empty() {
@@ -1237,7 +1267,7 @@ mod decisions_tests {
     fn test_decisions_aggregate_counts_total_and_by_arm_and_by_dataset() {
         let jsonl = r#"
 {"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","top_candidates":{"kind":"worst_first","rows":[{"arm":"a","score":1.0},{"arm":"b","score":0.5}]},"chosen_fail_kinds_top":[{"kind":"timeout","count":2}],"constraints_fallback_used":false,"explore_first":false}
-{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","top_candidates":{"kind":"worst_first","rows":[{"arm":"a","score":1.0},{"arm":"b","score":0.5}]},"chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true}
+{"schema_version":6,"run_id":"r1","strategy":"worst-first","slice":"ner","datasets":["D1","D2"],"round":2,"chosen":"b","top_candidates":{"kind":"worst_first","rows":[{"arm":"a","score":1.0},{"arm":"b","score":0.5}]},"chosen_fail_kinds_top":[{"kind":"low_signal","count":1}],"constraints_fallback_used":true,"explore_first":true,"control_arms":["a"]}
 {"schema_version":1,"record_type":"outcome","run_id":"r1","strategy":"worst-first","slice":"ner","dataset":"D2","backend":"b","ok":false,"junk":true,"hard_junk":false,"fail_kind":"low_signal"}
 "#;
         let agg = decisions_aggregate_from_jsonl(jsonl);
@@ -1252,6 +1282,7 @@ mod decisions_tests {
         assert_eq!(agg.outcome_ok, 0);
         assert_eq!(agg.outcome_junk, 1);
         assert_eq!(agg.outcome_hard_junk, 0);
+        assert_eq!(agg.outcome_control_rows, 0);
         assert_eq!(agg.chosen_rank_rows, 2);
         assert_eq!(agg.chosen_rank_1, 1);
         assert_eq!(agg.chosen_rank_sum, 3); // ranks: a=1, b=2
@@ -1349,6 +1380,21 @@ mod decisions_tests {
         // We don't execute run() here (it needs eval-advanced wiring), but we can at least ensure
         // the enum parses/constructs and is available for Clap.
         let _ = a;
+    }
+
+    #[test]
+    fn test_control_arms_tag_outcomes_when_present() {
+        let jsonl = r#"
+{"schema_version":6,"run_id":"r1","strategy":"ml-only","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","control_arms":["a"]}
+{"schema_version":1,"record_type":"outcome","run_id":"r1","strategy":"ml-only","slice":"ner","dataset":"D1","backend":"a","ok":true,"junk":false,"hard_junk":false}
+{"schema_version":1,"record_type":"outcome","run_id":"r1","strategy":"ml-only","slice":"ner","dataset":"D1","backend":"b","ok":false,"junk":true,"hard_junk":false,"fail_kind":"low_signal"}
+"#;
+        let (agg, by_run) = decisions_aggregate_grouped_by_run(jsonl, None, 5);
+        let r1 = by_run.get("r1").expect("r1");
+        assert_eq!(r1.outcome_rows, 2);
+        assert_eq!(r1.outcome_control_rows, 1);
+        assert_eq!(r1.outcome_control_ok, 1);
+        assert_eq!(agg.outcome_control_rows, 1);
     }
 }
 
@@ -1909,6 +1955,51 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                 "    new_fail_kinds: {}",
                                 newly.into_iter().take(8).collect::<Vec<_>>().join(" ")
                             );
+                        }
+                    }
+                    // Measure mode: highlight control coverage and control-only outcome rates.
+                    if matches!(args.mode, Some(MuxerMode::Measure)) && a.outcome_rows > 0 {
+                        let ctrl_rate = (a.outcome_control_rows as f64) / (a.outcome_rows as f64);
+                        let ctrl_ok = if a.outcome_control_rows > 0 {
+                            (a.outcome_control_ok as f64) / (a.outcome_control_rows as f64)
+                        } else {
+                            0.0
+                        };
+                        let ctrl_junk = if a.outcome_control_rows > 0 {
+                            (a.outcome_control_junk as f64) / (a.outcome_control_rows as f64)
+                        } else {
+                            0.0
+                        };
+                        println!(
+                            "    control: outcomes={}/{} ({:.0}%) ok={:.2} junk={:.2}",
+                            a.outcome_control_rows,
+                            a.outcome_rows,
+                            100.0 * ctrl_rate,
+                            ctrl_ok,
+                            ctrl_junk
+                        );
+                    }
+                    // Triage mode: show actionable clusters for newly appearing kinds.
+                    if matches!(args.mode, Some(MuxerMode::Triage)) && a.outcome_rows > 0 {
+                        let newly = outcome_new_fail_kinds_from_tail_2n(
+                            &a.outcome_fail_kind_tail_2n,
+                            a.outcome_trend_n,
+                        );
+                        for k in newly.into_iter().take(3) {
+                            if let Some(pairs) = a.outcome_kind_pairs.get(&k) {
+                                let mut rows: Vec<(u64, String)> =
+                                    pairs.iter().map(|(p, c)| (*c, p.clone())).collect();
+                                rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                                let top_pairs = rows
+                                    .into_iter()
+                                    .take(2)
+                                    .map(|(c, p)| format!("{p}={c}"))
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                if !top_pairs.is_empty() {
+                                    println!("    new_kind_cluster {k}: {top_pairs}");
+                                }
+                            }
                         }
                     }
                     if !a.outcome_kinds_total.is_empty() {

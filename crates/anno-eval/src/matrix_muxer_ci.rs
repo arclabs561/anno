@@ -360,6 +360,9 @@ struct DecisionLog {
     constraints_fallback_used: Option<bool>,
     eligible_arms: Option<Vec<String>>,
     top_candidates: Option<muxer::LogTopCandidates>,
+    /// If present, these arms were selected as deterministic-random "control" picks (bias anchor).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    control_arms: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chosen_fail_kinds_top: Option<Vec<FailKindCount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -442,6 +445,7 @@ fn test_decision_log_schema_smoke() {
             kind: muxer::LOG_SCORE_KIND_MAB_SCALAR.to_string(),
             rows: Vec::new(),
         }),
+        control_arms: None,
         chosen_fail_kinds_top: Some(vec![FailKindCount {
             kind: "timeout".to_string(),
             count: 2,
@@ -1202,6 +1206,11 @@ fn select_backends(
                             constraints_fallback_used: rl.constraints_fallback_used,
                             eligible_arms: rl.constraints_eligible_arms.clone(),
                             top_candidates: rl.top_candidates.clone(),
+                            control_arms: if control.is_empty() {
+                                None
+                            } else {
+                                Some(control.clone())
+                            },
                             chosen_fail_kinds_top,
                             mab_k_round: Some(rl),
                             exp3ix_rounds: None,
@@ -1337,6 +1346,7 @@ fn select_backends(
                             constraints_fallback_used: None,
                             eligible_arms: None,
                             top_candidates: Some(top_candidates),
+                            control_arms: None,
                             chosen_fail_kinds_top: history.chosen_fail_kinds_top_for(
                                 &pick,
                                 datasets,
@@ -2138,6 +2148,7 @@ fn test_randomized_matrix_sample() {
                 picked
             },
         );
+        let control_for_log = control.clone();
         let mut chosen = control;
         chosen.extend(fill.chosen);
         chosen.truncate(backends_per_run);
@@ -2206,6 +2217,11 @@ fn test_randomized_matrix_sample() {
                         top_candidates: exp3ix_rounds
                             .first()
                             .and_then(|r| r.top_candidates.clone()),
+                        control_arms: if control_for_log.is_empty() {
+                            None
+                        } else {
+                            Some(control_for_log)
+                        },
                         chosen_fail_kinds_top: chosen.first().and_then(|b| {
                             history.chosen_fail_kinds_top_for(
                                 b,
