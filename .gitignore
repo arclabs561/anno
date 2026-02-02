@@ -4,6 +4,8 @@
 target*/
 
 # Generated files
+# Local scratch artifacts (regenerated)
+.generated/
 # Static analysis reports
 unified-static-analysis-report.md
 static-analysis-failures-summary.md

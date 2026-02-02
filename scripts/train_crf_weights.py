@@ -7,20 +7,33 @@
 # ]
 # ///
 """
-Train CRF NER weights on CoNLL-2003.
+Train compact CRF NER weights on a redistributable dataset.
 
-This script trains a CRF model using python-crfsuite on the CoNLL-2003 dataset
-and exports the feature weights for use in the Rust CRF backend.
+This script trains a CRF model using python-crfsuite and exports feature weights for use in the
+Rust CRF backend.
+
+Why “compact”:
+- We intentionally avoid token-identity features (like `word.lower=google`) so the weights file
+  stays small enough to ship in the crate.
+- We keep shape/affix/casing/context and transition features, which generalize better.
+
+Default dataset:
+- `unimelb-nlp/wikiann` (WikiANN / PAN-X). The Hugging Face dataset card/discussion indicate
+  Apache-2.0 for the packaged dataset. See:
+  - https://huggingface.co/datasets/unimelb-nlp/wikiann
+  - https://huggingface.co/datasets/unimelb-nlp/wikiann/discussions/6
 
 Usage:
     uv run scripts/train_crf_weights.py
 
-Output:
-    - crf_weights.json: Feature weights for Rust CRF backend
-    - crf_model.crfsuite: Native CRFsuite model file
+Output (by default):
+    - crates/anno/src/backends/crf_weights.json: Feature weights for Rust CRF backend (shipped)
+    - .generated/crf_model.crfsuite: Native CRFsuite model file (local artifact)
 """
 
 import json
+import os
+import argparse
 import pycrfsuite
 from datasets import load_dataset
 from collections import defaultdict
@@ -51,7 +64,6 @@ def word2features(sent, i):
     
     features = [
         'bias',
-        f'word.lower={word.lower()}',
         f'word.shape={word_shape(word)}',
         f'word.isdigit={word.isdigit()}',
         f'word.istitle={word.istitle()}',
@@ -70,7 +82,6 @@ def word2features(sent, i):
     if i > 0:
         word1 = sent[i-1][0]
         features.extend([
-            f'-1:word.lower={word1.lower()}',
             f'-1:word.istitle={word1.istitle()}',
             f'-1:word.isupper={word1.isupper()}',
             f'-1:word.shape={word_shape(word1)}',
@@ -81,7 +92,6 @@ def word2features(sent, i):
     if i < len(sent)-1:
         word1 = sent[i+1][0]
         features.extend([
-            f'+1:word.lower={word1.lower()}',
             f'+1:word.istitle={word1.istitle()}',
             f'+1:word.isupper={word1.isupper()}',
             f'+1:word.shape={word_shape(word1)}',
@@ -100,35 +110,54 @@ def sent2labels(sent):
     return [label for token, _, label in sent]
 
 
-def conll_to_sentences(dataset):
-    """Convert HuggingFace CoNLL-2003 to list of sentences."""
-    # NER tag mapping
-    tag_map = {0: 'O', 1: 'B-PER', 2: 'I-PER', 3: 'B-ORG', 4: 'I-ORG', 
-               5: 'B-LOC', 6: 'I-LOC', 7: 'B-MISC', 8: 'I-MISC'}
-    
+def hf_ner_to_sentences(dataset, tokens_field="tokens", tags_field="ner_tags"):
+    """Convert a Hugging Face token-classification dataset split into CRFsuite sentences."""
+    # Prefer the dataset-provided label names.
+    tag_map = None
+    try:
+        feat = dataset.features[tags_field]
+        # Sequence(ClassLabel(names=[...])) is typical.
+        if hasattr(feat, "feature") and hasattr(feat.feature, "names"):
+            names = list(feat.feature.names)
+            tag_map = {i: n for i, n in enumerate(names)}
+    except Exception:
+        tag_map = None
+
+    # Fallback: CoNLL-2003 tag ids (common).
+    if tag_map is None:
+        tag_map = {
+            0: 'O', 1: 'B-PER', 2: 'I-PER', 3: 'B-ORG', 4: 'I-ORG',
+            5: 'B-LOC', 6: 'I-LOC', 7: 'B-MISC', 8: 'I-MISC'
+        }
+
     sentences = []
     for example in dataset:
-        tokens = example['tokens']
-        ner_tags = example['ner_tags']
-        pos_tags = example.get('pos_tags', [0] * len(tokens))
+        tokens = example[tokens_field]
+        ner_tags = example[tags_field]
         
         sent = []
-        for tok, pos, ner in zip(tokens, pos_tags, ner_tags):
+        for tok, ner in zip(tokens, ner_tags):
             label = tag_map.get(ner, 'O')
-            sent.append((tok, pos, label))
+            # We keep a 3-tuple to preserve the existing sent2labels shape.
+            sent.append((tok, 0, label))
         sentences.append(sent)
     
     return sentences
 
 
-def train_crf():
-    """Train CRF model on CoNLL-2003."""
-    print("Loading CoNLL-2003 dataset...")
-    dataset = load_dataset("conll2003", trust_remote_code=True)
+def train_crf(dataset_id, config, out_weights_path, out_model_path, max_train_sents, max_test_sents):
+    """Train CRF model and export weights."""
+    print(f"Loading dataset: {dataset_id} config={config!r} ...")
+    ds = load_dataset(dataset_id, config)
     
     print("Converting to sentences...")
-    train_sents = conll_to_sentences(dataset['train'])
-    test_sents = conll_to_sentences(dataset['test'])
+    train_sents = hf_ner_to_sentences(ds['train'])
+    test_sents = hf_ner_to_sentences(ds['test'])
+
+    if max_train_sents and max_train_sents > 0:
+        train_sents = train_sents[:max_train_sents]
+    if max_test_sents and max_test_sents > 0:
+        test_sents = test_sents[:max_test_sents]
     
     print(f"Train sentences: {len(train_sents)}")
     print(f"Test sentences: {len(test_sents)}")
@@ -142,7 +171,7 @@ def train_crf():
     
     # Train CRF
     print("Training CRF model...")
-    trainer = pycrfsuite.Trainer(verbose=True)
+    trainer = pycrfsuite.Trainer(verbose=False)
     
     for xseq, yseq in zip(X_train, y_train):
         trainer.append(xseq, yseq)
@@ -154,19 +183,25 @@ def train_crf():
         'feature.possible_transitions': True,
     })
     
-    trainer.train('crf_model.crfsuite')
-    print("Model saved to crf_model.crfsuite")
+    os.makedirs(os.path.dirname(out_model_path), exist_ok=True)
+    trainer.train(out_model_path)
+    print(f"Model saved to {out_model_path}")
     
     # Extract weights
     print("Extracting feature weights...")
     tagger = pycrfsuite.Tagger()
-    tagger.open('crf_model.crfsuite')
+    tagger.open(out_model_path)
     
-    # Get state features (emission features)
+    # Get state features (emission features).
+    #
+    # Compact export: keep only features that generalize. Avoid token-identity features
+    # (word.lower=...) which explode the weights size and are not shippable.
     weights = {}
     info = tagger.info()
     
     for (attr, label), weight in info.state_features.items():
+        if attr.startswith("word.lower=") or attr.startswith("-1:word.lower=") or attr.startswith("+1:word.lower="):
+            continue
         key = f"{attr}:{label}"
         weights[key] = weight
     
@@ -175,10 +210,11 @@ def train_crf():
         key = f"trans:{label_from}->{label_to}"
         weights[key] = weight
     
-    # Save weights as JSON
-    with open('crf_weights.json', 'w') as f:
+    # Save weights as JSON (ship this file in the Rust crate).
+    os.makedirs(os.path.dirname(out_weights_path), exist_ok=True)
+    with open(out_weights_path, 'w') as f:
         json.dump(weights, f, indent=2)
-    print(f"Saved {len(weights)} feature weights to crf_weights.json")
+    print(f"Saved {len(weights)} feature weights to {out_weights_path}")
     
     # Evaluate
     print("\nEvaluating on test set...")
@@ -210,5 +246,26 @@ def train_crf():
 
 
 if __name__ == '__main__':
-    train_crf()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dataset", default="unimelb-nlp/wikiann")
+    ap.add_argument("--config", default="en", help="HF config/subset (language code for WikiANN)")
+    ap.add_argument("--max-train-sents", type=int, default=15000, help="0 means no limit")
+    ap.add_argument("--max-test-sents", type=int, default=3000, help="0 means no limit")
+    ap.add_argument(
+        "--out-weights",
+        default="crates/anno/src/backends/crf_weights.json",
+    )
+    ap.add_argument(
+        "--out-model",
+        default=".generated/crf_model.crfsuite",
+    )
+    args = ap.parse_args()
+    train_crf(
+        dataset_id=args.dataset,
+        config=args.config,
+        out_weights_path=args.out_weights,
+        out_model_path=args.out_model,
+        max_train_sents=args.max_train_sents,
+        max_test_sents=args.max_test_sents,
+    )
 

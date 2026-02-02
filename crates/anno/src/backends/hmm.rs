@@ -16,7 +16,7 @@
 //! 1996  MUC-6: NER formally defined (PER, ORG, LOC)
 //! 1997  Nymble (Bikel et al.): early HMM NER system
 //! 1998  BBN IdentiFinder: HMM-based, MUC-7 benchmark
-//! 2001  CRFs introduced (Lafferty et al.) — HMMs superseded
+//! 2001  CRFs introduced (Lafferty et al.) — HMMs become a common comparison baseline
 //! ```
 //!
 //! # Architecture
@@ -65,9 +65,9 @@
 //! - Rabiner (1989): "A Tutorial on Hidden Markov Models" (foundational)
 //! - Bikel et al. 1997: "Nymble: A High-Performance Learning Name-finder"
 //! - BBN IdentiFinder: One of the first HMM-based NER systems
-//! - Largely replaced by CRFs after 2001 (Lafferty et al.)
+//! - Often replaced by CRFs for NER in the 2000s, but still useful as a baseline/teaching model
 //!
-//! # Why HMMs Were Superseded
+//! # Why HMMs Often Underperform CRFs (for NER)
 //!
 //! | Aspect | HMM | CRF |
 //! |--------|-----|-----|
@@ -77,8 +77,9 @@
 //! | Label Bias | Inherent | Solved |
 //! | Performance | task-dependent | task-dependent |
 //!
-//! HMMs can only condition on word identity. CRFs can use arbitrary
-//! features: capitalization, prefixes, suffixes, POS tags, gazetteers.
+//! HMMs are typically used with relatively limited emission features. CRFs can use arbitrary
+//! feature functions (capitalization, prefixes/suffixes, gazetteers, etc.) while remaining a
+//! globally normalized conditional model.
 //!
 //! # References
 //!

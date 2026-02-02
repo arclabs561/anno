@@ -18,14 +18,25 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 | Model | Method | Notes |
 |-------|--------|-------|
-| CRF | Conditional Random Fields | Dominant 2001-2015; ships heuristic params, can load trained |
-| HMM | Hidden Markov Model | Historical baseline (superseded by CRF in 2001) |
+| CRF | Conditional Random Fields | Common pre-neural baseline for sequence labeling (incl. NER); ships heuristic params, can load trained |
+| HMM | Hidden Markov Model | Historical baseline for sequence labeling; useful for comparison/education |
 
-**Status**: These ship with hand-tuned heuristic weights, not trained models.
+**Status**:
+
+- HMM ships with hand-tuned heuristic parameters (baseline/education).
+- CRF ships with **bundled trained weights** (compact) and can also load custom weights.
 
 - CRF can load trained weights: `CrfNER::with_weights("crf_weights.json")`
-- Training script: `uv run scripts/train_crf_weights.py` (trains on CoNLL-2003)
-- **Gap**: No pre-trained weights are currently distributed
+- Training script: `uv run scripts/train_crf_weights.py`
+  - Default training data: WikiANN (PAN-X) via `unimelb-nlp/wikiann` (config `en`)
+  - License note: the packaged dataset’s license is discussed in `https://huggingface.co/datasets/unimelb-nlp/wikiann/discussions/6`
+  - CoNLL-2003 note: CoNLL-2003’s English text is derived from Reuters/RCV1 and is commonly treated as redistribution-restricted; the CoNLL site notes it “only make[s] available the annotations” and requires separate Reuters corpus access: `http://www.clips.uantwerpen.be/conll2003/ner/`
+
+Pointers (for “what good looks like” in classical NER):
+
+- Stanford NER describes itself as a **CRF sequence model** and ships trained English models. See: `https://techfinder.stanford.edu/technology/stanford-named-entity-recognizer`
+- The McCallum CRF tutorial discusses the relationship between **HMMs** and **CRFs** in NLP. See: `https://people.cs.umass.edu/~mccallum/papers/crf-tutorial.pdf`
+- The CoNLL-2003 shared task paper summarizes baseline behavior and the variety of systems used at the time. See: `https://ar5iv.labs.arxiv.org/html/cs/0306050`
 
 ### Rule-based (no weights)
 

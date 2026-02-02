@@ -6,7 +6,7 @@
 //!
 //! # History
 //!
-//! CRF-based NER was the dominant approach from 2001-2015:
+//! CRF-based NER was a common baseline throughout the 2000s (pre-neural sequence labeling):
 //! - Lafferty et al. 2001: Introduced CRFs for sequence labeling (ICML)
 //! - McCallum & Li 2003: Applied CRFs to NER
 //! - Stanford NER (2003-2014): CRF-based, still widely used
@@ -104,6 +104,14 @@
 //!
 //! This produces `crf_weights.json` which can be loaded with `CrfNER::with_weights()`.
 //!
+//! Nuance: CoNLL-2003’s English text is derived from Reuters/RCV1 and is commonly treated as
+//! redistribution-restricted. The CoNLL site notes that, “because of copyright reasons we only
+//! make available the annotations” and that you need separate access to the Reuters corpus to
+//! build the full dataset: `http://www.clips.uantwerpen.be/conll2003/ner/`.
+//!
+//! Practical consequence: `anno` includes a training script, but it does not ship a CoNLL-trained
+//! `crf_weights.json` out of the box.
+//!
 //! # Advantages Over Neural Methods
 //!
 //! - **Interpretable**: Features and weights are human-readable
@@ -114,6 +122,7 @@
 
 use crate::{Entity, EntityType, Model, Result};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// CRF-based NER model.
 ///
@@ -324,8 +333,8 @@ impl CrfNER {
             FeatureTemplate::PrevLabel,
         ];
 
-        // Initialize with heuristic weights (not trained)
-        let weights = Self::default_weights();
+        // Initialize with shipped trained weights when available; fall back to heuristics.
+        let weights = Self::shipped_weights().unwrap_or_else(Self::default_weights);
 
         Self {
             weights,
@@ -333,6 +342,18 @@ impl CrfNER {
             labels,
             templates,
         }
+    }
+
+    fn shipped_weights() -> Option<HashMap<String, f64>> {
+        static ONCE: OnceLock<Option<HashMap<String, f64>>> = OnceLock::new();
+        ONCE.get_or_init(|| {
+            // Keep this lightweight and robust:
+            // - shipped weights are optional (dev builds may delete the file)
+            // - parsing failure should not break the backend (fall back to heuristics)
+            let s = include_str!("crf_weights.json");
+            serde_json::from_str::<HashMap<String, f64>>(s).ok()
+        })
+        .clone()
     }
 
     /// Load weights from a JSON file.
