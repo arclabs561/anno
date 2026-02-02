@@ -276,6 +276,12 @@ struct WorstFirstRoundLog {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
+struct FailKindCount {
+    kind: String,
+    count: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
 struct DecisionLog {
     schema_version: u32,
     muxer_version: String,
@@ -294,6 +300,8 @@ struct DecisionLog {
     constraints_fallback_used: Option<bool>,
     eligible_arms: Option<Vec<String>>,
     top_candidates: Option<muxer::LogTopCandidates>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen_fail_kinds_top: Option<Vec<FailKindCount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     mab_k_round: Option<muxer::MabKRoundLog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -332,7 +340,7 @@ fn append_jsonl(path: &str, v: &DecisionLog) {
 #[test]
 fn test_decision_log_schema_smoke() {
     let log = DecisionLog {
-        schema_version: 5,
+        schema_version: 6,
         muxer_version: muxer::MUXER_VERSION.to_string(),
         run_id: "seed=0 slice=ner strategy=MlOnly".to_string(),
         strategy: "ml-only".to_string(),
@@ -352,6 +360,10 @@ fn test_decision_log_schema_smoke() {
             kind: muxer::LOG_SCORE_KIND_MAB_SCALAR.to_string(),
             rows: Vec::new(),
         }),
+        chosen_fail_kinds_top: Some(vec![FailKindCount {
+            kind: "timeout".to_string(),
+            count: 2,
+        }]),
         mab_k_round: None,
         exp3ix_rounds: None,
         worst_first_round: None,
@@ -360,13 +372,14 @@ fn test_decision_log_schema_smoke() {
     let s = serde_json::to_string(&log).expect("serialize DecisionLog");
     let v: serde_json::Value = serde_json::from_str(&s).expect("parse DecisionLog JSON");
 
-    assert_eq!(v["schema_version"].as_u64(), Some(5));
+    assert_eq!(v["schema_version"].as_u64(), Some(6));
     assert_eq!(v["muxer_version"].as_str(), Some(muxer::MUXER_VERSION));
     assert_eq!(
         v["top_candidates"]["kind"].as_str(),
         Some(muxer::LOG_SCORE_KIND_MAB_SCALAR)
     );
     assert!(v["top_candidates"]["rows"].is_array());
+    assert!(v["chosen_fail_kinds_top"].is_array());
 }
 
 fn matrix_task_override() -> Option<Task> {
@@ -765,6 +778,54 @@ impl BackendHistory {
         }
         out
     }
+
+    fn chosen_fail_kinds_top_for(
+        &self,
+        backend: &str,
+        datasets: Option<&[DatasetId]>,
+        per_dataset: bool,
+        top: usize,
+    ) -> Option<Vec<FailKindCount>> {
+        let mut counts: BTreeMap<String, u64> = BTreeMap::new();
+        let mut saw_any = false;
+
+        if per_dataset {
+            if let Some(datasets) = datasets {
+                for &ds in datasets {
+                    let k = Self::dataset_key(backend, ds);
+                    if let Some(buf) = self.fail_kinds.get(&k) {
+                        saw_any = true;
+                        for kind in buf.iter().flatten() {
+                            *counts.entry(kind.clone()).or_insert(0) += 1;
+                        }
+                    }
+                }
+            }
+            if saw_any && !counts.is_empty() {
+                return Some(top_counts(counts, top));
+            }
+        }
+
+        if let Some(buf) = self.fail_kinds.get(backend) {
+            for kind in buf.iter().flatten() {
+                *counts.entry(kind.clone()).or_insert(0) += 1;
+            }
+        }
+        if counts.is_empty() {
+            None
+        } else {
+            Some(top_counts(counts, top))
+        }
+    }
+}
+
+fn top_counts(counts: BTreeMap<String, u64>, top: usize) -> Vec<FailKindCount> {
+    let mut rows: Vec<(u64, String)> = counts.into_iter().map(|(k, v)| (v, k)).collect();
+    rows.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    rows.into_iter()
+        .take(top.max(1))
+        .map(|(count, kind)| FailKindCount { kind, count })
+        .collect()
 }
 
 fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
@@ -974,10 +1035,13 @@ fn select_backends(
                     .collect();
                 let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
                 for rl in round_logs {
+                    let chosen_fail_kinds_top = rl.chosen.as_deref().and_then(|b| {
+                        history.chosen_fail_kinds_top_for(b, datasets, per_dataset, 3)
+                    });
                     append_jsonl(
                         p,
                         &DecisionLog {
-                            schema_version: 5,
+                            schema_version: 6,
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "ml-only".to_string(),
@@ -996,6 +1060,7 @@ fn select_backends(
                             constraints_fallback_used: rl.constraints_fallback_used,
                             eligible_arms: rl.constraints_eligible_arms.clone(),
                             top_candidates: rl.top_candidates.clone(),
+                            chosen_fail_kinds_top,
                             mab_k_round: Some(rl),
                             exp3ix_rounds: None,
                             worst_first_round: None,
@@ -1113,7 +1178,7 @@ fn select_backends(
                     append_jsonl(
                         p,
                         &DecisionLog {
-                            schema_version: 5,
+                            schema_version: 6,
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "worst-first".to_string(),
@@ -1130,6 +1195,12 @@ fn select_backends(
                             constraints_fallback_used: None,
                             eligible_arms: None,
                             top_candidates: Some(top_candidates),
+                            chosen_fail_kinds_top: history.chosen_fail_kinds_top_for(
+                                &pick,
+                                datasets,
+                                mh::env_bool("ANNO_MUXER_PER_DATASET", true),
+                                3,
+                            ),
                             mab_k_round: None,
                             exp3ix_rounds: None,
                             worst_first_round: Some(WorstFirstRoundLog {
@@ -1973,7 +2044,7 @@ fn test_randomized_matrix_sample() {
                 append_jsonl(
                     p,
                     &DecisionLog {
-                        schema_version: 5,
+                        schema_version: 6,
                         muxer_version: muxer::MUXER_VERSION.to_string(),
                         run_id,
                         strategy: "ml-only".to_string(),
@@ -1993,6 +2064,14 @@ fn test_randomized_matrix_sample() {
                         top_candidates: exp3ix_rounds
                             .first()
                             .and_then(|r| r.top_candidates.clone()),
+                        chosen_fail_kinds_top: chosen.first().and_then(|b| {
+                            history.chosen_fail_kinds_top_for(
+                                b,
+                                Some(&chosen_datasets),
+                                per_dataset,
+                                3,
+                            )
+                        }),
                         mab_k_round: None,
                         exp3ix_rounds: Some(exp3ix_rounds),
                         worst_first_round: None,
