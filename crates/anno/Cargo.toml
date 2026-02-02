@@ -102,5 +102,13 @@ full = ["onnx", "candle", "discourse", "graph"]
 # `../gramdex` available.
 full-workspace = ["full", "gramdex"]
 
+# Bundled classical assets (opt-in).
+#
+# These features exist to prevent model assets from being embedded into binaries unless the
+# caller explicitly enables them. This keeps default builds minimal and avoids surprising
+# redistribution of large artifacts.
+bundled-crf-weights = []
+bundled-hmm-params = []
+
 # Stub features referenced behind cfg gates.
 unicode-normalization = []

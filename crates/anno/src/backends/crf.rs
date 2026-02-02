@@ -122,6 +122,7 @@
 
 use crate::{Entity, EntityType, Model, Result};
 use std::collections::HashMap;
+#[cfg(feature = "bundled-crf-weights")]
 use std::sync::OnceLock;
 
 /// CRF-based NER model.
@@ -345,15 +346,22 @@ impl CrfNER {
     }
 
     fn shipped_weights() -> Option<HashMap<String, f64>> {
-        static ONCE: OnceLock<Option<HashMap<String, f64>>> = OnceLock::new();
-        ONCE.get_or_init(|| {
-            // Keep this lightweight and robust:
-            // - shipped weights are optional (dev builds may delete the file)
-            // - parsing failure should not break the backend (fall back to heuristics)
-            let s = include_str!("crf_weights.json");
-            serde_json::from_str::<HashMap<String, f64>>(s).ok()
-        })
-        .clone()
+        #[cfg(feature = "bundled-crf-weights")]
+        {
+            static ONCE: OnceLock<Option<HashMap<String, f64>>> = OnceLock::new();
+            return ONCE
+                .get_or_init(|| {
+                    // Keep this lightweight and robust:
+                    // - parsing failure should not break the backend (fall back to heuristics)
+                    let s = include_str!("crf_weights.json");
+                    serde_json::from_str::<HashMap<String, f64>>(s).ok()
+                })
+                .clone();
+        }
+        #[cfg(not(feature = "bundled-crf-weights"))]
+        {
+            None
+        }
     }
 
     /// Load weights from a JSON file.
@@ -1092,6 +1100,14 @@ mod tests {
 
     #[test]
     fn test_weights_for_common_words() {
+        // This test asserts properties of the heuristic weight table, which includes
+        // many `word.lower=...` entries. The bundled trained weights are intentionally
+        // compact and omit token-identity features to keep the shipped file size small.
+        #[cfg(feature = "bundled-crf-weights")]
+        {
+            return;
+        }
+
         let ner = CrfNER::new();
 
         // Check that weights exist for common stop words

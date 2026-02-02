@@ -24,13 +24,17 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 **Status**:
 
 - HMM ships with hand-tuned heuristic parameters (baseline/education).
-- CRF ships with **bundled trained weights** (compact) and can also load custom weights.
+- HMM can optionally use **bundled trained params** (priors + transitions, compact) when the `bundled-hmm-params` feature is enabled.
+- CRF can optionally use **bundled trained weights** (compact) when the `bundled-crf-weights` feature is enabled, and can also load custom weights.
 
 - CRF can load trained weights: `CrfNER::with_weights("crf_weights.json")`
 - Training script: `uv run scripts/train_crf_weights.py`
   - Default training data: WikiANN (PAN-X) via `unimelb-nlp/wikiann` (config `en`)
   - License note: the packaged dataset’s license is discussed in `https://huggingface.co/datasets/unimelb-nlp/wikiann/discussions/6`
   - CoNLL-2003 note: CoNLL-2003’s English text is derived from Reuters/RCV1 and is commonly treated as redistribution-restricted; the CoNLL site notes it “only make[s] available the annotations” and requires separate Reuters corpus access: `http://www.clips.uantwerpen.be/conll2003/ner/`
+
+- Training script (HMM params): `uv run scripts/train_hmm_params.py`
+  - Output: `crates/anno/src/backends/hmm_params.json` (priors + transitions only; emissions remain heuristic)
 
 Pointers (for “what good looks like” in classical NER):
 

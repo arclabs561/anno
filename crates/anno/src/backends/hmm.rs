@@ -97,6 +97,18 @@
 use crate::{Entity, EntityType, Model, Result};
 use std::collections::HashMap;
 
+#[cfg(feature = "bundled-hmm-params")]
+use std::sync::OnceLock;
+
+#[cfg(feature = "bundled-hmm-params")]
+use serde_json as _;
+
+#[derive(Debug, Clone)]
+struct HmmParams {
+    initial: Vec<f64>,
+    transitions: Vec<Vec<f64>>,
+}
+
 /// HMM configuration.
 #[derive(Debug, Clone)]
 pub struct HmmConfig {
@@ -191,7 +203,7 @@ impl HmmNER {
         // Initialize emission probabilities with heuristics
         let emissions = Self::init_emissions(&states, &state_to_idx);
 
-        Self {
+        let mut m = Self {
             config,
             states,
             state_to_idx,
@@ -199,6 +211,42 @@ impl HmmNER {
             initial,
             emissions,
             vocab: HashMap::new(),
+        };
+
+        // Optional bundled params (priors + transitions only). These are small enough to ship,
+        // and they don't embed word identity emissions.
+        if let Some(p) = Self::bundled_params() {
+            if p.initial.len() == m.states.len()
+                && p.transitions.len() == m.states.len()
+                && p.transitions.iter().all(|r| r.len() == m.states.len())
+            {
+                m.initial = p.initial;
+                m.transitions = p.transitions;
+            }
+        }
+
+        m
+    }
+
+    fn bundled_params() -> Option<HmmParams> {
+        #[cfg(feature = "bundled-hmm-params")]
+        {
+            static ONCE: OnceLock<Option<HmmParams>> = OnceLock::new();
+            return ONCE
+                .get_or_init(|| {
+                    let s = include_str!("hmm_params.json");
+                    let v: serde_json::Value = serde_json::from_str(s).ok()?;
+                    let initial = v.get("initial")?.as_array()?.iter().map(|x| x.as_f64()).collect::<Option<Vec<_>>>()?;
+                    let transitions = v.get("transitions")?.as_array()?.iter().map(|row| {
+                        row.as_array()?.iter().map(|x| x.as_f64()).collect::<Option<Vec<_>>>()
+                    }).collect::<Option<Vec<_>>>()?;
+                    Some(HmmParams { initial, transitions })
+                })
+                .clone();
+        }
+        #[cfg(not(feature = "bundled-hmm-params"))]
+        {
+            None
         }
     }
 
