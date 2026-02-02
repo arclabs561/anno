@@ -530,11 +530,8 @@ fn history_path(slice_tag: &str) -> PathBuf {
     // Fallback: place next to default dataset cache root.
     // DatasetLoader::new() uses platform cache: ~/.cache/anno/datasets (linux).
     // We'll store history alongside `.../anno/`.
-    #[cfg(feature = "eval")]
-    {
-        if let Some(base) = dirs::cache_dir() {
-            return base.join("anno").join(suffix);
-        }
+    if let Some(base) = dirs::cache_dir() {
+        return base.join("anno").join(suffix);
     }
     PathBuf::from(".").join(suffix)
 }
@@ -588,11 +585,8 @@ fn decisions_path() -> Option<String> {
                 .to_string(),
         );
     }
-    #[cfg(feature = "eval")]
-    {
-        if let Some(base) = dirs::cache_dir() {
-            return Some(base.join("anno").join(suffix).to_string_lossy().to_string());
-        }
+    if let Some(base) = dirs::cache_dir() {
+        return Some(base.join("anno").join(suffix).to_string_lossy().to_string());
     }
     Some(
         PathBuf::from(".")
