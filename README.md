@@ -31,14 +31,14 @@ DATE:1 "March 15"
 MONEY:1 "$50K"
 ```
 
-Coreference (linking "She" to its referent):
+Coreference (linking "He" to its referent):
 
 ```sh
-anno debug --coref -t "Marie Curie discovered radium. She won two Nobel Prizes."
+anno debug --coref -t "Alan Turing broke the Enigma code. He founded theoretical computer science."
 ```
 
 ```text
-Coreference: "Marie Curie" → "She"
+Coreference: "Alan Turing" → "He"
 ```
 
 ## Install
