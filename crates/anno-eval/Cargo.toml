@@ -57,3 +57,7 @@ llm = ["anno/llm"]
 rank-eval = []
 hf-hub = ["dep:hf-hub"]
 
+# Pass-through feature gates for bundled classical assets.
+bundled-crf-weights = ["anno/bundled-crf-weights"]
+bundled-hmm-params = ["anno/bundled-hmm-params"]
+

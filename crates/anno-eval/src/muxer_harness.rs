@@ -196,6 +196,16 @@ where
     let mut fallback_used = false;
     let mut stopped_early = false;
     if eligible_used.is_empty() {
+        if guard.require_measured {
+            stopped_early = true;
+            return PolicyFill {
+                chosen,
+                eligible_used,
+                plan,
+                fallback_used,
+                stopped_early,
+            };
+        }
         if guard.allow_fewer && !chosen.is_empty() {
             stopped_early = true;
             return PolicyFill {
@@ -554,9 +564,9 @@ mod prior_tests {
             |_b| (0, 0),
             |xs, _k| vec![xs[0].clone()],
         );
-        assert_eq!(fill.chosen, vec!["a".to_string()]);
-        assert!(fill.fallback_used);
-        assert!(!fill.stopped_early);
+        assert!(fill.chosen.is_empty());
+        assert!(!fill.fallback_used);
+        assert!(fill.stopped_early);
     }
 
     #[test]
@@ -631,8 +641,8 @@ mod prior_tests {
 
     #[test]
     fn test_policy_fill_fallback_used_when_guardrail_filters_all_and_no_picks_yet() {
-        // Difficult seam: guardrail filters all arms (stop_early), but because we have no picks
-        // yet the policy should fall back to remaining and still pick something.
+        // When require_measured is set, we should stop early rather than falling back to
+        // unmeasured arms.
         let guard = LatencyGuardrail {
             max_mean_ms: Some(1.0),
             allow_fewer: true,
@@ -648,9 +658,9 @@ mod prior_tests {
             |_b| (0, 0),
             |eligible, _k| vec![eligible[0].clone()],
         );
-        assert_eq!(fill.chosen.len(), 1);
-        assert!(fill.fallback_used);
-        assert!(!fill.stopped_early);
+        assert!(fill.chosen.is_empty());
+        assert!(!fill.fallback_used);
+        assert!(fill.stopped_early);
     }
 
     #[test]

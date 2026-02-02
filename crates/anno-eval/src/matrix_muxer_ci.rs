@@ -77,6 +77,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy)]
 enum SampleStrategy {
@@ -2804,10 +2805,18 @@ fn test_muxer_prior_prefers_facet_matched_history() {
     );
 }
 
+fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
 #[test]
 fn test_latency_guardrail_require_measured_uses_observed_calls() {
     // Regression test: prior smoothing should not make an arm count as “measured” for the
     // latency guardrail. `require_measured` must be based on observed calls.
+    let _env = env_lock();
     let mut prior = BackendHistory {
         version: 3,
         window_cap: 50,
@@ -2892,6 +2901,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
 fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
     // Tougher regression test: with multiple arms, require_measured must exclude arms that are
     // only “measured” via priors, and still allow selection of a truly observed arm.
+    let _env = env_lock();
     let mut prior = BackendHistory {
         version: 3,
         window_cap: 50,
@@ -2983,6 +2993,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
 #[test]
 fn test_control_k_prefix_is_deterministic_and_reserved() {
     // Regression test: control picks should be a deterministic prefix and must not be re-picked.
+    let _env = env_lock();
     let old = std::env::var("ANNO_MUXER_CONTROL_K").ok();
     struct Restore(Option<String>);
     impl Drop for Restore {
@@ -3030,6 +3041,7 @@ fn test_novelty_still_triggers_under_priors() {
     // Regression test: with priors enabled, "calls" may be non-zero in smoothed summaries
     // even when an arm has never been tried in this slice. Novelty should still pick the
     // slice-unseen arm.
+    let _env = env_lock();
     let mut prior = BackendHistory {
         version: 3,
         window_cap: 50,
