@@ -517,6 +517,12 @@ struct BackendHistory {
     version: u32,
     window_cap: usize,
     windows: BTreeMap<String, Window>,
+    /// Optional per-outcome failure kind strings aligned with each window buffer.
+    ///
+    /// This is triage-oriented metadata (low-cardinality strings). Selection should not depend on
+    /// this directly; it exists to help bug-finding converge faster.
+    #[serde(default)]
+    fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
     #[serde(default)]
     exp3ix_state: Option<Exp3IxState>,
 }
@@ -539,6 +545,8 @@ impl BackendHistory {
             #[serde(default)]
             windows: BTreeMap<String, WindowSerde>,
             #[serde(default)]
+            fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
+            #[serde(default)]
             exp3ix_state: Option<Exp3IxState>,
         }
 
@@ -554,6 +562,7 @@ impl BackendHistory {
                 // - version 2: ok was recorded as “evaluation succeeded”; upgrade to “non-junk success”.
                 // - version >=3: current semantics; enforce invariants defensively.
                 let mut windows: BTreeMap<String, Window> = BTreeMap::new();
+                let mut fail_kinds: BTreeMap<String, VecDeque<Option<String>>> = BTreeMap::new();
                 for (k, w) in h.windows {
                     let _ = w.cap;
                     let mut out = Window::new(cap);
@@ -577,11 +586,19 @@ impl BackendHistory {
                     }
                     windows.insert(k, out);
                 }
+                // Carry failure kinds forward best-effort, truncating to cap.
+                for (k, mut fk) in h.fail_kinds {
+                    while fk.len() > cap {
+                        fk.pop_front();
+                    }
+                    fail_kinds.insert(k, fk);
+                }
 
                 return Self {
                     version: 3,
                     window_cap: cap,
                     windows,
+                    fail_kinds,
                     exp3ix_state: h.exp3ix_state,
                 };
             }
@@ -591,6 +608,7 @@ impl BackendHistory {
             version: 3,
             window_cap: window_cap.max(1),
             windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
         }
     }
@@ -608,6 +626,22 @@ impl BackendHistory {
         self.windows
             .entry(backend.to_string())
             .or_insert_with(|| Window::new(self.window_cap))
+    }
+
+    fn fail_kinds_mut(&mut self, key: &str) -> &mut VecDeque<Option<String>> {
+        self.fail_kinds
+            .entry(key.to_string())
+            .or_insert_with(VecDeque::new)
+    }
+
+    fn push_with_fail_kind(&mut self, key: &str, o: Outcome, fail_kind: Option<String>) {
+        self.window_mut(key).push(o);
+        let cap = self.window_cap;
+        let fk = self.fail_kinds_mut(key);
+        fk.push_back(fail_kind);
+        while fk.len() > cap {
+            fk.pop_front();
+        }
     }
 
     fn dataset_key(backend: &str, dataset: DatasetId) -> String {
@@ -2147,13 +2181,20 @@ fn test_randomized_matrix_sample() {
             cost_units: r.num_examples as u64,
             elapsed_ms: dur_ms as u64,
         };
+        let fail_kind = if hard_junk {
+            r.error
+                .as_deref()
+                .map(|e| mh::classify_failure_kind(e).to_string())
+        } else {
+            None
+        };
         // Update both:
         // - global per-backend window (back-compat + overall view)
         // - dataset-scoped per-backend window (preferred for selection within a slice)
-        history.window_mut(&r.backend).push(o);
+        history.push_with_fail_kind(&r.backend, o, fail_kind.clone());
         if mh::env_bool("ANNO_MUXER_PER_DATASET", true) {
             let k = BackendHistory::dataset_key(&r.backend, r.dataset);
-            history.window_mut(&k).push(o);
+            history.push_with_fail_kind(&k, o, fail_kind);
         }
     }
 
@@ -2404,6 +2445,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
 
@@ -2443,6 +2485,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
 
@@ -2465,6 +2508,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
     let mut w = Window::new(50);
@@ -2484,6 +2528,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
 
@@ -2547,6 +2592,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
     let mut w_prior = Window::new(50);
@@ -2567,6 +2613,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
     let mut w_obs = Window::new(50);
@@ -2638,6 +2685,7 @@ fn test_novelty_still_triggers_under_priors() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
     let mut w = Window::new(50);
@@ -2657,6 +2705,7 @@ fn test_novelty_still_triggers_under_priors() {
         version: 3,
         window_cap: 50,
         windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
 

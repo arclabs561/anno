@@ -943,6 +943,74 @@ pub fn env_bool(name: &str, default: bool) -> bool {
     }
 }
 
+/// Coarse, domain-agnostic failure kind classification from an error string.
+///
+/// This is intended for *triage* and regression hunting, not for selection math. Keep it stable and
+/// low-cardinality so history files remain readable and comparisons remain meaningful across time.
+pub fn classify_failure_kind(err: &str) -> &'static str {
+    let e = err.to_ascii_lowercase();
+
+    // Rate limiting / quota / auth.
+    if e.contains("429")
+        || e.contains("rate limit")
+        || e.contains("too many requests")
+        || e.contains("quota")
+        || e.contains("throttle")
+    {
+        return "rate_limit";
+    }
+
+    // Timeouts / cancellation.
+    if e.contains("timeout")
+        || e.contains("timed out")
+        || e.contains("deadline")
+        || e.contains("cancelled")
+        || e.contains("canceled")
+    {
+        return "timeout";
+    }
+
+    // Dataset load/parse/IO.
+    if e.contains("dataset")
+        && (e.contains("load")
+            || e.contains("open")
+            || e.contains("read")
+            || e.contains("parse")
+            || e.contains("json")
+            || e.contains("csv")
+            || e.contains("conllu")
+            || e.contains("format"))
+    {
+        return "dataset";
+    }
+    if e.contains("download") || e.contains("http") || e.contains("fetch") || e.contains("s3") {
+        return "io";
+    }
+
+    // Metric/scoring issues.
+    if e.contains("metric")
+        || e.contains("score")
+        || e.contains("confusion")
+        || e.contains("nan")
+        || e.contains("infinite")
+    {
+        return "metric";
+    }
+
+    // Backend/model/inference issues.
+    if e.contains("backend")
+        || e.contains("model")
+        || e.contains("onnx")
+        || e.contains("tensor")
+        || e.contains("inference")
+        || e.contains("tokenizer")
+    {
+        return "backend";
+    }
+
+    "unknown"
+}
+
 /// Parse a usize environment variable with a default.
 pub fn env_usize(name: &str, default: usize) -> usize {
     std::env::var(name)
