@@ -125,6 +125,10 @@ verify_new_features_report.md
 # Muxer history cache (ephemeral; don't commit)
 crates/anno-eval/muxer_history*.json
 
+# Muxer decisions logs (ephemeral; don't commit)
+# Default local path is under the OS cache, but devs may point ANNO_CACHE_DIR into the repo.
+muxer_decisions*.jsonl
+
 # Temporary review/status documents (should be in docs/ or archived)
 FIXES_APPLIED.md
 REVIEW_BACKWARDS.md
@@ -149,4 +153,3 @@ generated/datasets.toml
 # Archived review documents (not actively maintained)
 docs/archive/
 reports/eval-comprehensive.jsonl
-muxer_decisions.jsonl
