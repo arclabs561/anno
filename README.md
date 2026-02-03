@@ -6,6 +6,12 @@ Dual-licensed under MIT or Apache-2.0.
 
 API docs: [docs.rs/anno](https://docs.rs/anno)
 
+## Start here
+
+- `docs/QUICKSTART.md` — 5-minute CLI + library usage
+- `docs/CONTRACT.md` — scope + guarantees (including offset discipline)
+- `docs/BACKENDS.md` — backend selection + feature flags
+
 ## Backends
 
 | Backend | Custom types | Weights | Notes |
@@ -25,8 +31,16 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 Notes:
 
 - All NER backends return **variable-length spans** (start/end offsets). Some are token-labeling models internally.
-- ML backends require `--features onnx`. ONNX model weights download from HuggingFace on first use.
+- Neural backends are feature-gated behind `onnx`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
+- ONNX model weights download from HuggingFace on first use (see “Offline / downloads” below).
 - The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
+
+## Offline / downloads
+
+- Prefetch models explicitly: `anno models download ...`
+- Force cached-only / offline behavior:
+  - `ANNO_NO_DOWNLOADS=1` (preferred), or
+  - `HF_HUB_OFFLINE=1`
 
 ## Examples
 
@@ -34,6 +48,12 @@ Named entities:
 
 ```sh
 anno extract --text "Ada Lovelace worked with Charles Babbage in London."
+```
+
+Machine-readable output:
+
+```sh
+anno extract --format json --text "Ada Lovelace worked with Charles Babbage in London."
 ```
 
 ```text
