@@ -1,129 +1,34 @@
 //! # anno
 //!
-//! Information extraction for Rust: NER, coreference resolution, and evaluation.
+//! Information extraction: named entity recognition (NER) and within-document coreference.
 //!
-//! ## The Three-Level Hierarchy
+//! - **NER output**: variable-length spans with **character offsets** (Unicode scalar values), not
+//!   byte offsets.
+//! - **Coreference output**: clusters (“tracks”) of mentions within one document.
 //!
-//! Anno organizes entity processing into three distinct levels, each answering
-//! a different question:
+//! This crate focuses on inference-time extraction. Dataset loaders, benchmarking, and matrix
+//! evaluation tooling live in `anno-eval` (and the `anno` CLI lives in `anno-cli`).
 //!
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────────────────┐
-//! │ Level 3: Identity — "Which knowledge base entry is this?"               │
-//! │ Cross-document entity, may have KB link (Wikidata Q-ID, etc.)           │
-//! │ Type: anno_core::grounded::Identity                                     │
-//! ├─────────────────────────────────────────────────────────────────────────┤
-//! │ Level 2: Track — "Are these mentions the SAME entity?"                  │
-//! │ Within-document coreference chain                                       │
-//! │ Type: anno_core::grounded::Track                                        │
-//! │ Backend: backends::mention_ranking::MentionRankingCoref                 │
-//! ├─────────────────────────────────────────────────────────────────────────┤
-//! │ Level 1: Signal — "What entity mentions exist here?"                    │
-//! │ Single mention detection (NER)                                          │
-//! │ Types: anno_core::grounded::Signal, anno_core::Entity                   │
-//! │ Backends: RegexNER, HeuristicNER, GLiNER, NuNER, etc.                   │
-//! └─────────────────────────────────────────────────────────────────────────┘
-//! ```
-//!
-//! ## Don't Confuse These
-//!
-//! | Concept | What it is | What it's NOT |
-//! |---------|------------|---------------|
-//! | **NER** | What mentions exist? | Coreference (same entity?) |
-//! | **Coreference** | Same entity? | Salience (how important?) |
-//! | **Salience** | How important? | Coreference (not a substitute!) |
-//!
-//! ## Core Capabilities
-//!
-//! - **NER**: Multiple backends (Regex, BERT, GLiNER, NuNER, W2NER)
-//! - **Coreference**: Resolution (mention-ranking, rule-based) and metrics (MUC, B³, CEAF, LEA, BLANC)
-//! - **Salience**: Optional graph-based ranking (feature = `graph`)
-//! - **Evaluation**: Comprehensive benchmarking framework with bias analysis
-//!
-//! ## Discourse Analysis (feature = "discourse")
-//!
-//! Handles phenomena beyond sentence-level NER:
-//!
-//! - **Centering theory**: Track what the discourse is "about" through forward/backward-looking
-//!   centers. Use for pronoun resolution and coherence analysis.
-//! - **Uncertain reference**: Defer resolution when antecedent is ambiguous, maintaining
-//!   a distribution over candidates. Handles cataphora and bridging.
-//! - **Abstract anaphora**: Resolve pronouns like "this" that refer to events, propositions,
-//!   or facts—not just named entities.
-//!
-//! ## Quick Start
+//! ## Quickstart
 //!
 //! ```rust
 //! use anno::{Model, StackedNER};
 //!
-//! // Level 1: Detect entity mentions
-//! let ner = StackedNER::default();
-//! let entities = ner.extract_entities("John met Mary in Paris.", None).unwrap();
+//! let m = StackedNER::default();
+//! let ents = m.extract_entities("Lynn Conway worked at IBM and Xerox PARC.", None)?;
+//! assert!(!ents.is_empty());
+//! # Ok::<(), anno::Error>(())
 //! ```
 //!
-//! For zero-shot extraction with custom types (requires `onnx` feature):
+//! ## Zero-shot custom entity types
 //!
-//! ```rust,ignore
-//! use anno::{GLiNEROnnx, ZeroShotNER, DEFAULT_GLINER_MODEL};
+//! Zero-shot custom entity types are provided by GLiNER backends when the `onnx` feature is
+//! enabled. See the repo docs for the CLI flag (`--extract-types`) and the library API.
 //!
-//! let ner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
-//! let entities = ner.extract_with_types(
-//!     "Aspirin treats headaches and fever.",
-//!     &["drug", "symptom"],
-//!     0.5,
-//! )?;
-//! ```
+//! ## Offline / downloads
 //!
-//! For coreference (Level 2):
-//!
-//! ```rust,ignore
-//! use anno::backends::mention_ranking::MentionRankingCoref;
-//!
-//! let coref = MentionRankingCoref::new();
-//! let (signals, tracks) = coref.resolve_to_grounded("John saw Mary. He waved.")?;
-//! // signals: individual mentions, tracks: coreference chains
-//! ```
-//!
-//! Core types (Entity, GroundedDocument, Signal, Track, etc.) live in `anno::core` and are re-exported here.
-//!
-//! ## Feature Flags
-//!
-//! Anno uses feature flags to control compile-time dependencies. Here's the taxonomy:
-//!
-//! ### Evaluation
-//!
-//! Evaluation lives in the separate `anno-eval` crate (and the `anno` CLI lives in `anno-cli`).
-//! This keeps eval/CLI dependencies from affecting the core library and makes feature-gating
-//! much clearer.
-//!
-//! ### ML Backend Features
-//!
-//! | Feature | Framework | Notes |
-//! |---------|-----------|-------|
-//! | `onnx` | ONNX Runtime | Best for inference, requires system ONNX libs |
-//! | `candle` | Candle (pure Rust) | No external deps, slower than ONNX |
-//! | `metal` | Candle + Metal | Apple Silicon GPU acceleration |
-//! | `cuda` | Candle + CUDA | NVIDIA GPU acceleration |
-//! | `burn` | Burn (Rust) | Training support, multiple backends |
-//! | `llm` | ureq (HTTP) | Enables UniversalNER network calls (API-key required) |
-//!
-//! **Recommendation**: Start with `onnx` for best accuracy/speed tradeoff.
-//!
-//! ### Production Features
-//!
-//! | Feature | Enables |
-//! |---------|---------|
-//! | `async-inference` | Async/await for ONNX inference |
-//! | `session-pool` | Connection pooling for ONNX sessions |
-//! | `fast-lock` | `parking_lot` for faster mutexes |
-//! | `production` | All production features combined |
-//!
-//! ### Convenience Features
-//!
-//! | Feature | What it includes |
-//! |---------|------------------|
-//! | `full` | `onnx` + `candle` + `discourse` + `graph` |
-//! | `default` | `onnx` |
+//! By default, ML weights may download on first use. To force cached-only behavior, set
+//! `ANNO_NO_DOWNLOADS=1` (after prefetching models).
 
 #![warn(missing_docs)]
 
@@ -139,14 +44,15 @@ pub mod env;
 pub mod error;
 /// Entity feature extraction for downstream ML and analysis.
 pub mod features;
+/// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
-/// Joint inference for coreference resolution and entity linking.
+/// Joint inference experiments (optional; not the primary API surface).
 pub mod joint;
 /// Keyword and keyphrase extraction (TF-IDF, YAKE, TextRank).
 #[cfg(feature = "graph")]
 pub mod keywords;
 pub mod lang;
-/// Entity linking to knowledge bases.
+/// Knowledge-base linking helpers (experimental).
 pub mod linking;
 pub mod offset;
 /// Shared PageRank algorithm for graph-based ranking.
