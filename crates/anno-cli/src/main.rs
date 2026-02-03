@@ -1,33 +1,21 @@
 //! anno - Information Extraction CLI
 #![allow(dead_code)]
 //!
-//! A unified toolkit for named entity recognition, coreference resolution,
-//! relation extraction, and entity linking.
+//! A small CLI for `anno` focused on:
+//! - NER (named entity recognition)
+//! - within-document coreference
+//! - structured pattern extraction (dates, money, emails)
 //!
-//! # Capabilities
-//!
-//! - **NER**: Named Entity Recognition (persons, organizations, locations, etc.)
-//! - **Coreference**: Link mentions to the same entity ("She" → "Marie Curie")
-//! - **Relations**: Extract (head, relation, tail) triples
-//! - **Entity Linking**: Connect entities to knowledge bases (Wikidata)
-//! - **Events**: Discourse-level event extraction
-//!
-//! # Signal → Track → Identity Hierarchy
-//!
-//! ```text
-//! Level 1 (Signal)   : Raw detections with spans
-//! Level 2 (Track)    : Within-document coreference chains
-//! Level 3 (Identity) : Cross-document entity coalescing and KB linking
-//! ```
+//! Evaluation/benchmarking commands exist behind feature flags.
 //!
 //! # Usage
 //!
 //! ```bash
 //! # Basic NER extraction
-//! anno extract "Marie Curie won the Nobel Prize."
+//! anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 //!
-//! # Debug with coreference and KB linking
-//! anno debug --coref --link-kb -t "Barack Obama met Angela Merkel. He praised her."
+//! # Debug coreference
+//! anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
 //!
 //! # Evaluate against gold annotations
 //! anno eval -t "..." -g "Marie Curie:PER:0:11"

@@ -27,7 +27,7 @@ cargo build --release -p anno-cli --bin anno --features "onnx eval-advanced"
 ## CLI: extract entities
 
 ```bash
-anno extract --text "Ada Lovelace worked with Charles Babbage in London."
+anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
 Pattern-only extraction (emails, dates, money):
@@ -39,14 +39,14 @@ anno extract --model pattern --text "Email jobs@acme.com by 2024-01-15 for \$100
 Zero-shot custom entity types (requires `--features onnx`):
 
 ```bash
-anno extract --model gliner --extract-types "SCIENTIST,INVENTION" \
-  --text "Ada Lovelace described the first algorithm."
+anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
+  --text "Aspirin can treat headaches and reduce fever."
 ```
 
 Machine-readable output:
 
 ```bash
-anno extract --format json --text "Ada Lovelace worked in London."
+anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
 ## CLI: coreference
@@ -71,7 +71,7 @@ anno cross-doc ./docs --threshold 0.6 --format tree
 use anno::{Model, StackedNER};
 
 let ner = StackedNER::default();
-let entities = ner.extract_entities("Ada Lovelace worked in London.", None)?;
+let entities = ner.extract_entities("Lynn Conway worked at IBM and Xerox PARC.", None)?;
 
 for e in entities {
     println!("{} [{}..{}] {:?}", e.text, e.start, e.end, e.entity_type);
