@@ -45,22 +45,43 @@ Notes:
 
 ## Examples
 
-Named entities:
+Named entities (human output is compact and may vary by backend/build):
 
 ```sh
 anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
+```text
+PER:1 "Lynn Conway"
+ORG:2 "IBM" "Xerox PARC"
+LOC:1 "California"
+```
+
+Machine-readable output (schema-stable; values vary):
+
 ```sh
 anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
-```text
-Example output (varies by backend/build):
-
-PER:1 "Lynn Conway"
-ORG:2 "IBM" "Xerox PARC"
-LOC:1 "California"
+```json
+{
+  "provenance": {
+    "model": "stacked",
+    "elapsed_ms": 12
+  },
+  "entities": [
+    {
+      "id": "…",
+      "text": "Lynn Conway",
+      "type": "PER",
+      "start": 0,
+      "end": 11,
+      "confidence": 0.9,
+      "negated": false,
+      "quantifier": null
+    }
+  ]
+}
 ```
 
 Structured entities (dates, money, emails):
@@ -70,11 +91,10 @@ anno extract --model pattern --text "Contact jobs@acme.com by March 15 for the \
 ```
 
 ```text
-Example output (varies by backend/build):
-
 EMAIL:1 "jobs@acme.com"
 DATE:1 "March 15"
 MONEY:1 "$50K"
+EMAIL:1 "jobs@acme.com" DATE:1 "March 15" MONEY:1 "$50K"
 ```
 
 Zero-shot extraction (define your own entity types):
@@ -85,10 +105,9 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
 ```
 
 ```text
-Example output (varies by backend/build):
-
 drug:1 "Aspirin"
 symptom:2 "headaches" "fever"
+drug:1 "Aspirin" symptom:2 "headaches" "fever"
 ```
 
 Coreference resolution:
@@ -98,8 +117,6 @@ anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutioni
 ```
 
 ```text
-Example output (varies by backend/build):
-
 Coreference: "Sophie Wilson" → "She"
 ```
 
