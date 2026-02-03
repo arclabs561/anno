@@ -16,7 +16,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Custom types | Weights | Notes |
 |---------|--------------|---------|-------|
-| `stacked` (default) | No | HuggingFace (ONNX, when available) | Variable-length spans; defaults to BERT-ONNX or GLiNER-ONNX when `onnx` is enabled, otherwise regex+heuristic |
+| `stacked` (default) | No | HuggingFace (when `onnx` enabled) | Variable-length spans; uses an ML backend when available, otherwise regex+heuristic |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
@@ -31,6 +31,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 Notes:
 
 - All NER backends return **variable-length spans** (start/end offsets). Some are token-labeling models internally.
+- Offsets are **character offsets** (Unicode scalar values), not byte offsets; see `docs/CONTRACT.md`.
 - Neural backends are feature-gated behind `onnx`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
 - ONNX model weights download from HuggingFace on first use (see “Offline / downloads” below).
 - The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
@@ -55,6 +56,8 @@ anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in C
 ```
 
 ```text
+Example output (varies by backend/build):
+
 PER:1 "Lynn Conway"
 ORG:2 "IBM" "Xerox PARC"
 LOC:1 "California"
@@ -67,6 +70,8 @@ anno extract --model pattern --text "Contact jobs@acme.com by March 15 for the \
 ```
 
 ```text
+Example output (varies by backend/build):
+
 EMAIL:1 "jobs@acme.com"
 DATE:1 "March 15"
 MONEY:1 "$50K"
@@ -80,6 +85,8 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
 ```
 
 ```text
+Example output (varies by backend/build):
+
 drug:1 "Aspirin"
 symptom:2 "headaches" "fever"
 ```
@@ -91,10 +98,19 @@ anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutioni
 ```
 
 ```text
+Example output (varies by backend/build):
+
 Coreference: "Sophie Wilson" → "She"
 ```
 
 ## Library (Rust)
+
+Add the library (from crates.io):
+
+```toml
+[dependencies]
+anno = "0.2"
+```
 
 ```rust
 use anno::{Model, StackedNER};
