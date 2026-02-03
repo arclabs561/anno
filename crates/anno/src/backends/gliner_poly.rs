@@ -1,35 +1,11 @@
-//! Poly-Encoder GLiNER: Advanced GLiNER Architecture with Post-Fusion
+//! GLiNER poly-encoder (scaffolding).
 //!
-//! Poly-Encoder GLiNER extends the bi-encoder architecture with a post-fusion step
-//! that enables inter-label interactions, improving performance on complex NER tasks.
+//! This module is intentionally **not implemented**: it exists to keep the wiring points
+//! explicit without returning fake outputs.
 //!
-//! # Architecture Difference
+//! If you want zero-shot custom entity types today, use `GLiNEROnnx`.
 //!
-//! **Bi-Encoder (current GLiNER)**:
-//! - Text and labels encoded separately
-//! - Direct cosine similarity matching
-//! - Fast but limited inter-label understanding
-//!
-//! **Poly-Encoder (this backend)**:
-//! - Text and labels encoded separately (same as bi-encoder)
-//! - **Post-fusion step**: Labels interact with each other and with text
-//! - Better disambiguation of semantically similar entities
-//! - Slightly slower but more accurate for many entity types
-//!
-//! # Research
-//!
-//! - **Paper**: [GLiNER Evolution](https://blog.knowledgator.com/meet-the-new-zero-shot-ner-architecture-30ffc2cb1ee0)
-//! - **Key Insight**: Poly-encoder enables bidirectional communication between labels
-//!   and between labels and text, addressing bi-encoder limitations
-//!
-//! # Usage
-//!
-//! ```rust,ignore
-//! use anno::backends::gliner_poly::GLiNERPoly;
-//!
-//! let model = GLiNERPoly::new("knowledgator/modern-gliner-poly-large-v1.0")?;
-//! let entities = model.extract("Steve Jobs founded Apple.", &["person", "organization"], 0.5)?;
-//! ```
+//! Research pointer (context only): `https://blog.knowledgator.com/meet-the-new-zero-shot-ner-architecture-30ffc2cb1ee0`
 
 use crate::backends::inference::ZeroShotNER;
 use crate::{Entity, EntityType, Error, Model, Result};

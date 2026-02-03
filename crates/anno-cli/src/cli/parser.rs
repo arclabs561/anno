@@ -238,6 +238,7 @@ pub enum ModelBackend {
     /// GLiNER Poly-Encoder
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-poly")]
+    #[value(hide = true)]
     GlinerPoly,
 
     // === Candle Feature Required ===
@@ -252,12 +253,32 @@ pub enum ModelBackend {
     /// Burn ML framework NER (requires --features burn)
     #[cfg(feature = "burn")]
     #[value(alias = "burn-ner")]
+    #[value(hide = true)]
     Burn,
 }
 
 impl ModelBackend {
     /// Create a model instance from this backend type.
     pub fn create_model(self) -> Result<Box<dyn anno::Model>, String> {
+        // Explicitly reject backends that are present for forward-compat wiring but do not
+        // implement inference today. (They remain parseable by name, but are hidden from help.)
+        #[cfg(feature = "onnx")]
+        if matches!(self, Self::GlinerPoly) {
+            return Err(
+                "GLiNER Poly (`gliner-poly`) is scaffolding only and does not implement inference yet. \
+Use `--model gliner` instead."
+                    .to_string(),
+            );
+        }
+        #[cfg(feature = "burn")]
+        if matches!(self, Self::Burn) {
+            return Err(
+                "BurnNER (`burn`) is scaffolding only and does not implement inference yet. \
+Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
+                    .to_string(),
+            );
+        }
+
         #[cfg(feature = "eval")]
         {
             use anno_eval::eval::backend_factory::BackendFactory;
@@ -290,7 +311,7 @@ impl ModelBackend {
                 #[cfg(feature = "onnx")]
                 Self::Albert => "albert",
                 #[cfg(feature = "onnx")]
-                Self::GlinerPoly => "gliner_poly",
+                Self::GlinerPoly => "gliner_poly", // rejected above; kept for exhaustiveness
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => "gliner_candle",
@@ -298,7 +319,7 @@ impl ModelBackend {
                 Self::CandleNer => "candle_ner",
                 // Burn
                 #[cfg(feature = "burn")]
-                Self::Burn => "burn",
+                Self::Burn => "burn", // rejected above; kept for exhaustiveness
             };
             BackendFactory::create(factory_name)
                 .map_err(|e| format!("Failed to create model '{}': {}", self.name(), e))
@@ -385,10 +406,7 @@ impl ModelBackend {
                              Ready alternatives: --model candle-ner, --model bert-onnx".to_string())
                     }
                 }
-                #[cfg(feature = "onnx")]
-                Self::GlinerPoly => anno::backends::gliner_poly::GLiNERPoly::new("onnx-community/gliner_small-v2.1")
-                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                    .map_err(|e| format!("Failed to load GLiNER Poly: {}", e)),
+                // Note: `GlinerPoly` is rejected above.
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => anno::backends::gliner_candle::GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL)
@@ -412,17 +430,7 @@ impl ModelBackend {
                          - Use --model heuristic for pattern-based extraction",
                         e
                     )),
-                // Burn
-                #[cfg(feature = "burn")]
-                Self::Burn => anno::backends::burn::BurnNER::new()
-                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                    .map_err(|e| format!(
-                        "BurnNER unavailable: {}\n\n\
-                         BurnNER is experimental. For production use:\n\
-                         - Use --model candle-ner for pure Rust inference\n\
-                         - Use --model bert-onnx for ONNX inference",
-                        e
-                    ))
+                // Note: `Burn` is rejected above.
             }
         }
     }

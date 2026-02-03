@@ -1,24 +1,12 @@
-//! Semantic chunking for text segmentation.
+//! Chunking helpers for long text.
 //!
-//! Splits text into semantically coherent chunks based on embedding similarity,
-//! preserving topic boundaries and entity context.
+//! **Status**:
+//! - By default, this module provides a lightweight **rule-based** chunker (paragraph boundaries
+//!   + size limits + overlap).
+//! - An embedding-based chunker is **not implemented** yet; the `semantic-chunking` feature gate
+//!   currently falls back to the rule-based behavior.
 //!
-//! # Use Cases
-//!
-//! - **Long documents**: Better context boundaries than fixed-size chunking
-//! - **Coreference resolution**: Keeps related mentions together
-//! - **Entity linking**: Preserves entity context for disambiguation
-//! - **Cross-document resolution**: Semantically coherent chunks improve alignment
-//!
-//! # Research Basis
-//!
-//! Semantic chunking improves retrieval accuracy and context preservation (RAG systems).
-//! For NER/coreference, it helps by:
-//! - Keeping related mentions together (better within-chunk resolution)
-//! - Preserving entity context (better disambiguation)
-//! - Respecting topic boundaries (reduced boundary artifacts)
-//!
-//! See `docs/` for repo-local notes and entry points.
+//! This keeps chunking behavior explicit without implying that semantic embeddings are in use.
 //!
 //! # Example
 //!
@@ -26,7 +14,7 @@
 //! use anno::backends::semantic_chunking::{SemanticChunker, SemanticChunkConfig};
 //!
 //! let config = SemanticChunkConfig::default();
-//! let chunker = SemanticChunker::new(config)?;
+//! let chunker = anno::backends::semantic_chunking::create_semantic_chunker(config)?;
 //! let chunks = chunker.chunk(long_text, Some("en"))?;
 //!
 //! for chunk in chunks {

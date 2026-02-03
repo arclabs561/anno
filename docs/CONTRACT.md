@@ -58,7 +58,7 @@ The default CLI model (`--model stacked`) prefers the **best available** ML back
 
 - By default, model downloads are allowed (so first run may be slower).
 - To force cached-only / offline behavior: set `ANNO_NO_DOWNLOADS=1` (or `HF_HUB_OFFLINE=1`).
-- To prefetch explicitly: use `anno models download ...` (then `stacked` will pick it up).
+- To prefetch explicitly: use `anno models download gliner gliner2 bert-onnx` (then `stacked` will pick it up).
 
 ## Evaluation (expected runtime + artifacts)
 

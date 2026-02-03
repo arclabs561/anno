@@ -16,7 +16,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Custom types | Weights | Notes |
 |---------|--------------|---------|-------|
-| `stacked` (default) | No | HuggingFace (when ML enabled) | Picks the best available stack for this build (ML when available; otherwise regex+heuristic) |
+| `stacked` (default) | No | HuggingFace (when ML enabled) | Selector/fallback backend: chooses the best available backend at runtime (ML when available; otherwise regex+heuristic) |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
@@ -38,7 +38,7 @@ Notes:
 
 ## Offline / downloads
 
-- Prefetch models explicitly: `anno models download ...`
+- Prefetch models explicitly: `anno models download gliner gliner2 bert-onnx`
 - Force cached-only / offline behavior:
   - `ANNO_NO_DOWNLOADS=1` (preferred), or
   - `HF_HUB_OFFLINE=1`
