@@ -29,9 +29,11 @@ require_tool() {
 }
 
 anno_machete_paths() {
-  # Keep this list in sync with `crates/anno/src/lib.rs` module roots.
   # The command is executed from `crates/anno/`.
-  echo "src backends cli eval preprocess ingest joint linking types"
+  #
+  # Historically this repo used `#[path = ...]` to place modules outside `src/`.
+  # Today, the `anno` library lives under `src/`, so scanning `src/` is sufficient.
+  echo "src"
 }
 
 cmd_machete() {

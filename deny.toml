@@ -15,6 +15,7 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
     "ISC",
     "Zlib",
     "0BSD",
@@ -54,7 +55,7 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 
 [sources.allow-org]
-github = []
+github = ["arclabs561"]
 gitlab = []
 bitbucket = []
 
