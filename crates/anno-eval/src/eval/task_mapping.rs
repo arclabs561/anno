@@ -408,6 +408,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "heuristic" | "HeuristicNER" => &[Task::NER],
         "stacked" | "StackedNER" => &[Task::NER],
         "crf" | "CrfNER" => &[Task::NER],
+        "hmm" | "HmmNER" => &[Task::NER],
 
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
@@ -510,6 +511,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // Builtins
         "stacked",
         "crf",
+        "hmm",
         "heuristic",
         // Pattern is intentionally excluded from NER eval by default (structured-only),
         // but it still advertises NER capability via `backend_tasks` and can be enabled by callers.

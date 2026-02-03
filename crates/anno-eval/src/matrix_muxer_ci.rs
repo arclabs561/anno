@@ -49,6 +49,7 @@
 //! - `ANNO_MUXER_DECISIONS_FILE`: optional path to write selection decisions as JSONL
 //! - `ANNO_MUXER_DECISIONS_DEFAULT`: if true (default locally, false in CI), write decisions JSONL to a default cache file
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
+//! - `ANNO_MUXER_FIXED_BACKEND`: force evaluation of a specific backend (or comma-separated list)
 //! - `ANNO_MATRIX_SWEEP`: if true, enables `test_matrix_sweep_all_backends_once` (opt-in)
 //! - `ANNO_MATRIX_SWEEP_STRICT`: if true (default when sweep enabled), fail the test on any skip/failure
 //! - `ANNO_MATRIX_SWEEP_MAX_EXAMPLES`: max examples per dataset in sweep (default: 5)
@@ -377,6 +378,15 @@ struct DecisionLog {
 fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     if path.trim().is_empty() {
         return;
+    }
+    // Robust for developer-local paths like `.generated/foo.jsonl`.
+    if let Some(parent) = std::path::Path::new(path).parent() {
+        if !parent.as_os_str().is_empty() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                eprintln!("matrix-muxer: failed to create decision log dir {:?}: {e}", parent);
+                return;
+            }
+        }
     }
     let line = match serde_json::to_string(v) {
         Ok(s) => s,
@@ -1453,7 +1463,7 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
         }
 
         // Baselines: always include if present in this build.
-        if matches!(b, "stacked" | "crf" | "heuristic") {
+        if matches!(b, "stacked" | "crf" | "hmm" | "heuristic") {
             if available.contains(b) {
                 out.push(b.to_string());
             }
@@ -1986,6 +1996,18 @@ fn test_randomized_matrix_sample() {
     let datasets_per_run_default = if require_cached_for_run { 2 } else { 3 };
     let datasets_per_run =
         env_usize("ANNO_MUXER_DATASETS_PER_RUN", datasets_per_run_default).max(1);
+
+    // Optional override: force evaluation of a specific backend (or comma-separated list).
+    // When set, we also bias dataset sampling toward datasets compatible with that backend so
+    // measure-mode results stay meaningful.
+    let fixed_backends_requested: Option<Vec<String>> =
+        std::env::var("ANNO_MUXER_FIXED_BACKEND").ok().map(|raw| {
+            raw.split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        });
     let mut chosen_datasets = choose_datasets_for_run(
         seed,
         &loader,
@@ -2007,6 +2029,42 @@ fn test_randomized_matrix_sample() {
             );
             return;
         }
+    }
+
+    if let Some(ref fixed) = fixed_backends_requested {
+        if fixed.is_empty() {
+            eprintln!("matrix-muxer: ANNO_MUXER_FIXED_BACKEND is set but empty");
+            return;
+        }
+        // Prefer datasets compatible with the fixed backend(s). If the first draw includes
+        // incompatible datasets, resample a larger pool and filter.
+        let want = datasets_per_run;
+        let mut filtered = chosen_datasets
+            .into_iter()
+            .filter(|d| fixed.iter().all(|b| TaskEvaluator::is_backend_compatible(b, *d)))
+            .collect::<Vec<_>>();
+        if filtered.len() < want {
+            let mut pool = choose_datasets_for_run(
+                seed ^ 0xF1E3_DA7A,
+                &loader,
+                &tasks,
+                require_cached_for_run,
+                want.saturating_mul(10).max(want),
+            );
+            pool.retain(|d| fixed.iter().all(|b| TaskEvaluator::is_backend_compatible(b, *d)));
+            pool.truncate(want.min(pool.len()));
+            filtered = pool;
+        } else {
+            filtered.truncate(want);
+        }
+        if filtered.is_empty() {
+            eprintln!(
+                "matrix-muxer: fixed backend set but no compatible datasets for tasks={:?} (fixed={fixed:?})",
+                tasks
+            );
+            return;
+        }
+        chosen_datasets = filtered;
     }
 
     // Make muxer history facet-aware by scoping to a coarse dataset slice.
@@ -2074,7 +2132,73 @@ fn test_randomized_matrix_sample() {
 
     let mut exp3ix_state_for_update: Option<Exp3IxState> = None;
     let mut exp3ix_tickets_for_update: Vec<(String, f64)> = Vec::new();
-    let chosen_backends = if matches!(strategy, SampleStrategy::MlOnly)
+    let chosen_backends = if let Some(ref fixed) = fixed_backends_requested {
+        // Force evaluation of a specific backend (or ordered list), while still using the muxer
+        // sampler for task/dataset selection and history reporting.
+        let mut chosen: Vec<String> = candidates
+            .iter()
+            .filter(|c| fixed.iter().any(|f| f == *c))
+            .cloned()
+            .collect();
+        chosen.truncate(backends_per_run.min(chosen.len()));
+        if chosen.is_empty() {
+            eprintln!(
+                "matrix-muxer: ANNO_MUXER_FIXED_BACKEND is set but no matches in candidates (fixed={fixed:?})"
+            );
+            return;
+        }
+
+        if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
+            eprintln!("matrix-muxer: fixed_backend_override chosen={chosen:?}");
+        }
+        if let Ok(p) = std::env::var("ANNO_MUXER_DECISIONS_FILE") {
+            let t = p.trim();
+            if !t.is_empty() {
+                let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
+                append_jsonl(
+                    t,
+                    &DecisionLog {
+                        schema_version: 6,
+                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        run_id: format!(
+                            "seed={} slice={} strategy=fixed fixed={}",
+                            seed,
+                            slice_tag_for_muxer,
+                            fixed.join(",")
+                        ),
+                        strategy: "fixed".to_string(),
+                        slice: slice_tag_for_muxer.to_string(),
+                        muxer_profile: std::env::var("ANNO_MUXER_PROFILE").ok(),
+                        latency_guardrail_max_mean_ms: None,
+                        latency_guardrail_allow_fewer: None,
+                        latency_guardrail_require_measured: None,
+                        round: 1,
+                        datasets: ds,
+                        remaining: candidates.clone(),
+                        chosen: chosen.first().cloned(),
+                        explore_first: None,
+                        constraints_fallback_used: None,
+                        eligible_arms: None,
+                        top_candidates: None,
+                        control_arms: None,
+                        chosen_fail_kinds_top: chosen.first().and_then(|b| {
+                            history.chosen_fail_kinds_top_for(
+                                b,
+                                Some(&chosen_datasets),
+                                mh::env_bool("ANNO_MUXER_PER_DATASET", true),
+                                3,
+                            )
+                        }),
+                        mab_k_round: None,
+                        exp3ix_rounds: None,
+                        worst_first_round: None,
+                    },
+                );
+            }
+        }
+
+        chosen
+    } else if matches!(strategy, SampleStrategy::MlOnly)
         && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Exp3Ix)
     {
         let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
