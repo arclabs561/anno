@@ -1,7 +1,8 @@
 //! T5-based coreference resolution using ONNX Runtime.
 //!
-//! Production-grade coreference resolution using seq2seq models.
-//! This approach treats coreference as a text-to-text transformation:
+//! Experimental scaffold for seq2seq coreference.
+//!
+//! The intended approach treats coreference as a text-to-text transformation:
 //!
 //! ```text
 //! Input:  "<m> Elon </m> founded <m> Tesla </m>. <m> He </m> later led SpaceX."
@@ -10,6 +11,9 @@
 //!
 //! The model learns to assign cluster IDs to mentions, enabling coreference
 //! without explicit pairwise classification.
+//!
+//! **Status**: `T5Coref` loads ONNX artifacts, but `resolve()` currently uses a lightweight
+//! heuristic fallback (it does not yet run a full encoder/decoder loop).
 //!
 //! # Architecture
 //!

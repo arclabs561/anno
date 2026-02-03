@@ -16,7 +16,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Custom types | Weights | Notes |
 |---------|--------------|---------|-------|
-| `stacked` (default) | No | HuggingFace (when ML enabled) | Variable-length spans; uses an ML backend when available, otherwise regex+heuristic |
+| `stacked` (default) | No | HuggingFace (when ML enabled) | Picks the best available stack for this build (ML when available; otherwise regex+heuristic) |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
@@ -57,26 +57,61 @@ ORG:2 "IBM" "Xerox PARC"
 LOC:1 "California"
 ```
 
-Machine-readable output (schema-stable; values vary):
+Machine-readable output (schema-stable; values vary). This example uses `pattern` to be offline and reproducible; other models use the same JSON shape:
 
 ```sh
-anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
+anno extract --model pattern --format json --text "Contact jobs@acme.com by March 15 for the \$50K role."
 ```
 
 ```json
 {
-  "provenance": {
-    "model": "stacked"
-  },
   "entities": [
     {
-      "id": "…",
-      "text": "Lynn Conway",
-      "type": "PER",
-      "start": 0,
-      "end": 11
+      "confidence": 0.9800000190734863,
+      "end": 21,
+      "id": "xxh3:6518c623a81baa6b",
+      "negated": false,
+      "quantifier": null,
+      "start": 8,
+      "text": "jobs@acme.com",
+      "type": "EMAIL"
+    },
+    {
+      "confidence": 0.949999988079071,
+      "end": 33,
+      "id": "xxh3:04671e09ebe227c9",
+      "negated": false,
+      "quantifier": null,
+      "start": 25,
+      "text": "March 15",
+      "type": "DATE"
+    },
+    {
+      "confidence": 0.949999988079071,
+      "end": 46,
+      "id": "xxh3:59f7cd731485be0b",
+      "negated": false,
+      "quantifier": null,
+      "start": 42,
+      "text": "$50K",
+      "type": "MONEY"
     }
-  ]
+  ],
+  "provenance": {
+    "confidence_stats": {
+      "count": 3,
+      "max": 0.9800000190734863,
+      "mean": 0.9599999984105428,
+      "median": 0.949999988079071,
+      "min": 0.949999988079071,
+      "std_dev": 0.014142150234638435
+    },
+    "elapsed_ms": 79.89025,
+    "entity_count": 3,
+    "model": "pattern",
+    "result_hash": "xxh3:dbe0e2bc98ef6916",
+    "text_chars": 52
+  }
 }
 ```
 
