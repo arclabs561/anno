@@ -24,6 +24,7 @@
 //! ```
 
 use crate::Result;
+#[cfg(feature = "semantic-chunking")]
 use std::collections::BTreeSet;
 
 /// Configuration for semantic chunking.
@@ -122,79 +123,183 @@ impl RuleBasedSemanticChunker {
     }
 }
 
+fn char_to_byte_map(text: &str) -> Vec<usize> {
+    // Map char offsets (Unicode scalar index) -> byte offsets.
+    //
+    // We store the byte index of each char boundary, plus a final sentinel at text.len().
+    let mut map = Vec::with_capacity(text.chars().count().saturating_add(1));
+    for (b, _) in text.char_indices() {
+        map.push(b);
+    }
+    map.push(text.len());
+    map
+}
+
+fn byte_at_char(char_to_byte: &[usize], char_idx: usize) -> usize {
+    // Safe-ish clamp: callers should only provide 0..=len_chars.
+    if char_to_byte.is_empty() {
+        return 0;
+    }
+    let i = char_idx.min(char_to_byte.len() - 1);
+    char_to_byte[i]
+}
+
+fn paragraph_ranges(text: &str) -> Vec<(usize, usize)> {
+    // Paragraphs are groups of non-blank lines separated by at least one blank line.
+    //
+    // This is language-agnostic but formatting-dependent: it assumes newline structure is meaningful.
+    // We define "blank" as a line that contains only whitespace (spaces/tabs) plus newline markers.
+    //
+    // Returned ranges are in character offsets [start, end), preserving original text.
+    let mut out = Vec::new();
+    let mut para_start: Option<usize> = None;
+    let mut line_start = 0usize;
+    let mut line_has_non_ws = false;
+
+    let mut i = 0usize;
+    for c in text.chars() {
+        match c {
+            '\n' => {
+                // End of line at char offset i (exclusive of '\n'; the newline itself is part of
+                // the source text but not part of the line content).
+                if line_has_non_ws {
+                    if para_start.is_none() {
+                        para_start = Some(line_start);
+                    }
+                } else if let Some(ps) = para_start {
+                    // Blank line closes paragraph at the start of this blank line.
+                    out.push((ps, line_start));
+                    para_start = None;
+                }
+                i += 1;
+                line_start = i;
+                line_has_non_ws = false;
+            }
+            '\r' => {
+                // Treat CR as whitespace. If the text uses CRLF, the '\n' branch will close lines.
+                i += 1;
+            }
+            ' ' | '\t' => {
+                i += 1;
+            }
+            _ => {
+                line_has_non_ws = true;
+                i += 1;
+            }
+        }
+    }
+
+    // Final line: if it had content, ensure paragraph is opened.
+    if line_has_non_ws && para_start.is_none() {
+        para_start = Some(line_start);
+    }
+    if let Some(ps) = para_start {
+        out.push((ps, i));
+    }
+    out
+}
+
 impl SemanticChunker for RuleBasedSemanticChunker {
     fn chunk(&self, text: &str, language: Option<&str>) -> Result<Vec<SemanticChunk>> {
         let _ = language; // Acknowledge parameter for future use
 
-        let mut chunks = Vec::new();
-        let mut current_start = 0;
-        let mut current_text = String::new();
-
-        // Split by paragraphs (double newlines)
-        let paragraphs: Vec<&str> = text.split("\n\n").collect();
-
-        for paragraph in paragraphs {
-            let paragraph_len = paragraph.chars().count();
-
-            // If adding this paragraph would exceed max_size, start a new chunk
-            if !current_text.is_empty()
-                && (current_text.chars().count() + paragraph_len) > self.config.max_size
-            {
-                // Save current chunk
-                let chunk_end = current_start + current_text.chars().count();
-                chunks.push(SemanticChunk {
-                    text: current_text.clone(),
-                    start: current_start,
-                    end: chunk_end,
-                    topic: None,
-                    similarity_to_prev: None,
-                });
-
-                // Start new chunk with overlap
-                let overlap_start = chunk_end.saturating_sub(self.config.overlap);
-                let overlap_text: String = text
-                    .chars()
-                    .skip(overlap_start)
-                    .take(self.config.overlap)
-                    .collect();
-                current_text = overlap_text;
-                current_start = overlap_start;
-            }
-
-            // Add paragraph to current chunk
-            if !current_text.is_empty() {
-                current_text.push_str("\n\n");
-            }
-            current_text.push_str(paragraph);
+        if text.is_empty() {
+            return Ok(Vec::new());
         }
 
-        // Add final chunk
-        if !current_text.is_empty() {
-            let chunk_end = current_start + current_text.chars().count();
-            chunks.push(SemanticChunk {
-                text: current_text,
-                start: current_start,
-                end: chunk_end,
+        let char_to_byte = char_to_byte_map(text);
+        let text_len_chars = char_to_byte.len().saturating_sub(1);
+
+        // Paragraph detection is formatting-based; if we can't detect paragraphs, fall back to a
+        // single range over the whole document.
+        let mut paras = paragraph_ranges(text);
+        if paras.is_empty() {
+            paras = vec![(0, text_len_chars)];
+        }
+
+        // Build chunk ranges in char offsets.
+        let mut ranges: Vec<(usize, usize)> = Vec::new();
+        let mut cur_start: Option<usize> = None;
+        let mut cur_end: usize = 0;
+
+        for (p_start, p_end) in paras {
+            if p_end <= p_start {
+                continue;
+            }
+            if cur_start.is_none() {
+                cur_start = Some(p_start);
+                cur_end = p_start;
+            }
+
+            // Would adding this paragraph exceed max_size?
+            let next_end = cur_end.max(p_end);
+            if let Some(cs) = cur_start {
+                let cur_len = next_end.saturating_sub(cs);
+                if cur_len > self.config.max_size && cur_end > cs {
+                    // Flush current chunk at cur_end.
+                    ranges.push((cs, cur_end));
+                    // Start new chunk with overlap.
+                    let overlap_start = cur_end.saturating_sub(self.config.overlap);
+                    cur_start = Some(overlap_start.min(p_start));
+                    cur_end = cur_start.unwrap();
+                }
+            }
+
+            // Extend current chunk to include this paragraph.
+            cur_end = cur_end.max(p_end);
+
+            // Soft flush near target size when we're already at/over target and we just ended a paragraph.
+            if let Some(cs) = cur_start {
+                let cur_len = cur_end.saturating_sub(cs);
+                if cur_len >= self.config.target_size && cur_len >= self.config.min_size {
+                    ranges.push((cs, cur_end));
+                    let overlap_start = cur_end.saturating_sub(self.config.overlap);
+                    cur_start = Some(overlap_start.min(cur_end));
+                    cur_end = cur_start.unwrap();
+                }
+            }
+        }
+
+        if let Some(cs) = cur_start {
+            if cur_end > cs {
+                ranges.push((cs, cur_end));
+            }
+        }
+
+        // Merge too-small chunks into the previous chunk by extending the previous range.
+        let mut merged: Vec<(usize, usize)> = Vec::new();
+        for (s, e) in ranges {
+            let len = e.saturating_sub(s);
+            if len < self.config.min_size && !merged.is_empty() {
+                let last = merged.last_mut().unwrap();
+                last.1 = last.1.max(e);
+            } else {
+                merged.push((s, e));
+            }
+        }
+
+        // Materialize chunks from original text slices to preserve offsets/text exactly.
+        let mut out = Vec::new();
+        for (s, e) in merged {
+            let sb = byte_at_char(&char_to_byte, s);
+            let eb = byte_at_char(&char_to_byte, e);
+            if eb <= sb {
+                continue;
+            }
+            let chunk_text = text.get(sb..eb).unwrap_or("").to_string();
+            if chunk_text.trim().is_empty() {
+                continue;
+            }
+            out.push(SemanticChunk {
+                text: chunk_text,
+                start: s,
+                end: e,
                 topic: None,
                 similarity_to_prev: None,
             });
         }
 
-        // Ensure chunks meet min_size requirement (merge small chunks)
-        let mut merged_chunks: Vec<SemanticChunk> = Vec::new();
-        for chunk in chunks {
-            if chunk.text.chars().count() < self.config.min_size && !merged_chunks.is_empty() {
-                // Merge with previous chunk
-                let last = merged_chunks.last_mut().unwrap();
-                last.text.push_str("\n\n");
-                last.text.push_str(&chunk.text);
-                last.end = chunk.end;
-            } else {
-                merged_chunks.push(chunk);
-            }
-        }
-
-        Ok(merged_chunks)
+        Ok(out)
     }
 }
 
@@ -258,17 +363,11 @@ impl EmbeddingSemanticChunker {
     }
 
     fn char_to_byte_map(text: &str) -> Vec<usize> {
-        // Index i => byte offset of the i'th char (and one extra sentinel at the end).
-        let mut map = Vec::with_capacity(text.chars().count() + 1);
-        for (b, _) in text.char_indices() {
-            map.push(b);
-        }
-        map.push(text.len());
-        map
+        super::semantic_chunking::char_to_byte_map(text)
     }
 
     fn byte_at_char(map: &[usize], char_idx: usize) -> usize {
-        *map.get(char_idx).unwrap_or(&map[map.len() - 1])
+        super::semantic_chunking::byte_at_char(map, char_idx)
     }
 
     fn split_sentences_spans(text: &str) -> Vec<(usize, usize)> {

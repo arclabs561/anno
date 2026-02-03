@@ -179,12 +179,10 @@ pub mod middleware;
 /// with backpressure support and boundary handling.
 pub mod streaming;
 
-/// Semantic chunking for text segmentation.
+/// Chunking helpers for long text.
 ///
-/// Splits text into semantically coherent chunks based on embedding similarity,
-/// preserving topic boundaries and entity context. Useful for long documents,
-/// coreference resolution, and entity linking.
-#[cfg(feature = "semantic-chunking")]
+/// Always provides a lightweight rule-based chunker (paragraph boundaries + size limits + overlap).
+/// With the `semantic-chunking` feature enabled, adds a sentence-similarity chunker (no embeddings).
 pub mod semantic_chunking;
 
 // Burn ML framework (training + inference)

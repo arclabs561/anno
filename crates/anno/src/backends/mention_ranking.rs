@@ -749,7 +749,7 @@ impl MentionCluster {
                     end: mention.end,
                 },
                 surface: mention.text.clone(),
-                label: mention.mention_type.as_label().to_string(),
+                label: anno_core::TypeLabel::from(mention.mention_type.as_label()),
                 confidence: 1.0,
                 hierarchical: None,
                 provenance: None,
@@ -790,17 +790,11 @@ impl MentionCluster {
             .map(|m| m.text.clone())
             .unwrap_or_default();
 
-        // Determine entity type from mentions (prefer proper/nominal over pronominal)
-        let entity_type = self
-            .mentions
-            .iter()
-            .find(|m| m.mention_type != MentionType::Pronominal)
-            .map(|m| m.mention_type.as_label().to_string());
-
         // Build track with signal references
         let mut track =
             anno_core::Track::new(anno_core::TrackId::new(self.id as u64), canonical_surface);
-        track.entity_type = entity_type;
+        // Mention-ranking coref does not infer entity type; leave unset.
+        track.entity_type = None;
 
         for (idx, _) in signals.iter().enumerate() {
             track.add_signal(signal_id_base + idx as u64, idx as u32);
@@ -833,7 +827,7 @@ impl RankedMention {
                 end: self.end,
             },
             surface: self.text.clone(),
-            label: self.mention_type.as_label().to_string(),
+            label: anno_core::TypeLabel::from(self.mention_type.as_label()),
             confidence: 1.0,
             hierarchical: None,
             provenance: None,
@@ -3606,7 +3600,7 @@ mod tests {
 
         assert_eq!(signal.id, anno_core::SignalId::new(999));
         assert_eq!(signal.surface, "the company");
-        assert_eq!(signal.label, "nominal");
+        assert_eq!(signal.label, "nominal".into());
         assert_eq!(signal.modality, anno_core::Modality::Symbolic);
 
         if let anno_core::Location::Text { start, end } = signal.location {

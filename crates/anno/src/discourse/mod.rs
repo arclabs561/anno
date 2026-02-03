@@ -1,4 +1,8 @@
-//! Discourse-level analysis for coreference resolution.
+//! Discourse-level analysis helpers (optional).
+//!
+//! This module is feature-gated (`discourse`) and is primarily used by evaluation tooling and
+//! experiments. It does **not** change `anno`'s primary extraction contract: localization remains
+//! character-offset spans over the input text.
 //!
 //! # The Problem: Coreference Beyond String Matching
 //!
