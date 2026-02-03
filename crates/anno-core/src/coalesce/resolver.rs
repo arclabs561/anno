@@ -290,11 +290,11 @@ impl Default for Resolver {
 /// ```rust
 /// use anno_core::coalesce::resolver::string_similarity;
 ///
-/// let sim = string_similarity("Marie Curie", "Marie Curie");
+/// let sim = string_similarity("Lynn Conway", "Lynn Conway");
 /// assert_eq!(sim, 1.0);
 ///
-/// let sim = string_similarity("Marie Curie", "Curie");
-/// assert!(sim > 0.0); // "Curie" shares one word with "Marie Curie"
+/// let sim = string_similarity("Lynn Conway", "Conway");
+/// assert!(sim > 0.0); // "Conway" shares one word with "Lynn Conway"
 /// ```
 pub fn string_similarity(a: &str, b: &str) -> f32 {
     // Normalize words: lowercase, strip possessives

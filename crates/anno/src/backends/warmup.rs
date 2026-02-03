@@ -51,7 +51,7 @@ impl Default for WarmupConfig {
                 // Short text
                 "John Smith".to_string(),
                 // Medium text
-                "Marie Curie was a physicist who won the Nobel Prize.".to_string(),
+                "Sophie Wilson designed the ARM processor. She changed computing.".to_string(),
                 // Longer text with multiple entities
                 "Apple Inc. was founded by Steve Jobs and Steve Wozniak in Cupertino, \
                  California on April 1, 1976. The company went public on December 12, 1980."

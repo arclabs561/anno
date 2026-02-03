@@ -34,7 +34,7 @@
 //!     ])
 //!     .with_chain_of_thought(true);
 //!
-//! let rendered = prompt.render("Marie Curie worked at the Sorbonne.");
+//! let rendered = prompt.render("Lynn Conway worked at IBM.");
 //! // Send `rendered` to your LLM API
 //! ```
 //!

@@ -1407,10 +1407,10 @@ fn synthetic_ner_test_cases() -> Vec<(String, Vec<anno_eval::eval::GoldEntity>)>
     let mut cases: Vec<(String, Vec<anno_eval::eval::GoldEntity>)> = Vec::new();
 
     // Latin
-    let t = "Marie Curie won the Nobel Prize.";
+    let t = "Lynn Conway worked at IBM.";
     cases.push((
         t.to_string(),
-        vec![ge(t, "Marie Curie", "PER"), ge(t, "Nobel Prize", "MISC")],
+        vec![ge(t, "Lynn Conway", "PER"), ge(t, "IBM", "ORG")],
     ));
 
     // CJK (no spaces)

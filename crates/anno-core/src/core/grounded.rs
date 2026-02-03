@@ -666,11 +666,11 @@ impl Signal<Location> {
     /// ```rust,ignore
     /// use anno_core::grounded::{Signal, Location};
     ///
-    /// let text = "Marie Curie was a physicist.";
-    /// let good = Signal::new(0, Location::text(0, 11), "Marie Curie", "PER", 0.9);
+    /// let text = "Lynn Conway worked at IBM.";
+    /// let good = Signal::new(0, Location::text(0, 11), "Lynn Conway", "PER", 0.9);
     /// assert!(good.validate_against(text).is_none());
     ///
-    /// let bad = Signal::new(0, Location::text(0, 5), "Marie Curie", "PER", 0.9);
+    /// let bad = Signal::new(0, Location::text(0, 5), "Lynn Conway", "PER", 0.9);
     /// assert!(bad.validate_against(text).is_some());
     /// ```
     #[must_use]
@@ -727,8 +727,8 @@ impl Signal<Location> {
     /// ```rust,ignore
     /// use anno_core::grounded::{Signal, Location};
     ///
-    /// let text = "Marie Curie was a physicist.";
-    /// let signal = Signal::<Location>::from_text(text, "Marie Curie", "PER", 0.95);
+    /// let text = "Lynn Conway worked at IBM.";
+    /// let signal = Signal::<Location>::from_text(text, "Lynn Conway", "PER", 0.95);
     /// assert!(signal.is_some());
     /// assert_eq!(signal.expect("signal should exist").text_offsets(), Some((0, 11)));
     /// ```

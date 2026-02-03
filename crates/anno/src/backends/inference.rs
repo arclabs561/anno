@@ -1647,8 +1647,8 @@ impl Default for CoreferenceConfig {
 ///
 /// # Example
 ///
-/// Input entities: ["Marie Curie", "She", "The scientist", "Curie"]
-/// Output clusters: [{0, 1, 2, 3}] with canonical_name = "Marie Curie"
+/// Input entities: ["Lynn Conway", "She", "The engineer", "Conway"]
+/// Output clusters: [{0, 1, 2, 3}] with canonical_name = "Lynn Conway"
 pub fn resolve_coreferences(
     entities: &[Entity],
     embeddings: &[f32], // [num_entities, hidden_dim]

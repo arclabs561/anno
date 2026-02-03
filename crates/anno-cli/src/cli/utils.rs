@@ -1363,13 +1363,13 @@ mod tests {
     fn test_is_likely_male() {
         assert!(is_likely_male("John Smith"));
         assert!(is_likely_male("Barack Obama"));
-        assert!(!is_likely_male("Marie Curie"));
+        assert!(!is_likely_male("Lynn Conway"));
         assert!(!is_likely_male("Unknown Person"));
     }
 
     #[test]
     fn test_is_likely_female() {
-        assert!(is_likely_female("Marie Curie"));
+        assert!(is_likely_female("Lynn Conway"));
         assert!(is_likely_female("Hillary Clinton"));
         assert!(!is_likely_female("John Smith"));
         assert!(!is_likely_female("Unknown Person"));

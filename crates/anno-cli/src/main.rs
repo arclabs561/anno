@@ -18,7 +18,7 @@
 //! anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
 //!
 //! # Evaluate against gold annotations
-//! anno eval -t "..." -g "Marie Curie:PER:0:11"
+//! anno eval -t "Lynn Conway worked at IBM." -g "Lynn Conway:PER:0:11"
 //!
 //! # Validate annotation files
 //! anno validate file.jsonl

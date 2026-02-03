@@ -60,10 +60,10 @@
 //! let coref = T5Coref::from_path("path/to/t5_coref_onnx", T5CorefConfig::default())?
 //!     .with_heuristic_fallback();
 //!
-//! let text = "Marie Curie was a physicist. She won two Nobel prizes.";
+//! let text = "Sophie Wilson designed the ARM processor. She changed computing.";
 //! let clusters = coref.resolve(text)?;
 //!
-//! // clusters[0] = { members: ["Marie Curie", "She"], canonical: "Marie Curie" }
+//! // clusters[0] = { members: ["Sophie Wilson", "She"], canonical: "Sophie Wilson" }
 //! ```
 //!
 //! # Research Background
@@ -313,7 +313,7 @@ impl T5Coref {
     /// Resolve coreference with pre-marked mentions.
     ///
     /// Expects mentions marked with `<m>` and `</m>` tags:
-    /// `"<m> Marie Curie </m> was a physicist. <m> She </m> won prizes."`
+    /// `"<m> Sophie Wilson </m> designed ARM. <m> She </m> changed computing."`
     pub fn resolve_marked(&self, marked_text: &str) -> Result<Vec<CorefCluster>> {
         // Extract mentions from marked text
         let (plain_text, mentions) = self.extract_mentions(marked_text)?;

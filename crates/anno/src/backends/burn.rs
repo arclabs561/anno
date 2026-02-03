@@ -49,7 +49,7 @@
 //! let config = BurnConfig::new().with_wgpu();
 //! let ner = BurnNER::with_config(config)?;
 //!
-//! let entities = ner.extract_entities("Marie Curie won the Nobel Prize", None)?;
+//! let entities = ner.extract_entities("Lynn Conway worked at IBM.", None)?;
 //! ```
 //!
 //! # Model Loading

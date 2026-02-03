@@ -57,7 +57,7 @@
 //! let sim = Similarity::new();
 //!
 //! // English (word-based)
-//! let score = sim.compute("Marie Curie", "Curie");
+//! let score = sim.compute("Lynn Conway", "Conway");
 //! assert!(score > 0.0);
 //!
 //! // CJK (n-gram based)

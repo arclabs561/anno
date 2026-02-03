@@ -32,7 +32,7 @@
 //! ]);
 //!
 //! // Select helpful demonstrations for a query
-//! let demos = bank.select("Marie Curie worked at the Sorbonne.", 2);
+//! let demos = bank.select("Lynn Conway worked at IBM and Xerox PARC.", 2);
 //! assert_eq!(demos.len(), 2);
 //! ```
 
