@@ -16,7 +16,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Custom types | Weights | Notes |
 |---------|--------------|---------|-------|
-| `stacked` (default) | No | HuggingFace (when `onnx` enabled) | Variable-length spans; uses an ML backend when available, otherwise regex+heuristic |
+| `stacked` (default) | No | HuggingFace (when ML enabled) | Variable-length spans; uses an ML backend when available, otherwise regex+heuristic |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
