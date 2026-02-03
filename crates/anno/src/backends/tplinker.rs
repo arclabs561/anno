@@ -5,10 +5,15 @@
 //!
 //! # Implementation Status
 //!
-//! This module defines the TPLinker *shape* but **does not implement** the TPLinker model.
-//! It exists to keep the interface and wiring points explicit without returning fake outputs.
+//! This module keeps the TPLinker **name + wiring** stable while the full neural handshaking
+//! model is still pending.
 //!
-//! If you need relation extraction today, treat it as out-of-scope for `anno`'s primary surface.
+//! Today, `TPLinker` is implemented as a **dependency-light heuristic baseline**:
+//! - entities are extracted using a zero-dependency NER baseline
+//! - relations are inferred using the shared heuristic matcher in `backends::inference`
+//!
+//! This makes relation extraction *function* end-to-end (for demos, DX, and eval harnesses)
+//! without pretending we have a trained TPLinker model.
 //!
 //! # Research
 //!
@@ -65,9 +70,7 @@ pub struct TPLinker {
 impl TPLinker {
     /// Create a new TPLinker instance.
     pub fn new() -> Result<Self> {
-        Err(crate::Error::model_init(
-            "TPLinker is not implemented in this crate (reserved name; no placeholder outputs)",
-        ))
+        Ok(Self::with_thresholds(0.15, 0.55))
     }
 
     /// Create with custom thresholds.
@@ -103,10 +106,11 @@ impl TPLinker {
         };
         let ent_threshold = self.entity_threshold;
 
-        // Placeholder: Use HeuristicNER for entity extraction
-        // This properly handles multi-word entity names
-        let heuristic = crate::HeuristicNER::new();
-        let mut entities = heuristic.extract_entities(text, None)?;
+        // Heuristic baseline: use the default stacked NER (pattern + heuristic).
+        // This keeps the RE baseline dependency-light while still extracting common structured
+        // entities (DATE/MONEY/EMAIL/...) that relations frequently attach to.
+        let ner = crate::StackedNER::default();
+        let mut entities = ner.extract_entities(text, None)?;
 
         // Respect the requested entity schema when possible.
         // Note: Some relation datasets provide rich, dataset-specific entity type labels
@@ -163,9 +167,41 @@ impl TPLinker {
         // This is deliberately conservative: we only emit relations when we match a known trigger
         // pattern *and* the relation type is present in `relation_types`. We do not "guess" a
         // relation type just because two entities are nearby.
+        // If the caller doesn't provide an explicit relation schema, fall back to a conservative
+        // default set that matches the built-in heuristic trigger patterns.
+        //
+        // This keeps `TPLinker` usable from the CLI without requiring users to know label sets.
+        const DEFAULT_RELATIONS: &[&str] = &[
+            "CEO_OF",
+            "WORKS_FOR",
+            "FOUNDED",
+            "MANAGES",
+            "REPORTS_TO",
+            "LOCATED_IN",
+            "BORN_IN",
+            "LIVES_IN",
+            "DIED_IN",
+            "OCCURRED_ON",
+            "STARTED_ON",
+            "ENDED_ON",
+            "PART_OF",
+            "ACQUIRED",
+            "MERGED_WITH",
+            "PARENT_OF",
+            "MARRIED_TO",
+            "CHILD_OF",
+            "SIBLING_OF",
+        ];
+
+        let rels: Vec<&str> = if relation_types.is_empty() {
+            DEFAULT_RELATIONS.to_vec()
+        } else {
+            relation_types.to_vec()
+        };
+
         let registry = {
             let mut builder = SemanticRegistry::builder();
-            for rel in relation_types {
+            for rel in rels {
                 // Description is a best-effort placeholder; only the slug is used by the
                 // heuristic matcher today.
                 builder = builder.add_relation(rel, rel);
@@ -190,10 +226,10 @@ impl TPLinker {
 
 impl Model for TPLinker {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
-        let _ = text;
-        Err(crate::Error::inference(
-            "TPLinker is not implemented (no placeholder extraction)",
-        ))
+        let heuristic = crate::StackedNER::default();
+        let mut entities = heuristic.extract_entities(text, None)?;
+        entities.retain(|e| e.confidence >= f64::from(self.entity_threshold));
+        Ok(entities)
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
@@ -201,11 +237,14 @@ impl Model for TPLinker {
             EntityType::Person,
             EntityType::Organization,
             EntityType::Location,
+            EntityType::Date,
+            EntityType::Time,
+            EntityType::Money,
         ]
     }
 
     fn is_available(&self) -> bool {
-        false
+        true
     }
 
     fn name(&self) -> &'static str {
@@ -213,7 +252,7 @@ impl Model for TPLinker {
     }
 
     fn description(&self) -> &'static str {
-        "TPLinker joint entity-relation extraction (not implemented)"
+        "TPLinker (heuristic baseline today; neural handshaking model TBD)"
     }
 }
 
@@ -225,10 +264,7 @@ impl RelationExtractor for TPLinker {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<ExtractionWithRelations> {
-        let _ = (text, entity_types, relation_types, threshold);
-        Err(crate::Error::inference(
-            "TPLinker is not implemented (no placeholder extraction)",
-        ))
+        self.extract_with_handshaking(text, entity_types, relation_types, threshold)
     }
 }
 
@@ -263,62 +299,68 @@ mod tests {
 
     #[test]
     fn test_tplinker_creation() {
-        let err = TPLinker::new().unwrap_err().to_string();
-        assert!(
-            err.to_lowercase().contains("not implemented"),
-            "expected not-implemented error; got: {err}"
-        );
+        let tplinker = TPLinker::new().unwrap();
+        assert!(tplinker.is_available());
     }
 
     #[test]
     fn test_tplinker_entity_extraction() {
-        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
-        let err = tplinker
+        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
+        let entities = tplinker
             .extract_entities("Steve Jobs founded Apple.", None)
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.to_lowercase().contains("not implemented"),
-            "expected not-implemented error; got: {err}"
-        );
+            .unwrap();
+        assert!(!entities.is_empty());
     }
 
     #[test]
     fn test_tplinker_relation_extraction() {
-        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
-        let err = tplinker
+        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
+        let out = tplinker
             .extract_with_relations(
                 "Steve Jobs founded Apple in 1976.",
                 &["person", "organization"],
                 &["founded"],
                 0.5,
             )
-            .unwrap_err()
-            .to_string();
+            .unwrap();
+        assert!(out.entities.len() >= 2);
         assert!(
-            err.to_lowercase().contains("not implemented"),
-            "expected not-implemented error; got: {err}"
+            out.relations.iter().any(|r| r.relation_type == "founded"),
+            "expected a founded relation; got: {:?}",
+            out.relations
         );
     }
 
     #[test]
     fn test_tplinker_unicode_offsets_invariants() {
         // Diverse scripts + emoji (multi-byte). Offsets must be character-based and valid.
-        // Since TPLinker is not implemented, this is an error-path test.
-        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
+        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
         let text = "Dr. 田中 met François Müller in 東京. 🎉";
-        let err = tplinker
+        let out = tplinker
             .extract_with_relations(
                 text,
                 &["person", "location", "organization"],
                 &["works_for", "located_in", "founded"],
                 0.0,
             )
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.to_lowercase().contains("not implemented"),
-            "expected not-implemented error; got: {err}"
-        );
+            .unwrap();
+
+        let text_len = text.chars().count();
+        for e in &out.entities {
+            assert!(e.start < e.end, "invalid span: {:?}", (e.start, e.end));
+            assert!(
+                e.end <= text_len,
+                "span out of bounds: {:?} (len={})",
+                (e.start, e.end),
+                text_len
+            );
+            let extracted =
+                crate::offset::TextSpan::from_chars(text, e.start, e.end).extract(text);
+            assert_eq!(extracted, e.text);
+        }
+        for r in &out.relations {
+            assert!(r.head_idx < out.entities.len());
+            assert!(r.tail_idx < out.entities.len());
+        }
     }
 }

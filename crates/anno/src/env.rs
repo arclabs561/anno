@@ -29,16 +29,16 @@
 //! | `ANNO_CACHE_DIR` | Custom cache directory for models/datasets |
 //! | `ANNO_CI_SEED` | Fixed seed for reproducible CI testing |
 //! | `ANNO_SAMPLE_STRATEGY` | Backend sampling strategy (random, ml-only, worst-first) |
-//! | `ANNO_MATRIX_TASK` | Optional task override for matrix harness (e.g. discontinuous-ner, events, ned) |
-//! | `ANNO_MATRIX_REQUIRE_CACHED` | If true, matrix harness/sweeps only use cached datasets (local default false; CI forced true) |
+//! | `ANNO_MATRIX_TASK` | Optional task override for matrix sampler harness (e.g. discontinuous-ner, events, ned) |
+//! | `ANNO_MATRIX_REQUIRE_CACHED` | If true, matrix sampler harness/sweeps only use cached datasets (local default false; CI forced true) |
 //! | `ANNO_MATRIX_COVERAGE_REPORT` | If set, write a JSON coverage report to this path during tests |
 //! | `ANNO_MATRIX_DISTRIBUTION_REPORT` | If set, write a JSON selection-distribution report to this path during tests |
 //! | `ANNO_MATRIX_DISTRIBUTION_ITERS` | Number of simulated selections to run for distribution report (default 200) |
 //! | `ANNO_ML_IN_MATRIX` | Include ML-ish backends in CI matrix (1/true to enable) |
-//! | `ANNO_HISTORY_FILE` | Override muxer history JSON path for matrix harness |
+//! | `ANNO_HISTORY_FILE` | Override muxer history JSON path for matrix sampler harness |
 //! | `ANNO_MUXER_WINDOW_CAP` | Muxer history window size (per arm) |
 //! | `ANNO_MUXER_PER_DATASET` | Use dataset-scoped muxer history + selection (1/true recommended) |
-//! | `ANNO_MUXER_DATASETS_PER_RUN` | Matrix harness: datasets per run (default 2) |
+//! | `ANNO_MUXER_DATASETS_PER_RUN` | Matrix sampler harness: datasets per run (default 2) |
 //! | `ANNO_MUXER_EXPLORATION_C` | Muxer UCB exploration coefficient |
 //! | `ANNO_MUXER_JUNK_WEIGHT` | Muxer soft-junk penalty weight |
 //! | `ANNO_MUXER_HARD_JUNK_WEIGHT` | Muxer hard-junk penalty weight |
@@ -51,7 +51,7 @@
 //! | `ANNO_MUXER_JUNK_F1_NER` | Junk cutoff for NER F1 (0..1) (default 0.05) |
 //! | `ANNO_MUXER_JUNK_F1_COREF` | Junk cutoff for coref CoNLL F1 (0..1) |
 //! | `ANNO_MUXER_JUNK_F1_RELATION` | Junk cutoff for relation strict F1 (0..1) |
-//! | `ANNO_MUXER_VERBOSE` | Print chosen slice + per-result outcomes in matrix harness |
+//! | `ANNO_MUXER_VERBOSE` | Print chosen slice + per-result outcomes in matrix sampler harness |
 //! | `ANNO_MUXER_HISTORY_SALT` | Optional suffix to isolate muxer history files (useful when semantics change) |
 //! | `ANNO_MUXER_DECISIONS_FILE` | Optional path to write selection decisions as JSONL |
 //! | `ANNO_MUXER_DECISIONS_TOP` | Max candidate rows included per decision (JSONL; default 8) |

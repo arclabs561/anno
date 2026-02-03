@@ -6,15 +6,24 @@ use std::time::Instant;
 
 use super::super::output::{color, log_info, print_annotated_signals, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
-use super::super::utils::{detect_quantifier, get_input_text, is_negated};
+use super::super::utils::get_input_text;
+use anno::heuristics::{detect_quantifier_en, is_negated_en};
 
 #[cfg(feature = "eval-advanced")]
 use anno::ingest::url_resolver::CompositeResolver;
 use anno::ingest::DocumentPreprocessor;
+use anno::backends::inference::{
+    extract_relation_triples, RelationExtractionConfig, RelationExtractor, SemanticRegistry,
+};
+#[cfg(not(feature = "graph"))]
 use anno_core::core::graph::{GraphDocument, GraphExportFormat};
 use anno_core::core::grounded::{
     GroundedDocument, Location, Modality, Signal, SignalId, SignalValidationError,
 };
+#[cfg(feature = "graph")]
+use anno_lattix::grounded_to_lattix_graph;
+#[cfg(feature = "graph")]
+use lattix::GraphExportFormat as LattixGraphExportFormat;
 
 use crate::cli::CliError;
 
@@ -48,6 +57,22 @@ pub struct ExtractArgs {
     /// Example: --extract-types "SCIENTIST,ELEMENT,AWARD"
     #[arg(long, value_name = "CSV")]
     pub extract_types: Option<String>,
+
+    /// Extract relations between entities (best-effort; backend-dependent).
+    #[arg(long, default_value_t = false)]
+    pub extract_relations: bool,
+
+    /// Relation types to consider (comma-separated). If omitted, uses a conservative default set.
+    #[arg(long, value_name = "CSV")]
+    pub relation_types: Option<String>,
+
+    /// Relation confidence threshold (0.0-1.0). Defaults to `--threshold` when set, otherwise 0.55.
+    #[arg(long, value_name = "FLOAT")]
+    pub relation_threshold: Option<f64>,
+
+    /// Max span distance (in characters) for heuristic relation detection.
+    #[arg(long, value_name = "CHARS", default_value_t = 120)]
+    pub relation_max_span_distance: usize,
 
     /// Minimum confidence threshold (0.0-1.0).
     ///
@@ -180,20 +205,121 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .collect()
     });
 
-    let start = Instant::now();
-    let entities = if let Some(ref custom_types) = extract_types {
-        // Zero-shot extraction with custom types
-        extract_with_custom_types(&args.model, &text, custom_types, args.threshold, args.quiet)?
-    } else {
-        // Standard extraction
-        let model = args.model.create_model().map_err(CliError::from)?;
-        model
-            .extract_entities(&text, None)
-            .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
-    };
-    let elapsed = start.elapsed();
+    // Conservative default relation schema (matches `anno::backends::inference` heuristics).
+    const DEFAULT_RELATION_TYPES: &[&str] = &[
+        "CEO_OF",
+        "WORKS_FOR",
+        "FOUNDED",
+        "MANAGES",
+        "REPORTS_TO",
+        "LOCATED_IN",
+        "BORN_IN",
+        "LIVES_IN",
+        "DIED_IN",
+        "OCCURRED_ON",
+        "STARTED_ON",
+        "ENDED_ON",
+        "PART_OF",
+        "ACQUIRED",
+        "MERGED_WITH",
+        "PARENT_OF",
+        "MARRIED_TO",
+        "CHILD_OF",
+        "SIBLING_OF",
+    ];
 
-    let mut entities = entities;
+    let relation_types: Vec<String> = args
+        .relation_types
+        .as_deref()
+        .map(|csv| {
+            csv.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| DEFAULT_RELATION_TYPES.iter().map(|s| (*s).to_string()).collect());
+
+    let relation_threshold = args
+        .relation_threshold
+        .or(args.threshold)
+        .unwrap_or(0.55)
+        .clamp(0.0, 1.0) as f32;
+
+    let start = Instant::now();
+
+    // If relations are requested and the backend supports `RelationExtractor`, prefer the joint
+    // path so entity/relation indices remain consistent.
+    let (mut entities, mut relation_triples) = if args.extract_relations {
+        let entity_schema: Vec<&str> = if let Some(ref custom_types) = extract_types {
+            custom_types.iter().map(|s| s.as_str()).collect()
+        } else {
+            Vec::new()
+        };
+        let rel_schema: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
+
+        match args.model {
+            ModelBackend::Tplinker => {
+                let re = anno::backends::tplinker::TPLinker::new()
+                    .map_err(|e| CliError::from(format!("Failed to init tplinker: {}", e)))?;
+                let out = re
+                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
+                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
+                (out.entities, out.relations)
+            }
+            #[cfg(feature = "onnx")]
+            ModelBackend::Gliner2 => {
+                use anno::backends::gliner2::GLiNER2Onnx;
+                let re = GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
+                    .map_err(|e| CliError::from(format!("Failed to init gliner2: {}", e)))?;
+                let out = re
+                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
+                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
+                (out.entities, out.relations)
+            }
+            #[cfg(feature = "candle")]
+            ModelBackend::Gliner2 => {
+                use anno::backends::gliner2::GLiNER2Candle;
+                let re = GLiNER2Candle::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
+                    .map_err(|e| CliError::from(format!("Failed to init gliner2: {}", e)))?;
+                let out = re
+                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
+                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
+                (out.entities, out.relations)
+            }
+            _ => {
+                // Standard extraction, then heuristic relation detection.
+                let ents = if let Some(ref custom_types) = extract_types {
+                    extract_with_custom_types(
+                        &args.model,
+                        &text,
+                        custom_types,
+                        args.threshold,
+                        args.quiet,
+                    )?
+                } else {
+                    let model = args.model.create_model().map_err(CliError::from)?;
+                    model
+                        .extract_entities(&text, None)
+                        .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
+                };
+                (ents, Vec::new())
+            }
+        }
+    } else {
+        let ents = if let Some(ref custom_types) = extract_types {
+            // Zero-shot extraction with custom types
+            extract_with_custom_types(&args.model, &text, custom_types, args.threshold, args.quiet)?
+        } else {
+            // Standard extraction
+            let model = args.model.create_model().map_err(CliError::from)?;
+            model
+                .extract_entities(&text, None)
+                .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
+        };
+        (ents, Vec::new())
+    };
+
+    let elapsed = start.elapsed();
 
     // Apply confidence threshold if requested
     if let Some(threshold) = args.threshold {
@@ -218,7 +344,33 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .map(|t| anno::EntityType::from_label(t).as_label().to_string())
             .collect();
 
-        entities.retain(|e| normalized.contains(e.entity_type.as_label()));
+        // If relations were extracted jointly, we must keep relation indices consistent when
+        // filtering entities. Remap indices and drop relations that reference filtered entities.
+        if args.extract_relations && !relation_triples.is_empty() {
+            let mut old_to_new: Vec<Option<usize>> = vec![None; entities.len()];
+            let mut new_entities: Vec<anno::Entity> = Vec::new();
+            for (i, e) in entities.iter().enumerate() {
+                if normalized.contains(e.entity_type.as_label()) {
+                    old_to_new[i] = Some(new_entities.len());
+                    new_entities.push(e.clone());
+                }
+            }
+            let mut new_rel = Vec::new();
+            for r in &relation_triples {
+                if let (Some(h), Some(t)) = (old_to_new.get(r.head_idx).and_then(|x| *x), old_to_new.get(r.tail_idx).and_then(|x| *x)) {
+                    new_rel.push(anno::RelationTriple {
+                        head_idx: h,
+                        tail_idx: t,
+                        relation_type: r.relation_type.clone(),
+                        confidence: r.confidence,
+                    });
+                }
+            }
+            entities = new_entities;
+            relation_triples = new_rel;
+        } else {
+            entities.retain(|e| normalized.contains(e.entity_type.as_label()));
+        }
     }
 
     // Warn about missing expected types (best-effort, non-fatal)
@@ -258,6 +410,27 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
     }
 
+    // If relations were requested but we didn't run a joint extractor, do heuristic relation
+    // detection over the final entity list.
+    if args.extract_relations && relation_triples.is_empty() {
+        let mut builder = SemanticRegistry::builder();
+        for r in &relation_types {
+            builder = builder.add_relation(r, r);
+        }
+        let registry = builder.build_placeholder(1);
+        let cfg = RelationExtractionConfig {
+            threshold: relation_threshold,
+            max_span_distance: args.relation_max_span_distance,
+            extract_triggers: false,
+        };
+        relation_triples = extract_relation_triples(&entities, &text, &registry, &cfg);
+    }
+
+    // Apply relation confidence threshold (best-effort; non-fatal).
+    if args.extract_relations && !relation_triples.is_empty() {
+        relation_triples.retain(|r| r.confidence >= relation_threshold);
+    }
+
     // Build grounded document with validation using library method
     let mut doc = GroundedDocument::new("extract", &text);
     let mut validation_errors: Vec<SignalValidationError> = Vec::new();
@@ -273,13 +446,13 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         .with_modality(Modality::Symbolic);
 
         // Detect negation
-        if args.negation && is_negated(&text, e.start) {
+        if args.negation && is_negated_en(&text, e.start) {
             signal = signal.negated();
         }
 
         // Detect quantification
         if args.quantifiers {
-            if let Some(q) = detect_quantifier(&text, e.start) {
+            if let Some(q) = detect_quantifier_en(&text, e.start) {
                 signal = signal.with_quantifier(q);
             }
         }
@@ -306,6 +479,35 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             eprintln!("  - {}", err);
         }
     }
+
+    // Prepare relation JSON expansion (stable across output formats).
+    let relations_out: Vec<serde_json::Value> = if args.extract_relations {
+        relation_triples
+            .iter()
+            .filter_map(|r| {
+                let head = entities.get(r.head_idx)?;
+                let tail = entities.get(r.tail_idx)?;
+                Some(serde_json::json!({
+                    "head": {
+                        "text": head.text,
+                        "type": head.entity_type.as_label(),
+                        "start": head.start,
+                        "end": head.end,
+                    },
+                    "tail": {
+                        "text": tail.text,
+                        "type": tail.entity_type.as_label(),
+                        "start": tail.start,
+                        "end": tail.end,
+                    },
+                    "type": r.relation_type,
+                    "confidence": r.confidence,
+                }))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     // Output
     match args.format {
@@ -345,6 +547,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             let output = serde_json::json!({
                 "provenance": provenance,
                 "entities": entities_out,
+                "relations": relations_out,
             });
 
             println!(
@@ -387,6 +590,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             println!("{}", serde_json::json!({ "provenance": provenance }));
             for obj in entities_out {
                 println!("{}", obj);
+            }
+            if !relations_out.is_empty() {
+                for obj in relations_out {
+                    println!("{}", serde_json::json!({ "relation": obj }));
+                }
             }
         }
         OutputFormat::Tsv => {
@@ -461,6 +669,32 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 // Debug: Check if verbose is being passed correctly
 
                 print_signals(&doc, &text, args.verbose);
+
+                if !relations_out.is_empty() {
+                    println!();
+                    println!("  {}:", color("90", "Relations"));
+                    for r in &relations_out {
+                        let h = &r["head"];
+                        let t = &r["tail"];
+                        let rel = r["type"].as_str().unwrap_or("REL");
+                        let conf = r["confidence"].as_f64().unwrap_or(0.0);
+                        let hs = h["start"].as_u64().unwrap_or(0);
+                        let he = h["end"].as_u64().unwrap_or(0);
+                        let ts = t["start"].as_u64().unwrap_or(0);
+                        let te = t["end"].as_u64().unwrap_or(0);
+                        println!(
+                            "    [{},{})->[{} {:.2}]->[{},{}): {} → {}",
+                            hs,
+                            he,
+                            rel,
+                            conf,
+                            ts,
+                            te,
+                            h["text"].as_str().unwrap_or(""),
+                            t["text"].as_str().unwrap_or("")
+                        );
+                    }
+                }
 
                 // Level 3+: Additional metadata (timing, model, document ID) - only if not already shown
                 if args.verbose >= 3 {
@@ -557,33 +791,79 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Export to graph format if requested
     if let Some(graph_format_str) = args.export_graph {
-        let graph_format = match graph_format_str.to_lowercase().as_str() {
-            "neo4j" | "cypher" => GraphExportFormat::Cypher,
-            "networkx" | "nx" => GraphExportFormat::NetworkXJson,
-            "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
-            _ => {
-                return Err(CliError::from(format!(
-                    "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+        #[cfg(feature = "graph")]
+        {
+            let graph_format = match graph_format_str.to_lowercase().as_str() {
+                "neo4j" | "cypher" => LattixGraphExportFormat::Cypher,
+                "networkx" | "nx" => LattixGraphExportFormat::NetworkXJson,
+                "jsonld" | "json-ld" => LattixGraphExportFormat::JsonLd,
+                _ => {
+                    return Err(CliError::from(format!(
+                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+                        graph_format_str
+                    )));
+                }
+            };
+
+            let graph = grounded_to_lattix_graph(&doc);
+            let graph_output = graph.export(graph_format);
+
+            if !args.quiet {
+                eprintln!(
+                    "{} Exported graph ({} nodes, {} edges) in {} format (lattix)",
+                    color("32", "✓"),
+                    graph.node_count(),
+                    graph.edge_count(),
                     graph_format_str
-                )));
+                );
             }
-        };
-
-        let graph = GraphDocument::from_grounded_document(&doc);
-        let graph_output = graph.export(graph_format);
-
-        // Output graph to stdout (always print to stdout for graph export)
-        // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
-        if !args.quiet {
-            eprintln!(
-                "{} Exported graph ({} nodes, {} edges) in {} format",
-                color("32", "✓"),
-                graph.node_count(),
-                graph.edge_count(),
-                graph_format_str
-            );
+            println!("{}", graph_output);
         }
-        println!("{}", graph_output);
+        #[cfg(not(feature = "graph"))]
+        {
+            let graph_format = match graph_format_str.to_lowercase().as_str() {
+                "neo4j" | "cypher" => GraphExportFormat::Cypher,
+                "networkx" | "nx" => GraphExportFormat::NetworkXJson,
+                "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
+                _ => {
+                    return Err(CliError::from(format!(
+                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+                        graph_format_str
+                    )));
+                }
+            };
+
+            let graph = if args.extract_relations && !relation_triples.is_empty() {
+                let mut rels: Vec<anno_core::Relation> = Vec::new();
+                for r in &relation_triples {
+                    if let (Some(head), Some(tail)) = (entities.get(r.head_idx), entities.get(r.tail_idx)) {
+                        rels.push(anno_core::Relation::new(
+                            head.clone(),
+                            tail.clone(),
+                            r.relation_type.clone(),
+                            f64::from(r.confidence),
+                        ));
+                    }
+                }
+                GraphDocument::from_extraction(&entities, &rels, None)
+            } else {
+                GraphDocument::from_grounded_document(&doc)
+            };
+            let graph_output = graph.export(graph_format);
+
+            // Output graph to stdout (always print to stdout for graph export)
+            // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
+            if !args.quiet {
+                eprintln!(
+                    "{} Exported graph ({} nodes, {} edges) in {} format",
+                    color("32", "✓"),
+                    graph.node_count(),
+                    graph.edge_count(),
+                    graph_format_str
+                );
+            }
+            println!("{}", graph_output);
+        }
     }
 
     Ok(())
