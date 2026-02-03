@@ -107,10 +107,10 @@ assert!(!ents.is_empty());
 cargo install --path crates/anno-cli --bin anno --features "onnx eval-advanced"
 ```
 
-See `docs/QUICKSTART.md` for library usage and more examples.
+More examples: `docs/QUICKSTART.md`.
 
 ## Docs
 
-- `docs/QUICKSTART.md` — setup + examples
+- `docs/QUICKSTART.md`
 - `docs/CONTRACT.md` — interface contract
 - `docs/BACKENDS.md` — backend selection
