@@ -32,8 +32,8 @@ Notes:
 
 - All NER backends return **variable-length spans** (start/end offsets). Some are token-labeling models internally.
 - Offsets are **character offsets** (Unicode scalar values), not byte offsets; see `docs/CONTRACT.md`.
-- Neural backends are feature-gated behind `onnx`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
-- ONNX model weights download from HuggingFace on first use (see “Offline / downloads” below).
+- ML backends are feature-gated behind `onnx` or `candle`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
+- ML model weights download from HuggingFace on first use (see “Offline / downloads” below).
 - The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
 
 ## Offline / downloads
