@@ -17,18 +17,23 @@ anno - Information extraction from text
 CAPABILITIES:
   • Named Entity Recognition (NER) - detect spans (PER/ORG/LOC, etc.)
   • Zero-shot custom types - define entity types (--extract-types; GLiNER)
+  • Relations (best-effort) - extract head/rel/tail triples (--extract-relations)
   • Coreference - link mentions within one document ("Sophie Wilson" → "She")
   • Structured patterns - dates, money, emails (pattern backend)
 
 BACKENDS:
   • stacked    - best available for this build (feature-gated)
   • gliner     - zero-shot custom types (requires onnx)
+  • gliner2    - multitask (NER + relation heuristics; requires onnx)
+  • tplinker   - relation baseline (heuristic today; no extra deps)
   • pattern    - high-precision structured extraction (no weights)
 
 EXAMPLES:
   anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
   anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
     --text "Aspirin can treat headaches and reduce fever."
+  anno extract --extract-relations --relation-types "FOUNDED,WORKS_FOR" \
+    --text "Steve Jobs founded Apple in 1976."
   anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
   anno models download ...
   anno info
@@ -88,7 +93,7 @@ pub enum Commands {
     #[command(hide = true)]
     Benchmark(commands::BenchmarkArgs),
 
-    /// Inspect sampler history from the randomized matrix harness
+    /// Inspect sampler history from the randomized matrix sampler harness
     #[cfg(feature = "eval-advanced")]
     #[command(hide = true)]
     #[command(name = "sampler", visible_alias = "muxer")]
@@ -206,7 +211,7 @@ pub enum ModelBackend {
     #[value(hide = true)]
     BiLstmCrf,
     /// TPLinker: joint entity-relation extraction
-    #[value(alias = "tplink", hide = true)]
+    #[value(alias = "tplink")]
     Tplinker,
     /// Universal NER: LLM-based zero-shot (requires API key)
     #[value(alias = "universal-ner", hide = true)]

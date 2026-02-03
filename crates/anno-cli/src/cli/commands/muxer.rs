@@ -1,4 +1,4 @@
-//! Muxer command - Inspect the muxer-backed CI matrix history.
+//! Sampler command - Inspect the muxer-backed CI matrix history.
 //!
 //! This is a DX tool: it helps answer questions like:
 //! - Have we "seen" each arm at least once?
@@ -18,33 +18,33 @@ use anno_eval::eval::task_mapping::{backend_tasks, get_task_backends, Task};
 
 // Note: `muxer` is an optional dependency enabled by `eval-advanced`.
 // This keeps default builds lean while letting this DX command reuse the exact selection
-// semantics used by the matrix harness when `eval-advanced` is enabled.
+// semantics used by the matrix sampler harness when `eval-advanced` is enabled.
 #[cfg(feature = "eval-advanced")]
 use muxer::MabConfig;
 
 #[cfg(feature = "eval-advanced")]
 use anno_eval::muxer_harness as mh;
 
-/// Inspect muxer history from the randomized matrix harness.
+/// Inspect muxer history from the randomized matrix sampler harness.
 #[derive(Parser, Debug)]
-#[command(about = "Inspect muxer history from the randomized matrix harness")]
+#[command(about = "Inspect muxer history from the randomized matrix sampler harness")]
 pub struct MuxerArgs {
     /// Override history file path (otherwise uses env/defaults).
     #[arg(long)]
     pub history_file: Option<PathBuf>,
 
-    /// Slice tag to inspect (matches the matrix harness slice codes, e.g. `ner`, `temporal`,
+    /// Slice tag to inspect (matches the matrix sampler harness slice codes, e.g. `ner`, `temporal`,
     /// `discourse-segmentation`).
     ///
     /// If set, this overrides `--perspective` (which is legacy / coarse).
     #[arg(long)]
     pub slice: Option<String>,
 
-    /// Perspective to inspect (controls tasks + preferred datasets in the matrix harness).
+    /// Perspective to inspect (controls tasks + preferred datasets in the matrix sampler harness).
     #[arg(long, value_enum)]
     pub perspective: Option<MuxerPerspective>,
 
-    /// Scope muxer history by dataset facets (language/domain), matching the matrix harness.
+    /// Scope muxer history by dataset facets (language/domain), matching the matrix sampler harness.
     ///
     /// This is only used when we can infer facets (see `--facet-datasets`).
     #[arg(long, default_value_t = true)]
@@ -58,7 +58,7 @@ pub struct MuxerArgs {
     #[arg(long)]
     pub facet_datasets: Option<String>,
 
-    /// Sampling strategy (as used by the matrix harness).
+    /// Sampling strategy (as used by the matrix sampler harness).
     #[arg(long, value_enum)]
     pub strategy: Option<MuxerStrategy>,
 
@@ -96,7 +96,7 @@ pub enum MuxerAction {
         top_datasets: usize,
     },
 
-    /// Summarize a muxer decision log JSONL (written by the matrix harness).
+    /// Summarize a muxer decision log JSONL (written by the matrix sampler harness).
     Decisions {
         /// Path to a decisions JSONL file (defaults to `ANNO_MUXER_DECISIONS_FILE`).
         #[arg(long)]
@@ -133,7 +133,7 @@ pub enum MuxerAction {
 
     /// Preview what the muxer selector would pick next (using current history).
     Decide {
-        /// Number of arms to choose (without replacement), like the matrix harness.
+        /// Number of arms to choose (without replacement), like the matrix sampler harness.
         #[arg(long, default_value_t = 1)]
         k: usize,
 
@@ -158,6 +158,77 @@ pub enum MuxerAction {
         /// Max candidate rows to show.
         #[arg(long, default_value_t = 12)]
         top_candidates: usize,
+    },
+
+    /// Run the randomized matrix sampler harness (writes decisions JSONL; updates history).
+    ///
+    /// This is the operational entrypoint corresponding to the CI sampler, but runnable locally.
+    /// It intentionally supports only a small set of flags; everything else is inherited from the
+    /// harness env-vars.
+    Run {
+        /// Number of sampler runs (seeds). Defaults to 1 for `triage`, 10 for `measure`.
+        #[arg(long)]
+        runs: Option<u64>,
+
+        /// Seed base (actual seeds are `seed_base + i` for i in 0..runs).
+        #[arg(long, default_value_t = 0)]
+        seed_base: u64,
+
+        /// Write decisions/outcomes JSONL here (defaults to `.generated/muxer_run.jsonl`).
+        #[arg(long)]
+        decisions_file: Option<PathBuf>,
+
+        /// Optional: write an aggregated JSON report (from the decisions JSONL).
+        #[arg(long)]
+        agg_out: Option<PathBuf>,
+
+        /// Task override (sets `ANNO_MATRIX_TASK`, e.g. `ner`, `re`, `intra-coref`).
+        #[arg(long)]
+        task: Option<String>,
+
+        /// Max examples per dataset (sets `ANNO_MAX_EXAMPLES`).
+        #[arg(long)]
+        max_examples: Option<u64>,
+
+        /// How many datasets to sample per run (sets `ANNO_MUXER_DATASETS_PER_RUN`).
+        #[arg(long)]
+        datasets_per_run: Option<u64>,
+
+        /// How many backends to sample per run (sets `ANNO_MUXER_BACKENDS_PER_RUN`).
+        #[arg(long)]
+        backends_per_run: Option<u64>,
+
+        /// Use dataset-scoped windows (`arm@@DatasetId`) when updating history (sets `ANNO_MUXER_PER_DATASET=1`).
+        #[arg(long, default_value_t = false)]
+        per_dataset: bool,
+
+        /// Cached-only datasets (sets `ANNO_MATRIX_REQUIRE_CACHED=1`).
+        #[arg(long, default_value_t = false)]
+        require_cached: bool,
+
+        /// If a loader returns empty, try to download (sets `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1`).
+        #[arg(long, default_value_t = false)]
+        try_download_on_empty: bool,
+
+        /// Fixed datasets (sets `ANNO_MUXER_FIXED_DATASETS`), comma-separated.
+        #[arg(long)]
+        fixed_datasets: Option<String>,
+
+        /// Fixed backend list (sets `ANNO_MUXER_FIXED_BACKEND`), comma-separated.
+        #[arg(long)]
+        fixed_backend: Option<String>,
+
+        /// Pin language facet (sets `ANNO_MUXER_PIN_LANG`), e.g. `de`.
+        #[arg(long)]
+        pin_lang: Option<String>,
+
+        /// Pin domain facet (sets `ANNO_MUXER_PIN_DOMAIN`), e.g. `wikipedia`.
+        #[arg(long)]
+        pin_domain: Option<String>,
+
+        /// Pin backend facet (sets `ANNO_MUXER_PIN_BACKEND`), comma-separated.
+        #[arg(long)]
+        pin_backend: Option<String>,
     },
 
     /// Rank the most actionable regressions from history (recent vs baseline).
@@ -545,7 +616,7 @@ pub enum RegressMode {
     Quality,
 }
 
-/// Which slice of the matrix harness to inspect.
+/// Which slice of the matrix sampler harness to inspect.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum MuxerPerspective {
     /// Named entity recognition slice.
@@ -585,7 +656,7 @@ pub enum MuxerStrategy {
     Random,
     /// MAB-driven selection (prefers higher ok-rate / lower junk).
     ///
-    /// Note: in the matrix harness, `ok` is recorded as “evaluation succeeded AND not junk”
+    /// Note: in the matrix sampler harness, `ok` is recorded as “evaluation succeeded AND not junk”
     /// (where “junk” is a coarse low-F1 threshold, task-dependent).
     MlOnly,
     /// Regression-hunting selection (bias toward historically bad/flaky arms).
@@ -621,7 +692,7 @@ struct BackendHistory {
     version: u32,
     window_cap: usize,
     windows: BTreeMap<String, WindowSerde>,
-    /// Optional triage metadata recorded by the matrix harness (parallel to `windows`).
+    /// Optional triage metadata recorded by the matrix sampler harness (parallel to `windows`).
     ///
     /// Keys match `windows` keys. Each entry is a deque of optional coarse failure kinds, aligned
     /// with the corresponding window buffer (best-effort).
@@ -811,7 +882,7 @@ impl BackendHistory {
             let mut obs = SummarySerde::default();
             if per_dataset {
                 // Prefer aggregating dataset-scoped windows if present:
-                // keys of the form `{backend}@@{DatasetId}` are written by the matrix harness.
+                // keys of the form `{backend}@@{DatasetId}` are written by the matrix sampler harness.
                 let prefix = format!("{a}@@");
                 let mut agg = SummarySerde::default();
                 for (k, w) in &self.windows {
@@ -1482,7 +1553,7 @@ fn default_history_path(slice_tag: &str) -> PathBuf {
 }
 
 fn default_decisions_path() -> PathBuf {
-    // Keep consistent with the matrix harness default.
+    // Keep consistent with the matrix sampler harness default.
     let suffix = {
         let salt = std::env::var("ANNO_MUXER_DECISIONS_SALT")
             .ok()
@@ -1525,14 +1596,14 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
     let allowed: BTreeSet<&'static str> =
         tasks.iter().flat_map(|t| get_task_backends(*t)).collect();
 
-    // Match the matrix harness behavior: exclude backends that will *always* be skipped
+    // Match the matrix sampler harness behavior: exclude backends that will *always* be skipped
     // due to missing credentials/config, otherwise `anno muxer` becomes misleading.
     anno::env::load_dotenv();
     let has_hf_token = anno::env::has_hf_token();
 
     let mut out: Vec<String> = Vec::new();
     for b in allowed {
-        // Keep parity with matrix harness.
+        // Keep parity with matrix sampler harness.
         if b == "gliner_poly" {
             continue;
         }
@@ -1669,6 +1740,167 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     };
 
     match args.action {
+        MuxerAction::Run {
+            runs,
+            seed_base,
+            decisions_file,
+            agg_out,
+            task,
+            max_examples,
+            datasets_per_run,
+            backends_per_run,
+            per_dataset,
+            require_cached,
+            try_download_on_empty,
+            fixed_datasets,
+            fixed_backend,
+            pin_lang,
+            pin_domain,
+            pin_backend,
+        } => {
+            use std::path::Path;
+
+            // Decide defaults based on mode (explicit `--runs` wins).
+            let runs = runs.unwrap_or_else(|| match args.mode.unwrap_or(MuxerMode::Measure) {
+                MuxerMode::Triage => 1,
+                MuxerMode::Measure => 10,
+            });
+            if runs == 0 {
+                return Err("--runs must be > 0".to_string());
+            }
+
+            // Map CLI knobs to the harness environment, then call the same entrypoint as CI.
+            let decisions_path: PathBuf =
+                decisions_file.unwrap_or_else(|| PathBuf::from(".generated/muxer_run.jsonl"));
+            if let Some(parent) = decisions_path.parent() {
+                if !parent.as_os_str().is_empty() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| format!("muxer run: create_dir_all failed: {e}"))?;
+                }
+            }
+            if decisions_path.exists() {
+                std::fs::remove_file(&decisions_path)
+                    .map_err(|e| format!("muxer run: remove decisions file failed: {e}"))?;
+            }
+
+            // Prefer CLI history file override if provided.
+            if let Some(p) = args.history_file.as_ref() {
+                std::env::set_var("ANNO_HISTORY_FILE", p.to_string_lossy().to_string());
+            }
+
+            // Strategy/mode: explicit `--strategy` wins; otherwise mode chooses the harness default.
+            if let Some(m) = args.mode {
+                std::env::set_var(
+                    "ANNO_MUXER_MODE",
+                    match m {
+                        MuxerMode::Triage => "triage",
+                        MuxerMode::Measure => "measure",
+                    },
+                );
+            }
+            if let Some(s) = args.strategy {
+                std::env::set_var(
+                    "ANNO_SAMPLE_STRATEGY",
+                    match s {
+                        MuxerStrategy::Random => "random",
+                        MuxerStrategy::MlOnly => "ml-only",
+                        MuxerStrategy::WorstFirst => "worst-first",
+                    },
+                );
+            }
+
+            if args.include_ml {
+                std::env::set_var("ANNO_ML_IN_MATRIX", "1");
+            }
+            std::env::set_var(
+                "ANNO_MUXER_DECISIONS_FILE",
+                decisions_path.to_string_lossy().to_string(),
+            );
+
+            if let Some(t) = task {
+                if !t.trim().is_empty() {
+                    std::env::set_var("ANNO_MATRIX_TASK", t);
+                }
+            }
+            if let Some(n) = max_examples {
+                std::env::set_var("ANNO_MAX_EXAMPLES", n.to_string());
+            }
+            if let Some(n) = datasets_per_run {
+                std::env::set_var("ANNO_MUXER_DATASETS_PER_RUN", n.to_string());
+            }
+            if let Some(n) = backends_per_run {
+                std::env::set_var("ANNO_MUXER_BACKENDS_PER_RUN", n.to_string());
+            }
+            if per_dataset {
+                std::env::set_var("ANNO_MUXER_PER_DATASET", "1");
+            }
+            if require_cached {
+                std::env::set_var("ANNO_MATRIX_REQUIRE_CACHED", "1");
+            }
+            if try_download_on_empty {
+                std::env::set_var("ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY", "1");
+            }
+            if let Some(v) = fixed_datasets {
+                if !v.trim().is_empty() {
+                    std::env::set_var("ANNO_MUXER_FIXED_DATASETS", v);
+                }
+            }
+            if let Some(v) = fixed_backend {
+                if !v.trim().is_empty() {
+                    std::env::set_var("ANNO_MUXER_FIXED_BACKEND", v);
+                }
+            }
+            if let Some(v) = pin_lang {
+                if !v.trim().is_empty() {
+                    std::env::set_var("ANNO_MUXER_PIN_LANG", v);
+                }
+            }
+            if let Some(v) = pin_domain {
+                if !v.trim().is_empty() {
+                    std::env::set_var("ANNO_MUXER_PIN_DOMAIN", v);
+                }
+            }
+            if let Some(v) = pin_backend {
+                if !v.trim().is_empty() {
+                    std::env::set_var("ANNO_MUXER_PIN_BACKEND", v);
+                }
+            }
+
+            // Execute runs.
+            for i in 0..runs {
+                let seed = seed_base + i;
+                anno_eval::muxer_matrix::run_randomized_matrix_sample_with_seed(seed);
+            }
+
+            // Optional aggregation.
+            if let Some(out) = agg_out {
+                if let Some(parent) = out.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        std::fs::create_dir_all(parent)
+                            .map_err(|e| format!("muxer run: create_dir_all failed: {e}"))?;
+                    }
+                }
+                let v = anno_eval::muxer_agg_lib::aggregate_jsonl_paths(&[decisions_path.clone()])
+                    .map_err(|e| format!("muxer run: aggregate failed: {e}"))?;
+                let s = serde_json::to_string_pretty(&v)
+                    .map_err(|e| format!("muxer run: serialize agg failed: {e}"))?;
+                std::fs::write(out, s).map_err(|e| format!("muxer run: write agg failed: {e}"))?;
+            }
+
+            // Basic “correctness” surface: ensure decisions file exists and is non-empty.
+            let md = std::fs::metadata(&decisions_path).map_err(|e| {
+                format!(
+                    "muxer run: decisions file was not written ({}): {e}",
+                    decisions_path.display()
+                )
+            })?;
+            if md.len() == 0 {
+                return Err(format!(
+                    "muxer run: decisions file is empty ({})",
+                    decisions_path.display()
+                ));
+            }
+        }
         MuxerAction::Decisions {
             file,
             top,
@@ -2685,6 +2917,50 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(all(test, feature = "eval-advanced"))]
+mod run_cli_tests {
+    use super::*;
+
+    #[test]
+    fn parse_run_basic() {
+        let args = MuxerArgs::parse_from([
+            "sampler",
+            "--mode",
+            "triage",
+            "run",
+            "--runs",
+            "3",
+            "--seed-base",
+            "10",
+            "--pin-lang",
+            "de",
+            "--fixed-datasets",
+            "WikiANN",
+            "--fixed-backend",
+            "heuristic,gliner_onnx",
+        ]);
+
+        assert!(matches!(args.mode, Some(MuxerMode::Triage)));
+        match args.action {
+            MuxerAction::Run {
+                runs,
+                seed_base,
+                pin_lang,
+                fixed_datasets,
+                fixed_backend,
+                ..
+            } => {
+                assert_eq!(runs, Some(3));
+                assert_eq!(seed_base, 10);
+                assert_eq!(pin_lang.as_deref(), Some("de"));
+                assert_eq!(fixed_datasets.as_deref(), Some("WikiANN"));
+                assert_eq!(fixed_backend.as_deref(), Some("heuristic,gliner_onnx"));
+            }
+            _ => panic!("expected Run action"),
+        }
+    }
 }
 
 #[cfg(not(feature = "eval-advanced"))]

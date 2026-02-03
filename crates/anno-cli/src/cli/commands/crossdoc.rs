@@ -193,7 +193,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         cluster.kb_id = identity.kb_id.clone();
         cluster.confidence = identity.confidence as f64;
         if let Some(ref entity_type) = identity.entity_type {
-            cluster.entity_type = Some(EntityType::from_label(entity_type));
+            cluster.entity_type = Some(entity_type.to_entity_type());
         }
 
         // Extract mentions from TrackRefs if available
@@ -259,7 +259,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                                 track
                                     .entity_type
                                     .as_ref()
-                                    .map(|t| EntityType::from_label(t))
+                                    .map(|t| t.to_entity_type())
                                     .unwrap_or(EntityType::Other("UNKNOWN".into())),
                                 0,
                                 0,

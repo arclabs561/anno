@@ -174,6 +174,16 @@ cargo install --path crates/anno-cli --bin anno --features "onnx eval-advanced"
 
 More examples: `docs/QUICKSTART.md`.
 
+## Advanced: sampler (muxer)
+
+If you build with `eval-advanced`, `anno sampler` (alias `anno muxer`) exposes the same randomized
+matrix sampler used in CI, with **two modes**:
+
+- **triage**: quick regression-hunting defaults (worst-first)
+- **measure**: stable measurement defaults (ml-only)
+
+This command is hidden from the top-level help; use `anno help sampler`.
+
 ## Docs
 
 - `docs/QUICKSTART.md`
