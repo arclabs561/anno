@@ -44,8 +44,6 @@ Named entities:
 anno extract --text "Ada Lovelace worked with Charles Babbage in London."
 ```
 
-Machine-readable output:
-
 ```sh
 anno extract --format json --text "Ada Lovelace worked with Charles Babbage in London."
 ```
