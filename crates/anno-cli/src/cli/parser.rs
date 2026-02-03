@@ -4,39 +4,38 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use crate::cli::commands;
 
-/// Information Extraction CLI - NER, Coreference, Relations, Entity Linking
+/// Information extraction CLI (NER + coreference).
 #[derive(Parser)]
 #[command(name = "anno")]
 #[command(
     author,
     version,
-    about = "Information Extraction CLI - NER, Coreference, Relations, Entity Linking",
+    about = "Information extraction CLI (NER + coreference)",
     long_about = r#"
-anno - A unified information extraction toolkit
+anno - Information extraction from text
 
 CAPABILITIES:
-  • Named Entity Recognition (NER) - detect persons, orgs, locations, etc.
-  • Zero-shot Extraction - define custom entity types (--extract-types)
-  • Coreference Resolution - link mentions to same entity ("She" → referent)
-  • Entity Linking - connect entities to knowledge bases (when configured)
-
-SIGNAL → TRACK → IDENTITY HIERARCHY:
-  Level 1 (Signal)   : Raw detections/mentions with spans
-  Level 2 (Track)    : Within-document coreference chains
-  Level 3 (Identity) : Cross-document KB-linked entities
+  • Named Entity Recognition (NER) - detect spans (PER/ORG/LOC, etc.)
+  • Zero-shot custom types - define entity types (--extract-types; GLiNER)
+  • Coreference - link mentions within one document ("Sophie Wilson" → "She")
+  • Structured patterns - dates, money, emails (pattern backend)
 
 BACKENDS:
-  • pattern    - High-precision patterns (dates, money, emails)
-  • heuristic (alias: statistical) - Capitalization + context heuristics
-  • stacked    - Best available stack (uses available feature-gated backends when enabled)
-  • extra backends via feature flags (e.g., Candle); see `anno models list`
+  • stacked    - best available for this build (feature-gated)
+  • gliner     - zero-shot custom types (requires onnx)
+  • pattern    - high-precision structured extraction (no weights)
 
 EXAMPLES:
-  anno extract "Ada Lovelace worked with Charles Babbage in London."
-  anno extract --model gliner --extract-types "DRUG,SYMPTOM" -t "Aspirin treats headaches."
+  anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
+  anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
+    --text "Aspirin can treat headaches and reduce fever."
   anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
-  anno cross-doc ./docs --threshold 0.6  # requires --features eval-advanced
+  anno models download ...
   anno info
+
+OFFLINE:
+  • Prefetch: anno models download ...
+  • Cached-only: ANNO_NO_DOWNLOADS=1
 "#
 )]
 #[command(propagate_version = true)]
@@ -71,19 +70,23 @@ pub enum Commands {
 
     /// Deep analysis with multiple models
     #[command(visible_alias = "a")]
+    #[command(hide = true)]
     Analyze(commands::AnalyzeArgs),
 
     /// Work with NER datasets
     #[command(visible_alias = "ds")]
+    #[command(hide = true)]
     Dataset(commands::DatasetArgs),
 
     /// Comprehensive evaluation across all task-dataset-backend combinations
     #[command(visible_alias = "bench")]
     #[cfg(feature = "eval-advanced")]
+    #[command(hide = true)]
     Benchmark(commands::BenchmarkArgs),
 
     /// Inspect muxer history from the randomized matrix harness
     #[cfg(feature = "eval-advanced")]
+    #[command(hide = true)]
     Muxer(commands::MuxerArgs),
 
     /// Show model and version info
@@ -96,55 +99,70 @@ pub enum Commands {
     /// Cross-document entity coalescing: cluster entities across multiple documents
     #[command(visible_alias = "coalesce")]
     #[cfg(feature = "eval-advanced")]
+    #[command(hide = true)]
     CrossDoc(commands::CrossDocArgs),
 
     /// Enhance entities with additional metadata
+    #[command(hide = true)]
     Enhance(commands::EnhanceArgs),
 
     /// Full processing pipeline
     #[command(visible_alias = "p")]
+    #[command(hide = true)]
     Pipeline(commands::PipelineArgs),
 
     /// Query and filter entities/clusters
     #[command(visible_alias = "q")]
+    #[command(hide = true)]
     Query(commands::QueryArgs),
 
     /// Compare documents, models, or clusters
+    #[command(hide = true)]
     Compare(commands::CompareArgs),
 
     /// Manage cache for extraction results
+    #[command(hide = true)]
     Cache(commands::CacheArgs),
 
     /// Query evaluation history
     #[cfg(feature = "eval")]
+    #[command(hide = true)]
     History(commands::HistoryArgs),
 
     /// Manage configuration files for workflows
+    #[command(hide = true)]
     Config(commands::ConfigArgs),
 
     /// Batch process multiple documents efficiently
     #[command(visible_alias = "b")]
+    #[command(hide = true)]
     Batch(commands::BatchArgs),
 
     /// Joint NER + Coreference + Entity Linking analysis
     #[command(visible_alias = "j")]
+    #[command(hide = true)]
     Joint(commands::JointArgs),
 
     /// Privacy: detect and redact PII
     #[command(visible_alias = "priv")]
+    #[command(hide = true)]
     Privacy(commands::PrivacyArgs),
 
     /// Watch directory for incremental processing
     #[command(visible_alias = "w")]
+    #[command(hide = true)]
     Watch(commands::WatchArgs),
 
     /// Domain shift detection
+    #[command(hide = true)]
     Domain(commands::DomainArgs),
 
     /// Explain why entities were extracted
+    #[command(hide = true)]
     Explain(commands::ExplainArgs),
 
     /// Analyze singleton coreference clusters
+    #[command(hide = true)]
     Singleton(commands::SingletonArgs),
 
     /// Generate shell completions
@@ -180,12 +198,13 @@ pub enum ModelBackend {
     Ensemble,
     /// BiLSTM + CRF (neural baseline, heuristic weights)
     #[value(alias = "bilstm-crf")]
+    #[value(hide = true)]
     BiLstmCrf,
     /// TPLinker: joint entity-relation extraction
-    #[value(alias = "tplink")]
+    #[value(alias = "tplink", hide = true)]
     Tplinker,
     /// Universal NER: LLM-based zero-shot (requires API key)
-    #[value(alias = "universal-ner")]
+    #[value(alias = "universal-ner", hide = true)]
     UniversalNer,
 
     // === ONNX Feature Required ===

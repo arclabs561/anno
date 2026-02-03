@@ -7,7 +7,7 @@ use anno::{available_backends, Model, StackedNER};
 pub fn run() -> Result<(), String> {
     println!();
     println!("{}", color("1;36", "anno"));
-    println!("  Information Extraction: NER + Coreference + Relations + Entity Linking");
+    println!("  Information Extraction: NER + Coreference");
     println!();
     println!("{}:", color("1;33", "Version"));
     println!("  {}", env!("CARGO_PKG_VERSION"));
