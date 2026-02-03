@@ -1441,7 +1441,7 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
 
     // CI policy: include ML by default (it should be exercised regularly).
     // Local policy: keep ML opt-in unless explicitly enabled.
-    let allow_ml = match std::env::var("ANNO_ML_IN_MATRIX")
+    let mut allow_ml = match std::env::var("ANNO_ML_IN_MATRIX")
         .ok()
         .map(|v| v.trim().to_string())
     {
@@ -1450,6 +1450,17 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
         Some(_) => in_ci(),
         None => in_ci(),
     };
+
+    // If the user explicitly forced a backend list, treat that as an explicit opt-in for whatever
+    // feature-enabled backends they requested (including ML-ish ones). This prevents surprising
+    // “fixed backend not found in candidates” behavior on local runs.
+    if std::env::var("ANNO_MUXER_FIXED_BACKEND")
+        .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
+        .ok()
+        .is_some_and(|v| !v.trim().is_empty())
+    {
+        allow_ml = true;
+    }
 
     // Some supported tasks have only ML-ish implementations in this repo. Allow them without requiring
     // global `ANNO_ML_IN_MATRIX=1`, otherwise they never get tested.
@@ -1808,10 +1819,24 @@ fn choose_datasets_for_run(
     let pin_dom =
         env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
     if pin_lang.is_some() || pin_dom.is_some() {
+        // If the candidate set contains any datasets whose declared language matches the pin,
+        // keep the pin strict.
+        //
+        // Otherwise, allow `language=mul` datasets (e.g. WikiANN) as a fallback so pinned-language
+        // runs can still proceed on multilingual datasets when no monolingual dataset is loadable
+        // in the current environment.
+        let has_exact_lang_match = pin_lang.as_ref().is_some_and(|pins| {
+            candidates.iter().any(|d| pins.contains(&d.language().to_ascii_lowercase()))
+        });
         candidates.retain(|d| {
-            let lang_ok = pin_lang
-                .as_ref()
-                .is_none_or(|s| s.contains(&d.language().to_ascii_lowercase()));
+            let d_lang = d.language().to_ascii_lowercase();
+            let lang_ok = pin_lang.as_ref().is_none_or(|pins| {
+                if pins.contains(&d_lang) {
+                    return true;
+                }
+                // Fallback: allow multilingual datasets if no exact match exists.
+                !has_exact_lang_match && d_lang == "mul"
+            });
             let dom_ok = pin_dom
                 .as_ref()
                 .is_none_or(|s| s.contains(&d.domain().to_ascii_lowercase()));
@@ -2089,41 +2114,21 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>()
         });
+    let fixed_datasets_requested: Option<String> = std::env::var("ANNO_MUXER_FIXED_DATASETS")
+        .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
+        .ok();
     if fixed_backends_requested.is_some()
         && pinned_backends_requested.is_some()
         && mh::env_bool("ANNO_MUXER_VERBOSE", false)
     {
         eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
     }
-    let mut chosen_datasets = choose_datasets_for_run(
-        seed,
-        &loader,
-        &tasks,
-        require_cached_for_run,
-        datasets_per_run,
-    );
-    if chosen_datasets.is_empty() {
-        if require_cached_for_run && try_download_on_empty {
-            chosen_datasets =
-                choose_datasets_for_run(seed, &loader, &tasks, false, datasets_per_run);
-        }
-        if chosen_datasets.is_empty() {
-            eprintln!(
-                "matrix-muxer: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
-                tasks,
-                require_cached_for_run,
-                loader.cache_dir()
-            );
-            return;
-        }
-    }
+    let mut chosen_datasets: Vec<DatasetId>;
 
     // Optional override: fixed datasets (comma-separated DatasetId debug names).
     //
     // This is the most “pandas groupby”-like pin: you are explicitly choosing the group.
-    if let Ok(raw) = std::env::var("ANNO_MUXER_FIXED_DATASETS")
-        .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
-    {
+    if let Some(raw) = fixed_datasets_requested.as_deref() {
         let t = raw.trim();
         if t.is_empty() {
             eprintln!("matrix-muxer: ANNO_MUXER_FIXED_DATASETS is set but empty");
@@ -2151,13 +2156,57 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         if fixed.len() > datasets_per_run {
             fixed.truncate(datasets_per_run);
         }
-        fixed.retain(|ds| dataset_is_usable(&loader, *ds, require_cached_for_run));
-        fixed.retain(|ds| tasks.iter().all(|t| dataset_tasks(*ds).contains(t)));
-        if fixed.is_empty() {
+        let mut rejected: Vec<(DatasetId, &'static str)> = Vec::new();
+        let mut retained = Vec::new();
+        for ds in fixed {
+            if !tasks.iter().all(|t| dataset_tasks(ds).contains(t)) {
+                rejected.push((ds, "dataset metadata does not declare the requested task(s)"));
+                continue;
+            }
+            let ok = if require_cached_for_run {
+                dataset_is_usable(&loader, ds, true)
+                    || (try_download_on_empty && dataset_is_usable(&loader, ds, false))
+            } else {
+                dataset_is_usable(&loader, ds, false)
+            };
+            if !ok {
+                rejected.push((ds, "loader could not load or download any sentences"));
+                continue;
+            }
+            retained.push(ds);
+        }
+        if retained.is_empty() {
             eprintln!("matrix-muxer: no usable fixed datasets remained after filtering");
+            for (ds, why) in rejected {
+                eprintln!("matrix-muxer: fixed dataset rejected: {ds:?}: {why}");
+            }
             return;
         }
-        chosen_datasets = fixed;
+        chosen_datasets = retained;
+    } else {
+        // Default: choose a small number of compatible datasets.
+        chosen_datasets = choose_datasets_for_run(
+            seed,
+            &loader,
+            &tasks,
+            require_cached_for_run,
+            datasets_per_run,
+        );
+        if chosen_datasets.is_empty() {
+            if require_cached_for_run && try_download_on_empty {
+                chosen_datasets =
+                    choose_datasets_for_run(seed, &loader, &tasks, false, datasets_per_run);
+            }
+            if chosen_datasets.is_empty() {
+                eprintln!(
+                    "matrix-muxer: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
+                    tasks,
+                    require_cached_for_run,
+                    loader.cache_dir()
+                );
+                return;
+            }
+        }
     }
 
     if let Some(ref fixed) = fixed_backends_requested {
@@ -2165,9 +2214,19 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             eprintln!("matrix-muxer: ANNO_MUXER_FIXED_BACKEND is set but empty");
             return;
         }
-        // Prefer datasets compatible with the fixed backend(s). If the first draw includes
-        // incompatible datasets, resample a larger pool and filter.
+        // Prefer datasets compatible with the fixed backend(s).
+        //
+        // Semantics note:
+        // - If the user also provided FIXED_DATASETS, that is a hard override. We must not
+        //   “helpfully” resample to a different dataset group, because that defeats the point of
+        //   the fixed facet.
+        // - If datasets are not fixed, we can bias sampling toward compatible datasets so
+        //   measure-mode results remain meaningful.
         let want = datasets_per_run;
+        let also_fixed_ds = std::env::var("ANNO_MUXER_FIXED_DATASETS")
+            .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
+            .ok()
+            .is_some();
         let mut filtered = chosen_datasets
             .into_iter()
             .filter(|d| {
@@ -2176,7 +2235,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     .all(|b| TaskEvaluator::is_backend_compatible(b, *d))
             })
             .collect::<Vec<_>>();
-        if filtered.len() < want {
+        if !also_fixed_ds && filtered.len() < want {
             let mut pool = choose_datasets_for_run(
                 seed ^ 0xF1E3_DA7A,
                 &loader,
@@ -2195,10 +2254,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             filtered.truncate(want);
         }
         if filtered.is_empty() {
-            let also_fixed_ds = std::env::var("ANNO_MUXER_FIXED_DATASETS")
-                .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
-                .ok()
-                .is_some();
             let msg = if also_fixed_ds {
                 "matrix-muxer: fixed backend + fixed datasets conflict (no compatible datasets remain)"
             } else {
@@ -2216,7 +2271,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     // backends, so different domains/languages don't collapse into one average history.
     //
     // Default: enabled. Set `ANNO_MUXER_SLICE_BY_DATASET_FACETS=0` to revert to task-only.
-    let slice_tag_for_muxer = mh::muxer_slice_tag(
+    let mut slice_tag_for_muxer = mh::muxer_slice_tag(
         &slice_tag,
         &chosen_datasets,
         mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true),
@@ -2227,6 +2282,55 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         mh::SliceTag::parse(&slice_tag).unwrap()
     })
     .to_string();
+
+    // If the user pinned exactly one language/domain, but the chosen dataset is multilingual
+    // (`language=mul`) or otherwise mixed, it is still useful to scope muxer history to the
+    // pinned facet (so runs don't bleed into the global "mul" bucket).
+    //
+    // This is only a history-key choice; it does not change what examples are evaluated.
+    if mh::env_bool("ANNO_MUXER_SLICE_BY_DATASET_FACETS", true) {
+        fn env_single_slug(keys: &[&str]) -> Option<String> {
+            for &k in keys {
+                if let Ok(raw) = std::env::var(k) {
+                    let mut parts = raw
+                        .split(',')
+                        .map(|s| s.trim().to_ascii_lowercase())
+                        .filter(|s| !s.is_empty())
+                        .collect::<Vec<_>>();
+                    parts.sort();
+                    parts.dedup();
+                    if parts.len() == 1 {
+                        return Some(parts[0].clone());
+                    }
+                }
+            }
+            None
+        }
+
+        let pin_lang = env_single_slug(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"]);
+        let pin_dom = env_single_slug(&["ANNO_MUXER_PIN_DOMAIN", "ANNO_MUXER_FILTER_DOMAIN"]);
+
+        if pin_lang.is_some() || pin_dom.is_some() {
+            let mut langs: Vec<&'static str> = chosen_datasets.iter().map(|d| d.language()).collect();
+            langs.sort();
+            langs.dedup();
+            let mut doms: Vec<&'static str> = chosen_datasets.iter().map(|d| d.domain()).collect();
+            doms.sort();
+            doms.dedup();
+
+            let lang_is_ambiguous = langs.len() != 1 || langs[0].eq_ignore_ascii_case("mul");
+            let dom_is_ambiguous = doms.len() != 1;
+            if (lang_is_ambiguous && pin_lang.is_some()) || (dom_is_ambiguous && pin_dom.is_some())
+            {
+                let lang = pin_lang.unwrap_or_else(|| langs.get(0).copied().unwrap_or("unknown").to_string());
+                let dom = pin_dom.unwrap_or_else(|| doms.get(0).copied().unwrap_or("unknown").to_string());
+                let tagged = format!("{}.lang={}.dom={}", slice_tag, lang, dom);
+                if let Ok(st) = mh::SliceTag::parse(&tagged) {
+                    slice_tag_for_muxer = st.to_string();
+                }
+            }
+        }
+    }
 
     let hist_path = history_path(&slice_tag_for_muxer);
     let mut history = BackendHistory::load(&hist_path, window_cap);

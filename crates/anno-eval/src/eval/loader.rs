@@ -1986,6 +1986,25 @@ impl DatasetLoader {
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
         let url = id.download_url().to_string();
 
+        fn env_single_csv(keys: &[&str]) -> Option<String> {
+            for &k in keys {
+                let Ok(raw) = std::env::var(k) else {
+                    continue;
+                };
+                let mut parts = raw
+                    .split(',')
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>();
+                parts.sort();
+                parts.dedup();
+                if parts.len() == 1 {
+                    return Some(parts[0].clone());
+                }
+            }
+            None
+        }
+
         // Check if URL is empty (dataset not available for download)
         if url.is_empty() {
             let access_status = id.access_status();
@@ -2051,12 +2070,37 @@ impl DatasetLoader {
             return Err(Error::InvalidInput(error_msg));
         }
 
+        // For multilingual datasets hosted on HuggingFace with per-language configs (e.g. WikiANN),
+        // let callers bias the HF "config" selection via `ANNO_MUXER_PIN_LANG`.
+        //
+        // This keeps muxer facet pins honest: a `.lang=de` run should ideally download a German
+        // config, not a random/first config.
+        let preferred_hf_config: Option<String> = if id.language().eq_ignore_ascii_case("mul") {
+            // Explicit override wins if set.
+            env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
+                .or_else(|| env_single_csv(&["ANNO_MUXER_PIN_LANG", "ANNO_MUXER_FILTER_LANG"]))
+        } else {
+            env_single_csv(&["ANNO_HF_DATASET_CONFIG"])
+        };
+
         // If the registry marks this dataset as HuggingFace-accessible and provides an HF id,
         // prefer fetching via datasets-server (even if the registry `url` is a paper/GitHub homepage).
         if id.access_status() == super::dataset_registry::DatasetAccessibility::HuggingFace {
             if let Some(hf_ds) = id.hf_id().map(|s| s.to_string()) {
-                if let Ok((config, split)) = self.resolve_hf_config_split(&hf_ds) {
+                if let Ok((config, split)) = self.resolve_hf_config_split_prefer(
+                    &hf_ds,
+                    preferred_hf_config.as_deref(),
+                ) {
                     let base = Self::hf_rows_url(&hf_ds, &config, &split);
+                    if std::env::var("ANNO_MUXER_VERBOSE")
+                        .ok()
+                        .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                    {
+                        eprintln!(
+                            "dataset-loader: hf dataset={} config={} split={} (preferred={:?})",
+                            hf_ds, config, split, preferred_hf_config
+                        );
+                    }
                     match self.download_hf_dataset_paginated(id, &base) {
                         Ok(content) => return Ok((content, base)),
                         Err(_e) => {
@@ -2086,9 +2130,18 @@ impl DatasetLoader {
                 .or_else(|| Self::extract_hf_dataset_name(&url));
 
             if let Some(hf_ds) = hf_ds {
-                match self.resolve_hf_config_split(&hf_ds) {
+                match self.resolve_hf_config_split_prefer(&hf_ds, preferred_hf_config.as_deref()) {
                     Ok((config, split)) => {
                         let base = Self::hf_rows_url(&hf_ds, &config, &split);
+                        if std::env::var("ANNO_MUXER_VERBOSE")
+                            .ok()
+                            .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+                        {
+                            eprintln!(
+                                "dataset-loader: hf dataset={} config={} split={} (preferred={:?})",
+                                hf_ds, config, split, preferred_hf_config
+                            );
+                        }
                         match self.download_hf_dataset_paginated(id, &base) {
                             Ok(content) => return Ok((content, base)),
                             Err(e) => {
@@ -2208,9 +2261,14 @@ impl DatasetLoader {
         )
     }
 
-    /// Resolve a usable (config, split) pair for a HF dataset via datasets-server.
+    /// Resolve a usable (config, split) pair for a HF dataset via datasets-server, with an optional
+    /// preferred config.
     #[cfg(feature = "eval-advanced")]
-    fn resolve_hf_config_split(&self, dataset: &str) -> Result<(String, String)> {
+    fn resolve_hf_config_split_prefer(
+        &self,
+        dataset: &str,
+        preferred_config: Option<&str>,
+    ) -> Result<(String, String)> {
         let url = format!(
             "https://datasets-server.huggingface.co/splits?dataset={}",
             Self::url_encode_component(dataset)
@@ -2244,18 +2302,38 @@ impl DatasetLoader {
             })?;
 
         // Prefer smaller/eval splits if present, otherwise pick the first split.
+        // If `preferred_config` is provided, try to pick a split within that config first.
         let mut chosen = None;
-        for s in splits {
-            let config = s.get("config").and_then(|v| v.as_str());
-            let split = s.get("split").and_then(|v| v.as_str());
-            if let (Some(config), Some(split)) = (config, split) {
-                if split == "test" {
-                    chosen = Some((config.to_string(), split.to_string()));
-                    break;
+        let prefer = preferred_config.map(|s| s.trim()).filter(|s| !s.is_empty());
+
+        for pass in 0..2 {
+            for s in splits {
+                let config = s.get("config").and_then(|v| v.as_str());
+                let split = s.get("split").and_then(|v| v.as_str());
+                if let (Some(config), Some(split)) = (config, split) {
+                    // Pass 0: only consider preferred config. Pass 1: consider any config.
+                    if pass == 0 {
+                        if let Some(p) = prefer {
+                            if config != p {
+                                continue;
+                            }
+                        } else {
+                            // No preference: skip pass 0.
+                            break;
+                        }
+                    }
+
+                    if split == "test" {
+                        chosen = Some((config.to_string(), split.to_string()));
+                        break;
+                    }
+                    if chosen.is_none() {
+                        chosen = Some((config.to_string(), split.to_string()));
+                    }
                 }
-                if chosen.is_none() {
-                    chosen = Some((config.to_string(), split.to_string()));
-                }
+            }
+            if chosen.is_some() {
+                break;
             }
         }
 
@@ -2265,15 +2343,6 @@ impl DatasetLoader {
                 dataset
             ))
         })
-    }
-
-    /// Placeholder when `eval-advanced` is disabled.
-    #[cfg(not(feature = "eval-advanced"))]
-    #[allow(dead_code)]
-    fn resolve_hf_config_split(&self, _dataset: &str) -> Result<(String, String)> {
-        Err(Error::InvalidInput(
-            "HuggingFace split resolution requires feature `eval-advanced`".to_string(),
-        ))
     }
 
     /// Best-effort fallback: download a raw dataset file from the HuggingFace Hub.
