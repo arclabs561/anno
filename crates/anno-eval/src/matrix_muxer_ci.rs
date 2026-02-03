@@ -53,11 +53,13 @@
 //! - `ANNO_MUXER_FIXED_DATASETS`: force evaluation on specific datasets (comma-separated `DatasetId` debug names)
 //! - `ANNO_MUXER_PIN_LANG`: restrict dataset sampling to one or more languages (comma-separated)
 //! - `ANNO_MUXER_PIN_DOMAIN`: restrict dataset sampling to one or more domains (comma-separated)
+//! - `ANNO_MUXER_PIN_BACKEND`: restrict backend candidates to one or more backends (comma-separated)
 //! - Aliases (same semantics):
 //!   - `ANNO_MUXER_FORCE_BACKEND` == `ANNO_MUXER_FIXED_BACKEND`
 //!   - `ANNO_MUXER_FORCE_DATASETS` == `ANNO_MUXER_FIXED_DATASETS`
 //!   - `ANNO_MUXER_FILTER_LANG` == `ANNO_MUXER_PIN_LANG`
 //!   - `ANNO_MUXER_FILTER_DOMAIN` == `ANNO_MUXER_PIN_DOMAIN`
+//!   - `ANNO_MUXER_FILTER_BACKEND` == `ANNO_MUXER_PIN_BACKEND`
 //! - `ANNO_MATRIX_SWEEP`: if true, enables `test_matrix_sweep_all_backends_once` (opt-in)
 //! - `ANNO_MATRIX_SWEEP_STRICT`: if true (default when sweep enabled), fail the test on any skip/failure
 //! - `ANNO_MATRIX_SWEEP_MAX_EXAMPLES`: max examples per dataset in sweep (default: 5)
@@ -2044,6 +2046,10 @@ fn test_randomized_matrix_sample() {
     // Optional override: force evaluation of a specific backend (or comma-separated list).
     // When set, we also bias dataset sampling toward datasets compatible with that backend so
     // measure-mode results stay meaningful.
+    //
+    // Note on semantics:
+    // - FIXED/FORCE is a hard override (no fallback if it yields nothing).
+    // - PIN/FILTER is a soft constraint (filters candidates, but still allows selection).
     let fixed_backends_requested: Option<Vec<String>> =
         std::env::var("ANNO_MUXER_FIXED_BACKEND")
             .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
@@ -2055,6 +2061,23 @@ fn test_randomized_matrix_sample() {
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>()
         });
+    let pinned_backends_requested: Option<Vec<String>> =
+        std::env::var("ANNO_MUXER_PIN_BACKEND")
+            .or_else(|_| std::env::var("ANNO_MUXER_FILTER_BACKEND"))
+            .ok()
+            .map(|raw| {
+                raw.split(',')
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            });
+    if fixed_backends_requested.is_some()
+        && pinned_backends_requested.is_some()
+        && mh::env_bool("ANNO_MUXER_VERBOSE", false)
+    {
+        eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
+    }
     let mut chosen_datasets = choose_datasets_for_run(
         seed,
         &loader,
@@ -2146,10 +2169,16 @@ fn test_randomized_matrix_sample() {
             filtered.truncate(want);
         }
         if filtered.is_empty() {
-            eprintln!(
-                "matrix-muxer: fixed backend set but no compatible datasets for tasks={:?} (fixed={fixed:?})",
-                tasks
-            );
+            let also_fixed_ds = std::env::var("ANNO_MUXER_FIXED_DATASETS")
+                .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
+                .ok()
+                .is_some();
+            let msg = if also_fixed_ds {
+                "matrix-muxer: fixed backend + fixed datasets conflict (no compatible datasets remain)"
+            } else {
+                "matrix-muxer: fixed backend set but no compatible datasets remain"
+            };
+            eprintln!("{msg} tasks={tasks:?} fixed_backend={fixed:?}");
             return;
         }
         chosen_datasets = filtered;
@@ -2205,6 +2234,13 @@ fn test_randomized_matrix_sample() {
             .iter()
             .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
     });
+    if let Some(ref pinned) = pinned_backends_requested {
+        if pinned.is_empty() {
+            eprintln!("matrix-muxer: ANNO_MUXER_PIN_BACKEND is set but empty");
+            return;
+        }
+        candidates.retain(|b| pinned.iter().any(|p| p == b));
+    }
     if candidates.is_empty() {
         eprintln!(
             "matrix-muxer: no backend candidates support tasks={:?} for this feature set",

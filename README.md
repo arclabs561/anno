@@ -10,7 +10,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Zero-shot | Weights | Notes |
 |---------|-----------|---------|-------|
-| `stacked` (default) | No | HuggingFace (ONNX) | BERT/GLiNER + regex + heuristic |
+| `stacked` (default) | No | HuggingFace (ONNX) | Variable-length spans; BERT/GLiNER + regex + heuristic |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
@@ -22,7 +22,11 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 | `hmm` | No | Bundled (`bundled-hmm-params`) | HMM with optional bundled params (compact); baseline/education |
 | `ensemble` | No | Varies | Weighted voting across backends |
 
-ML backends require `--features onnx`. ONNX model weights download from HuggingFace on first use.
+Notes:
+
+- All NER backends return **variable-length spans** (start/end offsets). Some are token-labeling models internally.
+- ML backends require `--features onnx`. ONNX model weights download from HuggingFace on first use.
+- The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
 
 ## Examples
 
