@@ -80,37 +80,56 @@ pub fn detect_language(text: &str) -> Language {
     let mut total = 0;
 
     for c in text.chars() {
-        if !c.is_alphabetic() {
-            continue;
-        }
-        total += 1;
-
         match c {
             // CJK Unified Ideographs
-            '\u{4e00}'..='\u{9fff}' => counts[Language::Chinese as usize] += 1,
+            '\u{4e00}'..='\u{9fff}' => {
+                total += 1;
+                counts[Language::Chinese as usize] += 1;
+            }
             // Hiragana/Katakana
-            '\u{3040}'..='\u{30ff}' => counts[Language::Japanese as usize] += 1,
+            '\u{3040}'..='\u{30ff}' => {
+                total += 1;
+                counts[Language::Japanese as usize] += 1;
+            }
             // Hangul
-            '\u{ac00}'..='\u{d7af}' => counts[Language::Korean as usize] += 1,
+            '\u{ac00}'..='\u{d7af}' => {
+                total += 1;
+                counts[Language::Korean as usize] += 1;
+            }
             // Arabic
-            '\u{0600}'..='\u{06ff}' => counts[Language::Arabic as usize] += 1,
+            '\u{0600}'..='\u{06ff}' => {
+                total += 1;
+                counts[Language::Arabic as usize] += 1;
+            }
             // Hebrew
-            '\u{0590}'..='\u{05ff}' => counts[Language::Hebrew as usize] += 1,
+            '\u{0590}'..='\u{05ff}' => {
+                total += 1;
+                counts[Language::Hebrew as usize] += 1;
+            }
             // Cyrillic
-            '\u{0400}'..='\u{04ff}' => counts[Language::Russian as usize] += 1,
+            '\u{0400}'..='\u{04ff}' => {
+                total += 1;
+                counts[Language::Russian as usize] += 1;
+            }
             // Latin - distinguishing languages is hard without dictionary,
             // but we can check for specific chars
-            'a'..='z' | 'A'..='Z' => counts[Language::English as usize] += 1, // Generic Latin
+            'a'..='z' | 'A'..='Z' => {
+                total += 1;
+                counts[Language::English as usize] += 1; // Generic Latin
+            }
             // German specific (ß, ä, ö, ü)
             'ß' | 'ä' | 'ö' | 'ü' | 'Ä' | 'Ö' | 'Ü' => {
+                total += 1;
                 counts[Language::German as usize] += 10
             }
             // French (à, â, ç, é, è, ê, ë, î, ï, ô, û, ù)
             'à' | 'â' | 'ç' | 'é' | 'è' | 'ê' | 'ë' | 'î' | 'ï' | 'ô' | 'û' | 'ù' => {
+                total += 1;
                 counts[Language::French as usize] += 5
             }
             // Spanish (ñ, ¿, ¡, á, é, í, ó, ú)
             'ñ' | '¿' | '¡' | 'á' | 'í' | 'ó' | 'ú' => {
+                total += 1;
                 counts[Language::Spanish as usize] += 5
             }
             _ => {}

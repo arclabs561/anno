@@ -38,6 +38,8 @@ extern crate self as anno;
 
 // Module declarations (standard Cargo layout under `src/`)
 pub mod backends;
+/// Small, dependency-light heuristics (negation, quantifiers, etc.).
+pub mod heuristics;
 /// Edit distance algorithms.
 pub mod edit_distance;
 pub mod env;
