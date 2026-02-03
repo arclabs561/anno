@@ -111,6 +111,6 @@ See `docs/QUICKSTART.md` for library usage and more examples.
 
 ## Docs
 
-- `docs/QUICKSTART.md` — 5-minute setup
+- `docs/QUICKSTART.md` — setup + examples
 - `docs/CONTRACT.md` — interface contract
 - `docs/BACKENDS.md` — backend selection
