@@ -25,7 +25,7 @@ log = { workspace = true }
 once_cell = { workspace = true }
 bitflags = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
-gramdex = { git = "https://github.com/arclabs561/gramdex", rev = "bfc60c7b6965bec4bb176f58b0c02abc0aa2a5b3", optional = true }
+gramdex = { path = "../../../gramdex", optional = true }
 
 rand = { workspace = true }
 ureq = { workspace = true, optional = true }

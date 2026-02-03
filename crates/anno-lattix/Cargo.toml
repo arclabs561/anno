@@ -9,5 +9,5 @@ publish = false
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.2.0" }
-lattix = { git = "https://github.com/arclabs561/lattix", rev = "19dfa9cba208eed27aa8af966a775a4e1985da3c", default-features = false }
+lattix = { path = "../../../lattix/lattix", default-features = false }
 

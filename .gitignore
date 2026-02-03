@@ -88,10 +88,9 @@ hack/real_data/
 *.backup
 debug_*
 url_validation_report.json
-# Cargo local overrides (keep local-only config untracked; keep example tracked)
+# Cargo local overrides (keep local-only config untracked)
 .cargo/
 !.cargo/
-!.cargo/config.toml.example
 mutants.out*/
 
 # Spot evaluation ephemeral state

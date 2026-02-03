@@ -1461,7 +1461,6 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 [[package]]
 name = "gramdex"
 version = "0.1.0"
-source = "git+https://github.com/arclabs561/gramdex?rev=bfc60c7b6965bec4bb176f58b0c02abc0aa2a5b3#bfc60c7b6965bec4bb176f58b0c02abc0aa2a5b3"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -1911,8 +1910,7 @@ dependencies = [
 
 [[package]]
 name = "lattix"
-version = "0.1.1"
-source = "git+https://github.com/arclabs561/lattix?rev=19dfa9cba208eed27aa8af966a775a4e1985da3c#19dfa9cba208eed27aa8af966a775a4e1985da3c"
+version = "0.1.0"
 dependencies = [
  "lattix-core",
 ]
@@ -1920,7 +1918,6 @@ dependencies = [
 [[package]]
 name = "lattix-core"
 version = "0.1.1"
-source = "git+https://github.com/arclabs561/lattix?rev=19dfa9cba208eed27aa8af966a775a4e1985da3c#19dfa9cba208eed27aa8af966a775a4e1985da3c"
 dependencies = [
  "csv",
  "oxiri",
@@ -2131,7 +2128,6 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.1.0"
-source = "git+https://github.com/arclabs561/muxer.git?rev=620728225daed39d6d6ff79171a294b47cdf4fd3#620728225daed39d6d6ff79171a294b47cdf4fd3"
 dependencies = [
  "pare",
  "rand",

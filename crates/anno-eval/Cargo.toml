@@ -39,7 +39,7 @@ clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "620728225daed39d6d6ff79171a294b47cdf4fd3", default-features = false, features = ["serde", "stochastic", "contextual"] }
+muxer = { path = "../../../muxer", default-features = false, features = ["serde", "stochastic", "contextual"] }
 hf-hub = { workspace = true, optional = true }
 
 [dev-dependencies]

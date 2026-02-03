@@ -31,11 +31,11 @@ once_cell = { workspace = true }
 glob = { workspace = true }
 itertools = { workspace = true }
 
-# Optional: only used by the `anno muxer` DX tooling (behind `eval-advanced`).
-muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "620728225daed39d6d6ff79171a294b47cdf4fd3", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
+# Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval-advanced`).
+muxer = { path = "../../../muxer", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 
 # Optional: knowledge-graph substrate for exporting extracted entities/relations.
-lattix = { git = "https://github.com/arclabs561/lattix", rev = "19dfa9cba208eed27aa8af966a775a4e1985da3c", default-features = false, optional = true }
+lattix = { path = "../../../lattix/lattix", default-features = false, optional = true }
 
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 
