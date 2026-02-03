@@ -23,10 +23,12 @@ itertools = { workspace = true }
 smallvec = { workspace = true }
 dashmap = { workspace = true }
 unicode-normalization = { workspace = true }
+schemars = { version = "0.8", features = ["derive"], optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
 
 [features]
 default = []
+schema = ["dep:schemars"]
 

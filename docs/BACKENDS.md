@@ -55,9 +55,24 @@ Pointers (for “what good looks like” in classical NER):
 
 - **No ML deps**: `--model pattern`, `heuristic`, or `stacked` with `default-features = false`
 - **Zero-shot custom types**: `--model gliner --extract-types "TYPE1,TYPE2"` (requires `onnx`)
+- **Relations (best-effort)**: `--model gliner2 --extract-relations` (requires `onnx`) or `--model tplinker --extract-relations` (heuristic baseline). Use `--relation-types "FOUNDED,WORKS_FOR"` to constrain labels.
 - **Nested entities**: `--model w2ner` (requires `onnx`)
 - **Pure Rust inference**: Candle backends (requires `candle`)
 - **Offline**: set `ANNO_NO_DOWNLOADS=1` after prefetching with `anno models download`
+
+## Helpers (not NER backends)
+
+Some optional modules are *helpers* that operate over the same span/offset contract, but they are
+not “backends” in the NER table sense:
+
+- **Chunking helpers**: `anno::backends::semantic_chunking` always provides a lightweight
+  rule-based chunker (paragraph boundaries + size limits + overlap). The `semantic-chunking`
+  feature adds a sentence-similarity strategy (still dependency-light; no embedding model).
+  Chunking does not change extraction shapes; it only decides which slices of text to run
+  extraction over.
+- **`discourse` feature**: discourse-level utilities (centering, shell nouns, abstract referents).
+  These operate on **character-offset spans** (events/propositions still need localization), and
+  are primarily used by evaluation tooling.
 
 ## Where weights come from
 
@@ -93,4 +108,7 @@ Output goes to `reports/`. Treat generated files as the source of truth.
 
 ## See also
 
+- [Quickstart](QUICKSTART.md) — getting started + common flags
 - [Contract](CONTRACT.md) — scope + guarantees
+- [Architecture](ARCHITECTURE.md) — how the pieces fit together
+- [Publish status](PUBLISH_STATUS.md) — what’s stable vs experimental

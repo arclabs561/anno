@@ -77,7 +77,7 @@ analysis = ["eval"]
 eval-advanced = ["dep:ureq"]
 graph = []
 gramdex = ["dep:gramdex"]
-schema = ["dep:schemars"]
+schema = ["dep:schemars", "anno-core/schema"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru"]
 candle = [
   "dep:candle-core",

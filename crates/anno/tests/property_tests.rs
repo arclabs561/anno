@@ -8,6 +8,7 @@ use anno_core::core as anno_core;
 use anno_core::grounded::{
     Identity, IdentitySource, Location, Modality, Signal, SignalRef, Track, TrackRef,
 };
+use anno_core::TypeLabel;
 use anno_core::{IdentityId, SignalId};
 use proptest::prelude::*;
 
@@ -51,7 +52,7 @@ fn arb_signal() -> impl Strategy<Value = Signal<Location>> {
             id: id.into(),
             location,
             surface,
-            label,
+            label: TypeLabel::from(label.as_str()),
             confidence,
             hierarchical: None,
             provenance: None,
@@ -74,7 +75,7 @@ fn arb_track() -> impl Strategy<Value = Track> {
         .prop_map(
             |(id, canonical_surface, entity_type, confidence, signal_specs)| {
                 let mut track = Track::new(id, canonical_surface);
-                track.entity_type = entity_type.map(|s| s.to_string());
+                track.entity_type = entity_type.map(|s| TypeLabel::from(s.as_str()));
                 track.cluster_confidence = confidence;
                 for (sig_id, pos) in signal_specs {
                     track.add_signal(sig_id, pos);
@@ -97,7 +98,7 @@ fn arb_identity() -> impl Strategy<Value = Identity> {
         .prop_map(
             |(id, canonical_name, entity_type, kb_id, confidence, aliases)| {
                 let mut identity = Identity::new(id, canonical_name);
-                identity.entity_type = entity_type.map(|s| s.to_string());
+                identity.entity_type = entity_type.map(|s| TypeLabel::from(s.as_str()));
                 identity.kb_id = kb_id;
                 identity.confidence = confidence;
                 for alias in aliases {
@@ -279,7 +280,7 @@ proptest! {
     /// Signals have non-empty label
     #[test]
     fn signal_label_non_empty(signal in arb_signal()) {
-        prop_assert!(!signal.label.is_empty());
+        prop_assert!(!signal.label.as_str().is_empty());
     }
 
     /// Signal location text offsets are valid (start < end)
@@ -351,7 +352,7 @@ proptest! {
     #[test]
     fn with_type_sets_type(id in any::<u64>(), surface in "[A-Za-z]{1,20}", etype in "(PER|ORG|LOC)") {
         let track = Track::new(id, surface).with_type(&etype);
-        prop_assert_eq!(track.entity_type, Some(etype));
+        prop_assert_eq!(track.entity_type, Some(TypeLabel::from(etype.as_str())));
     }
 }
 

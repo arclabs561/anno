@@ -1,6 +1,6 @@
 //! Tests for Identity tracking and management.
 
-use anno::{Identity, IdentityId, IdentitySource};
+use anno::{EntityType, Identity, IdentityId, IdentitySource, TypeLabel};
 
 #[test]
 fn test_identity_creation() {
@@ -59,9 +59,9 @@ fn test_identity_with_embedding() {
 fn test_identity_with_entity_type() {
     let id = IdentityId::new(300);
     let mut identity = Identity::new(id, "Apple Inc.");
-    identity.entity_type = Some("Organization".to_string());
+    identity.entity_type = Some(TypeLabel::from("Organization"));
 
-    assert_eq!(identity.entity_type, Some("Organization".to_string()));
+    assert_eq!(identity.entity_type, Some(TypeLabel::from("Organization")));
 }
 
 #[test]
@@ -149,7 +149,15 @@ fn test_identity_deserialize_ignores_legacy_box_embedding_field() {
     assert_eq!(identity.id, IdentityId::new(7186));
     assert_eq!(identity.canonical_name, "Marie Curie");
     assert_eq!(identity.kb_id.as_deref(), Some("Q7186"));
-    assert_eq!(identity.entity_type.as_deref(), Some("Person"));
+    assert!(
+        matches!(
+            identity.entity_type.as_ref(),
+            Some(TypeLabel::Core(EntityType::Person))
+        ),
+        "entity_type should parse as the canonical core PERSON type"
+    );
+    // `TypeLabel` renders core entity types in canonical CoNLL/OntoNotes labels.
+    assert_eq!(identity.entity_type.as_ref().map(|t| t.as_str()), Some("PER"));
 }
 
 #[test]
@@ -157,7 +165,7 @@ fn test_identity_with_description() {
     let id = IdentityId::new(700);
     let mut identity = Identity::new(id, "Albert Einstein");
     identity.description = Some("German-born theoretical physicist".to_string());
-    identity.entity_type = Some("Person".to_string());
+    identity.entity_type = Some(TypeLabel::from("Person"));
 
     assert!(identity.description.is_some());
     assert!(identity

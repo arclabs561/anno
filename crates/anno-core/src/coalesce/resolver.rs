@@ -123,7 +123,7 @@ impl Resolver {
         struct TrackData {
             track_ref: TrackRef,
             canonical_surface: String,
-            entity_type: Option<String>,
+            entity_type: Option<crate::TypeLabel>,
             cluster_confidence: f32,
             embedding: Option<Vec<f32>>,
         }

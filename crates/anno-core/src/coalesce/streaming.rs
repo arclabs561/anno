@@ -168,7 +168,7 @@ pub struct EntityMention {
     /// Canonical surface form
     pub canonical_surface: String,
     /// Entity type (e.g., "Person", "Organization")
-    pub entity_type: Option<String>,
+    pub entity_type: Option<anno_core::TypeLabel>,
     /// Optional embedding vector
     pub embedding: Option<Vec<f32>>,
     /// Track ID within the document (links to intra-doc coref)
@@ -198,7 +198,8 @@ impl EntityMention {
 
     /// Set entity type.
     pub fn with_type(mut self, entity_type: impl Into<String>) -> Self {
-        self.entity_type = Some(entity_type.into());
+        let s = entity_type.into();
+        self.entity_type = Some(anno_core::TypeLabel::from(s.as_str()));
         self
     }
 
@@ -245,7 +246,7 @@ pub struct EntityCluster {
     /// Canonical name (best representative)
     pub canonical_name: String,
     /// Entity type (consensus)
-    pub entity_type: Option<String>,
+    pub entity_type: Option<anno_core::TypeLabel>,
     /// All mentions in this cluster
     pub mentions: Vec<EntityMention>,
     /// Centroid embedding (if embeddings are available)
@@ -914,7 +915,10 @@ mod tests {
 
         assert_eq!(mention.doc_id, "doc1");
         assert_eq!(mention.canonical_surface, "Barack Obama");
-        assert_eq!(mention.entity_type, Some("Person".to_string()));
+        assert_eq!(
+            mention.entity_type,
+            Some(anno_core::TypeLabel::from("Person"))
+        );
         assert_eq!(mention.track_id, Some(anno_core::TrackId::new(42)));
     }
 

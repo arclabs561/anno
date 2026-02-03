@@ -13,7 +13,22 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 ## Primary interoperability contract
 
 - **Offsets are character offsets** (Unicode scalar values), not byte offsets.
-- **Core types are the interface**: downstream code should integrate against the stable shapes re-exported by `anno` (or via `anno::core::*`) (`Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`, `Corpus`, `GraphDocument`) and treat them as the stable “shape”.
+- **Core types are the interface**: downstream code should integrate against the stable shapes re-exported by `anno` (prefer `anno::core::*`) (`Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`, `Corpus`) and treat them as the stable “shape”.
+
+## Input text contract (what backends expect)
+
+`anno` backends operate on **plain UTF-8 text**. They will run on “messy” text, but you should be
+explicit about what the *authoritative* input string is, because offsets are always relative to the
+exact string you pass in.
+
+- **Accepted**: raw text, OCR text, and extracted HTML/PDF text *after* you’ve turned it into a
+  single plain string.
+- **Recommended upstream normalization** (in your ingestion layer, e.g. `textprep`):
+  - normalize newlines (`\r\n`/`\r` → `\n`) if your sources vary
+  - remove bidi controls / suspicious invisibles if your corpora come from untrusted sources
+  - avoid “pretty reflow” that changes character positions after extraction (it invalidates spans)
+- **Not a product goal**: `anno` does not promise to be an HTML/PDF parser or a crawler. Feed it
+  text; keep parsing/cleaning upstream.
 
 ## Scope (what’s in / out)
 
@@ -25,7 +40,8 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 **Out of scope by design**
 - Training.
 - Document parsing as a product (HTML/PDF pipelines, crawling, etc.). Feed `anno` text; keep ingestion upstream.
-- Heavy graph/community-detection toolchains. `GraphDocument` exists for interop/export; run graph algorithms elsewhere.
+- Heavy graph/community-detection toolchains. `GraphDocument` exists for legacy interop/export; run graph algorithms elsewhere.
+  - If you want a KG substrate + algorithms, use `lattix` downstream (e.g. import N-Triples exports).
 
 ## Feature gating (how to depend on it)
 

@@ -2,6 +2,9 @@
 //!
 //! # Research Motivation
 //!
+//! Note: `anno` is text-first. The broad `Location` substrate here is intentionally future-facing.
+//! See `docs/LOCATION.md` in the repo for the philosophy and practical guidance.
+//!
 //! Traditional NER systems conflate three distinct levels of entity processing:
 //!
 //! 1. **Signal Detection** (Level 1): "There's something here" - localization + classification
@@ -520,13 +523,8 @@ pub struct Signal<L = Location> {
     pub surface: String,
     /// Classification label (e.g., "Person", "Organization", "PER").
     ///
-    /// This is a string to allow domain-specific labels beyond the canonical
-    /// [`EntityType`] taxonomy. Use [`TypeLabel::from`] to convert to/from
-    /// the canonical type representation.
-    ///
-    /// [`EntityType`]: super::EntityType
-    /// [`TypeLabel::from`]: super::types::TypeLabel
-    pub label: String,
+    /// Stored as a `TypeLabel` to support both core taxonomy types and domain-specific labels.
+    pub label: super::types::TypeLabel,
     /// Detection confidence in [0, 1]
     pub confidence: f32,
     /// Hierarchical confidence if available (linkage/type/boundary)
@@ -576,7 +574,7 @@ impl<L> Signal<L> {
         id: impl Into<SignalId>,
         location: L,
         surface: impl Into<String>,
-        label: impl Into<String>,
+        label: impl Into<super::types::TypeLabel>,
         confidence: f32,
     ) -> Self {
         Self {
@@ -597,16 +595,13 @@ impl<L> Signal<L> {
     /// Get the classification label as a string.
     #[must_use]
     pub fn label(&self) -> &str {
-        &self.label
+        self.label.as_str()
     }
 
     /// Get the classification label as a type-safe `TypeLabel`.
-    ///
-    /// This converts the internal string representation to a `TypeLabel`,
-    /// attempting to parse it as a core `EntityType` first.
     #[must_use]
     pub fn type_label(&self) -> super::types::TypeLabel {
-        super::types::TypeLabel::from(self.label.as_str())
+        self.label.clone()
     }
 
     /// Get the surface form.
@@ -736,7 +731,7 @@ impl Signal<Location> {
     pub fn from_text(
         source: &str,
         surface: &str,
-        label: impl Into<String>,
+        label: impl Into<super::types::TypeLabel>,
         confidence: f32,
     ) -> Option<Self> {
         Self::from_text_nth(source, surface, label, confidence, 0)
@@ -747,7 +742,7 @@ impl Signal<Location> {
     pub fn from_text_nth(
         source: &str,
         surface: &str,
-        label: impl Into<String>,
+        label: impl Into<super::types::TypeLabel>,
         confidence: f32,
         occurrence: usize,
     ) -> Option<Self> {
@@ -904,13 +899,8 @@ pub struct Track {
     pub signals: Vec<SignalRef>,
     /// Entity type (consensus from signals).
     ///
-    /// This is a string label (e.g., "Person", "ORG") rather than [`EntityType`]
-    /// to allow domain-specific types. Use [`TypeLabel::from`] to convert to/from
-    /// the canonical type representation.
-    ///
-    /// [`EntityType`]: super::EntityType
-    /// [`TypeLabel::from`]: super::types::TypeLabel
-    pub entity_type: Option<String>,
+    /// This is a `TypeLabel` to support both core taxonomy types and domain-specific labels.
+    pub entity_type: Option<super::types::TypeLabel>,
     /// Canonical surface form (the "best" name for this entity)
     pub canonical_surface: String,
     /// Link to global identity (Level 3), if resolved
@@ -1021,7 +1011,8 @@ impl Track {
     /// For new code, prefer [`Self::with_type_label`] which provides type safety.
     #[must_use]
     pub fn with_type(mut self, entity_type: impl Into<String>) -> Self {
-        self.entity_type = Some(entity_type.into());
+        let s = entity_type.into();
+        self.entity_type = Some(super::types::TypeLabel::from(s.as_str()));
         self
     }
 
@@ -1042,7 +1033,7 @@ impl Track {
     /// ```
     #[must_use]
     pub fn with_type_label(mut self, label: super::types::TypeLabel) -> Self {
-        self.entity_type = Some(label.to_string());
+        self.entity_type = Some(label);
         self
     }
 
@@ -1052,9 +1043,7 @@ impl Track {
     /// attempting to parse it as a core `EntityType` first.
     #[must_use]
     pub fn type_label(&self) -> Option<super::types::TypeLabel> {
-        self.entity_type
-            .as_ref()
-            .map(|s| super::types::TypeLabel::from(s.as_str()))
+        self.entity_type.clone()
     }
 
     /// Set the embedding for this track.
@@ -1278,12 +1267,8 @@ pub struct Identity {
     pub canonical_name: String,
     /// Entity type/category.
     ///
-    /// This is a string label to allow domain-specific types beyond the
-    /// canonical [`EntityType`] taxonomy. Use [`TypeLabel::from`] for conversion.
-    ///
-    /// [`EntityType`]: super::EntityType
-    /// [`TypeLabel::from`]: super::types::TypeLabel
-    pub entity_type: Option<String>,
+    /// Stored as a `TypeLabel` to support both core and custom (domain) labels.
+    pub entity_type: Option<super::types::TypeLabel>,
     /// Knowledge base reference (e.g., "Q7186" for Wikidata)
     pub kb_id: Option<String>,
     /// Knowledge base name (e.g., "wikidata", "umls")
@@ -1411,7 +1396,8 @@ impl Identity {
     /// For new code, prefer [`Self::with_type_label`] which provides type safety.
     #[must_use]
     pub fn with_type(mut self, entity_type: impl Into<String>) -> Self {
-        self.entity_type = Some(entity_type.into());
+        let s = entity_type.into();
+        self.entity_type = Some(super::types::TypeLabel::from(s.as_str()));
         self
     }
 
@@ -1421,7 +1407,7 @@ impl Identity {
     /// and integrates with the core `EntityType` taxonomy.
     #[must_use]
     pub fn with_type_label(mut self, label: super::types::TypeLabel) -> Self {
-        self.entity_type = Some(label.to_string());
+        self.entity_type = Some(label);
         self
     }
 
@@ -1431,9 +1417,7 @@ impl Identity {
     /// attempting to parse it as a core `EntityType` first.
     #[must_use]
     pub fn type_label(&self) -> Option<super::types::TypeLabel> {
-        self.entity_type
-            .as_ref()
-            .map(|s| super::types::TypeLabel::from(s.as_str()))
+        self.entity_type.clone()
     }
 
     /// Set description.
@@ -1724,7 +1708,7 @@ impl GroundedDocument {
 
                 Entity {
                     text: signal.surface.clone(),
-                    entity_type: EntityType::from_label(&signal.label),
+                    entity_type: EntityType::from_label(signal.label.as_str()),
                     start,
                     end,
                     confidence: signal.confidence as f64,
@@ -1842,7 +1826,8 @@ impl GroundedDocument {
         for (_key, signal_ids) in tracks_map {
             if let Some(first_signal) = signal_ids.first().and_then(|id| doc.get_signal(*id)) {
                 let mut track = Track::new(doc.next_track_id, &first_signal.surface);
-                track.entity_type = Some(first_signal.label.clone());
+                track.entity_type =
+                    Some(super::types::TypeLabel::from(first_signal.label.as_str()));
 
                 for (pos, &signal_id) in signal_ids.iter().enumerate() {
                     track.add_signal(signal_id, pos as u32);
@@ -1875,7 +1860,8 @@ impl GroundedDocument {
     /// Get signals filtered by label.
     #[must_use]
     pub fn signals_with_label(&self, label: &str) -> Vec<&Signal<Location>> {
-        self.signals.iter().filter(|s| s.label == label).collect()
+        let want = super::types::TypeLabel::from(label);
+        self.signals.iter().filter(|s| s.label == want).collect()
     }
 
     /// Get signals above a confidence threshold.
@@ -2159,7 +2145,7 @@ impl GroundedDocument {
     pub fn add_signal_from_text(
         &mut self,
         surface: &str,
-        label: impl Into<String>,
+        label: impl Into<super::types::TypeLabel>,
         confidence: f32,
     ) -> Option<SignalId> {
         let signal = Signal::from_text(&self.text, surface, label, confidence)?;
@@ -2170,7 +2156,7 @@ impl GroundedDocument {
     pub fn add_signal_from_text_nth(
         &mut self,
         surface: &str,
-        label: impl Into<String>,
+        label: impl Into<super::types::TypeLabel>,
         confidence: f32,
         occurrence: usize,
     ) -> Option<SignalId> {
@@ -2702,7 +2688,7 @@ impl GroundedDocument {
                 };
 
                 let mut m = Mention::new(signal.surface.clone(), start, end);
-                m.entity_type = Some(signal.label.clone());
+                m.entity_type = Some(signal.label.to_string());
                 mentions.push(m);
             }
 
@@ -2711,7 +2697,7 @@ impl GroundedDocument {
             }
 
             let mut chain = CorefChain::new(mentions);
-            chain.entity_type = track.entity_type.clone();
+            chain.entity_type = track.entity_type.as_ref().map(|t| t.to_string());
             chains.push(chain);
         }
 
@@ -2933,7 +2919,7 @@ tr:hover{background:var(--hover)}
             sid = signal.id,
             span = span,
             surface = html_escape(&signal.surface),
-            label = html_escape(&signal.label),
+            label = html_escape(signal.label.as_str()),
             neg = neg,
             conf = signal.confidence,
             track = track_id,
@@ -2947,7 +2933,11 @@ tr:hover{background:var(--hover)}
     html.push_str(r#"<div class="panel" id="panel-tracks"><div class="panel-h"><h3>tracks (level 2)</h3><span class="toggle" data-toggle="panel-tracks">toggle</span></div><table id="tracks-table">"#);
     html.push_str(r#"<tr><th>id</th><th>canonical</th><th>type</th><th>|S|</th><th>signals</th><th>identity</th></tr>"#);
     for track in doc.tracks() {
-        let entity_type = track.entity_type.as_deref().unwrap_or("-");
+        let entity_type = track
+            .entity_type
+            .as_ref()
+            .map(|t| t.as_str())
+            .unwrap_or("-");
         let signals: Vec<String> = track
             .signals
             .iter()
@@ -2981,7 +2971,11 @@ tr:hover{background:var(--hover)}
     for identity in doc.identities() {
         let kb = identity.kb_name.as_deref().unwrap_or("-");
         let kb_id = identity.kb_id.as_deref().unwrap_or("-");
-        let entity_type = identity.entity_type.as_deref().unwrap_or("-");
+        let entity_type = identity
+            .entity_type
+            .as_ref()
+            .map(|t| t.as_str())
+            .unwrap_or("-");
         let aliases = if identity.aliases.is_empty() {
             "-".to_string()
         } else {
@@ -3480,7 +3474,7 @@ fn annotate_text_html(
         let track_id = signal_to_track.get(&s.id).copied();
         metas.push(SigMeta {
             sid: format!("S{}", s.id),
-            label: s.label.clone(),
+            label: s.label.to_string(),
             conf: s.confidence,
             track_id,
             covered_len,
@@ -3717,8 +3711,8 @@ impl EvalComparison {
                         matches.push(EvalMatch::TypeMismatch {
                             gold_id: g.id,
                             pred_id: pred.id,
-                            gold_label: g.label.clone(),
-                            pred_label: pred.label.clone(),
+                            gold_label: g.label.to_string(),
+                            pred_label: pred.label.to_string(),
                         });
                     }
                     gold_matched[gi] = true;
@@ -4002,7 +3996,7 @@ tr:hover{background:var(--hover)}
             EvalHtmlSpan {
                 start,
                 end,
-                label: s.label.clone(),
+                label: s.label.to_string(),
                 class: "e-gold",
                 id: format!("G{}", s.id),
             }
@@ -4021,7 +4015,7 @@ tr:hover{background:var(--hover)}
             EvalHtmlSpan {
                 start,
                 end,
-                label: s.label.clone(),
+                label: s.label.to_string(),
                 class: "e-pred",
                 id: format!("P{}", s.id),
             }
@@ -4288,7 +4282,7 @@ fn annotate_text_spans(text: &str, spans: &[EvalHtmlSpan]) -> String {
         let meta_idx = metas.len();
         metas.push(Meta {
             id: s.id.clone(),
-            label: s.label.clone(),
+            label: s.label.to_string(),
             class: s.class,
             len: end - start,
         });
@@ -4822,7 +4816,7 @@ mod tests {
         let signal: Signal<Location> =
             Signal::new(0, Location::text(0, 11), "Marie Curie", "Person", 0.95);
         assert_eq!(signal.surface, "Marie Curie");
-        assert_eq!(signal.label, "Person");
+        assert_eq!(signal.label, "Person".into());
         assert!((signal.confidence - 0.95).abs() < 0.001);
         assert!(!signal.negated);
     }
@@ -5514,12 +5508,13 @@ mod proptests {
                 0,
                 Location::text(start, start + len),
                 &surface,
-                &label,
+                label.as_str(),
                 conf,
             );
 
             prop_assert_eq!(&signal.surface, &surface);
-            prop_assert_eq!(&signal.label, &label);
+            let want = crate::TypeLabel::from(label.as_str());
+            prop_assert_eq!(signal.label, want);
         }
 
         /// Negation is idempotent: negated().negated() still has negated=true

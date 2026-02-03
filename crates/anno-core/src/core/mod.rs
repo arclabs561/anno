@@ -76,6 +76,12 @@
 //! - **Immutable where possible**: Entities are built then used, not mutated
 //! - **Serde everywhere**: All types serialize for caching and interop
 //! - **No ML dependencies**: Pure data types, no torch/candle/onnx
+//!
+//! ## Minimal surface
+//!
+//! If you’re downstream and want a small “just the contract” import set, prefer
+//! `anno_core::minimal` (or `anno::core::*` in the `anno` crate) rather than grabbing the entire
+//! re-export surface.
 
 pub mod calibration;
 pub mod coref;

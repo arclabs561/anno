@@ -11,6 +11,7 @@ use anno_core::core as anno_core;
 
 use anno_coalesce::resolver::{embedding_similarity, string_similarity, Resolver};
 use anno_coalesce::similarity::{levenshtein_distance, Similarity};
+use anno_core::TypeLabel;
 use anno_core::{Corpus, GroundedDocument, Track};
 
 // =============================================================================
@@ -173,7 +174,7 @@ fn test_multilingual_similarity_symmetry() {
 /// Helper to create a track with entity type
 fn create_track(id: u64, surface: &str, entity_type: &str) -> Track {
     let mut track = Track::new(id, surface);
-    track.entity_type = Some(entity_type.to_string());
+    track.entity_type = Some(TypeLabel::from(entity_type));
     track.cluster_confidence = 0.9;
     track
 }

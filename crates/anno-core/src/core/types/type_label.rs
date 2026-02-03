@@ -58,7 +58,7 @@ use std::str::FromStr;
 ///
 /// `TypeLabel` serializes as a string for interoperability:
 ///
-/// - `Core(EntityType::Person)` → `"Person"`
+/// - `Core(EntityType::Person)` → `"PER"`
 /// - `Custom("PROTEIN")` → `"PROTEIN"`
 ///
 /// Deserialization attempts to parse as `EntityType` first, falling back to `Custom`.
