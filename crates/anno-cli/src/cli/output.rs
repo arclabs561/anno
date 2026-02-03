@@ -254,7 +254,11 @@ pub fn print_signals(doc: &GroundedDocument, text: &str, verbose_level: u8) {
         println!();
         println!("{}:", color("1;36", "Coreference"));
         for track in &tracks {
-            let track_type = track.entity_type.as_deref().unwrap_or("-");
+            let track_type = track
+                .entity_type
+                .as_ref()
+                .map(|t| t.as_str())
+                .unwrap_or("-");
             // Show entity text, not signal IDs (more useful for humans)
             let mentions: Vec<String> = track
                 .signals

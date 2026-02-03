@@ -70,6 +70,8 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             ExportFormat::Jsonl => "jsonl",
             ExportFormat::NTriples => "nt",
             ExportFormat::JsonLd => "jsonld",
+            #[cfg(feature = "graph")]
+            ExportFormat::LattixNTriples => "nt",
         };
         fs::read_dir(&args.input)
             .map_err(|e| format!("Failed to read directory: {}", e))?
@@ -179,6 +181,10 @@ fn import_file(
         ExportFormat::JsonLd => {
             // TODO: Parse JSON-LD and extract entity annotations
             Err("Import from JSON-LD format not yet supported. Use jsonl or brat.".into())
+        }
+        #[cfg(feature = "graph")]
+        ExportFormat::LattixNTriples => {
+            Err("Import from `lattix-ntriples` is not yet supported. Use jsonl or brat.".into())
         }
     }
 }

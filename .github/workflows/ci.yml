@@ -411,7 +411,7 @@ jobs:
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
       
-      - name: Build matrix harness (enable ML backends)
+      - name: Build matrix sampler harness (enable ML backends)
         run: cargo build -p anno-eval --features "onnx,eval-advanced"
 
       - name: Run randomized matrix test (NER)

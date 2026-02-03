@@ -19,10 +19,7 @@ use super::super::output::color;
 use super::super::parser::{EvalTask, ModelBackend};
 
 #[cfg(feature = "eval-advanced")]
-use super::super::utils::create_entity_pair_relations;
-
-#[cfg(feature = "eval")]
-use super::super::utils::types_match_flexible;
+use anno_eval::eval::relation::create_entity_pair_relations;
 
 #[cfg(feature = "eval")]
 use anno_core::core::grounded::{
@@ -493,11 +490,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 let gold_type =
                                     anno_core::EntityType::from_label(&gold_entity.original_label);
 
-                                // Use canonical normalization for consistent grouping
-                                let gold_type_key =
-                                    crate::cli::utils::normalize_entity_type_canonical(
-                                        gold_type.as_label(),
-                                    );
+                                // Canonicalize once via `EntityType::from_label` + `as_label()`.
+                                let gold_type_key = gold_type.as_label().to_string();
 
                                 // Track per-type gold counts using normalized type
                                 per_type_stats
@@ -518,15 +512,11 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                         return false;
                                     }
 
-                                    // Type match with flexible matching
+                                    // Type match on canonical labels.
                                     let pred_type_str = e.entity_type.as_label();
                                     let gold_type_str = gold_type.as_label();
 
-                                    // Exact match or flexible match
-                                    let type_matches = pred_type_str == gold_type_str
-                                        || types_match_flexible(pred_type_str, gold_type_str);
-
-                                    if type_matches {
+                                    if pred_type_str == gold_type_str {
                                         matched_pred[i] = true; // Mark as matched
                                         return true;
                                     }
@@ -541,13 +531,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 }
                             }
 
-                            // Track per-type pred counts
-                            // Use canonical normalization so PER/PERSON etc. are grouped together
+                            // Track per-type pred counts using canonical labels.
                             for e in &entities {
-                                let raw_type = e.entity_type.as_label().to_uppercase();
-                                // Normalize pred type to match gold type normalization
-                                let type_key =
-                                    crate::cli::utils::normalize_entity_type_canonical(&raw_type);
+                                let type_key = e.entity_type.as_label().to_string();
                                 per_type_stats.entry(type_key).or_insert((0, 0, 0)).1 += 1;
                             }
                         }

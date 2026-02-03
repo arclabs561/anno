@@ -8,7 +8,14 @@ use super::super::output::{color, print_signals};
 use super::super::parser::OutputFormat;
 use super::super::utils::{link_tracks_to_kb, log_success, resolve_coreference};
 use anno_core::GroundedDocument;
+#[cfg(feature = "graph")]
+use anno_core::SignalId;
+#[cfg(not(feature = "graph"))]
 use anno_core::{GraphDocument, GraphExportFormat, SignalId};
+#[cfg(feature = "graph")]
+use anno_lattix::grounded_to_lattix_graph;
+#[cfg(feature = "graph")]
+use lattix::GraphExportFormat as LattixGraphExportFormat;
 
 /// Enhance existing GroundedDocument with additional processing
 #[derive(Parser, Debug)]
@@ -174,33 +181,64 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
 
     // Export to graph format if requested
     if let Some(graph_format_str) = args.export_graph {
-        let graph_format = match graph_format_str.to_lowercase().as_str() {
-            "neo4j" | "cypher" => GraphExportFormat::Cypher,
-            "networkx" | "nx" => GraphExportFormat::NetworkXJson,
-            "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
-            _ => {
-                return Err(format!(
-                    "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+        #[cfg(feature = "graph")]
+        {
+            let graph_format = match graph_format_str.to_lowercase().as_str() {
+                "neo4j" | "cypher" => LattixGraphExportFormat::Cypher,
+                "networkx" | "nx" => LattixGraphExportFormat::NetworkXJson,
+                "jsonld" | "json-ld" => LattixGraphExportFormat::JsonLd,
+                _ => {
+                    return Err(format!(
+                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+                        graph_format_str
+                    ));
+                }
+            };
+
+            let graph = grounded_to_lattix_graph(&doc);
+            let graph_output = graph.export(graph_format);
+
+            if !args.quiet {
+                eprintln!(
+                    "{} Exported graph ({} nodes, {} edges) in {} format (lattix)",
+                    color("32", "✓"),
+                    graph.node_count(),
+                    graph.edge_count(),
                     graph_format_str
-                ));
+                );
             }
-        };
-
-        let graph = GraphDocument::from_grounded_document(&doc);
-        let graph_output = graph.export(graph_format);
-
-        // Output graph to stdout (always print to stdout for graph export)
-        // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
-        if !args.quiet {
-            eprintln!(
-                "{} Exported graph ({} nodes, {} edges) in {} format",
-                color("32", "✓"),
-                graph.node_count(),
-                graph.edge_count(),
-                graph_format_str
-            );
+            println!("{}", graph_output);
         }
-        println!("{}", graph_output);
+        #[cfg(not(feature = "graph"))]
+        {
+            let graph_format = match graph_format_str.to_lowercase().as_str() {
+                "neo4j" | "cypher" => GraphExportFormat::Cypher,
+                "networkx" | "nx" => GraphExportFormat::NetworkXJson,
+                "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
+                _ => {
+                    return Err(format!(
+                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
+                        graph_format_str
+                    ));
+                }
+            };
+
+            let graph = GraphDocument::from_grounded_document(&doc);
+            let graph_output = graph.export(graph_format);
+
+            // Output graph to stdout (always print to stdout for graph export)
+            // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
+            if !args.quiet {
+                eprintln!(
+                    "{} Exported graph ({} nodes, {} edges) in {} format",
+                    color("32", "✓"),
+                    graph.node_count(),
+                    graph.edge_count(),
+                    graph_format_str
+                );
+            }
+            println!("{}", graph_output);
+        }
     }
 
     Ok(())

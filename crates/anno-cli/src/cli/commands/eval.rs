@@ -102,7 +102,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 SignalId::new(i as u64),
                 Location::text(g.start, g.end),
                 &g.text,
-                &g.label,
+                g.label.as_str(),
                 1.0,
             )
         })
