@@ -26,6 +26,114 @@ use anno::RelationTriple;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Create relation predictions from entity pairs using a conservative heuristic baseline.
+///
+/// This is intended as an evaluation fallback when a backend does not implement
+/// joint relation extraction. It is deliberately simple and low-dependency.
+///
+/// Notes:
+/// - `relation_types` is accepted for call-site compatibility, but is currently not used
+///   for filtering (the heuristic emits a small, fixed label set + `UNKNOWN`).
+/// - Offsets are treated as **character** offsets.
+#[must_use]
+pub fn create_entity_pair_relations(
+    entities: &[anno_core::Entity],
+    text: &str,
+    relation_types: &[&str],
+) -> Vec<RelationPrediction> {
+    let _ = relation_types;
+
+    let text_char_len = text.chars().count();
+    let max_distance = 200; // catch some cross-sentence relations
+
+    let mut pred_relations = Vec::new();
+
+    // Validate entities first to avoid panics.
+    let valid_entities: Vec<&anno_core::Entity> = entities
+        .iter()
+        .filter(|e| e.start < e.end && e.end <= text_char_len && e.start < text_char_len)
+        .collect();
+
+    // Limit to avoid O(n²) explosion with many entities.
+    let max_entities = 50.min(valid_entities.len());
+
+    for i in 0..max_entities {
+        for j in (i + 1)..max_entities {
+            let head = valid_entities[i];
+            let tail = valid_entities[j];
+
+            // Calculate distance using character offsets.
+            let distance = if tail.start >= head.end {
+                tail.start - head.end
+            } else if head.start >= tail.end {
+                head.start - tail.end
+            } else {
+                // Overlapping entities - skip.
+                continue;
+            };
+
+            if distance > max_distance {
+                continue;
+            }
+
+            // Extract text between entities using character offsets (not byte offsets).
+            let between_text = if head.end <= tail.start {
+                text.chars()
+                    .skip(head.end)
+                    .take(tail.start - head.end)
+                    .collect::<String>()
+            } else {
+                text.chars()
+                    .skip(tail.end)
+                    .take(head.start - tail.end)
+                    .collect::<String>()
+            };
+
+            let between_lower = between_text.to_lowercase();
+            let rel_type = if between_lower.contains("founded") || between_lower.contains("founder")
+            {
+                "FOUNDED"
+            } else if between_lower.contains("works for")
+                || between_lower.contains("employee")
+                || between_lower.contains("employed")
+            {
+                "WORKS_FOR"
+            } else if between_lower.contains("located in")
+                || between_lower.contains("based in")
+                || between_lower.contains("headquartered")
+            {
+                "LOCATED_IN"
+            } else if between_lower.contains("born in") || between_lower.contains("native of") {
+                "BORN_IN"
+            } else if between_lower.contains("ceo of")
+                || between_lower.contains("president of")
+                || between_lower.contains("leads")
+            {
+                "HEAD_OF"
+            } else if between_lower.contains("acquired")
+                || between_lower.contains("bought")
+                || between_lower.contains("merged")
+            {
+                "ACQUIRED"
+            } else {
+                // Explicit "UNKNOWN" so it cannot accidentally match a gold label.
+                "UNKNOWN"
+            };
+
+            pred_relations.push(RelationPrediction {
+                head_span: (head.start, head.end),
+                head_type: head.entity_type.as_label().to_string(),
+                tail_span: (tail.start, tail.end),
+                tail_type: tail.entity_type.as_label().to_string(),
+                relation_type: rel_type.to_string(),
+                confidence: 0.5,
+            });
+        }
+    }
+
+    pred_relations
+}
+
 /// Ground truth relation.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationGold {

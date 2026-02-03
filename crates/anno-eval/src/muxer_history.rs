@@ -1,4 +1,4 @@
-//! Shared muxer history types for the CI matrix harness.
+//! Shared muxer history types for the CI matrix sampler harness.
 //!
 //! This module provides persistent storage for MAB/Exp3-IX backend selection history.
 //! It is used by `matrix_muxer_ci.rs` to learn from past evaluations.

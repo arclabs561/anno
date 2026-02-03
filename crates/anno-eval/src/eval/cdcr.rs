@@ -245,7 +245,7 @@ impl From<&CrossDocCluster> for anno_core::Identity {
             entity_type: cluster
                 .entity_type
                 .as_ref()
-                .map(|t| t.as_label().to_string()),
+                .map(|t| anno_core::TypeLabel::from(t.as_label())),
             kb_id: cluster.kb_id.clone(),
             kb_name: None,
             description: None,
