@@ -3,10 +3,11 @@
 //! **Status**:
 //! - By default, this module provides a lightweight **rule-based** chunker (paragraph boundaries
 //!   + size limits + overlap).
-//! - An embedding-based chunker is **not implemented** yet; the `semantic-chunking` feature gate
-//!   currently falls back to the rule-based behavior.
+//! - With the `semantic-chunking` feature enabled, this module additionally provides a
+//!   sentence-level similarity chunker (token-based Jaccard similarity; no embedding model
+//!   required).
 //!
-//! This keeps chunking behavior explicit without implying that semantic embeddings are in use.
+//! This keeps chunking behavior explicit without implying that embeddings are in use.
 //!
 //! # Example
 //!
@@ -23,6 +24,7 @@
 //! ```
 
 use crate::Result;
+use std::collections::BTreeSet;
 
 /// Configuration for semantic chunking.
 #[derive(Debug, Clone)]
@@ -196,13 +198,13 @@ impl SemanticChunker for RuleBasedSemanticChunker {
     }
 }
 
-/// Embedding-based semantic chunker (requires embedding model).
+/// Sentence-similarity chunker (feature = `semantic-chunking`).
 ///
-/// Uses sentence embeddings and similarity clustering to identify semantic boundaries.
-/// This is a placeholder - full implementation would require:
-/// - Embedding model integration (sentence-transformers, BERT, etc.)
-/// - Similarity computation (cosine similarity)
-/// - Clustering algorithm (hierarchical, DBSCAN, etc.)
+/// Uses sentence-level similarity to identify coarse boundaries.
+///
+/// Despite the name, the current implementation does **not** use embeddings: it uses a
+/// sentence-level token Jaccard similarity to decide boundaries. This keeps the feature gate and
+/// config surface stable while avoiding heavyweight dependencies.
 #[cfg(feature = "semantic-chunking")]
 #[derive(Debug)]
 pub struct EmbeddingSemanticChunker {
@@ -215,25 +217,190 @@ pub struct EmbeddingSemanticChunker {
 impl EmbeddingSemanticChunker {
     /// Create a new embedding-based semantic chunker.
     pub fn new(config: SemanticChunkConfig) -> Result<Self> {
-        // TODO: Load embedding model
-        // For now, fall back to rule-based
         Ok(Self { config })
+    }
+
+    fn tokenize_for_similarity(s: &str) -> BTreeSet<String> {
+        // Keep this intentionally simple and dependency-light.
+        //
+        // - lowercase (ASCII)
+        // - scrub non-alphanumeric to spaces
+        // - split on whitespace
+        // - drop very short tokens (noise)
+        let mut t = String::with_capacity(s.len());
+        for c in s.chars() {
+            if c.is_alphanumeric() {
+                t.push(c.to_ascii_lowercase());
+            } else {
+                t.push(' ');
+            }
+        }
+        t.split_whitespace()
+            .filter(|w| w.chars().count() > 2)
+            .map(|w| w.to_string())
+            .collect()
+    }
+
+    fn jaccard(a: &BTreeSet<String>, b: &BTreeSet<String>) -> f32 {
+        if a.is_empty() && b.is_empty() {
+            return 1.0;
+        }
+        if a.is_empty() || b.is_empty() {
+            return 0.0;
+        }
+        let inter = a.intersection(b).count() as f32;
+        let uni = a.union(b).count() as f32;
+        if uni <= 0.0 {
+            0.0
+        } else {
+            inter / uni
+        }
+    }
+
+    fn char_to_byte_map(text: &str) -> Vec<usize> {
+        // Index i => byte offset of the i'th char (and one extra sentinel at the end).
+        let mut map = Vec::with_capacity(text.chars().count() + 1);
+        for (b, _) in text.char_indices() {
+            map.push(b);
+        }
+        map.push(text.len());
+        map
+    }
+
+    fn byte_at_char(map: &[usize], char_idx: usize) -> usize {
+        *map.get(char_idx).unwrap_or(&map[map.len() - 1])
+    }
+
+    fn split_sentences_spans(text: &str) -> Vec<(usize, usize)> {
+        // Return (start_char, end_char) spans for coarse sentence segments.
+        let terminators = [
+            '.', '!', '?', // Latin
+            '。', '！', '？', // CJK
+            '؟', '۔', // Arabic/Urdu
+            '।', // Devanagari
+        ];
+        let mut out = Vec::new();
+        let mut start = 0usize;
+        let mut i = 0usize;
+        for c in text.chars() {
+            i += 1;
+            if terminators.contains(&c) {
+                if i > start {
+                    out.push((start, i));
+                }
+                start = i;
+            }
+        }
+        if i > start {
+            out.push((start, i));
+        }
+        out
     }
 }
 
 #[cfg(feature = "semantic-chunking")]
 impl SemanticChunker for EmbeddingSemanticChunker {
     fn chunk(&self, text: &str, language: Option<&str>) -> Result<Vec<SemanticChunk>> {
-        // TODO: Implement embedding-based chunking
-        // 1. Split into sentences
-        // 2. Compute sentence embeddings
-        // 3. Cluster by similarity
-        // 4. Merge clusters into chunks (respecting size limits)
-        // 5. Add overlap
+        let _ = language;
+        let t = text.trim();
+        if t.is_empty() {
+            return Ok(vec![]);
+        }
 
-        // For now, fall back to rule-based
-        let fallback = RuleBasedSemanticChunker::new(self.config.clone());
-        fallback.chunk(text, language)
+        let spans = Self::split_sentences_spans(text);
+        if spans.is_empty() {
+            let fallback = RuleBasedSemanticChunker::new(self.config.clone());
+            return fallback.chunk(text, None);
+        }
+
+        let char_to_byte = Self::char_to_byte_map(text);
+
+        let mut chunks: Vec<SemanticChunk> = Vec::new();
+        let mut chunk_start_char = spans[0].0;
+        let mut chunk_end_char = spans[0].1;
+        let mut prev_sentence_tokens: Option<BTreeSet<String>> = None;
+        let mut prev_chunk_similarity: Option<f32> = None;
+
+        for (idx, (s0, s1)) in spans.iter().copied().enumerate() {
+            let sent_start = s0;
+            let sent_end = s1;
+
+            let sent_bytes_start = Self::byte_at_char(&char_to_byte, sent_start);
+            let sent_bytes_end = Self::byte_at_char(&char_to_byte, sent_end);
+            let sent_text = text
+                .get(sent_bytes_start..sent_bytes_end)
+                .unwrap_or("")
+                .trim();
+
+            if sent_text.is_empty() {
+                continue;
+            }
+
+            let tokens = Self::tokenize_for_similarity(sent_text);
+            let sim_to_prev_sentence = prev_sentence_tokens
+                .as_ref()
+                .map(|p| Self::jaccard(p, &tokens));
+
+            // Decide whether to cut before this sentence.
+            if idx > 0 {
+                let cur_len = chunk_end_char.saturating_sub(chunk_start_char);
+                let would_len = sent_end.saturating_sub(chunk_start_char);
+                let similarity_break = sim_to_prev_sentence
+                    .map(|s| s < self.config.similarity_threshold)
+                    .unwrap_or(false);
+                let would_exceed =
+                    would_len > self.config.max_size && cur_len >= self.config.min_size;
+
+                if (similarity_break && cur_len >= self.config.min_size) || would_exceed {
+                    let start_b = Self::byte_at_char(&char_to_byte, chunk_start_char);
+                    let end_b = Self::byte_at_char(&char_to_byte, chunk_end_char);
+                    let chunk_text = text.get(start_b..end_b).unwrap_or("").trim().to_string();
+                    if !chunk_text.is_empty() {
+                        chunks.push(SemanticChunk {
+                            text: chunk_text,
+                            start: chunk_start_char,
+                            end: chunk_end_char,
+                            topic: None,
+                            similarity_to_prev: prev_chunk_similarity,
+                        });
+                    }
+
+                    // Start new chunk, with optional overlap.
+                    let overlap_start_char = chunk_end_char
+                        .saturating_sub(self.config.overlap)
+                        .min(sent_start);
+                    chunk_start_char = overlap_start_char;
+                    prev_chunk_similarity = sim_to_prev_sentence;
+                }
+            }
+
+            // Extend chunk end to cover this sentence.
+            chunk_end_char = sent_end;
+            prev_sentence_tokens = Some(tokens);
+        }
+
+        // Final chunk.
+        if chunk_end_char > chunk_start_char {
+            let start_b = Self::byte_at_char(&char_to_byte, chunk_start_char);
+            let end_b = Self::byte_at_char(&char_to_byte, chunk_end_char);
+            let chunk_text = text.get(start_b..end_b).unwrap_or("").trim().to_string();
+            if !chunk_text.is_empty() {
+                chunks.push(SemanticChunk {
+                    text: chunk_text,
+                    start: chunk_start_char,
+                    end: chunk_end_char,
+                    topic: None,
+                    similarity_to_prev: prev_chunk_similarity,
+                });
+            }
+        }
+
+        if chunks.is_empty() {
+            let fallback = RuleBasedSemanticChunker::new(self.config.clone());
+            return fallback.chunk(text, None);
+        }
+
+        Ok(chunks)
     }
 }
 
