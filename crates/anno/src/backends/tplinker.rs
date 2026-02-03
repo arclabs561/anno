@@ -5,14 +5,10 @@
 //!
 //! # Implementation Status
 //!
-//! **⚠️ PLACEHOLDER IMPLEMENTATION**: This is currently a placeholder that uses
-//! simple heuristics for entity and relation extraction. A full implementation would:
-//! - Integrate ONNX model for handshaking matrix prediction
-//! - Decode entity boundaries from SH2OH/OH2SH tags
-//! - Decode relations from handshaking between entity pairs
+//! This module defines the TPLinker *shape* but **does not implement** the TPLinker model.
+//! It exists to keep the interface and wiring points explicit without returning fake outputs.
 //!
-//! The placeholder provides the interface and basic functionality for testing,
-//! but does not use the actual TPLinker model architecture.
+//! If you need relation extraction today, treat it as out-of-scope for `anno`'s primary surface.
 //!
 //! # Research
 //!
@@ -56,7 +52,7 @@ use std::collections::HashSet;
 /// TPLinker backend for joint entity-relation extraction.
 ///
 /// Uses handshaking matrix to simultaneously extract entities and relations.
-/// Currently a placeholder implementation - full ONNX model integration pending.
+#[derive(Debug)]
 pub struct TPLinker {
     /// Confidence threshold for entity extraction
     #[allow(dead_code)]
@@ -69,10 +65,9 @@ pub struct TPLinker {
 impl TPLinker {
     /// Create a new TPLinker instance.
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            entity_threshold: 0.5,
-            relation_threshold: 0.5,
-        })
+        Err(crate::Error::model_init(
+            "TPLinker is not implemented in this crate (reserved name; no placeholder outputs)",
+        ))
     }
 
     /// Create with custom thresholds.
@@ -83,9 +78,9 @@ impl TPLinker {
         }
     }
 
-    /// Extract entities and relations using handshaking matrix.
+    /// Reserved decoder entrypoint (not implemented).
     ///
-    /// This is a placeholder implementation. Full TPLinker would:
+    /// A full TPLinker implementation would:
     /// 1. Run ONNX model to get handshaking matrix predictions
     /// 2. Decode entity boundaries from SH2OH/OH2SH tags
     /// 3. Decode relations from handshaking between entity pairs
@@ -195,14 +190,10 @@ impl TPLinker {
 
 impl Model for TPLinker {
     fn extract_entities(&self, text: &str, _language: Option<&str>) -> Result<Vec<Entity>> {
-        // Extract entities only (no relations)
-        let result = self.extract_with_handshaking(
-            text,
-            &["person", "organization", "location"],
-            &[],
-            self.entity_threshold,
-        )?;
-        Ok(result.entities)
+        let _ = text;
+        Err(crate::Error::inference(
+            "TPLinker is not implemented (no placeholder extraction)",
+        ))
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
@@ -214,7 +205,7 @@ impl Model for TPLinker {
     }
 
     fn is_available(&self) -> bool {
-        true
+        false
     }
 
     fn name(&self) -> &'static str {
@@ -222,7 +213,7 @@ impl Model for TPLinker {
     }
 
     fn description(&self) -> &'static str {
-        "TPLinker joint entity-relation extraction (placeholder - full ONNX implementation pending)"
+        "TPLinker joint entity-relation extraction (not implemented)"
     }
 }
 
@@ -234,7 +225,10 @@ impl RelationExtractor for TPLinker {
         relation_types: &[&str],
         threshold: f32,
     ) -> Result<ExtractionWithRelations> {
-        self.extract_with_handshaking(text, entity_types, relation_types, threshold)
+        let _ = (text, entity_types, relation_types, threshold);
+        Err(crate::Error::inference(
+            "TPLinker is not implemented (no placeholder extraction)",
+        ))
     }
 }
 
@@ -269,61 +263,62 @@ mod tests {
 
     #[test]
     fn test_tplinker_creation() {
-        let tplinker = TPLinker::new().unwrap();
-        assert!(tplinker.is_available());
-        assert_eq!(tplinker.name(), "tplinker");
+        let err = TPLinker::new().unwrap_err().to_string();
+        assert!(
+            err.to_lowercase().contains("not implemented"),
+            "expected not-implemented error; got: {err}"
+        );
     }
 
     #[test]
     fn test_tplinker_entity_extraction() {
-        let tplinker = TPLinker::new().unwrap();
-        let entities = tplinker
+        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
+        let err = tplinker
             .extract_entities("Steve Jobs founded Apple.", None)
-            .unwrap();
-        assert!(!entities.is_empty());
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.to_lowercase().contains("not implemented"),
+            "expected not-implemented error; got: {err}"
+        );
     }
 
     #[test]
     fn test_tplinker_relation_extraction() {
-        let tplinker = TPLinker::new().unwrap();
-        let result = tplinker
+        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
+        let err = tplinker
             .extract_with_relations(
                 "Steve Jobs founded Apple in 1976.",
                 &["person", "organization"],
                 &["founded"],
                 0.5,
             )
-            .unwrap();
-        assert!(!result.entities.is_empty());
+            .unwrap_err()
+            .to_string();
         assert!(
-            result
-                .relations
-                .iter()
-                .any(|r| r.relation_type == "founded"),
-            "Expected a founded relation; got: {:?}",
-            result.relations
+            err.to_lowercase().contains("not implemented"),
+            "expected not-implemented error; got: {err}"
         );
     }
 
     #[test]
     fn test_tplinker_unicode_offsets_invariants() {
         // Diverse scripts + emoji (multi-byte). Offsets must be character-based and valid.
-        let tplinker = TPLinker::new().unwrap();
+        // Since TPLinker is not implemented, this is an error-path test.
+        let tplinker = TPLinker::with_thresholds(0.5, 0.5);
         let text = "Dr. 田中 met François Müller in 東京. 🎉";
-        let result = tplinker
+        let err = tplinker
             .extract_with_relations(
                 text,
                 &["person", "location", "organization"],
                 &["works_for", "located_in", "founded"],
                 0.0,
             )
-            .unwrap();
-
-        let char_len = text.chars().count();
-        for e in &result.entities {
-            assert!(e.start <= e.end, "invalid span ordering: {:?}", e);
-            assert!(e.end <= char_len, "span exceeds text length: {:?}", e);
-            assert!(!e.text.is_empty(), "entity text must not be empty: {:?}", e);
-        }
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.to_lowercase().contains("not implemented"),
+            "expected not-implemented error; got: {err}"
+        );
     }
 }

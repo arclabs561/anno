@@ -1,37 +1,18 @@
-//! Wikidata entity linking API.
+//! Wikidata utilities (offline).
 //!
-//! # Overview
-//!
-//! This module provides integration with the Wikidata API for entity linking:
-//! - **Search API**: Find candidate entities by name
-//! - **Entity API**: Retrieve entity details (labels, descriptions, types)
-//! - **SPARQL**: Complex queries for relation-aware linking
-//!
-//! # Features
-//!
-//! | Feature | Description |
-//! |---------|-------------|
-//! | **Candidate Generation** | High-recall retrieval via search API |
-//! | **Type Mapping** | Map Wikidata types to NER types (PER/ORG/LOC) |
-//! | **Alias Matching** | Match mentions against aliases/alt labels |
-//! | **Popularity Ranking** | Use sitelink count as prior |
+//! This module is intentionally **offline**: it does not call Wikidata’s APIs.
+//! It provides:
+//! - a small in-memory dictionary (`WikidataDictionary`) for demos/tests
+//! - type mapping helpers (`WikidataTypeMapper`, `WikidataNERType`)
 //!
 //! # Example
 //!
-//! ```rust,ignore
-//! use anno::linking::wikidata::{WikidataLinker, WikidataConfig};
+//! ```rust
+//! use anno::linking::wikidata::WikidataDictionary;
 //!
-//! let linker = WikidataLinker::new(WikidataConfig::default());
-//!
-//! // Search for candidates
-//! let candidates = linker.search("Albert Einstein", 10).await?;
-//! for c in candidates {
-//!     println!("{}: {} ({})", c.qid, c.label, c.description.unwrap_or_default());
-//! }
-//!
-//! // Get entity details
-//! let entity = linker.get_entity("Q937").await?;
-//! println!("Type: {:?}", entity.entity_type);
+//! let dict = WikidataDictionary::with_common_entities();
+//! let cands = dict.lookup("Einstein");
+//! assert!(!cands.is_empty());
 //! ```
 //!
 //! # Wikidata Type Mapping
@@ -49,12 +30,8 @@
 //! Q11424 (film)               → WORK_OF_ART
 //! ```
 //!
-//! # Rate Limiting
-//!
-//! The Wikidata API has rate limits. This module implements:
-//! - Request throttling (default: 1 req/sec)
-//! - Caching of entity lookups
-//! - Batch requests where possible
+//! Note: if you need real Wikidata API integration, treat it as an external dependency and
+//! keep network behavior explicit in your application.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

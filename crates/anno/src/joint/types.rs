@@ -791,7 +791,7 @@ impl JointModel {
             });
 
             // Entity link variable
-            // In production: query WikidataLinker for candidates (only for Proper mentions)
+            // In production: query an external linker for candidates (only for Proper mentions).
             let link_candidates: Vec<String> = vec![];
             variables.push(JointVariable::EntityLink {
                 mention_idx: i,
