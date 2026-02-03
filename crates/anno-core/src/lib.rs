@@ -6,6 +6,7 @@
 
 pub mod coalesce;
 pub mod core;
+pub mod minimal;
 
 pub use crate::core::{
     generate_span_candidates, CorefChain, CorefDocument, CoreferenceResolver, Corpus,

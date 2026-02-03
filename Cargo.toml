@@ -11,6 +11,7 @@ members = [
     "crates/anno-core",
     "crates/anno-eval",
     "crates/anno-cli",
+    "crates/anno-lattix",
 ]
 resolver = "2"
 

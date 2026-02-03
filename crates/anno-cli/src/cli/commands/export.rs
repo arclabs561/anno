@@ -62,6 +62,10 @@ pub enum ExportFormat {
     /// JSON-LD (linked data format for knowledge graphs)
     #[value(name = "jsonld")]
     JsonLd,
+    /// N-Triples exported via `lattix` (graph/KG adapter; stable triple rendering).
+    #[cfg(feature = "graph")]
+    #[value(name = "lattix-ntriples")]
+    LattixNTriples,
 }
 
 /// Run the export command.
@@ -185,6 +189,8 @@ fn export_file(
         ExportFormat::Jsonl => output_dir.join(format!("{}.jsonl", stem)),
         ExportFormat::NTriples => output_dir.join(format!("{}.nt", stem)),
         ExportFormat::JsonLd => output_dir.join(format!("{}.jsonld", stem)),
+        #[cfg(feature = "graph")]
+        ExportFormat::LattixNTriples => output_dir.join(format!("{}.nt", stem)),
     };
 
     // Check if output exists
@@ -202,6 +208,8 @@ fn export_file(
         ExportFormat::Jsonl => export_jsonl(&entities, input, include_confidence),
         ExportFormat::NTriples => export_ntriples(&entities, &content, input),
         ExportFormat::JsonLd => export_jsonld(&entities, &content, input, include_confidence),
+        #[cfg(feature = "graph")]
+        ExportFormat::LattixNTriples => export_lattix_ntriples(&entities, input),
     };
 
     // Write output
@@ -405,6 +413,88 @@ fn export_ntriples(entities: &[anno_core::Entity], _text: &str, source: &Path) -
     // <head_entity> <relation_type> <tail_entity> .
 
     lines.join("\n")
+}
+
+#[cfg(feature = "graph")]
+fn escape_literal(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
+        .replace('\t', "\\t")
+}
+
+/// Export N-Triples using `lattix` as the triple renderer.
+///
+/// This produces N-Triples compatible with `lattix::KnowledgeGraph::from_ntriples_file(...)`.
+#[cfg(feature = "graph")]
+fn export_lattix_ntriples(entities: &[anno_core::Entity], source: &Path) -> String {
+    use lattix::{KnowledgeGraph, Triple};
+
+    let mut kg = KnowledgeGraph::with_capacity(entities.len().max(1), entities.len() * 8);
+
+    let doc_iri = format!(
+        "http://example.org/doc/{}",
+        uri_safe(&source.to_string_lossy())
+    );
+    let rdf_type = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+    let rdfs_label = "http://www.w3.org/2000/01/rdf-schema#label";
+    let prov_src = "http://www.w3.org/ns/prov#hadPrimarySource";
+    let anno_ns = "http://example.org/anno#";
+    let entity_ns = "http://example.org/entity/";
+    let xsd_int = "http://www.w3.org/2001/XMLSchema#integer";
+    let xsd_float = "http://www.w3.org/2001/XMLSchema#float";
+
+    for (idx, entity) in entities.iter().enumerate() {
+        let entity_id = format!("e{}_{}", idx, uri_safe(&entity.text));
+        let entity_iri = format!("{}{}", entity_ns, entity_id);
+        let type_iri = format!("{}{}Type", anno_ns, entity.entity_type.as_label());
+
+        kg.add_triple(Triple::new(
+            entity_iri.as_str(),
+            rdf_type,
+            type_iri.as_str(),
+        ));
+
+        // Label literal
+        kg.add_triple(Triple::new(
+            entity_iri.as_str(),
+            rdfs_label,
+            format!("\"{}\"", escape_literal(&entity.text)),
+        ));
+
+        // Offsets + confidence as typed literals
+        kg.add_triple(Triple::new(
+            entity_iri.as_str(),
+            format!("{}startOffset", anno_ns),
+            format!("\"{}\"^^<{}>", entity.start, xsd_int),
+        ));
+        kg.add_triple(Triple::new(
+            entity_iri.as_str(),
+            format!("{}endOffset", anno_ns),
+            format!("\"{}\"^^<{}>", entity.end, xsd_int),
+        ));
+        kg.add_triple(Triple::new(
+            entity_iri.as_str(),
+            format!("{}confidence", anno_ns),
+            format!("\"{}\"^^<{}>", entity.confidence, xsd_float),
+        ));
+
+        // Provenance
+        kg.add_triple(Triple::new(entity_iri.as_str(), prov_src, doc_iri.as_str()));
+
+        // Convenience: doc mentions entity
+        kg.add_triple(Triple::new(
+            doc_iri.as_str(),
+            format!("{}mentions", anno_ns),
+            entity_iri.as_str(),
+        ));
+    }
+
+    kg.triples()
+        .map(|t| t.to_ntriples())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Export to JSON-LD format (linked data for knowledge graphs).

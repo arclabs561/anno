@@ -7,6 +7,7 @@
 //!
 //! This module’s `GraphDocument` is an **interop/export** shape (Neo4j, NetworkX, JSON-LD).
 //! For algorithmic graph work (PageRank, walks, clustering), prefer a dedicated graph library.
+//! In this workspace, that dedicated substrate is `lattix` / `lattix-core`.
 //!
 //! # The "Fractured Graph" Problem
 //!

@@ -1,0 +1,13 @@
+[package]
+name = "anno-lattix"
+version = "0.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/arclabs561/anno"
+description = "Adapters between anno-core and lattix graph substrates"
+publish = false
+
+[dependencies]
+anno-core = { path = "../anno-core", version = "0.2.0" }
+lattix = { git = "https://github.com/arclabs561/lattix", rev = "19dfa9cba208eed27aa8af966a775a4e1985da3c", default-features = false }
+
