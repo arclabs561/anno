@@ -6,12 +6,6 @@ Dual-licensed under MIT or Apache-2.0.
 
 API docs: [docs.rs/anno](https://docs.rs/anno)
 
-## Start here
-
-- `docs/QUICKSTART.md` — 5-minute CLI + library usage
-- `docs/CONTRACT.md` — scope + guarantees (including offset discipline)
-- `docs/BACKENDS.md` — backend selection + feature flags
-
 ## Backends
 
 | Backend | Custom types | Weights | Notes |
