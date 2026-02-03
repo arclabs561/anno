@@ -8,7 +8,7 @@ description = "CLI for anno"
 publish = false
 
 [dependencies]
-anno = { path = "../anno", version = "0.2.0" }
+anno = { path = "../anno", version = "0.2.0", default-features = false }
 anno-eval = { path = "../anno-eval", version = "0.2.0" }
 anno-core = { path = "../anno-core", version = "0.2.0" }
 

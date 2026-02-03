@@ -79,7 +79,14 @@ graph = []
 gramdex = ["dep:gramdex"]
 schema = ["dep:schemars"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru"]
-candle = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:safetensors"]
+candle = [
+  "dep:candle-core",
+  "dep:candle-nn",
+  "dep:candle-transformers",
+  "dep:safetensors",
+  "dep:tokenizers",
+  "dep:hf-hub",
+]
 metal = ["candle"]
 cuda = ["candle"]
 burn = []

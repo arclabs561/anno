@@ -2737,11 +2737,16 @@ impl TaskEvaluator {
                 ));
             }
 
+            #[cfg(feature = "onnx")]
             let schema = anno::backends::gliner2::TaskSchema::new().with_classification(
                 "topic",
                 &label_refs,
                 false,
             );
+            #[cfg(not(feature = "onnx"))]
+            let schema = ();
+            #[cfg(not(feature = "onnx"))]
+            let _ = (&label_refs, &schema);
 
             let mut m = ClassificationMetrics::new();
             for s in &dataset_data.sentences {

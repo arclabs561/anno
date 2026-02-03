@@ -271,9 +271,9 @@ impl BackendRegistry {
     /// Register Candle backends if feature enabled.
     #[cfg(feature = "candle")]
     pub fn register_candle(&mut self) {
-        use crate::CandleNER;
+        use crate::{CandleNER, DEFAULT_CANDLE_MODEL};
 
-        match CandleNER::new(crate::DEFAULT_CANDLE_MODEL) {
+        match CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL) {
             Ok(candle) => {
                 self.register(
                     "CandleNER",
