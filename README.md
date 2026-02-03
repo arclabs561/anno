@@ -6,6 +6,12 @@ Dual-licensed under MIT or Apache-2.0.
 
 API docs: [docs.rs/anno](https://docs.rs/anno)
 
+## What it does
+
+- Named entity recognition (NER): people, orgs, locations, etc.
+- Coreference: resolve mentions like "Sophie Wilson" → "She".
+- Structured pattern extraction (dates, money, emails).
+
 ## Backends
 
 | Backend | Custom types | Weights | Notes |
@@ -41,16 +47,17 @@ Notes:
 Named entities:
 
 ```sh
-anno extract --text "Ada Lovelace worked with Charles Babbage in London."
+anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
 ```sh
-anno extract --format json --text "Ada Lovelace worked with Charles Babbage in London."
+anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
 ```text
-PER:2 "Ada Lovelace" "Charles Babbage"
-LOC:1 "London"
+PER:1 "Lynn Conway"
+ORG:2 "IBM" "Xerox PARC"
+LOC:1 "California"
 ```
 
 Structured entities (dates, money, emails):

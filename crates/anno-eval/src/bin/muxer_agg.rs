@@ -45,7 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     if inputs.is_empty() {
-        return Err("missing input path(s) (args or ANNO_MUXER_AGG_INPUT)".to_string().into());
+        return Err("missing input path(s) (args or ANNO_MUXER_AGG_INPUT)"
+            .to_string()
+            .into());
     }
     let out_path = out_path.or_else(|| std::env::var("ANNO_MUXER_AGG_OUTPUT").ok());
 
@@ -69,4 +71,3 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
-

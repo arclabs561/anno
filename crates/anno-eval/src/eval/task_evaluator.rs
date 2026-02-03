@@ -2806,7 +2806,6 @@ impl TaskEvaluator {
             ))
         }
     }
-
 }
 
 impl Default for TaskEvaluator {
@@ -4213,11 +4212,23 @@ mod tests {
     fn test_classical_backend_dataset_compatibility_gate() {
         // CRF/HMM in this repo are CoNLL-style: they should be compatible with PER/LOC/ORG/MISC
         // datasets, but excluded from datasets with different type inventories (e.g. WNUT-17).
-        assert!(TaskEvaluator::is_backend_compatible("crf", DatasetId::CoNLL2003Sample));
-        assert!(TaskEvaluator::is_backend_compatible("hmm", DatasetId::CoNLL2003Sample));
+        assert!(TaskEvaluator::is_backend_compatible(
+            "crf",
+            DatasetId::CoNLL2003Sample
+        ));
+        assert!(TaskEvaluator::is_backend_compatible(
+            "hmm",
+            DatasetId::CoNLL2003Sample
+        ));
 
-        assert!(!TaskEvaluator::is_backend_compatible("crf", DatasetId::Wnut17));
-        assert!(!TaskEvaluator::is_backend_compatible("hmm", DatasetId::Wnut17));
+        assert!(!TaskEvaluator::is_backend_compatible(
+            "crf",
+            DatasetId::Wnut17
+        ));
+        assert!(!TaskEvaluator::is_backend_compatible(
+            "hmm",
+            DatasetId::Wnut17
+        ));
     }
 
     #[test]

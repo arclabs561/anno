@@ -6,9 +6,9 @@
 //!
 //! It uses the `anno-eval` dataset loader and the legacy strict/exact/partial/type metrics.
 
+use anno_eval::backends::{CrfNER, HmmConfig, HmmNER};
 use anno_eval::eval::loader::{DatasetLoader, LoadableDatasetId};
 use anno_eval::eval::ner_metrics::evaluate_entities;
-use anno_eval::backends::{CrfNER, HmmConfig, HmmNER};
 use anno_eval::{Model, Result};
 
 fn print_row(name: &str, r: &anno_eval::eval::ner_metrics::NerEvalResults) {
@@ -17,17 +17,15 @@ fn print_row(name: &str, r: &anno_eval::eval::ner_metrics::NerEvalResults) {
     let f1 = r.strict.f1_exact();
     println!(
         "{name:24} strict P={:.4} R={:.4} F1={:.4} (COR={} INC={} MIS={} SPU={})",
-        p,
-        rec,
-        f1,
-        r.strict.correct,
-        r.strict.incorrect,
-        r.strict.missed,
-        r.strict.spurious
+        p, rec, f1, r.strict.correct, r.strict.incorrect, r.strict.missed, r.strict.spurious
     );
 }
 
-fn eval_model<M: Model>(model: &M, ds: &anno_eval::eval::loader::LoadedDataset, max_sentences: usize) -> Result<anno_eval::eval::ner_metrics::NerEvalResults> {
+fn eval_model<M: Model>(
+    model: &M,
+    ds: &anno_eval::eval::loader::LoadedDataset,
+    max_sentences: usize,
+) -> Result<anno_eval::eval::ner_metrics::NerEvalResults> {
     let mut out = anno_eval::eval::ner_metrics::NerEvalResults::new();
     let n = ds.sentences.len().min(max_sentences);
     for s in ds.sentences.iter().take(n) {
@@ -49,7 +47,11 @@ fn main() -> Result<()> {
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
-    let max_sentences = if max_sentences == 0 { usize::MAX } else { max_sentences };
+    let max_sentences = if max_sentences == 0 {
+        usize::MAX
+    } else {
+        max_sentences
+    };
 
     let dataset = std::env::var("ANNO_CLASSICAL_E2E_DATASET")
         .ok()
@@ -115,4 +117,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-

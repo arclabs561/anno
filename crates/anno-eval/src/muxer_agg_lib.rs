@@ -115,11 +115,20 @@ pub fn aggregate_jsonl_paths(paths: &[impl AsRef<Path>]) -> Result<serde_json::V
 
             let ok = v.get("ok").and_then(|x| x.as_bool()).unwrap_or(false);
             let junk = v.get("junk").and_then(|x| x.as_bool()).unwrap_or(false);
-            let hard_junk = v.get("hard_junk").and_then(|x| x.as_bool()).unwrap_or(false);
+            let hard_junk = v
+                .get("hard_junk")
+                .and_then(|x| x.as_bool())
+                .unwrap_or(false);
 
             let f1 = v.get("primary_f1").and_then(|x| x.as_f64());
-            let elapsed_ms = v.get("elapsed_ms").and_then(|x| x.as_u64()).map(|x| x as f64);
-            let cost_units = v.get("cost_units").and_then(|x| x.as_u64()).map(|x| x as f64);
+            let elapsed_ms = v
+                .get("elapsed_ms")
+                .and_then(|x| x.as_u64())
+                .map(|x| x as f64);
+            let cost_units = v
+                .get("cost_units")
+                .and_then(|x| x.as_u64())
+                .map(|x| x as f64);
 
             let k = (task, lang, domain, backend);
             let a = groups.entry(k).or_default();
@@ -187,4 +196,3 @@ pub fn aggregate_jsonl_paths(paths: &[impl AsRef<Path>]) -> Result<serde_json::V
         "groups": rows,
     }))
 }
-

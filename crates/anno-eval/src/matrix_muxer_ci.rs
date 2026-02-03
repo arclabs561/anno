@@ -396,7 +396,10 @@ fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     if let Some(parent) = std::path::Path::new(path).parent() {
         if !parent.as_os_str().is_empty() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("matrix-muxer: failed to create decision log dir {:?}: {e}", parent);
+                eprintln!(
+                    "matrix-muxer: failed to create decision log dir {:?}: {e}",
+                    parent
+                );
                 return;
             }
         }
@@ -1795,10 +1798,16 @@ fn choose_datasets_for_run(
                 out.insert(s);
             }
         }
-        if out.is_empty() { None } else { Some(out) }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
-    let pin_lang = env_csv_set("ANNO_MUXER_PIN_LANG").or_else(|| env_csv_set("ANNO_MUXER_FILTER_LANG"));
-    let pin_dom = env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
+    let pin_lang =
+        env_csv_set("ANNO_MUXER_PIN_LANG").or_else(|| env_csv_set("ANNO_MUXER_FILTER_LANG"));
+    let pin_dom =
+        env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
     if pin_lang.is_some() || pin_dom.is_some() {
         candidates.retain(|d| {
             let lang_ok = pin_lang
@@ -2061,28 +2070,26 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     // Note on semantics:
     // - FIXED/FORCE is a hard override (no fallback if it yields nothing).
     // - PIN/FILTER is a soft constraint (filters candidates, but still allows selection).
-    let fixed_backends_requested: Option<Vec<String>> =
-        std::env::var("ANNO_MUXER_FIXED_BACKEND")
-            .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
-            .ok()
-            .map(|raw| {
+    let fixed_backends_requested: Option<Vec<String>> = std::env::var("ANNO_MUXER_FIXED_BACKEND")
+        .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
+        .ok()
+        .map(|raw| {
             raw.split(',')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>()
         });
-    let pinned_backends_requested: Option<Vec<String>> =
-        std::env::var("ANNO_MUXER_PIN_BACKEND")
-            .or_else(|_| std::env::var("ANNO_MUXER_FILTER_BACKEND"))
-            .ok()
-            .map(|raw| {
-                raw.split(',')
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            });
+    let pinned_backends_requested: Option<Vec<String>> = std::env::var("ANNO_MUXER_PIN_BACKEND")
+        .or_else(|_| std::env::var("ANNO_MUXER_FILTER_BACKEND"))
+        .ok()
+        .map(|raw| {
+            raw.split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        });
     if fixed_backends_requested.is_some()
         && pinned_backends_requested.is_some()
         && mh::env_bool("ANNO_MUXER_VERBOSE", false)
@@ -2123,7 +2130,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             eprintln!("matrix-muxer: ANNO_MUXER_FIXED_DATASETS is set but empty");
             return;
         }
-        let mut map: std::collections::BTreeMap<String, DatasetId> = std::collections::BTreeMap::new();
+        let mut map: std::collections::BTreeMap<String, DatasetId> =
+            std::collections::BTreeMap::new();
         for &d in DatasetId::all().iter() {
             map.insert(format!("{d:?}").to_ascii_lowercase(), d);
         }
@@ -2163,7 +2171,11 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         let want = datasets_per_run;
         let mut filtered = chosen_datasets
             .into_iter()
-            .filter(|d| fixed.iter().all(|b| TaskEvaluator::is_backend_compatible(b, *d)))
+            .filter(|d| {
+                fixed
+                    .iter()
+                    .all(|b| TaskEvaluator::is_backend_compatible(b, *d))
+            })
             .collect::<Vec<_>>();
         if filtered.len() < want {
             let mut pool = choose_datasets_for_run(
@@ -2173,7 +2185,11 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 want.saturating_mul(10).max(want),
             );
-            pool.retain(|d| fixed.iter().all(|b| TaskEvaluator::is_backend_compatible(b, *d)));
+            pool.retain(|d| {
+                fixed
+                    .iter()
+                    .all(|b| TaskEvaluator::is_backend_compatible(b, *d))
+            });
             pool.truncate(want.min(pool.len()));
             filtered = pool;
         } else {

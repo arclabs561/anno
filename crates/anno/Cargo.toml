@@ -2,7 +2,7 @@
 name = "anno"
 version = "0.2.0"
 edition = "2021"
-description = "Information extraction for Rust: Named Entity Recognition (NER), coreference resolution, and relationship extraction"
+description = "Information extraction for Rust: Named Entity Recognition (NER), coreference resolution, and structured extraction"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
 homepage = "https://github.com/arclabs561/anno"

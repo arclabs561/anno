@@ -276,7 +276,9 @@ impl HmmNER {
                         .ok()
                         .is_some_and(|v| {
                             let s = v.trim();
-                            s == "1" || s.eq_ignore_ascii_case("true") || s.eq_ignore_ascii_case("yes")
+                            s == "1"
+                                || s.eq_ignore_ascii_case("true")
+                                || s.eq_ignore_ascii_case("yes")
                         });
                     let use_dynamics = m.config.use_bundled_dynamics || use_dynamics_env;
                     if use_dynamics {
@@ -310,9 +312,17 @@ impl HmmNER {
                         .iter()
                         .map(|x| x.as_f64())
                         .collect::<Option<Vec<_>>>()?;
-                    let transitions = v.get("transitions")?.as_array()?.iter().map(|row| {
-                        row.as_array()?.iter().map(|x| x.as_f64()).collect::<Option<Vec<_>>>()
-                    }).collect::<Option<Vec<_>>>()?;
+                    let transitions = v
+                        .get("transitions")?
+                        .as_array()?
+                        .iter()
+                        .map(|row| {
+                            row.as_array()?
+                                .iter()
+                                .map(|x| x.as_f64())
+                                .collect::<Option<Vec<_>>>()
+                        })
+                        .collect::<Option<Vec<_>>>()?;
                     let backoff = v.get("backoff")?.clone();
                     Some(HmmParams {
                         states,
@@ -1065,8 +1075,8 @@ impl HmmNER {
 
     fn bool_features(word: &str) -> HashMap<&'static str, bool> {
         let is_capitalized = word.chars().next().is_some_and(|c| c.is_uppercase());
-        let is_all_caps =
-            word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic()) && word.chars().count() > 1;
+        let is_all_caps = word.chars().all(|c| c.is_uppercase() || !c.is_alphabetic())
+            && word.chars().count() > 1;
         let is_digit = !word.is_empty() && word.chars().all(|c| c.is_ascii_digit());
         let has_digit = word.chars().any(|c| c.is_ascii_digit());
         let has_hyphen = word.contains('-');
