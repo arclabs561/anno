@@ -1,4 +1,4 @@
-//! Joint command - Joint entity analysis (NER + Coreference + Linking)
+//! Joint command - Joint entity analysis (NER + coreference + optional linking)
 //!
 //! Implements Durrett & Klein (2014): "A Joint Model for Entity Analysis"
 //! Uses belief propagation for inference over a factor graph.
@@ -31,10 +31,10 @@ use anno_core::Entity;
 use clap::Parser;
 use std::time::Instant;
 
-/// Joint entity analysis (NER + Coreference + Linking)
+/// Joint entity analysis (NER + coreference + optional linking)
 ///
-/// Combines named entity recognition, coreference resolution, and entity linking
-/// in a single factor graph model using belief propagation for inference.
+/// Combines NER and coreference, with optional linking-style factors, in a single factor graph
+/// model using belief propagation for inference.
 ///
 /// Based on: Durrett & Klein (2014) "A Joint Model for Entity Analysis"
 #[derive(Parser, Debug)]
@@ -51,7 +51,6 @@ pub struct JointArgs {
     #[arg(short, long, value_name = "PATH")]
     pub file: Option<String>,
 
-    /// Positional text argument
     /// Positional text input
     pub positional: Vec<String>,
 
@@ -67,16 +66,19 @@ pub struct JointArgs {
     #[arg(long, default_value = "5")]
     pub max_iterations: usize,
 
-    /// Disable Link+NER cross-task factors
-    #[arg(long, help = "Ablation: remove Wikipedia semantics from NER")]
+    /// Disable link-style factors that influence NER (ablation).
+    #[arg(long, help = "Ablation: remove link-style factors from NER")]
     pub no_link_ner: bool,
 
     /// Disable Coref+NER cross-task factors
     #[arg(long, help = "Ablation: remove type consistency across coreference")]
     pub no_coref_ner: bool,
 
-    /// Disable Coref+Link cross-task factors
-    #[arg(long, help = "Ablation: remove link relatedness across coreference")]
+    /// Disable link-style factors across coreference (ablation).
+    #[arg(
+        long,
+        help = "Ablation: remove link-style relatedness across coreference"
+    )]
     pub no_coref_link: bool,
 
     /// Output format

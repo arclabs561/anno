@@ -1287,7 +1287,7 @@ mod tests {
     fn test_config() {
         let config = HmmConfig {
             smoothing: 1e-5,
-            use_log_probs: true,
+            ..Default::default()
         };
 
         let ner = HmmNER::with_config(config);

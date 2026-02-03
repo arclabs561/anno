@@ -36,6 +36,10 @@ EXAMPLES:
 OFFLINE:
   • Prefetch: anno models download ...
   • Cached-only: ANNO_NO_DOWNLOADS=1
+
+ADVANCED:
+  • Some commands are intentionally hidden from the default help.
+  • If you know the name, run `anno help <command>` (e.g. `anno help joint`).
 "#
 )]
 #[command(propagate_version = true)]
@@ -138,7 +142,7 @@ pub enum Commands {
     #[command(hide = true)]
     Batch(commands::BatchArgs),
 
-    /// Joint NER + Coreference + Entity Linking analysis
+    /// Joint entity analysis (experimental; optional linking)
     #[command(visible_alias = "j")]
     #[command(hide = true)]
     Joint(commands::JointArgs),

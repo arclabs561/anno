@@ -40,7 +40,7 @@ pub fn run(args: BackendsArgs) -> Result<(), String> {
             // Default: show version, backends, types, features (like old `info`)
             println!();
             println!("{}", color("1;36", "anno"));
-            println!("  Information Extraction: NER + Coreference + Relations + Entity Linking");
+            println!("  Information Extraction: NER + Coreference");
             println!();
             println!("{}:", color("1;33", "Version"));
             println!("  {}", env!("CARGO_PKG_VERSION"));

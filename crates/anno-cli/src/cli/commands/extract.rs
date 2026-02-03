@@ -127,7 +127,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // Level 1 (Signal): Raw entity extraction from single document
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
-    // - `debug --link-kb` adds Level 3 (Identity) via KB linking
+    // - `debug --link-kb` attaches demo identities (debug-only; offline)
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin

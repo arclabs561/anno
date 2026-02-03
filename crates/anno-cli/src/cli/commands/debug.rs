@@ -74,7 +74,7 @@ pub struct DebugArgs {
     #[arg(long)]
     pub coref: bool,
 
-    /// Link tracks to KB identities (creates placeholder Wikidata IDs)
+    /// Attach demo KB-style IDs to tracks (offline; no network).
     #[arg(long)]
     pub link_kb: bool,
 
@@ -90,8 +90,7 @@ pub struct DebugArgs {
 /// Execute the debug command.
 pub fn run(args: DebugArgs) -> Result<(), String> {
     // Level 1 + 2 (Signal → Track): Entity extraction + within-document coreference
-    // With --link-kb: Level 1 + 2 + 3 (Signal → Track → Identity): Adds KB linking
-    // This builds the full hierarchy that could be used by coalescing for better clustering
+    // With --link-kb: attach demo identities to tracks (debug-only, offline).
 
     // Pick a stable document id so the HTML report is self-describing.
     // (Otherwise every report is doc_id="debug", which is annoying when comparing runs.)

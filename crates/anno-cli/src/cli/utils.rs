@@ -748,41 +748,62 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, signal_ids: &
     }
 }
 
-/// Link tracks to KB identities.
+/// Attach demo KB-style identities to tracks.
 ///
-/// Creates placeholder Wikidata-style identities for each track.
-/// In a production system, this would query a real KB like Wikidata.
+/// This is a debug-only helper used by `anno debug --link-kb`.
+/// It is **offline** and does **not** query a real knowledge base.
 pub fn link_tracks_to_kb(doc: &mut GroundedDocument) {
-    // Well-known entities with Wikidata IDs
+    // Small embedded demo table (no claim of completeness).
     let known_entities: HashMap<&str, (&str, &str)> = [
         (
             "barack obama",
-            ("Q76", "44th President of the United States"),
+            ("demo:barack_obama", "44th President of the United States"),
         ),
-        ("angela merkel", ("Q567", "Chancellor of Germany 2005-2021")),
-        ("berlin", ("Q64", "Capital of Germany")),
-        ("nato", ("Q7184", "North Atlantic Treaty Organization")),
+        (
+            "angela merkel",
+            ("demo:angela_merkel", "Chancellor of Germany 2005-2021"),
+        ),
+        ("berlin", ("demo:berlin", "Capital of Germany")),
+        ("nato", ("demo:nato", "North Atlantic Treaty Organization")),
         (
             "donald trump",
-            ("Q22686", "45th President of the United States"),
+            ("demo:donald_trump", "45th President of the United States"),
         ),
         (
             "joe biden",
-            ("Q6279", "46th President of the United States"),
+            ("demo:joe_biden", "46th President of the United States"),
         ),
-        ("vladimir putin", ("Q7747", "President of Russia")),
-        ("emmanuel macron", ("Q3052772", "President of France")),
-        ("elon musk", ("Q317521", "CEO of Tesla and SpaceX")),
-        ("marie curie", ("Q7186", "Physicist and chemist")),
-        ("albert einstein", ("Q937", "Theoretical physicist")),
-        ("new york", ("Q60", "City in New York State")),
-        ("london", ("Q84", "Capital of the United Kingdom")),
-        ("paris", ("Q90", "Capital of France")),
-        ("google", ("Q95", "American technology company")),
-        ("apple", ("Q312", "American technology company")),
-        ("microsoft", ("Q2283", "American technology company")),
-        ("united nations", ("Q1065", "International organization")),
-        ("european union", ("Q458", "Political and economic union")),
+        (
+            "vladimir putin",
+            ("demo:vladimir_putin", "President of Russia"),
+        ),
+        (
+            "emmanuel macron",
+            ("demo:emmanuel_macron", "President of France"),
+        ),
+        ("lynn conway", ("demo:lynn_conway", "VLSI pioneer")),
+        ("sophie wilson", ("demo:sophie_wilson", "Co-designed ARM")),
+        (
+            "albert einstein",
+            ("demo:albert_einstein", "Theoretical physicist"),
+        ),
+        ("new york", ("demo:new_york", "City in New York State")),
+        ("london", ("demo:london", "Capital of the United Kingdom")),
+        ("paris", ("demo:paris", "Capital of France")),
+        ("google", ("demo:google", "American technology company")),
+        ("apple", ("demo:apple", "American technology company")),
+        (
+            "microsoft",
+            ("demo:microsoft", "American technology company"),
+        ),
+        (
+            "united nations",
+            ("demo:united_nations", "International organization"),
+        ),
+        (
+            "european union",
+            ("demo:european_union", "Political and economic union"),
+        ),
     ]
     .into_iter()
     .collect();
@@ -801,15 +822,9 @@ pub fn link_tracks_to_kb(doc: &mut GroundedDocument) {
 
         let canonical_lower = canonical.to_lowercase();
 
-        // Look up in known entities
-        if let Some(&(qid, description)) = known_entities.get(canonical_lower.as_str()) {
-            // Create identity from KB
-            let mut identity = Identity::from_kb(
-                IdentityId::ZERO, // Will be assigned by add_identity
-                &canonical,
-                "wikidata",
-                qid,
-            );
+        // Look up in demo table
+        if let Some(&(kb_id, description)) = known_entities.get(canonical_lower.as_str()) {
+            let mut identity = Identity::from_kb(IdentityId::ZERO, &canonical, "demo", kb_id);
             identity.aliases.push(description.to_string());
             if let Some(etype) = &entity_type {
                 identity.entity_type = Some(etype.clone());
@@ -818,8 +833,9 @@ pub fn link_tracks_to_kb(doc: &mut GroundedDocument) {
             let identity_id = doc.add_identity(identity);
             doc.link_track_to_identity(track_id, identity_id);
         } else {
-            // Create placeholder identity without KB link
-            let identity = Identity::new(IdentityId::ZERO, &canonical);
+            // Create a deterministic demo KB id (no external meaning).
+            let kb_id = format!("demo:{}", canonical_lower.replace(' ', "_"));
+            let identity = Identity::from_kb(IdentityId::ZERO, &canonical, "demo", &kb_id);
             let identity_id = doc.add_identity(identity);
             doc.link_track_to_identity(track_id, identity_id);
         }
