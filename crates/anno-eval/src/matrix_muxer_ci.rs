@@ -73,7 +73,8 @@
 //! - “worst-first” here means “prioritize historically bad outcomes” where “bad” is
 //!   an eval failure or low F1, recorded into a muxer window.
 
-#![cfg(all(test, feature = "eval-advanced"))]
+// This module is compiled under `anno-eval`'s `eval-advanced` feature.
+// Tests within this file are still `#[cfg(test)]` as usual.
 
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
@@ -88,6 +89,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+#[cfg(test)]
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy)]
@@ -188,6 +190,7 @@ fn matrix_require_cached() -> bool {
     in_ci()
 }
 
+#[cfg(test)]
 fn ci_seed() -> u64 {
     std::env::var("ANNO_CI_SEED")
         .ok()
@@ -1567,6 +1570,7 @@ fn candidate_datasets_for_tasks(
     out
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, serde::Serialize)]
 struct DistributionReport {
     require_cached: bool,
@@ -1837,6 +1841,7 @@ fn choose_datasets_for_run(
     chosen
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, serde::Serialize)]
 struct CoverageRow {
     task: String,
@@ -2001,11 +2006,13 @@ fn test_matrix_coverage_report() {
     }
 }
 
-#[test]
-fn test_randomized_matrix_sample() {
+/// Run one randomized muxer-backed matrix sample for the given seed.
+///
+/// This is used by both:
+/// - unit tests (CI harness)
+/// - developer tooling (`muxer_repeat`)
+pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     anno::env::load_dotenv();
-
-    let seed = ci_seed();
     let strategy = SampleStrategy::from_env();
     let window_cap = env_usize("ANNO_MUXER_WINDOW_CAP", 50);
 
@@ -2805,6 +2812,12 @@ fn test_randomized_matrix_sample() {
     // (This job is intended to find regressions over time, not block all merges on flaky data.)
 }
 
+#[cfg(test)]
+#[test]
+fn test_randomized_matrix_sample() {
+    run_randomized_matrix_sample_with_seed(ci_seed());
+}
+
 #[test]
 fn test_matrix_sweep_all_backends_once() {
     // Opt-in: this can be expensive if you enable ML backends and caches are cold.
@@ -3061,6 +3074,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
     );
 }
 
+#[cfg(test)]
 fn env_lock() -> std::sync::MutexGuard<'static, ()> {
     static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| Mutex::new(()))

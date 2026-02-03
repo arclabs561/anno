@@ -24,6 +24,14 @@ pub mod muxer_harness;
 #[path = "eval/mod.rs"]
 pub mod eval;
 
+/// Muxer-backed evaluation harness (shared by tests and tooling).
+#[cfg(feature = "eval-advanced")]
+#[path = "matrix_muxer_ci.rs"]
+pub mod muxer_matrix;
+
+/// Aggregate muxer decision/outcome logs.
+pub mod muxer_agg_lib;
+
 /// Cross-document coreference / clustering (CDCR).
 ///
 /// This is re-exported at the crate root so downstream code (notably the CLI)
@@ -32,6 +40,4 @@ pub mod cdcr {
     pub use crate::eval::cdcr::*;
 }
 
-// CI-friendly matrix harness (tests).
-#[cfg(test)]
-mod matrix_muxer_ci;
+// Note: `muxer_matrix` contains its own `#[cfg(test)]` tests.
