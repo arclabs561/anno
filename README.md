@@ -66,8 +66,7 @@ anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in C
 ```json
 {
   "provenance": {
-    "model": "stacked",
-    "elapsed_ms": 12
+    "model": "stacked"
   },
   "entities": [
     {
@@ -75,10 +74,7 @@ anno extract --format json --text "Lynn Conway worked at IBM and Xerox PARC in C
       "text": "Lynn Conway",
       "type": "PER",
       "start": 0,
-      "end": 11,
-      "confidence": 0.9,
-      "negated": false,
-      "quantifier": null
+      "end": 11
     }
   ]
 }
