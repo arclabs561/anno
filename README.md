@@ -91,9 +91,6 @@ anno extract --model pattern --text "Contact jobs@acme.com by March 15 for the \
 ```
 
 ```text
-EMAIL:1 "jobs@acme.com"
-DATE:1 "March 15"
-MONEY:1 "$50K"
 EMAIL:1 "jobs@acme.com" DATE:1 "March 15" MONEY:1 "$50K"
 ```
 
@@ -105,8 +102,6 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
 ```
 
 ```text
-drug:1 "Aspirin"
-symptom:2 "headaches" "fever"
 drug:1 "Aspirin" symptom:2 "headaches" "fever"
 ```
 
