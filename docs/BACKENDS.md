@@ -75,9 +75,9 @@ Override with model-specific flags or environment variables.
 Use the CLI to see what's available in *your build*:
 
 ```bash
-anno backends
 anno models list
-anno models recommend
+anno models info gliner
+anno info
 ```
 
 ## Measuring performance

@@ -14,19 +14,19 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 ## Backends
 
-| Backend | Custom types | Weights | Notes |
-|---------|--------------|---------|-------|
-| `stacked` (default) | No | HuggingFace (when ML enabled) | Selector/fallback backend: chooses the best available backend at runtime (ML when available; otherwise regex+heuristic) |
-| `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
-| `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
-| `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
-| `w2ner` | No | [ljynlp/w2ner-bert-base](https://huggingface.co/ljynlp/w2ner-bert-base) | Nested/discontinuous entities |
-| `bert-onnx` | No | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Traditional fixed-label NER |
-| `pattern` | No | None | Regex (dates, emails, money) |
-| `heuristic` | No | None | Capitalization + context |
-| `crf` | No | Bundled (`bundled-crf-weights`) | CRF with bundled trained weights when enabled; can load custom weights |
-| `hmm` | No | Bundled (`bundled-hmm-params`) | HMM with optional bundled params (compact); baseline/education |
-| `ensemble` | No | Varies | Weighted voting across backends |
+| Backend | Label surface | Structure | Weights | Notes |
+|---------|---------------|-----------|---------|-------|
+| `stacked` (default) | Mixed (best available) | Flat spans | HuggingFace (when ML enabled) | Selector/fallback: chooses an ML backend when available, otherwise regex+heuristic |
+| `gliner` | Custom (zero-shot) | Flat spans | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier; `--extract-types` |
+| `gliner2` | Custom (zero-shot) | Flat spans | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
+| `nuner` | Custom (zero-shot) | Flat spans | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier (BIO), arbitrary-length entities |
+| `w2ner` | Fixed (trained labels) | Nested/discont. | [ljynlp/w2ner-bert-base](https://huggingface.co/ljynlp/w2ner-bert-base) | Word-word grids; supports nested spans |
+| `bert-onnx` | Fixed (PER/ORG/LOC/MISC) | Flat spans | [protectai/bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Classic CoNLL-style NER |
+| `pattern` | Fixed (patterns) | Flat spans | None | Regex for dates, emails, money |
+| `heuristic` | Fixed (heuristics) | Flat spans | None | Capitalization + context baseline |
+| `crf` | Fixed (trained labels) | Flat spans | Bundled (`bundled-crf-weights`) | Classical baseline; can load custom weights |
+| `hmm` | Fixed (trained labels) | Flat spans | Bundled (`bundled-hmm-params`) | Classical baseline/education |
+| `ensemble` | Mixed | Flat spans | Varies | Parallel combiner: weighted voting across backends |
 
 Notes:
 
@@ -35,6 +35,7 @@ Notes:
 - ML backends are feature-gated behind `onnx` or `candle`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
 - ML model weights download from HuggingFace on first use (see “Offline / downloads” below).
 - The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
+- Evaluation tooling adds additional notions (dataset/backend compatibility gates, label-shift “true zero-shot” accounting); those live in `anno-eval`, not in the runtime `Model` trait surface.
 
 ## Offline / downloads
 

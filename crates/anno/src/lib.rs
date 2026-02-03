@@ -667,13 +667,20 @@ pub fn auto() -> Result<Box<dyn Model>> {
 
 /// Check which backends are currently available.
 pub fn available_backends() -> Vec<(&'static str, bool)> {
-    #[allow(unused_mut)] // mut needed when onnx/candle features enabled
+    // Keep this list stable and conservative: it is used by the CLI (`anno models list`) to show
+    // what a given build can actually instantiate.
     let mut backends = vec![
+        // Zero-dependency / always compiled.
         ("RegexNER", true),
         ("HeuristicNER", true),
         ("StackedNER", true),
+        ("EnsembleNER", true),
+        ("CrfNER", true),
+        ("HmmNER", true),
     ];
 
+    // Feature-gated ML backends: include them even when disabled so the CLI can tell users what
+    // they are missing.
     #[cfg(feature = "onnx")]
     {
         backends.push(("BertNEROnnx", true));
@@ -681,10 +688,21 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
         backends.push(("NuNER", true));
         backends.push(("W2NER", true));
     }
+    #[cfg(not(feature = "onnx"))]
+    {
+        backends.push(("BertNEROnnx", false));
+        backends.push(("GLiNEROnnx", false));
+        backends.push(("NuNER", false));
+        backends.push(("W2NER", false));
+    }
 
     #[cfg(feature = "candle")]
     {
         backends.push(("CandleNER", true));
+    }
+    #[cfg(not(feature = "candle"))]
+    {
+        backends.push(("CandleNER", false));
     }
 
     backends
