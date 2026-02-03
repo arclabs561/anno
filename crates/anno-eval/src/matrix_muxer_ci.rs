@@ -432,6 +432,10 @@ struct DecisionOutcomeLog {
     slice: String,
     dataset: String,
     backend: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    primary_f1: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    junk_f1_threshold: Option<f64>,
     ok: bool,
     junk: bool,
     hard_junk: bool,
@@ -2721,6 +2725,8 @@ fn test_randomized_matrix_sample() {
                 "seed={} slice={} strategy={:?}",
                 seed, slice_tag_for_muxer, strategy
             );
+            let f1 = r.primary_f1().unwrap_or(0.0);
+            let thr = junk_f1_threshold(r.task);
             append_jsonl(
                 p,
                 &DecisionOutcomeLog {
@@ -2732,6 +2738,8 @@ fn test_randomized_matrix_sample() {
                     slice: slice_tag_for_muxer.to_string(),
                     dataset: format!("{:?}", r.dataset),
                     backend: r.backend.clone(),
+                    primary_f1: Some(f1),
+                    junk_f1_threshold: Some(thr),
                     ok,
                     junk,
                     hard_junk,
