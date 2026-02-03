@@ -88,9 +88,10 @@ pub enum Commands {
     #[command(hide = true)]
     Benchmark(commands::BenchmarkArgs),
 
-    /// Inspect muxer history from the randomized matrix harness
+    /// Inspect sampler history from the randomized matrix harness
     #[cfg(feature = "eval-advanced")]
     #[command(hide = true)]
+    #[command(name = "sampler", visible_alias = "muxer")]
     Muxer(commands::MuxerArgs),
 
     /// Show model and version info
