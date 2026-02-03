@@ -10,7 +10,7 @@ API docs: [docs.rs/anno](https://docs.rs/anno)
 
 | Backend | Zero-shot | Weights | Notes |
 |---------|-----------|---------|-------|
-| `stacked` (default) | No | HuggingFace | BERT/GLiNER + regex + heuristic |
+| `stacked` (default) | No | HuggingFace (ONNX) | BERT/GLiNER + regex + heuristic |
 | `gliner` | Yes | [onnx-community/gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Span classifier, custom entity types |
 | `gliner2` | Yes | [onnx-community/gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | Multi-task (NER + classification) |
 | `nuner` | Yes | [deepanwa/NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Token classifier, arbitrary-length entities |
@@ -69,6 +69,17 @@ anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutioni
 
 ```text
 Coreference: "Sophie Wilson" → "She"
+```
+
+## Library (Rust)
+
+```rust
+use anno::{Model, StackedNER};
+
+let m = StackedNER::default();
+let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
+assert!(!ents.is_empty());
+# Ok::<(), anno::Error>(())
 ```
 
 ## Install

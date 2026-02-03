@@ -50,6 +50,14 @@
 //! - `ANNO_MUXER_DECISIONS_DEFAULT`: if true (default locally, false in CI), write decisions JSONL to a default cache file
 //! - `ANNO_MUXER_DECISIONS_TOP`: max candidate rows to include per decision (default: 8)
 //! - `ANNO_MUXER_FIXED_BACKEND`: force evaluation of a specific backend (or comma-separated list)
+//! - `ANNO_MUXER_FIXED_DATASETS`: force evaluation on specific datasets (comma-separated `DatasetId` debug names)
+//! - `ANNO_MUXER_PIN_LANG`: restrict dataset sampling to one or more languages (comma-separated)
+//! - `ANNO_MUXER_PIN_DOMAIN`: restrict dataset sampling to one or more domains (comma-separated)
+//! - Aliases (same semantics):
+//!   - `ANNO_MUXER_FORCE_BACKEND` == `ANNO_MUXER_FIXED_BACKEND`
+//!   - `ANNO_MUXER_FORCE_DATASETS` == `ANNO_MUXER_FIXED_DATASETS`
+//!   - `ANNO_MUXER_FILTER_LANG` == `ANNO_MUXER_PIN_LANG`
+//!   - `ANNO_MUXER_FILTER_DOMAIN` == `ANNO_MUXER_PIN_DOMAIN`
 //! - `ANNO_MATRIX_SWEEP`: if true, enables `test_matrix_sweep_all_backends_once` (opt-in)
 //! - `ANNO_MATRIX_SWEEP_STRICT`: if true (default when sweep enabled), fail the test on any skip/failure
 //! - `ANNO_MATRIX_SWEEP_MAX_EXAMPLES`: max examples per dataset in sweep (default: 5)
@@ -1755,8 +1763,44 @@ fn choose_datasets_for_run(
     require_cached: bool,
     datasets_per_run: usize,
 ) -> Vec<DatasetId> {
-    let candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
+    let mut candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
     if candidates.is_empty() || datasets_per_run == 0 {
+        return Vec::new();
+    }
+
+    // Optional facet pins for dataset selection.
+    //
+    // This is intentionally simple and coarse: it constrains which datasets we *sample* so muxer
+    // histories don't bleed across unrelated language/domain buckets.
+    fn env_csv_set(key: &str) -> Option<std::collections::BTreeSet<String>> {
+        let raw = std::env::var(key).ok()?;
+        let t = raw.trim();
+        if t.is_empty() {
+            return None;
+        }
+        let mut out = std::collections::BTreeSet::new();
+        for part in t.split(',') {
+            let s = part.trim().to_ascii_lowercase();
+            if !s.is_empty() {
+                out.insert(s);
+            }
+        }
+        if out.is_empty() { None } else { Some(out) }
+    }
+    let pin_lang = env_csv_set("ANNO_MUXER_PIN_LANG").or_else(|| env_csv_set("ANNO_MUXER_FILTER_LANG"));
+    let pin_dom = env_csv_set("ANNO_MUXER_PIN_DOMAIN").or_else(|| env_csv_set("ANNO_MUXER_FILTER_DOMAIN"));
+    if pin_lang.is_some() || pin_dom.is_some() {
+        candidates.retain(|d| {
+            let lang_ok = pin_lang
+                .as_ref()
+                .is_none_or(|s| s.contains(&d.language().to_ascii_lowercase()));
+            let dom_ok = pin_dom
+                .as_ref()
+                .is_none_or(|s| s.contains(&d.domain().to_ascii_lowercase()));
+            lang_ok && dom_ok
+        });
+    }
+    if candidates.is_empty() {
         return Vec::new();
     }
 
@@ -2001,7 +2045,10 @@ fn test_randomized_matrix_sample() {
     // When set, we also bias dataset sampling toward datasets compatible with that backend so
     // measure-mode results stay meaningful.
     let fixed_backends_requested: Option<Vec<String>> =
-        std::env::var("ANNO_MUXER_FIXED_BACKEND").ok().map(|raw| {
+        std::env::var("ANNO_MUXER_FIXED_BACKEND")
+            .or_else(|_| std::env::var("ANNO_MUXER_FORCE_BACKEND"))
+            .ok()
+            .map(|raw| {
             raw.split(',')
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
@@ -2029,6 +2076,47 @@ fn test_randomized_matrix_sample() {
             );
             return;
         }
+    }
+
+    // Optional override: fixed datasets (comma-separated DatasetId debug names).
+    //
+    // This is the most “pandas groupby”-like pin: you are explicitly choosing the group.
+    if let Ok(raw) = std::env::var("ANNO_MUXER_FIXED_DATASETS")
+        .or_else(|_| std::env::var("ANNO_MUXER_FORCE_DATASETS"))
+    {
+        let t = raw.trim();
+        if t.is_empty() {
+            eprintln!("matrix-muxer: ANNO_MUXER_FIXED_DATASETS is set but empty");
+            return;
+        }
+        let mut map: std::collections::BTreeMap<String, DatasetId> = std::collections::BTreeMap::new();
+        for &d in DatasetId::all().iter() {
+            map.insert(format!("{d:?}").to_ascii_lowercase(), d);
+        }
+        let mut fixed: Vec<DatasetId> = Vec::new();
+        for part in t.split(',') {
+            let key = part.trim().to_ascii_lowercase();
+            if key.is_empty() {
+                continue;
+            }
+            if let Some(&d) = map.get(&key) {
+                fixed.push(d);
+            } else {
+                eprintln!("matrix-muxer: unknown dataset in ANNO_MUXER_FIXED_DATASETS: {part}");
+            }
+        }
+        fixed.dedup();
+        // Keep this harness bounded: respect `datasets_per_run` unless the user also increased it.
+        if fixed.len() > datasets_per_run {
+            fixed.truncate(datasets_per_run);
+        }
+        fixed.retain(|ds| dataset_is_usable(&loader, *ds, require_cached_for_run));
+        fixed.retain(|ds| tasks.iter().all(|t| dataset_tasks(*ds).contains(t)));
+        if fixed.is_empty() {
+            eprintln!("matrix-muxer: no usable fixed datasets remained after filtering");
+            return;
+        }
+        chosen_datasets = fixed;
     }
 
     if let Some(ref fixed) = fixed_backends_requested {
