@@ -25,10 +25,13 @@ struct GroupRow {
     hard_junk: u64,
     mean_primary_f1: Option<f64>,
     std_primary_f1: Option<f64>,
+    stderr_primary_f1: Option<f64>,
     mean_elapsed_ms: Option<f64>,
     std_elapsed_ms: Option<f64>,
+    stderr_elapsed_ms: Option<f64>,
     mean_cost_units: Option<f64>,
     std_cost_units: Option<f64>,
+    stderr_cost_units: Option<f64>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -58,6 +61,13 @@ fn mean_std(sum: f64, sum_sq: f64, n: u64) -> Option<(f64, f64)> {
     let var = (sum_sq / n_f) - mean * mean;
     let std = var.max(0.0).sqrt();
     Some((mean, std))
+}
+
+fn stderr(std: f64, n: u64) -> Option<f64> {
+    if n == 0 {
+        return None;
+    }
+    Some(std / (n as f64).sqrt())
 }
 
 fn parse_task_from_slice(slice: &str) -> String {
@@ -192,10 +202,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             hard_junk: a.hard_junk,
             mean_primary_f1: mean_std(a.sum_f1, a.sum_f1_sq, a.n_f1).map(|(m, _)| m),
             std_primary_f1: mean_std(a.sum_f1, a.sum_f1_sq, a.n_f1).map(|(_, s)| s),
+            stderr_primary_f1: mean_std(a.sum_f1, a.sum_f1_sq, a.n_f1)
+                .and_then(|(_, s)| stderr(s, a.n_f1)),
             mean_elapsed_ms: mean_std(a.sum_ms, a.sum_ms_sq, a.n_ms).map(|(m, _)| m),
             std_elapsed_ms: mean_std(a.sum_ms, a.sum_ms_sq, a.n_ms).map(|(_, s)| s),
+            stderr_elapsed_ms: mean_std(a.sum_ms, a.sum_ms_sq, a.n_ms)
+                .and_then(|(_, s)| stderr(s, a.n_ms)),
             mean_cost_units: mean_std(a.sum_cost, a.sum_cost_sq, a.n_cost).map(|(m, _)| m),
             std_cost_units: mean_std(a.sum_cost, a.sum_cost_sq, a.n_cost).map(|(_, s)| s),
+            stderr_cost_units: mean_std(a.sum_cost, a.sum_cost_sq, a.n_cost)
+                .and_then(|(_, s)| stderr(s, a.n_cost)),
         })
         .collect();
 
