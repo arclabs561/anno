@@ -817,9 +817,7 @@ impl BackendHistory {
     }
 
     fn fail_kinds_mut(&mut self, key: &str) -> &mut VecDeque<Option<String>> {
-        self.fail_kinds
-            .entry(key.to_string())
-            .or_insert_with(VecDeque::new)
+        self.fail_kinds.entry(key.to_string()).or_default()
     }
 
     fn push_with_fail_kind(&mut self, key: &str, o: Outcome, fail_kind: Option<String>) {
@@ -1028,6 +1026,7 @@ fn mab_config_from_env() -> MabConfig {
     mh::mab_config_from_env()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select_backends(
     strategy: SampleStrategy,
     seed: u64,
@@ -1203,7 +1202,7 @@ fn select_backends(
                 }
             }
 
-            if let (Some(ref p), Some(mk)) = (decisions_path.as_ref(), mk_opt.as_ref()) {
+            if let (Some(p), Some(mk)) = (decisions_path.as_ref(), mk_opt.as_ref()) {
                 let round_logs = muxer::log_mab_k_rounds_typed(mk, decisions_top);
                 let ds: Vec<String> = datasets
                     .unwrap_or(&[])

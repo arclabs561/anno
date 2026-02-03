@@ -599,14 +599,18 @@ fn extract_with_custom_types(
 ) -> Result<Vec<anno::Entity>, CliError> {
     use super::super::output::color;
 
-    let threshold = threshold.unwrap_or(0.5) as f32;
-    let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
+    // When ONNX is not enabled, `--extract-types` is unsupported and these become unused.
+    #[cfg(not(feature = "onnx"))]
+    let _ = (custom_types, threshold);
 
     // Try to use zero-shot capable backends
     #[cfg(feature = "onnx")]
     {
         use super::super::parser::ModelBackend;
         use anno::backends::inference::ZeroShotNER;
+
+        let threshold = threshold.unwrap_or(0.5) as f32;
+        let type_refs: Vec<&str> = custom_types.iter().map(|s| s.as_str()).collect();
 
         match backend {
             ModelBackend::Gliner => {
