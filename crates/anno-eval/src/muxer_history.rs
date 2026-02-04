@@ -5,7 +5,7 @@
 
 use crate::eval::loader::DatasetId;
 use crate::muxer_harness as mh;
-use muxer::{Exp3IxState, Outcome, Summary, Window};
+use muxer::{Exp3IxState, Outcome, Summary};
 use std::collections::{BTreeMap, VecDeque};
 use std::fs;
 use std::path::PathBuf;
@@ -17,6 +17,56 @@ pub struct FailKindCount {
     pub kind: String,
     /// Number of occurrences.
     pub count: u64,
+}
+
+/// A bounded outcome window for one arm.
+///
+/// This intentionally mirrors muxer’s window JSON shape (`{cap, buf}`) but keeps the buffer
+/// directly accessible for tooling (e.g. “recent vs baseline” regressions).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct HistoryWindow {
+    /// Maximum outcomes to retain.
+    #[serde(default)]
+    pub cap: usize,
+    /// Outcome buffer (oldest → newest).
+    #[serde(default)]
+    pub buf: VecDeque<Outcome>,
+}
+
+impl HistoryWindow {
+    /// Create a new empty window with capacity `cap` (minimum 1).
+    #[must_use]
+    pub fn new(cap: usize) -> Self {
+        Self {
+            cap: cap.max(1),
+            buf: VecDeque::new(),
+        }
+    }
+
+    /// Push a new outcome, truncating to `cap` (keeps most-recent).
+    pub fn push(&mut self, o: Outcome) {
+        let cap = self.cap.max(1);
+        self.buf.push_back(o);
+        while self.buf.len() > cap {
+            self.buf.pop_front();
+        }
+    }
+
+    /// Summarize the current buffer (counts + sums).
+    #[must_use]
+    pub fn summary(&self) -> Summary {
+        let mut s = Summary::default();
+        for o in &self.buf {
+            s.calls = s.calls.saturating_add(1);
+            s.ok = s.ok.saturating_add(o.ok as u64);
+            s.http_429 = s.http_429.saturating_add(o.http_429 as u64);
+            s.junk = s.junk.saturating_add(o.junk as u64);
+            s.hard_junk = s.hard_junk.saturating_add(o.hard_junk as u64);
+            s.cost_units = s.cost_units.saturating_add(o.cost_units);
+            s.elapsed_ms_sum = s.elapsed_ms_sum.saturating_add(o.elapsed_ms);
+        }
+        s
+    }
 }
 
 /// Persistent history of backend evaluation outcomes.
@@ -31,7 +81,7 @@ pub struct BackendHistory {
     /// Maximum window size per arm.
     pub window_cap: usize,
     /// Per-arm outcome windows. Keys are backend names or `{backend}@@{DatasetId}`.
-    pub windows: BTreeMap<String, Window>,
+    pub windows: BTreeMap<String, HistoryWindow>,
     /// Per-outcome failure kind strings (triage metadata, not used for selection).
     #[serde(default)]
     pub fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
@@ -48,20 +98,13 @@ impl BackendHistory {
     /// - `Err(_)` if the file exists but cannot be read or parsed
     pub fn try_load(path: &PathBuf, window_cap: usize) -> Result<Self, String> {
         #[derive(Debug, Clone, serde::Deserialize)]
-        struct WindowSerde {
-            #[serde(default)]
-            cap: usize,
-            #[serde(default)]
-            buf: VecDeque<Outcome>,
-        }
-        #[derive(Debug, Clone, serde::Deserialize)]
         struct BackendHistorySerde {
             #[serde(default)]
             version: u32,
             #[serde(default)]
             window_cap: usize,
             #[serde(default)]
-            windows: BTreeMap<String, WindowSerde>,
+            windows: BTreeMap<String, HistoryWindow>,
             #[serde(default)]
             fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
             #[serde(default)]
@@ -92,11 +135,10 @@ impl BackendHistory {
         // - v0/1: legacy; ok field was inverted or ambiguous
         // - v2: ok := "evaluation succeeded" (upgrade to quality-aware)
         // - v3+: ok := "succeeded AND not junk"
-        let mut windows: BTreeMap<String, Window> = BTreeMap::new();
+        let mut windows: BTreeMap<String, HistoryWindow> = BTreeMap::new();
         let mut fail_kinds: BTreeMap<String, VecDeque<Option<String>>> = BTreeMap::new();
         for (k, w) in h.windows {
-            let _ = w.cap;
-            let mut out = Window::new(cap);
+            let mut out = HistoryWindow::new(cap);
             for mut o in w.buf {
                 match h.version {
                     0 | 1 => {
@@ -155,7 +197,7 @@ impl BackendHistory {
         let w = self
             .windows
             .entry(key.to_string())
-            .or_insert_with(|| Window::new(self.window_cap));
+            .or_insert_with(|| HistoryWindow::new(self.window_cap));
         w.push(o);
 
         let cap = self.window_cap;
