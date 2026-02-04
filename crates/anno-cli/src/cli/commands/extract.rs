@@ -15,15 +15,10 @@ use anno::ingest::DocumentPreprocessor;
 use anno::backends::inference::{
     extract_relation_triples, RelationExtractionConfig, RelationExtractor, SemanticRegistry,
 };
-#[cfg(not(feature = "graph"))]
 use anno_core::core::graph::{GraphDocument, GraphExportFormat};
 use anno_core::core::grounded::{
     GroundedDocument, Location, Modality, Signal, SignalId, SignalValidationError,
 };
-#[cfg(feature = "graph")]
-use anno_lattix::grounded_to_lattix_graph;
-#[cfg(feature = "graph")]
-use lattix::GraphExportFormat as LattixGraphExportFormat;
 
 use crate::cli::CliError;
 
@@ -791,79 +786,49 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Export to graph format if requested
     if let Some(graph_format_str) = args.export_graph {
-        #[cfg(feature = "graph")]
-        {
-            let graph_format = match graph_format_str.to_lowercase().as_str() {
-                "neo4j" | "cypher" => LattixGraphExportFormat::Cypher,
-                "networkx" | "nx" => LattixGraphExportFormat::NetworkXJson,
-                "jsonld" | "json-ld" => LattixGraphExportFormat::JsonLd,
-                _ => {
-                    return Err(CliError::from(format!(
-                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
-                        graph_format_str
-                    )));
-                }
-            };
-
-            let graph = grounded_to_lattix_graph(&doc);
-            let graph_output = graph.export(graph_format);
-
-            if !args.quiet {
-                eprintln!(
-                    "{} Exported graph ({} nodes, {} edges) in {} format (lattix)",
-                    color("32", "✓"),
-                    graph.node_count(),
-                    graph.edge_count(),
+        let graph_format = match graph_format_str.to_lowercase().as_str() {
+            "neo4j" | "cypher" => GraphExportFormat::Cypher,
+            "networkx" | "nx" => GraphExportFormat::NetworkXJson,
+            "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
+            _ => {
+                return Err(CliError::from(format!(
+                    "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
                     graph_format_str
-                );
+                )));
             }
-            println!("{}", graph_output);
-        }
-        #[cfg(not(feature = "graph"))]
-        {
-            let graph_format = match graph_format_str.to_lowercase().as_str() {
-                "neo4j" | "cypher" => GraphExportFormat::Cypher,
-                "networkx" | "nx" => GraphExportFormat::NetworkXJson,
-                "jsonld" | "json-ld" => GraphExportFormat::JsonLd,
-                _ => {
-                    return Err(CliError::from(format!(
-                        "Invalid graph format '{}'. Use: neo4j, networkx, or jsonld",
-                        graph_format_str
-                    )));
-                }
-            };
+        };
 
-            let graph = if args.extract_relations && !relation_triples.is_empty() {
-                let mut rels: Vec<anno_core::Relation> = Vec::new();
-                for r in &relation_triples {
-                    if let (Some(head), Some(tail)) = (entities.get(r.head_idx), entities.get(r.tail_idx)) {
-                        rels.push(anno_core::Relation::new(
-                            head.clone(),
-                            tail.clone(),
-                            r.relation_type.clone(),
-                            f64::from(r.confidence),
-                        ));
-                    }
+        let graph = if args.extract_relations && !relation_triples.is_empty() {
+            let mut rels: Vec<anno_core::Relation> = Vec::new();
+            for r in &relation_triples {
+                if let (Some(head), Some(tail)) = (entities.get(r.head_idx), entities.get(r.tail_idx))
+                {
+                    rels.push(anno_core::Relation::new(
+                        head.clone(),
+                        tail.clone(),
+                        r.relation_type.clone(),
+                        f64::from(r.confidence),
+                    ));
                 }
-                GraphDocument::from_extraction(&entities, &rels, None)
-            } else {
-                GraphDocument::from_grounded_document(&doc)
-            };
-            let graph_output = graph.export(graph_format);
-
-            // Output graph to stdout (always print to stdout for graph export)
-            // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
-            if !args.quiet {
-                eprintln!(
-                    "{} Exported graph ({} nodes, {} edges) in {} format",
-                    color("32", "✓"),
-                    graph.node_count(),
-                    graph.edge_count(),
-                    graph_format_str
-                );
             }
-            println!("{}", graph_output);
+            GraphDocument::from_extraction(&entities, &rels, None)
+        } else {
+            GraphDocument::from_grounded_document(&doc)
+        };
+        let graph_output = graph.export(graph_format);
+
+        // Output graph to stdout (always print to stdout for graph export)
+        // Note: If user wants to save to file, they can use shell redirection: --export-graph neo4j > output.cypher
+        if !args.quiet {
+            eprintln!(
+                "{} Exported graph ({} nodes, {} edges) in {} format",
+                color("32", "✓"),
+                graph.node_count(),
+                graph.edge_count(),
+                graph_format_str
+            );
         }
+        println!("{}", graph_output);
     }
 
     Ok(())

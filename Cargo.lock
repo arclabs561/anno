@@ -104,7 +104,6 @@ dependencies = [
  "anno",
  "anno-core",
  "anno-eval",
- "anno-lattix",
  "chrono",
  "clap",
  "clap_complete",
@@ -1461,6 +1460,8 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 [[package]]
 name = "gramdex"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbd3ab36f1dc2b51cc8c4e846222430f9dfa00b45cd6af523b56aab07aae03f4"
 dependencies = [
  "thiserror 2.0.17",
 ]
@@ -1910,14 +1911,9 @@ dependencies = [
 
 [[package]]
 name = "lattix"
-version = "0.1.0"
-dependencies = [
- "lattix-core",
-]
-
-[[package]]
-name = "lattix-core"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43d6d54eaad1e30d06d92064ccec75d0108e774b11ac6d829bd47f8c57d36c38"
 dependencies = [
  "csv",
  "oxiri",
@@ -2127,7 +2123,9 @@ dependencies = [
 
 [[package]]
 name = "muxer"
-version = "0.1.0"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "083e606c1bfb0b8a92da9eb290773a2eb1f840e0abb3b8459c8aa74ee19cdc8b"
 dependencies = [
  "pare",
  "rand",

@@ -9,5 +9,6 @@ publish = false
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.2.0" }
-lattix = { path = "../../../lattix/lattix", default-features = false }
+# crates.io `lattix` expects its default feature set to be enabled to pull in optional deps.
+lattix = { version = "0.1.1" }
 

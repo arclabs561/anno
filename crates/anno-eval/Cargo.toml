@@ -39,7 +39,7 @@ clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { path = "../../../muxer", default-features = false, features = ["serde", "stochastic", "contextual"] }
+muxer = { version = "0.1.1", default-features = false, features = ["serde", "stochastic", "contextual"] }
 hf-hub = { workspace = true, optional = true }
 
 [dev-dependencies]
