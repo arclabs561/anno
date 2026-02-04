@@ -2135,7 +2135,7 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.1.1"
-source = "git+https://github.com/arclabs561/muxer.git?rev=796efc5#796efc5d02ccfbf166510f41bb0e72743ac35581"
+source = "git+https://github.com/arclabs561/muxer.git?rev=ed87fcf#ed87fcfcc80f125abd87732018102eb6c238cfe1"
 dependencies = [
  "pare",
  "rand",
