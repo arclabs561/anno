@@ -25,6 +25,9 @@ use muxer::MabConfig;
 #[cfg(feature = "eval-advanced")]
 use anno_eval::muxer_harness as mh;
 
+#[cfg(feature = "eval-advanced")]
+use anno_eval::muxer_history::BackendHistory;
+
 /// Inspect muxer history from the randomized matrix sampler harness.
 #[derive(Parser, Debug)]
 #[command(about = "Inspect muxer history from the randomized matrix sampler harness")]
@@ -686,43 +689,6 @@ impl MuxerStrategy {
     }
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct BackendHistory {
-    #[serde(default)]
-    version: u32,
-    window_cap: usize,
-    windows: BTreeMap<String, WindowSerde>,
-    /// Optional triage metadata recorded by the matrix sampler harness (parallel to `windows`).
-    ///
-    /// Keys match `windows` keys. Each entry is a deque of optional coarse failure kinds, aligned
-    /// with the corresponding window buffer (best-effort).
-    #[serde(default)]
-    fail_kinds: BTreeMap<String, std::collections::VecDeque<Option<String>>>,
-}
-
-#[derive(Debug, Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
-struct OutcomeSerde {
-    ok: bool,
-    #[serde(default)]
-    http_429: bool,
-    #[serde(default)]
-    junk: bool,
-    #[serde(default)]
-    hard_junk: bool,
-    #[serde(default)]
-    cost_units: u64,
-    #[serde(default)]
-    elapsed_ms: u64,
-}
-
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-struct WindowSerde {
-    #[serde(default)]
-    cap: usize,
-    #[serde(default)]
-    buf: Vec<OutcomeSerde>,
-}
-
 #[derive(Debug, Clone, Copy, Default)]
 struct SummarySerde {
     calls: u64,
@@ -752,7 +718,7 @@ impl SummarySerde {
         ((center - half).max(0.0), (center + half).min(1.0))
     }
 
-    fn from_window(w: &WindowSerde) -> Self {
+    fn from_window(w: &anno_eval::muxer_history::HistoryWindow) -> Self {
         let mut out = SummarySerde {
             calls: w.buf.len() as u64,
             ..Default::default()
@@ -835,41 +801,47 @@ impl SummarySerde {
     }
 }
 
-impl BackendHistory {
-    fn load(path: &PathBuf, default_window_cap: usize) -> Result<Self, String> {
-        let bytes =
-            std::fs::read(path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-        let mut h: BackendHistory = serde_json::from_slice(&bytes)
-            .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
-        if h.version == 0 {
-            // Older files may not have carried a version.
-            h.version = 1;
-        }
-        if h.window_cap == 0 {
-            h.window_cap = default_window_cap.max(1);
-        }
-        let cap = h.window_cap.max(1);
+/// CLI-local helpers for inspecting muxer history.
+///
+/// These are intentionally kept in the CLI crate (formatting/UX needs), but the underlying
+/// persistence schema and upgrade logic live in `anno-eval` (`muxer_history`).
+trait BackendHistoryCliExt {
+    fn summaries_for_cli(
+        &self,
+        prior: Option<&BackendHistory>,
+        arms: &[String],
+        datasets: Option<&BTreeSet<String>>,
+        per_dataset: bool,
+        prior_calls: u64,
+    ) -> BTreeMap<String, SummarySerde>;
 
-        // Defensive: older or hand-edited history files may contain unbounded buffers. Truncate
-        // windows and failure-kind deques to the configured cap, keeping the most-recent entries.
-        for w in h.windows.values_mut() {
-            if w.cap == 0 {
-                w.cap = cap;
-            }
-            if w.buf.len() > cap {
-                let keep_from = w.buf.len() - cap;
-                w.buf = w.buf.split_off(keep_from);
-            }
-        }
-        for q in h.fail_kinds.values_mut() {
-            while q.len() > cap {
-                q.pop_front();
-            }
-        }
-        Ok(h)
-    }
+    fn dataset_breakdown_for_arm_cli(&self, arm: &str) -> Vec<(String, SummarySerde)>;
 
-    fn summaries_for(
+    fn failure_kind_counts_for_arm_cli(
+        &self,
+        arm: &str,
+        datasets: Option<&BTreeSet<String>>,
+        per_dataset: bool,
+    ) -> BTreeMap<String, u64>;
+
+    fn failure_kind_counts_for_key_cli(&self, key: &str) -> BTreeMap<String, u64>;
+    fn failure_kind_counts_recent_for_key_cli(&self, key: &str, recent: usize)
+        -> BTreeMap<String, u64>;
+    fn failure_kind_counts_prev_for_key_cli(&self, key: &str, recent: usize) -> BTreeMap<String, u64>;
+
+    fn summary_for_key_cli(&self, key: &str) -> SummarySerde;
+    fn summary_recent_for_key_cli(&self, key: &str, recent: usize) -> SummarySerde;
+
+    fn observed_calls_and_elapsed_cli(
+        &self,
+        arm: &str,
+        datasets: Option<&BTreeSet<String>>,
+        per_dataset: bool,
+    ) -> (u64, u64);
+}
+
+impl BackendHistoryCliExt for BackendHistory {
+    fn summaries_for_cli(
         &self,
         prior: Option<&BackendHistory>,
         arms: &[String],
@@ -1001,8 +973,7 @@ impl BackendHistory {
         out
     }
 
-    fn dataset_breakdown_for_arm(&self, arm: &str) -> Vec<(String, SummarySerde)> {
-        // Collect per-dataset windows with keys like `arm@@DatasetId`.
+    fn dataset_breakdown_for_arm_cli(&self, arm: &str) -> Vec<(String, SummarySerde)> {
         let prefix = format!("{arm}@@");
         let mut rows: Vec<(String, SummarySerde)> = Vec::new();
         for (k, w) in &self.windows {
@@ -1020,7 +991,7 @@ impl BackendHistory {
         rows
     }
 
-    fn failure_kind_counts_for_arm(
+    fn failure_kind_counts_for_arm_cli(
         &self,
         arm: &str,
         datasets: Option<&BTreeSet<String>>,
@@ -1053,7 +1024,6 @@ impl BackendHistory {
             }
         }
 
-        // Fallback: global per-backend key.
         if let Some(buf) = self.fail_kinds.get(arm) {
             for kind in buf.iter().flatten() {
                 *counts.entry(kind.clone()).or_insert(0) += 1;
@@ -1062,7 +1032,7 @@ impl BackendHistory {
         counts
     }
 
-    fn failure_kind_counts_for_key(&self, key: &str) -> BTreeMap<String, u64> {
+    fn failure_kind_counts_for_key_cli(&self, key: &str) -> BTreeMap<String, u64> {
         let mut counts: BTreeMap<String, u64> = BTreeMap::new();
         let Some(buf) = self.fail_kinds.get(key) else {
             return counts;
@@ -1073,7 +1043,7 @@ impl BackendHistory {
         counts
     }
 
-    fn failure_kind_counts_recent_for_key(
+    fn failure_kind_counts_recent_for_key_cli(
         &self,
         key: &str,
         recent: usize,
@@ -1093,7 +1063,7 @@ impl BackendHistory {
         counts
     }
 
-    fn failure_kind_counts_prev_for_key(&self, key: &str, recent: usize) -> BTreeMap<String, u64> {
+    fn failure_kind_counts_prev_for_key_cli(&self, key: &str, recent: usize) -> BTreeMap<String, u64> {
         let mut counts: BTreeMap<String, u64> = BTreeMap::new();
         let Some(buf) = self.fail_kinds.get(key) else {
             return counts;
@@ -1110,14 +1080,14 @@ impl BackendHistory {
         counts
     }
 
-    fn summary_for_key(&self, key: &str) -> SummarySerde {
+    fn summary_for_key_cli(&self, key: &str) -> SummarySerde {
         self.windows
             .get(key)
             .map(SummarySerde::from_window)
             .unwrap_or_default()
     }
 
-    fn summary_recent_for_key(&self, key: &str, recent: usize) -> SummarySerde {
+    fn summary_recent_for_key_cli(&self, key: &str, recent: usize) -> SummarySerde {
         let Some(w) = self.windows.get(key) else {
             return SummarySerde::default();
         };
@@ -1141,10 +1111,7 @@ impl BackendHistory {
         out
     }
 
-    /// Compute observed (non-smoothed) stats for an arm under the current dataset scope.
-    ///
-    /// Returns `(calls, elapsed_ms_sum)`.
-    fn observed_calls_and_elapsed(
+    fn observed_calls_and_elapsed_cli(
         &self,
         arm: &str,
         datasets: Option<&BTreeSet<String>>,
@@ -1197,8 +1164,9 @@ mod fail_kinds_tests {
             window_cap: 50,
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
+            exp3ix_state: None,
         };
-        let c = h.failure_kind_counts_for_arm("a", None, true);
+        let c = h.failure_kind_counts_for_arm_cli("a", None, true);
         assert!(c.is_empty());
     }
 
@@ -1209,6 +1177,7 @@ mod fail_kinds_tests {
             window_cap: 50,
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
+            exp3ix_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string()));
@@ -1216,71 +1185,8 @@ mod fail_kinds_tests {
         q.push_back(Some("timeout".to_string()));
         h.fail_kinds.insert("a@@Wnut17".to_string(), q);
 
-        let c = h.failure_kind_counts_for_arm("a", None, true);
+        let c = h.failure_kind_counts_for_arm_cli("a", None, true);
         assert_eq!(c.get("timeout").copied().unwrap_or(0), 2);
-    }
-
-    #[test]
-    fn test_backend_history_load_truncates_windows_and_fail_kinds_to_cap() {
-        let mut h = BackendHistory {
-            version: 3,
-            window_cap: 3,
-            windows: BTreeMap::new(),
-            fail_kinds: BTreeMap::new(),
-        };
-        h.windows.insert(
-            "a".to_string(),
-            WindowSerde {
-                cap: 0,
-                buf: vec![
-                    OutcomeSerde {
-                        ok: true,
-                        ..Default::default()
-                    },
-                    OutcomeSerde {
-                        ok: false,
-                        ..Default::default()
-                    },
-                    OutcomeSerde {
-                        ok: true,
-                        ..Default::default()
-                    },
-                    OutcomeSerde {
-                        ok: false,
-                        ..Default::default()
-                    },
-                ],
-            },
-        );
-        let mut q = VecDeque::new();
-        q.push_back(Some("timeout".to_string()));
-        q.push_back(Some("timeout".to_string()));
-        q.push_back(None);
-        q.push_back(Some("backend".to_string()));
-        h.fail_kinds.insert("a".to_string(), q);
-
-        let bytes = serde_json::to_vec(&h).expect("serialize BackendHistory");
-        let mut path = std::env::temp_dir();
-        path.push(format!(
-            "anno_muxer_history_test_{}.json",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::fs::write(&path, bytes).expect("write temp history");
-
-        let loaded = BackendHistory::load(&path, 50).expect("load history");
-        let _ = std::fs::remove_file(&path);
-
-        assert_eq!(loaded.window_cap, 3);
-        let w = loaded.windows.get("a").expect("window a");
-        assert_eq!(w.cap, 3);
-        assert_eq!(w.buf.len(), 3, "window buf truncated to cap");
-        let fk = loaded.fail_kinds.get("a").expect("fail_kinds a");
-        assert_eq!(fk.len(), 3, "fail_kinds deque truncated to cap");
-        // We keep most-recent entries.
-        assert_eq!(fk.back().and_then(|x| x.as_deref()), Some("backend"));
     }
 
     #[test]
@@ -1290,6 +1196,7 @@ mod fail_kinds_tests {
             window_cap: 50,
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
+            exp3ix_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string()));
@@ -1298,11 +1205,11 @@ mod fail_kinds_tests {
         q.push_back(Some("timeout".to_string()));
         h.fail_kinds.insert("a@@D1".to_string(), q);
 
-        let all = h.failure_kind_counts_for_key("a@@D1");
+        let all = h.failure_kind_counts_for_key_cli("a@@D1");
         assert_eq!(all.get("timeout").copied().unwrap_or(0), 2);
         assert_eq!(all.get("dataset").copied().unwrap_or(0), 1);
 
-        let rec2 = h.failure_kind_counts_recent_for_key("a@@D1", 2);
+        let rec2 = h.failure_kind_counts_recent_for_key_cli("a@@D1", 2);
         assert_eq!(rec2.get("timeout").copied().unwrap_or(0), 1);
         assert_eq!(rec2.get("dataset").copied().unwrap_or(0), 1);
         assert_eq!(rec2.len(), 2);
@@ -1315,6 +1222,7 @@ mod fail_kinds_tests {
             window_cap: 50,
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
+            exp3ix_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string())); // prev
@@ -1323,7 +1231,7 @@ mod fail_kinds_tests {
         q.push_back(Some("backend".to_string())); // tail
         h.fail_kinds.insert("k".to_string(), q);
 
-        let prev2 = h.failure_kind_counts_prev_for_key("k", 2);
+        let prev2 = h.failure_kind_counts_prev_for_key_cli("k", 2);
         assert_eq!(prev2.get("timeout").copied().unwrap_or(0), 1);
         assert_eq!(prev2.get("dataset").copied().unwrap_or(0), 1);
         assert!(prev2.get("backend").is_none());
@@ -1722,7 +1630,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     // task history as a tiny prior to reduce cold-start instability.
     let prior_history = if args.history_file.is_none() && slice_tag_for_history != slice_tag_base {
         let base_path = default_history_path(slice_tag_base.as_str());
-        BackendHistory::load(&base_path, 50).ok()
+        BackendHistory::try_load(&base_path, 50).ok()
     } else {
         None
     };
@@ -1730,7 +1638,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     let include_ml = args.include_ml || mh::env_bool("ANNO_ML_IN_MATRIX", false);
     let candidates = backend_candidates(&tasks, include_ml);
 
-    let h = match BackendHistory::load(&history_path, 50) {
+    let h = match BackendHistory::try_load(&history_path, 50) {
         Ok(h) => h,
         Err(e) => {
             return Err(format!(
@@ -2261,7 +2169,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             println!("Candidate arms: {}", candidates.len());
 
             let summaries =
-                h.summaries_for(prior_history.as_ref(), &candidates, None, true, prior_calls);
+                h.summaries_for_cli(prior_history.as_ref(), &candidates, None, true, prior_calls);
             let has_dataset_scoped_keys = h.windows.keys().any(|k| k.contains("@@"));
             if has_dataset_scoped_keys {
                 let mut dataset_scoped_arms = 0usize;
@@ -2329,7 +2237,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
                 // Optional triage: show top coarse failure kinds (best-effort).
                 // Includes `low_signal` (junk) and other coarse categories for hard failures.
-                let fk = h.failure_kind_counts_for_arm(arm, None, true);
+                let fk = h.failure_kind_counts_for_arm_cli(arm, None, true);
                 if !fk.is_empty() && (*junk > 0.0 || *hard > 0.0) {
                     let mut pairs: Vec<(u64, String)> =
                         fk.into_iter().map(|(k, v)| (v, k)).collect();
@@ -2344,7 +2252,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 }
 
                 if show_datasets {
-                    let per_ds = h.dataset_breakdown_for_arm(arm);
+                    let per_ds = h.dataset_breakdown_for_arm_cli(arm);
                     if per_ds.is_empty() {
                         println!("  datasets: (none; no `arm@@DatasetId` keys found)");
                     } else {
@@ -2365,7 +2273,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             if s.junk > 0 || s.hard_junk > 0 {
                                 let mut ds_set = BTreeSet::new();
                                 ds_set.insert(ds.clone());
-                                let fk_ds = h.failure_kind_counts_for_arm(arm, Some(&ds_set), true);
+                                let fk_ds = h.failure_kind_counts_for_arm_cli(arm, Some(&ds_set), true);
                                 if !fk_ds.is_empty() {
                                     let mut pairs: Vec<(u64, String)> =
                                         fk_ds.into_iter().map(|(k, v)| (v, k)).collect();
@@ -2450,7 +2358,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             let mut remaining = candidates.clone();
             let mut chosen: Vec<String> = Vec::new();
             for round in 0..k.min(remaining.len()) {
-                let summaries = h.summaries_for(
+                let summaries = h.summaries_for_cli(
                     prior_history.as_ref(),
                     &remaining,
                     ds_set_ref,
@@ -2477,7 +2385,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             1,
                             mh::novelty_from_env(),
                             guard_step,
-                            |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset),
+                            |b| h.observed_calls_and_elapsed_cli(b, ds_set_ref, per_dataset),
                             |eligible, _k| {
                                 let mut m: BTreeMap<String, muxer::Summary> = BTreeMap::new();
                                 for a in eligible {
@@ -2597,7 +2505,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                 hard_weight: worst_cfg.hard_weight,
                                 soft_weight: worst_cfg.soft_weight,
                             },
-                            |b| h.observed_calls_and_elapsed(b, ds_set_ref, per_dataset).0,
+                            |b| h.observed_calls_and_elapsed_cli(b, ds_set_ref, per_dataset).0,
                             |b| {
                                 let s = summaries.get(b).copied().unwrap_or_default();
                                 let hard = s.hard_junk_rate();
@@ -2754,8 +2662,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                     continue;
                 }
 
-                let base = h.summary_for_key(k);
-                let rec = h.summary_recent_for_key(k, recent);
+                let base = h.summary_for_key_cli(k);
+                let rec = h.summary_recent_for_key_cli(k, recent);
                 if rec.calls < min_recent_calls as u64 {
                     continue;
                 }
@@ -2821,9 +2729,9 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 // Optional triage: show coarse failure kinds for this exact key, comparing the last
                 // N outcomes vs the preceding outcomes in the same window. (Best-effort; fail_kinds
                 // may be absent in older histories.)
-                let fk_rec = h.failure_kind_counts_recent_for_key(&r.key, recent);
+                let fk_rec = h.failure_kind_counts_recent_for_key_cli(&r.key, recent);
                 if !fk_rec.is_empty() {
-                    let fk_prev = h.failure_kind_counts_prev_for_key(&r.key, recent);
+                    let fk_prev = h.failure_kind_counts_prev_for_key_cli(&r.key, recent);
                     println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
                     if !fk_prev.is_empty() {
                         println!("  fail_kinds (prev):   {}", top_kinds_line(&fk_prev, 3));
@@ -2865,7 +2773,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 } else if ds_set_ref.is_some() {
                     continue;
                 }
-                let rec = h.summary_recent_for_key(k, recent);
+                let rec = h.summary_recent_for_key_cli(k, recent);
                 if rec.calls < min_recent_calls as u64 {
                     continue;
                 }
@@ -2904,9 +2812,9 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 } else {
                     arm.clone()
                 };
-                let fk_rec = h.failure_kind_counts_recent_for_key(&key, recent);
+                let fk_rec = h.failure_kind_counts_recent_for_key_cli(&key, recent);
                 if !fk_rec.is_empty() {
-                    let fk_prev = h.failure_kind_counts_prev_for_key(&key, recent);
+                    let fk_prev = h.failure_kind_counts_prev_for_key_cli(&key, recent);
                     println!("  fail_kinds (recent): {}", top_kinds_line(&fk_rec, 3));
                     if !fk_prev.is_empty() {
                         println!("  fail_kinds (prev):   {}", top_kinds_line(&fk_prev, 3));
