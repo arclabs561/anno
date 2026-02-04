@@ -89,6 +89,8 @@ use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::PathBuf;
 #[cfg(test)]
+use crate::muxer_history::HistoryWindow;
+#[cfg(test)]
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Copy)]
@@ -235,7 +237,6 @@ fn test_exp3ix_can_outperform_mab_when_summaries_equal_but_reward_differs() {
     let s = Summary {
         calls: 10,
         ok: 10,
-        http_429: 0,
         junk: 0,
         hard_junk: 0,
         cost_units: 0,
@@ -2524,7 +2525,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 
         let o = Outcome {
             ok,
-            http_429: false,
             junk,
             hard_junk,
             // A crude “cost” proxy. Not currently weighted in the harness, but useful for future
@@ -2844,11 +2844,10 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         exp3ix_state: None,
     };
 
-    let mut wnut = Window::new(50);
+    let mut wnut = HistoryWindow::new(50);
     for _ in 0..10 {
         wnut.push(Outcome {
             ok: true,
-            http_429: false,
             junk: false,
             hard_junk: false,
             cost_units: 1,
@@ -2860,11 +2859,10 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         wnut,
     );
 
-    let mut de = Window::new(50);
+    let mut de = HistoryWindow::new(50);
     for _ in 0..10 {
         de.push(Outcome {
             ok: false,
-            http_429: false,
             junk: true,
             hard_junk: false,
             cost_units: 1,
@@ -2915,11 +2913,10 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
-    let mut w = Window::new(50);
+    let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
         w.push(Outcome {
             ok: true,
-            http_429: false,
             junk: false,
             hard_junk: false,
             cost_units: 1,
@@ -3000,11 +2997,10 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
-    let mut w_prior = Window::new(50);
+    let mut w_prior = HistoryWindow::new(50);
     for _ in 0..10 {
         w_prior.push(Outcome {
             ok: true,
-            http_429: false,
             junk: false,
             hard_junk: false,
             cost_units: 1,
@@ -3021,11 +3017,10 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
-    let mut w_obs = Window::new(50);
+    let mut w_obs = HistoryWindow::new(50);
     for _ in 0..3 {
         w_obs.push(Outcome {
             ok: true,
-            http_429: false,
             junk: false,
             hard_junk: false,
             cost_units: 1,
@@ -3140,11 +3135,10 @@ fn test_novelty_still_triggers_under_priors() {
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
     };
-    let mut w = Window::new(50);
+    let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
         w.push(Outcome {
             ok: true,
-            http_429: false,
             junk: false,
             hard_junk: false,
             cost_units: 1,

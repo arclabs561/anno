@@ -2135,8 +2135,7 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "083e606c1bfb0b8a92da9eb290773a2eb1f840e0abb3b8459c8aa74ee19cdc8b"
+source = "git+https://github.com/arclabs561/muxer.git?rev=796efc5#796efc5d02ccfbf166510f41bb0e72743ac35581"
 dependencies = [
  "pare",
  "rand",

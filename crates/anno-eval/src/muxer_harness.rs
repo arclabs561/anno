@@ -8,7 +8,12 @@
 //! This module is only compiled when `eval-advanced` is enabled.
 
 use muxer::MabConfig;
-use muxer::Summary;
+
+// Prefer centralizing generic policy helpers in `muxer` itself so harnesses/CLIs don’t drift.
+pub use muxer::{
+    apply_prior_counts_to_summary, novelty_pick_unseen, pick_random_subset, stable_hash64,
+    worst_first_pick_k, worst_first_pick_one, WorstFirstConfig,
+};
 
 use std::fmt;
 
@@ -46,39 +51,6 @@ pub fn novelty_from_env() -> bool {
 /// use muxer policies for the remaining \(k - k_control\) picks.
 pub fn control_k_from_env() -> usize {
     env_usize("ANNO_MUXER_CONTROL_K", 0)
-}
-
-/// Deterministically pick up to `k` "unseen" arms for novelty/coverage.
-///
-/// An arm is "unseen" if `observed_calls(arm) == 0` (i.e., no observed evaluations in the current
-/// slice). This intentionally ignores priors/smoothing.
-///
-/// This helper is domain-agnostic: callers provide the observation function.
-pub fn novelty_pick_unseen<F>(
-    seed: u64,
-    arms: &[String],
-    k: usize,
-    novelty_enabled: bool,
-    mut observed_calls: F,
-) -> Vec<String>
-where
-    F: FnMut(&str) -> u64,
-{
-    if !novelty_enabled || k == 0 || arms.is_empty() {
-        return Vec::new();
-    }
-    let mut unseen: Vec<String> = arms
-        .iter()
-        .filter(|b| observed_calls(b.as_str()) == 0)
-        .cloned()
-        .collect();
-    if unseen.is_empty() {
-        return Vec::new();
-    }
-    // Deterministic shuffle by seed.
-    unseen.sort_by_key(|b| stable_hash64(seed ^ 0x4E4F_5645, b)); // "NOVE"
-    unseen.truncate(k.min(unseen.len()));
-    unseen
 }
 
 /// Planned policy result for a single selection step.
@@ -274,44 +246,6 @@ pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'sta
     Some((langs[0], doms[0]))
 }
 
-/// Apply a pseudo-count prior to a muxer `Summary` until it reaches `target_calls`.
-///
-/// This converts the prior's rates/means into approximate counts and adds them to `out`.
-pub fn apply_prior_counts_to_summary(out: &mut Summary, prior: Summary, target_calls: u64) {
-    if target_calls == 0 || out.calls >= target_calls {
-        return;
-    }
-    if prior.calls == 0 {
-        return;
-    }
-    let need = target_calls.saturating_sub(out.calls);
-    if need == 0 {
-        return;
-    }
-
-    let need_f = need as f64;
-    let ok = (need_f * prior.ok_rate()).round() as u64;
-    let http_429 = (need_f * prior.http_429_rate()).round() as u64;
-    let junk = (need_f * prior.junk_rate()).round() as u64;
-    let hard_junk = (need_f * prior.hard_junk_rate()).round() as u64;
-    let cost_units = (need_f * prior.mean_cost_units()).round() as u64;
-    let elapsed_ms_sum = (need_f * prior.mean_elapsed_ms()).round() as u64;
-
-    out.calls = out.calls.saturating_add(need);
-    out.ok = out.ok.saturating_add(ok.min(need));
-    out.http_429 = out.http_429.saturating_add(http_429.min(need));
-    out.junk = out.junk.saturating_add(junk.min(need));
-    out.hard_junk = out.hard_junk.saturating_add(hard_junk.min(need));
-    out.cost_units = out.cost_units.saturating_add(cost_units);
-    out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(elapsed_ms_sum);
-
-    // Defensive invariant: counts must not exceed calls.
-    out.ok = out.ok.min(out.calls);
-    out.http_429 = out.http_429.min(out.calls);
-    out.junk = out.junk.min(out.calls);
-    out.hard_junk = out.hard_junk.min(out.calls);
-}
-
 /// Apply the latency guardrail using *observed* (non-smoothed) stats.
 ///
 /// This is a muxer-side routing helper: it keeps guardrails meaningful when prior smoothing is
@@ -383,105 +317,10 @@ where
 /// - Otherwise pick the arm with the highest "worse" score:
 ///   \(score = hard_weight * hard_junk + soft_weight * soft_junk + exploration_c * sqrt(ln(total_calls) / calls)\).
 ///
-/// This helper is domain-agnostic: callers supply observed calls and summary rates/calls.
-#[derive(Debug, Clone, Copy)]
-pub struct WorstFirstConfig {
-    /// Exploration coefficient for the worst-first score.
-    pub exploration_c: f64,
-    /// Weight applied to hard-junk (instability) rate.
-    pub hard_weight: f64,
-    /// Weight applied to soft-junk rate.
-    pub soft_weight: f64,
-}
-
-/// Pick one arm for "worst-first" regression hunting.
-pub fn worst_first_pick_one<FObs, FSum>(
-    seed: u64,
-    remaining: &[String],
-    cfg: WorstFirstConfig,
-    mut observed_calls: FObs,
-    mut summary: FSum,
-) -> Option<(String, bool)>
-where
-    FObs: FnMut(&str) -> u64,
-    FSum: FnMut(&str) -> (u64, f64, f64), // (calls, hard_junk_rate, soft_junk_rate)
-{
-    if remaining.is_empty() {
-        return None;
-    }
-
-    // Explore unseen arms first (stable order by deterministic hash).
-    let mut unseen: Vec<String> = remaining
-        .iter()
-        .filter(|b| observed_calls(b.as_str()) == 0)
-        .cloned()
-        .collect();
-    if !unseen.is_empty() {
-        unseen.sort_by_key(|b| stable_hash64(seed ^ 0x574F_5253, b)); // "WORS"
-        return Some((unseen[0].clone(), true));
-    }
-
-    // Otherwise score by "worse" objective + exploration.
-    let mut total_calls_f: f64 = 0.0;
-    let mut scored: Vec<(f64, String, u64, f64, f64)> = Vec::new();
-    for b in remaining {
-        let (calls_u64, hard, soft) = summary(b.as_str());
-        let calls = (calls_u64 as f64).max(1.0);
-        total_calls_f += calls;
-        scored.push((0.0, b.clone(), calls_u64, hard, soft));
-    }
-    let total_calls_f = total_calls_f.max(1.0);
-
-    for row in &mut scored {
-        let calls = (row.2 as f64).max(1.0);
-        let exploration = cfg.exploration_c * ((total_calls_f.ln() / calls).sqrt());
-        let score = cfg.hard_weight * row.3 + cfg.soft_weight * row.4 + exploration;
-        row.0 = score;
-    }
-
-    scored.sort_by(|a, b| {
-        b.0.total_cmp(&a.0)
-            .then_with(|| {
-                stable_hash64(seed ^ 0x574F_5253, &a.1)
-                    .cmp(&stable_hash64(seed ^ 0x574F_5253, &b.1))
-            })
-            .then_with(|| a.1.cmp(&b.1))
-    });
-    let pick = scored.first().map(|r| r.1.clone())?;
-    Some((pick, false))
-}
-
-/// Pick up to `k` arms for worst-first regression hunting (without replacement).
-///
-/// Returns a list of `(arm, explore_first)` pairs in selection order.
-pub fn worst_first_pick_k<FObs, FSum>(
-    seed: u64,
-    arms: &[String],
-    k: usize,
-    cfg: WorstFirstConfig,
-    mut observed_calls: FObs,
-    mut summary: FSum,
-) -> Vec<(String, bool)>
-where
-    FObs: FnMut(&str) -> u64,
-    FSum: FnMut(&str) -> (u64, f64, f64),
-{
-    select_k_without_replacement_by_with_meta(seed, arms, k, |seed_round, remaining, _k| {
-        worst_first_pick_one(
-            seed_round,
-            remaining,
-            cfg,
-            |b| observed_calls(b),
-            |b| summary(b),
-        )
-        .map(|(b, explore_first)| vec![(b, explore_first)])
-        .unwrap_or_default()
-    })
-}
-
 #[cfg(test)]
 mod prior_tests {
     use super::*;
+    use muxer::Summary;
 
     #[test]
     fn test_apply_prior_counts_to_summary_tops_up_calls() {
@@ -489,7 +328,6 @@ mod prior_tests {
         let prior = Summary {
             calls: 100,
             ok: 80,
-            http_429: 0,
             junk: 10,
             hard_junk: 5,
             cost_units: 200,
@@ -1093,46 +931,8 @@ pub fn mab_config_from_env() -> MabConfig {
         // Hard constraints (BwK-ish gating).
         max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
-        max_http_429_rate: env_f64_opt("ANNO_MUXER_MAX_HTTP_429_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
     }
-}
-
-/// Deterministic (not crypto) stable hash used for “random” sampling.
-pub fn stable_hash64(seed: u64, s: &str) -> u64 {
-    // Deterministic (not crypto): FNV-1a string hash, then SplitMix64 finalizer.
-    //
-    // Motivation: we use these hashes for sampling fairness (task/dataset/backends). Raw FNV
-    // has visible structure; a SplitMix64-style mix gives a much more uniform distribution
-    // without adding RNG dependencies.
-    let mut h: u64 = 14695981039346656037u64;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(1099511628211u64);
-    }
-    splitmix64(seed ^ h)
-}
-
-#[inline]
-fn splitmix64(mut x: u64) -> u64 {
-    x = x.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    let mut z = x;
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
-
-/// Deterministic “random subset” used by the harness and CLI.
-pub fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
-    // Deterministic sampling without external RNG dependencies.
-    let mut scored: Vec<(u64, &String)> =
-        items.iter().map(|s| (stable_hash64(seed, s), s)).collect();
-    scored.sort_by_key(|(h, s)| (*h, (*s).as_str()));
-    scored
-        .into_iter()
-        .take(k.min(items.len()))
-        .map(|(_, s)| s.clone())
-        .collect()
 }
 
 // =============================================================================

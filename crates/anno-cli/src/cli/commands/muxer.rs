@@ -693,7 +693,6 @@ impl MuxerStrategy {
 struct SummarySerde {
     calls: u64,
     ok: u64,
-    http_429: u64,
     junk: u64,
     hard_junk: u64,
     cost_units: u64,
@@ -725,7 +724,6 @@ impl SummarySerde {
         };
         for o in &w.buf {
             out.ok += o.ok as u64;
-            out.http_429 += o.http_429 as u64;
             out.junk += o.junk as u64;
             out.hard_junk += o.hard_junk as u64;
             out.cost_units = out.cost_units.saturating_add(o.cost_units);
@@ -764,14 +762,6 @@ impl SummarySerde {
             0.0
         } else {
             (self.hard_junk as f64) / (self.calls as f64)
-        }
-    }
-
-    fn http_429_rate(&self) -> f64 {
-        if self.calls == 0 {
-            0.0
-        } else {
-            (self.http_429 as f64) / (self.calls as f64)
         }
     }
 
@@ -870,7 +860,6 @@ impl BackendHistoryCliExt for BackendHistory {
                     let s = SummarySerde::from_window(w);
                     agg.calls = agg.calls.saturating_add(s.calls);
                     agg.ok = agg.ok.saturating_add(s.ok);
-                    agg.http_429 = agg.http_429.saturating_add(s.http_429);
                     agg.junk = agg.junk.saturating_add(s.junk);
                     agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
                     agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
@@ -922,7 +911,6 @@ impl BackendHistoryCliExt for BackendHistory {
                                     let s = SummarySerde::from_window(w);
                                     agg.calls = agg.calls.saturating_add(s.calls);
                                     agg.ok = agg.ok.saturating_add(s.ok);
-                                    agg.http_429 = agg.http_429.saturating_add(s.http_429);
                                     agg.junk = agg.junk.saturating_add(s.junk);
                                     agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
                                     agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
@@ -941,7 +929,6 @@ impl BackendHistoryCliExt for BackendHistory {
                 let mut out_m = muxer::Summary {
                     calls: obs.calls,
                     ok: obs.ok,
-                    http_429: obs.http_429,
                     junk: obs.junk,
                     hard_junk: obs.hard_junk,
                     cost_units: obs.cost_units,
@@ -950,7 +937,6 @@ impl BackendHistoryCliExt for BackendHistory {
                 let prior_m = muxer::Summary {
                     calls: prior_s.calls,
                     ok: prior_s.ok,
-                    http_429: prior_s.http_429,
                     junk: prior_s.junk,
                     hard_junk: prior_s.hard_junk,
                     cost_units: prior_s.cost_units,
@@ -960,7 +946,6 @@ impl BackendHistoryCliExt for BackendHistory {
                 obs = SummarySerde {
                     calls: out_m.calls,
                     ok: out_m.ok,
-                    http_429: out_m.http_429,
                     junk: out_m.junk,
                     hard_junk: out_m.hard_junk,
                     cost_units: out_m.cost_units,
@@ -1102,7 +1087,6 @@ impl BackendHistoryCliExt for BackendHistory {
         };
         for o in w.buf.iter().skip(n - take) {
             out.ok += o.ok as u64;
-            out.http_429 += o.http_429 as u64;
             out.junk += o.junk as u64;
             out.hard_junk += o.hard_junk as u64;
             out.cost_units = out.cost_units.saturating_add(o.cost_units);
@@ -2322,7 +2306,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             println!("Per-dataset windows: {}", per_dataset);
             println!("Candidate arms: {}", candidates.len());
             println!(
-                "Config: explore_c={:.2} w_cost={:.2} w_lat={:.2} w_junk={:.2} w_hard={:.2} max_junk={:?} max_hard={:?} max_429={:?} max_cost={:?}",
+                "Config: explore_c={:.2} w_cost={:.2} w_lat={:.2} w_junk={:.2} w_hard={:.2} max_junk={:?} max_hard={:?} max_cost={:?}",
                 cfg.exploration_c,
                 cfg.cost_weight,
                 cfg.latency_weight,
@@ -2330,7 +2314,6 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 cfg.hard_junk_weight,
                 cfg.max_junk_rate,
                 cfg.max_hard_junk_rate,
-                cfg.max_http_429_rate,
                 cfg.max_mean_cost_units
             );
             let profile = std::env::var("ANNO_MUXER_PROFILE")
@@ -2395,7 +2378,6 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                         muxer::Summary {
                                             calls: s.calls,
                                             ok: s.ok,
-                                            http_429: s.http_429,
                                             junk: s.junk,
                                             hard_junk: s.hard_junk,
                                             cost_units: s.cost_units,

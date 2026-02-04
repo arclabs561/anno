@@ -59,7 +59,6 @@ impl HistoryWindow {
         for o in &self.buf {
             s.calls = s.calls.saturating_add(1);
             s.ok = s.ok.saturating_add(o.ok as u64);
-            s.http_429 = s.http_429.saturating_add(o.http_429 as u64);
             s.junk = s.junk.saturating_add(o.junk as u64);
             s.hard_junk = s.hard_junk.saturating_add(o.hard_junk as u64);
             s.cost_units = s.cost_units.saturating_add(o.cost_units);
@@ -235,7 +234,6 @@ impl BackendHistory {
                         }
                         agg.calls = agg.calls.saturating_add(s.calls);
                         agg.ok = agg.ok.saturating_add(s.ok);
-                        agg.http_429 = agg.http_429.saturating_add(s.http_429);
                         agg.junk = agg.junk.saturating_add(s.junk);
                         agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
                         agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
@@ -285,7 +283,6 @@ impl BackendHistory {
             }
             agg.calls = agg.calls.saturating_add(s.calls);
             agg.ok = agg.ok.saturating_add(s.ok);
-            agg.http_429 = agg.http_429.saturating_add(s.http_429);
             agg.junk = agg.junk.saturating_add(s.junk);
             agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
             agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
