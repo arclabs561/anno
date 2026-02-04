@@ -1,8 +1,8 @@
 # Publish status
 
-This repo is **not** doing crates.io publishing as its primary checkpoint mechanism right now.
+This repo is **not** doing crates.io publishing as its primary release mechanism right now.
 
-We treat Git tags + GitHub Releases as the “checkpoint log”.
+We treat Git tags + GitHub Releases as the release log.
 
 ## What is publishable?
 
@@ -28,5 +28,5 @@ uploads a short markdown report as `publish-validation-report`.
 
 ## Local checks
 
-If you want a checkpoint, follow `docs/CHECKPOINTS.md`.
+If you want to create a release tag, follow `docs/TAGS.md`.
 

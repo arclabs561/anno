@@ -11,7 +11,7 @@ As a Rust library (from Git, recommended for now):
 anno = { git = "https://github.com/arclabs561/anno", rev = "<commit>" }
 ```
 
-Crates.io publishing is intentionally paused for now; see `docs/PUBLISH_STATUS.md`.
+Crates.io publishing is intentionally paused for now; see `docs/PUBLISH_STATUS.md` and `docs/TAGS.md`.
 
 CLI (from source):
 
