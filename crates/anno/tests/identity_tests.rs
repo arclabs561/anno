@@ -157,7 +157,10 @@ fn test_identity_deserialize_ignores_legacy_box_embedding_field() {
         "entity_type should parse as the canonical core PERSON type"
     );
     // `TypeLabel` renders core entity types in canonical CoNLL/OntoNotes labels.
-    assert_eq!(identity.entity_type.as_ref().map(|t| t.as_str()), Some("PER"));
+    assert_eq!(
+        identity.entity_type.as_ref().map(|t| t.as_str()),
+        Some("PER")
+    );
 }
 
 #[test]

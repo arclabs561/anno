@@ -1826,7 +1826,9 @@ fn choose_datasets_for_run(
         // runs can still proceed on multilingual datasets when no monolingual dataset is loadable
         // in the current environment.
         let has_exact_lang_match = pin_lang.as_ref().is_some_and(|pins| {
-            candidates.iter().any(|d| pins.contains(&d.language().to_ascii_lowercase()))
+            candidates
+                .iter()
+                .any(|d| pins.contains(&d.language().to_ascii_lowercase()))
         });
         candidates.retain(|d| {
             let d_lang = d.language().to_ascii_lowercase();
@@ -2160,7 +2162,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         let mut retained = Vec::new();
         for ds in fixed {
             if !tasks.iter().all(|t| dataset_tasks(ds).contains(t)) {
-                rejected.push((ds, "dataset metadata does not declare the requested task(s)"));
+                rejected.push((
+                    ds,
+                    "dataset metadata does not declare the requested task(s)",
+                ));
                 continue;
             }
             let ok = if require_cached_for_run {
@@ -2311,7 +2316,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         let pin_dom = env_single_slug(&["ANNO_MUXER_PIN_DOMAIN", "ANNO_MUXER_FILTER_DOMAIN"]);
 
         if pin_lang.is_some() || pin_dom.is_some() {
-            let mut langs: Vec<&'static str> = chosen_datasets.iter().map(|d| d.language()).collect();
+            let mut langs: Vec<&'static str> =
+                chosen_datasets.iter().map(|d| d.language()).collect();
             langs.sort();
             langs.dedup();
             let mut doms: Vec<&'static str> = chosen_datasets.iter().map(|d| d.domain()).collect();
@@ -2322,8 +2328,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             let dom_is_ambiguous = doms.len() != 1;
             if (lang_is_ambiguous && pin_lang.is_some()) || (dom_is_ambiguous && pin_dom.is_some())
             {
-                let lang = pin_lang.unwrap_or_else(|| langs.get(0).copied().unwrap_or("unknown").to_string());
-                let dom = pin_dom.unwrap_or_else(|| doms.get(0).copied().unwrap_or("unknown").to_string());
+                let lang = pin_lang
+                    .unwrap_or_else(|| langs.first().copied().unwrap_or("unknown").to_string());
+                let dom = pin_dom
+                    .unwrap_or_else(|| doms.first().copied().unwrap_or("unknown").to_string());
                 let tagged = format!("{}.lang={}.dom={}", slice_tag, lang, dom);
                 if let Ok(st) = mh::SliceTag::parse(&tagged) {
                     slice_tag_for_muxer = st.to_string();

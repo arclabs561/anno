@@ -354,8 +354,7 @@ mod tests {
                 (e.start, e.end),
                 text_len
             );
-            let extracted =
-                crate::offset::TextSpan::from_chars(text, e.start, e.end).extract(text);
+            let extracted = crate::offset::TextSpan::from_chars(text, e.start, e.end).extract(text);
             assert_eq!(extracted, e.text);
         }
         for r in &out.relations {

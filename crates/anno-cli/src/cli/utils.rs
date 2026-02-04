@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read};
 
-use anno_core::{
-    GroundedDocument, Identity, IdentityId, Quantifier, SignalId, TrackId,
-};
+use anno_core::{GroundedDocument, Identity, IdentityId, Quantifier, SignalId, TrackId};
 
 /// Get input text from various sources (text arg, file, or stdin)
 ///

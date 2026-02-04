@@ -245,9 +245,13 @@ pub mod lexicons {
     /// Spanish cue words for quantifier detection.
     pub const ES_UNIVERSAL: &[&str] = &["todos", "todas", "cada", "cualquier"];
     /// Spanish cue words suggesting existential quantification.
-    pub const ES_EXISTENTIAL: &[&str] = &["un", "una", "unos", "unas", "algún", "alguna", "algunos", "algunas"];
+    pub const ES_EXISTENTIAL: &[&str] = &[
+        "un", "una", "unos", "unas", "algún", "alguna", "algunos", "algunas",
+    ];
     /// Spanish cue words suggesting “none / no” quantification.
-    pub const ES_NONE: &[&str] = &["ningún", "ninguna", "ninguno", "ningunos", "ningunas", "ningun"];
+    pub const ES_NONE: &[&str] = &[
+        "ningún", "ninguna", "ninguno", "ningunos", "ningunas", "ningun",
+    ];
     /// Spanish cue words suggesting definiteness / demonstratives.
     pub const ES_DEFINITE: &[&str] = &[
         "el", "la", "los", "las", "este", "esta", "estos", "estas", "ese", "esa", "esos", "esas",
@@ -256,7 +260,9 @@ pub mod lexicons {
     /// Italian cue words for quantifier detection.
     pub const IT_UNIVERSAL: &[&str] = &["tutti", "tutte", "ogni", "qualsiasi"];
     /// Italian cue words suggesting existential quantification.
-    pub const IT_EXISTENTIAL: &[&str] = &["un", "una", "uno", "alcuni", "alcune", "qualche", "certi", "certe"];
+    pub const IT_EXISTENTIAL: &[&str] = &[
+        "un", "una", "uno", "alcuni", "alcune", "qualche", "certi", "certe",
+    ];
     /// Italian cue words suggesting “none / no” quantification.
     pub const IT_NONE: &[&str] = &["nessun", "nessuna", "nessuno"];
     /// Italian cue words suggesting definiteness / demonstratives.
@@ -268,7 +274,9 @@ pub mod lexicons {
     /// Portuguese cue words for quantifier detection.
     pub const PT_UNIVERSAL: &[&str] = &["todos", "todas", "cada", "qualquer"];
     /// Portuguese cue words suggesting existential quantification.
-    pub const PT_EXISTENTIAL: &[&str] = &["um", "uma", "uns", "umas", "algum", "alguma", "alguns", "algumas"];
+    pub const PT_EXISTENTIAL: &[&str] = &[
+        "um", "uma", "uns", "umas", "algum", "alguma", "alguns", "algumas",
+    ];
     /// Portuguese cue words suggesting “none / no” quantification.
     pub const PT_NONE: &[&str] = &["nenhum", "nenhuma", "nenhuns", "nenhumas"];
     /// Portuguese cue words suggesting definiteness / demonstratives.
@@ -366,7 +374,9 @@ pub fn is_negated_lang(text: &str, entity_start: usize, lang: Language) -> bool 
         Language::Japanese => {
             is_negated_with_substrings(text, entity_start, lexicons::JA_NEGATION_CUES)
         }
-        Language::Korean => is_negated_with_substrings(text, entity_start, lexicons::KO_NEGATION_CUES),
+        Language::Korean => {
+            is_negated_with_substrings(text, entity_start, lexicons::KO_NEGATION_CUES)
+        }
         Language::Arabic | Language::Hebrew | Language::Other => false,
     }
 }
@@ -552,7 +562,10 @@ mod tests {
 
         // Near the Chinese segment: Han → Chinese.
         let chinese_start = "This is English. ".chars().count();
-        assert_eq!(detect_language_near(text, chinese_start + 1), Language::Chinese);
+        assert_eq!(
+            detect_language_near(text, chinese_start + 1),
+            Language::Chinese
+        );
     }
 
     #[test]
@@ -629,4 +642,3 @@ mod tests {
         );
     }
 }
-

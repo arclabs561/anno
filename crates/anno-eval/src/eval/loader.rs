@@ -2087,10 +2087,9 @@ impl DatasetLoader {
         // prefer fetching via datasets-server (even if the registry `url` is a paper/GitHub homepage).
         if id.access_status() == super::dataset_registry::DatasetAccessibility::HuggingFace {
             if let Some(hf_ds) = id.hf_id().map(|s| s.to_string()) {
-                if let Ok((config, split)) = self.resolve_hf_config_split_prefer(
-                    &hf_ds,
-                    preferred_hf_config.as_deref(),
-                ) {
+                if let Ok((config, split)) =
+                    self.resolve_hf_config_split_prefer(&hf_ds, preferred_hf_config.as_deref())
+                {
                     let base = Self::hf_rows_url(&hf_ds, &config, &split);
                     if std::env::var("ANNO_MUXER_VERBOSE")
                         .ok()

@@ -38,14 +38,14 @@ extern crate self as anno;
 
 // Module declarations (standard Cargo layout under `src/`)
 pub mod backends;
-/// Small, dependency-light heuristics (negation, quantifiers, etc.).
-pub mod heuristics;
 /// Edit distance algorithms.
 pub mod edit_distance;
 pub mod env;
 pub mod error;
 /// Entity feature extraction for downstream ML and analysis.
 pub mod features;
+/// Small, dependency-light heuristics (negation, quantifiers, etc.).
+pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
 /// Joint inference experiments (optional; not the primary API surface).

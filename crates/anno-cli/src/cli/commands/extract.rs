@@ -9,12 +9,12 @@ use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::get_input_text;
 use anno::heuristics::{detect_quantifier_en, is_negated_en};
 
-#[cfg(feature = "eval-advanced")]
-use anno::ingest::url_resolver::CompositeResolver;
-use anno::ingest::DocumentPreprocessor;
 use anno::backends::inference::{
     extract_relation_triples, RelationExtractionConfig, RelationExtractor, SemanticRegistry,
 };
+#[cfg(feature = "eval-advanced")]
+use anno::ingest::url_resolver::CompositeResolver;
+use anno::ingest::DocumentPreprocessor;
 use anno_core::core::graph::{GraphDocument, GraphExportFormat};
 use anno_core::core::grounded::{
     GroundedDocument, Location, Modality, Signal, SignalId, SignalValidationError,
@@ -232,7 +232,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
         })
-        .unwrap_or_else(|| DEFAULT_RELATION_TYPES.iter().map(|s| (*s).to_string()).collect());
+        .unwrap_or_else(|| {
+            DEFAULT_RELATION_TYPES
+                .iter()
+                .map(|s| (*s).to_string())
+                .collect()
+        });
 
     let relation_threshold = args
         .relation_threshold
@@ -265,16 +270,6 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             ModelBackend::Gliner2 => {
                 use anno::backends::gliner2::GLiNER2Onnx;
                 let re = GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
-                    .map_err(|e| CliError::from(format!("Failed to init gliner2: {}", e)))?;
-                let out = re
-                    .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
-                    .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
-                (out.entities, out.relations)
-            }
-            #[cfg(feature = "candle")]
-            ModelBackend::Gliner2 => {
-                use anno::backends::gliner2::GLiNER2Candle;
-                let re = GLiNER2Candle::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
                     .map_err(|e| CliError::from(format!("Failed to init gliner2: {}", e)))?;
                 let out = re
                     .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
@@ -352,7 +347,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             }
             let mut new_rel = Vec::new();
             for r in &relation_triples {
-                if let (Some(h), Some(t)) = (old_to_new.get(r.head_idx).and_then(|x| *x), old_to_new.get(r.tail_idx).and_then(|x| *x)) {
+                if let (Some(h), Some(t)) = (
+                    old_to_new.get(r.head_idx).and_then(|x| *x),
+                    old_to_new.get(r.tail_idx).and_then(|x| *x),
+                ) {
                     new_rel.push(anno::RelationTriple {
                         head_idx: h,
                         tail_idx: t,
@@ -801,7 +799,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         let graph = if args.extract_relations && !relation_triples.is_empty() {
             let mut rels: Vec<anno_core::Relation> = Vec::new();
             for r in &relation_triples {
-                if let (Some(head), Some(tail)) = (entities.get(r.head_idx), entities.get(r.tail_idx))
+                if let (Some(head), Some(tail)) =
+                    (entities.get(r.head_idx), entities.get(r.tail_idx))
                 {
                     rels.push(anno_core::Relation::new(
                         head.clone(),
