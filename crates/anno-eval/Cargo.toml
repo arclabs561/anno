@@ -16,8 +16,9 @@ path = "src/bin/muxer_repeat.rs"
 required-features = ["eval-advanced"]
 
 [dependencies]
-anno = { path = "../anno", version = "0.2.0", default-features = false }
+anno = { path = "../anno", version = "0.2.0", default-features = false, features = ["analysis"] }
 anno-core = { path = "../anno-core", version = "0.2.0" }
+anno-metrics = { path = "../anno-metrics", version = "0.2.0" }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

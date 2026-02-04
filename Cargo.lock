@@ -57,6 +57,7 @@ name = "anno"
 version = "0.2.0"
 dependencies = [
  "anno-core",
+ "anno-metrics",
  "bitflags 2.10.0",
  "candle-core",
  "candle-nn",
@@ -155,6 +156,7 @@ version = "0.2.0"
 dependencies = [
  "anno",
  "anno-core",
+ "anno-metrics",
  "bitflags 2.10.0",
  "chrono",
  "clump",
@@ -186,6 +188,15 @@ version = "0.2.0"
 dependencies = [
  "anno-core",
  "lattix",
+]
+
+[[package]]
+name = "anno-metrics"
+version = "0.2.0"
+dependencies = [
+ "anno-core",
+ "proptest",
+ "serde",
 ]
 
 [[package]]

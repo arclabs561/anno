@@ -12,6 +12,7 @@ members = [
     "crates/anno-eval",
     "crates/anno-cli",
     "crates/anno-lattix",
+    "crates/anno-metrics",
 ]
 resolver = "2"
 

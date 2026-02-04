@@ -2,30 +2,19 @@
 //!
 //! # Feature Gating
 //!
-//! This module is behind the `eval` feature flag. Enabling it pulls in a large
-//! amount of evaluation infrastructure; keep it off in minimal builds.
+//! This module lives in the `anno-eval` crate (which is **not** intended for crates.io
+//! publishing right now) and intentionally pulls in a large amount of evaluation
+//! infrastructure: datasets, registries, harnesses, and reporting.
 //!
-//! ```toml
-//! # Minimal (no eval)
-//! anno = { version = "0.2", default-features = false }
+//! For a minimal dependency surface, prefer the `anno` crate without evaluation tooling.
+//! For evaluation workflows, depend on `anno-eval` (or use the `anno` CLI).
 //!
-//! # With eval
-//! anno = { version = "0.2", features = ["eval"] }
-//! ```
+//! # Relation to `anno::eval`
 //!
-//! # Why eval is in anno (not anno-eval)?
-//!
-//! 1. **Circular dependency**: Evaluation functions take `&dyn Model` and reference
-//!    backend types. If `anno-eval` were standalone, it would depend on `anno`,
-//!    preventing `anno` from re-exporting `anno-eval`.
-//!
-//! 2. **Sealed trait pattern**: The `Model` trait uses a sealed pattern. Moving it
-//!    to `anno-core` would allow external crates to implement `Model`.
-//!
-//! 3. **Feature flags work**: The `eval` feature excludes 92k lines when disabled.
-//!
-//! Note: `anno-eval` exists as a convenience crate that re-exports `anno` with eval
-//! enabled. Use it if you primarily need evaluation functionality.
+//! The `anno` crate also exposes a small `anno::eval` module behind the legacy `eval`
+//! feature (and the preferred alias `analysis`). That module contains **only** light,
+//! analysis-oriented primitives (e.g. coref metrics and cross-context clustering helpers).
+//! The full evaluation harness remains here in `anno-eval::eval`.
 //!
 //! # Overview
 //!
@@ -252,6 +241,16 @@ pub use modes::EvalConfig as ModeConfig;
 /// Evaluation mode for NER (re-exported from modes).
 pub use modes::EvalMode;
 
+/// Cross-context clustering primitives (shared via `anno-metrics`).
+pub mod cluster_encoder {
+    pub use anno_metrics::cluster_encoder::*;
+}
+
+/// Coreference metrics (shared via `anno-metrics`).
+pub mod coref_metrics {
+    pub use anno_metrics::coref_metrics::*;
+}
+
 // =============================================================================
 // CORE MODULES (always available with `eval` feature)
 // Basic P/R/F1, datasets, coreference metrics
@@ -267,11 +266,12 @@ pub mod benchmark;
 pub mod bio_adapter;
 pub mod book_scale;
 pub mod cdcr;
-pub mod cluster_encoder;
 pub mod coref;
 pub mod coref_loader;
-pub mod coref_metrics;
-pub mod coref_resolver;
+/// Coreference resolvers (shared via `anno::eval`).
+pub mod coref_resolver {
+    pub use anno::eval::coref_resolver::*;
+}
 pub mod dataset;
 pub mod dataset_metadata;
 pub mod dataset_registry;
@@ -797,7 +797,8 @@ pub fn load_conll2003<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEn
         }
         let word_start = char_offset;
         current_text.push_str(word);
-        char_offset += word.len();
+        // Offsets in anno are character offsets (Unicode scalar values), not bytes.
+        char_offset += word.chars().count();
         let word_end = char_offset;
 
         // Parse NER tag

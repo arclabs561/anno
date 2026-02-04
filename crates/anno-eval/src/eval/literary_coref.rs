@@ -895,13 +895,20 @@ impl<V: MentionVerifier> LLMFilter<V> {
         let words: Vec<&str> = text.split_whitespace().collect();
 
         // Find word indices containing mention
-        let mut char_pos = 0;
+        // Track byte position for searching; convert to character offsets via `TextSpan`.
+        let mut byte_pos = 0;
         let mut mention_word_start = None;
         let mut mention_word_end = None;
 
         for (word_idx, word) in words.iter().enumerate() {
-            let word_start = text[char_pos..].find(word).map(|p| char_pos + p).unwrap_or(char_pos);
-            let word_end = word_start + word.len();
+            let word_start_byte = text[byte_pos..]
+                .find(word)
+                .map(|p| byte_pos + p)
+                .unwrap_or(byte_pos);
+            let word_end_byte = word_start_byte + word.len();
+            let span = anno::offset::TextSpan::from_bytes(text, word_start_byte, word_end_byte);
+            let word_start = span.char_start;
+            let word_end = span.char_end;
 
             if word_start <= mention.start && mention_word_start.is_none() {
                 mention_word_start = Some(word_idx);
@@ -910,7 +917,7 @@ impl<V: MentionVerifier> LLMFilter<V> {
                 mention_word_end = Some(word_idx);
                 break;
             }
-            char_pos = word_end;
+            byte_pos = word_end_byte;
         }
 
         let mention_word_start = mention_word_start.unwrap_or(0);

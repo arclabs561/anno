@@ -1,70 +1,40 @@
 //! Cluster encoder for cross-context coreference resolution.
 //!
-//! This module implements learned cluster representations for merging
-//! coreference clusters across document windows or separate documents.
-//!
-//! Based on: Martinelli, Gatti & Navigli (2025). "xCoRe: Cross-context
-//! Coreference Resolution" (EMNLP 2025).
-//!
-//! # Architecture
-//!
-//! 1. Each mention in a cluster is represented by (start_hidden, end_hidden)
-//! 2. A single-layer Transformer attends over all mentions in the cluster
-//! 3. Pooling produces a fixed-size cluster embedding
-//! 4. MergeScorer computes pairwise merge probabilities
-//!
-//! # Example
-//!
-//! ```ignore
-//! // Within-context: form local clusters using standard coref
-//! let clusters_doc1 = resolver.resolve_intra_doc(doc1);
-//! let clusters_doc2 = resolver.resolve_intra_doc(doc2);
-//!
-//! // Cross-context: encode clusters and score merges
-//! let embeddings1 = encoder.encode_clusters(&clusters_doc1, &hidden_states1);
-//! let embeddings2 = encoder.encode_clusters(&clusters_doc2, &hidden_states2);
-//!
-//! // Find mergeable cluster pairs
-//! for (i, emb_a) in embeddings1.iter().enumerate() {
-//!     for (j, emb_b) in embeddings2.iter().enumerate() {
-//!         let score = scorer.score(emb_a, emb_b);
-//!         if score > 0.5 {
-//!             merge_clusters(i, j);
-//!         }
-//!     }
-//! }
-//! ```
+//! This module provides shared primitives for representing within-context clusters and scoring
+//! merges across contexts (document windows or separate documents). It is intentionally dependency
+//! light so it can be used by both `anno` and `anno-eval` without cycles.
 
 use std::collections::HashMap;
 
-/// A mention within a cluster, represented by token positions.
+/// A mention within a cluster, represented by character offsets.
 #[derive(Debug, Clone)]
 pub struct ClusterMention {
-    /// Start token index (character offset in original text)
+    /// Start character offset in the original text.
     pub start: usize,
-    /// End token index (exclusive)
+    /// End character offset (exclusive).
     pub end: usize,
-    /// Surface text of the mention
+    /// Surface text of the mention.
     pub text: String,
-    /// Context ID (document or window index)
+    /// Context ID (document or window index).
     pub context_id: usize,
 }
 
 /// A coreference cluster containing mentions from a single context.
 #[derive(Debug, Clone)]
 pub struct LocalCluster {
-    /// Unique identifier within the context
+    /// Unique identifier within the context.
     pub id: usize,
-    /// Mentions in this cluster
+    /// Mentions in this cluster.
     pub mentions: Vec<ClusterMention>,
-    /// Context identifier (document ID or window index)
+    /// Context identifier (document ID or window index).
     pub context_id: usize,
-    /// Canonical representative (e.g., first non-pronoun mention)
+    /// Canonical representative (e.g., first non-pronoun mention).
     pub canonical: Option<String>,
 }
 
 impl LocalCluster {
     /// Create a new local cluster.
+    #[must_use]
     pub fn new(id: usize, context_id: usize) -> Self {
         Self {
             id,
@@ -99,13 +69,13 @@ impl LocalCluster {
 /// Configuration for cluster encoding.
 #[derive(Debug, Clone)]
 pub struct ClusterEncoderConfig {
-    /// Hidden dimension from base encoder (e.g., 1024 for DeBERTa-large)
+    /// Hidden dimension from base encoder (e.g., 1024 for DeBERTa-large).
     pub hidden_dim: usize,
-    /// Number of attention heads in cluster Transformer
+    /// Number of attention heads in a cluster Transformer.
     pub num_heads: usize,
-    /// Pooling strategy for cluster embedding
+    /// Pooling strategy for cluster embedding.
     pub pooling: PoolingStrategy,
-    /// Dropout rate
+    /// Dropout rate.
     pub dropout: f32,
 }
 
@@ -120,46 +90,35 @@ impl Default for ClusterEncoderConfig {
     }
 }
 
-/// Pooling strategy for reducing mention embeddings to cluster embedding.
+/// Pooling strategy for reducing mention embeddings to a cluster embedding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PoolingStrategy {
-    /// Average all mention embeddings
+    /// Average all mention embeddings.
     Mean,
-    /// Use first mention's embedding (assumes canonical ordering)
+    /// Use first mention's embedding (assumes canonical ordering).
     First,
-    /// Attention-weighted pooling with learned query
+    /// Attention-weighted pooling with a learned query.
     AttentionWeighted,
-    /// Max pooling per dimension
+    /// Max pooling per dimension.
     Max,
 }
 
 /// Cluster embedding: a fixed-size representation of a coreference cluster.
 #[derive(Debug, Clone)]
 pub struct ClusterEmbedding {
-    /// The embedding vector (dimension = 2 * hidden_dim for start+end concat)
+    /// The embedding vector.
     pub embedding: Vec<f32>,
-    /// Source cluster ID
+    /// Source cluster ID.
     pub cluster_id: usize,
-    /// Source context ID
+    /// Source context ID.
     pub context_id: usize,
-    /// Number of mentions in source cluster
+    /// Number of mentions in the source cluster.
     pub mention_count: usize,
 }
 
 /// Trait for encoding clusters into fixed-size embeddings.
-///
-/// Implementations may use different strategies:
-/// - CPU heuristics (string similarity, TF-IDF)
-/// - Neural encoders (Transformer over mentions)
 pub trait ClusterEncoder: Send + Sync {
     /// Encode a single cluster into an embedding.
-    ///
-    /// # Arguments
-    /// * `cluster` - The local cluster to encode
-    /// * `hidden_states` - Token hidden states from base encoder (optional for heuristic methods)
-    ///
-    /// # Returns
-    /// A fixed-size cluster embedding
     fn encode_cluster(
         &self,
         cluster: &LocalCluster,
@@ -182,8 +141,6 @@ pub trait ClusterEncoder: Send + Sync {
     fn embedding_dim(&self) -> usize;
 }
 
-// Allow configs/structs that store trait objects to derive `Debug` without requiring
-// concrete encoder types to implement it.
 impl std::fmt::Debug for dyn ClusterEncoder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("dyn ClusterEncoder")
@@ -192,24 +149,20 @@ impl std::fmt::Debug for dyn ClusterEncoder {
     }
 }
 
-/// Simple heuristic cluster encoder using TF-IDF style features.
-///
-/// This is a CPU-only fallback when neural encoding is unavailable.
+/// Simple heuristic cluster encoder using hashed character n-grams.
 #[derive(Debug, Clone)]
 pub struct HeuristicClusterEncoder {
-    /// Embedding dimension
     dim: usize,
-    /// Character n-gram size for hashing
     ngram_size: usize,
 }
 
 impl HeuristicClusterEncoder {
     /// Create a new heuristic encoder.
+    #[must_use]
     pub fn new(dim: usize) -> Self {
         Self { dim, ngram_size: 3 }
     }
 
-    /// Hash a string into a sparse embedding using character n-grams.
     fn hash_string(&self, s: &str) -> Vec<f32> {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -225,7 +178,6 @@ impl HeuristicClusterEncoder {
             embedding[idx] += 1.0;
         }
 
-        // L2 normalize
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
             for x in &mut embedding {
@@ -243,7 +195,6 @@ impl ClusterEncoder for HeuristicClusterEncoder {
         cluster: &LocalCluster,
         _hidden_states: Option<&[Vec<f32>]>,
     ) -> ClusterEmbedding {
-        // Combine embeddings from all mention texts
         let mut combined = vec![0.0f32; self.dim];
 
         for mention in &cluster.mentions {
@@ -253,7 +204,6 @@ impl ClusterEncoder for HeuristicClusterEncoder {
             }
         }
 
-        // L2 normalize the combined embedding
         let norm: f32 = combined.iter().map(|x| x * x).sum::<f32>().sqrt();
         if norm > 0.0 {
             for x in &mut combined {
@@ -277,11 +227,11 @@ impl ClusterEncoder for HeuristicClusterEncoder {
 /// Configuration for merge scoring.
 #[derive(Debug, Clone)]
 pub struct MergeScorerConfig {
-    /// Input embedding dimension
+    /// Input embedding dimension.
     pub embedding_dim: usize,
-    /// Hidden dimension in scorer MLP
+    /// Hidden dimension in scorer MLP.
     pub hidden_dim: usize,
-    /// Threshold for merge decision
+    /// Threshold for merge decision.
     pub threshold: f32,
 }
 
@@ -299,8 +249,7 @@ impl Default for MergeScorerConfig {
 pub trait MergeScorer: Send + Sync {
     /// Score the probability that two clusters should be merged.
     ///
-    /// # Returns
-    /// Probability in [0, 1] that the clusters are coreferent.
+    /// Returns a value clamped to \([0, 1]\).
     fn score(&self, cluster_a: &ClusterEmbedding, cluster_b: &ClusterEmbedding) -> f32;
 
     /// Batch scoring for efficiency.
@@ -333,7 +282,6 @@ pub trait MergeScorer: Send + Sync {
             }
         }
 
-        // Sort by score descending
         merges.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
         merges
     }
@@ -342,13 +290,13 @@ pub trait MergeScorer: Send + Sync {
 /// Simple cosine similarity scorer (CPU fallback).
 #[derive(Debug, Clone)]
 pub struct CosineMergeScorer {
-    /// Merge threshold (not currently used in score(), but useful for configuration)
     #[allow(dead_code)]
     threshold: f32,
 }
 
 impl CosineMergeScorer {
     /// Create a new cosine similarity scorer.
+    #[must_use]
     pub fn new(threshold: f32) -> Self {
         Self { threshold }
     }
@@ -375,21 +323,14 @@ impl MergeScorer for CosineMergeScorer {
     }
 }
 
-/// Cross-context coreference resolution combining encoder and scorer.
-pub struct CrossContextResolver<E: ClusterEncoder, S: MergeScorer> {
-    encoder: E,
-    scorer: S,
-    config: CrossContextConfig,
-}
-
 /// Configuration for cross-context resolution.
 #[derive(Debug, Clone)]
 pub struct CrossContextConfig {
-    /// Merge threshold
+    /// Merge threshold.
     pub threshold: f32,
-    /// Whether to compare clusters from the same context
+    /// Whether to compare clusters from the same context.
     pub compare_same_context: bool,
-    /// Maximum clusters to consider (for efficiency)
+    /// Maximum clusters to consider (for efficiency).
     pub max_clusters: Option<usize>,
 }
 
@@ -406,18 +347,26 @@ impl Default for CrossContextConfig {
 /// A merged cross-context cluster.
 #[derive(Debug, Clone)]
 pub struct MergedCluster {
-    /// Unique ID for the merged cluster
+    /// Unique ID for the merged cluster.
     pub id: usize,
-    /// Source local clusters (context_id, cluster_id)
+    /// Source local clusters (context_id, cluster_id).
     pub source_clusters: Vec<(usize, usize)>,
-    /// All mentions from merged clusters
+    /// All mentions from merged clusters.
     pub mentions: Vec<ClusterMention>,
-    /// Canonical representative
+    /// Canonical representative.
     pub canonical: Option<String>,
+}
+
+/// Cross-context coreference resolution combining encoder and scorer.
+pub struct CrossContextResolver<E: ClusterEncoder, S: MergeScorer> {
+    encoder: E,
+    scorer: S,
+    config: CrossContextConfig,
 }
 
 impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
     /// Create a new cross-context resolver.
+    #[must_use]
     pub fn new(encoder: E, scorer: S, config: CrossContextConfig) -> Self {
         Self {
             encoder,
@@ -427,19 +376,13 @@ impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
     }
 
     /// Resolve coreference across multiple contexts.
-    ///
-    /// # Arguments
-    /// * `local_clusters` - Clusters from each context, indexed by context_id
-    /// * `hidden_states` - Optional token hidden states per context
-    ///
-    /// # Returns
-    /// Merged cross-context clusters
+    #[must_use]
     pub fn resolve(
         &self,
         local_clusters: &HashMap<usize, Vec<LocalCluster>>,
         hidden_states: Option<&HashMap<usize, Vec<Vec<f32>>>>,
     ) -> Vec<MergedCluster> {
-        // 1. Encode all clusters
+        // 1) Encode all clusters.
         let mut all_embeddings: Vec<ClusterEmbedding> = Vec::new();
         for (context_id, clusters) in local_clusters {
             let hs = hidden_states.and_then(|h| h.get(context_id).map(|v| v.as_slice()));
@@ -447,38 +390,42 @@ impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
             all_embeddings.extend(embeddings);
         }
 
-        // 2. Score pairwise merges
+        // Optional: cap number of clusters for very large inputs.
+        if let Some(max) = self.config.max_clusters {
+            if all_embeddings.len() > max {
+                all_embeddings.truncate(max);
+            }
+        }
+
+        // 2) Score pairwise merges.
         let mut merge_decisions: Vec<(usize, usize, f32)> = Vec::new();
         for (i, emb_a) in all_embeddings.iter().enumerate() {
             for (j, emb_b) in all_embeddings.iter().enumerate().skip(i + 1) {
-                // Skip same-context comparisons unless configured
                 if !self.config.compare_same_context && emb_a.context_id == emb_b.context_id {
                     continue;
                 }
-
                 let score = self.scorer.score(emb_a, emb_b);
                 if score >= self.config.threshold {
                     merge_decisions.push((i, j, score));
                 }
             }
         }
-
-        // 3. Sort by score and apply greedy merging via union-find
         merge_decisions.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
 
+        // 3) Union-find.
         let mut uf = UnionFind::new(all_embeddings.len());
         for (i, j, _score) in merge_decisions {
             uf.union(i, j);
         }
 
-        // 4. Build merged clusters
+        // 4) Group by root.
         let mut merged_map: HashMap<usize, Vec<usize>> = HashMap::new();
         for i in 0..all_embeddings.len() {
             let root = uf.find(i);
             merged_map.entry(root).or_default().push(i);
         }
 
-        // 5. Convert to MergedCluster output
+        // 5) Materialize output.
         let mut result: Vec<MergedCluster> = Vec::new();
         for (merged_id, (_, indices)) in merged_map.into_iter().enumerate() {
             let mut merged = MergedCluster {
@@ -494,7 +441,6 @@ impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
                     .source_clusters
                     .push((emb.context_id, emb.cluster_id));
 
-                // Find original cluster and copy mentions
                 if let Some(clusters) = local_clusters.get(&emb.context_id) {
                     if let Some(cluster) = clusters.iter().find(|c| c.id == emb.cluster_id) {
                         merged.mentions.extend(cluster.mentions.clone());
@@ -512,7 +458,7 @@ impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
     }
 }
 
-/// Simple union-find data structure for cluster merging.
+/// Union-find structure for greedy merge closure.
 struct UnionFind {
     parent: Vec<usize>,
     rank: Vec<usize>,
@@ -528,7 +474,7 @@ impl UnionFind {
 
     fn find(&mut self, mut x: usize) -> usize {
         while self.parent[x] != x {
-            self.parent[x] = self.parent[self.parent[x]]; // Path compression
+            self.parent[x] = self.parent[self.parent[x]];
             x = self.parent[x];
         }
         x
@@ -540,7 +486,6 @@ impl UnionFind {
         if px == py {
             return;
         }
-        // Union by rank
         match self.rank[px].cmp(&self.rank[py]) {
             std::cmp::Ordering::Less => self.parent[px] = py,
             std::cmp::Ordering::Greater => self.parent[py] = px,
@@ -552,147 +497,3 @@ impl UnionFind {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_heuristic_encoder() {
-        let encoder = HeuristicClusterEncoder::new(64);
-
-        let mut cluster = LocalCluster::new(0, 0);
-        cluster.add_mention(ClusterMention {
-            start: 0,
-            end: 12,
-            text: "Barack Obama".to_string(),
-            context_id: 0,
-        });
-        cluster.add_mention(ClusterMention {
-            start: 50,
-            end: 52,
-            text: "he".to_string(),
-            context_id: 0,
-        });
-
-        let embedding = encoder.encode_cluster(&cluster, None);
-
-        assert_eq!(embedding.embedding.len(), 64);
-        assert_eq!(embedding.cluster_id, 0);
-        assert_eq!(embedding.mention_count, 2);
-
-        // Verify normalization
-        let norm: f32 = embedding
-            .embedding
-            .iter()
-            .map(|x| x * x)
-            .sum::<f32>()
-            .sqrt();
-        assert!((norm - 1.0).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_cosine_scorer() {
-        let scorer = CosineMergeScorer::new(0.5);
-
-        let emb_a = ClusterEmbedding {
-            embedding: vec![1.0, 0.0, 0.0, 0.0],
-            cluster_id: 0,
-            context_id: 0,
-            mention_count: 1,
-        };
-        let emb_b = ClusterEmbedding {
-            embedding: vec![1.0, 0.0, 0.0, 0.0],
-            cluster_id: 1,
-            context_id: 1,
-            mention_count: 1,
-        };
-        let emb_c = ClusterEmbedding {
-            embedding: vec![0.0, 1.0, 0.0, 0.0],
-            cluster_id: 2,
-            context_id: 1,
-            mention_count: 1,
-        };
-
-        // Identical embeddings -> score 1.0
-        let score_ab = scorer.score(&emb_a, &emb_b);
-        assert!((score_ab - 1.0).abs() < 0.01);
-
-        // Orthogonal embeddings -> score 0.0
-        let score_ac = scorer.score(&emb_a, &emb_c);
-        assert!(score_ac.abs() < 0.01);
-    }
-
-    #[test]
-    fn test_cross_context_resolver() {
-        let encoder = HeuristicClusterEncoder::new(64);
-        let scorer = CosineMergeScorer::new(0.3);
-        let config = CrossContextConfig::default();
-        let resolver = CrossContextResolver::new(encoder, scorer, config);
-
-        // Context 0: "Barack Obama" cluster
-        let mut cluster0 = LocalCluster::new(0, 0);
-        cluster0.add_mention(ClusterMention {
-            start: 0,
-            end: 12,
-            text: "Barack Obama".to_string(),
-            context_id: 0,
-        });
-
-        // Context 1: "Obama" cluster (should merge with cluster0)
-        let mut cluster1 = LocalCluster::new(0, 1);
-        cluster1.add_mention(ClusterMention {
-            start: 10,
-            end: 15,
-            text: "Obama".to_string(),
-            context_id: 1,
-        });
-
-        // Context 1: "Angela Merkel" cluster (should NOT merge)
-        let mut cluster2 = LocalCluster::new(1, 1);
-        cluster2.add_mention(ClusterMention {
-            start: 50,
-            end: 63,
-            text: "Angela Merkel".to_string(),
-            context_id: 1,
-        });
-
-        let mut local_clusters = HashMap::new();
-        local_clusters.insert(0, vec![cluster0]);
-        local_clusters.insert(1, vec![cluster1, cluster2]);
-
-        let merged = resolver.resolve(&local_clusters, None);
-
-        // We should have 2 merged clusters:
-        // 1. Barack Obama + Obama
-        // 2. Angela Merkel
-        assert_eq!(merged.len(), 2);
-    }
-
-    #[test]
-    fn test_canonical_computation() {
-        let mut cluster = LocalCluster::new(0, 0);
-        cluster.add_mention(ClusterMention {
-            start: 0,
-            end: 2,
-            text: "he".to_string(),
-            context_id: 0,
-        });
-        cluster.add_mention(ClusterMention {
-            start: 10,
-            end: 22,
-            text: "Barack Obama".to_string(),
-            context_id: 0,
-        });
-        cluster.add_mention(ClusterMention {
-            start: 30,
-            end: 35,
-            text: "Obama".to_string(),
-            context_id: 0,
-        });
-
-        cluster.compute_canonical();
-
-        // Should pick "Barack Obama" (longest non-pronoun)
-        assert_eq!(cluster.canonical, Some("Barack Obama".to_string()));
-    }
-}

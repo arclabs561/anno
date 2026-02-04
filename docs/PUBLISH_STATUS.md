@@ -9,7 +9,7 @@ We treat Git tags + GitHub Releases as the release log.
 - **Potentially publishable (later)**:
   - `anno` (the facade crate)
 - **Not intended to be published**:
-  - `anno-core`, `anno-eval`, `anno-cli` (workspace crates used for internal structure/tooling)
+  - `anno-core`, `anno-metrics`, `anno-eval`, `anno-cli` (workspace crates used for internal structure/tooling)
 
 ## Why publishing is paused
 

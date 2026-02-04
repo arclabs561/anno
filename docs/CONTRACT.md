@@ -48,6 +48,7 @@ exact string you pass in.
 `anno` is a single publishable crate. Major feature flags:
 - `default = ["onnx"]`
 - `candle`: pure-Rust transformer backend (GPU via platform support)
+- `analysis` (alias: legacy `eval`): enables the lightweight `anno::eval` analysis primitives (shared metrics, cluster encoders, etc.)
 - `eval-advanced`: enables evaluation-adjacent helpers (used by `anno-cli` benchmarking)
 - `discourse`: discourse-level analysis
 

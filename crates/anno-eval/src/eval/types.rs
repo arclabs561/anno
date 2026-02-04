@@ -579,46 +579,7 @@ impl std::fmt::Display for LabelShift {
 /// // Report metrics separately, not averaged
 /// println!("Main characters: {:.1}% F1", stats.long_chain_f1 * 100.0);
 /// ```
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
-pub struct CorefChainStats {
-    /// Number of long chains (>10 mentions).
-    pub long_chain_count: usize,
-    /// Number of short chains (2-10 mentions).
-    pub short_chain_count: usize,
-    /// Number of singletons (1 mention).
-    pub singleton_count: usize,
-    /// F1 score on long chains only.
-    pub long_chain_f1: f64,
-    /// F1 score on short chains only.
-    pub short_chain_f1: f64,
-    /// F1 score on singletons (if evaluated).
-    pub singleton_f1: f64,
-}
-
-impl CorefChainStats {
-    /// Total chain count.
-    #[must_use]
-    pub fn total_chains(&self) -> usize {
-        self.long_chain_count + self.short_chain_count + self.singleton_count
-    }
-
-    /// Weighted F1 (by chain count).
-    ///
-    /// Note: This is NOT the same as CoNLL F1 (which averages MUC, B³, CEAF-e).
-    #[must_use]
-    pub fn weighted_f1(&self) -> f64 {
-        let total = self.total_chains();
-        if total == 0 {
-            return 0.0;
-        }
-
-        let weighted_sum = self.long_chain_f1 * self.long_chain_count as f64
-            + self.short_chain_f1 * self.short_chain_count as f64
-            + self.singleton_f1 * self.singleton_count as f64;
-
-        weighted_sum / total as f64
-    }
-}
+pub use anno_metrics::types::CorefChainStats;
 
 // =============================================================================
 // Document Scale Classification (Bourgois & Poibeau 2025)

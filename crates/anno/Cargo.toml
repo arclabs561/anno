@@ -13,6 +13,7 @@ categories = ["text-processing"]
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.2.0" }
+anno-metrics = { path = "../anno-metrics", version = "0.2.0", optional = true }
 textprep = { workspace = true }
 sketchir = { workspace = true }
 clump = { workspace = true }
@@ -71,7 +72,7 @@ default = ["onnx"]
 discourse = []
 # Legacy name: this gate historically meant “evaluation-ish / research modules”.
 # Prefer `analysis` going forward (kept as an alias to avoid breaking downstreams).
-eval = []
+eval = ["dep:anno-metrics"]
 analysis = ["eval"]
 # Enables evaluation-adjacent tooling (CLI helpers, URL ingestion, etc.).
 eval-advanced = ["dep:ureq"]
