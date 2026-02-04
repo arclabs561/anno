@@ -40,7 +40,7 @@ clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { version = "0.1.1", default-features = false, features = ["serde", "stochastic", "contextual"] }
+muxer = { version = "0.1.1", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 hf-hub = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -52,7 +52,7 @@ default = []
 parallel = ["dep:rayon"]
 discourse = ["anno/discourse"]
 eval = []
-eval-advanced = []
+eval-advanced = ["dep:muxer"]
 eval-profiling = []
 eval-bias = []
 eval-parallel = ["parallel"]
