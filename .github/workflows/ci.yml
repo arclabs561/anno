@@ -989,7 +989,7 @@ jobs:
           name: codecov-anno
 
   # ==========================================================================
-  # Publish Validation (cargo publish --dry-run for all crates)
+  # Publish Validation (best-effort; expected to fail while publishing is paused)
   # ==========================================================================
   publish-validation:
     name: Publish Validation
@@ -1012,13 +1012,13 @@ jobs:
       - name: Check publish readiness (anno)
         id: anno
         run: |
-          echo "Checking anno publish readiness..."
+          echo "Checking anno publish readiness (best-effort)..."
           if cargo publish --dry-run -p anno; then
             echo "status=ready" >> $GITHUB_OUTPUT
             echo "[ok] anno: Ready to publish" >> $GITHUB_STEP_SUMMARY
           else
             echo "status=error" >> $GITHUB_OUTPUT
-            echo "[error] anno: Publish validation failed" >> $GITHUB_STEP_SUMMARY
+            echo "[error] anno: Publish validation failed (expected while publishing is paused)" >> $GITHUB_STEP_SUMMARY
           fi
       
       - name: Check crates.io status
