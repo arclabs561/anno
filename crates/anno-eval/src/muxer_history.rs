@@ -41,8 +41,12 @@ pub struct BackendHistory {
 }
 
 impl BackendHistory {
-    /// Load history from a JSON file, or return an empty history if not found.
-    pub fn load(path: &PathBuf, window_cap: usize) -> Self {
+    /// Attempt to load history from a JSON file.
+    ///
+    /// Returns:
+    /// - `Ok(empty)` if the file does not exist
+    /// - `Err(_)` if the file exists but cannot be read or parsed
+    pub fn try_load(path: &PathBuf, window_cap: usize) -> Result<Self, String> {
         #[derive(Debug, Clone, serde::Deserialize)]
         struct WindowSerde {
             #[serde(default)]
@@ -64,61 +68,76 @@ impl BackendHistory {
             exp3ix_state: Option<Exp3IxState>,
         }
 
-        let bytes = fs::read(path).ok();
-        if let Some(bytes) = bytes {
-            if let Ok(h) = serde_json::from_slice::<BackendHistorySerde>(&bytes) {
-                let cap = window_cap.max(1);
-                let _ = h.window_cap; // legacy; env-controlled cap is source of truth
-
-                // Upgrade path for schema versions:
-                // - v0/1: legacy; ok field was inverted or ambiguous
-                // - v2: ok := "evaluation succeeded" (upgrade to quality-aware)
-                // - v3+: ok := "succeeded AND not junk"
-                let mut windows: BTreeMap<String, Window> = BTreeMap::new();
-                let mut fail_kinds: BTreeMap<String, VecDeque<Option<String>>> = BTreeMap::new();
-                for (k, w) in h.windows {
-                    let _ = w.cap;
-                    let mut out = Window::new(cap);
-                    for mut o in w.buf {
-                        match h.version {
-                            0 | 1 => {
-                                o.ok = !o.hard_junk && !o.junk;
-                            }
-                            2 => {
-                                o.ok = o.ok && !o.hard_junk && !o.junk;
-                            }
-                            _ => {
-                                o.ok = o.ok && !o.hard_junk && !o.junk;
-                            }
-                        }
-                        out.push(o);
-                    }
-                    windows.insert(k, out);
-                }
-                for (k, mut fk) in h.fail_kinds {
-                    while fk.len() > cap {
-                        fk.pop_front();
-                    }
-                    fail_kinds.insert(k, fk);
-                }
-
-                return Self {
+        let cap = window_cap.max(1);
+        let bytes = match fs::read(path) {
+            Ok(b) => b,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self {
                     version: 3,
                     window_cap: cap,
-                    windows,
-                    fail_kinds,
-                    exp3ix_state: h.exp3ix_state,
-                };
+                    windows: BTreeMap::new(),
+                    fail_kinds: BTreeMap::new(),
+                    exp3ix_state: None,
+                });
             }
+            Err(e) => return Err(format!("muxer history: read {}: {e}", path.display())),
+        };
+
+        let h = serde_json::from_slice::<BackendHistorySerde>(&bytes)
+            .map_err(|e| format!("muxer history: parse {}: {e}", path.display()))?;
+
+        let _ = h.window_cap; // legacy; env-controlled cap is source of truth
+
+        // Upgrade path for schema versions:
+        // - v0/1: legacy; ok field was inverted or ambiguous
+        // - v2: ok := "evaluation succeeded" (upgrade to quality-aware)
+        // - v3+: ok := "succeeded AND not junk"
+        let mut windows: BTreeMap<String, Window> = BTreeMap::new();
+        let mut fail_kinds: BTreeMap<String, VecDeque<Option<String>>> = BTreeMap::new();
+        for (k, w) in h.windows {
+            let _ = w.cap;
+            let mut out = Window::new(cap);
+            for mut o in w.buf {
+                match h.version {
+                    0 | 1 => {
+                        o.ok = !o.hard_junk && !o.junk;
+                    }
+                    2 => {
+                        o.ok = o.ok && !o.hard_junk && !o.junk;
+                    }
+                    _ => {
+                        o.ok = o.ok && !o.hard_junk && !o.junk;
+                    }
+                }
+                out.push(o);
+            }
+            windows.insert(k, out);
+        }
+        for (k, mut fk) in h.fail_kinds {
+            while fk.len() > cap {
+                fk.pop_front();
+            }
+            fail_kinds.insert(k, fk);
         }
 
-        Self {
+        Ok(Self {
+            version: 3,
+            window_cap: cap,
+            windows,
+            fail_kinds,
+            exp3ix_state: h.exp3ix_state,
+        })
+    }
+
+    /// Load history from a JSON file, or return an empty history if not found.
+    pub fn load(path: &PathBuf, window_cap: usize) -> Self {
+        Self::try_load(path, window_cap).unwrap_or_else(|_e| Self {
             version: 3,
             window_cap: window_cap.max(1),
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
-        }
+        })
     }
 
     /// Save history to a JSON file.
