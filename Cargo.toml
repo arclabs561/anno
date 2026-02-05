@@ -168,6 +168,6 @@ bundled-hmm-params = ["anno-lib/bundled-hmm-params"]
 muxer = { path = "../muxer" }
 
 [patch.crates-io]
-infgeom = { path = "../infgeom" }
+infogeom = { path = "../infogeom" }
 logp = { path = "../logp" }
 pare = { path = "../pare" }
