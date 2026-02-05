@@ -271,8 +271,16 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
         prec_den += (pred_mentions.len() - 1) as f64;
     }
 
-    let precision = if prec_den > 0.0 { prec_num / prec_den } else { 0.0 };
-    let recall = if recall_den > 0.0 { recall_num / recall_den } else { 0.0 };
+    let precision = if prec_den > 0.0 {
+        prec_num / prec_den
+    } else {
+        0.0
+    };
+    let recall = if recall_den > 0.0 {
+        recall_num / recall_den
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -585,8 +593,16 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
         }
     }
 
-    let precision = if prec_den > 0.0 { prec_num / prec_den } else { 0.0 };
-    let recall = if recall_den > 0.0 { recall_num / recall_den } else { 0.0 };
+    let precision = if prec_den > 0.0 {
+        prec_num / prec_den
+    } else {
+        0.0
+    };
+    let recall = if recall_den > 0.0 {
+        recall_num / recall_den
+    } else {
+        0.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -704,7 +720,10 @@ pub fn conll_f1(predicted: &[CorefChain], gold: &[CorefChain]) -> f64 {
 
 /// Compute chain-length stratified diagnostics using LEA within each stratum.
 #[must_use]
-pub fn compute_chain_length_stratified(predicted: &[CorefChain], gold: &[CorefChain]) -> CorefChainStats {
+pub fn compute_chain_length_stratified(
+    predicted: &[CorefChain],
+    gold: &[CorefChain],
+) -> CorefChainStats {
     let mut long_pred: Vec<&CorefChain> = Vec::new();
     let mut short_pred: Vec<&CorefChain> = Vec::new();
     let mut singleton_pred: Vec<&CorefChain> = Vec::new();
@@ -1058,7 +1077,11 @@ impl SignificanceTest {
     /// Perform a paired t-test on CoNLL F1 scores (approximate).
     #[must_use]
     pub fn paired_t_test(scores_a: &[f64], scores_b: &[f64]) -> Self {
-        assert_eq!(scores_a.len(), scores_b.len(), "Scores must have same length");
+        assert_eq!(
+            scores_a.len(),
+            scores_b.len(),
+            "Scores must have same length"
+        );
         let n = scores_a.len();
         if n < 2 {
             return Self {
@@ -1074,22 +1097,44 @@ impl SignificanceTest {
             };
         }
 
-        let differences: Vec<f64> = scores_a.iter().zip(scores_b.iter()).map(|(a, b)| a - b).collect();
+        let differences: Vec<f64> = scores_a
+            .iter()
+            .zip(scores_b.iter())
+            .map(|(a, b)| a - b)
+            .collect();
         let mean_diff = differences.iter().sum::<f64>() / n as f64;
         let mean_a = scores_a.iter().sum::<f64>() / n as f64;
         let mean_b = scores_b.iter().sum::<f64>() / n as f64;
 
-        let variance: f64 =
-            differences.iter().map(|&d| (d - mean_diff).powi(2)).sum::<f64>() / (n - 1) as f64;
+        let variance: f64 = differences
+            .iter()
+            .map(|&d| (d - mean_diff).powi(2))
+            .sum::<f64>()
+            / (n - 1) as f64;
         let std_diff = variance.sqrt();
         let std_error = std_diff / (n as f64).sqrt();
-        let t_stat = if std_error > 0.0 { mean_diff / std_error } else { 0.0 };
+        let t_stat = if std_error > 0.0 {
+            mean_diff / std_error
+        } else {
+            0.0
+        };
 
         // Rough p-value approximation: use normal critical values for df>=30, else conservative.
+        let abs_t = t_stat.abs();
         let p_value = if n >= 30 {
-            if t_stat.abs() >= 2.576 { 0.01 } else if t_stat.abs() >= 1.96 { 0.05 } else { 0.10 }
+            if abs_t >= 2.576 {
+                0.01
+            } else if abs_t >= 1.96 {
+                0.05
+            } else {
+                0.10
+            }
+        } else if abs_t >= 2.75 {
+            0.01
+        } else if abs_t >= 2.04 {
+            0.05
         } else {
-            if t_stat.abs() >= 2.75 { 0.01 } else if t_stat.abs() >= 2.04 { 0.05 } else { 0.10 }
+            0.10
         };
 
         Self {
@@ -1120,7 +1165,10 @@ impl SignificanceTest {
 
 /// Compare two systems using a paired t-test on CoNLL F1.
 #[must_use]
-pub fn compare_systems(system_a: &[CorefEvaluation], system_b: &[CorefEvaluation]) -> SignificanceTest {
+pub fn compare_systems(
+    system_a: &[CorefEvaluation],
+    system_b: &[CorefEvaluation],
+) -> SignificanceTest {
     let scores_a: Vec<f64> = system_a.iter().map(|e| e.conll_f1).collect();
     let scores_b: Vec<f64> = system_b.iter().map(|e| e.conll_f1).collect();
     SignificanceTest::paired_t_test(&scores_a, &scores_b)
@@ -1238,4 +1286,3 @@ impl WindowFragmentationStats {
         }
     }
 }
-

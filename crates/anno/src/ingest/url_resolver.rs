@@ -210,7 +210,7 @@ impl UrlResolver for HttpResolver {
     }
 
     fn resolve(&self, url: &str) -> Result<ResolvedContent> {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             let _url = url; // Used in error messages below
                             // Reuse the download infrastructure from eval/loader
@@ -267,13 +267,13 @@ impl UrlResolver for HttpResolver {
             })
         }
 
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
             #[allow(unused_variables)]
             let _url = url;
             Err(crate::Error::InvalidInput(
-                "URL resolution requires 'eval-advanced' feature. \
-                 Enable it with: cargo build -p anno-cli --features eval-advanced"
+                "URL resolution requires 'eval' feature. \
+                 Enable it with: cargo build -p anno-cli --features eval"
                     .to_string(),
             ))
         }
@@ -480,14 +480,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(feature = "eval-advanced"))]
+    #[cfg(not(feature = "eval"))]
     fn test_http_resolver_without_feature() {
         let resolver = HttpResolver::new();
         let result = resolver.resolve("https://example.com");
-        // Without eval-advanced feature, should return an error
+        // Without eval feature, should return an error
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("eval-advanced"));
+        assert!(err.to_string().contains("eval"));
     }
 
     #[test]

@@ -429,13 +429,13 @@ pub struct CDCRConfig {
     pub require_type_match: bool,
     /// Optional cluster encoder for learned similarity (when available)
     /// If None, falls back to string similarity
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub cluster_encoder: Option<std::sync::Arc<dyn crate::eval::cluster_encoder::ClusterEncoder>>,
 }
 
 impl std::fmt::Debug for CDCRConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             f.debug_struct("CDCRConfig")
                 .field("min_similarity", &self.min_similarity)
@@ -448,7 +448,7 @@ impl std::fmt::Debug for CDCRConfig {
                 )
                 .finish()
         }
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
             f.debug_struct("CDCRConfig")
                 .field("min_similarity", &self.min_similarity)
@@ -467,7 +467,7 @@ impl Default for CDCRConfig {
             use_lsh: true,
             lsh: LSHBlocker::default(),
             require_type_match: true,
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             cluster_encoder: None,
         }
     }
@@ -527,7 +527,7 @@ impl CDCRResolver {
     /// When a cluster encoder is provided, CDCR will use learned embeddings
     /// for similarity computation instead of string similarity. This enables
     /// more accurate cross-document entity linking.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[must_use]
     pub fn with_cluster_encoder(
         mut self,
@@ -614,7 +614,7 @@ impl CDCRResolver {
     /// Uses cluster encoder if available (learned embeddings), otherwise
     /// falls back to string similarity (heuristic).
     fn mention_similarity(&self, a: &MentionRef, b: &MentionRef) -> f64 {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         if let Some(ref encoder) = self.config.cluster_encoder {
             // Convert mentions to LocalCluster format for encoding
             // For single mentions, create a singleton cluster

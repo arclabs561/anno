@@ -13,10 +13,10 @@
 //!
 //! For specialized analysis, import from specific modules:
 //! - `anno::eval::gender_bias` (requires `eval-bias` feature)
-//! - `anno::eval::calibration` (requires `eval-advanced` feature)
+//! - `anno::eval::calibration` (requires `eval` feature)
 
 // =============================================================================
-// CORE (always available with `eval` feature)
+// CORE (always available)
 // =============================================================================
 
 // Unified evaluation report (recommended entry point)
@@ -60,14 +60,14 @@ pub use super::length_bias::{EntityLengthEvaluator, LengthBiasResults};
 pub use super::temporal_bias::{TemporalBiasEvaluator, TemporalBiasResults};
 
 // =============================================================================
-// ADVANCED ANALYSIS (requires `eval-advanced` feature)
+// ADVANCED ANALYSIS (requires `eval` feature)
 // =============================================================================
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use super::calibration::{CalibrationEvaluator, CalibrationResults};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use super::error_analysis::{ErrorAnalyzer, ErrorReport};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use super::robustness::{RobustnessEvaluator, RobustnessResults};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use super::threshold_analysis::{ThresholdAnalyzer, ThresholdCurve};

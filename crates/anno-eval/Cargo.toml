@@ -13,10 +13,14 @@ doctest = false
 [[bin]]
 name = "muxer_repeat"
 path = "src/bin/muxer_repeat.rs"
-required-features = ["eval-advanced"]
+required-features = ["eval"]
+
+[[bin]]
+name = "muxer_audit"
+path = "src/bin/muxer_audit.rs"
 
 [dependencies]
-anno = { path = "../anno", version = "0.2.0", default-features = false, features = ["analysis"] }
+anno = { path = "../anno", package = "anno-lib", version = "0.2.0", default-features = false, features = ["analysis"] }
 anno-core = { path = "../anno-core", version = "0.2.0" }
 anno-metrics = { path = "../anno-metrics", version = "0.2.0" }
 
@@ -51,8 +55,8 @@ tempfile = "3"
 default = []
 parallel = ["dep:rayon"]
 discourse = ["anno/discourse"]
-eval = []
-eval-advanced = ["dep:muxer"]
+# Muxer-backed evaluation harnesses + sampling tooling.
+eval = ["dep:muxer"]
 eval-profiling = []
 eval-bias = []
 eval-parallel = ["parallel"]

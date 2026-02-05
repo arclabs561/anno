@@ -65,4 +65,3 @@ pub mod coref_metrics;
 
 /// Cluster encoding and merge scoring primitives for cross-context coreference.
 pub mod cluster_encoder;
-

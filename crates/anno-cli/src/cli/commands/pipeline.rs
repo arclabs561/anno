@@ -6,7 +6,7 @@ use std::fs;
 use super::super::output::{color, print_signals};
 use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::{link_tracks_to_kb, resolve_coreference};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_core::{Entity, EntityType};
 use anno_core::{GroundedDocument, Location, Signal, SignalId};
 
@@ -180,7 +180,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
 
     // Cross-document clustering if requested
     if args.cross_doc {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             use anno_eval::cdcr::{CDCRConfig, CDCRResolver, Document};
 
@@ -266,9 +266,9 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
             }
         }
 
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
-            return Err("Cross-document clustering requires 'eval-advanced' feature".to_string());
+            return Err("Cross-document clustering requires 'eval' feature".to_string());
         }
     } else {
         // Output individual documents

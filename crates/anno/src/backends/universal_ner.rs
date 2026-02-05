@@ -175,11 +175,11 @@ Return ONLY the JSON array, no other text:"#
         self.parse_llm_response(content, text)
     }
 
-    /// Fallback when eval-advanced feature is not enabled
+    /// Fallback when `llm` feature is not enabled.
     #[cfg(not(feature = "llm"))]
     fn extract_with_llm(&self, _text: &str, _entity_types: &[&str]) -> Result<Vec<Entity>> {
         Err(crate::Error::FeatureNotAvailable(
-            "UniversalNER requires the 'llm' feature to make HTTP requests (ureq). Rebuild with --features llm (or eval-advanced) and provide an API key via .env."
+            "UniversalNER requires the 'llm' feature to make HTTP requests (ureq). Rebuild with --features llm and provide an API key via .env."
                 .into(),
         ))
     }

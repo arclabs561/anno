@@ -49,7 +49,7 @@ If entities have invalid offsets, evaluation will fail or produce warnings.
 **Command**:
 \`\`\`bash
 # Run evaluation with validation
-cargo test --workspace --lib --features "eval-advanced discourse"
+cargo test --workspace --lib --features "eval discourse"
 
 # Check for validation errors in output
 \`\`\`

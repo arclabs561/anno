@@ -89,12 +89,12 @@ pub enum Commands {
 
     /// Comprehensive evaluation across all task-dataset-backend combinations
     #[command(visible_alias = "bench")]
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[command(hide = true)]
     Benchmark(commands::BenchmarkArgs),
 
     /// Inspect sampler history from the randomized matrix sampler harness
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[command(hide = true)]
     #[command(name = "sampler", visible_alias = "muxer")]
     Muxer(commands::MuxerArgs),
@@ -108,7 +108,7 @@ pub enum Commands {
 
     /// Cross-document entity coalescing: cluster entities across multiple documents
     #[command(visible_alias = "coalesce")]
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[command(hide = true)]
     CrossDoc(commands::CrossDocArgs),
 

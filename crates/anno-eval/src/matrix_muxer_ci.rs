@@ -1,7 +1,7 @@
 //! CI-friendly randomized matrix test (muxer-backed).
 //!
 //! This replaces the older archived test harness with something that:
-//! - compiles under `--features eval-advanced` (no `cli` feature required)
+//! - compiles under `--features eval` (no `cli` feature required)
 //! - uses `muxer` for deterministic, windowed MAB-style backend selection
 //! - respects `ANNO_CI_SEED` and `ANNO_SAMPLE_STRATEGY`
 //! - prefers cache in CI, but can still download to avoid no-op runs
@@ -38,6 +38,28 @@
 //! - `ANNO_MUXER_MAX_HARD_JUNK_RATE`: optional constraint (0..1)
 //! - `ANNO_MUXER_MAX_HTTP_429_RATE`: optional constraint (0..1) (harness sets 429=false today)
 //! - `ANNO_MUXER_MAX_MEAN_COST_UNITS`: optional constraint (>=0)
+//! - Monitoring window split (monitored selection only):
+//!   - `ANNO_MUXER_MONITOR_RECENT_CAP`: “recent” window size for change monitors (default: 20)
+//! - Drift monitoring (monitored selection only; all optional):
+//!   - `ANNO_MUXER_MAX_DRIFT`: optional drift guard threshold
+//!   - `ANNO_MUXER_DRIFT_WEIGHT`: penalty weight for drift (0 disables)
+//!   - `ANNO_MUXER_DRIFT_METRIC`: `hellinger` | `rao` | `js` (default: hellinger)
+//!   - `ANNO_MUXER_DRIFT_MIN_BASELINE`: minimum baseline samples (default: 20)
+//!   - `ANNO_MUXER_DRIFT_MIN_RECENT`: minimum recent samples (default: 10)
+//!   - `ANNO_MUXER_DRIFT_TOL`: numerical tolerance (default: 1e-12)
+//! - Change monitoring (monitored selection only; all optional):
+//!   - `ANNO_MUXER_MAX_CATKL`: optional threshold on `S = n_recent * KL(q_recent || p0_baseline)`
+//!   - `ANNO_MUXER_CATKL_WEIGHT`: penalty weight for catKL (0 disables)
+//!   - `ANNO_MUXER_CATKL_ALPHA`: Dirichlet smoothing pseudo-count (default: 1e-3)
+//!   - `ANNO_MUXER_CATKL_MIN_BASELINE`: minimum baseline samples (default: 40)
+//!   - `ANNO_MUXER_CATKL_MIN_RECENT`: minimum recent samples (default: 20)
+//!   - `ANNO_MUXER_MAX_CUSUM`: optional threshold on categorical CUSUM score over the recent window
+//!   - `ANNO_MUXER_CUSUM_WEIGHT`: penalty weight for CUSUM (0 disables)
+//!   - `ANNO_MUXER_CUSUM_ALPHA`: smoothing pseudo-count (default: 1e-3)
+//!   - `ANNO_MUXER_CUSUM_MIN_BASELINE`: minimum baseline samples (default: 40)
+//!   - `ANNO_MUXER_CUSUM_MIN_RECENT`: minimum recent samples (default: 20)
+//!   - `ANNO_MUXER_CUSUM_ALT_P`: optional CSV 4-vector (normalized) over
+//!     `[ok_clean, ok_soft_junk, ok_hard_junk, fail]`
 //! - `ANNO_MUXER_JUNK_F1_NER`: junk threshold for NER F1 (default: 0.05)
 //! - `ANNO_MUXER_JUNK_F1_COREF`: junk threshold for CoNLL F1 (default: 0.20)
 //! - `ANNO_MUXER_JUNK_F1_RELATION`: junk threshold for strict F1 (default: 0.10)
@@ -73,7 +95,7 @@
 //! - “worst-first” here means “prioritize historically bad outcomes” where “bad” is
 //!   an eval failure or low F1, recorded into a muxer window.
 
-// This module is compiled under `anno-eval`'s `eval-advanced` feature.
+// This module is compiled under `anno-eval`'s `eval` feature.
 // Tests within this file are still `#[cfg(test)]` as usual.
 
 use crate::eval::backend_factory::BackendFactory;
@@ -82,14 +104,16 @@ use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use crate::eval::task_mapping::{
     backend_tasks, dataset_tasks, get_task_backends, get_task_datasets, Task,
 };
-use crate::muxer_history::{BackendHistory, FailKindCount};
 use crate::muxer_harness as mh;
+#[cfg(test)]
+use crate::muxer_history::HistoryWindow;
+use crate::muxer_history::{BackendHistory, FailKindCount};
 use muxer::{Exp3IxConfig, Exp3IxState, MabConfig, Outcome, Summary};
+#[cfg(test)]
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::PathBuf;
-#[cfg(test)]
-use crate::muxer_history::HistoryWindow;
 #[cfg(test)]
 use std::sync::{Mutex, OnceLock};
 
@@ -147,6 +171,13 @@ impl MlOnlyPolicy {
             _ => Self::Exp3Ix,
         }
     }
+
+    fn id_str(self) -> &'static str {
+        match self {
+            Self::Exp3Ix => "exp3ix",
+            Self::Mab => "mab",
+        }
+    }
 }
 
 impl SampleStrategy {
@@ -156,7 +187,8 @@ impl SampleStrategy {
             match s.trim().to_ascii_lowercase().as_str() {
                 "random" => return Self::Random,
                 "worst-first" | "worstfirst" => return Self::WorstFirst,
-                "ml-only" | "mlonly" | "ml" => return Self::MlOnly,
+                // Historical name: "ml-only" (selection is "best-ish", but not necessarily ML-only).
+                "ml-only" | "mlonly" | "ml" | "best-first" | "bestfirst" => return Self::MlOnly,
                 _ => {}
             }
         }
@@ -166,6 +198,14 @@ impl SampleStrategy {
             Some(MuxerMode::Triage) => Self::WorstFirst,
             Some(MuxerMode::Measure) => Self::MlOnly,
             None => Self::MlOnly,
+        }
+    }
+
+    fn id_str(self) -> &'static str {
+        match self {
+            Self::Random => "random",
+            Self::MlOnly => "ml-only",
+            Self::WorstFirst => "worst-first",
         }
     }
 }
@@ -339,6 +379,80 @@ fn exp3ix_config_from_env(seed: u64) -> Exp3IxConfig {
     }
 }
 
+fn monitoring_enabled(cfg: MabConfig) -> bool {
+    cfg.max_drift.is_some()
+        || cfg.drift_weight > 0.0
+        || cfg.max_catkl.is_some()
+        || cfg.catkl_weight > 0.0
+        || cfg.max_cusum.is_some()
+        || cfg.cusum_weight > 0.0
+}
+
+fn monitoring_scores_for_backend(
+    history: &BackendHistory,
+    backend: &str,
+    monitor_recent_cap: usize,
+    cfg: MabConfig,
+    drift_cfg: muxer::DriftConfig,
+) -> (Option<f64>, Option<f64>, Option<f64>) {
+    // Monitoring is defined on backend-global windows only.
+    let m = history.monitored_for_backends(&[backend.to_string()], monitor_recent_cap);
+    let Some(w) = m.get(backend) else {
+        return (None, None, None);
+    };
+
+    let drift =
+        muxer::monitor::drift_between_windows(w.baseline(), w.recent(), drift_cfg).map(|d| d.score);
+    let catkl = muxer::monitor::catkl_score_between_windows(
+        w.baseline(),
+        w.recent(),
+        cfg.catkl_alpha,
+        drift_cfg.tol,
+        cfg.catkl_min_baseline,
+        cfg.catkl_min_recent,
+    );
+    let cusum = muxer::monitor::cusum_score_between_windows(
+        w.baseline(),
+        w.recent(),
+        cfg.cusum_alpha,
+        drift_cfg.tol,
+        cfg.cusum_min_baseline,
+        cfg.cusum_min_recent,
+        cfg.cusum_alt_p,
+    );
+    (drift, catkl, cusum)
+}
+
+fn monitoring_penalty(
+    drift: Option<f64>,
+    catkl: Option<f64>,
+    cusum: Option<f64>,
+    cfg: MabConfig,
+    drift_metric: muxer::DriftMetric,
+) -> f64 {
+    // Normalize scores into [0,1] (best-effort), then take a weighted sum.
+    let drift_norm = drift.unwrap_or(0.0).max(0.0).min(match drift_metric {
+        muxer::DriftMetric::Hellinger => 1.0,
+        muxer::DriftMetric::Rao => core::f64::consts::PI,
+        muxer::DriftMetric::JensenShannon => core::f64::consts::LN_2,
+    }) / match drift_metric {
+        muxer::DriftMetric::Hellinger => 1.0,
+        muxer::DriftMetric::Rao => core::f64::consts::PI,
+        muxer::DriftMetric::JensenShannon => core::f64::consts::LN_2,
+    };
+    let catkl_norm = {
+        let x = catkl.unwrap_or(0.0).max(0.0);
+        x / (1.0 + x)
+    };
+    let cusum_norm = {
+        let x = cusum.unwrap_or(0.0).max(0.0);
+        x / (1.0 + x)
+    };
+    cfg.drift_weight.max(0.0) * drift_norm
+        + cfg.catkl_weight.max(0.0) * catkl_norm
+        + cfg.cusum_weight.max(0.0) * cusum_norm
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 struct WorstFirstRoundLog {
     remaining: Vec<String>,
@@ -356,6 +470,9 @@ struct DecisionLog {
     muxer_version: String,
     run_id: String,
     strategy: String,
+    /// Optional: disambiguates the ML-only selection policy (`exp3ix` or `mab`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ml_only_policy: Option<String>,
     slice: String,
     muxer_profile: Option<String>,
     latency_guardrail_max_mean_ms: Option<u64>,
@@ -380,6 +497,24 @@ struct DecisionLog {
     exp3ix_rounds: Option<Vec<muxer::Exp3IxKRoundLog>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     worst_first_round: Option<WorstFirstRoundLog>,
+
+    /// Optional monitoring metadata (drift/catKL/CUSUM) when enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monitoring_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monitoring_fallback_used: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monitoring_eligible_arms: Option<Vec<String>>,
+
+    /// Optional per-chosen monitoring scores (best-effort, backend-global).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen_drift_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen_catkl_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen_cusum_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen_monitoring_penalty: Option<f64>,
 }
 
 fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
@@ -429,9 +564,15 @@ struct DecisionOutcomeLog {
     muxer_version: String,
     run_id: String,
     strategy: String,
+    /// Optional: disambiguates the ML-only selection policy (`exp3ix` or `mab`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ml_only_policy: Option<String>,
     slice: String,
     dataset: String,
     backend: String,
+    /// Optional backend display name (may include composition details).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    backend_display: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     primary_f1: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -445,6 +586,16 @@ struct DecisionOutcomeLog {
     elapsed_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     cost_units: Option<u64>,
+
+    /// Optional monitoring scores at outcome time (best-effort, backend-global).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    drift_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    catkl_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    cusum_score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    monitoring_penalty: Option<f64>,
 }
 
 #[test]
@@ -454,6 +605,7 @@ fn test_decision_log_schema_smoke() {
         muxer_version: muxer::MUXER_VERSION.to_string(),
         run_id: "seed=0 slice=ner strategy=MlOnly".to_string(),
         strategy: "ml-only".to_string(),
+        ml_only_policy: None,
         slice: "ner".to_string(),
         muxer_profile: None,
         latency_guardrail_max_mean_ms: None,
@@ -478,6 +630,13 @@ fn test_decision_log_schema_smoke() {
         mab_k_round: None,
         exp3ix_rounds: None,
         worst_first_round: None,
+        monitoring_enabled: None,
+        monitoring_fallback_used: None,
+        monitoring_eligible_arms: None,
+        chosen_drift_score: None,
+        chosen_catkl_score: None,
+        chosen_cusum_score: None,
+        chosen_monitoring_penalty: None,
     };
 
     let s = serde_json::to_string(&log).expect("serialize DecisionLog");
@@ -491,6 +650,33 @@ fn test_decision_log_schema_smoke() {
     );
     assert!(v["top_candidates"]["rows"].is_array());
     assert!(v["chosen_fail_kinds_top"].is_array());
+}
+
+#[test]
+fn test_monitoring_penalty_is_monotone_and_reward_adjustment_is_bounded() {
+    let cfg = MabConfig {
+        drift_weight: 1.0,
+        catkl_weight: 2.0,
+        cusum_weight: 3.0,
+        drift_metric: muxer::DriftMetric::Hellinger,
+        ..MabConfig::default()
+    };
+
+    let p0 = monitoring_penalty(Some(0.0), Some(0.0), Some(0.0), cfg, cfg.drift_metric);
+    let p1 = monitoring_penalty(Some(0.2), Some(0.5), Some(1.0), cfg, cfg.drift_metric);
+    let p2 = monitoring_penalty(Some(0.9), Some(2.0), Some(4.0), cfg, cfg.drift_metric);
+    assert!(p0 <= p1 + 1e-12);
+    assert!(p1 <= p2 + 1e-12);
+
+    let r = 0.7;
+    let r0 = (r * (-p0).exp()).clamp(0.0, 1.0);
+    let r1 = (r * (-p1).exp()).clamp(0.0, 1.0);
+    let r2 = (r * (-p2).exp()).clamp(0.0, 1.0);
+    assert!((0.0..=1.0).contains(&r0));
+    assert!((0.0..=1.0).contains(&r1));
+    assert!((0.0..=1.0).contains(&r2));
+    assert!(r0 + 1e-12 >= r1);
+    assert!(r1 + 1e-12 >= r2);
 }
 
 fn matrix_task_override() -> Option<Task> {
@@ -744,7 +930,11 @@ fn select_backends(
             //
             // Perf-estimate mode defaults to 1 locally (unless explicitly overridden) to reduce
             // selection bias in performance interpretation.
-            let control_k = default_control_k_for_mode()
+            // Never let the *default* control pick consume the entire budget; if k==1, reserving
+            // a control pick would fully bypass ML selection and produce confusing outcome-only
+            // logs. Users can still force `control_k == k` explicitly via env.
+            let control_k_default = default_control_k_for_mode().min(k.saturating_sub(1));
+            let control_k = control_k_default
                 .max(mh::control_k_from_env())
                 .min(k)
                 .min(candidates_in_order.len());
@@ -762,6 +952,14 @@ fn select_backends(
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
             // with exploration to avoid fixating too early.
             let cfg = mab_config_from_env();
+            let drift_cfg = mh::drift_config_from_env(cfg.drift_metric);
+            let monitoring_enabled = cfg.max_drift.is_some()
+                || cfg.drift_weight > 0.0
+                || cfg.max_catkl.is_some()
+                || cfg.catkl_weight > 0.0
+                || cfg.max_cusum.is_some()
+                || cfg.cusum_weight > 0.0;
+            let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = decisions_path();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
@@ -773,39 +971,61 @@ fn select_backends(
                 seed,
                 &candidates_for_muxer,
                 remaining_k,
-                mh::novelty_from_env(),
+                // MAB selection already includes an explore-first phase keyed on observed calls.
+                // Harness-level novelty pre-chooses unseen arms *outside* the muxer decision path,
+                // which can suppress decision logs and obscure learning dynamics.
+                false,
                 guard,
                 |b| {
                     let s = history.observed_summary_for(b, datasets, per_dataset);
                     (s.calls, s.elapsed_ms_sum)
                 },
                 |eligible, remaining_k| {
-                    let mk = muxer::select_mab_k_guardrailed_explain_full(
-                        eligible,
-                        |remaining| {
-                            history.summaries_for(
-                                prior,
-                                remaining,
-                                datasets,
-                                per_dataset,
-                                prior_calls,
-                            )
-                        },
-                        cfg,
-                        muxer::LatencyGuardrailConfig {
-                            // Latency guardrail is applied on observed summaries above, so priors can't
-                            // mask "require measured" or skew mean latency.
-                            max_mean_ms: None,
-                            require_measured: false,
-                            allow_fewer: guard.allow_fewer,
-                        },
-                        remaining_k,
-                    );
+                    let summaries_for = |remaining: &[String]| {
+                        history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
+                    };
+                    let mk = if monitoring_enabled {
+                        muxer::select_mab_k_guardrailed_monitored_explain_full(
+                            eligible,
+                            summaries_for,
+                            |remaining| {
+                                history.monitored_for_backends(remaining, monitor_recent_cap)
+                            },
+                            drift_cfg,
+                            cfg,
+                            muxer::LatencyGuardrailConfig {
+                                // Latency guardrail is applied on observed summaries above, so priors can't
+                                // mask "require measured" or skew mean latency.
+                                max_mean_ms: None,
+                                require_measured: false,
+                                allow_fewer: guard.allow_fewer,
+                            },
+                            remaining_k,
+                        )
+                    } else {
+                        muxer::select_mab_k_guardrailed_explain_full(
+                            eligible,
+                            summaries_for,
+                            cfg,
+                            muxer::LatencyGuardrailConfig {
+                                // Latency guardrail is applied on observed summaries above, so priors can't
+                                // mask "require measured" or skew mean latency.
+                                max_mean_ms: None,
+                                require_measured: false,
+                                allow_fewer: guard.allow_fewer,
+                            },
+                            remaining_k,
+                        )
+                    };
                     let chosen = mk.chosen.clone();
                     mk_opt = Some(mk);
                     chosen
                 },
             );
+
+            let mut out = control.clone();
+            out.extend(fill.chosen.clone());
+            out.truncate(k);
 
             if fill.stopped_early && verbose {
                 eprintln!(
@@ -852,11 +1072,17 @@ fn select_backends(
                         // Keep selection debugging bounded: show only a few candidate rows by scalar score.
                         let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
                         for c in &d.selection.candidates {
+                            let drift = c.drift_score.unwrap_or(0.0);
+                            let catkl = c.catkl_score.unwrap_or(0.0);
+                            let cusum = c.cusum_score.unwrap_or(0.0);
                             let score = c.objective_success
                                 - cfg.cost_weight * c.mean_cost_units
                                 - cfg.latency_weight * c.mean_elapsed_ms
                                 - cfg.hard_junk_weight * c.hard_junk_rate
-                                - cfg.junk_weight * c.soft_junk_rate;
+                                - cfg.junk_weight * c.soft_junk_rate
+                                - cfg.drift_weight * drift
+                                - cfg.catkl_weight * catkl
+                                - cfg.cusum_weight * cusum;
                             rows.push((score, c));
                         }
                         rows.sort_by(|a, b| {
@@ -905,10 +1131,71 @@ fn select_backends(
                     .map(|d| format!("{d:?}"))
                     .collect();
                 let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
-                for rl in round_logs {
+                for (i, rl) in round_logs.into_iter().enumerate() {
                     let chosen_fail_kinds_top = rl.chosen.as_deref().and_then(|b| {
                         history.chosen_fail_kinds_top_for(b, datasets, per_dataset, 3)
                     });
+                    let (
+                        chosen_drift_score,
+                        chosen_catkl_score,
+                        chosen_cusum_score,
+                        chosen_monitoring_penalty,
+                    ) = if i < mk.rounds.len() {
+                        let d = &mk.rounds[i].mab;
+                        let c = d
+                            .selection
+                            .candidates
+                            .iter()
+                            .find(|c| c.name == d.selection.chosen);
+                        if let Some(c) = c {
+                            let mon_cfg = mab_config_from_env();
+                            let p = monitoring_penalty(
+                                c.drift_score,
+                                c.catkl_score,
+                                c.cusum_score,
+                                mon_cfg,
+                                mon_cfg.drift_metric,
+                            );
+                            (c.drift_score, c.catkl_score, c.cusum_score, Some(p))
+                        } else {
+                            (None, None, None, None)
+                        }
+                    } else {
+                        (None, None, None, None)
+                    };
+                    let (monitoring_enabled, monitoring_fallback_used, monitoring_eligible_arms) =
+                        if i < mk.rounds.len() {
+                            let d = &mk.rounds[i].mab;
+                            let enabled = d.drift_guard.is_some()
+                                || d.catkl_guard.is_some()
+                                || d.cusum_guard.is_some();
+                            if !enabled {
+                                (None, None, None)
+                            } else if let Some(ref g) = d.cusum_guard {
+                                (
+                                    Some(true),
+                                    Some(g.fallback_used),
+                                    Some(g.eligible_arms.clone()),
+                                )
+                            } else if let Some(ref g) = d.catkl_guard {
+                                (
+                                    Some(true),
+                                    Some(g.fallback_used),
+                                    Some(g.eligible_arms.clone()),
+                                )
+                            } else if let Some(ref g) = d.drift_guard {
+                                (
+                                    Some(true),
+                                    Some(g.fallback_used),
+                                    Some(g.eligible_arms.clone()),
+                                )
+                            } else {
+                                (Some(true), None, None)
+                            }
+                        } else {
+                            // Stop row: no per-round monitoring decision.
+                            (None, None, None)
+                        };
                     append_jsonl(
                         p,
                         &DecisionLog {
@@ -916,6 +1203,7 @@ fn select_backends(
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "ml-only".to_string(),
+                            ml_only_policy: Some(MlOnlyPolicy::Mab.id_str().to_string()),
                             slice: slice_tag.to_string(),
                             muxer_profile: profile.clone(),
                             latency_guardrail_max_mean_ms: guard
@@ -940,13 +1228,69 @@ fn select_backends(
                             mab_k_round: Some(rl),
                             exp3ix_rounds: None,
                             worst_first_round: None,
+                            monitoring_enabled,
+                            monitoring_fallback_used,
+                            monitoring_eligible_arms,
+                            chosen_drift_score,
+                            chosen_catkl_score,
+                            chosen_cusum_score,
+                            chosen_monitoring_penalty,
                         },
                     );
                 }
+            } else if let Some(p) = decisions_path.as_ref() {
+                // Control-only or guardrail-short-circuit: still write a minimal decision row so
+                // downstream audits don't collapse to "decisions=0".
+                let ds: Vec<String> = datasets
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|d| format!("{d:?}"))
+                    .collect();
+                let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+                let chosen_first = out.first().cloned();
+                let chosen_fail_kinds_top = chosen_first
+                    .as_deref()
+                    .and_then(|b| history.chosen_fail_kinds_top_for(b, datasets, per_dataset, 3));
+                append_jsonl(
+                    p,
+                    &DecisionLog {
+                        schema_version: 6,
+                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        run_id: run_id.clone(),
+                        strategy: "ml-only".to_string(),
+                        ml_only_policy: Some(MlOnlyPolicy::Mab.id_str().to_string()),
+                        slice: slice_tag.to_string(),
+                        muxer_profile: profile.clone(),
+                        latency_guardrail_max_mean_ms: guard.max_mean_ms.map(|x| x.round() as u64),
+                        latency_guardrail_allow_fewer: Some(guard.allow_fewer),
+                        latency_guardrail_require_measured: Some(guard.require_measured),
+                        round: 1,
+                        datasets: ds,
+                        remaining: candidates_in_order.to_vec(),
+                        chosen: chosen_first,
+                        explore_first: None,
+                        constraints_fallback_used: None,
+                        eligible_arms: None,
+                        top_candidates: None,
+                        control_arms: if control.is_empty() {
+                            None
+                        } else {
+                            Some(control.clone())
+                        },
+                        chosen_fail_kinds_top,
+                        mab_k_round: None,
+                        exp3ix_rounds: None,
+                        worst_first_round: None,
+                        monitoring_enabled: None,
+                        monitoring_fallback_used: None,
+                        monitoring_eligible_arms: None,
+                        chosen_drift_score: None,
+                        chosen_catkl_score: None,
+                        chosen_cusum_score: None,
+                        chosen_monitoring_penalty: None,
+                    },
+                );
             }
-            let mut out = control;
-            out.extend(fill.chosen);
-            out.truncate(k);
             out
         }
         SampleStrategy::WorstFirst => {
@@ -1051,6 +1395,30 @@ fn select_backends(
                         .map(|d| format!("{d:?}"))
                         .collect();
                     let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+
+                    let mon_cfg = mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
+                    let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
+                    let (
+                        chosen_drift_score,
+                        chosen_catkl_score,
+                        chosen_cusum_score,
+                        chosen_monitoring_penalty,
+                    ) = if mon_enabled {
+                        let (d, k, u) = monitoring_scores_for_backend(
+                            history,
+                            &pick,
+                            monitor_recent_cap,
+                            mon_cfg,
+                            drift_cfg,
+                        );
+                        let p = monitoring_penalty(d, k, u, mon_cfg, mon_cfg.drift_metric);
+                        (d, k, u, Some(p))
+                    } else {
+                        (None, None, None, None)
+                    };
+
                     append_jsonl(
                         p,
                         &DecisionLog {
@@ -1058,6 +1426,7 @@ fn select_backends(
                             muxer_version: muxer::MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "worst-first".to_string(),
+                            ml_only_policy: None,
                             slice: slice_tag.to_string(),
                             muxer_profile: profile,
                             latency_guardrail_max_mean_ms: None,
@@ -1103,6 +1472,13 @@ fn select_backends(
                                         .collect(),
                                 },
                             }),
+                            monitoring_enabled: Some(mon_enabled),
+                            monitoring_fallback_used: None,
+                            monitoring_eligible_arms: None,
+                            chosen_drift_score,
+                            chosen_catkl_score,
+                            chosen_cusum_score,
+                            chosen_monitoring_penalty,
                         },
                     );
                 }
@@ -1188,7 +1564,11 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
         }
 
         // Baselines: always include if present in this build.
-        if matches!(b, "stacked" | "crf" | "hmm" | "heuristic") {
+        //
+        // Note: `ensemble` is intentionally treated as a baseline arm here because its default
+        // constructor is composed of non-ML backends (regex + heuristic) and only adds ML-ish
+        // components behind feature flags (`onnx`, `candle`, etc.).
+        if matches!(b, "stacked" | "crf" | "hmm" | "heuristic" | "ensemble") {
             if available.contains(b) {
                 out.push(b.to_string());
             }
@@ -2089,6 +2469,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 
     let mut exp3ix_state_for_update: Option<Exp3IxState> = None;
     let mut exp3ix_tickets_for_update: Vec<(String, f64)> = Vec::new();
+    let mut outcome_run_id_override: Option<String> = None;
+    let mut outcome_strategy_override: Option<String> = None;
     let chosen_backends = if let Some(ref fixed) = fixed_backends_requested {
         // Force evaluation of a specific backend (or ordered list), while still using the muxer
         // sampler for task/dataset selection and history reporting.
@@ -2112,18 +2494,22 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             let t = p.trim();
             if !t.is_empty() {
                 let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
+                let run_id = format!(
+                    "seed={} slice={} strategy=fixed fixed={}",
+                    seed,
+                    slice_tag_for_muxer,
+                    fixed.join(",")
+                );
+                outcome_run_id_override = Some(run_id.clone());
+                outcome_strategy_override = Some("fixed".to_string());
                 append_jsonl(
                     t,
                     &DecisionLog {
                         schema_version: 6,
                         muxer_version: muxer::MUXER_VERSION.to_string(),
-                        run_id: format!(
-                            "seed={} slice={} strategy=fixed fixed={}",
-                            seed,
-                            slice_tag_for_muxer,
-                            fixed.join(",")
-                        ),
+                        run_id,
                         strategy: "fixed".to_string(),
+                        ml_only_policy: None,
                         slice: slice_tag_for_muxer.to_string(),
                         muxer_profile: std::env::var("ANNO_MUXER_PROFILE").ok(),
                         latency_guardrail_max_mean_ms: None,
@@ -2149,6 +2535,13 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                         mab_k_round: None,
                         exp3ix_rounds: None,
                         worst_first_round: None,
+                        monitoring_enabled: None,
+                        monitoring_fallback_used: None,
+                        monitoring_eligible_arms: None,
+                        chosen_drift_score: None,
+                        chosen_catkl_score: None,
+                        chosen_cusum_score: None,
+                        chosen_monitoring_penalty: None,
                     },
                 );
             }
@@ -2177,11 +2570,17 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
         let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
+        let mut exp3ix_monitoring: Option<(bool, bool, Vec<String>)> = None;
         let fill = mh::policy_fill_k_observed_with(
             seed ^ 0xE8D3_1A00,
             &candidates_for_policy,
             remaining_k,
-            mh::novelty_from_env(),
+            // EXP3-IX already has an "explore-first" phase (based on persisted `uses`).
+            //
+            // Harness-level novelty pre-chooses unseen arms *outside* the EXP3-IX decision path,
+            // which means we cannot log probabilities nor update EXP3-IX state for those picks.
+            // That weakens convergence and produces confusing audit gaps.
+            false,
             guard,
             |b| {
                 let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
@@ -2196,10 +2595,101 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     per_dataset,
                     prior_calls,
                 );
+
+                // Optional monitoring guardrails for EXP3-IX:
+                // EXP3-IX is stochastic and reward-driven; we apply monitoring as:
+                // - hard filters when `max_*` thresholds are set
+                // - soft penalties at update-time when `*_weight > 0` (see below)
+                let monitor_cfg = mab_config_from_env();
+                let mon_enabled = monitoring_enabled(monitor_cfg);
+                let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
+                let drift_cfg = mh::drift_config_from_env(monitor_cfg.drift_metric);
+                let (eligible_after_monitor, monitor_fallback_used) = if mon_enabled
+                    && (monitor_cfg.max_drift.is_some()
+                        || monitor_cfg.max_catkl.is_some()
+                        || monitor_cfg.max_cusum.is_some())
+                {
+                    let monitored = history.monitored_for_backends(eligible, monitor_recent_cap);
+                    let mut kept: Vec<String> = Vec::new();
+                    for a in eligible {
+                        let Some(w) = monitored.get(a) else {
+                            kept.push(a.clone());
+                            continue;
+                        };
+
+                        let drift = muxer::monitor::drift_between_windows(
+                            w.baseline(),
+                            w.recent(),
+                            muxer::DriftConfig {
+                                metric: monitor_cfg.drift_metric,
+                                ..drift_cfg
+                            },
+                        )
+                        .map(|d| d.score);
+                        let catkl = muxer::monitor::catkl_score_between_windows(
+                            w.baseline(),
+                            w.recent(),
+                            monitor_cfg.catkl_alpha,
+                            drift_cfg.tol,
+                            monitor_cfg.catkl_min_baseline,
+                            monitor_cfg.catkl_min_recent,
+                        );
+                        let cusum = muxer::monitor::cusum_score_between_windows(
+                            w.baseline(),
+                            w.recent(),
+                            monitor_cfg.cusum_alpha,
+                            drift_cfg.tol,
+                            monitor_cfg.cusum_min_baseline,
+                            monitor_cfg.cusum_min_recent,
+                            monitor_cfg.cusum_alt_p,
+                        );
+
+                        let violates = monitor_cfg
+                            .max_drift
+                            .map(|thr| drift.map(|x| x > thr).unwrap_or(false))
+                            .unwrap_or(false)
+                            || monitor_cfg
+                                .max_catkl
+                                .map(|thr| catkl.map(|x| x > thr).unwrap_or(false))
+                                .unwrap_or(false)
+                            || monitor_cfg
+                                .max_cusum
+                                .map(|thr| cusum.map(|x| x > thr).unwrap_or(false))
+                                .unwrap_or(false);
+
+                        if !violates {
+                            kept.push(a.clone());
+                        }
+                    }
+                    let fallback_used = kept.is_empty();
+                    let eligible_arms = if fallback_used {
+                        eligible.to_vec()
+                    } else {
+                        kept
+                    };
+                    (eligible_arms, fallback_used)
+                } else {
+                    (eligible.to_vec(), false)
+                };
+
+                exp3ix_monitoring = Some((
+                    mon_enabled,
+                    monitor_fallback_used,
+                    eligible_after_monitor.clone(),
+                ));
+                if mh::env_bool("ANNO_MUXER_VERBOSE", false) && mon_enabled {
+                    eprintln!(
+                        "matrix-muxer: exp3ix monitoring enabled (eligible_before={} eligible_after={} fallback={})",
+                        eligible.len(),
+                        eligible_after_monitor.len(),
+                        monitor_fallback_used
+                    );
+                }
+
                 let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
                     exp3ix_config_from_env(seed),
                     history.exp3ix_state.clone(),
-                    eligible,
+                    &eligible_after_monitor,
                     &summaries,
                     muxer::LatencyGuardrailConfig {
                         // Guardrail is applied above on observed stats.
@@ -2276,6 +2766,32 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     .first()
                     .map(|r| r.guardrail.eligible.clone())
                     .unwrap_or_default();
+                let (
+                    chosen_drift_score,
+                    chosen_catkl_score,
+                    chosen_cusum_score,
+                    chosen_monitoring_penalty,
+                ) = if let Some(chosen_backend) = chosen.first() {
+                    let mon_cfg = mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    if mon_enabled {
+                        let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
+                        let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
+                        let (d, k, u) = monitoring_scores_for_backend(
+                            &history,
+                            chosen_backend,
+                            monitor_recent_cap,
+                            mon_cfg,
+                            drift_cfg,
+                        );
+                        let p = monitoring_penalty(d, k, u, mon_cfg, mon_cfg.drift_metric);
+                        (d, k, u, Some(p))
+                    } else {
+                        (None, None, None, None)
+                    }
+                } else {
+                    (None, None, None, None)
+                };
                 append_jsonl(
                     p,
                     &DecisionLog {
@@ -2283,6 +2799,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                         muxer_version: muxer::MUXER_VERSION.to_string(),
                         run_id,
                         strategy: "ml-only".to_string(),
+                        ml_only_policy: Some(MlOnlyPolicy::Exp3Ix.id_str().to_string()),
                         slice: slice_tag_for_muxer.to_string(),
                         muxer_profile: profile.clone(),
                         // Guardrail is applied on observed stats above; keep logging consistent with env.
@@ -2315,6 +2832,59 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                         mab_k_round: None,
                         exp3ix_rounds: Some(exp3ix_rounds),
                         worst_first_round: None,
+                        monitoring_enabled: exp3ix_monitoring.as_ref().map(|x| x.0),
+                        monitoring_fallback_used: exp3ix_monitoring.as_ref().map(|x| x.1),
+                        monitoring_eligible_arms: exp3ix_monitoring.as_ref().map(|x| x.2.clone()),
+                        chosen_drift_score,
+                        chosen_catkl_score,
+                        chosen_cusum_score,
+                        chosen_monitoring_penalty,
+                    },
+                );
+            } else {
+                // Control-only or guardrail-short-circuit: still write a minimal decision row so
+                // downstream audits don't collapse to "decisions=0".
+                let chosen_first = chosen.first().cloned();
+                let chosen_fail_kinds_top = chosen_first.as_deref().and_then(|b| {
+                    history.chosen_fail_kinds_top_for(b, Some(&chosen_datasets), per_dataset, 3)
+                });
+                append_jsonl(
+                    p,
+                    &DecisionLog {
+                        schema_version: 6,
+                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        run_id,
+                        strategy: "ml-only".to_string(),
+                        ml_only_policy: Some(MlOnlyPolicy::Exp3Ix.id_str().to_string()),
+                        slice: slice_tag_for_muxer.to_string(),
+                        muxer_profile: profile.clone(),
+                        latency_guardrail_max_mean_ms: guard.max_mean_ms.map(|x| x.round() as u64),
+                        latency_guardrail_allow_fewer: Some(guard.allow_fewer),
+                        latency_guardrail_require_measured: Some(guard.require_measured),
+                        round: 1,
+                        datasets: ds,
+                        remaining: candidates.clone(),
+                        chosen: chosen_first,
+                        explore_first: None,
+                        constraints_fallback_used: None,
+                        eligible_arms: None,
+                        top_candidates: None,
+                        control_arms: if control_for_log.is_empty() {
+                            None
+                        } else {
+                            Some(control_for_log.clone())
+                        },
+                        chosen_fail_kinds_top,
+                        mab_k_round: None,
+                        exp3ix_rounds: None,
+                        worst_first_round: None,
+                        monitoring_enabled: exp3ix_monitoring.as_ref().map(|x| x.0),
+                        monitoring_fallback_used: exp3ix_monitoring.as_ref().map(|x| x.1),
+                        monitoring_eligible_arms: exp3ix_monitoring.as_ref().map(|x| x.2.clone()),
+                        chosen_drift_score: None,
+                        chosen_catkl_score: None,
+                        chosen_cusum_score: None,
+                        chosen_monitoring_penalty: None,
                     },
                 );
             }
@@ -2549,23 +3119,62 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         // Optional: append an "observed outcome" event to the decision JSONL. This complements the
         // earlier selection decision logs (which reflect *history at selection time*).
         if let Some(ref p) = decisions_path() {
-            let run_id = format!(
-                "seed={} slice={} strategy={:?}",
-                seed, slice_tag_for_muxer, strategy
-            );
+            let run_id = outcome_run_id_override.clone().unwrap_or_else(|| {
+                format!(
+                    "seed={} slice={} strategy={:?}",
+                    seed, slice_tag_for_muxer, strategy
+                )
+            });
+            let strategy_for_log = outcome_strategy_override
+                .clone()
+                .unwrap_or_else(|| strategy.id_str().to_string());
+            let ml_only_policy_for_log = if strategy_for_log == SampleStrategy::MlOnly.id_str() {
+                Some(MlOnlyPolicy::from_env().id_str().to_string())
+            } else {
+                None
+            };
             let f1 = r.primary_f1().unwrap_or(0.0);
             let thr = junk_f1_threshold(r.task);
+
+            let mon_cfg = mab_config_from_env();
+            let mon_enabled = monitoring_enabled(mon_cfg);
+            let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
+            let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
+            let (drift_score, catkl_score, cusum_score) = if mon_enabled {
+                monitoring_scores_for_backend(
+                    &history,
+                    &r.backend,
+                    monitor_recent_cap,
+                    mon_cfg,
+                    drift_cfg,
+                )
+            } else {
+                (None, None, None)
+            };
+            let monitoring_penalty = if mon_enabled {
+                Some(monitoring_penalty(
+                    drift_score,
+                    catkl_score,
+                    cusum_score,
+                    mon_cfg,
+                    mon_cfg.drift_metric,
+                ))
+            } else {
+                None
+            };
             append_jsonl(
                 p,
                 &DecisionOutcomeLog {
-                    schema_version: 1,
+                    schema_version: 3,
                     record_type: "outcome".to_string(),
                     muxer_version: muxer::MUXER_VERSION.to_string(),
                     run_id,
-                    strategy: format!("{:?}", strategy).to_lowercase(),
+                    strategy: strategy_for_log,
+                    ml_only_policy: ml_only_policy_for_log,
                     slice: slice_tag_for_muxer.to_string(),
                     dataset: format!("{:?}", r.dataset),
                     backend: r.backend.clone(),
+                    backend_display: r.backend_display.clone(),
                     primary_f1: Some(f1),
                     junk_f1_threshold: Some(thr),
                     ok,
@@ -2574,6 +3183,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     fail_kind: fail_kind.clone(),
                     elapsed_ms: Some(dur_ms as u64),
                     cost_units: Some(r.num_examples as u64),
+                    drift_score,
+                    catkl_score,
+                    cusum_score,
+                    monitoring_penalty,
                 },
             );
         }
@@ -2613,6 +3226,47 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 }
                 if n > 0 {
                     let r01 = (sum / (n as f64)).clamp(0.0, 1.0);
+                    // Optional monitoring penalty: reduce reward when backend appears to drift / change.
+                    //
+                    // This is intentionally multiplicative: `r_adj = r01 * exp(-penalty)` keeps reward in [0,1]
+                    // and preserves ranking when penalty=0.
+                    let mon_cfg = mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
+                    let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
+                    let (drift, catkl, cusum) = if mon_enabled {
+                        monitoring_scores_for_backend(
+                            &history,
+                            chosen,
+                            monitor_recent_cap,
+                            mon_cfg,
+                            drift_cfg,
+                        )
+                    } else {
+                        (None, None, None)
+                    };
+                    let penalty = if mon_enabled {
+                        monitoring_penalty(drift, catkl, cusum, mon_cfg, mon_cfg.drift_metric)
+                    } else {
+                        0.0
+                    };
+                    let r01 = if penalty > 0.0 {
+                        (r01 * (-penalty).exp()).clamp(0.0, 1.0)
+                    } else {
+                        r01
+                    };
+                    if mh::env_bool("ANNO_MUXER_VERBOSE", false) && mon_enabled && penalty > 0.0 {
+                        eprintln!(
+                            "matrix-muxer: exp3ix reward adjusted backend={} base={:.3} penalty={:.3} adj={:.3} drift={:?} catkl={:?} cusum={:?}",
+                            chosen,
+                            (sum / (n as f64)).clamp(0.0, 1.0),
+                            penalty,
+                            r01,
+                            drift,
+                            catkl,
+                            cusum
+                        );
+                    }
                     st = muxer::exp3ix_update_persisted(
                         exp3ix_config_from_env(seed),
                         st,
@@ -2793,6 +3447,7 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
             task,
             dataset,
             backend: "stub".to_string(),
+            backend_display: None,
             seed: 0,
             success,
             error: None,
@@ -3101,7 +3756,7 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         exp3ix_state: None,
     };
     let arms = vec!["a".to_string(), "b".to_string(), "c".to_string()];
-    let expected = mh::pick_random_subset(0 ^ 0xC0E1_1A11, &arms, 1)
+    let expected = mh::pick_random_subset(0xC0E1_1A11, &arms, 1)
         .first()
         .cloned()
         .unwrap();
@@ -3192,4 +3847,154 @@ fn test_novelty_still_triggers_under_priors() {
         &["stacked".to_string()],
         "novelty should pick the slice-unseen arm even when priors exist"
     );
+}
+
+#[test]
+fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
+    // Regression test: in measure-mode, the default control pick must not consume the entire
+    // budget when k==1. Otherwise ML selection never runs and we only get outcome-only logs.
+    let _env = env_lock();
+
+    let tmp = std::env::temp_dir().join("anno-matrix-muxer-test-measure-k1.jsonl");
+    let _ = std::fs::remove_file(&tmp);
+
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_dec = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+    let old_mode = std::env::var("ANNO_MUXER_MODE").ok();
+    let old_ctl = std::env::var("ANNO_MUXER_CONTROL_K").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r1 = Restore {
+        k: "ANNO_MUXER_DECISIONS_FILE",
+        v: old_dec,
+    };
+    let _r2 = Restore {
+        k: "ANNO_MUXER_MODE",
+        v: old_mode,
+    };
+    let _r3 = Restore {
+        k: "ANNO_MUXER_CONTROL_K",
+        v: old_ctl,
+    };
+
+    std::env::set_var(
+        "ANNO_MUXER_DECISIONS_FILE",
+        tmp.to_string_lossy().to_string(),
+    );
+    std::env::set_var("ANNO_MUXER_MODE", "measure");
+    std::env::remove_var("ANNO_MUXER_CONTROL_K");
+
+    let history = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let arms = vec!["a".to_string(), "b".to_string()];
+    let _chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &history,
+        None,
+        &arms,
+        None,
+        1,
+        0,
+    );
+
+    let s = std::fs::read_to_string(&tmp).expect("read decisions log");
+    assert!(
+        s.contains("\"mab_k_round\""),
+        "expected an ML decision row (mab_k_round present) for k==1; log={s}"
+    );
+    let _ = std::fs::remove_file(&tmp);
+}
+
+#[test]
+fn test_control_only_still_writes_minimal_decision_log_row() {
+    // Regression test: if users explicitly set control_k == k, we should still write a minimal
+    // decision row (even though ML selection never ran) so audits don't show decisions=0.
+    let _env = env_lock();
+
+    let tmp = std::env::temp_dir().join("anno-matrix-muxer-test-control-only.jsonl");
+    let _ = std::fs::remove_file(&tmp);
+
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_dec = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+    let old_mode = std::env::var("ANNO_MUXER_MODE").ok();
+    let old_ctl = std::env::var("ANNO_MUXER_CONTROL_K").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r1 = Restore {
+        k: "ANNO_MUXER_DECISIONS_FILE",
+        v: old_dec,
+    };
+    let _r2 = Restore {
+        k: "ANNO_MUXER_MODE",
+        v: old_mode,
+    };
+    let _r3 = Restore {
+        k: "ANNO_MUXER_CONTROL_K",
+        v: old_ctl,
+    };
+
+    std::env::set_var(
+        "ANNO_MUXER_DECISIONS_FILE",
+        tmp.to_string_lossy().to_string(),
+    );
+    std::env::set_var("ANNO_MUXER_MODE", "measure");
+    std::env::set_var("ANNO_MUXER_CONTROL_K", "1");
+
+    let history = BackendHistory {
+        version: 3,
+        window_cap: 50,
+        windows: BTreeMap::new(),
+        fail_kinds: BTreeMap::new(),
+        exp3ix_state: None,
+    };
+    let arms = vec!["a".to_string(), "b".to_string()];
+    let _chosen = select_backends(
+        SampleStrategy::MlOnly,
+        0,
+        "ner",
+        &history,
+        None,
+        &arms,
+        None,
+        1,
+        0,
+    );
+
+    let s = std::fs::read_to_string(&tmp).expect("read decisions log");
+    assert!(
+        s.contains("\"control_arms\""),
+        "expected a minimal decision row with control_arms; log={s}"
+    );
+    assert!(
+        !s.contains("\"mab_k_round\""),
+        "expected control-only decision row to omit mab_k_round; log={s}"
+    );
+    let _ = std::fs::remove_file(&tmp);
 }

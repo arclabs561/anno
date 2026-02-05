@@ -62,7 +62,7 @@ elif command -v timeout >/dev/null 2>&1; then
     # Use --no-deps to skip dependency checking (faster) and limit to lib code
     # Capture output to temp file for better error handling
     CLIPPY_TMP=$(mktemp /tmp/clippy_output.XXXXXX)
-    if timeout 60 cargo clippy --workspace --lib --features "eval-advanced discourse" --no-deps -- -D warnings > "$CLIPPY_TMP" 2>&1; then
+    if timeout 60 cargo clippy --workspace --lib --features "eval discourse" --no-deps -- -D warnings > "$CLIPPY_TMP" 2>&1; then
         echo "ok"
         rm -f "$CLIPPY_TMP"
     else
@@ -73,9 +73,9 @@ elif command -v timeout >/dev/null 2>&1; then
         if [ $EXIT_CODE -eq 124 ]; then
             echo "TIMEOUT"
             echo ""
-            echo "warning: clippy timed out after 60s (large files with eval-advanced can be slow)"
+            echo "warning: clippy timed out after 60s (large files with eval can be slow)"
             echo "  To skip clippy: ANNO_SKIP_CLIPPY=1 git push"
-            echo "  Or run manually: cargo clippy --workspace --lib --features 'eval-advanced discourse' -- -D warnings"
+            echo "  Or run manually: cargo clippy --workspace --lib --features 'eval discourse' -- -D warnings"
             WARNINGS=$((WARNINGS + 1))
         else
             echo "FAILED"
@@ -87,7 +87,7 @@ elif command -v timeout >/dev/null 2>&1; then
                 echo "... (showing first 50 lines, run clippy manually for full output)"
             fi
             echo ""
-            echo "  run: cargo clippy --workspace --lib --features 'eval-advanced discourse' -- -D warnings"
+            echo "  run: cargo clippy --workspace --lib --features 'eval discourse' -- -D warnings"
             exit 1
         fi
     fi
@@ -117,7 +117,7 @@ elif command -v timeout >/dev/null 2>&1; then
     OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
     TEST_TMP=$(mktemp /tmp/test_output.XXXXXX)
     if command -v cargo-nextest >/dev/null 2>&1 && { [ "$OS_NAME" != "Darwin" ] || [ "${ANNO_USE_NEXTEST:-}" = "1" ]; }; then
-        if timeout 120 cargo nextest run --profile quick --workspace --features "eval-advanced discourse" > "$TEST_TMP" 2>&1; then
+        if timeout 120 cargo nextest run --profile quick --workspace --features "eval discourse" > "$TEST_TMP" 2>&1; then
             echo "ok"
             rm -f "$TEST_TMP"
         else
@@ -129,7 +129,7 @@ elif command -v timeout >/dev/null 2>&1; then
                 echo ""
                 echo "warning: tests timed out after 120s"
                 echo "  To skip tests: ANNO_SKIP_TESTS=1 git push"
-                echo "  Or run manually: cargo nextest run --profile quick --workspace --features 'eval-advanced discourse'"
+                echo "  Or run manually: cargo nextest run --profile quick --workspace --features 'eval discourse'"
                 WARNINGS=$((WARNINGS + 1))
             else
                 echo "FAILED"
@@ -137,12 +137,12 @@ elif command -v timeout >/dev/null 2>&1; then
                 echo "error: tests failed:"
                 echo "$TEST_OUTPUT" | tail -30
                 echo ""
-                echo "  run: cargo nextest run --profile quick --workspace --features 'eval-advanced discourse'"
+                echo "  run: cargo nextest run --profile quick --workspace --features 'eval discourse'"
                 exit 1
             fi
         fi
     else
-        if timeout 120 cargo test --workspace --lib --features "eval-advanced discourse" > "$TEST_TMP" 2>&1; then
+        if timeout 120 cargo test --workspace --lib --features "eval discourse" > "$TEST_TMP" 2>&1; then
             echo "ok"
             rm -f "$TEST_TMP"
         else
@@ -154,7 +154,7 @@ elif command -v timeout >/dev/null 2>&1; then
                 echo ""
                 echo "warning: tests timed out after 120s"
                 echo "  To skip tests: ANNO_SKIP_TESTS=1 git push"
-                echo "  Or run manually: cargo test --workspace --lib --features 'eval-advanced discourse'"
+                echo "  Or run manually: cargo test --workspace --lib --features 'eval discourse'"
                 WARNINGS=$((WARNINGS + 1))
             else
                 echo "FAILED"
@@ -162,7 +162,7 @@ elif command -v timeout >/dev/null 2>&1; then
                 echo "error: tests failed:"
                 echo "$TEST_OUTPUT" | tail -30
                 echo ""
-                echo "  run: cargo test --workspace --lib --features 'eval-advanced discourse'"
+                echo "  run: cargo test --workspace --lib --features 'eval discourse'"
                 exit 1
             fi
         fi

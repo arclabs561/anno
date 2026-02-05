@@ -51,7 +51,7 @@ const MIN_CI_SAMPLE_SIZE: usize = 2;
 /// Maximum number of examples for robustness testing (performance limit)
 ///
 /// Used in `compute_robustness()` to limit the number of test cases processed.
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 const ROBUSTNESS_TEST_LIMIT: usize = 50;
 
 /// Stratified metrics across multiple dimensions.
@@ -205,6 +205,11 @@ pub struct TaskEvalResult {
     pub dataset: DatasetId,
     /// Backend name
     pub backend: String,
+    /// Backend display name (may include composition details, e.g. `stacked(regex+heuristic)`).
+    ///
+    /// Best-effort: when absent, callers should fall back to `backend`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend_display: Option<String>,
     /// Random seed used for sampling/examples.
     pub seed: u64,
     /// Whether evaluation succeeded
@@ -220,11 +225,11 @@ pub struct TaskEvalResult {
     /// Label shift/familiarity metrics (if computed for zero-shot)
     pub label_shift: Option<super::types::LabelShift>,
     /// Robustness scores (if robustness testing was enabled)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub robustness: Option<super::robustness::RobustnessResults>,
-    #[cfg(not(feature = "eval-advanced"))]
-    /// Robustness testing results (only available with `eval-advanced` feature).
-    #[cfg(not(feature = "eval-advanced"))]
+    #[cfg(not(feature = "eval"))]
+    /// Robustness testing results (only available with `eval` feature).
+    #[cfg(not(feature = "eval"))]
     pub robustness: Option<()>, // Placeholder when feature not enabled
     /// Stratified metrics by various dimensions
     pub stratified: Option<StratifiedMetrics>,
@@ -232,6 +237,12 @@ pub struct TaskEvalResult {
     pub confidence_intervals: Option<ConfidenceIntervals>,
     /// KB version used (if available from dataset metadata)
     pub kb_version: Option<String>,
+}
+
+#[derive(Debug)]
+struct BackendEvalOk {
+    metrics: HashMap<String, f64>,
+    backend_display: Option<String>,
 }
 
 impl TaskEvalResult {
@@ -474,7 +485,8 @@ impl TaskEvaluator {
         // Try to evaluate backend (handles backend creation internally)
         let start = Instant::now();
         match self.try_evaluate_backend(task, dataset, backend_name, sampled_data, config) {
-            Ok(metrics) => {
+            Ok(ok) => {
+                let metrics = ok.metrics;
                 let duration = start.elapsed().as_secs_f64() * 1000.0;
                 let num_examples = if task.is_coref_family() {
                     metrics
@@ -494,7 +506,7 @@ impl TaskEvaluator {
                 };
 
                 // Run robustness testing if enabled
-                #[cfg(feature = "eval-advanced")]
+                #[cfg(feature = "eval")]
                 let robustness_result: Option<
                     super::robustness::RobustnessResults,
                 > = if config.robustness && matches!(task, Task::NER | Task::DiscontinuousNER) {
@@ -550,6 +562,7 @@ impl TaskEvaluator {
                     task,
                     dataset,
                     backend: backend_name.to_string(),
+                    backend_display: ok.backend_display,
                     seed,
                     success: true,
                     error: None,
@@ -557,9 +570,9 @@ impl TaskEvaluator {
                     num_examples,
                     duration_ms: Some(duration),
                     label_shift,
-                    #[cfg(feature = "eval-advanced")]
+                    #[cfg(feature = "eval")]
                     robustness: robustness_result,
-                    #[cfg(not(feature = "eval-advanced"))]
+                    #[cfg(not(feature = "eval"))]
                     robustness: None,
                     stratified,
                     confidence_intervals,
@@ -572,6 +585,7 @@ impl TaskEvaluator {
                     task,
                     dataset,
                     backend: backend_name.to_string(),
+                    backend_display: None,
                     seed,
                     success: false,
                     error: Some(format!("{}", e)),
@@ -579,9 +593,9 @@ impl TaskEvaluator {
                     num_examples: sentences_to_use,
                     duration_ms: Some(duration),
                     label_shift: None,
-                    #[cfg(feature = "eval-advanced")]
+                    #[cfg(feature = "eval")]
                     robustness: None,
-                    #[cfg(not(feature = "eval-advanced"))]
+                    #[cfg(not(feature = "eval"))]
                     robustness: None,
                     stratified: None,
                     confidence_intervals: None,
@@ -674,6 +688,7 @@ impl TaskEvaluator {
                         task: *task,
                         dataset: *dataset,
                         backend: backend_name.to_string(),
+                        backend_display: None,
                         seed,
                         success: false,
                         error: Some(format!(
@@ -684,9 +699,9 @@ impl TaskEvaluator {
                         num_examples: 0,
                         duration_ms: None,
                         label_shift: None,
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         robustness: None,
-                        #[cfg(not(feature = "eval-advanced"))]
+                        #[cfg(not(feature = "eval"))]
                         robustness: None,
                         stratified: None,
                         confidence_intervals: None,
@@ -703,13 +718,13 @@ impl TaskEvaluator {
                 // Load dataset once per dataset id and reuse across backends.
                 if !dataset_cache.contains_key(dataset) {
                     let loaded: Result<LoadedDataset> = {
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         {
                             let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
                                 .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
                             self.loader.load_or_download(loadable)
                         }
-                        #[cfg(not(feature = "eval-advanced"))]
+                        #[cfg(not(feature = "eval"))]
                         {
                             let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
                                 .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
@@ -729,6 +744,7 @@ impl TaskEvaluator {
                                     task: *task,
                                     dataset: *dataset,
                                     backend: backend_name.to_string(),
+                                    backend_display: None,
                                     seed,
                                     success: false,
                                     error: Some(format!("Failed to load dataset: {}", e)),
@@ -736,9 +752,9 @@ impl TaskEvaluator {
                                     num_examples: 0,
                                     duration_ms: None,
                                     label_shift: None,
-                                    #[cfg(feature = "eval-advanced")]
+                                    #[cfg(feature = "eval")]
                                     robustness: None,
-                                    #[cfg(not(feature = "eval-advanced"))]
+                                    #[cfg(not(feature = "eval"))]
                                     robustness: None,
                                     stratified: None,
                                     confidence_intervals: None,
@@ -761,6 +777,7 @@ impl TaskEvaluator {
                             task: *task,
                             dataset: *dataset,
                             backend: backend_name.to_string(),
+                            backend_display: None,
                             seed,
                             success: false,
                             error: Some(format!(
@@ -771,9 +788,9 @@ impl TaskEvaluator {
                             num_examples: 0,
                             duration_ms: None,
                             label_shift: None,
-                            #[cfg(feature = "eval-advanced")]
+                            #[cfg(feature = "eval")]
                             robustness: None,
-                            #[cfg(not(feature = "eval-advanced"))]
+                            #[cfg(not(feature = "eval"))]
                             robustness: None,
                             stratified: None,
                             confidence_intervals: None,
@@ -908,7 +925,7 @@ impl TaskEvaluator {
         backend_name: &str,
         dataset_data: &LoadedDataset,
         config: &TaskEvalConfig,
-    ) -> Result<HashMap<String, f64>> {
+    ) -> Result<BackendEvalOk> {
         // Validate task-dataset compatibility
         let dataset_tasks = dataset_tasks(dataset);
         if !dataset_tasks.contains(&task) {
@@ -939,6 +956,14 @@ impl TaskEvaluator {
             | Task::Temporal
             | Task::DiscourseSegmentation => {
                 let backend = BackendFactory::create(backend_name)?;
+                let backend_display = {
+                    let n = backend.name().trim();
+                    if n.is_empty() || n.eq_ignore_ascii_case("unknown") {
+                        Some(backend_name.to_string())
+                    } else {
+                        Some(n.to_string())
+                    }
+                };
                 // Check availability before evaluation
                 if !backend.is_available() {
                     return Err(crate::Error::FeatureNotAvailable(format!(
@@ -946,16 +971,33 @@ impl TaskEvaluator {
                         backend_name
                     )));
                 }
-                self.evaluate_ner_task(backend_name, &*backend, dataset, dataset_data, config)
+                let metrics =
+                    self.evaluate_ner_task(backend_name, &*backend, dataset, dataset_data, config)?;
+                Ok(BackendEvalOk {
+                    metrics,
+                    backend_display,
+                })
             }
             Task::IntraDocCoref | Task::InterDocCoref | Task::AbstractAnaphora => {
                 // Coref tasks use create_coref_resolver, not BackendFactory
                 // Skip BackendFactory::create() to avoid "Unknown backend" error
-                self.evaluate_coref_task(backend_name, dataset_data, config)
+                let metrics = self.evaluate_coref_task(backend_name, dataset_data, config)?;
+                Ok(BackendEvalOk {
+                    metrics,
+                    backend_display: None,
+                })
             }
             Task::RelationExtraction => {
                 // Relation extraction requires a Model backend
                 let backend = BackendFactory::create(backend_name)?;
+                let backend_display = {
+                    let n = backend.name().trim();
+                    if n.is_empty() || n.eq_ignore_ascii_case("unknown") {
+                        Some(backend_name.to_string())
+                    } else {
+                        Some(n.to_string())
+                    }
+                };
                 // Check availability before evaluation
                 if !backend.is_available() {
                     return Err(crate::Error::FeatureNotAvailable(format!(
@@ -963,10 +1005,24 @@ impl TaskEvaluator {
                         backend_name
                     )));
                 }
-                self.evaluate_relation_task(backend_name, &*backend, dataset_data, config)
+                let metrics =
+                    self.evaluate_relation_task(backend_name, &*backend, dataset_data, config)?;
+                Ok(BackendEvalOk {
+                    metrics,
+                    backend_display,
+                })
             }
             Task::TextClassification | Task::SpeechActClassification | Task::DiscourseRelations => {
-                self.evaluate_text_classification_task(backend_name, dataset, dataset_data, config)
+                let metrics = self.evaluate_text_classification_task(
+                    backend_name,
+                    dataset,
+                    dataset_data,
+                    config,
+                )?;
+                Ok(BackendEvalOk {
+                    metrics,
+                    backend_display: None,
+                })
             }
             _ => Err(crate::Error::InvalidInput(format!(
                 "Task {} is catalogued but not yet supported by TaskEvaluator",
@@ -1873,7 +1929,7 @@ impl TaskEvaluator {
                 Ok(docs) => {
                     if docs.is_empty() {
                         // If load_coref returns empty, try downloading first
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         {
                             if let Err(e) = self.loader.load_or_download_coref(dataset_data.id) {
                                 return Err(crate::Error::InvalidInput(format!(
@@ -1884,10 +1940,10 @@ impl TaskEvaluator {
                             // Retry after download
                             self.loader.load_coref(dataset_data.id)?
                         }
-                        #[cfg(not(feature = "eval-advanced"))]
+                        #[cfg(not(feature = "eval"))]
                         {
                             return Err(crate::Error::InvalidInput(format!(
-                                "Coreference dataset {:?} not cached. Enable eval-advanced feature to auto-download.",
+                                "Coreference dataset {:?} not cached. Enable eval feature to auto-download.",
                                 dataset_data.id
                             )));
                         }
@@ -1897,7 +1953,7 @@ impl TaskEvaluator {
                 }
                 Err(e) => {
                     // Try downloading if not cached
-                    #[cfg(feature = "eval-advanced")]
+                    #[cfg(feature = "eval")]
                     {
                         if let Err(dl_err) = self.loader.load_or_download_coref(dataset_data.id) {
                             return Err(crate::Error::InvalidInput(format!(
@@ -1908,10 +1964,10 @@ impl TaskEvaluator {
                         // Retry after download
                         self.loader.load_coref(dataset_data.id)?
                     }
-                    #[cfg(not(feature = "eval-advanced"))]
+                    #[cfg(not(feature = "eval"))]
                     {
                         return Err(crate::Error::InvalidInput(format!(
-                            "Coreference dataset {:?} not cached: {}. Enable eval-advanced feature to auto-download.",
+                            "Coreference dataset {:?} not cached: {}. Enable eval feature to auto-download.",
                             dataset_data.id, e
                         )));
                     }
@@ -2217,8 +2273,8 @@ impl TaskEvaluator {
         let relation_docs = match self.loader.load_relation(dataset_data.id) {
             Ok(docs) => docs,
             Err(_) => {
-                // If not cached, try downloading (if eval-advanced feature enabled)
-                #[cfg(feature = "eval-advanced")]
+                // If not cached, try downloading (if eval feature enabled)
+                #[cfg(feature = "eval")]
                 {
                     match self.loader.load_or_download_relation(dataset_data.id) {
                         Ok(docs) => docs,
@@ -2240,10 +2296,10 @@ impl TaskEvaluator {
                         }
                     }
                 }
-                #[cfg(not(feature = "eval-advanced"))]
+                #[cfg(not(feature = "eval"))]
                 {
                     eprintln!(
-                        "Warning: Relations for {:?} not cached and 'eval-advanced' feature not enabled (cannot download)",
+                        "Warning: Relations for {:?} not cached and 'eval' feature not enabled (cannot download)",
                         dataset_data.id
                     );
                     let mut metrics = HashMap::new();
@@ -3717,7 +3773,7 @@ impl TaskEvaluator {
     ///
     /// - Limited to `ROBUSTNESS_TEST_LIMIT` examples for performance
     /// - Creates a new backend instance (doesn't reuse from main evaluation)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn compute_robustness(
         &self,
         backend_name: &str,
@@ -4394,6 +4450,7 @@ mod tests {
             task: Task::NER,
             dataset: DatasetId::WikiGold,
             backend: "stacked".to_string(),
+            backend_display: Some("stacked(regex+heuristic)".to_string()),
             seed: 42,
             success,
             error: error.map(|s| s.to_string()),
@@ -4433,6 +4490,7 @@ mod tests {
             task: Task::NER,
             dataset: DatasetId::WikiGold,
             backend: "missing".to_string(),
+            backend_display: None,
             seed: 42,
             success: false,
             error: Some("Feature not available".to_string()),
@@ -4455,6 +4513,7 @@ mod tests {
             task: Task::NER,
             dataset: DatasetId::WikiGold,
             backend: "missing".to_string(),
+            backend_display: None,
             seed: 42,
             success: false,
             error: Some("Connection timeout".to_string()),

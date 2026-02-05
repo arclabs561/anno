@@ -3,7 +3,7 @@
 //! This is a Rust-native replacement for ad-hoc shell/Python wrappers.
 //!
 //! Usage:
-//! - `cargo run -p anno-eval --features eval-advanced --bin muxer_repeat -- --runs 10 --seed-base 0 --log .generated/muxer_repeat.jsonl --agg .generated/muxer_repeat_agg.json`
+//! - `cargo run -p anno-eval --features eval --bin muxer_repeat -- --runs 10 --seed-base 0 --log .generated/muxer_repeat.jsonl --agg .generated/muxer_repeat_agg.json`
 //!
 //! This binary supports a small set of CLI flags and otherwise defers to the same env vars as the
 //! harness (`matrix_muxer_ci.rs`).

@@ -121,7 +121,7 @@ echo "5a. Cross-document entity resolution"
 if $ANNO --help | grep -q "^  cross-doc"; then
   $ANNO cross-doc "$TESTDIR/" --threshold 0.5 --format summary
 else
-  echo "(skipped) cross-doc requires eval-advanced build. Rebuild with: cargo build -p anno-cli --features eval-advanced --bin anno"
+  echo "(skipped) cross-doc requires eval build. Rebuild with: cargo build -p anno-cli --features eval --bin anno"
 fi
 echo ""
 

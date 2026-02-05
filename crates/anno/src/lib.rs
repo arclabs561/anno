@@ -40,14 +40,14 @@ extern crate self as anno;
 pub mod backends;
 /// Edit distance algorithms.
 pub mod edit_distance;
+pub mod env;
+pub mod error;
 /// Evaluation/analysis primitives (coref metrics, cluster encoders, etc.).
 ///
 /// This module is only available when the legacy `eval` feature (or the preferred `analysis`
 /// alias) is enabled.
 #[cfg(any(feature = "analysis", feature = "eval"))]
 pub mod eval;
-pub mod env;
-pub mod error;
 /// Entity feature extraction for downstream ML and analysis.
 pub mod features;
 /// Small, dependency-light heuristics (negation, quantifiers, etc.).

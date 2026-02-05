@@ -5,22 +5,39 @@
 //! - `crates/anno-eval/src/matrix_muxer_ci.rs` (the CI-friendly matrix sampler harness)
 //! - `crates/anno-cli/src/cli/commands/muxer.rs` (the `anno sampler` inspection tool)
 //!
-//! This module is only compiled when `eval-advanced` is enabled.
+//! This module is only compiled when `eval` is enabled.
+//!
+//! ## Monitored selection (drift / catKL / CUSUM)
+//!
+//! When any monitoring knob is enabled in `MabConfig` (a `max_*` guard or a non-zero `*_weight`),
+//! the matrix sampler uses muxer’s *monitored* selection path. The key design choice is:
+//!
+//! - Base selection objectives can use *prior-smoothed summaries* (cold-start stabilization).
+//! - Monitoring scores (drift / catKL / CUSUM) are computed from *raw windows*.
+//!
+//! This ensures priors cannot “mask” change detection.
+//!
+//! ### Backend-global monitoring (not per-dataset)
+//!
+//! Change monitors require a coherent time order of outcomes. Dataset-scoped histories aggregate
+//! outcomes across datasets without a stable cross-dataset temporal ordering, so order-sensitive
+//! monitors (CUSUM) become ill-defined. For that reason, `anno` computes monitoring windows at the
+//! backend-global level (keys are backend names only) even when base summaries are dataset-scoped.
 
-use muxer::MabConfig;
+use muxer::{DriftConfig, DriftMetric, MabConfig};
 
 // Prefer centralizing generic policy helpers in `muxer` itself so harnesses/CLIs don’t drift.
 pub use muxer::{
-    apply_prior_counts_to_summary, novelty_pick_unseen, pick_random_subset, stable_hash64,
-    guardrail_filter_observed, guardrail_filter_observed_elapsed, policy_fill_k_observed_with,
-    policy_plan_observed, select_k_without_replacement_by, select_k_without_replacement_by_with_meta,
-    LatencyGuardrail, PolicyFill, PolicyPlan,
-    worst_first_pick_k, worst_first_pick_one, WorstFirstConfig,
+    apply_prior_counts_to_summary, guardrail_filter_observed, guardrail_filter_observed_elapsed,
+    novelty_pick_unseen, pick_random_subset, policy_fill_k_observed_with, policy_plan_observed,
+    select_k_without_replacement_by, select_k_without_replacement_by_with_meta, stable_hash64,
+    worst_first_pick_k, worst_first_pick_one, LatencyGuardrail, PolicyFill, PolicyPlan,
+    WorstFirstConfig,
 };
 
 use std::fmt;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::loader::DatasetId;
 
 /// Pseudo-call prior budget for muxer smoothing.
@@ -57,7 +74,7 @@ pub fn control_k_from_env() -> usize {
 }
 
 /// If the dataset set has exactly one language and one domain, return them as a facet prior filter.
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub fn facet_prior_filter(datasets: &[DatasetId]) -> Option<(&'static str, &'static str)> {
     if datasets.is_empty() {
         return None;
@@ -133,13 +150,7 @@ mod prior_tests {
         let arms = vec!["a".to_string(), "b".to_string()];
         // Only `a` is unseen -> it will be prechosen; remaining `b` is unmeasured and should be
         // filtered by guardrail, causing stop_early.
-        let plan = policy_plan_observed(0, &arms, 1, true, guard, |arm| {
-            if arm == "a" {
-                (0, 0)
-            } else {
-                (0, 0)
-            }
-        });
+        let plan = policy_plan_observed(0, &arms, 1, true, guard, |_arm| (0, 0));
         assert_eq!(plan.prechosen, vec!["a".to_string()]);
         assert!(plan.eligible.is_empty());
         assert!(plan.stop_early);
@@ -296,9 +307,9 @@ mod prior_tests {
             let mut obs: std::collections::BTreeMap<String, (u64, u64)> = Default::default();
             for a in &arms {
                 x = lcg(x);
-                let calls = (x % 4) as u64;
+                let calls = x % 4;
                 x = lcg(x);
-                let mean_bucket = (x % 3) as u64; // 0,1,2
+                let mean_bucket = x % 3; // 0,1,2
                 let mean_ms = match mean_bucket {
                     0 => 0,
                     1 => 5,
@@ -639,6 +650,42 @@ pub fn env_f64_opt(name: &str) -> Option<f64> {
         .and_then(|s| s.trim().parse::<f64>().ok())
 }
 
+fn parse_simplex4_csv(raw: &str) -> Option<[f64; 4]> {
+    let t = raw.trim();
+    if t.is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = t
+        .split(',')
+        .map(|x| x.trim())
+        .filter(|x| !x.is_empty())
+        .collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let mut xs = [0.0f64; 4];
+    for (i, p) in parts.iter().enumerate() {
+        let v = p.parse::<f64>().ok()?;
+        if !v.is_finite() || v < 0.0 {
+            return None;
+        }
+        xs[i] = v;
+    }
+    let sum = xs.iter().copied().sum::<f64>();
+    if !sum.is_finite() || sum <= 0.0 {
+        return None;
+    }
+    for x in xs.iter_mut() {
+        *x /= sum;
+    }
+    Some(xs)
+}
+
+fn env_simplex4_opt(name: &str) -> Option<[f64; 4]> {
+    let raw = std::env::var(name).ok()?;
+    parse_simplex4_csv(&raw)
+}
+
 /// Resolve the effective latency guardrail settings from env/profile presets.
 pub fn latency_guardrail_from_env() -> LatencyGuardrail {
     let profile = std::env::var("ANNO_MUXER_PROFILE")
@@ -681,6 +728,77 @@ pub fn mab_config_from_env() -> MabConfig {
         max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
+
+        // Drift monitoring (optional; monitored selection only).
+        max_drift: env_f64_opt("ANNO_MUXER_MAX_DRIFT"),
+        drift_metric: drift_metric_from_env("ANNO_MUXER_DRIFT_METRIC", DriftMetric::Hellinger),
+        drift_weight: env_f64("ANNO_MUXER_DRIFT_WEIGHT", 0.0).max(0.0),
+
+        // Change monitoring (optional; monitored selection only).
+        //
+        // catKL uses: S = n_recent * KL(q_recent || p0_baseline)
+        max_catkl: env_f64_opt("ANNO_MUXER_MAX_CATKL"),
+        catkl_alpha: env_f64("ANNO_MUXER_CATKL_ALPHA", 1e-3).max(0.0),
+        catkl_min_baseline: env_usize("ANNO_MUXER_CATKL_MIN_BASELINE", 40) as u64,
+        catkl_min_recent: env_usize("ANNO_MUXER_CATKL_MIN_RECENT", 20) as u64,
+        catkl_weight: env_f64("ANNO_MUXER_CATKL_WEIGHT", 0.0).max(0.0),
+
+        // CUSUM uses a categorical log-likelihood ratio stream over the recent window.
+        max_cusum: env_f64_opt("ANNO_MUXER_MAX_CUSUM"),
+        cusum_alpha: env_f64("ANNO_MUXER_CUSUM_ALPHA", 1e-3).max(0.0),
+        cusum_min_baseline: env_usize("ANNO_MUXER_CUSUM_MIN_BASELINE", 40) as u64,
+        cusum_min_recent: env_usize("ANNO_MUXER_CUSUM_MIN_RECENT", 20) as u64,
+        // 4-vector over muxer’s outcome categories:
+        // `[ok_clean, ok_soft_junk, ok_hard_junk, fail]` (will be normalized).
+        cusum_alt_p: env_simplex4_opt("ANNO_MUXER_CUSUM_ALT_P"),
+        cusum_weight: env_f64("ANNO_MUXER_CUSUM_WEIGHT", 0.0).max(0.0),
+
+        ..MabConfig::default()
+    }
+}
+
+/// Resolve muxer drift config from env (used by monitored selection).
+pub fn drift_config_from_env(metric: DriftMetric) -> DriftConfig {
+    DriftConfig {
+        metric,
+        tol: env_f64("ANNO_MUXER_DRIFT_TOL", 1e-12).abs().max(1e-15),
+        min_baseline: env_usize("ANNO_MUXER_DRIFT_MIN_BASELINE", 20) as u64,
+        min_recent: env_usize("ANNO_MUXER_DRIFT_MIN_RECENT", 10) as u64,
+    }
+}
+
+fn drift_metric_from_env(name: &str, default: DriftMetric) -> DriftMetric {
+    let Ok(v) = std::env::var(name) else {
+        return default;
+    };
+    let t = v.trim().to_ascii_lowercase();
+    if t.is_empty() {
+        return default;
+    }
+    match t.as_str() {
+        "hellinger" | "h" => DriftMetric::Hellinger,
+        "rao" | "fr" | "fisher-rao" | "fisher_rao" => DriftMetric::Rao,
+        "js" | "jensen-shannon" | "jensenshannon" | "jensen_shannon" => DriftMetric::JensenShannon,
+        _ => default,
+    }
+}
+
+#[cfg(test)]
+mod mab_env_parse_tests {
+    use super::*;
+
+    #[test]
+    fn env_simplex4_opt_parses_and_normalizes() {
+        let p = parse_simplex4_csv("1, 1, 2, 0").expect("parsed");
+        let s: f64 = p.iter().sum();
+        assert!((s - 1.0).abs() < 1e-12, "sum={}", s);
+        assert!(p.iter().all(|x| x.is_finite() && *x >= 0.0));
+    }
+
+    #[test]
+    fn env_simplex4_opt_rejects_wrong_len_or_negative() {
+        assert!(parse_simplex4_csv("1,2,3").is_none());
+        assert!(parse_simplex4_csv("1, 1, -1, 1").is_none());
     }
 }
 
@@ -765,7 +883,7 @@ impl FacetSlug {
     }
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn facet_slug(values: &[&'static str]) -> FacetSlug {
     let mut uniq: Vec<&'static str> = values.to_vec();
     uniq.sort();
@@ -806,7 +924,7 @@ pub struct DatasetFacetSummary {
 }
 
 /// Compute the effective muxer slice tag (optionally facet-scoped).
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub fn muxer_slice_tag(
     task_code: &str,
     datasets: &[crate::eval::loader::DatasetId],
@@ -831,7 +949,7 @@ pub fn muxer_slice_tag(
     SliceTag::parse(&tagged)
 }
 
-#[cfg(all(test, feature = "eval-advanced"))]
+#[cfg(all(test, feature = "eval"))]
 mod tests {
     use super::*;
     use crate::eval::loader::DatasetId;

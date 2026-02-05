@@ -56,55 +56,17 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "anno"
 version = "0.2.0"
 dependencies = [
- "anno-core",
- "anno-metrics",
- "bitflags 2.10.0",
- "candle-core",
- "candle-nn",
- "candle-transformers",
- "chrono",
- "clump",
- "criterion",
- "crossbeam-channel",
- "dashmap",
- "dirs 5.0.1",
- "futures",
- "gramdex",
- "hf-hub",
- "itertools 0.14.0",
- "log",
- "lru",
- "ndarray",
- "once_cell",
- "ort",
- "parking_lot",
- "proptest",
- "rand",
- "regex",
- "safetensors",
- "schemars",
- "serde",
+ "anno-lib",
  "serde_json",
- "sketchir",
- "smallvec 1.15.1",
- "tempfile",
- "textprep",
- "thiserror 2.0.17",
- "tokenizers",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "unicode-normalization",
- "ureq 2.12.1",
 ]
 
 [[package]]
 name = "anno-cli"
 version = "0.2.0"
 dependencies = [
- "anno",
  "anno-core",
  "anno-eval",
+ "anno-lib",
  "chrono",
  "clap",
  "clap_complete",
@@ -154,8 +116,8 @@ dependencies = [
 name = "anno-eval"
 version = "0.2.0"
 dependencies = [
- "anno",
  "anno-core",
+ "anno-lib",
  "anno-metrics",
  "bitflags 2.10.0",
  "chrono",
@@ -188,6 +150,52 @@ version = "0.2.0"
 dependencies = [
  "anno-core",
  "lattix",
+]
+
+[[package]]
+name = "anno-lib"
+version = "0.2.0"
+dependencies = [
+ "anno-core",
+ "anno-metrics",
+ "bitflags 2.10.0",
+ "candle-core",
+ "candle-nn",
+ "candle-transformers",
+ "chrono",
+ "clump",
+ "criterion",
+ "crossbeam-channel",
+ "dashmap",
+ "dirs 5.0.1",
+ "futures",
+ "gramdex",
+ "hf-hub",
+ "itertools 0.14.0",
+ "log",
+ "lru",
+ "ndarray",
+ "once_cell",
+ "ort",
+ "parking_lot",
+ "proptest",
+ "rand",
+ "regex",
+ "safetensors",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sketchir",
+ "smallvec 1.15.1",
+ "tempfile",
+ "textprep",
+ "thiserror 2.0.17",
+ "tokenizers",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "unicode-normalization",
+ "ureq 2.12.1",
 ]
 
 [[package]]
@@ -1854,6 +1862,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "infgeom"
+version = "0.1.0"
+dependencies = [
+ "logp",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2018,6 +2034,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
+name = "logp"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "lru"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2135,8 +2158,9 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.1.1"
-source = "git+https://github.com/arclabs561/muxer.git?rev=ed87fcf#ed87fcfcc80f125abd87732018102eb6c238cfe1"
 dependencies = [
+ "infgeom",
+ "logp",
  "pare",
  "rand",
  "rand_distr",
@@ -2443,8 +2467,6 @@ dependencies = [
 [[package]]
 name = "pare"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb46f53fc725819cde594b6d42bfaf4f57623d58a62f783dbb20710b6fb571a"
 dependencies = [
  "thiserror 2.0.17",
 ]

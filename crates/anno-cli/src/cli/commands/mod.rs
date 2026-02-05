@@ -24,7 +24,7 @@ pub mod import;
 pub mod info; // Deprecated: use backends
 pub mod joint;
 pub mod models; // Deprecated: use backends
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod muxer;
 pub mod pipeline;
 pub mod privacy;
@@ -34,9 +34,9 @@ pub mod validate;
 pub mod watch;
 
 // Heavy/optional commands.
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod benchmark;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod crossdoc;
 
 // Re-export argument types for parser
@@ -66,9 +66,9 @@ pub use singleton::SingletonArgs;
 pub use validate::ValidateArgs;
 pub use watch::WatchArgs;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use benchmark::BenchmarkArgs;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use crossdoc::CrossDocArgs;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use muxer::MuxerArgs;

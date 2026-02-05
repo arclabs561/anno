@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! #[cfg(feature = "eval-advanced")]
+//! #[cfg(feature = "eval")]
 //! {
 //! use anno::eval::unified_evaluator::EvalSystem;
 //! use anno::eval::task_mapping::Task;
@@ -30,14 +30,14 @@
 
 use anno::{Model, Result};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use std::collections::HashMap;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::loader::DatasetId;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::task_mapping::Task;
 
 #[cfg(feature = "eval-bias")]
@@ -53,7 +53,7 @@ use crate::eval::length_bias::{create_length_varied_dataset, EntityLengthEvaluat
 #[cfg(feature = "eval-bias")]
 use crate::eval::temporal_bias::{create_temporal_name_dataset, TemporalBiasEvaluator};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::backend_name::BackendName;
 
 // =============================================================================
@@ -64,7 +64,7 @@ use crate::eval::backend_name::BackendName;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnifiedEvalResults {
     /// Standard task evaluation results (NER, Coref, etc.)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub standard: Option<StandardEvalResults>,
 
     /// Bias evaluation results
@@ -72,11 +72,11 @@ pub struct UnifiedEvalResults {
     pub bias: Option<BiasEvalResults>,
 
     /// Calibration results (if enabled)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub calibration: Option<CalibrationEvalResults>,
 
     /// Data quality results (if enabled)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub data_quality: Option<DataQualityEvalResults>,
 
     /// Warnings and notes
@@ -88,7 +88,7 @@ pub struct UnifiedEvalResults {
 
 /// Standard task evaluation results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct StandardEvalResults {
     /// Overall F1 score
     pub f1: f64,
@@ -106,7 +106,7 @@ pub struct StandardEvalResults {
 
 /// Task-specific results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct TaskResults {
     /// Task identifier (e.g., "NER", "Coref").
     pub task: String,
@@ -122,7 +122,7 @@ pub struct TaskResults {
 
 /// Dataset-specific results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct DatasetResults {
     /// Dataset identifier/name.
     pub dataset: String,
@@ -138,7 +138,7 @@ pub struct DatasetResults {
 
 /// Backend-specific results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct BackendResults {
     /// Backend identifier/name.
     pub backend: String,
@@ -216,7 +216,7 @@ pub struct LengthBiasSummary {
 
 /// Calibration results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct CalibrationEvalResults {
     /// Expected calibration error.
     pub ece: f64,
@@ -228,7 +228,7 @@ pub struct CalibrationEvalResults {
 
 /// Data quality results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct DataQualityEvalResults {
     /// Whether train/test leakage was detected.
     pub leakage_detected: bool,
@@ -259,15 +259,15 @@ pub struct EvalMetadata {
 
 /// Unified evaluation system - single entry point for all evaluations.
 pub struct EvalSystem {
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     tasks: Vec<Task>,
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     datasets: Vec<DatasetId>,
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     backends: Vec<String>,
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     max_examples: Option<usize>,
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     seed: Option<u64>,
 
     #[cfg(feature = "eval-bias")]
@@ -275,9 +275,9 @@ pub struct EvalSystem {
     #[cfg(feature = "eval-bias")]
     bias_config: Option<BiasDatasetConfig>,
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     include_calibration: bool,
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     include_data_quality: bool,
 
     model: Option<Box<dyn Model>>,
@@ -292,15 +292,15 @@ impl EvalSystem {
     /// Create a new unified evaluation system.
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             tasks: vec![],
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             datasets: vec![],
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             backends: vec![],
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             max_examples: None,
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             seed: Some(42),
 
             #[cfg(feature = "eval-bias")]
@@ -308,9 +308,9 @@ impl EvalSystem {
             #[cfg(feature = "eval-bias")]
             bias_config: None,
 
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             include_calibration: false,
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             include_data_quality: false,
 
             model: None,
@@ -320,28 +320,28 @@ impl EvalSystem {
     }
 
     /// Set tasks to evaluate.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_tasks(mut self, tasks: Vec<Task>) -> Self {
         self.tasks = tasks;
         self
     }
 
     /// Set datasets to use.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_datasets(mut self, datasets: Vec<DatasetId>) -> Self {
         self.datasets = datasets;
         self
     }
 
     /// Set backends to test.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_backends(mut self, backends: Vec<String>) -> Self {
         self.backends = backends;
         self
     }
 
     /// Set backends using type-safe BackendName enum.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_backend_names(mut self, backends: Vec<BackendName>) -> Self {
         self.backends = backends
             .into_iter()
@@ -353,14 +353,14 @@ impl EvalSystem {
     /// Set maximum examples per dataset.
     ///
     /// Pass `None` to remove limit (evaluate all examples).
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_max_examples(mut self, max: Option<usize>) -> Self {
         self.max_examples = max;
         self
     }
 
     /// Add a task to evaluate.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn add_task(mut self, task: Task) -> Self {
         if !self.tasks.contains(&task) {
             self.tasks.push(task);
@@ -369,7 +369,7 @@ impl EvalSystem {
     }
 
     /// Add a dataset to use.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn add_dataset(mut self, dataset: DatasetId) -> Self {
         if !self.datasets.contains(&dataset) {
             self.datasets.push(dataset);
@@ -378,7 +378,7 @@ impl EvalSystem {
     }
 
     /// Add a backend to test.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn add_backend(mut self, backend: String) -> Self {
         if !self.backends.contains(&backend) {
             self.backends.push(backend);
@@ -387,7 +387,7 @@ impl EvalSystem {
     }
 
     /// Add a backend using type-safe BackendName enum.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn add_backend_name(mut self, backend: BackendName) -> Self {
         let backend_str = backend.as_str().to_string();
         if !self.backends.contains(&backend_str) {
@@ -397,7 +397,7 @@ impl EvalSystem {
     }
 
     /// Set random seed.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = Some(seed);
         self
@@ -426,14 +426,14 @@ impl EvalSystem {
     }
 
     /// Enable calibration analysis.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_calibration(mut self, enable: bool) -> Self {
         self.include_calibration = enable;
         self
     }
 
     /// Enable data quality checks.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn with_data_quality(mut self, enable: bool) -> Self {
         self.include_data_quality = enable;
         self
@@ -481,7 +481,7 @@ impl EvalSystem {
         let mut warnings = Vec::new();
 
         // Run standard evaluation
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         let standard_result = self.run_standard_evaluation(&mut warnings)?;
 
         // Run bias evaluation
@@ -499,7 +499,7 @@ impl EvalSystem {
         };
 
         // Run calibration (if model provided)
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         let calibration = if self.include_calibration && self.model.is_some() {
             match self.run_calibration(&mut warnings) {
                 Ok(results) => Some(results),
@@ -513,7 +513,7 @@ impl EvalSystem {
         };
 
         // Run data quality checks
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         let data_quality = if self.include_data_quality {
             match self.run_data_quality(&mut warnings) {
                 Ok(results) => Some(results),
@@ -528,22 +528,22 @@ impl EvalSystem {
 
         let duration = start.elapsed();
 
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         let num_examples = standard_result
             .as_ref()
             .map(|s| s.per_task.values().map(|t| t.num_examples).sum::<usize>())
             .unwrap_or(0);
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         let num_examples = 0;
 
         Ok(UnifiedEvalResults {
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             standard: standard_result,
             #[cfg(feature = "eval-bias")]
             bias,
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             calibration,
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             data_quality,
             warnings,
             metadata: EvalMetadata {
@@ -561,7 +561,7 @@ impl EvalSystem {
     /// - Empty `tasks` → uses all available tasks
     /// - Empty `datasets` → uses all suitable datasets for each task
     /// - Empty `backends` → uses all compatible backends for each task
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn run_standard_evaluation(
         &self,
         _warnings: &mut Vec<String>,
@@ -811,7 +811,7 @@ impl EvalSystem {
     }
 
     /// Run calibration analysis.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn run_calibration(&self, warnings: &mut Vec<String>) -> Result<CalibrationEvalResults> {
         use crate::eval::calibration::CalibrationEvaluator;
 
@@ -902,7 +902,7 @@ impl EvalSystem {
     }
 
     /// Run data quality checks.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn run_data_quality(&self, warnings: &mut Vec<String>) -> Result<DataQualityEvalResults> {
         // Try to load datasets for data quality analysis
         // For now, use a simple check on configured datasets

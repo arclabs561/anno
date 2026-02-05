@@ -32,7 +32,7 @@ synthetic_utility,Adversarial,adversarial_dataset(),PER/ORG/LOC,20,~60,~400,Hard
 synthetic_utility,Structured,structured_dataset(),PER/ORG/LOC,10,~30,~200,Medium,built-in,AnnotatedExample,en,Tables/lists
 synthetic_utility,Conversational,conversational_dataset(),PER/ORG,8,~20,~150,Medium,built-in,AnnotatedExample,en,Dialog/chat
 synthetic_utility,Historical,historical_dataset(),PER/ORG/LOC,6,~18,~140,Hard,built-in,AnnotatedExample,en,Archaic text
-# Real NER datasets - require eval-advanced to download
+# Real NER datasets - require eval to download
 real_ner,WikiGold,DatasetId::WikiGold,PER/ORG/LOC/MISC,145,~1.8k,~40k,Mixed,Wikipedia,CoNLL,en,Hand-annotated Wikipedia
 real_ner,WNUT-17,DatasetId::Wnut17,PER/ORG/LOC/PRODUCT/CREATIVE/GROUP,~5k,~3k,~65k,Hard,Twitter/Reddit,CoNLL,en,Emerging/rare entities
 real_ner,MIT Movie,DatasetId::MitMovie,~12 slot types,~10k,~15k,~80k,Medium,Query logs,BIO,en,Movie domain queries

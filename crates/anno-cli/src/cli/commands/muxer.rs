@@ -9,23 +9,23 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::backend_factory::BackendFactory;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::loader::DatasetId;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::task_mapping::{backend_tasks, get_task_backends, Task};
 
-// Note: `muxer` is an optional dependency enabled by `eval-advanced`.
+// Note: `muxer` is an optional dependency enabled by `eval`.
 // This keeps default builds lean while letting this DX command reuse the exact selection
-// semantics used by the matrix sampler harness when `eval-advanced` is enabled.
-#[cfg(feature = "eval-advanced")]
+// semantics used by the matrix sampler harness when `eval` is enabled.
+#[cfg(feature = "eval")]
 use muxer::MabConfig;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::muxer_harness as mh;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::muxer_history::BackendHistory;
 
 /// Inspect muxer history from the randomized matrix sampler harness.
@@ -815,9 +815,16 @@ trait BackendHistoryCliExt {
     ) -> BTreeMap<String, u64>;
 
     fn failure_kind_counts_for_key_cli(&self, key: &str) -> BTreeMap<String, u64>;
-    fn failure_kind_counts_recent_for_key_cli(&self, key: &str, recent: usize)
-        -> BTreeMap<String, u64>;
-    fn failure_kind_counts_prev_for_key_cli(&self, key: &str, recent: usize) -> BTreeMap<String, u64>;
+    fn failure_kind_counts_recent_for_key_cli(
+        &self,
+        key: &str,
+        recent: usize,
+    ) -> BTreeMap<String, u64>;
+    fn failure_kind_counts_prev_for_key_cli(
+        &self,
+        key: &str,
+        recent: usize,
+    ) -> BTreeMap<String, u64>;
 
     fn summary_for_key_cli(&self, key: &str) -> SummarySerde;
     fn summary_recent_for_key_cli(&self, key: &str, recent: usize) -> SummarySerde;
@@ -1048,7 +1055,11 @@ impl BackendHistoryCliExt for BackendHistory {
         counts
     }
 
-    fn failure_kind_counts_prev_for_key_cli(&self, key: &str, recent: usize) -> BTreeMap<String, u64> {
+    fn failure_kind_counts_prev_for_key_cli(
+        &self,
+        key: &str,
+        recent: usize,
+    ) -> BTreeMap<String, u64> {
         let mut counts: BTreeMap<String, u64> = BTreeMap::new();
         let Some(buf) = self.fail_kinds.get(key) else {
             return counts;
@@ -1218,7 +1229,7 @@ mod fail_kinds_tests {
         let prev2 = h.failure_kind_counts_prev_for_key_cli("k", 2);
         assert_eq!(prev2.get("timeout").copied().unwrap_or(0), 1);
         assert_eq!(prev2.get("dataset").copied().unwrap_or(0), 1);
-        assert!(prev2.get("backend").is_none());
+        assert!(!prev2.contains_key("backend"));
     }
 }
 
@@ -1340,7 +1351,7 @@ mod decisions_tests {
                 top_datasets: 1,
             },
         };
-        // We don't execute run() here (it needs eval-advanced wiring), but we can at least ensure
+        // We don't execute run() here (it needs eval wiring), but we can at least ensure
         // the enum parses/constructs and is available for Clap.
         let _ = a;
     }
@@ -1361,12 +1372,12 @@ mod decisions_tests {
     }
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn mab_config_from_env() -> MabConfig {
     mh::mab_config_from_env()
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 #[derive(Debug, Clone, Copy)]
 struct WorstFirstConfig {
     exploration_c: f64,
@@ -1374,7 +1385,7 @@ struct WorstFirstConfig {
     soft_weight: f64,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn worst_first_config_from_env() -> WorstFirstConfig {
     // Keep CLI parity with the harness: locally, include some soft junk so worst-first surfaces
     // "broken outputs" (low_signal) in addition to hard failures. CI stays hard-only by default.
@@ -1395,12 +1406,12 @@ fn worst_first_config_from_env() -> WorstFirstConfig {
     }
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn stable_hash64(seed: u64, s: &str) -> u64 {
     mh::stable_hash64(seed, s)
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn parse_dataset_set(s: &str) -> BTreeSet<String> {
     s.split(',')
         .map(|x| x.trim())
@@ -1542,7 +1553,7 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
     out
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 /// Execute the muxer command.
 pub fn run(args: MuxerArgs) -> Result<(), String> {
     let perspective = args.perspective.unwrap_or(MuxerPerspective::Ner);
@@ -1626,7 +1637,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
         Ok(h) => h,
         Err(e) => {
             return Err(format!(
-                "{e}\nHint: run the matrix harness at least once (e.g. `ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --features \"eval-advanced onnx\" test_randomized_matrix_sample -- --nocapture`)."
+                "{e}\nHint: run the matrix harness at least once (e.g. `ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --features \"eval onnx\" test_randomized_matrix_sample -- --nocapture`)."
             ));
         }
     };
@@ -1772,8 +1783,10 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             .map_err(|e| format!("muxer run: create_dir_all failed: {e}"))?;
                     }
                 }
-                let v = anno_eval::muxer_agg_lib::aggregate_jsonl_paths(&[decisions_path.clone()])
-                    .map_err(|e| format!("muxer run: aggregate failed: {e}"))?;
+                let v = anno_eval::muxer_agg_lib::aggregate_jsonl_paths(std::slice::from_ref(
+                    &decisions_path,
+                ))
+                .map_err(|e| format!("muxer run: aggregate failed: {e}"))?;
                 let s = serde_json::to_string_pretty(&v)
                     .map_err(|e| format!("muxer run: serialize agg failed: {e}"))?;
                 std::fs::write(out, s).map_err(|e| format!("muxer run: write agg failed: {e}"))?;
@@ -2257,7 +2270,8 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                             if s.junk > 0 || s.hard_junk > 0 {
                                 let mut ds_set = BTreeSet::new();
                                 ds_set.insert(ds.clone());
-                                let fk_ds = h.failure_kind_counts_for_arm_cli(arm, Some(&ds_set), true);
+                                let fk_ds =
+                                    h.failure_kind_counts_for_arm_cli(arm, Some(&ds_set), true);
                                 if !fk_ds.is_empty() {
                                     let mut pairs: Vec<(u64, String)> =
                                         fk_ds.into_iter().map(|(k, v)| (v, k)).collect();
@@ -2487,7 +2501,10 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                 hard_weight: worst_cfg.hard_weight,
                                 soft_weight: worst_cfg.soft_weight,
                             },
-                            |b| h.observed_calls_and_elapsed_cli(b, ds_set_ref, per_dataset).0,
+                            |b| {
+                                h.observed_calls_and_elapsed_cli(b, ds_set_ref, per_dataset)
+                                    .0
+                            },
                             |b| {
                                 let s = summaries.get(b).copied().unwrap_or_default();
                                 let hard = s.hard_junk_rate();
@@ -2809,7 +2826,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(test, feature = "eval-advanced"))]
+#[cfg(all(test, feature = "eval"))]
 mod run_cli_tests {
     use super::*;
 
@@ -2853,7 +2870,7 @@ mod run_cli_tests {
     }
 }
 
-#[cfg(not(feature = "eval-advanced"))]
+#[cfg(not(feature = "eval"))]
 pub fn run(_args: MuxerArgs) -> Result<(), String> {
-    Err("Muxer command requires --features eval-advanced".to_string())
+    Err("Muxer command requires --features eval".to_string())
 }

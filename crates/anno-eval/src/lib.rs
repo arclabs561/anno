@@ -28,18 +28,18 @@ pub use anno::{CandleNER, DEFAULT_CANDLE_MODEL, DEFAULT_GLINER_CANDLE_MODEL};
 pub use anno::discourse;
 
 /// Shared helpers for the muxer-backed matrix sampler harness.
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod muxer_harness;
 
 /// Persistent muxer selection history (shared by CI harness and tooling).
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod muxer_history;
 
 #[path = "eval/mod.rs"]
 pub mod eval;
 
 /// Muxer-backed evaluation harness (shared by tests and tooling).
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 #[path = "matrix_muxer_ci.rs"]
 pub mod muxer_matrix;
 

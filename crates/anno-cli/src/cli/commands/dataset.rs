@@ -6,7 +6,7 @@
 //! - `eval`: Evaluate a model on a dataset
 
 use clap::{Parser, Subcommand};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use itertools::Itertools;
 #[cfg(feature = "eval")]
 use std::fs;
@@ -18,7 +18,7 @@ use std::time::Instant;
 use super::super::output::color;
 use super::super::parser::{EvalTask, ModelBackend};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::relation::create_entity_pair_relations;
 
 #[cfg(feature = "eval")]
@@ -26,15 +26,15 @@ use anno_core::core::grounded::{
     render_eval_html_with_title, EvalComparison, EvalMatch, Location, Signal, SignalId,
 };
 
-#[cfg(all(feature = "eval", feature = "eval-advanced"))]
+#[cfg(feature = "eval")]
 use anno_core::core::grounded::{render_document_html, GroundedDocument};
 
 #[cfg(feature = "eval")]
 use anno_eval::eval::loader::DatasetId;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::loader::LoadableDatasetId;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_core::CoreferenceResolver;
 
 #[cfg(feature = "eval")]
@@ -222,7 +222,7 @@ pub enum DatasetAction {
     /// Download/cache a dataset (and validate it parses).
     ///
     /// This uses the same loader + cache directory as evaluation. It will download
-    /// if missing (requires `--features eval-advanced` for network downloads).
+    /// if missing (requires `--features eval` for network downloads).
     #[command(visible_alias = "dl")]
     Download {
         /// Dataset name (e.g., WikiGold, Wnut17, DocRED, CHisIEC)
@@ -260,15 +260,15 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             run_info(&dataset)?;
         }
         DatasetAction::Download { dataset } => {
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             {
                 run_download(&dataset)?;
             }
-            #[cfg(not(feature = "eval-advanced"))]
+            #[cfg(not(feature = "eval"))]
             {
                 let _ = dataset;
                 return Err(
-                    "Dataset download requires --features eval-advanced (build: cargo build -p anno-cli --features eval-advanced)"
+                    "Dataset download requires --features eval (build: cargo build -p anno-cli --features eval)"
                         .to_string(),
                 );
             }
@@ -307,13 +307,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
             {
                 let m = model.create_model()?;
                 let ner_min_errors = min_case_errors.unwrap_or(min_errors);
-                #[cfg(feature = "eval-advanced")]
+                #[cfg(feature = "eval")]
                 let coref_min_mentions = min_gold_mentions.unwrap_or(min_errors);
-                #[cfg(feature = "eval-advanced")]
+                #[cfg(feature = "eval")]
                 let rel_min_gold = min_gold_relations.unwrap_or(min_errors);
 
-                // Avoid unused warnings in non-`eval-advanced` builds.
-                #[cfg(not(feature = "eval-advanced"))]
+                // Avoid unused warnings in non-`eval` builds.
+                #[cfg(not(feature = "eval"))]
                 let _ = (min_gold_mentions, min_gold_relations, coref_oracle_mentions);
 
                 let (name, test_cases) = if dataset == "synthetic" {
@@ -324,15 +324,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         .parse::<DatasetId>()
                         .map_err(|e| format!("Invalid dataset '{}': {}", dataset, e))?;
 
-                    #[cfg(not(feature = "eval-advanced"))]
+                    #[cfg(not(feature = "eval"))]
                     {
                         let _ = dataset_id; // Suppress unused warning
-                        return Err(
-                            "Loading real datasets requires --features eval-advanced".to_string()
-                        );
+                        return Err("Loading real datasets requires --features eval".to_string());
                     }
 
-                    #[cfg(feature = "eval-advanced")]
+                    #[cfg(feature = "eval")]
                     {
                         use anno_eval::eval::loader::DatasetLoader;
 
@@ -362,7 +360,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                 // Parse dataset ID once for reuse (avoid duplicate parsing)
                 // Store Result to preserve error message if parsing fails
-                #[cfg(feature = "eval-advanced")]
+                #[cfg(feature = "eval")]
                 let parsed_dataset_result: Result<DatasetId, String> = if dataset != "synthetic" {
                     dataset
                         .parse::<DatasetId>()
@@ -404,7 +402,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         let start_time = Instant::now();
 
                         // Validate gold annotations before evaluation (warn but continue)
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         {
                             use anno_eval::eval::validation::validate_ground_truth_entities;
                             let mut total_warnings = 0;
@@ -654,12 +652,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         println!();
                     }
                     EvalTask::Coref => {
-                        #[cfg(not(feature = "eval-advanced"))]
+                        #[cfg(not(feature = "eval"))]
                         {
-                            return Err("Coreference evaluation requires --features eval-advanced"
-                                .to_string());
+                            return Err(
+                                "Coreference evaluation requires --features eval".to_string()
+                            );
                         }
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         {
                             use anno_eval::eval::coref_resolver::SimpleCorefResolver;
                             use anno_eval::eval::loader::DatasetLoader;
@@ -821,14 +820,12 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         }
                     }
                     EvalTask::Relation => {
-                        #[cfg(not(feature = "eval-advanced"))]
+                        #[cfg(not(feature = "eval"))]
                         {
-                            return Err(
-                                "Relation extraction evaluation requires --features eval-advanced"
-                                    .to_string(),
-                            );
+                            return Err("Relation extraction evaluation requires --features eval"
+                                .to_string());
                         }
-                        #[cfg(feature = "eval-advanced")]
+                        #[cfg(feature = "eval")]
                         {
                             use anno::backends::inference::RelationExtractor;
                             use anno_eval::eval::loader::DatasetLoader;
@@ -1285,7 +1282,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn run_download(dataset: &str) -> Result<(), String> {
     use anno_eval::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
 
@@ -1635,7 +1632,7 @@ code{color:var(--code)}
     Ok(())
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn coref_doc_to_gold_entities(
     doc: &anno_eval::eval::coref::CorefDocument,
 ) -> Vec<anno_core::Entity> {
@@ -1677,7 +1674,7 @@ fn coref_doc_to_gold_entities(
     entities
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn coref_doc_to_oracle_mentions(
     doc: &anno_eval::eval::coref::CorefDocument,
 ) -> Vec<anno_core::Entity> {
@@ -1712,7 +1709,7 @@ fn coref_doc_to_oracle_mentions(
     entities
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 #[allow(clippy::too_many_arguments)]
 fn write_coref_error_explorer_html(
     output_path: &Path,
@@ -2028,7 +2025,7 @@ code{color:var(--code)}
     Ok(())
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 #[derive(Debug, Clone)]
 struct RelHtmlSpan {
     start: usize,
@@ -2038,7 +2035,7 @@ struct RelHtmlSpan {
     class: &'static str,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn extract_span_text(text: &str, start: usize, end: usize) -> String {
     let char_count = text.chars().count();
     if start >= char_count || end > char_count || start >= end {
@@ -2047,7 +2044,7 @@ fn extract_span_text(text: &str, start: usize, end: usize) -> String {
     text.chars().skip(start).take(end - start).collect()
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn annotate_text_with_rel_spans(text: &str, spans: &[RelHtmlSpan]) -> String {
     let mut sorted = spans.to_vec();
     sorted.sort_by_key(|s| (s.start, s.end));
@@ -2091,7 +2088,7 @@ fn annotate_text_with_rel_spans(text: &str, spans: &[RelHtmlSpan]) -> String {
     out
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn build_rel_spans_from_gold(
     text: &str,
     gold: &[anno_eval::eval::relation::RelationGold],
@@ -2142,7 +2139,7 @@ fn build_rel_spans_from_gold(
     (out, map)
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn build_rel_spans_from_pred(
     _text: &str,
     pred: &[anno_eval::eval::relation::RelationPrediction],
@@ -2191,7 +2188,7 @@ fn build_rel_spans_from_pred(
     (out, map)
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn render_relation_doc_html(
     dataset_name: &str,
     model_name: &str,
@@ -2534,7 +2531,7 @@ tr:hover{background:var(--hover)}
     html
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn write_relation_error_explorer_html(
     output_path: &Path,
     dataset_name: &str,
@@ -2824,8 +2821,8 @@ fn run_info(dataset: &str) -> Result<(), String> {
                     color("1;32", "Loadable")
                 );
 
-                // Try to load and show stats if eval-advanced is enabled
-                #[cfg(feature = "eval-advanced")]
+                // Try to load and show stats if `eval` is enabled
+                #[cfg(feature = "eval")]
                 {
                     use anno_eval::eval::loader::DatasetLoader;
                     if let Some(loadable_id) = loadable_match {
@@ -3226,7 +3223,7 @@ fn run_check(_issues_only: bool, _dataset: Option<&str>, _fix: bool) -> Result<(
     Ok(())
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn run_check_health(
     dataset: Option<&str>,
     all: bool,
@@ -3471,7 +3468,7 @@ fn run_check_health(
     Ok(())
 }
 
-#[cfg(not(feature = "eval-advanced"))]
+#[cfg(not(feature = "eval"))]
 fn run_check_health(
     _dataset: Option<&str>,
     _all: bool,
@@ -3480,18 +3477,18 @@ fn run_check_health(
     _workers: usize,
     _timeout: u64,
 ) -> Result<(), String> {
-    println!("URL health checking requires --features eval-advanced");
+    println!("URL health checking requires --features eval");
     Ok(())
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 struct URLHealthResult {
     status: String,
     code: Option<u16>,
     message: String,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResult {
     if url.is_empty() {
         return URLHealthResult {

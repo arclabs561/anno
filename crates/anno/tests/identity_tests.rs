@@ -1,6 +1,6 @@
 //! Tests for Identity tracking and management.
 
-use anno::{EntityType, Identity, IdentityId, IdentitySource, TypeLabel};
+use anno_lib::{EntityType, Identity, IdentityId, IdentitySource, TypeLabel};
 
 #[test]
 fn test_identity_creation() {

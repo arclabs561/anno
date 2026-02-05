@@ -74,8 +74,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      # Match pre-push hook: lib-only with eval-advanced discourse features, warnings as errors
-      - run: cargo clippy --workspace --lib --features "eval-advanced discourse" -- -D warnings
+      # Match pre-push hook: lib-only with eval + discourse features, warnings as errors
+      - run: cargo clippy --workspace --lib --features "eval discourse" -- -D warnings
 
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
@@ -96,7 +96,7 @@ jobs:
   # Evaluation framework tests
   # ==========================================================================
   test-eval:
-    name: Test (eval-advanced + discourse)
+    name: Test (eval + discourse)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -138,11 +138,11 @@ jobs:
             anno-datasets-${{ runner.os }}-v3-
           
       - name: Build with eval features
-        run: cargo build --workspace --features "eval-advanced discourse"
+        run: cargo build --workspace --features "eval discourse"
       - name: Run library tests
-        run: cargo test --workspace --lib --features "eval-advanced discourse"
+        run: cargo test --workspace --lib --features "eval discourse"
       - name: Run integration tests
-        run: cargo test --package anno --tests --features "eval-advanced discourse"
+        run: cargo test --package anno --tests --features "eval discourse"
 
   # ==========================================================================
   # Cross-platform tests (core features only)
@@ -222,7 +222,7 @@ jobs:
   # Feature Combination Tests (important combos not covered above)
   # ==========================================================================
   test-onnx-eval:
-    name: Test (ONNX + eval-advanced)
+    name: Test (ONNX + eval)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -236,12 +236,12 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
       - name: Build
-        run: cargo build --workspace --features "onnx,eval-advanced"
+        run: cargo build --workspace --features "onnx,eval"
       - name: Test
-        run: cargo test --workspace --lib --features "onnx,eval-advanced"
+        run: cargo test --workspace --lib --features "onnx,eval"
 
   test-candle-eval:
-    name: Test (Candle + eval-advanced)
+    name: Test (Candle + eval)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -255,9 +255,9 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
       - name: Build
-        run: cargo build --workspace --features "candle,eval-advanced"
+        run: cargo build --workspace --features "candle,eval"
       - name: Test
-        run: cargo test --workspace --lib --features "candle,eval-advanced"
+        run: cargo test --workspace --lib --features "candle,eval"
 
   test-production:
     name: Test (production features)
@@ -340,7 +340,7 @@ jobs:
           cache-all-crates: true
       # Document library crates only to avoid filename collisions between the
       # `anno` library crate and the `anno` binary (package `anno-cli`).
-      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval-advanced discourse"
+      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
         env:
           RUSTDOCFLAGS: -D warnings
 
@@ -357,7 +357,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run property tests
-        run: cargo test --workspace --lib --features "eval-advanced" -- proptest
+        run: cargo test --workspace --lib --features "eval" -- proptest
         env:
           PROPTEST_CASES: 100
 
@@ -412,10 +412,10 @@ jobs:
             anno-datasets-${{ runner.os }}-v3-
       
       - name: Build matrix sampler harness (enable ML backends)
-        run: cargo build -p anno-eval --features "onnx,eval-advanced"
+        run: cargo build -p anno-eval --features "onnx,eval"
 
       - name: Run randomized matrix test (NER)
-        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: ner
           ANNO_SAMPLE_STRATEGY: random
@@ -428,7 +428,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
 
       - name: Run randomized matrix test (RE)
-        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: re
           ANNO_SAMPLE_STRATEGY: random
@@ -439,7 +439,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
 
       - name: Run randomized matrix test (Coref)
-        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: coref
           ANNO_SAMPLE_STRATEGY: random
@@ -450,7 +450,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
 
       - name: Run randomized matrix test (Temporal)
-        run: cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: temporal
           ANNO_SAMPLE_STRATEGY: random
@@ -462,7 +462,7 @@ jobs:
       
       - name: Run worst-first matrix test
         run: |
-          cargo test -p anno-eval --lib --features "onnx,eval-advanced" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
@@ -484,7 +484,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run regression tests
-        run: cargo test -p anno-eval --lib --features "eval-advanced discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
+        run: cargo test -p anno-eval --lib --features "eval discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
 
   # ==========================================================================
   # Examples (compile check)
@@ -499,7 +499,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Build examples (eval)
-        run: cargo build --workspace --examples --features "eval-advanced discourse"
+        run: cargo build --workspace --examples --features "eval discourse"
       - name: Build examples (discourse)
         run: cargo build --workspace --examples --features discourse
 
@@ -558,7 +558,7 @@ jobs:
         env:
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
-          # Note: cli feature is included in eval-advanced via script
+          # Note: cli feature is included in eval via script
 
       - name: Ensure sanity report exists
         if: always()

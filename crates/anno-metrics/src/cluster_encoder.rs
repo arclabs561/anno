@@ -496,4 +496,3 @@ impl UnionFind {
         }
     }
 }
-

@@ -452,7 +452,7 @@ pub fn get_config_dir() -> Result<std::path::PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     use anno_core::{Entity, EntityType};
 
     // -------------------------------------------------------------------------
@@ -545,10 +545,10 @@ mod tests {
     // create_entity_pair_relations tests
     // -------------------------------------------------------------------------
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     use anno_eval::eval::relation::create_entity_pair_relations;
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[test]
     fn test_create_entity_pair_relations_founded() {
         let entities = vec![
@@ -564,7 +564,7 @@ mod tests {
         assert_eq!(relations[0].relation_type, "FOUNDED");
     }
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[test]
     fn test_create_entity_pair_relations_unknown_fallback() {
         let entities = vec![
@@ -586,7 +586,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[test]
     fn test_create_entity_pair_relations_max_distance() {
         // Entities very far apart should not form relations
@@ -603,7 +603,7 @@ mod tests {
         assert!(relations.is_empty());
     }
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[test]
     fn test_create_entity_pair_relations_overlapping_entities() {
         // Overlapping entities should be skipped

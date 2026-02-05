@@ -101,7 +101,7 @@ Run your own benchmark/eval and keep the results as artifacts:
 
 ```bash
 anno eval --help
-anno benchmark --help  # requires --features eval-advanced
+anno benchmark --help  # requires --features eval
 ```
 
 Output goes to `reports/`. Treat generated files as the source of truth.

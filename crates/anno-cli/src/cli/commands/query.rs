@@ -169,7 +169,7 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
         }
     } else {
         // Try to parse as cross-doc clusters (requires cross-doc support).
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             if let Ok(clusters) =
                 serde_json::from_str::<Vec<anno_eval::cdcr::CrossDocCluster>>(&json_content)

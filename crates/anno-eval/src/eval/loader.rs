@@ -1422,7 +1422,7 @@ impl DatasetLoader {
         Ok(())
     }
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn hf_dataset_from_rows_url(url: &str) -> Option<String> {
         // Example:
         // https://datasets-server.huggingface.co/rows?dataset=masakhane%2Fmasakhaner2&config=bam&split=test...
@@ -1550,7 +1550,7 @@ impl DatasetLoader {
     /// - `datasets/by-sha256/<sha>/<cache_filename>` (immutable snapshot)
     /// - `datasets/<cache_filename>.latest.json` (pointer)
     /// - `datasets/<cache_filename>.manifest.json` (sidecar metadata)
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn upload_cached_dataset_to_s3(&self, bucket: &str, id: DatasetId) -> Result<()> {
         let key = id.cache_filename();
         let entry = {
@@ -1651,7 +1651,7 @@ impl DatasetLoader {
     /// Load or download a dataset.
     ///
     /// Tries cache first, then S3 (if enabled), then downloads from URL.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
         let dataset_id = id.0;
         // 1. Check local cache first
@@ -1729,26 +1729,24 @@ impl DatasetLoader {
         Ok(dataset)
     }
 
-    /// Load-or-download shim when `eval-advanced` is disabled.
+    /// Load-or-download shim when `eval` is disabled.
     ///
-    /// With only `eval`, we intentionally avoid network dependencies. This method will
-    /// load from cache if present, otherwise return a helpful error.
-    #[cfg(not(feature = "eval-advanced"))]
+    /// This method will load from cache if present, otherwise return a helpful error.
+    #[cfg(not(feature = "eval"))]
     pub fn load_or_download(&self, id: LoadableDatasetId) -> Result<LoadedDataset> {
         if self.is_cached(id) {
             return self.load(id);
         }
 
         Err(Error::InvalidInput(
-            "Dataset is not cached. Rebuild with feature `eval-advanced` to enable downloading."
-                .to_string(),
+            "Dataset is not cached. Rebuild with feature `eval` to enable downloading.".to_string(),
         ))
     }
 
     /// Download dataset from S3 cache bucket.
     ///
     /// Uses AWS CLI under the hood (requires `aws` command in PATH and valid credentials).
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_from_s3(
         &self,
         bucket: &str,
@@ -1829,7 +1827,7 @@ impl DatasetLoader {
     /// Upload dataset to S3 cache bucket.
     ///
     /// Best effort - failures are logged but don't stop execution.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn upload_to_s3(
         &self,
         bucket: &str,
@@ -1944,7 +1942,7 @@ impl DatasetLoader {
     }
 
     /// Best-effort: download the sidecar manifest entry for a dataset from S3.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_manifest_entry_from_s3(
         &self,
         bucket: &str,
@@ -1982,7 +1980,7 @@ impl DatasetLoader {
     /// - Max delay: 10 seconds
     ///
     /// For HuggingFace datasets-server API, automatically paginates to download full dataset.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_with_resolved_url(&self, id: DatasetId) -> Result<(String, String)> {
         let url = id.download_url().to_string();
 
@@ -2262,7 +2260,7 @@ impl DatasetLoader {
 
     /// Resolve a usable (config, split) pair for a HF dataset via datasets-server, with an optional
     /// preferred config.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn resolve_hf_config_split_prefer(
         &self,
         dataset: &str,
@@ -2347,7 +2345,7 @@ impl DatasetLoader {
     /// Best-effort fallback: download a raw dataset file from the HuggingFace Hub.
     ///
     /// This is a fallback for datasets that do not support the datasets-server row export.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_hf_dataset_file_from_hub(&self, dataset: &str) -> Result<(String, String)> {
         // Example API: https://huggingface.co/api/datasets/coref-data/preco_raw
         let api_url = format!("https://huggingface.co/api/datasets/{}", dataset);
@@ -2508,12 +2506,12 @@ impl DatasetLoader {
         Ok((content, file_url))
     }
 
-    /// Placeholder when `eval-advanced` is disabled.
-    #[cfg(not(feature = "eval-advanced"))]
+    /// Placeholder when `eval` is disabled.
+    #[cfg(not(feature = "eval"))]
     #[allow(dead_code)]
     fn download_hf_dataset_file_from_hub(&self, _dataset: &str) -> Result<(String, String)> {
         Err(Error::InvalidInput(
-            "HuggingFace file fallback requires feature `eval-advanced`".to_string(),
+            "HuggingFace file fallback requires feature `eval`".to_string(),
         ))
     }
 
@@ -2524,7 +2522,7 @@ impl DatasetLoader {
     ///
     /// For datasets available on HuggingFace Hub, can also use hf-hub crate
     /// for direct file downloads (faster, no pagination needed).
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_hf_dataset_paginated(&self, id: DatasetId, base_url: &str) -> Result<String> {
         // Try hf-hub direct download first (if available and dataset is on HF)
         #[cfg(feature = "onnx")] // hf-hub is available with onnx feature
@@ -2668,7 +2666,7 @@ impl DatasetLoader {
     /// Returns Ok(content) if successful, Err if not available or hf-hub not enabled.
     ///
     /// Uses `HF_TOKEN` environment variable if set for accessing gated datasets.
-    #[cfg(all(feature = "eval-advanced", feature = "onnx"))]
+    #[cfg(all(feature = "eval", feature = "onnx"))]
     fn try_hf_hub_download(&self, id: DatasetId) -> Result<String> {
         use hf_hub::api::sync::{Api, ApiBuilder};
 
@@ -2723,7 +2721,7 @@ impl DatasetLoader {
     }
 
     /// Placeholder for when hf-hub is not available.
-    #[cfg(not(all(feature = "eval-advanced", feature = "onnx")))]
+    #[cfg(not(all(feature = "eval", feature = "onnx")))]
     #[allow(dead_code)] // Part of trait interface, may be unused in some feature combinations
     fn try_hf_hub_download(&self, _id: DatasetId) -> Result<String> {
         Err(Error::InvalidInput("hf-hub not available".to_string()))
@@ -2732,7 +2730,7 @@ impl DatasetLoader {
     /// Single download attempt with retry logic.
     ///
     /// Retries up to 3 times with exponential backoff for transient failures (timeouts, 5xx errors).
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn download_attempt(&self, url: &str) -> Result<String> {
         const MAX_RETRIES: usize = 3;
         const INITIAL_TIMEOUT_SECS: u64 = 30;
@@ -2882,16 +2880,16 @@ impl DatasetLoader {
     }
 
     /// Compute SHA256 checksum of content.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn compute_sha256(&self, content: &str) -> String {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(content.as_bytes());
             format!("{:x}", hasher.finalize())
         }
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
             // Fallback if sha2 not available
             use std::collections::hash_map::DefaultHasher;
@@ -2908,7 +2906,7 @@ impl DatasetLoader {
     /// and Windows with WSL/Git Bash).
     ///
     /// For RAMS and similar datasets distributed as archives.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[allow(dead_code)] // Infrastructure for future tarball-based datasets (RAMS, etc.)
     fn download_and_extract_tarball(&self, id: DatasetId, url: &str) -> Result<String> {
         use std::io::{Read, Write};
@@ -2999,7 +2997,7 @@ impl DatasetLoader {
     }
 
     /// Get file patterns to look for within an extracted tarball.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[allow(dead_code)] // Used by download_and_extract_tarball
     fn tarball_target_patterns(&self, id: DatasetId) -> Vec<&'static str> {
         match id {
@@ -3023,7 +3021,7 @@ impl DatasetLoader {
     }
 
     /// Recursively find and read the first matching data file in extracted directory.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     #[allow(dead_code)] // Used by download_and_extract_tarball
     fn find_and_read_data_file(&self, dir: &std::path::Path, patterns: &[&str]) -> Result<String> {
         use std::fs;
@@ -5359,7 +5357,7 @@ impl DatasetLoader {
     }
 
     /// Load coreference dataset, downloading if needed.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn load_or_download_coref(
         &self,
         id: DatasetId,
@@ -5606,7 +5604,7 @@ impl DatasetLoader {
     }
 
     /// Load relation extraction dataset, downloading if needed.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     pub fn load_or_download_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if !self.is_cached_for(id) {
             let (content, _) = self.download_with_resolved_url(id)?;
@@ -7388,7 +7386,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn test_tarball_target_patterns() {
         let loader = DatasetLoader::new().unwrap();
 

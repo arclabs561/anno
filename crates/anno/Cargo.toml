@@ -1,5 +1,5 @@
 [package]
-name = "anno"
+name = "anno-lib"
 version = "0.2.0"
 edition = "2021"
 description = "Information extraction for Rust: Named Entity Recognition (NER), coreference resolution, and structured extraction"
@@ -10,6 +10,7 @@ documentation = "https://docs.rs/anno"
 readme = "../../README.md"
 keywords = ["ner", "nlp", "information-extraction", "coreference", "rust"]
 categories = ["text-processing"]
+publish = false
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.2.0" }
@@ -70,12 +71,12 @@ criterion = { workspace = true }
 [features]
 default = ["onnx"]
 discourse = []
-# Legacy name: this gate historically meant “evaluation-ish / research modules”.
-# Prefer `analysis` going forward (kept as an alias to avoid breaking downstreams).
-eval = ["dep:anno-metrics"]
-analysis = ["eval"]
-# Enables evaluation-adjacent tooling (CLI helpers, URL ingestion, etc.).
-eval-advanced = ["dep:ureq"]
+# Metrics-only analysis helpers (preferred for research / diagnostics).
+analysis = ["dep:anno-metrics"]
+# Evaluation-adjacent tooling (URL ingestion, cache helpers, etc.).
+#
+# This is intentionally an umbrella: it includes `analysis` and adds network support.
+eval = ["analysis", "dep:ureq"]
 graph = []
 gramdex = ["dep:gramdex"]
 schema = ["dep:schemars", "anno-core/schema"]

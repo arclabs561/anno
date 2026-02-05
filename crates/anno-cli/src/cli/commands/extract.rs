@@ -12,7 +12,7 @@ use anno::heuristics::{detect_quantifier_en, is_negated_en};
 use anno::backends::inference::{
     extract_relation_triples, RelationExtractionConfig, RelationExtractor, SemanticRegistry,
 };
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno::ingest::url_resolver::CompositeResolver;
 use anno::ingest::DocumentPreprocessor;
 use anno_core::core::graph::{GraphDocument, GraphExportFormat};
@@ -101,7 +101,7 @@ pub struct ExtractArgs {
     #[arg(long, value_name = "FORMAT")]
     pub export_graph: Option<String>,
 
-    /// URL to fetch content from (requires eval-advanced feature)
+    /// URL to fetch content from (requires eval feature)
     #[arg(long, value_name = "URL")]
     pub url: Option<String>,
 
@@ -152,7 +152,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             use anno::ingest::UrlResolver;
             let resolver = CompositeResolver::new();
@@ -161,11 +161,13 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 .map_err(|e| CliError::from(format!("Failed to fetch URL {}: {}", url, e)))?;
             resolved.text
         }
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
             #[allow(unused_variables)]
             let _url = url;
-            return Err(CliError::from("URL resolution requires 'eval-advanced' feature. Enable with: cargo build --features eval-advanced"));
+            return Err(CliError::from(
+                "URL resolution requires 'eval' feature. Enable with: cargo build --features eval",
+            ));
         }
     } else {
         get_input_text(&args.text, args.file.as_deref(), &args.positional)

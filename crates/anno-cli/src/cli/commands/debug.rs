@@ -7,7 +7,7 @@ use super::super::output::{color, print_signals};
 use super::super::parser::ModelBackend;
 use super::super::utils::{get_input_text, link_tracks_to_kb, resolve_coreference};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno::ingest::url_resolver::{CompositeResolver, UrlResolver};
 use anno::ingest::DocumentPreprocessor;
 use anno_core::core::graph::{GraphDocument, GraphExportFormat};
@@ -30,7 +30,7 @@ pub struct DebugArgs {
     #[arg(value_name = "TEXT")]
     pub positional: Vec<String>,
 
-    /// URL to fetch content from (requires eval-advanced feature)
+    /// URL to fetch content from (requires `eval` feature)
     #[arg(long, value_name = "URL")]
     pub url: Option<String>,
 
@@ -104,7 +104,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
 
     // Resolve input: URL, file, text, or stdin
     let mut raw_text = if let Some(url) = &args.url {
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         {
             let resolver = CompositeResolver::new();
             let resolved = resolver
@@ -112,11 +112,14 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
                 .map_err(|e| format!("Failed to fetch URL {}: {}", url, e))?;
             resolved.text
         }
-        #[cfg(not(feature = "eval-advanced"))]
+        #[cfg(not(feature = "eval"))]
         {
             #[allow(unused_variables)]
             let _url = url;
-            return Err("URL resolution requires 'eval-advanced' feature. Enable with: cargo build -p anno-cli --features eval-advanced".to_string());
+            return Err(
+                "URL resolution requires 'eval' feature. Enable with: cargo build -p anno-cli --features eval"
+                    .to_string(),
+            );
         }
     } else {
         get_input_text(&args.text, args.file.as_deref(), &args.positional)?

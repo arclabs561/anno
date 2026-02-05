@@ -399,7 +399,7 @@ impl ReportBuilder {
     }
 
     /// Run calibration analysis.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn run_calibration_analysis<M: Model>(
         model: &M,
         test_cases: &[TestCase],
@@ -488,7 +488,7 @@ impl ReportBuilder {
     }
 
     /// Run data quality checks.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     fn run_data_quality_checks(test_cases: &[TestCase]) -> Result<DataQualitySummary> {
         use std::collections::{HashMap, HashSet};
 
@@ -735,7 +735,7 @@ impl ReportBuilder {
 
         // Calibration (if enabled)
         let calibration = if self.include_calibration {
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             {
                 match Self::run_calibration_analysis(model, &test_cases) {
                     Ok(cal_results) => Some(cal_results),
@@ -745,7 +745,7 @@ impl ReportBuilder {
                     }
                 }
             }
-            #[cfg(not(feature = "eval-advanced"))]
+            #[cfg(not(feature = "eval"))]
             {
                 None
             }
@@ -755,7 +755,7 @@ impl ReportBuilder {
 
         // Data quality (if enabled)
         let data_quality = if self.include_data_quality {
-            #[cfg(feature = "eval-advanced")]
+            #[cfg(feature = "eval")]
             {
                 match Self::run_data_quality_checks(&test_cases) {
                     Ok(quality_results) => Some(quality_results),
@@ -765,7 +765,7 @@ impl ReportBuilder {
                     }
                 }
             }
-            #[cfg(not(feature = "eval-advanced"))]
+            #[cfg(not(feature = "eval"))]
             {
                 None
             }

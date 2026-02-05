@@ -23,7 +23,7 @@ cd anno
 cargo build --release -p anno-cli --bin anno
 
 # Recommended (ONNX ML backends + zero-shot):
-cargo build --release -p anno-cli --bin anno --features "onnx eval-advanced"
+cargo build --release -p anno-cli --bin anno --features "onnx eval"
 ```
 
 ## CLI: extract entities
@@ -61,7 +61,7 @@ anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutioni
 
 ## CLI: cross-document clustering
 
-Cluster entities across multiple documents (requires `--features eval-advanced`):
+Cluster entities across multiple documents (requires `--features eval`):
 
 ```bash
 anno cross-doc ./docs --threshold 0.6 --format tree

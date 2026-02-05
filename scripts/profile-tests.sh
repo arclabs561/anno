@@ -27,7 +27,7 @@ export NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1
 cargo nextest run \
     --profile "$PROFILE" \
     --workspace \
-    --features "eval-advanced discourse" \
+    --features "eval discourse" \
     ${FILTER:+-E "$FILTER"} \
     --message-format libtest-json-plus \
     --status-level all \
@@ -78,7 +78,7 @@ if cargo test --help 2>&1 | grep -q "profile"; then
     cargo test \
         --profile test \
         --workspace \
-        --features "eval-advanced discourse" \
+        --features "eval discourse" \
         ${FILTER:+--test "$FILTER"} \
         --no-run \
         2>&1 | tee "$OUTPUT_DIR/rust_profile_build_${TIMESTAMP}.log" || {

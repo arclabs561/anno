@@ -24,8 +24,8 @@
 //! // Run on synthetic data
 //! let results = harness.run_synthetic()?;
 //!
-//! // Or run on real datasets (requires eval-advanced feature)
-//! #[cfg(feature = "eval-advanced")]
+//! // Or run on real datasets (requires `eval` feature)
+//! #[cfg(feature = "eval")]
 //! let results = harness.run_real_datasets(&[DatasetId::WikiGold, DatasetId::Wnut17])?;
 //!
 //! // Generate HTML report
@@ -134,7 +134,7 @@ impl EvalConfig {
     ///
     /// ```bash
     /// # Limit to 20 examples per dataset
-    /// ANNO_MAX_EXAMPLES=20 cargo test -p anno-eval --features eval-advanced
+    /// ANNO_MAX_EXAMPLES=20 cargo test -p anno-eval --features eval
     /// ```
     pub fn ci_aware() -> Self {
         let in_ci = std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok();
@@ -649,8 +649,8 @@ impl EvalHarness {
         })
     }
 
-    /// Run evaluation on real datasets (requires eval-advanced feature for downloading).
-    #[cfg(feature = "eval-advanced")]
+    /// Run evaluation on real datasets (requires `eval` feature for downloading).
+    #[cfg(feature = "eval")]
     pub fn run_real_datasets(&self, datasets: &[DatasetId]) -> Result<EvalResults> {
         if self.registry.is_empty() {
             return Err(Error::InvalidInput(

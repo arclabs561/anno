@@ -25,7 +25,7 @@ PROFILE_BUILD_LOG="$OUTPUT_DIR/build_profile_${TIMESTAMP}.log"
 
 RUSTFLAGS="-g -C debuginfo=1" cargo build \
     --tests \
-    --features "eval-advanced discourse" \
+    --features "eval discourse" \
     2>&1 | tee "$PROFILE_BUILD_LOG"
 
 # Method 2: Run with nextest JSON output (includes timing)
@@ -39,7 +39,7 @@ export NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1
 cargo nextest run \
     --profile "$PROFILE" \
     --workspace \
-    --features "eval-advanced discourse" \
+    --features "eval discourse" \
     --message-format libtest-json-plus \
     --status-level all \
     > "$JSON_OUTPUT" 2>&1
@@ -56,12 +56,12 @@ if [[ "$OSTYPE" == "linux-gnu"* ]] && command -v perf >/dev/null 2>&1; then
     cargo nextest run \
         --profile "$PROFILE" \
         --workspace \
-        --features "eval-advanced discourse" \
+        --features "eval discourse" \
         --no-capture \
         2>&1 | perf record -o "$PERF_DATA" -g -- cargo nextest run \
         --profile "$PROFILE" \
         --workspace \
-        --features "eval-advanced discourse" || true
+        --features "eval discourse" || true
     
     if [ -f "$PERF_DATA" ]; then
         perf report -i "$PERF_DATA" > "$OUTPUT_DIR/perf_report_${TIMESTAMP}.txt" 2>&1 || true

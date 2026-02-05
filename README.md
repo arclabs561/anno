@@ -6,6 +6,18 @@ Dual-licensed under MIT or Apache-2.0.
 
 API docs: [docs.rs/anno](https://docs.rs/anno)
 
+## Install
+
+```sh
+cargo install anno
+```
+
+Optional (enable ML backends at build time):
+
+```sh
+cargo install anno --features onnx
+```
+
 ## What it does
 
 - Named entity recognition (NER): people, orgs, locations, etc.
@@ -32,14 +44,15 @@ Notes:
 
 - All NER backends return **variable-length spans** (start/end offsets). Some are token-labeling models internally.
 - Offsets are **character offsets** (Unicode scalar values), not byte offsets; see `docs/CONTRACT.md`.
-- ML backends are feature-gated behind `onnx` or `candle`. The published `anno` crate enables `onnx` by default; disable it with `default-features = false`.
+- ML backends are feature-gated behind `onnx` or `candle`. The published `anno` crate keeps defaults minimal; enable `onnx` explicitly when you want ML backends.
 - ML model weights download from HuggingFace on first use (see “Offline / downloads” below).
 - The table is the **NER backend surface**; for a fuller capability/provenance discussion see `docs/BACKENDS.md`.
 - Evaluation tooling adds additional notions (dataset/backend compatibility gates, label-shift “true zero-shot” accounting); those live in `anno-eval`, not in the runtime `Model` trait surface.
 
 ## Offline / downloads
 
-- Prefetch models explicitly: `anno models download gliner gliner2 bert-onnx`
+- The minimal `cargo install anno` CLI does not download models by default.
+- If you enable ML backends (e.g. `--features onnx`), weights may download on first use.
 - Force cached-only / offline behavior:
   - `ANNO_NO_DOWNLOADS=1` (preferred), or
   - `HF_HUB_OFFLINE=1`
@@ -65,55 +78,29 @@ anno extract --model pattern --format json --text "Contact jobs@acme.com by Marc
 ```
 
 ```json
-{
-  "entities": [
-    {
-      "confidence": 0.9800000190734863,
-      "end": 21,
-      "id": "xxh3:6518c623a81baa6b",
-      "negated": false,
-      "quantifier": null,
-      "start": 8,
-      "text": "jobs@acme.com",
-      "type": "EMAIL"
-    },
-    {
-      "confidence": 0.949999988079071,
-      "end": 33,
-      "id": "xxh3:04671e09ebe227c9",
-      "negated": false,
-      "quantifier": null,
-      "start": 25,
-      "text": "March 15",
-      "type": "DATE"
-    },
-    {
-      "confidence": 0.949999988079071,
-      "end": 46,
-      "id": "xxh3:59f7cd731485be0b",
-      "negated": false,
-      "quantifier": null,
-      "start": 42,
-      "text": "$50K",
-      "type": "MONEY"
-    }
-  ],
-  "provenance": {
-    "confidence_stats": {
-      "count": 3,
-      "max": 0.9800000190734863,
-      "mean": 0.9599999984105428,
-      "median": 0.949999988079071,
-      "min": 0.949999988079071,
-      "std_dev": 0.014142150234638435
-    },
-    "elapsed_ms": 79.89025,
-    "entity_count": 3,
-    "model": "pattern",
-    "result_hash": "xxh3:dbe0e2bc98ef6916",
-    "text_chars": 52
+[
+  {
+    "text": "jobs@acme.com",
+    "entity_type": "EMAIL",
+    "start": 8,
+    "end": 21,
+    "confidence": 0.98
+  },
+  {
+    "text": "March 15",
+    "entity_type": "DATE",
+    "start": 25,
+    "end": 33,
+    "confidence": 0.95
+  },
+  {
+    "text": "$50K",
+    "entity_type": "MONEY",
+    "start": 42,
+    "end": 46,
+    "confidence": 0.95
   }
-}
+]
 ```
 
 Structured entities (dates, money, emails):
@@ -169,14 +156,14 @@ assert!(!ents.is_empty());
 
 ```sh
 # From this repo:
-cargo install --path crates/anno-cli --bin anno --features "onnx eval-advanced"
+cargo install --path crates/anno-cli --bin anno --features "onnx eval"
 ```
 
 More examples: `docs/QUICKSTART.md`.
 
 ## Advanced: sampler (muxer)
 
-If you build with `eval-advanced`, `anno sampler` (alias `anno muxer`) exposes the same randomized
+If you build with `eval`, `anno sampler` (alias `anno muxer`) exposes the same randomized
 matrix sampler used in CI, with **two modes**:
 
 - **triage**: quick regression-hunting defaults (worst-first)

@@ -42,7 +42,7 @@ pub enum CacheAction {
     ///
     /// This is useful when you have a warm local cache and want to periodically refresh the
     /// shared S3 cache used by CI.
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     SyncS3 {
         /// S3 bucket name (defaults to `ANNO_S3_BUCKET` or `arc-anno-data`).
         #[arg(long)]
@@ -181,7 +181,7 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
             println!("{} Removed {} cache entries", color("32", "✓"), removed);
         }
 
-        #[cfg(feature = "eval-advanced")]
+        #[cfg(feature = "eval")]
         CacheAction::SyncS3 {
             bucket,
             datasets,

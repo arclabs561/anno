@@ -114,7 +114,7 @@ clone_and_build() {
     
     # Build release with ONNX support for ML backends
     log_info "Building anno with ONNX (this may take a while on fresh instances)..."
-    cargo build --release -p anno-cli --bin anno --features "eval-advanced onnx" 2>&1 | tail -5
+    cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
     
     log_info "Build complete: $($CARGO_TARGET_DIR/release/anno --version 2>/dev/null || echo 'built')"
 }

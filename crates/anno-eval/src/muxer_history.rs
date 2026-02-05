@@ -5,7 +5,7 @@
 
 use crate::eval::loader::DatasetId;
 use crate::muxer_harness as mh;
-use muxer::{Exp3IxState, Outcome, Summary};
+use muxer::{Exp3IxState, MonitoredWindow, Outcome, Summary};
 use std::collections::{BTreeMap, VecDeque};
 use std::fs;
 use std::path::PathBuf;
@@ -200,10 +200,7 @@ impl BackendHistory {
         w.push(o);
 
         let cap = self.window_cap;
-        let fk = self
-            .fail_kinds
-            .entry(key.to_string())
-            .or_insert_with(VecDeque::new);
+        let fk = self.fail_kinds.entry(key.to_string()).or_default();
         fk.push_back(fail_kind);
         while fk.len() > cap {
             fk.pop_front();
@@ -320,6 +317,30 @@ impl BackendHistory {
                 }
             }
             out.insert(a.clone(), s);
+        }
+        out
+    }
+
+    /// Build monitored windows for backends using the backend-global history (not dataset-scoped).
+    ///
+    /// Rationale: per-dataset windows do not have a coherent cross-dataset temporal ordering; change
+    /// monitors that depend on order (CUSUM) are best-effort at the backend-global level.
+    pub fn monitored_for_backends(
+        &self,
+        backends: &[String],
+        recent_cap: usize,
+    ) -> BTreeMap<String, MonitoredWindow> {
+        let baseline_cap = self.window_cap.max(1);
+        let recent_cap = recent_cap.max(1).min(baseline_cap);
+        let mut out: BTreeMap<String, MonitoredWindow> = BTreeMap::new();
+        for b in backends {
+            let mut mw = MonitoredWindow::new(baseline_cap, recent_cap);
+            if let Some(w) = self.windows.get(b) {
+                for o in &w.buf {
+                    mw.push(*o);
+                }
+            }
+            out.insert(b.clone(), mw);
         }
         out
     }

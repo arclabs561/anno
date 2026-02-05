@@ -281,7 +281,7 @@ mkdir -p "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
 # Build anno with ONNX support (can be slow on fresh instances)
 # ONNX enables ML backends: gliner, gliner2, nuner, w2ner
 echo "Building anno with ONNX support..."
-cargo build --release -p anno-cli --bin anno --features "eval-advanced onnx" 2>&1 | tail -20
+cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -20
 
 # Sync NER models from S3 (large; needed for ML backends)
 echo "Syncing NER models from S3..."

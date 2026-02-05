@@ -19,7 +19,7 @@ Use these for docs/tests without licensing ambiguity:
 # Batch extraction over a small directory
 ./target/debug/anno batch --dir testdata/fixtures/cross_doc --format human
 
-# Cross-document clustering (requires `eval-advanced`)
+# Cross-document clustering (requires `eval`)
 ./target/debug/anno cross-doc testdata/fixtures/cross_doc --format tree --threshold 0.3
 ```
 

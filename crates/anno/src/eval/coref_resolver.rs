@@ -193,13 +193,40 @@ impl SimpleCorefResolver {
         match entity_type {
             EntityType::Person => matches!(
                 lower.as_str(),
-                "he" | "she" | "they" | "him" | "her" | "them" |
-                "his" | "hers" | "their" | "theirs" |
-                "himself" | "herself" | "themselves" | "themself" |
-                "xe" | "xem" | "xyr" | "xyrs" | "xemself" |
-                "ze" | "hir" | "zir" | "hirs" | "zirs" | "hirself" | "zirself" |
-                "ey" | "em" | "eir" | "eirs" | "emself" |
-                "fae" | "faer" | "faers" | "faeself"
+                "he" | "she"
+                    | "they"
+                    | "him"
+                    | "her"
+                    | "them"
+                    | "his"
+                    | "hers"
+                    | "their"
+                    | "theirs"
+                    | "himself"
+                    | "herself"
+                    | "themselves"
+                    | "themself"
+                    | "xe"
+                    | "xem"
+                    | "xyr"
+                    | "xyrs"
+                    | "xemself"
+                    | "ze"
+                    | "hir"
+                    | "zir"
+                    | "hirs"
+                    | "zirs"
+                    | "hirself"
+                    | "zirself"
+                    | "ey"
+                    | "em"
+                    | "eir"
+                    | "eirs"
+                    | "emself"
+                    | "fae"
+                    | "faer"
+                    | "faers"
+                    | "faeself"
             ),
             EntityType::Organization => matches!(
                 lower.as_str(),
@@ -325,14 +352,12 @@ impl BoxCorefResolver {
             for j in (i + 1)..entities.len() {
                 let score = boxes[i].coreference_score(&boxes[j]);
 
-                if score >= self.config.coreference_threshold {
-                    if entities[i].entity_type == entities[j].entity_type {
-                        if !self.config.enforce_syntactic_constraints
-                            || self.check_syntactic_constraints(&entities[i], &entities[j])
-                        {
-                            union(&mut parent, i, j);
-                        }
-                    }
+                if score >= self.config.coreference_threshold
+                    && entities[i].entity_type == entities[j].entity_type
+                    && (!self.config.enforce_syntactic_constraints
+                        || self.check_syntactic_constraints(&entities[i], &entities[j]))
+                {
+                    union(&mut parent, i, j);
                 }
             }
         }
@@ -395,7 +420,11 @@ impl CoreferenceResolver for BoxCorefResolver {
 
 /// Convert vector embeddings to box embeddings for coreference resolution.
 #[must_use]
-pub fn vectors_to_boxes(embeddings: &[f32], hidden_dim: usize, radius: Option<f32>) -> Vec<BoxEmbedding> {
+pub fn vectors_to_boxes(
+    embeddings: &[f32],
+    hidden_dim: usize,
+    radius: Option<f32>,
+) -> Vec<BoxEmbedding> {
     let radius = radius.unwrap_or(0.1);
     let num_entities = embeddings.len() / hidden_dim;
     let mut boxes = Vec::with_capacity(num_entities);
@@ -625,7 +654,13 @@ impl DiscourseAwareResolver {
         }
 
         let event_indicators = [
-            "ed ", " was ", " were ", " had ", " did ", " happened", " occurred",
+            "ed ",
+            " was ",
+            " were ",
+            " had ",
+            " did ",
+            " happened",
+            " occurred",
         ];
         for ind in &event_indicators {
             if lower.contains(ind) {
@@ -724,4 +759,3 @@ impl CoreferenceResolver for DiscourseAwareResolver {
         "discourse-aware"
     }
 }
-

@@ -8,7 +8,7 @@ description = "CLI for anno"
 publish = false
 
 [dependencies]
-anno = { path = "../anno", version = "0.2.0", default-features = false }
+anno = { path = "../anno", package = "anno-lib", version = "0.2.0", default-features = false }
 anno-eval = { path = "../anno-eval", version = "0.2.0" }
 anno-core = { path = "../anno-core", version = "0.2.0" }
 
@@ -30,7 +30,7 @@ once_cell = { workspace = true }
 glob = { workspace = true }
 itertools = { workspace = true }
 
-# Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval-advanced`).
+# Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval`).
 muxer = { git = "https://github.com/arclabs561/muxer.git", rev = "ed87fcf", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 
 # Optional: knowledge-graph substrate for exporting extracted entities/relations.
@@ -42,9 +42,9 @@ lattix = { version = "0.1.1", optional = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 
 [features]
-default = ["eval"]
-eval = []
-eval-advanced = ["eval", "dep:muxer", "anno/eval-advanced", "anno-eval/eval-advanced"]
+default = []
+# Evaluation + muxer tooling.
+eval = ["dep:muxer", "anno/eval", "anno-eval/eval"]
 eval-bias = ["eval", "anno-eval/eval-bias"]
 instrument = []
 onnx = ["anno/onnx"]

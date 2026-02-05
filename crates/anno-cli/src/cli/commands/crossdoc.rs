@@ -1,31 +1,31 @@
 //! CrossDoc command - Cross-document entity coalescing: cluster entities across multiple documents
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use std::collections::{HashMap, HashSet};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use std::fs;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use std::io::{self, BufRead};
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use std::path::{Path, PathBuf};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno::offset::TextSpan;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno::{
     Corpus, Entity, EntityType, GroundedDocument, Identity, IdentitySource, Location, Signal,
     SignalId,
 };
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_core::coalesce::Resolver;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use super::super::output::color;
 use super::super::parser::{ModelBackend, OutputFormat};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use glob::glob;
 
 /// Cross-document entity coalescing: cluster entities across multiple documents
@@ -92,7 +92,7 @@ pub struct CrossDocArgs {
     pub verbose: bool,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 struct ContextSnippet<'a> {
     before_marker: &'static str,
     before: &'a str,
@@ -101,7 +101,7 @@ struct ContextSnippet<'a> {
     after_marker: &'static str,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 fn context_snippet<'a>(
     text: &'a str,
     entity_start_char: usize,
@@ -137,7 +137,7 @@ fn context_snippet<'a>(
     }
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
     // Create model
@@ -1127,7 +1127,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(test, feature = "eval-advanced"))]
+#[cfg(all(test, feature = "eval"))]
 mod tests {
     use super::context_snippet;
     use anno::offset::TextSpan;
@@ -1151,8 +1151,8 @@ mod tests {
     }
 }
 
-/// Execute the cross-document command (stub when eval-advanced is disabled).
-#[cfg(not(feature = "eval-advanced"))]
+/// Execute the cross-document command (stub when `eval` is disabled).
+#[cfg(not(feature = "eval"))]
 pub fn run(_args: CrossDocArgs) -> Result<(), String> {
-    Err("Cross-document entity coalescing requires 'eval-advanced' feature. Build with: cargo build -p anno-cli --features eval-advanced".to_string())
+    Err("Cross-document entity coalescing requires 'eval' feature. Build with: cargo build -p anno-cli --features eval".to_string())
 }

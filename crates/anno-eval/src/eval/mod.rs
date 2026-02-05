@@ -320,54 +320,54 @@ pub mod length_bias;
 pub mod temporal_bias;
 
 // =============================================================================
-// ADVANCED MODULES (available with `eval-advanced` feature)
+// ADVANCED MODULES (available with `eval` feature)
 // Calibration, robustness, active learning, specialized analysis
 // =============================================================================
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod active_learning;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod calibration;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod dataset_comparison;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod dataset_quality;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod drift;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod ensemble;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod error_analysis;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod few_shot;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod learning_curve;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod long_tail;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod low_resource;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod ood_detection;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod robustness;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod threshold_analysis;
 
-// Specialized analysis modules (eval-advanced)
-#[cfg(feature = "eval-advanced")]
+// Specialized analysis modules (eval)
+#[cfg(feature = "eval")]
 pub mod annotator;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod attribution;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod bridging;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod joint;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod ranking;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod schema;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod similarity;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub mod viewpoint;
 
 // Re-exports
@@ -518,66 +518,66 @@ pub use length_bias::{
 };
 
 // =============================================================================
-// ADVANCED MODULE RE-EXPORTS (eval-advanced feature)
+// ADVANCED MODULE RE-EXPORTS (eval feature)
 // =============================================================================
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use calibration::{
     calibration_grade, confidence_entropy, confidence_gap_grade, confidence_variance,
     CalibrationEvaluator, CalibrationResults, EntropyFilter, ReliabilityBin, ThresholdMetrics,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use robustness::{
     robustness_grade, Perturbation, PerturbationMetrics, RobustnessEvaluator, RobustnessResults,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use ood_detection::{
     ood_rate_grade, OODAnalysisResults, OODConfig, OODDetector, OODStatus, VocabCoverageStats,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use dataset_quality::{
     check_leakage, entity_imbalance_ratio, DatasetQualityAnalyzer, DifficultyMetrics,
     QualityReport, ReliabilityMetrics, ValidityMetrics,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use learning_curve::{
     suggested_train_sizes, CurveFitParams, DataPoint, LearningCurveAnalysis, LearningCurveAnalyzer,
     SampleEfficiencyMetrics,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use ensemble::{
     agreement_grade, kappa_interpretation, DisagreementDetail, EnsembleAnalysisResults,
     EnsembleAnalyzer, ModelPrediction, SingleExampleAnalysis,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use dataset_comparison::{
     compare_datasets, compute_stats, estimate_difficulty, DatasetComparison,
     DatasetStats as ComparisonStats, DifficultyEstimate, LengthStats,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use drift::{
     ConfidenceDrift, DistributionDrift, DriftConfig, DriftDetector, DriftReport, DriftWindow,
     VocabularyDrift,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use active_learning::{
     estimate_budget, ActiveLearner, Candidate, SamplingStrategy, ScoreStats, SelectionResult,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use error_analysis::{
     EntityInfo, ErrorAnalyzer, ErrorCategory, ErrorInstance, ErrorPattern, ErrorReport,
     PredictedEntity, TypeErrorStats,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use threshold_analysis::{
     format_threshold_table, interpret_curve, PredictionWithConfidence, ThresholdAnalyzer,
     ThresholdCurve, ThresholdPoint,
@@ -597,11 +597,11 @@ pub use unified_evaluator::{EvalMetadata, EvalSystem, UnifiedEvalResults};
 
 #[cfg(feature = "eval-bias")]
 pub use unified_evaluator::BiasEvalResults;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use unified_evaluator::CalibrationEvalResults;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use unified_evaluator::DataQualityEvalResults;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use unified_evaluator::StandardEvalResults;
 
 // Type-safe backend names
@@ -612,16 +612,16 @@ pub use backend_name::BackendName;
 pub mod config_builder;
 #[cfg(feature = "eval-bias")]
 pub use config_builder::BiasDatasetConfigBuilder;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use config_builder::TaskEvalConfigBuilder;
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use few_shot::{
     simulate_few_shot_task, FewShotEvaluator, FewShotGold, FewShotPrediction, FewShotResults,
     FewShotTask, FewShotTaskResults, SupportExample,
 };
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub use long_tail::{
     format_long_tail_results, EntityFrequency, FrequencyBucket, FrequencySplit, LongTailAnalyzer,
     LongTailResults, TypePerformance,

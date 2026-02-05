@@ -5,14 +5,14 @@
 
 #[cfg(feature = "eval-bias")]
 use crate::eval::bias_config::BiasDatasetConfig;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::loader::DatasetId;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use crate::eval::task_mapping::Task;
 
 /// Builder for TaskEvalConfig.
 #[derive(Debug, Clone)]
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 pub struct TaskEvalConfigBuilder {
     tasks: Vec<Task>,
     datasets: Vec<DatasetId>,
@@ -28,7 +28,7 @@ pub struct TaskEvalConfigBuilder {
     coref_use_gold_mentions: bool,
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 impl TaskEvalConfigBuilder {
     /// Create a new builder with defaults.
     pub fn new() -> Self {
@@ -152,7 +152,7 @@ impl TaskEvalConfigBuilder {
     }
 }
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 impl Default for TaskEvalConfigBuilder {
     fn default() -> Self {
         Self {

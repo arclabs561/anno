@@ -99,9 +99,9 @@ The workflow will:
 If you already have datasets cached locally and want to refresh the shared S3 cache:
 
 ```bash
-cargo run -p anno --features "eval-advanced discourse" -- cache sync-s3 --dry-run
-cargo run -p anno --features "eval-advanced discourse" -- cache sync-s3 --limit 50
-cargo run -p anno --features "eval-advanced discourse" -- cache sync-s3 --datasets Wnut17,DocRED
+cargo run -p anno --features "eval discourse" -- cache sync-s3 --dry-run
+cargo run -p anno --features "eval discourse" -- cache sync-s3 --limit 50
+cargo run -p anno --features "eval discourse" -- cache sync-s3 --datasets Wnut17,DocRED
 ```
 
 ## Fallback: scoped IAM user + GitHub secrets (long-lived)

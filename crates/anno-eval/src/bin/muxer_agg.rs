@@ -3,7 +3,7 @@
 //! This is intentionally lightweight: no clap, no network, no side effects beyond optional output.
 //!
 //! Usage:
-//! - `cargo run -p anno-eval --features eval-advanced --bin muxer_agg -- <path.jsonl> [more.jsonl ...]`
+//! - `cargo run -p anno-eval --bin muxer_agg -- <path.jsonl> [more.jsonl ...]`
 //! - Or set `ANNO_MUXER_AGG_INPUT=<path.jsonl>` (arg wins).
 //!
 //! Output:
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let out_path = out_path.or_else(|| std::env::var("ANNO_MUXER_AGG_OUTPUT").ok());
 
-    let paths: Vec<PathBuf> = inputs.iter().map(|s| PathBuf::from(s)).collect();
+    let paths: Vec<PathBuf> = inputs.iter().map(PathBuf::from).collect();
     let out = anno_eval::muxer_agg_lib::aggregate_jsonl_paths(&paths)
         .map_err(|e| format!("muxer_agg: {e}"))?;
     let s = serde_json::to_string_pretty(&out)?;

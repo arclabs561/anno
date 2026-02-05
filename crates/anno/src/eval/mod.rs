@@ -31,7 +31,7 @@ pub mod cluster_encoder {
 pub mod coref_resolver;
 
 pub use cluster_encoder::{
-    ClusterEmbedding, ClusterEncoder, ClusterMention, CrossContextConfig, CosineMergeScorer,
+    ClusterEmbedding, ClusterEncoder, ClusterMention, CosineMergeScorer, CrossContextConfig,
     HeuristicClusterEncoder, LocalCluster, MergeScorer, MergedCluster,
 };
 
@@ -41,4 +41,3 @@ pub use coref_metrics::{
 };
 
 pub use coref_resolver::{BoxCorefResolver, CorefConfig, SimpleCorefResolver};
-

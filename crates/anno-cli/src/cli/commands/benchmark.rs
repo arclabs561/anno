@@ -2,11 +2,11 @@
 
 use clap::{ArgAction, Parser, ValueEnum};
 
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::loader::DatasetId;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::task_evaluator::TaskEvaluator;
-#[cfg(feature = "eval-advanced")]
+#[cfg(feature = "eval")]
 use anno_eval::eval::task_mapping::Task;
 
 /// Comprehensive evaluation across all task-dataset-backend combinations
@@ -132,13 +132,13 @@ fn profile_defaults(profile: BenchmarkProfile) -> (Vec<String>, Vec<String>, Vec
 
 /// Execute the benchmark command.
 pub fn run(args: BenchmarkArgs) -> Result<(), String> {
-    #[cfg(not(feature = "eval-advanced"))]
+    #[cfg(not(feature = "eval"))]
     {
         let _ = args;
-        Err("Benchmark command requires --features eval-advanced".to_string())
+        Err("Benchmark command requires --features eval".to_string())
     }
 
-    #[cfg(feature = "eval-advanced")]
+    #[cfg(feature = "eval")]
     {
         println!("=== Comprehensive Task-Dataset-Backend Evaluation ===\n");
 

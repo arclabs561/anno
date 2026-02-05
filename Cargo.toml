@@ -109,3 +109,65 @@ missing_docs = "warn"
 
 [workspace.lints.clippy]
 unwrap_used = "warn"
+
+[package]
+name = "anno"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+description = "Information extraction for Rust: Named Entity Recognition (NER), coreference resolution, and structured extraction"
+readme = "README.md"
+keywords = ["ner", "nlp", "information-extraction", "coreference", "rust"]
+categories = ["text-processing"]
+publish = true
+
+[dependencies]
+anno-lib = { path = "crates/anno", package = "anno-lib", version = "0.2.0", default-features = false }
+serde_json = { workspace = true }
+
+[features]
+default = []
+
+# Forward library feature flags to `anno-lib`.
+discourse = ["anno-lib/discourse"]
+eval = ["anno-lib/eval"]
+analysis = ["anno-lib/analysis"]
+graph = ["anno-lib/graph"]
+gramdex = ["anno-lib/gramdex"]
+schema = ["anno-lib/schema"]
+onnx = ["anno-lib/onnx"]
+candle = ["anno-lib/candle"]
+metal = ["anno-lib/metal"]
+cuda = ["anno-lib/cuda"]
+burn = ["anno-lib/burn"]
+semantic-chunking = ["anno-lib/semantic-chunking"]
+async-inference = ["anno-lib/async-inference"]
+session-pool = ["anno-lib/session-pool"]
+subsume = ["anno-lib/subsume"]
+instrument = ["anno-lib/instrument"]
+llm = ["anno-lib/llm"]
+fast-lock = ["anno-lib/fast-lock"]
+jiff-time = ["anno-lib/jiff-time"]
+production = ["anno-lib/production"]
+full = ["anno-lib/full"]
+full-workspace = ["anno-lib/full-workspace"]
+bundled-crf-weights = ["anno-lib/bundled-crf-weights"]
+bundled-hmm-params = ["anno-lib/bundled-hmm-params"]
+
+# Local development override: use sibling checkout of `muxer`.
+#
+# This repo depends on `muxer` via a git dependency in `anno-eval`/`anno-cli` so that releases are
+# pinned and reproducible. In the super-workspace, we want local changes to `dev/muxer/` to take
+# effect without updating a git rev.
+[patch."https://github.com/arclabs561/muxer.git"]
+muxer = { path = "../muxer" }
+
+[patch.crates-io]
+infgeom = { path = "../infgeom" }
+logp = { path = "../logp" }
+pare = { path = "../pare" }

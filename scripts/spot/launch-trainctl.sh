@@ -142,7 +142,7 @@ export CARGO_HOME=/tmp/cargo
 mkdir -p $ANNO_CACHE_DIR $CARGO_HOME
 
 # Build anno
-cargo build --release -p anno-cli --bin anno --features "eval-advanced onnx" 2>&1 | tail -5
+cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -5
 
 echo "Worker ready on $(hostname)"
 WORKER_SETUP
