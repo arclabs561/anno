@@ -3704,12 +3704,14 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             .map(|d| d.join("anno").join("eval-results.jsonl"))
             .unwrap_or_else(|| std::path::PathBuf::from("eval-results.jsonl"));
         if let Ok(h) = crate::eval::history::EvalHistory::new(&hist_path) {
-            // Use the recent-window method (last 5 observations vs all earlier).
-            // Cohen's d >= 0.5 is a "medium" effect size -- strong enough to be a
-            // real regression, not just noise from random subsampling.
+            // Use the recent-window method (last 5 observations vs comparable historical).
+            // Cohen's d >= 1.0 = "large" effect size.  We use a high threshold because:
+            // - F1 variance is high (random subsampling of datasets)
+            // - Only n-comparable observations are compared (reduces false alarms)
+            // - A real regression (code bug) typically causes a large, consistent drop
             if let Ok(alerts) = h.detect_regressions_recent(
                 5,    // compare last 5 observations
-                0.5,  // Cohen's d >= 0.5 (medium effect)
+                1.0,  // Cohen's d >= 1.0 (large effect -- real regressions are big)
                 15,   // min 15 total observations per cell
             ) {
                 for alert in &alerts {

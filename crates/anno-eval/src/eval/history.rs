@@ -932,14 +932,14 @@ impl EvalHistory {
         Ok(alerts)
     }
 
-    /// Detect regressions using a recent-window comparison (more sensitive than median split).
+    /// Detect regressions using a recent-window comparison with sample-size normalization.
     ///
     /// For each (backend, dataset) cell, compares the last `recent_n` observations to all
-    /// earlier observations.  Uses Cohen's d effect size: d = (old_mean - new_mean) / pooled_sd.
-    /// Flags cells where d > `min_effect_size` (default 0.5 = "medium" effect).
+    /// earlier observations.  Only compares observations with similar evaluation size (n)
+    /// to avoid false alarms from the n-dependent F1 variance (small n = high F1 variance).
     ///
-    /// This is more sensitive to recent changes than the median-split approach because
-    /// it uses a fixed recent window rather than splitting at the temporal midpoint.
+    /// Uses Cohen's d effect size: d = (old_mean - new_mean) / pooled_sd.
+    /// Flags cells where d > `min_effect_size` (default 0.8 = "large" effect).
     pub fn detect_regressions_recent(
         &self,
         recent_n: usize,
@@ -952,23 +952,25 @@ impl EvalHistory {
         let conn = rusqlite::Connection::open(db_path)
             .map_err(std::io::Error::other)?;
 
+        // Include evaluation size (n) so we can match comparable observations.
         let mut stmt = conn
             .prepare(
-                "SELECT backend, dataset, timestamp, f1 FROM eval_results \
+                "SELECT backend, dataset, timestamp, f1, n FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
                  ORDER BY backend, dataset, timestamp",
             )
             .map_err(std::io::Error::other)?;
 
-        let mut cells: HashMap<(String, String), Vec<(String, f64)>> = HashMap::new();
+        let mut cells: HashMap<(String, String), Vec<(String, f64, i64)>> = HashMap::new();
         let rows = stmt
             .query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?, row.get::<_, f64>(3)?))
+                    row.get::<_, String>(2)?, row.get::<_, f64>(3)?,
+                    row.get::<_, i64>(4)?))
             })
             .map_err(std::io::Error::other)?;
         for row in rows.flatten() {
-            cells.entry((row.0, row.1)).or_default().push((row.2, row.3));
+            cells.entry((row.0, row.1)).or_default().push((row.2, row.3, row.4));
         }
 
         let mut alerts = Vec::new();
@@ -977,24 +979,44 @@ impl EvalHistory {
                 continue;
             }
             let split = obs.len() - recent_n;
-            let old: Vec<f64> = obs[..split].iter().map(|(_, f)| *f).collect();
-            let new: Vec<f64> = obs[split..].iter().map(|(_, f)| *f).collect();
+
+            // Determine the typical evaluation size in the recent window.
+            let recent_n_vals: Vec<i64> = obs[split..].iter().map(|(_, _, n)| *n).collect();
+            let median_recent_n = {
+                let mut sorted = recent_n_vals.clone();
+                sorted.sort();
+                sorted[sorted.len() / 2]
+            };
+
+            // Only compare against historical observations with similar evaluation size
+            // (within 2x) to avoid the n-dependent variance confound.
+            let old: Vec<f64> = obs[..split]
+                .iter()
+                .filter(|(_, _, n)| {
+                    *n >= median_recent_n / 2 && *n <= median_recent_n * 2
+                })
+                .map(|(_, f, _)| *f)
+                .collect();
+            let new: Vec<f64> = obs[split..].iter().map(|(_, f, _)| *f).collect();
+
+            if old.len() < 3 || new.is_empty() {
+                continue; // not enough comparable historical observations
+            }
 
             let old_mean = old.iter().sum::<f64>() / old.len() as f64;
             let new_mean = new.iter().sum::<f64>() / new.len() as f64;
             let drop = old_mean - new_mean;
             if drop <= 0.0 {
-                continue; // no regression (improvement or no change)
+                continue;
             }
 
-            // Pooled standard deviation for Cohen's d.
             let old_var = old.iter().map(|x| (x - old_mean).powi(2)).sum::<f64>()
                 / (old.len() as f64 - 1.0).max(1.0);
             let new_var = new.iter().map(|x| (x - new_mean).powi(2)).sum::<f64>()
                 / (new.len() as f64 - 1.0).max(1.0);
             let pooled_sd = ((old_var + new_var) / 2.0).sqrt();
             if pooled_sd < 1e-12 {
-                continue; // zero variance, skip
+                continue;
             }
             let d = drop / pooled_sd;
 
