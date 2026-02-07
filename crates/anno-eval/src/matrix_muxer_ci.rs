@@ -136,8 +136,15 @@ enum SampleStrategy {
 
 #[derive(Debug, Clone, Copy)]
 enum MuxerMode {
+    /// Regression hunting: prioritize historically broken backends, run regression
+    /// detection on the full quality matrix.  Maps to `WorstFirst` strategy.
     Triage,
+    /// Stable measurement: route to the best backends for reliable F1 estimates.
+    /// Maps to `MlOnly` strategy.
     Measure,
+    /// Matrix coverage: fill the quality matrix by selecting least-observed cells.
+    /// Maps to `Estimate` strategy.  Useful for systematic benchmarking.
+    Coverage,
 }
 
 impl MuxerMode {
@@ -151,12 +158,12 @@ impl MuxerMode {
             // Preferred names:
             "triage" => Some(Self::Triage),
             "measure" => Some(Self::Measure),
+            "coverage" => Some(Self::Coverage),
 
             // Back-compat aliases:
             "bug" | "bug-hunt" | "bughunt" | "regress" | "regression" => Some(Self::Triage),
-            "perf" | "perf-estimate" | "perfestimate" | "estimate" | "measurement" => {
-                Some(Self::Measure)
-            }
+            "perf" | "perf-estimate" | "perfestimate" | "measurement" => Some(Self::Measure),
+            "estimate" | "benchmark" | "fill" | "sweep" => Some(Self::Coverage),
             _ => None,
         }
     }
@@ -217,6 +224,7 @@ impl SampleStrategy {
         match MuxerMode::from_env() {
             Some(MuxerMode::Triage) => Self::WorstFirst,
             Some(MuxerMode::Measure) => Self::MlOnly,
+            Some(MuxerMode::Coverage) => Self::Estimate,
             None => Self::MlOnly,
         }
     }
@@ -3695,10 +3703,11 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     //
     // This runs on the full SQLite eval-history (not just the current run), so it
     // accumulates evidence across many runs and detects gradual degradation.
-    // Gated: only runs with ANNO_MUXER_VERBOSE=1 or ANNO_CHECK_REGRESSIONS=1 to
-    // avoid unnecessary table scans on routine harness runs.
+    // Gated: runs when ANNO_CHECK_REGRESSIONS=1, ANNO_MUXER_VERBOSE=1, or
+    // ANNO_MUXER_MODE=triage (triage mode implies "find what broke").
     if mh::env_bool("ANNO_CHECK_REGRESSIONS", false)
         || mh::env_bool("ANNO_MUXER_VERBOSE", false)
+        || matches!(MuxerMode::from_env(), Some(MuxerMode::Triage))
     {
         let hist_path = dirs::cache_dir()
             .map(|d| d.join("anno").join("eval-results.jsonl"))
