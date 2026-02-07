@@ -14,6 +14,8 @@
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
 //! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run in cache-only mode (no fetch); if selection yields
 //!   nothing and `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1`, fall back to “try to fetch once”
+//! - `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE`: if `1`/`true`, include non-automatable datasets in candidates
+//! - `ANNO_MATRIX_INCLUDE_SLOW_DATASETS`: if `1`/`true`, allow known-slow datasets even under `ANNO_MUXER_PROFILE=fast*`
 //! - `ANNO_MATRIX_COVERAGE_REPORT`: if set, write a JSON coverage report to this path
 //! - `ANNO_HISTORY_FILE`: optional JSON path for muxer history
 //! - `ANNO_MAX_EXAMPLES`: max examples per dataset (default: 5 in CI, 25 locally)
@@ -1772,6 +1774,18 @@ fn candidate_datasets_for_tasks(
     candidates.sort_by_key(|d| format!("{d:?}"));
     candidates.dedup();
 
+    // Fast-profile sweeps are meant to be quick, lightweight sanity checks.
+    // Filter out a small set of known-slow datasets that can OOM/timeout in debug-mode runs.
+    //
+    // Override: set `ANNO_MATRIX_INCLUDE_SLOW_DATASETS=1`.
+    let profile = std::env::var("ANNO_MUXER_PROFILE")
+        .ok()
+        .unwrap_or_else(|| "off".to_string())
+        .trim()
+        .to_ascii_lowercase();
+    let fast_profile = matches!(profile.as_str(), "fast" | "fast-strict");
+    let include_slow = mh::env_bool("ANNO_MATRIX_INCLUDE_SLOW_DATASETS", false);
+
     let mut out: Vec<DatasetId> = Vec::new();
     let temporal_requested = tasks.contains(&Task::Temporal);
     for ds in candidates {
@@ -1787,6 +1801,12 @@ fn candidate_datasets_for_tasks(
             // parse like TweetNER7).  Skip it.  The is_automatable_download() hard
             // exclusion list is authoritative -- these datasets produce hard-junk
             // outcomes even when cached, so no cache fallback.
+            continue;
+        }
+        if fast_profile
+            && !include_slow
+            && matches!(ds, DatasetId::OntoNotesSample | DatasetId::BioMNER)
+        {
             continue;
         }
         let ts = dataset_tasks(ds);
@@ -1807,6 +1827,57 @@ fn candidate_datasets_for_tasks(
     out.sort_by_key(|d| format!("{d:?}"));
     out.dedup();
     out
+}
+
+#[test]
+fn test_fast_profile_filters_known_slow_datasets() {
+    let _env = env_lock();
+    anno::env::load_dotenv();
+    let loader = DatasetLoader::new().expect("DatasetLoader::new");
+
+    // Guard: save+restore env so this test doesn't pollute others.
+    let old_profile = std::env::var("ANNO_MUXER_PROFILE").ok();
+    let old_include_slow = std::env::var("ANNO_MATRIX_INCLUDE_SLOW_DATASETS").ok();
+    struct Restore {
+        k: &'static str,
+        v: Option<String>,
+    }
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.v.as_deref() {
+                None => std::env::remove_var(self.k),
+                Some(v) => std::env::set_var(self.k, v),
+            }
+        }
+    }
+    let _r1 = Restore {
+        k: "ANNO_MUXER_PROFILE",
+        v: old_profile,
+    };
+    let _r2 = Restore {
+        k: "ANNO_MATRIX_INCLUDE_SLOW_DATASETS",
+        v: old_include_slow,
+    };
+
+    std::env::set_var("ANNO_MUXER_PROFILE", "fast");
+    std::env::remove_var("ANNO_MATRIX_INCLUDE_SLOW_DATASETS");
+    let ds = candidate_datasets_for_tasks(&loader, &[Task::NER], false);
+    assert!(
+        !ds.contains(&DatasetId::OntoNotesSample),
+        "fast profile should exclude OntoNotesSample by default"
+    );
+    assert!(
+        !ds.contains(&DatasetId::BioMNER),
+        "fast profile should exclude BioMNER by default"
+    );
+
+    std::env::set_var("ANNO_MATRIX_INCLUDE_SLOW_DATASETS", "1");
+    let ds2 = candidate_datasets_for_tasks(&loader, &[Task::NER], false);
+    assert!(
+        ds2.contains(&DatasetId::OntoNotesSample),
+        "include override should allow OntoNotesSample"
+    );
+    assert!(ds2.contains(&DatasetId::BioMNER), "include override should allow BioMNER");
 }
 
 #[cfg(test)]

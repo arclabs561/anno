@@ -31,6 +31,8 @@
 //! | `ANNO_SAMPLE_STRATEGY` | Backend sampling strategy (random, ml-only, worst-first) |
 //! | `ANNO_MATRIX_TASK` | Optional task override for matrix sampler harness (e.g. discontinuous-ner, events, ned) |
 //! | `ANNO_MATRIX_REQUIRE_CACHED` | If true, matrix sampler harness/sweeps only use cached datasets (local default false; CI forced true) |
+//! | `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE` | If true, include non-automatable datasets in matrix candidates (default false) |
+//! | `ANNO_MATRIX_INCLUDE_SLOW_DATASETS` | If true, allow known-slow datasets even under `ANNO_MUXER_PROFILE=fast*` (default false) |
 //! | `ANNO_MATRIX_COVERAGE_REPORT` | If set, write a JSON coverage report to this path during tests |
 //! | `ANNO_MATRIX_DISTRIBUTION_REPORT` | If set, write a JSON selection-distribution report to this path during tests |
 //! | `ANNO_MATRIX_DISTRIBUTION_ITERS` | Number of simulated selections to run for distribution report (default 200) |
