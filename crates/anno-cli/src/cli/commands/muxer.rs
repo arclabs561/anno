@@ -1160,6 +1160,7 @@ mod fail_kinds_tests {
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
+            linucb_state: None,
         };
         let c = h.failure_kind_counts_for_arm_cli("a", None, true);
         assert!(c.is_empty());
@@ -1173,6 +1174,7 @@ mod fail_kinds_tests {
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
+            linucb_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string()));
@@ -1192,6 +1194,7 @@ mod fail_kinds_tests {
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
+            linucb_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string()));
@@ -1218,6 +1221,7 @@ mod fail_kinds_tests {
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
+            linucb_state: None,
         };
         let mut q = VecDeque::new();
         q.push_back(Some("timeout".to_string())); // prev

@@ -290,7 +290,7 @@ impl EntityMemory {
         use_exact_match: bool,
         use_substring_match: bool,
     ) -> Option<u64> {
-        let mention_lower = mention_text.to_lowercase();
+        let mention_key = name_key(mention_text);
         let mut best_match: Option<(u64, f64)> = None;
 
         for (id, cluster) in &self.clusters {
@@ -300,7 +300,7 @@ impl EntityMemory {
             }
 
             let score = self.compute_match_score(
-                &mention_lower,
+                &mention_key,
                 mention_type,
                 cluster,
                 use_exact_match,
@@ -324,23 +324,23 @@ impl EntityMemory {
     /// Compute match score between mention and cluster.
     fn compute_match_score(
         &self,
-        mention_lower: &str,
+        mention_key: &str,
         mention_type: MentionType,
         cluster: &ClusterMetadata,
         use_exact_match: bool,
         use_substring_match: bool,
     ) -> f64 {
-        let rep_lower = cluster.representative.to_lowercase();
+        let rep_key = name_key(&cluster.representative);
 
         // Exact match is highest confidence
-        if use_exact_match && mention_lower == rep_lower {
+        if use_exact_match && mention_key == rep_key {
             return 1.0;
         }
 
         // Check against all mentions in cluster
         for m in &cluster.mentions {
-            let m_lower = m.text.to_lowercase();
-            if mention_lower == m_lower {
+            let m_key = name_key(&m.text);
+            if mention_key == m_key {
                 return 0.95;
             }
         }
@@ -348,13 +348,13 @@ impl EntityMemory {
         // Substring matching for proper names
         if use_substring_match && mention_type != MentionType::Pronominal {
             // "Smith" matches "John Smith"
-            if rep_lower.contains(mention_lower) || mention_lower.contains(&rep_lower) {
+            if rep_key.contains(mention_key) || mention_key.contains(&rep_key) {
                 return 0.85;
             }
 
             // Check last name matching
-            let mention_parts: Vec<&str> = mention_lower.split_whitespace().collect();
-            let rep_parts: Vec<&str> = rep_lower.split_whitespace().collect();
+            let mention_parts: Vec<&str> = mention_key.split_whitespace().collect();
+            let rep_parts: Vec<&str> = rep_key.split_whitespace().collect();
 
             if !mention_parts.is_empty() && !rep_parts.is_empty() {
                 // Last name match
@@ -374,7 +374,7 @@ impl EntityMemory {
         }
 
         // Trigram similarity for fuzzy matching
-        let sim = trigram_similarity(mention_lower, &rep_lower);
+        let sim = trigram_similarity(mention_key, &rep_key);
         sim * 0.7 // Scale down trigram similarity
     }
 
@@ -952,8 +952,8 @@ impl IncrementalCorefResolver {
         }
 
         // Check name similarity
-        let rep_a = cluster_a.representative.to_lowercase();
-        let rep_b = cluster_b.representative.to_lowercase();
+        let rep_a = name_key(&cluster_a.representative);
+        let rep_b = name_key(&cluster_b.representative);
 
         // Exact match
         if rep_a == rep_b {
@@ -977,6 +977,35 @@ impl IncrementalCorefResolver {
 // =============================================================================
 // Utility Functions
 // =============================================================================
+
+/// Normalize a name / mention surface into a comparison key.
+///
+/// This is intentionally **comparison-only** normalization (not offset-preserving): it is safe for
+/// coreference linking because it does not modify stored spans; it only affects matching decisions.
+fn name_key(s: &str) -> String {
+    use std::borrow::Cow;
+
+    // Remove BOM only. We intentionally do *not* strip other zero-width characters here because
+    // ZWJ/ZWNJ can be orthographically meaningful in multiple scripts.
+    fn strip_bom_only(s: &str) -> Cow<'_, str> {
+        if !s.chars().any(|c| c == '\u{FEFF}') {
+            return Cow::Borrowed(s);
+        }
+        Cow::Owned(s.chars().filter(|&c| c != '\u{FEFF}').collect())
+    }
+
+    let s = strip_bom_only(s);
+    let cfg = textprep::ScrubConfig {
+        normalize_newlines: true,
+        remove_zero_width: false,
+        remove_bidi_controls: true,
+        collapse_whitespace: true,
+        normalization: textprep::ScrubNormalization::Nfc,
+        case: textprep::ScrubCase::Lower,
+        strip_diacritics: false,
+    };
+    textprep::scrub_with(s.as_ref(), &cfg)
+}
 
 /// Compute trigram (character 3-gram) similarity between two strings.
 ///

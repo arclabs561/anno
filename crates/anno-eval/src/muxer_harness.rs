@@ -29,9 +29,10 @@ use muxer::{DriftConfig, DriftMetric, MabConfig};
 // Prefer centralizing generic policy helpers in `muxer` itself so harnesses/CLIs don’t drift.
 pub use muxer::{
     apply_prior_counts_to_summary, guardrail_filter_observed, guardrail_filter_observed_elapsed,
-    novelty_pick_unseen, pick_random_subset, policy_fill_k_observed_with, policy_plan_observed,
-    select_k_without_replacement_by, select_k_without_replacement_by_with_meta, stable_hash64,
-    worst_first_pick_k, worst_first_pick_one, LatencyGuardrail, PolicyFill, PolicyPlan,
+    novelty_pick_unseen, pick_random_subset, policy_fill_generic, policy_fill_k_observed_with,
+    policy_plan_generic, policy_plan_observed, select_k_without_replacement_by,
+    select_k_without_replacement_by_with_meta, stable_hash64, worst_first_pick_k,
+    worst_first_pick_one, LatencyGuardrail, PipelineOrder, PolicyFill, PolicyPlan,
     WorstFirstConfig,
 };
 
@@ -949,10 +950,125 @@ pub fn muxer_slice_tag(
     SliceTag::parse(&tagged)
 }
 
+// =============================================================================
+// Contextual feature extraction (for LinUCB integration)
+// =============================================================================
+//
+// Theoretical motivation: the objective manifold framework shows that in the
+// non-contextual regime, estimation error and detection delay are proportional
+// (D_eff = K-1, all objectives collapse to one parameter).  Adding context
+// features creates the "contextual revival" -- the design measure gains spatial
+// dimensions and objectives genuinely diverge, enabling the bandit to learn
+// "biomedical text prefers BERT ONNX" without separate per-facet histories.
+//
+// Feature design: one-hot indicators for language/domain families plus a bias
+// term.  All computable in microseconds from DatasetId metadata.  The bias
+// ensures LinUCB learns a per-arm intercept even when all indicators are zero.
+
+/// Fixed feature dimension for the contextual bandit.
+pub const CONTEXT_DIM: usize = 8;
+
+/// Build a context feature vector from dataset metadata.
+///
+/// Layout (dim=8):
+///   [0] bias (always 1.0)
+///   [1] lang_en (1.0 if language is "en")
+///   [2] lang_multilingual (1.0 if language is "mul" or "mixed")
+///   [3] domain_biomedical (1.0 if domain contains "biomedical" or "clinical")
+///   [4] domain_news (1.0 if domain contains "news")
+///   [5] domain_social (1.0 if domain contains "social")
+///   [6] domain_science (1.0 if domain contains "science" or "technical")
+///   [7] num_entity_types_normalized (|entity_types| / 20.0, clamped to [0,1])
+///
+/// The feature vector is deterministic given the dataset set and is designed
+/// so that LinUCB can learn generalizable patterns across slices (e.g.
+/// "Cyrillic + biomedical => prefer ONNX") without combinatorial facet explosion.
+#[cfg(feature = "eval")]
+pub fn context_features(datasets: &[DatasetId]) -> [f64; CONTEXT_DIM] {
+    let mut f = [0.0f64; CONTEXT_DIM];
+    f[0] = 1.0; // bias
+
+    if datasets.is_empty() {
+        return f;
+    }
+
+    // Aggregate language signals across datasets in this batch.
+    let mut n_en = 0u32;
+    let mut n_mul = 0u32;
+    let mut total_entity_types = 0u32;
+
+    for d in datasets {
+        let lang = d.language();
+        if lang == "en" {
+            n_en += 1;
+        }
+        if lang == "mul" || lang == "mixed" {
+            n_mul += 1;
+        }
+
+        let dom = d.domain();
+        if dom.contains("biomedical") || dom.contains("clinical") {
+            f[3] += 1.0;
+        }
+        if dom.contains("news") {
+            f[4] += 1.0;
+        }
+        if dom.contains("social") {
+            f[5] += 1.0;
+        }
+        if dom.contains("scien") || dom.contains("technical") {
+            f[6] += 1.0;
+        }
+
+        total_entity_types += d.entity_types().len() as u32;
+    }
+
+    let n = datasets.len() as f64;
+    f[1] = (n_en as f64) / n;
+    f[2] = (n_mul as f64) / n;
+    // Normalize domain indicators to [0, 1] fractions.
+    f[3] /= n;
+    f[4] /= n;
+    f[5] /= n;
+    f[6] /= n;
+    // Entity type richness (normalized).
+    f[7] = ((total_entity_types as f64) / n / 20.0).min(1.0);
+
+    f
+}
+
 #[cfg(all(test, feature = "eval"))]
 mod tests {
     use super::*;
     use crate::eval::loader::DatasetId;
+
+    #[test]
+    fn test_context_features_smoke() {
+        let f = context_features(&[DatasetId::Wnut17]);
+        assert!((f[0] - 1.0).abs() < 1e-9, "bias should be 1.0");
+        assert!(f[1] > 0.0, "Wnut17 is English");
+        // Social media dataset
+        assert!(f[5] > 0.0, "Wnut17 is social media: {:?}", f);
+    }
+
+    #[test]
+    fn test_context_features_empty() {
+        let f = context_features(&[]);
+        assert!((f[0] - 1.0).abs() < 1e-9, "bias always 1.0");
+        for i in 1..CONTEXT_DIM {
+            assert!((f[i]).abs() < 1e-9, "empty datasets -> zero features");
+        }
+    }
+
+    #[test]
+    fn test_context_features_mixed_datasets() {
+        let f = context_features(&[DatasetId::Wnut17, DatasetId::GENIA]);
+        assert!((f[0] - 1.0).abs() < 1e-9);
+        // One of two is English
+        assert!(f[1] > 0.0 && f[1] <= 1.0);
+        // GENIA is biomedical
+        assert!(f[3] > 0.0, "GENIA should trigger biomedical: {:?}", f);
+    }
 
     #[test]
     fn test_slice_tag_parse_rejects_pathy_chars() {

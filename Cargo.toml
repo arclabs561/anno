@@ -37,7 +37,7 @@ once_cell = "1"
 bitflags = "2"
 
 # `textprep` is published on crates.io. For local development with sibling checkouts,
-# use `.cargo/config.toml` to patch it to a path dependency.
+# merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
 textprep = "0.1"
 sketchir = "0.1.2"
 clump = "0.1.0"
@@ -131,7 +131,7 @@ anno-lib = { path = "crates/anno", package = "anno-lib", version = "0.2.0", defa
 serde_json = { workspace = true }
 
 [features]
-default = []
+default = ["onnx"]
 
 # Forward library feature flags to `anno-lib`.
 discourse = ["anno-lib/discourse"]
@@ -168,6 +168,5 @@ bundled-hmm-params = ["anno-lib/bundled-hmm-params"]
 muxer = { path = "../muxer" }
 
 [patch.crates-io]
-infogeom = { path = "../infogeom" }
 logp = { path = "../logp" }
 pare = { path = "../pare" }

@@ -711,6 +711,113 @@ impl EvalHistory {
         Ok(entries)
     }
 
+    /// Return observation counts per (backend, dataset) cell from the SQLite index.
+    ///
+    /// This is the quality matrix coverage map: each entry tells you how many times
+    /// a (backend, dataset) pair has been evaluated.  Used by the Estimate strategy
+    /// to prioritize cells with fewest observations.
+    ///
+    /// Falls back to JSONL scan if SQLite is unavailable.
+    pub fn cell_observation_counts(&self) -> std::io::Result<HashMap<(String, String), u64>> {
+        if let Some(ref db_path) = self.sqlite_path {
+            if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT backend, dataset, COUNT(*) FROM eval_results GROUP BY backend, dataset",
+                    )
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                let mut counts = HashMap::new();
+                let rows = stmt
+                    .query_map([], |row| {
+                        let backend: String = row.get(0)?;
+                        let dataset: String = row.get(1)?;
+                        let count: u64 = row.get(2)?;
+                        Ok((backend, dataset, count))
+                    })
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                for row in rows {
+                    if let Ok((b, d, c)) = row {
+                        counts.insert((b, d), c);
+                    }
+                }
+                return Ok(counts);
+            }
+        }
+        // Fallback: scan JSONL
+        let entries = self.load_all()?;
+        let mut counts = HashMap::new();
+        for e in entries {
+            *counts
+                .entry((e.backend.clone(), e.dataset.clone()))
+                .or_insert(0u64) += 1;
+        }
+        Ok(counts)
+    }
+
+    /// Return total observation counts per dataset across all backends.
+    ///
+    /// Used by the Estimate strategy to find least-observed datasets.
+    pub fn dataset_observation_counts(&self) -> std::io::Result<HashMap<String, u64>> {
+        if let Some(ref db_path) = self.sqlite_path {
+            if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                let mut stmt = conn
+                    .prepare("SELECT dataset, COUNT(*) FROM eval_results GROUP BY dataset")
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                let mut counts = HashMap::new();
+                let rows = stmt
+                    .query_map([], |row| {
+                        let dataset: String = row.get(0)?;
+                        let count: u64 = row.get(1)?;
+                        Ok((dataset, count))
+                    })
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                for row in rows {
+                    if let Ok((d, c)) = row {
+                        counts.insert(d, c);
+                    }
+                }
+                return Ok(counts);
+            }
+        }
+        let entries = self.load_all()?;
+        let mut counts = HashMap::new();
+        for e in entries {
+            *counts.entry(e.dataset.clone()).or_insert(0u64) += 1;
+        }
+        Ok(counts)
+    }
+
+    /// Return total observation counts per backend across all datasets.
+    pub fn backend_observation_counts(&self) -> std::io::Result<HashMap<String, u64>> {
+        if let Some(ref db_path) = self.sqlite_path {
+            if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                let mut stmt = conn
+                    .prepare("SELECT backend, COUNT(*) FROM eval_results GROUP BY backend")
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                let mut counts = HashMap::new();
+                let rows = stmt
+                    .query_map([], |row| {
+                        let backend: String = row.get(0)?;
+                        let count: u64 = row.get(1)?;
+                        Ok((backend, count))
+                    })
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                for row in rows {
+                    if let Ok((b, c)) = row {
+                        counts.insert(b, c);
+                    }
+                }
+                return Ok(counts);
+            }
+        }
+        let entries = self.load_all()?;
+        let mut counts = HashMap::new();
+        for e in entries {
+            *counts.entry(e.backend.clone()).or_insert(0u64) += 1;
+        }
+        Ok(counts)
+    }
+
     /// Rebuild SQLite index from JSONL file.
     ///
     /// Useful if SQLite gets corrupted or out of sync.

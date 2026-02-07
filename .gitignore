@@ -91,6 +91,8 @@ url_validation_report.json
 # Cargo local overrides (keep local-only config untracked)
 .cargo/
 !.cargo/
+!.cargo/config.toml.example
+.cargo/config.toml
 mutants.out*/
 
 # Spot evaluation ephemeral state

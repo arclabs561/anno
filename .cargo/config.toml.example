@@ -1,0 +1,10 @@
+[patch.crates-io]
+# Local super-workspace dev override.
+#
+# If you have `dev/textprep/` checked out next to `dev/anno/`, add the stanza below to your
+# `.cargo/config.toml` (create it if missing).
+#
+# If you already have a `.cargo/config.toml`, merge this block into it (do not overwrite).
+# A diff/merge tool (e.g. `meld`) makes this painless.
+textprep = { path = "../textprep" }
+

@@ -73,6 +73,7 @@
 //! ```
 
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 // Re-export Script from separate module to avoid compilation issues
 pub use super::script::Script;
@@ -80,6 +81,28 @@ pub use super::script::Script;
 // =============================================================================
 // Preprocessing
 // =============================================================================
+
+/// Strip BOM and bidi controls that can pollute comparisons.
+///
+/// This is **comparison-only** normalization (not offset-preserving). It is safe to remove these
+/// characters here because similarity is computed over short strings (entity mentions), not over
+/// source-text spans.
+fn strip_bom_and_bidi_controls(s: &str) -> Cow<'_, str> {
+    fn should_strip(c: char) -> bool {
+        // BOM
+        c == '\u{FEFF}'
+            // Arabic Letter Mark, LRM/RLM
+            || matches!(c, '\u{061C}' | '\u{200E}' | '\u{200F}')
+            // Bidi embedding/override/isolates
+            || matches!(c, '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}')
+    }
+
+    if !s.chars().any(should_strip) {
+        return Cow::Borrowed(s);
+    }
+
+    Cow::Owned(s.chars().filter(|&c| !should_strip(c)).collect())
+}
 
 /// Normalize a string for comparison.
 ///
@@ -90,9 +113,10 @@ pub use super::script::Script;
 ///
 /// # Note
 ///
-/// For production use with proper NFKC normalization, consider
-/// adding the `unicode-normalization` crate.
+/// For production use with NFKC normalization, consider an explicit NFKC step
+/// (e.g., via `unicode_normalization::UnicodeNormalization`).
 pub fn normalize(s: &str) -> String {
+    let s = strip_bom_and_bidi_controls(s);
     // Keep this policy explicit and reusable.
     //
     // Notes:
@@ -106,7 +130,7 @@ pub fn normalize(s: &str) -> String {
         strip_diacritics: false,
         ..textprep::ScrubConfig::default()
     };
-    textprep::scrub_with(s, &cfg)
+    textprep::scrub_with(s.as_ref(), &cfg)
 }
 
 // =============================================================================

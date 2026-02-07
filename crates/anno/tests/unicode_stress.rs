@@ -238,9 +238,8 @@ fn test_bom_handling() {
     let with_bom = "\u{FEFF}test";
     let without = "test";
     let score = sim.compute(with_bom, without);
-    // Without BOM stripping, these have different bigrams at the start
-    // TODO: Add preprocessing to strip BOM
-    assert!(score >= 0.0, "BOM handling: {}", score);
+    // We strip BOM/directionality controls during similarity preprocessing.
+    assert_eq!(score, 1.0, "BOM should not affect similarity: {}", score);
 }
 
 #[test]
@@ -249,9 +248,12 @@ fn test_direction_marks() {
     let with_lrm = "test\u{200E}"; // Left-to-right mark
     let without = "test";
     let score = sim.compute(with_lrm, without);
-    // Without invisible char stripping, the trailing mark affects n-grams
-    // TODO: Add preprocessing to strip direction marks
-    assert!(score >= 0.0, "Direction marks: {}", score);
+    // We strip BOM/directionality controls during similarity preprocessing.
+    assert_eq!(
+        score, 1.0,
+        "Direction marks should not affect similarity: {}",
+        score
+    );
 }
 
 #[test]

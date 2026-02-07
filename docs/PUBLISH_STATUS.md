@@ -13,11 +13,12 @@ We treat Git tags + GitHub Releases as the release log.
 
 ## Why publishing is paused
 
-Today `anno` depends on `anno-core` as a workspace crate (`path = "../anno-core"`).
+Today the `anno` facade depends on workspace-only crates via path dependencies
+(notably `anno-lib` and `anno-core`).
 Crates.io publishing would therefore require either:
 
-- publishing `anno-core` too (which expands the public semver surface), or
-- collapsing `anno-core` back into `anno`.
+- publishing the internal crates too (which expands the public semver surface), or
+- collapsing the split back into a single publishable crate.
 
 We’re explicitly choosing neither for now.
 

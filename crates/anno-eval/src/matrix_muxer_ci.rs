@@ -4,7 +4,7 @@
 //! - compiles under `--features eval` (no `cli` feature required)
 //! - uses `muxer` for deterministic, windowed MAB-style backend selection
 //! - respects `ANNO_CI_SEED` and `ANNO_SAMPLE_STRATEGY`
-//! - prefers cache in CI, but can still download to avoid no-op runs
+//! - prefers cache in CI, with an opt-in download fallback to avoid no-op runs
 //!
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
@@ -12,10 +12,11 @@
 //! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure`). Used only when
 //!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
-//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, prefer cache, but allow fallback downloads when empty
+//! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run in cache-only mode (no fetch); if selection yields
+//!   nothing and `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=1`, fall back to “try to fetch once”
 //! - `ANNO_MATRIX_COVERAGE_REPORT`: if set, write a JSON coverage report to this path
 //! - `ANNO_HISTORY_FILE`: optional JSON path for muxer history
-//! - `ANNO_MAX_EXAMPLES`: max examples per dataset (default: 20 in CI, 50 locally)
+//! - `ANNO_MAX_EXAMPLES`: max examples per dataset (default: 5 in CI, 25 locally)
 //! - `ANNO_CACHE_DIR`: cache root (datasets live under `$ANNO_CACHE_DIR/datasets`)
 //! - `ANNO_ML_IN_MATRIX`: include ML-ish backends in candidates (`1`/`true`)
 //! - `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY`: if `1`/`true`, fall back to downloads when cache-only selection yields nothing
@@ -122,6 +123,15 @@ enum SampleStrategy {
     Random,
     MlOnly,
     WorstFirst,
+    /// **Estimation-first**: select (backend, dataset) cells to maximize information
+    /// about the full quality matrix.  Prioritizes cells with fewest observations or
+    /// highest uncertainty, rather than routing to the "best" arm.
+    ///
+    /// This is the right objective when the goal is measurement (what is the true F1
+    /// of each backend on each dataset?) rather than exploitation (route to the best).
+    /// Detection comes naturally: cells with stale observations or high variance are
+    /// prioritized, so changes are caught as a byproduct of estimation.
+    Estimate,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -156,6 +166,13 @@ impl MuxerMode {
 enum MlOnlyPolicy {
     Exp3Ix,
     Mab,
+    /// Contextual bandit (LinUCB): uses dataset-derived feature vectors to learn
+    /// generalizable routing patterns across slices.
+    ///
+    /// Breaks the non-contextual collapse: in the flat regime, estimation and detection
+    /// are proportional (D_eff = K-1).  With context features, the design measure gains
+    /// spatial dimensions and objectives genuinely diverge.
+    LinUcb,
 }
 
 impl MlOnlyPolicy {
@@ -168,6 +185,7 @@ impl MlOnlyPolicy {
         {
             "mab" => Self::Mab,
             "exp3ix" | "exp3-ix" | "exp3" => Self::Exp3Ix,
+            "linucb" | "lin-ucb" | "contextual" => Self::LinUcb,
             _ => Self::Exp3Ix,
         }
     }
@@ -176,6 +194,7 @@ impl MlOnlyPolicy {
         match self {
             Self::Exp3Ix => "exp3ix",
             Self::Mab => "mab",
+            Self::LinUcb => "linucb",
         }
     }
 }
@@ -189,6 +208,7 @@ impl SampleStrategy {
                 "worst-first" | "worstfirst" => return Self::WorstFirst,
                 // Historical name: "ml-only" (selection is "best-ish", but not necessarily ML-only).
                 "ml-only" | "mlonly" | "ml" | "best-first" | "bestfirst" => return Self::MlOnly,
+                "estimate" | "estimation" | "measure-all" | "coverage" => return Self::Estimate,
                 _ => {}
             }
         }
@@ -206,6 +226,7 @@ impl SampleStrategy {
             Self::Random => "random",
             Self::MlOnly => "ml-only",
             Self::WorstFirst => "worst-first",
+            Self::Estimate => "estimate",
         }
     }
 }
@@ -220,7 +241,7 @@ fn in_ci() -> bool {
 
 fn matrix_require_cached() -> bool {
     // Default:
-    // - CI prefers cache, but can fall back to downloads when needed
+    // - CI prefers cache; opt-in download fallback via `ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY`
     // - local runs default to “try to fetch”
     //
     // Override:
@@ -241,7 +262,7 @@ fn ci_seed() -> u64 {
 
 fn max_examples_per_dataset() -> usize {
     // Keep this intentionally small: this test runs inside `cargo test` and must not time out.
-    let default = if in_ci() { 10 } else { 25 };
+    let default = if in_ci() { 5 } else { 25 };
     std::env::var("ANNO_MAX_EXAMPLES")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -808,6 +829,51 @@ fn history_path(slice_tag: &str) -> PathBuf {
         return base.join("anno").join(suffix);
     }
     PathBuf::from(".").join(suffix)
+}
+
+/// Path for the **global** LinUCB state file (shared across all task/facet slices).
+///
+/// This is the key to breaking the non-contextual collapse: by accumulating
+/// observations from biomedical, social, news, etc. contexts into a single
+/// ridge-regression model, the per-arm theta vectors learn feature-specific
+/// weights instead of collapsing to a single direction.
+fn linucb_global_state_path() -> PathBuf {
+    if let Ok(p) = std::env::var("ANNO_LINUCB_STATE_FILE") {
+        return PathBuf::from(p);
+    }
+    let suffix = "linucb_global_state.json";
+    if let Ok(dir) = std::env::var("ANNO_CACHE_DIR") {
+        return PathBuf::from(dir).join(suffix);
+    }
+    if let Some(base) = dirs::cache_dir() {
+        return base.join("anno").join(suffix);
+    }
+    PathBuf::from(".").join(suffix)
+}
+
+fn load_linucb_global_state(path: &PathBuf) -> Option<muxer::LinUcbState> {
+    let bytes = std::fs::read(path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn save_linucb_global_state(path: &PathBuf, state: &muxer::LinUcbState) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    match serde_json::to_string_pretty(state) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(path, json) {
+                eprintln!(
+                    "matrix-muxer: failed to save LinUCB global state to {}: {}",
+                    path.display(),
+                    e
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("matrix-muxer: failed to serialize LinUCB state: {}", e);
+        }
+    }
 }
 
 fn decisions_path() -> Option<String> {
@@ -1488,6 +1554,69 @@ fn select_backends(
 
             chosen
         }
+        SampleStrategy::Estimate => {
+            // Estimation-first: pick the backends with fewest observations on the
+            // chosen datasets.  This is A-optimal experimental design applied to the
+            // quality matrix: spread observations to minimize worst-case estimation
+            // error across all cells.
+            //
+            // The key difference from MlOnly/WorstFirst: we don't care about
+            // routing quality or regression hunting.  We care about filling the
+            // matrix uniformly so every (backend, dataset) cell has a reliable F1
+            // estimate.  Detection comes as a byproduct: cells with stale
+            // observations are naturally prioritized.
+            let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
+
+            // Score each backend by total observation count across the target datasets.
+            // Lower count = higher priority (we want to fill the least-observed cells).
+            //
+            // Query from SQLite eval-history DB for accurate counts across ALL historical
+            // runs, not just the muxer's sliding window.
+            let cell_counts: std::collections::HashMap<(String, String), u64> = {
+                let hist_path = dirs::cache_dir()
+                    .map(|d| d.join("anno").join("eval-results.jsonl"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("eval-results.jsonl"));
+                crate::eval::history::EvalHistory::new(&hist_path)
+                    .ok()
+                    .and_then(|h| h.cell_observation_counts().ok())
+                    .unwrap_or_default()
+            };
+
+            let mut scored: Vec<(u64, String)> = candidates_in_order
+                .iter()
+                .map(|b| {
+                    let calls: u64 = datasets
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(|d| {
+                            let key = (b.clone(), d.name().to_string());
+                            cell_counts.get(&key).copied().unwrap_or(0)
+                        })
+                        .sum();
+                    (calls, b.clone())
+                })
+                .collect();
+
+            // Sort by observation count ascending (least-observed first).
+            // Tie-break: deterministic hash for stability.
+            scored.sort_by(|a, b| {
+                a.0.cmp(&b.0).then_with(|| {
+                    mh::stable_hash64(seed, &a.1).cmp(&mh::stable_hash64(seed, &b.1))
+                })
+            });
+
+            let chosen: Vec<String> = scored.into_iter().take(k).map(|(_, b)| b).collect();
+
+            if verbose {
+                eprintln!(
+                    "matrix-muxer: estimate chosen={:?} (least-observed on {:?})",
+                    chosen,
+                    datasets.unwrap_or(&[]).iter().map(|d| format!("{d:?}")).collect::<Vec<_>>()
+                );
+            }
+
+            chosen
+        }
     }
 }
 
@@ -1631,11 +1760,13 @@ fn candidate_datasets_for_tasks(
         // The registry contains many useful-but-not-directly-downloadable datasets (gated corpora,
         // dead links, “contact authors”, etc.). Those are still valuable, but running them in CI
         // wastes matrix budget and mostly produces hard-junk outcomes.
-        if in_ci()
-            && !require_cached
-            && !mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false)
+        if !mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false)
             && !ds.is_automatable_download()
         {
+            // Dataset fails the automation check (broken URL, paywall, or known-bad
+            // parse like TweetNER7).  Skip it.  The is_automatable_download() hard
+            // exclusion list is authoritative -- these datasets produce hard-junk
+            // outcomes even when cached, so no cache fallback.
             continue;
         }
         let ts = dataset_tasks(ds);
@@ -2289,6 +2420,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         }
     }
 
+    // Note: estimation-first dataset override is applied later, after backend
+    // candidates are resolved (see below).
+
     if let Some(ref fixed) = fixed_backends_requested {
         if fixed.is_empty() {
             eprintln!("matrix-muxer: ANNO_MUXER_FIXED_BACKEND is set but empty");
@@ -2462,13 +2596,77 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         return;
     }
 
+    // Estimation-first: override dataset selection to prioritize least-observed datasets.
+    //
+    // For the Estimate strategy, query the SQLite eval-history DB for observation counts
+    // (the ground truth for matrix coverage), then pick the datasets with fewest
+    // total observations across all backends.  Falls back to muxer history if DB unavailable.
+    if matches!(strategy, SampleStrategy::Estimate) {
+        let all_ds = candidate_datasets_for_tasks(&loader, &tasks, require_cached_for_run);
+        if !all_ds.is_empty() {
+            // Try to get counts from SQLite eval-history DB (fast, accurate, uses all
+            // historical data).  This is the ground truth for matrix coverage.
+            let db_counts: std::collections::HashMap<String, u64> = {
+                let hist_path = dirs::cache_dir()
+                    .map(|d| d.join("anno").join("eval-results.jsonl"))
+                    .unwrap_or_else(|| std::path::PathBuf::from("eval-results.jsonl"));
+                crate::eval::history::EvalHistory::new(&hist_path)
+                    .ok()
+                    .and_then(|h| h.dataset_observation_counts().ok())
+                    .unwrap_or_default()
+            };
+
+            let mut scored: Vec<(u64, DatasetId)> = all_ds
+                .iter()
+                .map(|&d| {
+                    let name = d.name().to_string();
+                    let total = db_counts.get(&name).copied().unwrap_or(0);
+                    (total, d)
+                })
+                .collect();
+            scored.sort_by(|a, b| {
+                a.0.cmp(&b.0).then_with(|| {
+                    mh::stable_hash64(seed ^ 0xE571, &format!("{:?}", a.1))
+                        .cmp(&mh::stable_hash64(seed ^ 0xE571, &format!("{:?}", b.1)))
+                })
+            });
+            let override_ds: Vec<DatasetId> =
+                scored.into_iter().take(datasets_per_run).map(|(_, d)| d).collect();
+            if !override_ds.is_empty() {
+                if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
+                    eprintln!(
+                        "matrix-muxer: estimate dataset override: {:?} -> {:?} (least-observed in eval DB)",
+                        chosen_datasets.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>(),
+                        override_ds.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>(),
+                    );
+                }
+                chosen_datasets = override_ds;
+                // Re-filter candidates for compatibility with the new datasets.
+                candidates.retain(|b| {
+                    chosen_datasets
+                        .iter()
+                        .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
+                });
+            }
+        }
+    }
+
     let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-    let backends_per_run_default = if require_cached { 2 } else { 3 };
+    let backends_per_run_default = if matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::LinUcb) {
+        // LinUCB benefits from more arms per run: each observation updates the
+        // per-arm ridge regression, accelerating convergence.
+        if require_cached { 3 } else { 4 }
+    } else if require_cached {
+        2
+    } else {
+        3
+    };
     let backends_per_run =
         mh::env_usize("ANNO_MUXER_BACKENDS_PER_RUN", backends_per_run_default).max(1);
 
     let mut exp3ix_state_for_update: Option<Exp3IxState> = None;
     let mut exp3ix_tickets_for_update: Vec<(String, f64)> = Vec::new();
+    let mut linucb_for_update: Option<(muxer::LinUcb, [f64; mh::CONTEXT_DIM])> = None;
     let mut outcome_run_id_override: Option<String> = None;
     let mut outcome_strategy_override: Option<String> = None;
     let chosen_backends = if let Some(ref fixed) = fixed_backends_requested {
@@ -2891,6 +3089,88 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         }
         chosen
     } else if matches!(strategy, SampleStrategy::MlOnly)
+        && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::LinUcb)
+    {
+        // Contextual bandit (LinUCB): route based on dataset-derived feature vectors.
+        //
+        // Key design choice: LinUCB state is stored in a **global** history file
+        // (not per-slice), so it accumulates observations across all task/language/domain
+        // slices.  This is what breaks the non-contextual collapse: the theta vectors
+        // learn from biomedical AND social media AND news contexts simultaneously,
+        // producing genuinely different weights per arm per feature dimension.
+        //
+        // Without cross-slice learning, the theta vectors collapse to rank 1 (all
+        // proportional) because all observations come from the same feature regime.
+        let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
+        let guard = mh::latency_guardrail_from_env();
+        let context = mh::context_features(&chosen_datasets);
+
+        let linucb_alpha = mh::env_f64("ANNO_MUXER_LINUCB_ALPHA", 1.0);
+        let linucb_lambda = mh::env_f64("ANNO_MUXER_LINUCB_LAMBDA", 1.0);
+        let linucb_decay = mh::env_f64("ANNO_MUXER_LINUCB_DECAY", 0.98);
+        let cfg = muxer::LinUcbConfig {
+            dim: mh::CONTEXT_DIM,
+            alpha: linucb_alpha,
+            lambda: linucb_lambda,
+            seed,
+            decay: linucb_decay,
+        };
+        let mut linucb = muxer::LinUcb::new(cfg);
+
+        // Restore from GLOBAL LinUCB state (cross-slice learning).
+        // This is separate from the per-slice BackendHistory: the per-slice file
+        // tracks outcomes for MAB/EXP3-IX, while the global file accumulates the
+        // LinUCB ridge-regression state across all slices.
+        let linucb_global_path = linucb_global_state_path();
+        if let Some(st) = load_linucb_global_state(&linucb_global_path) {
+            linucb.restore(st.clone());
+            if verbose {
+                eprintln!(
+                    "matrix-muxer: linucb restored GLOBAL state with {} arms from {}",
+                    st.arms.len(),
+                    linucb_global_path.display()
+                );
+            }
+        }
+
+        let result = muxer::policy_fill_k_contextual(
+            seed ^ 0x4C55_4342, // "LUCB"
+            &candidates,
+            backends_per_run,
+            // Disable harness-level novelty for LinUCB: the UCB bonus already
+            // handles exploration (untried arms have high bonus).  Harness
+            // novelty pre-picks arms by dataset-scoped call count, which
+            // overrides LinUCB's learned scores and slows convergence.
+            false,
+            guard,
+            &mut linucb,
+            &context,
+            |b| {
+                let s = history.observed_summary_for(b, Some(&chosen_datasets), per_dataset);
+                (s.calls, s.elapsed_ms_sum)
+            },
+        );
+
+        if verbose {
+            eprintln!(
+                "matrix-muxer: linucb chosen={:?} context={:?} arms={} profile=contextual",
+                result.fill.chosen,
+                context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>(),
+                candidates.len()
+            );
+            for (arm, (ucb, mean, bonus)) in &result.scores {
+                eprintln!(
+                    "matrix-muxer: linucb score arm={} ucb={:.3} mean={:.3} bonus={:.3}",
+                    arm, ucb, mean, bonus
+                );
+            }
+        }
+
+        // Store the linucb instance + context for reward update after evaluation.
+        linucb_for_update = Some((linucb, context));
+
+        result.fill.chosen
+    } else if matches!(strategy, SampleStrategy::MlOnly)
         && matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::Mab)
     {
         // Fall back to legacy deterministic MAB selection (may return K backends).
@@ -2944,6 +3224,21 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             prior_calls,
         )
     };
+
+    // Degenerate-slice diagnostics: log when the bandit machinery is vacuous.
+    if chosen_backends.len() <= 1 {
+        eprintln!(
+            "matrix-muxer: WARN degenerate slice: |arms|={} for slice={} -- bandit selection is vacuous (single arm, nothing to learn)",
+            chosen_backends.len(),
+            slice_tag_for_muxer
+        );
+    }
+    if candidates.len() <= 1 && chosen_backends.len() <= 1 {
+        eprintln!(
+            "matrix-muxer: WARN only {} candidate backend(s) available for this task/feature set -- consider enabling more features (e.g. --features onnx)",
+            candidates.len()
+        );
+    }
 
     let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
     if verbose {
@@ -3280,8 +3575,80 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         }
     }
 
+    // LinUCB reward update: feed F1 scores back into the contextual policy.
+    // State is saved to the GLOBAL file (cross-slice learning).
+    if let Some((mut linucb, context)) = linucb_for_update {
+        let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
+        for r in &results.results {
+            if r.is_skipped() {
+                continue;
+            }
+            let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
+            let reward = if r.success { f1 } else { 0.0 };
+            linucb.update_reward(&r.backend, &context, reward);
+            if verbose {
+                eprintln!(
+                    "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} success={}) ctx=[{}]",
+                    r.backend, reward, f1, r.success,
+                    context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
+                );
+            }
+        }
+        let snapshot = linucb.snapshot();
+        save_linucb_global_state(&linucb_global_state_path(), &snapshot);
+        // Also keep in per-slice history for backward compat / inspection.
+        history.linucb_state = Some(snapshot);
+    }
+
     // Persist history best-effort for future runs.
     history.save(&hist_path);
+
+    // Post-evaluation diagnostics: detect reward collapse (all backends scored identically).
+    //
+    // When every backend produces the same F1 (or all are junk), the bandit has no signal to
+    // learn from. Log this so operators know the slice is degenerate.
+    if chosen_backends.len() >= 2 {
+        let mut per_backend_f1: std::collections::BTreeMap<String, Vec<f64>> =
+            std::collections::BTreeMap::new();
+        for r in &results.results {
+            if r.is_skipped() {
+                continue;
+            }
+            per_backend_f1
+                .entry(r.backend.clone())
+                .or_default()
+                .push(r.primary_f1().unwrap_or(0.0));
+        }
+        let means: Vec<f64> = per_backend_f1
+            .values()
+            .map(|vs| {
+                if vs.is_empty() {
+                    0.0
+                } else {
+                    vs.iter().sum::<f64>() / (vs.len() as f64)
+                }
+            })
+            .collect();
+        if means.len() >= 2 {
+            let max_f1 = means.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let min_f1 = means.iter().copied().fold(f64::INFINITY, f64::min);
+            let all_junk = means.iter().all(|&m| m < 0.05);
+            if (max_f1 - min_f1).abs() < 1e-6 {
+                eprintln!(
+                    "matrix-muxer: WARN reward collapse: all {} backends scored identical mean F1={:.3} on slice={} -- bandit has no signal to learn from",
+                    means.len(),
+                    max_f1,
+                    slice_tag_for_muxer
+                );
+            }
+            if all_junk {
+                eprintln!(
+                    "matrix-muxer: WARN all backends are junk (mean F1 < 0.05) on slice={} -- consider enabling ML backends (--features onnx) or checking dataset compatibility",
+                    slice_tag_for_muxer
+                );
+            }
+        }
+    }
 
     // If we got here, the harness executed. Failures are recorded, not fatal.
     // (This job is intended to find regressions over time, not block all merges on flaky data.)
@@ -3497,6 +3864,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
 
     let mut wnut = HistoryWindow::new(50);
@@ -3535,6 +3903,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
 
     let arms = vec!["stacked".to_string()];
@@ -3567,6 +3936,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
@@ -3586,6 +3956,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
 
     // Guard: save+restore env so this test doesn't pollute others.
@@ -3651,6 +4022,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let mut w_prior = HistoryWindow::new(50);
     for _ in 0..10 {
@@ -3671,6 +4043,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let mut w_obs = HistoryWindow::new(50);
     for _ in 0..3 {
@@ -3754,6 +4127,7 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let arms = vec!["a".to_string(), "b".to_string(), "c".to_string()];
     let expected = mh::pick_random_subset(0xC0E1_1A11, &arms, 1)
@@ -3789,6 +4163,7 @@ fn test_novelty_still_triggers_under_priors() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
@@ -3808,6 +4183,7 @@ fn test_novelty_still_triggers_under_priors() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
 
     // Guard: save+restore env so this test doesn't pollute others.
@@ -3900,6 +4276,7 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let arms = vec!["a".to_string(), "b".to_string()];
     let _chosen = select_backends(
@@ -3973,6 +4350,7 @@ fn test_control_only_still_writes_minimal_decision_log_row() {
         windows: BTreeMap::new(),
         fail_kinds: BTreeMap::new(),
         exp3ix_state: None,
+        linucb_state: None,
     };
     let arms = vec!["a".to_string(), "b".to_string()];
     let _chosen = select_backends(

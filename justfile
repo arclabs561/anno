@@ -942,6 +942,7 @@ ci-matrix-local SEED="42" PERSPECTIVE="ner":
     ANNO_CI_SEED="{{SEED}}" \
     ANNO_MATRIX_PERSPECTIVE="{{PERSPECTIVE}}" \
     ANNO_SAMPLE_STRATEGY=worst-first \
+    ANNO_MUXER_PROFILE=fast \
     cargo test -p anno-eval --lib --features "eval" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
 
 # Legacy: spot “badness history” export is not wired into the muxer JSON format by default.

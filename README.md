@@ -4,18 +4,40 @@ Information extraction: named entity recognition and coreference.
 
 Dual-licensed under MIT or Apache-2.0.
 
-API docs: [docs.rs/anno](https://docs.rs/anno)
+API docs (may lag behind `main` while crates.io publishing is paused): [docs.rs/anno](https://docs.rs/anno)
 
 ## Install
 
+This repo is **not** using crates.io as its primary distribution path right now; see `docs/PUBLISH_STATUS.md`.
+
+### Full CLI (`crates/anno-cli`)
+
+This is the recommended `anno` binary (many commands: `extract`, `debug`, `benchmark`, `models`, etc.):
+
 ```sh
-cargo install anno
+# From this repo:
+cargo install --path crates/anno-cli --bin anno --features "onnx eval"
 ```
 
-Optional (enable ML backends at build time):
+Or without cloning manually:
 
 ```sh
-cargo install anno --features onnx
+cargo install --git https://github.com/arclabs561/anno --package anno-cli --bin anno --features "onnx eval"
+```
+
+### Minimal facade CLI (package `anno`)
+
+This binary is intentionally small and currently supports `anno extract` only:
+
+```sh
+# From this repo:
+cargo install --path . --bin anno
+```
+
+Optional (enable ONNX-backed ML selection for `stacked` at build time):
+
+```sh
+cargo install --path . --bin anno --features onnx
 ```
 
 ## What it does
@@ -51,13 +73,16 @@ Notes:
 
 ## Offline / downloads
 
-- The minimal `cargo install anno` CLI does not download models by default.
-- If you enable ML backends (e.g. `--features onnx`), weights may download on first use.
+- The facade CLI (package `anno`) does not enable ML backends by default.
+- If you enable ML backends (`--features onnx` / `candle`), weights may download on first use.
 - Force cached-only / offline behavior:
   - `ANNO_NO_DOWNLOADS=1` (preferred), or
   - `HF_HUB_OFFLINE=1`
 
 ## Examples
+
+Note: Most examples below assume the **full CLI** (package `anno-cli`). If you installed the
+minimal facade CLI, only `anno extract` is available.
 
 Named entities (human output is compact and may vary by backend/build):
 
@@ -113,7 +138,7 @@ anno extract --model pattern --text "Contact jobs@acme.com by March 15 for the \
 EMAIL:1 "jobs@acme.com" DATE:1 "March 15" MONEY:1 "$50K"
 ```
 
-Zero-shot extraction (define your own entity types):
+Zero-shot extraction (full CLI; define your own entity types):
 
 ```sh
 anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
@@ -124,7 +149,7 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
 drug:1 "Aspirin" symptom:2 "headaches" "fever"
 ```
 
-Coreference resolution:
+Coreference resolution (full CLI):
 
 ```sh
 anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized mobile computing."
@@ -136,11 +161,15 @@ Coreference: "Sophie Wilson" → "She"
 
 ## Library (Rust)
 
-Add the library (from crates.io):
+Add the library:
 
 ```toml
 [dependencies]
-anno = "0.2"
+# Git (recommended; matches this repo while publishing is paused):
+anno = { git = "https://github.com/arclabs561/anno", rev = "<commit>" }
+
+# crates.io (may lag behind `main`):
+# anno = "0.2"
 ```
 
 ```rust
@@ -150,13 +179,6 @@ let m = StackedNER::default();
 let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
 assert!(!ents.is_empty());
 # Ok::<(), anno::Error>(())
-```
-
-## Install
-
-```sh
-# From this repo:
-cargo install --path crates/anno-cli --bin anno --features "onnx eval"
 ```
 
 More examples: `docs/QUICKSTART.md`.

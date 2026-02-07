@@ -310,17 +310,18 @@ impl Model for HeuristicNER {
         );
 
         if has_cjk {
+            // Performance: Build byte-to-char mapping once for this text.
+            // ROI: High - reused across all CJK substring matches.
+            let converter = crate::offset::SpanConverter::new(text);
+
             for &org in KNOWN_ORGS {
                 // Simple substring search for CJK terms
                 if org.chars().any(|c| c >= '\u{3040}') {
-                    // Performance: Build byte-to-char mapping once for this text
-                    // ROI: High - called in loop, saves O(n) per match
                     let org_char_count = if org.is_ascii() {
                         org.len()
                     } else {
                         org.chars().count()
                     };
-                    let converter = crate::offset::SpanConverter::new(text);
 
                     // Include Hiragana/Katakana
                     // Standard library substring search - efficient for typical NER workloads
@@ -345,13 +346,11 @@ impl Model for HeuristicNER {
             }
             for &loc in KNOWN_LOCS {
                 if loc.chars().any(|c| c >= '\u{3040}') {
-                    // Performance: Build byte-to-char mapping once for this text
                     let loc_char_count = if loc.is_ascii() {
                         loc.len()
                     } else {
                         loc.chars().count()
                     };
-                    let converter = crate::offset::SpanConverter::new(text);
 
                     // Standard library substring search - efficient for typical NER workloads
                     for (start_byte, _) in text.match_indices(loc) {
@@ -647,6 +646,20 @@ impl Model for HeuristicNER {
     }
 }
 
+/// Domain-agnostic, language-agnostic acronym check.  True when every
+/// alphabetic character is uppercase and there are at least 2 alphabetic
+/// characters.  Unicode-aware: works for Latin (NASA), Cyrillic (НАТО),
+/// and gracefully returns false for caseless scripts (CJK, Arabic).
+fn is_acronym_word(w: &str) -> bool {
+    let clean = w.trim_matches(|c: char| !c.is_alphanumeric());
+    let alpha_count = clean.chars().filter(|c| c.is_alphabetic()).count();
+    alpha_count >= 2
+        && clean
+            .chars()
+            .filter(|c| c.is_alphabetic())
+            .all(|c| c.is_uppercase())
+}
+
 fn classify_minimal(
     span: &[&str],
     all_words: &[&str],
@@ -718,6 +731,20 @@ fn classify_minimal(
         return (EntityType::Person, 0.75, "person_prefix_span");
     }
 
+    // Rule 5.5: Acronym signal (domain-agnostic, language-agnostic).
+    // Excludes SKIP_WORDS (CEO/CTO/VP) which are role titles, not entities.
+    if span.len() >= 2 {
+        let has_real_acronym = span.iter().any(|w| {
+            is_acronym_word(w) && {
+                let lc = w.to_lowercase();
+                !SKIP_WORDS.contains(&lc.trim_matches(|c: char| !c.is_alphanumeric()))
+            }
+        });
+        if has_real_acronym {
+            return (EntityType::Organization, 0.70, "acronym_in_span");
+        }
+    }
+
     // Rule 6: Location preposition context
     if let Some(prev) = &prev_word {
         if LOC_PREPOSITION.contains(&prev.as_str()) {
@@ -744,12 +771,17 @@ fn classify_minimal(
         return (EntityType::Organization, 0.50, "long_span_org");
     }
 
-    // Rule 9: Filter single-letter words (common false positives)
+    // Rule 9: Single-word structural signals
     if span.len() == 1 {
         let word = span[0].trim_matches(|c: char| !c.is_alphanumeric());
         if word.len() == 1 {
-            // Single letter - likely not an entity (could be a variable, abbreviation, etc.)
             return (EntityType::Other("skip".into()), 0.0, "single_letter");
+        }
+        if is_acronym_word(word) {
+            let lc = word.to_lowercase();
+            if !SKIP_WORDS.contains(&lc.as_str()) {
+                return (EntityType::Organization, 0.55, "single_acronym");
+            }
         }
     }
 
@@ -1040,5 +1072,101 @@ mod tests {
                 assert!(matches!(prov.method, ExtractionMethod::Heuristic));
             }
         }
+    }
+
+    // =========================================================================
+    // Acronym signal tests (domain-agnostic, language-agnostic)
+    // =========================================================================
+
+    #[test]
+    fn test_is_acronym_word_latin() {
+        assert!(is_acronym_word("PARC"));
+        assert!(is_acronym_word("IBM"));
+        assert!(is_acronym_word("NASA"));
+        assert!(is_acronym_word("N2K"));
+        assert!(is_acronym_word("DARPA."));
+        assert!(is_acronym_word("(NATO)"));
+        assert!(!is_acronym_word("Xerox"));
+        assert!(!is_acronym_word("Lynn"));
+        assert!(!is_acronym_word("A"));
+        assert!(!is_acronym_word("42"));
+        assert!(!is_acronym_word(""));
+    }
+
+    #[test]
+    fn test_is_acronym_word_cyrillic() {
+        assert!(is_acronym_word("\u{041D}\u{0410}\u{0422}\u{041E}")); // НАТО
+        assert!(is_acronym_word("\u{041C}\u{0418}\u{0414}"));         // МИД
+        assert!(!is_acronym_word("\u{041C}\u{043E}\u{0441}\u{043A}\u{0432}\u{0430}")); // Москва
+    }
+
+    #[test]
+    fn test_is_acronym_word_caseless_scripts() {
+        assert!(!is_acronym_word("\u{6771}\u{4EAC}"));   // 東京 (CJK)
+        assert!(!is_acronym_word("\u{30BD}\u{30CB}\u{30FC}")); // ソニー (Katakana)
+        assert!(!is_acronym_word("\u{062D}\u{0645}\u{0627}\u{0633}")); // حماس (Arabic)
+    }
+
+    #[test]
+    fn test_acronym_in_multi_word_span_signals_org() {
+        let ner = HeuristicNER::new();
+        let entities = ner
+            .extract_entities(
+                "Lynn Conway worked at IBM and Xerox PARC in California.",
+                None,
+            )
+            .unwrap();
+        let xerox_parc = entities.iter().find(|e| e.text == "Xerox PARC");
+        assert!(xerox_parc.is_some(), "Should detect 'Xerox PARC': {entities:?}");
+        assert!(
+            matches!(xerox_parc.unwrap().entity_type, EntityType::Organization),
+            "Xerox PARC should be ORG, got {:?}",
+            xerox_parc.unwrap().entity_type,
+        );
+    }
+
+    #[test]
+    fn test_acronym_no_regression_on_normal_names() {
+        let ner = HeuristicNER::new();
+        let entities = ner
+            .extract_entities("Lynn Conway designed the processor.", None)
+            .unwrap();
+        let lynn = entities.iter().find(|e| e.text == "Lynn Conway");
+        assert!(lynn.is_some(), "Should detect 'Lynn Conway': {entities:?}");
+        assert!(
+            matches!(lynn.unwrap().entity_type, EntityType::Person),
+            "Lynn Conway should remain PER, got {:?}",
+            lynn.unwrap().entity_type,
+        );
+    }
+
+    #[test]
+    fn test_single_acronym_signals_org() {
+        let ner = HeuristicNER::new();
+        let entities = ner
+            .extract_entities("She joined DARPA last year.", None)
+            .unwrap();
+        let darpa = entities.iter().find(|e| e.text == "DARPA");
+        assert!(darpa.is_some(), "Should detect 'DARPA': {entities:?}");
+        assert!(
+            matches!(darpa.unwrap().entity_type, EntityType::Organization),
+            "DARPA should be ORG, got {:?}",
+            darpa.unwrap().entity_type,
+        );
+    }
+
+    #[test]
+    fn test_known_loc_acronym_still_loc() {
+        let ner = HeuristicNER::new();
+        let entities = ner
+            .extract_entities("She moved to USA last year.", None)
+            .unwrap();
+        let usa = entities.iter().find(|e| e.text == "USA");
+        assert!(usa.is_some(), "Should detect 'USA': {entities:?}");
+        assert!(
+            matches!(usa.unwrap().entity_type, EntityType::Location),
+            "USA should be LOC (gazetteer wins), got {:?}",
+            usa.unwrap().entity_type,
+        );
     }
 }

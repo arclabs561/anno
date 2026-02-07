@@ -313,6 +313,11 @@ pub struct TaskEvaluator {
 }
 
 impl TaskEvaluator {
+    /// Access the evaluation history (if initialized).
+    pub fn history(&self) -> Option<&super::history::EvalHistory> {
+        self.history.as_ref()
+    }
+
     /// True if this task has a real end-to-end evaluation path implemented in `TaskEvaluator`.
     ///
     /// Tasks may be "catalogued" (present in the dataset registry and task mapping) without

@@ -17,7 +17,9 @@ FORMATS:
   json | text
 
 NOTES:
-  - This binary intentionally keeps dependencies small so `cargo install anno` works
+  - This binary intentionally keeps dependencies small so you can install it with:
+      - cargo install --path . --bin anno
+      - cargo install --git https://github.com/arclabs561/anno --package anno --bin anno
     without enabling heavyweight ML features by default.
   - For richer workflows, use the workspace CLI crate under `crates/anno-cli/`.
 "#

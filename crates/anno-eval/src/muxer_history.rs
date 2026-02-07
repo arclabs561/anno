@@ -5,7 +5,7 @@
 
 use crate::eval::loader::DatasetId;
 use crate::muxer_harness as mh;
-use muxer::{Exp3IxState, MonitoredWindow, Outcome, Summary};
+use muxer::{Exp3IxState, LinUcbState, MonitoredWindow, Outcome, Summary};
 use std::collections::{BTreeMap, VecDeque};
 use std::fs;
 use std::path::PathBuf;
@@ -84,9 +84,12 @@ pub struct BackendHistory {
     /// Per-outcome failure kind strings (triage metadata, not used for selection).
     #[serde(default)]
     pub fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
-    /// Persisted Exp3-IX state for contextual bandit selection.
+    /// Persisted Exp3-IX state for stochastic bandit selection.
     #[serde(default)]
     pub exp3ix_state: Option<Exp3IxState>,
+    /// Persisted LinUCB state for contextual bandit selection.
+    #[serde(default)]
+    pub linucb_state: Option<LinUcbState>,
 }
 
 impl BackendHistory {
@@ -108,6 +111,8 @@ impl BackendHistory {
             fail_kinds: BTreeMap<String, VecDeque<Option<String>>>,
             #[serde(default)]
             exp3ix_state: Option<Exp3IxState>,
+            #[serde(default)]
+            linucb_state: Option<LinUcbState>,
         }
 
         let cap = window_cap.max(1);
@@ -120,6 +125,7 @@ impl BackendHistory {
                     windows: BTreeMap::new(),
                     fail_kinds: BTreeMap::new(),
                     exp3ix_state: None,
+                    linucb_state: None,
                 });
             }
             Err(e) => return Err(format!("muxer history: read {}: {e}", path.display())),
@@ -167,6 +173,7 @@ impl BackendHistory {
             windows,
             fail_kinds,
             exp3ix_state: h.exp3ix_state,
+            linucb_state: h.linucb_state,
         })
     }
 
@@ -178,6 +185,7 @@ impl BackendHistory {
             windows: BTreeMap::new(),
             fail_kinds: BTreeMap::new(),
             exp3ix_state: None,
+            linucb_state: None,
         })
     }
 
@@ -398,7 +406,9 @@ fn top_counts(counts: BTreeMap<String, u64>, top: usize) -> Vec<FailKindCount> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::str::FromStr;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn dataset_key_round_trips_variant() {
@@ -408,5 +418,132 @@ mod tests {
             .expect("dataset_key should contain @@ separator");
         let parsed = DatasetId::from_str(suffix).expect("dataset key should parse");
         assert_eq!(parsed, DatasetId::Wnut17);
+    }
+
+    struct TempJsonFile {
+        path: PathBuf,
+    }
+
+    impl TempJsonFile {
+        fn new(tag: &str, json: serde_json::Value) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos();
+            let mut path = std::env::temp_dir();
+            path.push(format!(
+                "anno-muxer-history-{tag}-pid{}-{nanos}.json",
+                std::process::id()
+            ));
+
+            let content = serde_json::to_vec(&json).expect("temp json should serialize");
+            std::fs::write(&path, content).expect("write temp json file");
+
+            Self { path }
+        }
+    }
+
+    impl Drop for TempJsonFile {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    #[test]
+    fn history_upgrade_v0_overrides_ok_to_not_junk() {
+        // v0/1: ok field was ambiguous; upgrade forces ok := !junk && !hard_junk.
+        let tmp = TempJsonFile::new(
+            "upgrade-v0",
+            serde_json::json!({
+                "version": 0,
+                "windows": {
+                    "a": {
+                        "cap": 999,
+                        "buf": [
+                            // ok=false but not junk -> upgraded ok must become true
+                            { "ok": false, "junk": false, "hard_junk": false, "cost_units": 1, "elapsed_ms": 2 }
+                        ]
+                    }
+                }
+            }),
+        );
+
+        let h = BackendHistory::try_load(&tmp.path, 10).expect("try_load");
+        let w = h.windows.get("a").expect("window a");
+        assert_eq!(h.version, 3);
+        assert_eq!(h.window_cap, 10);
+        assert_eq!(w.cap, 10);
+        assert_eq!(w.buf.len(), 1);
+        assert!(
+            w.buf[0].ok,
+            "v0 upgrade should set ok := !junk && !hard_junk"
+        );
+    }
+
+    #[test]
+    fn history_upgrade_v2_clamps_ok_by_junk_flags() {
+        // v2: ok meant "evaluation succeeded"; upgrade clamps ok := ok && !junk && !hard_junk.
+        let tmp = TempJsonFile::new(
+            "upgrade-v2",
+            serde_json::json!({
+                "version": 2,
+                "windows": {
+                    "a": {
+                        "buf": [
+                            { "ok": true, "junk": true, "hard_junk": false, "cost_units": 0, "elapsed_ms": 0 },
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 1 },
+                            { "ok": false, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 2 }
+                        ]
+                    }
+                }
+            }),
+        );
+
+        let h = BackendHistory::try_load(&tmp.path, 10).expect("try_load");
+        let w = h.windows.get("a").expect("window a");
+        assert_eq!(w.buf.len(), 3);
+        assert!(!w.buf[0].ok, "junk=true must force ok=false after upgrade");
+        assert!(w.buf[1].ok, "clean ok should remain ok");
+        assert!(!w.buf[2].ok, "explicit ok=false should remain false");
+    }
+
+    #[test]
+    fn history_load_truncates_windows_and_fail_kinds_to_cap() {
+        let tmp = TempJsonFile::new(
+            "truncate-cap",
+            serde_json::json!({
+                "version": 3,
+                "windows": {
+                    "a": {
+                        "cap": 999,
+                        "buf": [
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 1 },
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 2 },
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 3 },
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 4 },
+                            { "ok": true, "junk": false, "hard_junk": false, "cost_units": 0, "elapsed_ms": 5 }
+                        ]
+                    }
+                },
+                "fail_kinds": {
+                    "a": [null, "timeout", "backend", "low_signal"]
+                }
+            }),
+        );
+
+        let h = BackendHistory::try_load(&tmp.path, 3).expect("try_load");
+        let w = h.windows.get("a").expect("window a");
+        assert_eq!(w.cap, 3);
+        assert_eq!(w.buf.len(), 3);
+        // Keep most-recent outcomes.
+        assert_eq!(w.buf[0].elapsed_ms, 3);
+        assert_eq!(w.buf[1].elapsed_ms, 4);
+        assert_eq!(w.buf[2].elapsed_ms, 5);
+
+        let fk = h.fail_kinds.get("a").expect("fail kinds a");
+        assert_eq!(fk.len(), 3);
+        assert_eq!(fk[0].as_deref(), Some("timeout"));
+        assert_eq!(fk[1].as_deref(), Some("backend"));
+        assert_eq!(fk[2].as_deref(), Some("low_signal"));
     }
 }

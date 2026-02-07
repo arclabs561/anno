@@ -45,16 +45,32 @@ exact string you pass in.
 
 ## Feature gating (how to depend on it)
 
-`anno` is a single publishable crate. Major feature flags:
-- `default = ["onnx"]`
+`anno` is a **facade crate** for the workspace: it re-exports the internal implementation crate
+(`anno-lib`) and forwards feature flags down to it.
+
+Important default: the facade keeps defaults minimal.
+
+- The `anno` **package** has `default = []`.
+- It depends on `anno-lib` with `default-features = false`.
+- Enable ML backends explicitly when you want them.
+
+Major feature flags:
+
+- `onnx`: ONNX Runtime backends (GLiNER, BERT-NER, etc.)
 - `candle`: pure-Rust transformer backend (GPU via platform support)
-- `analysis`: enables lightweight analysis primitives (shared metrics, cluster encoders, etc.)
-- `eval`: enables evaluation-adjacent helpers (used by `anno-cli` benchmarking)
-- `discourse`: discourse-level analysis
+- `analysis`: lightweight analysis primitives (metrics, encoders)
+- `eval`: evaluation-adjacent helpers (used by `anno-cli` benchmarking)
+- `discourse`: discourse-level utilities
+- `graph`: graph/KG export surface
 
 Treat feature flags as **capability toggles**: depend on the narrowest set you need.
 
-Note: the `anno` binary lives in the separate `anno-cli` crate (package `anno-cli`, bin `anno`).
+## CLI packages (two `anno` binaries)
+
+The workspace contains **two binaries named `anno`**:
+
+- **Minimal facade CLI**: package `anno` (this crate). Supports `anno extract` with a small dependency set.
+- **Full CLI**: package `anno-cli` (`crates/anno-cli/`). Includes benchmarking/eval/datasets tooling and richer commands.
 
 ## Integration posture
 
@@ -75,7 +91,7 @@ The default CLI model (`--model stacked`) prefers the **best available** ML back
 
 - By default, model downloads are allowed (so first run may be slower).
 - To force cached-only / offline behavior: set `ANNO_NO_DOWNLOADS=1` (or `HF_HUB_OFFLINE=1`).
-- To prefetch explicitly: use `anno models download gliner gliner2 bert-onnx` (then `stacked` will pick it up).
+- To prefetch explicitly: use the **full CLI** (`anno-cli`): `anno models download gliner gliner2 bert-onnx` (then `stacked` will pick it up).
 
 ## Evaluation (expected runtime + artifacts)
 

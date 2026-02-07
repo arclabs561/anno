@@ -9629,7 +9629,26 @@ impl DatasetId {
     #[must_use]
     pub fn is_automatable_download(&self) -> bool {
         // Hard exclusions (known to fail under current loader automation).
-        if matches!(self, Self::MasakhaNER2 | Self::PIIMasking200k | Self::CADEC) {
+        //
+        // These datasets have HuggingFace or direct URLs that pass the heuristic checks
+        // below but fail at the loader level (HTML response, API parse error, empty result,
+        // gated access).  Discovered by the Estimate strategy's systematic coverage sweep.
+        if matches!(
+            self,
+            Self::MasakhaNER2
+                | Self::PIIMasking200k
+                | Self::CADEC
+                // HF datasets-server failures (HTML response or API parse errors):
+                | Self::CoNLL2002
+                | Self::DBPedia14
+                | Self::MultiCoNER
+                | Self::PolyglotNER
+                | Self::TREC
+                | Self::UniversalNER
+                | Self::WikiNeural
+                // Downloads OK but parser yields 0 sentences:
+                | Self::TweetNER7
+        ) {
             return false;
         }
 

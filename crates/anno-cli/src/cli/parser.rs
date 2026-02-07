@@ -412,7 +412,8 @@ Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
                              Ready alternatives: --model candle-ner, --model bert-onnx".to_string())
                     }
                 }
-                // Note: `GlinerPoly` is rejected above.
+                #[cfg(feature = "onnx")]
+                Self::GlinerPoly => unreachable!("rejected above"),
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => anno::backends::gliner_candle::GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL)
