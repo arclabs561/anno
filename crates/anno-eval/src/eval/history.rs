@@ -725,7 +725,7 @@ impl EvalHistory {
                     .prepare(
                         "SELECT backend, dataset, COUNT(*) FROM eval_results GROUP BY backend, dataset",
                     )
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
                 let rows = stmt
                     .query_map([], |row| {
@@ -734,11 +734,9 @@ impl EvalHistory {
                         let count: u64 = row.get(2)?;
                         Ok((backend, dataset, count))
                     })
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                for row in rows {
-                    if let Ok((b, d, c)) = row {
-                        counts.insert((b, d), c);
-                    }
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                for (b, d, c) in rows.flatten() {
+                    counts.insert((b, d), c);
                 }
                 return Ok(counts);
             }
@@ -762,7 +760,7 @@ impl EvalHistory {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
                 let mut stmt = conn
                     .prepare("SELECT dataset, COUNT(*) FROM eval_results GROUP BY dataset")
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
                 let rows = stmt
                     .query_map([], |row| {
@@ -770,11 +768,9 @@ impl EvalHistory {
                         let count: u64 = row.get(1)?;
                         Ok((dataset, count))
                     })
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                for row in rows {
-                    if let Ok((d, c)) = row {
-                        counts.insert(d, c);
-                    }
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                for (d, c) in rows.flatten() {
+                    counts.insert(d, c);
                 }
                 return Ok(counts);
             }
@@ -793,7 +789,7 @@ impl EvalHistory {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
                 let mut stmt = conn
                     .prepare("SELECT backend, COUNT(*) FROM eval_results GROUP BY backend")
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
                 let rows = stmt
                     .query_map([], |row| {
@@ -801,11 +797,9 @@ impl EvalHistory {
                         let count: u64 = row.get(1)?;
                         Ok((backend, count))
                     })
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                for row in rows {
-                    if let Ok((b, c)) = row {
-                        counts.insert(b, c);
-                    }
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                for (b, c) in rows.flatten() {
+                    counts.insert(b, c);
                 }
                 return Ok(counts);
             }
