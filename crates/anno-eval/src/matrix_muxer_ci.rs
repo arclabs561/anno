@@ -3579,19 +3579,44 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     // State is saved to the GLOBAL file (cross-slice learning).
     if let Some((mut linucb, context)) = linucb_for_update {
         let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
+        // Multi-objective reward: quality (F1) minus latency penalty.
+        //
+        // The scalarized reward is: reward = f1 - latency_weight * (ms / max_ms)
+        // clamped to [0, 1].  This lets LinUCB learn the quality/latency Pareto
+        // front: when latency_weight > 0, fast backends (bert_onnx ~1s) are
+        // preferred over slow ones (nuner ~6s) unless the F1 gain justifies
+        // the latency cost.  Default latency_weight=0 preserves F1-only behavior.
+        let latency_weight = mh::env_f64("ANNO_MUXER_LINUCB_LATENCY_WEIGHT", 0.0);
+        let latency_max_ms = mh::env_f64("ANNO_MUXER_LINUCB_LATENCY_MAX_MS", 10000.0);
         for r in &results.results {
             if r.is_skipped() {
                 continue;
             }
             let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
-            let reward = if r.success { f1 } else { 0.0 };
+            let base_reward = if r.success { f1 } else { 0.0 };
+            let latency_penalty = if latency_weight > 0.0 {
+                let ms = r.duration_ms.unwrap_or(0.0).max(0.0);
+                latency_weight * (ms / latency_max_ms).min(1.0)
+            } else {
+                0.0
+            };
+            let reward = (base_reward - latency_penalty).clamp(0.0, 1.0);
             linucb.update_reward(&r.backend, &context, reward);
             if verbose {
-                eprintln!(
-                    "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} success={}) ctx=[{}]",
-                    r.backend, reward, f1, r.success,
-                    context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
-                );
+                if latency_weight > 0.0 {
+                    eprintln!(
+                        "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} lat_pen={:.3} ms={:.0}) ctx=[{}]",
+                        r.backend, reward, f1, latency_penalty,
+                        r.duration_ms.unwrap_or(0.0),
+                        context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
+                    );
+                } else {
+                    eprintln!(
+                        "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} success={}) ctx=[{}]",
+                        r.backend, reward, f1, r.success,
+                        context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
+                    );
+                }
             }
         }
         let snapshot = linucb.snapshot();
