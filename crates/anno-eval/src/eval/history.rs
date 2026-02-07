@@ -812,6 +812,89 @@ impl EvalHistory {
         Ok(counts)
     }
 
+    /// Detect regressions: cells where recent F1 is significantly lower than historical.
+    ///
+    /// For each (backend, dataset) cell with enough observations, splits the data at
+    /// a time threshold (default: median timestamp), computes the mean F1 for "before"
+    /// and "after", and flags cells where the drop exceeds `min_drop`.
+    ///
+    /// This is the **change point detection** mechanism for the quality matrix:
+    /// code changes that break a backend on a dataset will show up as a drop in
+    /// recent F1 relative to historical F1.
+    ///
+    /// Returns a list of `(backend, dataset, old_mean, new_mean, drop, n_old, n_new)`.
+    pub fn detect_regressions(
+        &self,
+        min_observations: u64,
+        min_drop: f64,
+    ) -> std::io::Result<Vec<RegressionAlert>> {
+        let Some(ref db_path) = self.sqlite_path else {
+            return Ok(Vec::new());
+        };
+        let conn = rusqlite::Connection::open(db_path)
+            .map_err(std::io::Error::other)?;
+
+        // For each cell, split observations by the median timestamp and compare means.
+        let mut stmt = conn
+            .prepare(
+                "SELECT backend, dataset, timestamp, f1 FROM eval_results \
+                 WHERE f1 IS NOT NULL AND error IS NULL \
+                 ORDER BY backend, dataset, timestamp",
+            )
+            .map_err(std::io::Error::other)?;
+
+        let mut cells: HashMap<(String, String), Vec<(String, f64)>> = HashMap::new();
+        let rows = stmt
+            .query_map([], |row| {
+                let b: String = row.get(0)?;
+                let d: String = row.get(1)?;
+                let ts: String = row.get(2)?;
+                let f1: f64 = row.get(3)?;
+                Ok((b, d, ts, f1))
+            })
+            .map_err(std::io::Error::other)?;
+        for row in rows.flatten() {
+            let (b, d, ts, f1) = row;
+            cells.entry((b, d)).or_default().push((ts, f1));
+        }
+
+        let mut alerts = Vec::new();
+        for ((backend, dataset), obs) in &cells {
+            let n = obs.len() as u64;
+            if n < min_observations {
+                continue;
+            }
+            // Split at the median index (first half = historical, second half = recent).
+            let mid = obs.len() / 2;
+            let old_vals: Vec<f64> = obs[..mid].iter().map(|(_, f)| *f).collect();
+            let new_vals: Vec<f64> = obs[mid..].iter().map(|(_, f)| *f).collect();
+
+            if old_vals.is_empty() || new_vals.is_empty() {
+                continue;
+            }
+
+            let old_mean = old_vals.iter().sum::<f64>() / old_vals.len() as f64;
+            let new_mean = new_vals.iter().sum::<f64>() / new_vals.len() as f64;
+            let drop = old_mean - new_mean;
+
+            if drop >= min_drop {
+                alerts.push(RegressionAlert {
+                    backend: backend.clone(),
+                    dataset: dataset.clone(),
+                    old_mean,
+                    new_mean,
+                    drop,
+                    n_old: old_vals.len() as u64,
+                    n_new: new_vals.len() as u64,
+                    split_timestamp: obs[mid].0.clone(),
+                });
+            }
+        }
+
+        alerts.sort_by(|a, b| b.drop.total_cmp(&a.drop));
+        Ok(alerts)
+    }
+
     /// Rebuild SQLite index from JSONL file.
     ///
     /// Useful if SQLite gets corrupted or out of sync.
@@ -838,6 +921,27 @@ impl EvalHistory {
         }
         Ok(())
     }
+}
+
+/// A detected regression in a (backend, dataset) cell.
+#[derive(Debug, Clone)]
+pub struct RegressionAlert {
+    /// Backend name.
+    pub backend: String,
+    /// Dataset name.
+    pub dataset: String,
+    /// Mean F1 in the historical (older) half.
+    pub old_mean: f64,
+    /// Mean F1 in the recent (newer) half.
+    pub new_mean: f64,
+    /// Size of the drop (old_mean - new_mean, positive = regression).
+    pub drop: f64,
+    /// Number of observations in the historical half.
+    pub n_old: u64,
+    /// Number of observations in the recent half.
+    pub n_new: u64,
+    /// Timestamp where the split occurs.
+    pub split_timestamp: String,
 }
 
 /// Statistics about evaluation history.

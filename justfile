@@ -946,6 +946,19 @@ ci-matrix-local SEED="42" PERSPECTIVE="ner":
     cargo test -p anno-eval --lib --features "eval" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
 
 # Legacy: spot “badness history” export is not wired into the muxer JSON format by default.
+# Detect regressions in the quality matrix.
+# Runs a quick eval then checks the full SQLite history for F1 drops.
+check-regressions SEED="42":
+    ANNO_SAMPLE_STRATEGY=estimate \
+    ANNO_ML_IN_MATRIX=1 \
+    ANNO_CI_SEED="{{SEED}}" \
+    ANNO_MUXER_VERBOSE=1 \
+    ANNO_MATRIX_PERSPECTIVE=ner \
+    ANNO_MUXER_BACKENDS_PER_RUN=4 \
+    ANNO_MUXER_FIXED_DATASETS=WikiGold,Wnut17,MasakhaNER \
+    cargo test --release -p anno-eval --lib --features "eval onnx" \
+        matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
+
 spot-export-badness:
     @echo "Not implemented: spot -> muxer history export. Run ci-matrix-local to generate muxer_history.json from local runs."
 

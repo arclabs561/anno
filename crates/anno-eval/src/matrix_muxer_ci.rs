@@ -3675,6 +3675,42 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         }
     }
 
+    // Change-point detection: compare recent F1 to historical F1 for each cell.
+    //
+    // This is the bug-detection mechanism: when a code change breaks a backend's
+    // quality on a dataset, the recent F1 will drop relative to the historical mean.
+    // We use a simple median-split comparison: if the drop exceeds 0.1, flag it.
+    //
+    // This runs on the full SQLite eval-history (not just the current run), so it
+    // accumulates evidence across many runs and detects gradual degradation.
+    {
+        let hist_path = dirs::cache_dir()
+            .map(|d| d.join("anno").join("eval-results.jsonl"))
+            .unwrap_or_else(|| std::path::PathBuf::from("eval-results.jsonl"));
+        if let Ok(h) = crate::eval::history::EvalHistory::new(&hist_path) {
+            if let Ok(alerts) = h.detect_regressions(
+                10,  // min 10 observations per cell
+                0.1, // flag drops >= 0.1 (10 percentage points)
+            ) {
+                for alert in &alerts {
+                    eprintln!(
+                        "matrix-muxer: REGRESSION {}/{}: F1 dropped {:.3} ({:.3} -> {:.3}, n={}/{})",
+                        alert.backend,
+                        alert.dataset,
+                        alert.drop,
+                        alert.old_mean,
+                        alert.new_mean,
+                        alert.n_old,
+                        alert.n_new,
+                    );
+                }
+                if alerts.is_empty() && mh::env_bool("ANNO_MUXER_VERBOSE", false) {
+                    eprintln!("matrix-muxer: no regressions detected (good)");
+                }
+            }
+        }
+    }
+
     // If we got here, the harness executed. Failures are recorded, not fatal.
     // (This job is intended to find regressions over time, not block all merges on flaky data.)
 }
