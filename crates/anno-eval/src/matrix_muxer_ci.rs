@@ -2601,7 +2601,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     // For the Estimate strategy, query the SQLite eval-history DB for observation counts
     // (the ground truth for matrix coverage), then pick the datasets with fewest
     // total observations across all backends.  Falls back to muxer history if DB unavailable.
-    if matches!(strategy, SampleStrategy::Estimate) {
+    if matches!(strategy, SampleStrategy::Estimate) && fixed_datasets_requested.is_none() {
         let all_ds = candidate_datasets_for_tasks(&loader, &tasks, require_cached_for_run);
         if !all_ds.is_empty() {
             // Try to get counts from SQLite eval-history DB (fast, accurate, uses all
