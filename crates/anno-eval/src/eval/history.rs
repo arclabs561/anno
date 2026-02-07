@@ -31,6 +31,31 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+/// Cached git commit hash (avoids spawning `git` on every SQLite insert).
+fn cached_git_commit() -> Option<String> {
+    static COMMIT: OnceLock<Option<String>> = OnceLock::new();
+    COMMIT
+        .get_or_init(|| {
+            std::env::var("ANNO_GIT_COMMIT").ok().or_else(|| {
+                std::process::Command::new("git")
+                    .args(["rev-parse", "--short", "HEAD"])
+                    .output()
+                    .ok()
+                    .and_then(|o| {
+                        if o.status.success() {
+                            String::from_utf8(o.stdout)
+                                .ok()
+                                .map(|s| s.trim().to_string())
+                        } else {
+                            None
+                        }
+                    })
+            })
+        })
+        .clone()
+}
 
 /// Evaluation result entry for history tracking.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -296,25 +321,8 @@ impl EvalHistory {
             .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
 
         // Include git commit hash if available (for change-point detection).
-        let git_commit = std::env::var("ANNO_GIT_COMMIT")
-            .or_else(|_| {
-                // Try to get from git directly (works in dev, not in CI without git).
-                std::process::Command::new("git")
-                    .args(["rev-parse", "--short", "HEAD"])
-                    .output()
-                    .ok()
-                    .and_then(|o| {
-                        if o.status.success() {
-                            String::from_utf8(o.stdout)
-                                .ok()
-                                .map(|s| s.trim().to_string())
-                        } else {
-                            None
-                        }
-                    })
-                    .ok_or(std::env::VarError::NotPresent)
-            })
-            .ok();
+        // Cached to avoid spawning `git` on every insert.
+        let git_commit = cached_git_commit();
 
         conn.execute(
             "INSERT INTO eval_results (

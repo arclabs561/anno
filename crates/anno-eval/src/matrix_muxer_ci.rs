@@ -860,19 +860,31 @@ fn save_linucb_global_state(path: &PathBuf, state: &muxer::LinUcbState) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    match serde_json::to_string_pretty(state) {
-        Ok(json) => {
-            if let Err(e) = std::fs::write(path, json) {
-                eprintln!(
-                    "matrix-muxer: failed to save LinUCB global state to {}: {}",
-                    path.display(),
-                    e
-                );
-            }
-        }
+    let json = match serde_json::to_string_pretty(state) {
+        Ok(j) => j,
         Err(e) => {
             eprintln!("matrix-muxer: failed to serialize LinUCB state: {}", e);
+            return;
         }
+    };
+    // Atomic write: write to temp file, then rename.  Prevents corruption if
+    // two harness processes write simultaneously.
+    let tmp_path = path.with_extension("json.tmp");
+    if let Err(e) = std::fs::write(&tmp_path, &json) {
+        eprintln!(
+            "matrix-muxer: failed to write LinUCB temp file {}: {}",
+            tmp_path.display(),
+            e
+        );
+        return;
+    }
+    if let Err(e) = std::fs::rename(&tmp_path, path) {
+        eprintln!(
+            "matrix-muxer: failed to rename LinUCB state {} -> {}: {}",
+            tmp_path.display(),
+            path.display(),
+            e
+        );
     }
 }
 
@@ -3683,6 +3695,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     //
     // This runs on the full SQLite eval-history (not just the current run), so it
     // accumulates evidence across many runs and detects gradual degradation.
+    // Gated: only runs with ANNO_MUXER_VERBOSE=1 or ANNO_CHECK_REGRESSIONS=1 to
+    // avoid unnecessary table scans on routine harness runs.
+    if mh::env_bool("ANNO_CHECK_REGRESSIONS", false)
+        || mh::env_bool("ANNO_MUXER_VERBOSE", false)
     {
         let hist_path = dirs::cache_dir()
             .map(|d| d.join("anno").join("eval-results.jsonl"))
