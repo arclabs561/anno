@@ -1,0 +1,410 @@
+{
+  "results": [
+    {
+      "task": "NER",
+      "dataset": "WikiANN",
+      "backend": "gliner_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "pred_duplication_rate": 0.0,
+        "partial_f1": 0.6249999999999999,
+        "type_f1": 0.4999999999999999,
+        "pred_noisy": 0.0,
+        "partial_precision": 0.5769230769230769,
+        "type_precision": 0.46153846153846156,
+        "pred_noise_rate": 0.0,
+        "num_gold": 11.0,
+        "partial_recall": 0.6818181818181818,
+        "exact_precision": 0.46153846153846156,
+        "exact_f1": 0.4999999999999999,
+        "precision": 0.23076923076923078,
+        "f1": 0.24999999999999994,
+        "type_recall": 0.5454545454545454,
+        "chars_per_second": 1940.8481585970296,
+        "exact_recall": 0.5454545454545454,
+        "num_predicted": 13.0,
+        "pred_duplicates": 0.0,
+        "recall": 0.2727272727272727
+      },
+      "num_examples": 10,
+      "duration_ms": 769.982458,
+      "label_shift": {
+        "overlap_ratio": 1.0,
+        "familiarity": 1.0,
+        "true_zero_shot_types": [],
+        "transfer_difficulty": "low"
+      },
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "ORG": {
+            "mean": 0.08333333333333333,
+            "std_dev": 0.2041241452319315,
+            "ci_95": [
+              0.0,
+              0.24666666666666665
+            ],
+            "n": 6
+          },
+          "PER": {
+            "mean": 0.4,
+            "std_dev": 0.5477225575051662,
+            "ci_95": [
+              0.0,
+              0.8800999895855031
+            ],
+            "n": 5
+          },
+          "LOC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 6
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.5000233835638634
+        ],
+        "precision_ci": [
+          0.0,
+          0.4827356526883051
+        ],
+        "recall_ci": [
+          0.0006050545962184573,
+          0.5993949454037815
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "MasakhaNER",
+      "backend": "gliner_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "pred_noise_rate": 0.0,
+        "partial_precision": 0.26666666666666666,
+        "precision": 0.13333333333333333,
+        "recall": 0.14285714285714285,
+        "f1": 0.1379310344827586,
+        "exact_precision": 0.13333333333333333,
+        "partial_f1": 0.2758620689655172,
+        "num_predicted": 15.0,
+        "type_precision": 0.3333333333333333,
+        "partial_recall": 0.2857142857142857,
+        "pred_duplication_rate": 0.0,
+        "exact_recall": 0.14285714285714285,
+        "pred_noisy": 0.0,
+        "pred_duplicates": 0.0,
+        "exact_f1": 0.1379310344827586,
+        "type_f1": 0.3448275862068965,
+        "num_gold": 14.0,
+        "type_recall": 0.35714285714285715,
+        "chars_per_second": 4896.224752718445
+      },
+      "num_examples": 10,
+      "duration_ms": 787.3037499999999,
+      "label_shift": {
+        "overlap_ratio": 0.75,
+        "familiarity": 0.8125,
+        "true_zero_shot_types": [
+          "DATE"
+        ],
+        "transfer_difficulty": "medium"
+      },
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "ORG": {
+            "mean": 0.25,
+            "std_dev": 0.5,
+            "ci_95": [
+              0.0,
+              0.74
+            ],
+            "n": 4
+          },
+          "LOC": {
+            "mean": 0.21666666666666667,
+            "std_dev": 0.3144660377352201,
+            "ci_95": [
+              0.0,
+              0.5248433836471824
+            ],
+            "n": 4
+          },
+          "PER": {
+            "mean": 0.3333333333333333,
+            "std_dev": 0.5773502691896258,
+            "ci_95": [
+              0.0,
+              0.9866666666666668
+            ],
+            "n": 3
+          },
+          "DATE": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.015220613131656513,
+          0.3647793868683435
+        ],
+        "precision_ci": [
+          0.0013705948213548758,
+          0.5208516274008674
+        ],
+        "recall_ci": [
+          0.02893190635711057,
+          0.30440142697622274
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "MultiNERD",
+      "backend": "gliner_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "partial_precision": 0.875,
+        "partial_recall": 0.8235294117647058,
+        "type_recall": 0.7647058823529411,
+        "recall": 0.7058823529411765,
+        "pred_duplicates": 0.0,
+        "exact_precision": 0.8125,
+        "pred_noise_rate": 0.0,
+        "exact_f1": 0.787878787878788,
+        "precision": 0.75,
+        "f1": 0.7272727272727272,
+        "partial_f1": 0.8484848484848485,
+        "type_precision": 0.8125,
+        "chars_per_second": 3392.1558730738457,
+        "num_gold": 17.0,
+        "num_predicted": 16.0,
+        "pred_duplication_rate": 0.0,
+        "type_f1": 0.787878787878788,
+        "exact_recall": 0.7647058823529411,
+        "pred_noisy": 0.0
+      },
+      "num_examples": 10,
+      "duration_ms": 719.432208,
+      "label_shift": {
+        "overlap_ratio": 0.75,
+        "familiarity": 0.8,
+        "true_zero_shot_types": [
+          "MEDIA"
+        ],
+        "transfer_difficulty": "medium"
+      },
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "PER": {
+            "mean": 0.6,
+            "std_dev": 0.5477225575051662,
+            "ci_95": [
+              0.119900010414497,
+              1.0
+            ],
+            "n": 5
+          },
+          "LOC": {
+            "mean": 0.4444444444444444,
+            "std_dev": 0.5018484351393874,
+            "ci_95": [
+              0.042882063637909695,
+              0.8460068252509791
+            ],
+            "n": 6
+          },
+          "MEDIA": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "ORG": {
+            "mean": 1.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              1.0,
+              1.0
+            ],
+            "n": 2
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.3349701687462105,
+          0.881696497920456
+        ],
+        "precision_ci": [
+          0.31787010796740994,
+          0.8654632253659233
+        ],
+        "recall_ci": [
+          0.3576669926971095,
+          0.925666340636224
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "MultiCoNERv2",
+      "backend": "gliner_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "type_recall": 0.0,
+        "partial_recall": 0.0,
+        "num_gold": 14.0,
+        "num_predicted": 1.0,
+        "pred_noisy": 0.0,
+        "exact_f1": 0.0,
+        "partial_f1": 0.0,
+        "type_precision": 0.0,
+        "type_f1": 0.0,
+        "chars_per_second": 2654.356678727205,
+        "recall": 0.0,
+        "f1": 0.0,
+        "precision": 0.0,
+        "partial_precision": 0.0,
+        "exact_precision": 0.0,
+        "exact_recall": 0.0,
+        "pred_duplication_rate": 0.0,
+        "pred_noise_rate": 0.0,
+        "pred_duplicates": 0.0
+      },
+      "num_examples": 10,
+      "duration_ms": 707.345708,
+      "label_shift": {
+        "overlap_ratio": 0.25,
+        "familiarity": 0.4642857142857143,
+        "true_zero_shot_types": [
+          "OTHERPROD",
+          "ARTWORK",
+          "AEROSPACEMANUFACTURER"
+        ],
+        "transfer_difficulty": "high"
+      },
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "AEROSPACEMANUFACTURER": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 9
+          },
+          "ORG": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "ARTWORK": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "PER": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "OTHERPROD": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.0
+        ],
+        "precision_ci": [
+          0.0,
+          0.0
+        ],
+        "recall_ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "kb_version": null
+    }
+  ],
+  "summary": {
+    "total_combinations": 4,
+    "successful": 4,
+    "failed": 0,
+    "skipped": 0,
+    "tasks": [
+      "NER"
+    ],
+    "datasets": [
+      "WikiANN",
+      "MasakhaNER",
+      "MultiNERD",
+      "MultiCoNERv2"
+    ],
+    "backends": [
+      "gliner_onnx"
+    ]
+  }
+}

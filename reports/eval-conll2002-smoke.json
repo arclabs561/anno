@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "task": "NER",
+      "dataset": "CoNLL2002",
+      "backend": "bert_onnx",
+      "success": false,
+      "error": "Failed to load dataset: Invalid input: Downloaded HTML from https://huggingface.co/datasets/eriktks/conll2002. This URL looks like a webpage, not a raw dataset file.",
+      "metrics": {},
+      "num_examples": 0,
+      "duration_ms": null,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": null,
+      "confidence_intervals": null,
+      "kb_version": null
+    }
+  ],
+  "summary": {
+    "total_combinations": 1,
+    "successful": 0,
+    "failed": 1,
+    "skipped": 0,
+    "tasks": [
+      "NER"
+    ],
+    "datasets": [
+      "CoNLL2002"
+    ],
+    "backends": [
+      "bert_onnx"
+    ]
+  }
+}

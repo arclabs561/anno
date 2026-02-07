@@ -1,0 +1,820 @@
+{
+  "results": [
+    {
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "bert_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "precision": 0.7213114754098361,
+        "f1": 0.7521367521367521,
+        "partial_recall": 0.9375,
+        "chars_per_second": 14737173.5299644,
+        "pred_duplicates": 2.0,
+        "type_recall": 0.8571428571428571,
+        "pred_noise_rate": 0.0,
+        "num_gold": 56.0,
+        "pred_duplication_rate": 0.03278688524590164,
+        "exact_precision": 0.8032786885245902,
+        "exact_f1": 0.8376068376068376,
+        "type_precision": 0.7868852459016393,
+        "recall": 0.7857142857142857,
+        "partial_f1": 0.8974358974358975,
+        "partial_precision": 0.860655737704918,
+        "exact_recall": 0.875,
+        "type_f1": 0.8205128205128205,
+        "num_predicted": 61.0,
+        "pred_noisy": 0.0
+      },
+      "num_examples": 20,
+      "duration_ms": 545.553042,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "MISC": {
+            "mean": 0.4074074074074074,
+            "std_dev": 0.49378857873975496,
+            "ci_95": [
+              0.08479886929743419,
+              0.7300159455173806
+            ],
+            "n": 9
+          },
+          "ORG": {
+            "mean": 0.6574074074074073,
+            "std_dev": 0.4134132240593671,
+            "ci_95": [
+              0.3873107676886208,
+              0.9275040471261938
+            ],
+            "n": 9
+          },
+          "PER": {
+            "mean": 0.7301587301587301,
+            "std_dev": 0.43708475596870994,
+            "ci_95": [
+              0.4445966895925063,
+              1.0
+            ],
+            "n": 9
+          },
+          "LOC": {
+            "mean": 0.7333333333333334,
+            "std_dev": 0.44585634321817025,
+            "ci_95": [
+              0.4810663591519589,
+              0.985600307514708
+            ],
+            "n": 12
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.4103647594278244,
+          0.7628387037756388
+        ],
+        "precision_ci": [
+          0.3908930059177994,
+          0.7429165178917244
+        ],
+        "recall_ci": [
+          0.43528598805288776,
+          0.793523535756636
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "stacked",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "exact_f1": 0.6880000000000001,
+        "num_predicted": 69.0,
+        "exact_precision": 0.6231884057971014,
+        "precision": 0.4492753623188406,
+        "recall": 0.5535714285714286,
+        "exact_recall": 0.7678571428571429,
+        "type_recall": 0.6785714285714286,
+        "pred_duplicates": 2.0,
+        "f1": 0.496,
+        "partial_f1": 0.7919999999999999,
+        "chars_per_second": 20472663.139329806,
+        "num_gold": 56.0,
+        "partial_recall": 0.8839285714285714,
+        "partial_precision": 0.717391304347826,
+        "type_f1": 0.608,
+        "pred_duplication_rate": 0.028985507246376812,
+        "type_precision": 0.5507246376811594,
+        "pred_noisy": 2.0,
+        "pred_noise_rate": 0.028985507246376812
+      },
+      "num_examples": 20,
+      "duration_ms": 458.585625,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "DATE": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 5
+          },
+          "ORG": {
+            "mean": 0.5606060606060606,
+            "std_dev": 0.47300885164801487,
+            "ci_95": [
+              0.28107569228520984,
+              0.8401364289269113
+            ],
+            "n": 11
+          },
+          "LAW": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          },
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 6
+          },
+          "PER": {
+            "mean": 0.34737484737484736,
+            "std_dev": 0.35808450005116127,
+            "ci_95": [
+              0.15271789578012698,
+              0.5420317989695678
+            ],
+            "n": 13
+          },
+          "TIME": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "LOC": {
+            "mean": 0.6060606060606061,
+            "std_dev": 0.49031014715590016,
+            "ci_95": [
+              0.31630582547157676,
+              0.8958153866496354
+            ],
+            "n": 11
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.31562108037568726,
+          0.6168817676534767
+        ],
+        "precision_ci": [
+          0.2866853940536397,
+          0.566965399597154
+        ],
+        "recall_ci": [
+          0.35336535092895704,
+          0.6980632204996141
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "heuristic",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "pred_duplication_rate": 0.016666666666666666,
+        "pred_noisy": 0.0,
+        "precision": 0.2833333333333333,
+        "type_f1": 0.3793103448275862,
+        "num_predicted": 60.0,
+        "num_gold": 56.0,
+        "exact_precision": 0.7166666666666667,
+        "partial_recall": 0.8571428571428571,
+        "recall": 0.30357142857142855,
+        "pred_noise_rate": 0.0,
+        "f1": 0.29310344827586204,
+        "pred_duplicates": 1.0,
+        "exact_recall": 0.7678571428571429,
+        "type_recall": 0.39285714285714285,
+        "partial_precision": 0.8,
+        "chars_per_second": 21227726.24864675,
+        "type_precision": 0.36666666666666664,
+        "partial_f1": 0.8275862068965518,
+        "exact_f1": 0.7413793103448276
+      },
+      "num_examples": 20,
+      "duration_ms": 0.187959,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 6
+          },
+          "ORG": {
+            "mean": 0.1,
+            "std_dev": 0.20000000000000004,
+            "ci_95": [
+              0.0,
+              0.2306666666666667
+            ],
+            "n": 9
+          },
+          "LOC": {
+            "mean": 0.3820512820512821,
+            "std_dev": 0.45064056971928645,
+            "ci_95": [
+              0.13708027784995158,
+              0.6270222862526126
+            ],
+            "n": 13
+          },
+          "PER": {
+            "mean": 0.14705882352941177,
+            "std_dev": 0.31248529377161005,
+            "ci_95": [
+              0.0,
+              0.2956049029669485
+            ],
+            "n": 17
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.07229373028490921,
+          0.3430810703530493
+        ],
+        "precision_ci": [
+          0.06858670811926837,
+          0.33061964108708086
+        ],
+        "recall_ci": [
+          0.07584287572504275,
+          0.3755856957035286
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "Wnut17",
+      "backend": "heuristic",
+      "success": false,
+      "error": "incompatible: backend 'heuristic' doesn't support dataset entity types: [\"person\", \"location\", \"corporation\", \"product\", \"creative-work\", \"group\"]",
+      "metrics": {},
+      "num_examples": 0,
+      "duration_ms": null,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": null,
+      "confidence_intervals": null,
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "Wnut17",
+      "backend": "bert_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "exact_precision": 0.2916666666666667,
+        "type_precision": 0.2916666666666667,
+        "exact_f1": 0.31818181818181823,
+        "precision": 0.16666666666666666,
+        "pred_duplicates": 0.0,
+        "num_predicted": 24.0,
+        "exact_recall": 0.35,
+        "partial_f1": 0.5454545454545454,
+        "num_gold": 20.0,
+        "type_f1": 0.31818181818181823,
+        "partial_recall": 0.6,
+        "pred_noise_rate": 0.0,
+        "pred_noisy": 0.0,
+        "type_recall": 0.35,
+        "pred_duplication_rate": 0.0,
+        "chars_per_second": 14664092.664092664,
+        "f1": 0.1818181818181818,
+        "recall": 0.2,
+        "partial_precision": 0.5
+      },
+      "num_examples": 20,
+      "duration_ms": 459.164625,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "PER": {
+            "mean": 0.08333333333333333,
+            "std_dev": 0.16666666666666669,
+            "ci_95": [
+              0.0,
+              0.2466666666666667
+            ],
+            "n": 4
+          },
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 6
+          },
+          "PRODUCT": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          },
+          "LOC": {
+            "mean": 0.3333333333333333,
+            "std_dev": 0.5773502691896258,
+            "ci_95": [
+              0.0,
+              0.9866666666666668
+            ],
+            "n": 3
+          },
+          "ORG": {
+            "mean": 0.16666666666666666,
+            "std_dev": 0.33333333333333337,
+            "ci_95": [
+              0.0,
+              0.4933333333333334
+            ],
+            "n": 4
+          },
+          "GROUP": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 4
+          },
+          "CREATIVE_WORK": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.15648106953796082
+        ],
+        "precision_ci": [
+          0.0,
+          0.1265062730352586
+        ],
+        "recall_ci": [
+          0.0,
+          0.21149448265318185
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "Wnut17",
+      "backend": "stacked",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "exact_precision": 0.25,
+        "f1": 0.06250000000000001,
+        "type_f1": 0.25000000000000006,
+        "num_predicted": 44.0,
+        "pred_duplicates": 3.0,
+        "exact_recall": 0.55,
+        "type_recall": 0.4,
+        "type_precision": 0.18181818181818182,
+        "chars_per_second": 15197106.227692505,
+        "pred_noise_rate": 0.0,
+        "pred_noisy": 0.0,
+        "partial_f1": 0.48437499999999994,
+        "exact_f1": 0.34375,
+        "partial_recall": 0.775,
+        "num_gold": 20.0,
+        "partial_precision": 0.3522727272727273,
+        "pred_duplication_rate": 0.06818181818181818,
+        "precision": 0.045454545454545456,
+        "recall": 0.1
+      },
+      "num_examples": 20,
+      "duration_ms": 499.34000000000003,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "ORG": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 8
+          },
+          "DATE": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "PRODUCT": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 3
+          },
+          "LAW": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          },
+          "LOC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 2
+          },
+          "PERCENT": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "URL": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 10
+          },
+          "TIME": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "CREATIVE_WORK": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "GROUP": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 4
+          },
+          "PER": {
+            "mean": 0.14444444444444446,
+            "std_dev": 0.29627314724385295,
+            "ci_95": [
+              0.0,
+              0.3380095673104284
+            ],
+            "n": 9
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.09442715920120795
+        ],
+        "precision_ci": [
+          0.0,
+          0.09111792218043671
+        ],
+        "recall_ci": [
+          0.0,
+          0.09910898454330647
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "CoNLL2003Sample",
+      "backend": "bert_onnx",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "partial_precision": 0.0,
+        "num_gold": 0.0,
+        "exact_recall": 0.0,
+        "partial_f1": 0.0,
+        "type_f1": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "exact_precision": 0.0,
+        "exact_f1": 0.0,
+        "chars_per_second": 362418653.9480657,
+        "num_predicted": 11.0,
+        "pred_noisy": 0.0,
+        "pred_duplication_rate": 0.0,
+        "partial_recall": 0.0,
+        "type_recall": 0.0,
+        "type_precision": 0.0,
+        "precision": 0.0,
+        "pred_noise_rate": 0.0,
+        "pred_duplicates": 0.0
+      },
+      "num_examples": 1,
+      "duration_ms": 945.438042,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "LOC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.0
+        ],
+        "precision_ci": [
+          0.0,
+          0.0
+        ],
+        "recall_ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "CoNLL2003Sample",
+      "backend": "stacked",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "exact_f1": 0.0,
+        "pred_noisy": 0.0,
+        "num_gold": 0.0,
+        "partial_recall": 0.0,
+        "pred_duplicates": 241.0,
+        "exact_recall": 0.0,
+        "partial_f1": 0.0,
+        "pred_noise_rate": 0.0,
+        "chars_per_second": 333534268.16802055,
+        "pred_duplication_rate": 0.9488188976377953,
+        "type_f1": 0.0,
+        "type_recall": 0.0,
+        "type_precision": 0.0,
+        "exact_precision": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "partial_precision": 0.0,
+        "num_predicted": 254.0
+      },
+      "num_examples": 1,
+      "duration_ms": 531.5125,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "DATE": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "LOC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          },
+          "TIME": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 1
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.0
+        ],
+        "precision_ci": [
+          0.0,
+          0.0
+        ],
+        "recall_ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "kb_version": null
+    },
+    {
+      "task": "NER",
+      "dataset": "CoNLL2003Sample",
+      "backend": "heuristic",
+      "success": true,
+      "error": null,
+      "metrics": {
+        "precision": 0.0,
+        "exact_f1": 0.0,
+        "partial_precision": 0.0,
+        "num_gold": 0.0,
+        "recall": 0.0,
+        "exact_precision": 0.0,
+        "f1": 0.0,
+        "chars_per_second": 384357589.6241818,
+        "type_recall": 0.0,
+        "type_f1": 0.0,
+        "pred_noisy": 0.0,
+        "pred_noise_rate": 0.0,
+        "pred_duplicates": 0.0,
+        "partial_recall": 0.0,
+        "partial_f1": 0.0,
+        "exact_recall": 0.0,
+        "num_predicted": 0.0,
+        "pred_duplication_rate": 0.0,
+        "type_precision": 0.0
+      },
+      "num_examples": 1,
+      "duration_ms": 1.788791,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {},
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.0,
+          0.0
+        ],
+        "precision_ci": [
+          0.0,
+          0.0
+        ],
+        "recall_ci": [
+          0.0,
+          0.0
+        ]
+      },
+      "kb_version": null
+    }
+  ],
+  "summary": {
+    "total_combinations": 9,
+    "successful": 8,
+    "failed": 0,
+    "skipped": 1,
+    "tasks": [
+      "NER"
+    ],
+    "datasets": [
+      "WikiGold",
+      "Wnut17",
+      "CoNLL2003Sample"
+    ],
+    "backends": [
+      "bert_onnx",
+      "stacked",
+      "heuristic"
+    ]
+  }
+}

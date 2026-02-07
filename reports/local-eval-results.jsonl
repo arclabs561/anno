@@ -1,0 +1,4 @@
+{"timestamp": "2026-01-28T12:51:53.097321", "backend": "heuristic", "dataset": "WikiGold", "seed": 42, "f1": 33.6, "precision": 31.4, "recall": 36.1, "n": 1696, "duration_ms": 583}
+{"timestamp": "2026-01-28T12:51:58.455176", "backend": "heuristic", "dataset": "CoNLL2003Sample", "seed": 42, "f1": 100.0, "precision": 100.0, "recall": 100.0, "n": 1, "duration_ms": 5357}
+{"timestamp": "2026-01-28T12:52:24.963939", "backend": "stacked", "dataset": "WikiGold", "seed": 42, "f1": 68.8, "precision": 63.2, "recall": 75.5, "n": 1696, "duration_ms": 26508}
+{"timestamp": "2026-01-28T12:52:26.062321", "backend": "stacked", "dataset": "CoNLL2003Sample", "seed": 42, "f1": 0.0, "precision": 0.0, "recall": 0.0, "n": 1, "duration_ms": 1097}
