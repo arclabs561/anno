@@ -279,6 +279,13 @@ impl EvalHistory {
         )
         .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
 
+        // Schema evolution: add git_commit column if not present.
+        // This enables change-point detection tied to specific code versions.
+        let _ = conn.execute(
+            "ALTER TABLE eval_results ADD COLUMN git_commit TEXT",
+            [],
+        ); // Silently ignore if column already exists.
+
         Ok(())
     }
 
@@ -288,11 +295,32 @@ impl EvalHistory {
         let conn = rusqlite::Connection::open(db_path)
             .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
 
+        // Include git commit hash if available (for change-point detection).
+        let git_commit = std::env::var("ANNO_GIT_COMMIT")
+            .or_else(|_| {
+                // Try to get from git directly (works in dev, not in CI without git).
+                std::process::Command::new("git")
+                    .args(["rev-parse", "--short", "HEAD"])
+                    .output()
+                    .ok()
+                    .and_then(|o| {
+                        if o.status.success() {
+                            String::from_utf8(o.stdout)
+                                .ok()
+                                .map(|s| s.trim().to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or(std::env::VarError::NotPresent)
+            })
+            .ok();
+
         conn.execute(
             "INSERT INTO eval_results (
                 timestamp, backend, dataset, task, seed,
-                f1, precision, recall, n, duration_ms, error, metadata
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                f1, precision, recall, n, duration_ms, error, metadata, git_commit
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 entry.timestamp,
                 entry.backend,
@@ -306,6 +334,7 @@ impl EvalHistory {
                 entry.duration_ms,
                 entry.error,
                 entry.metadata,
+                git_commit,
             ],
         )
         .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -887,6 +916,171 @@ impl EvalHistory {
                     n_old: old_vals.len() as u64,
                     n_new: new_vals.len() as u64,
                     split_timestamp: obs[mid].0.clone(),
+                });
+            }
+        }
+
+        alerts.sort_by(|a, b| b.drop.total_cmp(&a.drop));
+        Ok(alerts)
+    }
+
+    /// Detect regressions using a recent-window comparison (more sensitive than median split).
+    ///
+    /// For each (backend, dataset) cell, compares the last `recent_n` observations to all
+    /// earlier observations.  Uses Cohen's d effect size: d = (old_mean - new_mean) / pooled_sd.
+    /// Flags cells where d > `min_effect_size` (default 0.5 = "medium" effect).
+    ///
+    /// This is more sensitive to recent changes than the median-split approach because
+    /// it uses a fixed recent window rather than splitting at the temporal midpoint.
+    pub fn detect_regressions_recent(
+        &self,
+        recent_n: usize,
+        min_effect_size: f64,
+        min_total: u64,
+    ) -> std::io::Result<Vec<RegressionAlert>> {
+        let Some(ref db_path) = self.sqlite_path else {
+            return Ok(Vec::new());
+        };
+        let conn = rusqlite::Connection::open(db_path)
+            .map_err(std::io::Error::other)?;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT backend, dataset, timestamp, f1 FROM eval_results \
+                 WHERE f1 IS NOT NULL AND error IS NULL \
+                 ORDER BY backend, dataset, timestamp",
+            )
+            .map_err(std::io::Error::other)?;
+
+        let mut cells: HashMap<(String, String), Vec<(String, f64)>> = HashMap::new();
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?, row.get::<_, f64>(3)?))
+            })
+            .map_err(std::io::Error::other)?;
+        for row in rows.flatten() {
+            cells.entry((row.0, row.1)).or_default().push((row.2, row.3));
+        }
+
+        let mut alerts = Vec::new();
+        for ((backend, dataset), obs) in &cells {
+            if (obs.len() as u64) < min_total || obs.len() <= recent_n {
+                continue;
+            }
+            let split = obs.len() - recent_n;
+            let old: Vec<f64> = obs[..split].iter().map(|(_, f)| *f).collect();
+            let new: Vec<f64> = obs[split..].iter().map(|(_, f)| *f).collect();
+
+            let old_mean = old.iter().sum::<f64>() / old.len() as f64;
+            let new_mean = new.iter().sum::<f64>() / new.len() as f64;
+            let drop = old_mean - new_mean;
+            if drop <= 0.0 {
+                continue; // no regression (improvement or no change)
+            }
+
+            // Pooled standard deviation for Cohen's d.
+            let old_var = old.iter().map(|x| (x - old_mean).powi(2)).sum::<f64>()
+                / (old.len() as f64 - 1.0).max(1.0);
+            let new_var = new.iter().map(|x| (x - new_mean).powi(2)).sum::<f64>()
+                / (new.len() as f64 - 1.0).max(1.0);
+            let pooled_sd = ((old_var + new_var) / 2.0).sqrt();
+            if pooled_sd < 1e-12 {
+                continue; // zero variance, skip
+            }
+            let d = drop / pooled_sd;
+
+            if d >= min_effect_size {
+                alerts.push(RegressionAlert {
+                    backend: backend.clone(),
+                    dataset: dataset.clone(),
+                    old_mean,
+                    new_mean,
+                    drop,
+                    n_old: old.len() as u64,
+                    n_new: new.len() as u64,
+                    split_timestamp: obs[split].0.clone(),
+                });
+            }
+        }
+
+        alerts.sort_by(|a, b| b.drop.total_cmp(&a.drop));
+        Ok(alerts)
+    }
+
+    /// Detect regressions between two git commits.
+    ///
+    /// This is the most precise change-point detection: it directly compares F1 scores
+    /// from evaluations tagged with `old_commit` to those tagged with `new_commit`.
+    /// Only works after the git_commit column is populated (evaluations run after this
+    /// code change).
+    pub fn detect_regressions_by_commit(
+        &self,
+        old_commit: &str,
+        new_commit: &str,
+        min_drop: f64,
+    ) -> std::io::Result<Vec<RegressionAlert>> {
+        let Some(ref db_path) = self.sqlite_path else {
+            return Ok(Vec::new());
+        };
+        let conn = rusqlite::Connection::open(db_path)
+            .map_err(std::io::Error::other)?;
+
+        // Check if the git_commit column exists.
+        let has_column = conn
+            .prepare("SELECT git_commit FROM eval_results LIMIT 0")
+            .is_ok();
+        if !has_column {
+            return Ok(Vec::new());
+        }
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT backend, dataset, git_commit, f1 FROM eval_results \
+                 WHERE f1 IS NOT NULL AND error IS NULL \
+                 AND git_commit IN (?1, ?2) \
+                 ORDER BY backend, dataset",
+            )
+            .map_err(std::io::Error::other)?;
+
+        let mut old_cells: HashMap<(String, String), Vec<f64>> = HashMap::new();
+        let mut new_cells: HashMap<(String, String), Vec<f64>> = HashMap::new();
+        let rows = stmt
+            .query_map(rusqlite::params![old_commit, new_commit], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?, row.get::<_, f64>(3)?))
+            })
+            .map_err(std::io::Error::other)?;
+        for row in rows.flatten() {
+            let (b, d, commit, f1) = row;
+            if commit == old_commit {
+                old_cells.entry((b, d)).or_default().push(f1);
+            } else {
+                new_cells.entry((b, d)).or_default().push(f1);
+            }
+        }
+
+        let mut alerts = Vec::new();
+        for ((backend, dataset), old_vals) in &old_cells {
+            let Some(new_vals) = new_cells.get(&(backend.clone(), dataset.clone())) else {
+                continue;
+            };
+            if old_vals.is_empty() || new_vals.is_empty() {
+                continue;
+            }
+            let old_mean = old_vals.iter().sum::<f64>() / old_vals.len() as f64;
+            let new_mean = new_vals.iter().sum::<f64>() / new_vals.len() as f64;
+            let drop = old_mean - new_mean;
+            if drop >= min_drop {
+                alerts.push(RegressionAlert {
+                    backend: backend.clone(),
+                    dataset: dataset.clone(),
+                    old_mean,
+                    new_mean,
+                    drop,
+                    n_old: old_vals.len() as u64,
+                    n_new: new_vals.len() as u64,
+                    split_timestamp: format!("{} -> {}", old_commit, new_commit),
                 });
             }
         }
