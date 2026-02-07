@@ -159,14 +159,5 @@ full-workspace = ["anno-lib/full-workspace"]
 bundled-crf-weights = ["anno-lib/bundled-crf-weights"]
 bundled-hmm-params = ["anno-lib/bundled-hmm-params"]
 
-# Local development override: use sibling checkout of `muxer`.
-#
-# This repo depends on `muxer` via a git dependency in `anno-eval`/`anno-cli` so that releases are
-# pinned and reproducible. In the super-workspace, we want local changes to `dev/muxer/` to take
-# effect without updating a git rev.
-[patch."https://github.com/arclabs561/muxer.git"]
-muxer = { path = "../muxer" }
-
-[patch.crates-io]
-logp = { path = "../logp" }
-pare = { path = "../pare" }
+# Local development overrides (path patches) live in `.cargo/config.toml`.
+# See `.cargo/config.toml.example` for the super-workspace setup.
