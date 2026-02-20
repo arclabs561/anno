@@ -950,7 +950,7 @@ jobs:
           path: static-analysis-failures-summary.md
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
