@@ -188,7 +188,7 @@ dependencies = [
  "proptest",
  "rand",
  "regex",
- "safetensors 0.4.5",
+ "safetensors",
  "schemars",
  "serde",
  "serde_json",
@@ -384,7 +384,7 @@ dependencies = [
  "rand",
  "rand_distr",
  "rayon",
- "safetensors 0.7.0",
+ "safetensors",
  "thiserror 2.0.18",
  "yoke",
  "zip",
@@ -401,7 +401,7 @@ dependencies = [
  "libc",
  "num-traits",
  "rayon",
- "safetensors 0.7.0",
+ "safetensors",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -1385,6 +1385,8 @@ dependencies = [
 [[package]]
 name = "graphops"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35840deb666f9a8a66b0a33253ef701f46dfca2ca8dca0d2511f811ac4b86fb3"
 dependencies = [
  "ordered-float",
  "petgraph",
@@ -1926,6 +1928,8 @@ dependencies = [
 [[package]]
 name = "lattix"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3c2ede1dcd05cb403f6b848f4430eb36c92beaa697f239302cfcb829f0b8865"
 dependencies = [
  "csv",
  "graphops",
@@ -2017,7 +2021,10 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 [[package]]
 name = "logp"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e987f585a288705e7e9ab2f7cea5fcfe67c5fffe8d581d8b48a4d5504a032bd"
 dependencies = [
+ "ndarray",
  "thiserror 2.0.18",
 ]
 
@@ -2139,6 +2146,8 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accbe95582a29725184f53ca758d318cb72514e9dba4fd79dedebb7804aefba4"
 dependencies = [
  "logp",
  "pare",
@@ -2411,6 +2420,8 @@ dependencies = [
 [[package]]
 name = "pare"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "420eea7a64b3c3cff5fa56ec6975bd5b908d70313c420636635fd33653480225"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2946,16 +2957,6 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "safetensors"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44560c11236a6130a46ce36c836a62936dc81ebf8c36a37947423571be0e55b6"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "safetensors"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "675656c1eabb620b921efea4f9199f97fc86e36dd6ffd1fbbe48d0f59a4987f5"
@@ -3379,6 +3380,8 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f891a1690186f1c7e1d883cfd8b49861ec55c4b91e8aed72ecd206dbdf6b25c4"
 dependencies = [
  "aho-corasick",
  "unicode-normalization",

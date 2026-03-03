@@ -71,7 +71,7 @@ lru = "0.12"
 candle-core = "0.9"
 candle-nn = "0.9"
 candle-transformers = "0.9"
-safetensors = "0.4"
+safetensors = "0.7"
 
 # Burn ML framework (training + inference, WebGPU support)
 burn = "0.20.0"
