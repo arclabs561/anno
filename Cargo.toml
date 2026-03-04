@@ -53,7 +53,7 @@ clap = { version = "4", features = ["derive", "env", "wrap_help"] }
 clap_complete = "4"
 is-terminal = "0.4"
 glob = "0.3"
-indicatif = "0.17"
+indicatif = "0.18"
 toml = "0.8"
 
 # Evaluation
