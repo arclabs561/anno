@@ -89,7 +89,7 @@ itertools = "0.14"
 smallvec = { version = "1.13", features = ["serde"] }
 dashmap = "6"
 unicode-normalization = "0.1.25"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
 
 # Observability
 tracing = "0.1"
