@@ -52,6 +52,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "alloca"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5a7d05ea6aea7e9e64d25b9156ba2fee3fdd659e34e41063cd2fc7cd020d7f4"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "allocator-api2"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -713,25 +722,24 @@ dependencies = [
 
 [[package]]
 name = "criterion"
-version = "0.5.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f"
+checksum = "950046b2aa2492f9a536f5f4f9a3de7b9e2476e575e05bd6c333371add4d98f3"
 dependencies = [
+ "alloca",
  "anes",
  "cast",
  "ciborium",
  "clap",
  "criterion-plot",
- "is-terminal",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "num-traits",
- "once_cell",
  "oorandom",
+ "page_size",
  "plotters",
  "rayon",
  "regex",
  "serde",
- "serde_derive",
  "serde_json",
  "tinytemplate",
  "walkdir",
@@ -739,12 +747,12 @@ dependencies = [
 
 [[package]]
 name = "criterion-plot"
-version = "0.5.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
+checksum = "d8d80a2f4f5b554395e47b5d8305bc3d27813bacb73493eb1001e8f76dae29ea"
 dependencies = [
  "cast",
- "itertools 0.10.5",
+ "itertools 0.13.0",
 ]
 
 [[package]]
@@ -902,6 +910,8 @@ dependencies = [
 [[package]]
 name = "deformat"
 version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f09dae911b7023e1a9438b983f5edc26768f163ce5ba2081bdaba0b15963a17"
 dependencies = [
  "dom_smoothie",
  "memchr",
@@ -1589,6 +1599,8 @@ dependencies = [
 [[package]]
 name = "graphops"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee68533e6a18a9d5105657b97173a50afe7d3e1d944f7e303ff4b564526d10a2"
 dependencies = [
  "ordered-float",
  "petgraph",
@@ -2077,9 +2089,9 @@ checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
 
 [[package]]
 name = "itertools"
-version = "0.10.5"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]
@@ -2153,6 +2165,8 @@ dependencies = [
 [[package]]
 name = "lattix"
 version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db65012051f293aca33167e3547ab01efa510ef2c15f66f9bb71d4fa03e1c82d"
 dependencies = [
  "csv",
  "graphops",
@@ -2241,6 +2255,8 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 [[package]]
 name = "logp"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "530c3c32dcd93d5e97404dfcfacc472849ad20de45801e42da5818f0b17dbf48"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2424,6 +2440,8 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d13b700016cd1cf216525581ca6c67d8c57e22a97cccac76098eb11e0f279ea7"
 dependencies = [
  "logp",
  "pare",
@@ -2716,7 +2734,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2729,12 +2747,24 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "page_size"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "30d5b2194ed13191c1999ae0704b7839fb18384fa22e49b57eeaa97d79ce40da"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
 name = "pare"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d70af76671eab52860c6746c1d4bfd7ad0215ba69a08341ab9faef5a245a9c78"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -3853,6 +3883,8 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3e8aa82ee747148de415b1d10757e55d3fda01d953c037e7ce22a286780509e"
 dependencies = [
  "aho-corasick",
  "unicode-normalization",
