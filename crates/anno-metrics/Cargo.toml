@@ -1,6 +1,6 @@
 [package]
 name = "anno-metrics"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
@@ -10,7 +10,7 @@ categories = ["text-processing", "science"]
 publish = true
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.3.7" }
+anno-core = { path = "../anno-core", version = "0.3.8" }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

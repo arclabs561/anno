@@ -1,6 +1,6 @@
 [package]
 name = "anno-lib"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 description = "Information extraction: NER, coreference resolution, entity linking, zero-shot entity types"
 license = "MIT OR Apache-2.0"
@@ -24,8 +24,8 @@ include = [
 name = "anno"
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.3.7" }
-anno-metrics = { path = "../anno-metrics", version = "0.3.7", optional = true }
+anno-core = { path = "../anno-core", version = "0.3.8" }
+anno-metrics = { path = "../anno-metrics", version = "0.3.8", optional = true }
 textprep = { workspace = true }
 graphops = { workspace = true }
 innr = { workspace = true }
