@@ -57,6 +57,12 @@ pub enum Error {
     /// Track reference error.
     #[error("Track reference error: {0}")]
     TrackRef(String),
+
+    /// Error from `anno-core` (stable data-model layer).
+    ///
+    /// Enables `?` propagation from functions returning `anno_core::Result`.
+    #[error(transparent)]
+    Core(anno_core::core::error::Error),
 }
 
 impl Error {
@@ -108,6 +114,14 @@ impl Error {
     /// Create a track reference error.
     pub fn track_ref(msg: impl Into<String>) -> Self {
         Error::TrackRef(msg.into())
+    }
+}
+
+/// Convert `anno-core` errors into `anno` errors, enabling `?` propagation
+/// across the crate boundary.
+impl From<anno_core::core::error::Error> for Error {
+    fn from(err: anno_core::core::error::Error) -> Self {
+        Error::Core(err)
     }
 }
 
@@ -174,6 +188,28 @@ mod tests {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
         let e: Error = io_err.into();
         assert!(e.to_string().contains("IO error"));
+    }
+
+    #[test]
+    fn test_core_error_conversion() {
+        let core_err = anno_core::core::error::Error::parse("bad token");
+        let err: Error = core_err.into();
+        assert!(matches!(err, Error::Core(_)));
+        assert!(err.to_string().contains("Parse error"));
+        assert!(err.to_string().contains("bad token"));
+    }
+
+    #[test]
+    fn test_core_error_question_mark_propagation() {
+        fn inner() -> anno_core::core::error::Result<()> {
+            Err(anno_core::core::error::Error::corpus("missing doc"))
+        }
+        fn outer() -> Result<()> {
+            inner()?; // exercises From<anno_core::Error>
+            Ok(())
+        }
+        let err = outer().unwrap_err();
+        assert!(err.to_string().contains("Corpus error"));
     }
 
     #[test]
