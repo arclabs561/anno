@@ -717,13 +717,23 @@ pub trait RelationCapable: Model {
 /// Models implementing this trait can extract entities of arbitrary types
 /// specified at inference time (e.g., GLiNER, UniversalNER), rather than
 /// being limited to a fixed set of pre-trained types.
+///
+/// # Label count warning
+///
+/// GLiNER-family models degrade significantly when more than ~30 labels are
+/// passed in a single call. The label-token cross-attention matrix grows
+/// quadratically, causing both latency spikes and accuracy drops (the model
+/// was trained with at most ~20-30 types per batch). If you need >30 types,
+/// split them into batches and merge results with span-level deduplication.
 pub trait DynamicLabels: Model {
     /// Extract entities with custom type labels.
     ///
     /// # Arguments
     ///
     /// * `text` - Input text to extract from
-    /// * `labels` - Custom entity type labels to extract (e.g., ["PERSON", "ORGANIZATION"])
+    /// * `labels` - Custom entity type labels to extract (e.g., ["PERSON", "ORGANIZATION"]).
+    ///   Passing more than 30 labels may degrade accuracy for GLiNER-family models;
+    ///   consider batching labels if the count exceeds this threshold.
     /// * `language` - Optional language hint (e.g., "en", "es")
     ///
     /// # Returns

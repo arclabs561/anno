@@ -183,6 +183,32 @@ impl Mention {
     pub fn span_id(&self) -> (usize, usize) {
         (self.start, self.end)
     }
+
+    /// Head-span tuple `(head_start, head_end)` for head-match scoring.
+    ///
+    /// Returns the head span if both `head_start` and `head_end` are set,
+    /// otherwise falls back to the full span `(start, end)`.
+    ///
+    /// Head-match evaluation is standard in CRAC shared tasks: two mentions
+    /// match if their syntactic heads overlap, even when full spans differ
+    /// (e.g., "the president" vs "the former president of France" both have
+    /// head "president").
+    ///
+    /// ```
+    /// # use anno_core::core::coref::Mention;
+    /// let m = Mention::with_head("the former president", 0, 20, 11, 20);
+    /// assert_eq!(m.span_id_head(), (11, 20));
+    ///
+    /// let m2 = Mention::new("John", 0, 4);
+    /// assert_eq!(m2.span_id_head(), (0, 4)); // falls back to full span
+    /// ```
+    #[must_use]
+    pub fn span_id_head(&self) -> (usize, usize) {
+        match (self.head_start, self.head_end) {
+            (Some(hs), Some(he)) => (hs, he),
+            _ => (self.start, self.end),
+        }
+    }
 }
 
 impl std::fmt::Display for Mention {

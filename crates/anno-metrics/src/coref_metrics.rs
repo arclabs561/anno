@@ -24,27 +24,74 @@ use std::collections::{HashMap, HashSet};
 
 type SpanId = (usize, usize);
 
+/// Span mode for mention matching: full span or head span.
+///
+/// Head-match mode is used in CRAC shared tasks where two mentions match
+/// if their syntactic heads overlap, even when full spans differ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpanMode {
+    /// Use the full mention span `(start, end)`.
+    #[default]
+    Full,
+    /// Use the head span `(head_start, head_end)`, falling back to full span
+    /// when head annotations are absent.
+    Head,
+}
+
+fn span_for(mention: &crate::coref::Mention, mode: SpanMode) -> SpanId {
+    match mode {
+        SpanMode::Full => mention.span_id(),
+        SpanMode::Head => mention.span_id_head(),
+    }
+}
+
 fn build_mention_index(chains: &[CorefChain]) -> HashMap<SpanId, usize> {
+    build_mention_index_mode(chains, SpanMode::Full)
+}
+
+fn build_mention_index_mode(chains: &[CorefChain], mode: SpanMode) -> HashMap<SpanId, usize> {
     let mut index = HashMap::new();
     for (chain_idx, chain) in chains.iter().enumerate() {
         for mention in &chain.mentions {
-            index.insert(mention.span_id(), chain_idx);
+            index.insert(span_for(mention, mode), chain_idx);
         }
     }
     index
 }
 
-fn all_mention_spans(chains: &[CorefChain]) -> HashSet<SpanId> {
+fn all_mention_spans_mode(chains: &[CorefChain], mode: SpanMode) -> HashSet<SpanId> {
     chains
         .iter()
-        .flat_map(|c| c.mentions.iter().map(|m| m.span_id()))
+        .flat_map(|c| c.mentions.iter().map(move |m| span_for(m, mode)))
         .collect()
 }
 
 fn common_mentions(pred: &[CorefChain], gold: &[CorefChain]) -> HashSet<SpanId> {
-    let pred_spans = all_mention_spans(pred);
-    let gold_spans = all_mention_spans(gold);
+    common_mentions_mode(pred, gold, SpanMode::Full)
+}
+
+fn common_mentions_mode(
+    pred: &[CorefChain],
+    gold: &[CorefChain],
+    mode: SpanMode,
+) -> HashSet<SpanId> {
+    let pred_spans = all_mention_spans_mode(pred, mode);
+    let gold_spans = all_mention_spans_mode(gold, mode);
     pred_spans.intersection(&gold_spans).copied().collect()
+}
+
+/// Filter out singleton chains (chains with exactly one mention).
+///
+/// CRAC 2022-2025 shared tasks compute primary scores (B3, CEAF, LEA)
+/// without singletons. This function strips them from both predicted
+/// and gold chain sets before scoring.
+#[must_use]
+pub fn filter_singletons(chains: &[CorefChain]) -> Vec<CorefChain> {
+    chains
+        .iter()
+        .filter(|c| c.len() > 1)
+        .cloned()
+        .collect()
 }
 
 /// Compute F1 from precision and recall.
@@ -159,6 +206,40 @@ impl CorefEvaluation {
             chain_stats: Some(chain_stats),
             zero_anaphor,
         }
+    }
+
+    /// Compute the full metric bundle with singletons excluded.
+    ///
+    /// CRAC 2022-2025 shared tasks use this as the primary scoring mode:
+    /// chains with only one mention are removed from both predicted and
+    /// gold before computing B3, CEAF, LEA, and CoNLL scores.
+    ///
+    /// Scores typically differ from the singleton-included variant because
+    /// singletons inflate B3 precision/recall when correctly matched but
+    /// contribute no signal to MUC (which already ignores them).
+    ///
+    /// ```
+    /// use anno_core::core::coref::{CorefChain, Mention};
+    /// use anno_metrics::coref_metrics::CorefEvaluation;
+    ///
+    /// let gold = vec![
+    ///     CorefChain::new(vec![
+    ///         Mention::new("John", 0, 4),
+    ///         Mention::new("he", 10, 12),
+    ///     ]),
+    ///     CorefChain::singleton(Mention::new("Paris", 20, 25)),
+    /// ];
+    /// let with = CorefEvaluation::compute(&gold, &gold);
+    /// let without = CorefEvaluation::compute_without_singletons(&gold, &gold);
+    /// // B3 F1 is 1.0 either way for identical input, but the chain_stats differ.
+    /// assert!(with.chain_stats.as_ref().unwrap().singleton_count == 1);
+    /// assert!(without.chain_stats.as_ref().unwrap().singleton_count == 0);
+    /// ```
+    #[must_use]
+    pub fn compute_without_singletons(predicted: &[CorefChain], gold: &[CorefChain]) -> Self {
+        let pred_filtered = filter_singletons(predicted);
+        let gold_filtered = filter_singletons(gold);
+        Self::compute(&pred_filtered, &gold_filtered)
     }
 
     /// Extract per-metric F1 scores.
@@ -433,6 +514,102 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
                     pred_chain.mentions.iter().map(|m| m.span_id()).collect();
                 let gold_spans: HashSet<SpanId> =
                     gold_chain.mentions.iter().map(|m| m.span_id()).collect();
+                let overlap = pred_spans.intersection(&gold_spans).count();
+                precision_sum += overlap as f64 / pred_chain.mentions.len().max(1) as f64;
+            }
+        }
+    }
+
+    let precision = if pred_count > 0 {
+        precision_sum / pred_count as f64
+    } else {
+        0.0
+    };
+    let recall = if gold_count > 0 {
+        recall_sum / gold_count as f64
+    } else {
+        0.0
+    };
+    let f1 = prf1(precision, recall);
+
+    (precision, recall, f1)
+}
+
+/// B-cubed score using head-match mode.
+///
+/// Identical to [`b_cubed_score`] but uses `span_id_head()` instead of
+/// `span_id()` for mention identity. Two mentions with different full spans
+/// but identical head spans will be treated as the same mention.
+///
+/// This is the matching mode used in CRAC shared tasks when head annotations
+/// are available.
+///
+/// ```
+/// use anno_core::core::coref::{CorefChain, Mention};
+/// use anno_metrics::coref_metrics::b_cubed_score_head;
+///
+/// // Two mentions with different full spans but the same head.
+/// let gold = vec![CorefChain::new(vec![
+///     Mention::with_head("the president", 0, 13, 4, 13),
+///     Mention::with_head("he", 20, 22, 20, 22),
+/// ])];
+/// let pred = vec![CorefChain::new(vec![
+///     Mention::with_head("the former president", 0, 20, 11, 20),
+///     Mention::with_head("he", 20, 22, 20, 22),
+/// ])];
+/// // Under head-match: "president" (4,13) != (11,20), so these are different spans.
+/// // But if heads matched, the score would reflect that.
+/// ```
+#[must_use]
+pub fn b_cubed_score_head(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
+    let mode = SpanMode::Head;
+    let common = common_mentions_mode(predicted, gold, mode);
+    if common.is_empty() {
+        return (0.0, 0.0, 0.0);
+    }
+
+    let pred_index = build_mention_index_mode(predicted, mode);
+    let gold_index = build_mention_index_mode(gold, mode);
+
+    let mut precision_sum = 0.0;
+    let mut recall_sum = 0.0;
+    let mut pred_count = 0usize;
+    let mut gold_count = 0usize;
+
+    for gold_chain in gold {
+        for mention in &gold_chain.mentions {
+            let span = span_for(mention, mode);
+            if !common.contains(&span) {
+                continue;
+            }
+            gold_count += 1;
+
+            if let Some(&pred_chain_idx) = pred_index.get(&span) {
+                let pred_chain = &predicted[pred_chain_idx];
+                let pred_spans: HashSet<SpanId> =
+                    pred_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
+                let gold_spans: HashSet<SpanId> =
+                    gold_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
+                let overlap = pred_spans.intersection(&gold_spans).count();
+                recall_sum += overlap as f64 / gold_chain.mentions.len().max(1) as f64;
+            }
+        }
+    }
+
+    for pred_chain in predicted {
+        for mention in &pred_chain.mentions {
+            let span = span_for(mention, mode);
+            if !common.contains(&span) {
+                continue;
+            }
+            pred_count += 1;
+
+            if let Some(&gold_chain_idx) = gold_index.get(&span) {
+                let gold_chain = &gold[gold_chain_idx];
+                let pred_spans: HashSet<SpanId> =
+                    pred_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
+                let gold_spans: HashSet<SpanId> =
+                    gold_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
                 let overlap = pred_spans.intersection(&gold_spans).count();
                 precision_sum += overlap as f64 / pred_chain.mentions.len().max(1) as f64;
             }
@@ -2115,6 +2292,150 @@ mod tests {
         let display = format!("{eval}");
         assert!(display.contains("MUC:"));
         assert!(display.contains("CoNLL:"));
+    }
+
+    // =========================================================================
+    // 11. Singleton-excluded scoring (CRAC 2022-2025 primary mode)
+    // =========================================================================
+
+    #[test]
+    fn singleton_excluded_scores_diverge_from_included() {
+        // Scenario: 100 correctly-matched singletons + 2 two-mention chains.
+        // B3 with singletons: the 100 singletons inflate accuracy.
+        // B3 without singletons: only the 2 multi-mention chains matter.
+        //
+        // Gold: 100 singletons + {A,B} + {C,D}
+        // Pred: 100 singletons + {A,C} + {B,D}  (chains are wrong)
+        let mut gold_chains: Vec<Vec<(&str, usize, usize)>> = Vec::new();
+        let mut pred_chains: Vec<Vec<(&str, usize, usize)>> = Vec::new();
+
+        // 100 singletons (offset by 1000 to avoid collision)
+        for i in 0..100 {
+            let start = 1000 + i * 2;
+            let end = start + 1;
+            gold_chains.push(vec![("s", start, end)]);
+            pred_chains.push(vec![("s", start, end)]);
+        }
+
+        // Two gold chains: {A(0,1), B(2,3)} and {C(4,5), D(6,7)}
+        gold_chains.push(vec![("A", 0, 1), ("B", 2, 3)]);
+        gold_chains.push(vec![("C", 4, 5), ("D", 6, 7)]);
+
+        // Pred chains are wrong: {A(0,1), C(4,5)} and {B(2,3), D(6,7)}
+        pred_chains.push(vec![("A", 0, 1), ("C", 4, 5)]);
+        pred_chains.push(vec![("B", 2, 3), ("D", 6, 7)]);
+
+        let gold = chains(gold_chains);
+        let pred = chains(pred_chains);
+
+        let with_singletons = CorefEvaluation::compute(&pred, &gold);
+        let without_singletons = CorefEvaluation::compute_without_singletons(&pred, &gold);
+
+        // B3 F1 with singletons should be high (singletons dominate).
+        // B3 F1 without singletons should be lower (only wrong chains remain).
+        assert!(
+            with_singletons.b_cubed.f1 > without_singletons.b_cubed.f1,
+            "B3 with singletons ({}) should be higher than without ({})",
+            with_singletons.b_cubed.f1,
+            without_singletons.b_cubed.f1,
+        );
+
+        // Verify without_singletons B3 < 1.0 (the multi-mention chains are wrong).
+        assert!(
+            without_singletons.b_cubed.f1 < 1.0,
+            "B3 without singletons should be < 1.0, got {}",
+            without_singletons.b_cubed.f1
+        );
+
+        // Verify without_singletons has 0 singleton count in chain_stats.
+        assert_eq!(
+            without_singletons
+                .chain_stats
+                .as_ref()
+                .unwrap()
+                .singleton_count,
+            0
+        );
+    }
+
+    // =========================================================================
+    // 12. Head-match mode
+    // =========================================================================
+
+    #[test]
+    fn head_match_matches_identical_heads_different_full_spans() {
+        // Gold: chain with two mentions whose heads are (4,13) and (20,22).
+        //   "the president" [0,13) head=[4,13)
+        //   "he" [20,22) head=[20,22)
+        // Pred: chain with two mentions whose heads are (4,13) and (20,22).
+        //   "the former president" [0,20) head=[4,13)  <-- different full span!
+        //   "he" [20,22) head=[20,22)
+        //
+        // Under exact-match (full span): mentions at (0,13) vs (0,20) differ,
+        //   so B3 should be imperfect.
+        // Under head-match: heads (4,13) match, so B3 should be perfect.
+        let gold = vec![CorefChain::new(vec![
+            Mention::with_head("the president", 0, 13, 4, 13),
+            Mention::with_head("he", 20, 22, 20, 22),
+        ])];
+        let pred = vec![CorefChain::new(vec![
+            Mention::with_head("the former president", 0, 20, 4, 13),
+            Mention::with_head("he", 20, 22, 20, 22),
+        ])];
+
+        // Exact-match: different full spans, so common mentions miss (0,13) vs (0,20).
+        let (_, _, exact_f1) = b_cubed_score(&pred, &gold);
+        assert!(
+            exact_f1 < 1.0,
+            "exact-match B3 should be < 1.0, got {exact_f1}"
+        );
+
+        // Head-match: heads (4,13) match, so both mentions are common.
+        let (_, _, head_f1) = b_cubed_score_head(&pred, &gold);
+        assert!(
+            approx_eq(head_f1, 1.0),
+            "head-match B3 should be 1.0, got {head_f1}"
+        );
+    }
+
+    // =========================================================================
+    // 13. Zero-anaphor robustness: start == end with non-Zero mention_type
+    // =========================================================================
+
+    #[test]
+    fn zero_span_non_zero_mention_type_handling() {
+        // A mention with start == end but mention_type != Zero.
+        // This can happen with annotation errors or edge cases.
+        // The zero_spans() filter inside ZeroAnaphorEvaluation uses OR logic:
+        //   mention_type == Zero || start == end
+        // So this mention WILL be treated as a zero anaphor even though
+        // its type says otherwise. This test documents that behavior.
+        let m_zero_span = {
+            let mut m = Mention::new("", 5, 5);
+            m.mention_type = Some(MentionType::Pronominal); // NOT Zero
+            m
+        };
+        let m_antecedent = Mention::new("John", 0, 4);
+
+        let gold = vec![CorefChain::new(vec![m_antecedent.clone(), m_zero_span.clone()])];
+        let pred = vec![CorefChain::new(vec![m_antecedent, m_zero_span])];
+
+        let eval = ZeroAnaphorEvaluation::compute(&pred, &gold);
+        // The mention with start == end IS detected as a zero anaphor
+        // because of the fallback condition.
+        assert!(
+            eval.is_some(),
+            "start == end mention should trigger zero-anaphor evaluation"
+        );
+        let z = eval.unwrap();
+        assert!(
+            z.gold_anaphors > 0,
+            "gold_anaphors should be > 0 for start == end mention"
+        );
+        // Since pred == gold, it should be a true positive.
+        assert_eq!(z.tp, 1, "should be 1 TP for correctly linked zero anaphor");
+        assert_eq!(z.fp, 0, "should be 0 FP");
+        assert_eq!(z.fn_, 0, "should be 0 FN");
     }
 
     // =========================================================================
