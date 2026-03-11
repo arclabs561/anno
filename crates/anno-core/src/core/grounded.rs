@@ -557,8 +557,12 @@ pub enum Quantifier {
     None,
     /// Specific: definite reference ("the")
     Definite,
-    /// Approximate: "approximately", "about", "at least", "roughly"
+    /// Approximate: "approximately", "about", "roughly"
     Approximate,
+    /// Lower bound: "at least", "no fewer than"
+    MinBound,
+    /// Upper bound: "at most", "no more than", "up to"
+    MaxBound,
     /// Bare: no explicit quantifier
     Bare,
 }

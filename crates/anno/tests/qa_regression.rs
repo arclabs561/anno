@@ -720,12 +720,12 @@ fn qa_quantifier_at_least() {
     use anno_core::Quantifier;
 
     let text = "At least three companies bid.";
-    // entity "companies" starts at char 20 (approximate)
+    // entity "companies" starts at char 20
     let q = detect_quantifier_en(text, 20);
     assert_eq!(
         q,
-        Some(Quantifier::Approximate),
-        "at least should trigger Approximate"
+        Some(Quantifier::MinBound),
+        "at least should trigger MinBound"
     );
 }
 

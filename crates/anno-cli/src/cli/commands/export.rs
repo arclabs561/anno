@@ -445,16 +445,21 @@ fn export_conll(text: &str, entities: &[anno_core::Entity]) -> String {
         let word_end = word_start + word.len();
         char_idx = word_end;
 
-        // Split trailing punctuation into a separate O-tagged token
+        // Check if the whole word (including trailing punctuation) falls inside an entity span.
+        let entity_full = entities
+            .iter()
+            .find(|e| word_start < e.end && word_end > e.start);
+
+        // Only split trailing punctuation when it's NOT inside an entity span.
         let trimmed = word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']);
         let punct = &word[trimmed.len()..];
-        let trimmed_end = word_start + trimmed.len();
+        let inside_entity = entity_full
+            .map(|e| word_end <= e.end)
+            .unwrap_or(false);
 
-        if !trimmed.is_empty() {
-            let entity = entities
-                .iter()
-                .find(|e| word_start < e.end && trimmed_end > e.start);
-            let tag = match entity {
+        if inside_entity {
+            // Entire word (with punctuation) is inside entity -- keep together.
+            let tag = match entity_full {
                 Some(e) => {
                     if word_start <= e.start {
                         format!("B-{}", e.entity_type.as_label())
@@ -464,11 +469,29 @@ fn export_conll(text: &str, entities: &[anno_core::Entity]) -> String {
                 }
                 None => "O".to_string(),
             };
-            lines.push(format!("{}\t{}", trimmed, tag));
-        }
+            lines.push(format!("{}\t{}", word, tag));
+        } else {
+            let trimmed_end = word_start + trimmed.len();
+            if !trimmed.is_empty() {
+                let entity = entities
+                    .iter()
+                    .find(|e| word_start < e.end && trimmed_end > e.start);
+                let tag = match entity {
+                    Some(e) => {
+                        if word_start <= e.start {
+                            format!("B-{}", e.entity_type.as_label())
+                        } else {
+                            format!("I-{}", e.entity_type.as_label())
+                        }
+                    }
+                    None => "O".to_string(),
+                };
+                lines.push(format!("{}\t{}", trimmed, tag));
+            }
 
-        if !punct.is_empty() {
-            lines.push(format!("{}\tO", punct));
+            if !punct.is_empty() {
+                lines.push(format!("{}\tO", punct));
+            }
         }
     }
     lines.join("\n")
@@ -625,7 +648,7 @@ fn export_jsonld(
     base_uri: &str,
 ) -> String {
     let base = base_uri.trim_end_matches('/');
-    let entity_ns = format!("{}/entity/", base);
+    let entity_ns = format!("{}/entity", base);
     let anno_ns = format!("{}/vocab#", base);
     let doc_stem = uri_safe(&source.file_stem().unwrap_or_default().to_string_lossy());
 

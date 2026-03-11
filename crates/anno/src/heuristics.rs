@@ -187,6 +187,7 @@ pub mod lexicons {
         "neither",
         "nor",
         "without",
+        "negative",
         "isn't",
         "aren't",
         "wasn't",
@@ -215,16 +216,15 @@ pub mod lexicons {
         "roughly",
         "nearly",
         "around",
-        "at least",
-        "at most",
-        "no more than",
-        "no fewer than",
-        "up to",
         "over",
         "more than",
         "fewer than",
         "less than",
     ];
+    /// English cue phrases suggesting a lower bound ("at least N").
+    pub const EN_MIN_BOUND: &[&str] = &["at least", "no fewer than"];
+    /// English cue phrases suggesting an upper bound ("at most N").
+    pub const EN_MAX_BOUND: &[&str] = &["at most", "no more than", "up to"];
 
     /// German cue words for negation detection.
     pub const DE_NEGATION_WORDS: &[&str] = &["nicht", "kein", "keine", "keinen", "nie", "ohne"];
@@ -575,7 +575,17 @@ pub fn detect_approximate_quantifier(text: &str, entity_start: usize) -> Option<
         .take(entity_start.saturating_sub(window_start))
         .collect();
     let lower = prefix.to_lowercase();
-    if lexicons::EN_APPROXIMATE
+    if lexicons::EN_MIN_BOUND
+        .iter()
+        .any(|cue| lower.contains(cue))
+    {
+        Some(Quantifier::MinBound)
+    } else if lexicons::EN_MAX_BOUND
+        .iter()
+        .any(|cue| lower.contains(cue))
+    {
+        Some(Quantifier::MaxBound)
+    } else if lexicons::EN_APPROXIMATE
         .iter()
         .any(|cue| lower.contains(cue))
     {
