@@ -2,13 +2,13 @@
 name = "anno-lib"
 version = "0.3.8"
 edition = "2021"
-description = "Information extraction: NER, coreference resolution, entity linking, zero-shot entity types"
+description = "Information extraction: NER, coreference resolution, entity linking, relation extraction, zero-shot entity types"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
 homepage = "https://github.com/arclabs561/anno"
 documentation = "https://docs.rs/anno"
 readme = "../../README.md"
-keywords = ["ner", "nlp", "info-extraction", "coreference", "entity-linking"]
+keywords = ["ner", "nlp", "info-extraction", "coreference", "relation-extraction"]
 categories = ["text-processing"]
 publish = true
 include = [

@@ -2,7 +2,7 @@
 # https://github.com/repository-settings/app
 
 repository:
-  description: "Information extraction in Rust: NER, coreference resolution, entity linking, zero-shot entity types"
+  description: "Information extraction in Rust: NER, coreference resolution, entity linking, relation extraction, zero-shot entity types"
   homepage: "https://docs.rs/anno"
   private: false
   has_issues: true
@@ -17,9 +17,8 @@ repository:
   topics:
     - information-extraction
     - named-entity-recognition
-    - ner
     - coreference-resolution
     - entity-linking
+    - relation-extraction
     - zero-shot
     - nlp
-    - rust
