@@ -5370,6 +5370,9 @@ mod tests {
             Quantifier::None,
             Quantifier::Definite,
             Quantifier::Bare,
+            Quantifier::Approximate,
+            Quantifier::MinBound,
+            Quantifier::MaxBound,
         ];
 
         for q in quantifiers {
