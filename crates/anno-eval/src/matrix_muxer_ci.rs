@@ -111,7 +111,10 @@ use crate::muxer_harness as mh;
 #[cfg(test)]
 use crate::muxer_history::HistoryWindow;
 use crate::muxer_history::{BackendHistory, FailKindCount};
-use muxer::{Exp3IxConfig, Exp3IxState, MabConfig, Outcome, Summary};
+use muxer::{
+    CandidateDebug, Decision, DecisionNote, Exp3Ix, Exp3IxConfig, Exp3IxState, MabConfig,
+    MabSelectionDecision, Outcome, Summary,
+};
 #[cfg(test)]
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -119,6 +122,439 @@ use std::io::Write;
 use std::path::PathBuf;
 #[cfg(test)]
 use std::sync::{Mutex, OnceLock};
+
+// ---------------------------------------------------------------------------
+// Local compat types for logging (removed from muxer >= 0.3.12)
+// ---------------------------------------------------------------------------
+
+/// Local version constant for JSONL decision logs.
+const MUXER_VERSION: &str = "0.3.12-local";
+
+/// Score kind tag for MAB scalar scores in decision logs.
+const LOG_SCORE_KIND_MAB_SCALAR: &str = "mab_scalar";
+
+/// Serializable top-candidate row for decision logs.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct LogTopCandidate {
+    arm: String,
+    score: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    calls: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ok_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    junk_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    hard_junk_rate: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mean_quality_score: Option<f64>,
+}
+
+/// Serializable top-candidate list for decision logs.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct LogTopCandidates {
+    kind: String,
+    rows: Vec<LogTopCandidate>,
+}
+
+/// Per-round guardrail state for multi-pick MAB logging.
+#[derive(Debug, Clone)]
+struct MultiPickGuardrailRound {
+    eligible: Vec<String>,
+    stop_early: bool,
+    fallback_used: bool,
+}
+
+/// One round of a multi-pick MAB selection.
+#[derive(Debug, Clone)]
+struct MultiPickMabRound {
+    mab: MabSelectionDecision,
+    guardrail: MultiPickGuardrailRound,
+}
+
+/// Stop reason for multi-pick MAB.
+#[derive(Debug, Clone)]
+struct MultiPickMabStop {
+    guardrail: MultiPickGuardrailRound,
+}
+
+/// Result of a multi-pick MAB selection (local replacement for removed MabKExplain).
+#[derive(Debug, Clone)]
+struct MultiPickMabResult {
+    chosen: Vec<String>,
+    rounds: Vec<MultiPickMabRound>,
+    stop: Option<MultiPickMabStop>,
+}
+
+/// Serializable round log for multi-pick MAB decision logging.
+#[derive(Debug, Clone, serde::Serialize)]
+struct MabKRoundLog {
+    round: usize,
+    remaining: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    explore_first: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    constraints_fallback_used: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    constraints_eligible_arms: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    top_candidates: Option<LogTopCandidates>,
+}
+
+/// Per-round guardrail state for multi-pick Exp3Ix logging.
+#[derive(Debug, Clone)]
+struct Exp3IxGuardrailRound {
+    eligible: Vec<String>,
+    #[allow(dead_code)]
+    stop_early: bool,
+}
+
+/// One round of a multi-pick Exp3Ix selection.
+#[derive(Debug, Clone)]
+struct Exp3IxRoundDetail {
+    decision: Decision,
+    prob_used: f64,
+    guardrail: Exp3IxGuardrailRound,
+}
+
+/// Result of a multi-pick Exp3Ix selection (local replacement for removed Exp3IxKExplain).
+#[derive(Debug, Clone)]
+struct Exp3IxKExplain {
+    chosen: Vec<String>,
+    state: Exp3IxState,
+    rounds: Vec<Exp3IxRoundDetail>,
+}
+
+/// Serializable round log for Exp3Ix decision logging.
+#[derive(Debug, Clone, serde::Serialize)]
+struct Exp3IxKRoundLog {
+    round: usize,
+    remaining: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chosen: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    explore_first: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    top_candidates: Option<LogTopCandidates>,
+}
+
+/// Multi-pick MAB selection: call `select_mab_explain` (or monitored variant) in a loop,
+/// removing chosen arms between rounds.
+fn select_mab_k_explain(
+    arms: &[String],
+    summaries_for: impl Fn(&[String]) -> std::collections::BTreeMap<String, Summary>,
+    cfg: MabConfig,
+    _guardrail_cfg: mh::LatencyGuardrailConfig,
+    k: usize,
+) -> MultiPickMabResult {
+    let mut remaining = arms.to_vec();
+    let mut chosen = Vec::new();
+    let mut rounds = Vec::new();
+
+    for _ in 0..k {
+        if remaining.is_empty() {
+            break;
+        }
+        let sums = summaries_for(&remaining);
+        let d = muxer::select_mab_explain(&remaining, &sums, cfg);
+        let pick = d.selection.chosen.clone();
+        rounds.push(MultiPickMabRound {
+            mab: d,
+            guardrail: MultiPickGuardrailRound {
+                eligible: remaining.clone(),
+                stop_early: false,
+                fallback_used: false,
+            },
+        });
+        chosen.push(pick.clone());
+        remaining.retain(|b| b != &pick);
+    }
+    MultiPickMabResult {
+        chosen,
+        rounds,
+        stop: None,
+    }
+}
+
+/// Multi-pick monitored MAB selection.
+fn select_mab_k_monitored_explain(
+    arms: &[String],
+    summaries_for: impl Fn(&[String]) -> std::collections::BTreeMap<String, Summary>,
+    monitored_for: impl Fn(&[String]) -> std::collections::BTreeMap<String, muxer::MonitoredWindow>,
+    drift_cfg: muxer::DriftConfig,
+    cfg: MabConfig,
+    _guardrail_cfg: mh::LatencyGuardrailConfig,
+    k: usize,
+) -> MultiPickMabResult {
+    let mut remaining = arms.to_vec();
+    let mut chosen = Vec::new();
+    let mut rounds = Vec::new();
+
+    for _ in 0..k {
+        if remaining.is_empty() {
+            break;
+        }
+        let sums = summaries_for(&remaining);
+        let mon = monitored_for(&remaining);
+        let d = muxer::select_mab_monitored_explain_with_summaries(
+            &remaining, &sums, &mon, drift_cfg, cfg,
+        );
+        let pick = d.selection.chosen.clone();
+        rounds.push(MultiPickMabRound {
+            mab: d,
+            guardrail: MultiPickGuardrailRound {
+                eligible: remaining.clone(),
+                stop_early: false,
+                fallback_used: false,
+            },
+        });
+        chosen.push(pick.clone());
+        remaining.retain(|b| b != &pick);
+    }
+    MultiPickMabResult {
+        chosen,
+        rounds,
+        stop: None,
+    }
+}
+
+/// Multi-pick Exp3Ix selection with guardrail filtering.
+fn exp3ix_decide_k_guardrailed(
+    cfg: Exp3IxConfig,
+    state: Option<Exp3IxState>,
+    eligible: &[String],
+    summaries: &std::collections::BTreeMap<String, Summary>,
+    guardrail_cfg: mh::LatencyGuardrailConfig,
+    k: usize,
+    decision_seed: u64,
+) -> Exp3IxKExplain {
+    let mut ex = Exp3Ix::new(cfg);
+    if let Some(st) = state {
+        ex.restore(st);
+    }
+
+    // Apply latency guardrail to get eligible set.
+    let filtered: Vec<String> = if let Some(max_ms) = guardrail_cfg.max_mean_ms {
+        eligible
+            .iter()
+            .filter(|b| {
+                if let Some(s) = summaries.get(b.as_str()) {
+                    if guardrail_cfg.require_measured && s.calls == 0 {
+                        return false;
+                    }
+                    s.calls == 0 || s.mean_elapsed_ms() <= max_ms
+                } else {
+                    !guardrail_cfg.require_measured
+                }
+            })
+            .cloned()
+            .collect()
+    } else {
+        eligible.to_vec()
+    };
+    let final_eligible = if filtered.is_empty() && guardrail_cfg.allow_fewer {
+        eligible.to_vec()
+    } else if filtered.is_empty() {
+        eligible.to_vec()
+    } else {
+        filtered
+    };
+
+    let all_arms: Vec<String> = {
+        let mut s: BTreeSet<String> = eligible.iter().cloned().collect();
+        for k in summaries.keys() {
+            s.insert(k.clone());
+        }
+        s.into_iter().collect()
+    };
+
+    let mut remaining = final_eligible.clone();
+    let mut chosen = Vec::new();
+    let mut rounds = Vec::new();
+
+    for round_idx in 0..k {
+        if remaining.is_empty() {
+            break;
+        }
+        let round_seed = decision_seed ^ (round_idx as u64 + 1);
+        let d = ex
+            .decide_deterministic_filtered(&all_arms, &remaining, round_seed)
+            .unwrap_or_else(|| Decision {
+                policy: muxer::DecisionPolicy::Exp3Ix,
+                chosen: remaining[0].clone(),
+                probs: None,
+                notes: vec![],
+            });
+        let pick = d.chosen.clone();
+        let prob = d
+            .probs
+            .as_ref()
+            .and_then(|m| m.get(&pick).copied())
+            .unwrap_or(0.0);
+        rounds.push(Exp3IxRoundDetail {
+            decision: d,
+            prob_used: prob,
+            guardrail: Exp3IxGuardrailRound {
+                eligible: remaining.clone(),
+                stop_early: false,
+            },
+        });
+        chosen.push(pick.clone());
+        remaining.retain(|b| b != &pick);
+    }
+
+    Exp3IxKExplain {
+        chosen,
+        state: ex.snapshot(),
+        rounds,
+    }
+}
+
+/// Build typed round logs for multi-pick MAB (local replacement for removed log_mab_k_rounds_typed).
+fn log_mab_k_rounds_typed(mk: &MultiPickMabResult, top_n: usize) -> Vec<MabKRoundLog> {
+    let mut logs = Vec::new();
+    for (i, r) in mk.rounds.iter().enumerate() {
+        let d = &r.mab;
+        let mut rows: Vec<LogTopCandidate> = d
+            .selection
+            .candidates
+            .iter()
+            .map(|c| {
+                let score = c.objective_success;
+                LogTopCandidate {
+                    arm: c.name.clone(),
+                    score,
+                    calls: Some(c.calls),
+                    ok_rate: Some(c.ok_rate),
+                    junk_rate: Some(c.junk_rate),
+                    hard_junk_rate: Some(c.hard_junk_rate),
+                    mean_quality_score: c.mean_quality_score,
+                }
+            })
+            .collect();
+        rows.sort_by(|a, b| b.score.total_cmp(&a.score));
+        rows.truncate(top_n.max(1));
+        logs.push(MabKRoundLog {
+            round: i + 1,
+            remaining: r.guardrail.eligible.clone(),
+            chosen: Some(d.selection.chosen.clone()),
+            explore_first: Some(d.explore_first),
+            constraints_fallback_used: Some(d.constraints_fallback_used),
+            constraints_eligible_arms: Some(d.eligible_arms.clone()),
+            top_candidates: Some(LogTopCandidates {
+                kind: LOG_SCORE_KIND_MAB_SCALAR.to_string(),
+                rows,
+            }),
+        });
+    }
+    // Add stop row if present.
+    if let Some(ref _s) = mk.stop {
+        logs.push(MabKRoundLog {
+            round: logs.len() + 1,
+            remaining: Vec::new(),
+            chosen: None,
+            explore_first: None,
+            constraints_fallback_used: None,
+            constraints_eligible_arms: None,
+            top_candidates: None,
+        });
+    }
+    logs
+}
+
+/// Build typed round logs for multi-pick Exp3Ix.
+fn log_exp3ix_k_rounds_typed(ex: &Exp3IxKExplain, top_n: usize) -> Vec<Exp3IxKRoundLog> {
+    let mut logs = Vec::new();
+    for (i, r) in ex.rounds.iter().enumerate() {
+        let probs = r.decision.probs.as_ref();
+        let mut rows: Vec<LogTopCandidate> = r
+            .guardrail
+            .eligible
+            .iter()
+            .map(|arm| {
+                let score = probs
+                    .and_then(|m| m.get(arm).copied())
+                    .unwrap_or(0.0);
+                LogTopCandidate {
+                    arm: arm.clone(),
+                    score,
+                    calls: None,
+                    ok_rate: None,
+                    junk_rate: None,
+                    hard_junk_rate: None,
+                    mean_quality_score: None,
+                }
+            })
+            .collect();
+        rows.sort_by(|a, b| b.score.total_cmp(&a.score));
+        rows.truncate(top_n.max(1));
+        let explore_first = r
+            .decision
+            .notes
+            .iter()
+            .any(|n| matches!(n, DecisionNote::ExploreFirst));
+        logs.push(Exp3IxKRoundLog {
+            round: i + 1,
+            remaining: r.guardrail.eligible.clone(),
+            chosen: Some(r.decision.chosen.clone()),
+            explore_first: Some(explore_first),
+            top_candidates: Some(LogTopCandidates {
+                kind: "exp3ix_prob".to_string(),
+                rows,
+            }),
+        });
+    }
+    logs
+}
+
+/// Compat shim for exp3ix_decide_persisted (removed from muxer >= 0.3.12).
+/// Returns (Decision, Exp3IxState) like the old function.
+#[cfg(test)]
+fn exp3ix_decide_persisted(
+    cfg: Exp3IxConfig,
+    state: Option<Exp3IxState>,
+    arms: &[String],
+    eligible: &[String],
+    decision_seed: u64,
+) -> Option<(Decision, Exp3IxState)> {
+    let mut ex = Exp3Ix::new(cfg);
+    if let Some(st) = state {
+        ex.restore(st);
+    }
+    let d = ex.decide_deterministic_filtered(arms, eligible, decision_seed)?;
+    Some((d, ex.snapshot()))
+}
+
+/// Compat shim for exp3ix_update_persisted (removed from muxer >= 0.3.12).
+#[cfg(test)]
+fn exp3ix_update_persisted(
+    cfg: Exp3IxConfig,
+    state: Exp3IxState,
+    arm: &str,
+    reward: f64,
+    prob_used: f64,
+) -> Exp3IxState {
+    let mut ex = Exp3Ix::new(cfg);
+    ex.restore(state);
+    ex.update_reward_with_prob(arm, reward, prob_used);
+    ex.snapshot()
+}
+
+/// Compat shim for exp3ix_update_persisted used in non-test code.
+fn exp3ix_update_persisted_prod(
+    cfg: Exp3IxConfig,
+    state: Exp3IxState,
+    arm: &str,
+    reward: f64,
+    prob_used: f64,
+) -> Exp3IxState {
+    let mut ex = Exp3Ix::new(cfg);
+    ex.restore(state);
+    ex.update_reward_with_prob(arm, reward, prob_used);
+    ex.snapshot()
+}
 
 #[derive(Debug, Clone, Copy)]
 enum SampleStrategy {
@@ -331,7 +767,7 @@ fn test_exp3ix_can_outperform_mab_when_summaries_equal_but_reward_differs() {
     let mut total_exp3 = 0.0;
 
     for t in 0..200u64 {
-        let (d, st2) = muxer::exp3ix_decide_persisted(
+        let (d, st2) = exp3ix_decide_persisted(
             cfg,
             st.take(),
             &arms,
@@ -347,7 +783,7 @@ fn test_exp3ix_can_outperform_mab_when_summaries_equal_but_reward_differs() {
             .as_ref()
             .and_then(|m| m.get(&chosen).copied())
             .unwrap_or(0.0);
-        st = Some(muxer::exp3ix_update_persisted(cfg, st2, &chosen, r, p));
+        st = Some(exp3ix_update_persisted(cfg, st2, &chosen, r, p));
 
         let r_mab = if mab_choice == "a" { r_a } else { r_b };
         total_mab += r_mab;
@@ -463,15 +899,13 @@ fn monitoring_penalty(
     drift_metric: muxer::DriftMetric,
 ) -> f64 {
     // Normalize scores into [0,1] (best-effort), then take a weighted sum.
-    let drift_norm = drift.unwrap_or(0.0).max(0.0).min(match drift_metric {
+    let drift_max = match drift_metric {
         muxer::DriftMetric::Hellinger => 1.0,
         muxer::DriftMetric::Rao => core::f64::consts::PI,
         muxer::DriftMetric::JensenShannon => core::f64::consts::LN_2,
-    }) / match drift_metric {
-        muxer::DriftMetric::Hellinger => 1.0,
-        muxer::DriftMetric::Rao => core::f64::consts::PI,
-        muxer::DriftMetric::JensenShannon => core::f64::consts::LN_2,
+        _ => 1.0,
     };
+    let drift_norm = drift.unwrap_or(0.0).max(0.0).min(drift_max) / drift_max;
     let catkl_norm = {
         let x = catkl.unwrap_or(0.0).max(0.0);
         x / (1.0 + x)
@@ -493,7 +927,7 @@ struct WorstFirstRoundLog {
     exploration_c: f64,
     hard_weight: f64,
     soft_weight: f64,
-    top_candidates: muxer::LogTopCandidates,
+    top_candidates: LogTopCandidates,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -517,16 +951,16 @@ struct DecisionLog {
     explore_first: Option<bool>,
     constraints_fallback_used: Option<bool>,
     eligible_arms: Option<Vec<String>>,
-    top_candidates: Option<muxer::LogTopCandidates>,
+    top_candidates: Option<LogTopCandidates>,
     /// If present, these arms were selected as deterministic-random "control" picks (bias anchor).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     control_arms: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chosen_fail_kinds_top: Option<Vec<FailKindCount>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    mab_k_round: Option<muxer::MabKRoundLog>,
+    mab_k_round: Option<MabKRoundLog>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    exp3ix_rounds: Option<Vec<muxer::Exp3IxKRoundLog>>,
+    exp3ix_rounds: Option<Vec<Exp3IxKRoundLog>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     worst_first_round: Option<WorstFirstRoundLog>,
 
@@ -634,7 +1068,7 @@ struct DecisionOutcomeLog {
 fn test_decision_log_schema_smoke() {
     let log = DecisionLog {
         schema_version: 6,
-        muxer_version: muxer::MUXER_VERSION.to_string(),
+        muxer_version: MUXER_VERSION.to_string(),
         run_id: "seed=0 slice=ner strategy=MlOnly".to_string(),
         strategy: "ml-only".to_string(),
         ml_only_policy: None,
@@ -650,8 +1084,8 @@ fn test_decision_log_schema_smoke() {
         explore_first: Some(false),
         constraints_fallback_used: None,
         eligible_arms: None,
-        top_candidates: Some(muxer::LogTopCandidates {
-            kind: muxer::LOG_SCORE_KIND_MAB_SCALAR.to_string(),
+        top_candidates: Some(LogTopCandidates {
+            kind: LOG_SCORE_KIND_MAB_SCALAR.to_string(),
             rows: Vec::new(),
         }),
         control_arms: None,
@@ -675,10 +1109,10 @@ fn test_decision_log_schema_smoke() {
     let v: serde_json::Value = serde_json::from_str(&s).expect("parse DecisionLog JSON");
 
     assert_eq!(v["schema_version"].as_u64(), Some(6));
-    assert_eq!(v["muxer_version"].as_str(), Some(muxer::MUXER_VERSION));
+    assert_eq!(v["muxer_version"].as_str(), Some(MUXER_VERSION));
     assert_eq!(
         v["top_candidates"]["kind"].as_str(),
-        Some(muxer::LOG_SCORE_KIND_MAB_SCALAR)
+        Some(LOG_SCORE_KIND_MAB_SCALAR)
     );
     assert!(v["top_candidates"]["rows"].is_array());
     assert!(v["chosen_fail_kinds_top"].is_array());
@@ -1090,8 +1524,15 @@ fn select_backends(
                     let summaries_for = |remaining: &[String]| {
                         history.summaries_for(prior, remaining, datasets, per_dataset, prior_calls)
                     };
+                    let guardrail_cfg = mh::LatencyGuardrailConfig {
+                        // Latency guardrail is applied on observed summaries above, so priors can't
+                        // mask "require measured" or skew mean latency.
+                        max_mean_ms: None,
+                        require_measured: false,
+                        allow_fewer: guard.allow_fewer,
+                    };
                     let mk = if monitoring_enabled {
-                        muxer::select_mab_k_guardrailed_monitored_explain_full(
+                        select_mab_k_monitored_explain(
                             eligible,
                             summaries_for,
                             |remaining| {
@@ -1099,27 +1540,15 @@ fn select_backends(
                             },
                             drift_cfg,
                             cfg,
-                            muxer::LatencyGuardrailConfig {
-                                // Latency guardrail is applied on observed summaries above, so priors can't
-                                // mask "require measured" or skew mean latency.
-                                max_mean_ms: None,
-                                require_measured: false,
-                                allow_fewer: guard.allow_fewer,
-                            },
+                            guardrail_cfg,
                             remaining_k,
                         )
                     } else {
-                        muxer::select_mab_k_guardrailed_explain_full(
+                        select_mab_k_explain(
                             eligible,
                             summaries_for,
                             cfg,
-                            muxer::LatencyGuardrailConfig {
-                                // Latency guardrail is applied on observed summaries above, so priors can't
-                                // mask "require measured" or skew mean latency.
-                                max_mean_ms: None,
-                                require_measured: false,
-                                allow_fewer: guard.allow_fewer,
-                            },
+                            guardrail_cfg,
                             remaining_k,
                         )
                     };
@@ -1176,7 +1605,7 @@ fn select_backends(
                         }
                         // Keep selection debugging bounded: show only a few candidate rows by scalar score.
                         // Keep selection debugging bounded: show only a few candidate rows by scalar score.
-                        let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
+                        let mut rows: Vec<(f64, &CandidateDebug)> = Vec::new();
                         for c in &d.selection.candidates {
                             let drift = c.drift_score.unwrap_or(0.0);
                             let catkl = c.catkl_score.unwrap_or(0.0);
@@ -1230,7 +1659,7 @@ fn select_backends(
             }
 
             if let (Some(p), Some(mk)) = (decisions_path.as_ref(), mk_opt.as_ref()) {
-                let round_logs = muxer::log_mab_k_rounds_typed(mk, decisions_top);
+                let round_logs = log_mab_k_rounds_typed(mk, decisions_top);
                 let ds: Vec<String> = datasets
                     .unwrap_or(&[])
                     .iter()
@@ -1306,7 +1735,7 @@ fn select_backends(
                         p,
                         &DecisionLog {
                             schema_version: 6,
-                            muxer_version: muxer::MUXER_VERSION.to_string(),
+                            muxer_version: MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "ml-only".to_string(),
                             ml_only_policy: Some(MlOnlyPolicy::Mab.id_str().to_string()),
@@ -1361,7 +1790,7 @@ fn select_backends(
                     p,
                     &DecisionLog {
                         schema_version: 6,
-                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        muxer_version: MUXER_VERSION.to_string(),
                         run_id: run_id.clone(),
                         strategy: "ml-only".to_string(),
                         ml_only_policy: Some(MlOnlyPolicy::Mab.id_str().to_string()),
@@ -1480,12 +1909,12 @@ fn select_backends(
                     }
                 }
                 if let Some(ref p) = decisions_path {
-                    let top_candidates: muxer::LogTopCandidates = muxer::LogTopCandidates {
+                    let top_candidates: LogTopCandidates = LogTopCandidates {
                         kind: "worst_first".to_string(),
                         rows: rows
                             .iter()
                             .take(decisions_top.max(1))
-                            .map(|(score, arm, s)| muxer::LogTopCandidate {
+                            .map(|(score, arm, s)| LogTopCandidate {
                                 arm: arm.clone(),
                                 score: *score,
                                 calls: Some(s.calls),
@@ -1530,7 +1959,7 @@ fn select_backends(
                         p,
                         &DecisionLog {
                             schema_version: 6,
-                            muxer_version: muxer::MUXER_VERSION.to_string(),
+                            muxer_version: MUXER_VERSION.to_string(),
                             run_id: run_id.clone(),
                             strategy: "worst-first".to_string(),
                             ml_only_policy: None,
@@ -1563,12 +1992,12 @@ fn select_backends(
                                 exploration_c: wcfg.exploration_c,
                                 hard_weight: wcfg.hard_weight,
                                 soft_weight: wcfg.soft_weight,
-                                top_candidates: muxer::LogTopCandidates {
+                                top_candidates: LogTopCandidates {
                                     kind: "worst_first".to_string(),
                                     rows: rows
                                         .iter()
                                         .take(decisions_top.max(1))
-                                        .map(|(score, arm, s)| muxer::LogTopCandidate {
+                                        .map(|(score, arm, s)| LogTopCandidate {
                                             arm: arm.clone(),
                                             score: *score,
                                             calls: Some(s.calls),
@@ -2824,7 +3253,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     t,
                     &DecisionLog {
                         schema_version: 6,
-                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        muxer_version: MUXER_VERSION.to_string(),
                         run_id,
                         strategy: "fixed".to_string(),
                         ml_only_policy: None,
@@ -2884,7 +3313,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         candidates_for_policy.retain(|b| !control.contains(b));
 
         let decision_seed = mh::stable_hash64(seed, &format!("anno-exp3ix:{slice_tag_for_muxer}"));
-        let mut exp3ix_explain: Option<muxer::Exp3IxKExplain> = None;
+        let mut exp3ix_explain: Option<Exp3IxKExplain> = None;
         let mut exp3ix_monitoring: Option<(bool, bool, Vec<String>)> = None;
         let fill = mh::policy_fill_k_observed_with(
             seed ^ 0xE8D3_1A00,
@@ -3001,12 +3430,12 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     );
                 }
 
-                let ex = muxer::exp3ix_decide_k_persisted_guardrailed_explain_full(
+                let ex = exp3ix_decide_k_guardrailed(
                     exp3ix_config_from_env(seed),
                     history.exp3ix_state.clone(),
                     &eligible_after_monitor,
                     &summaries,
-                    muxer::LatencyGuardrailConfig {
+                    mh::LatencyGuardrailConfig {
                         // Guardrail is applied above on observed stats.
                         max_mean_ms: None,
                         require_measured: false,
@@ -3047,7 +3476,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 r.decision
                     .notes
                     .iter()
-                    .any(|n| matches!(n, muxer::DecisionNote::ExploreFirst))
+                    .any(|n| matches!(n, DecisionNote::ExploreFirst))
             })
             .unwrap_or(false);
 
@@ -3075,7 +3504,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             );
             let ds: Vec<String> = chosen_datasets.iter().map(|d| format!("{d:?}")).collect();
             if let Some(ex) = exp3ix_explain.as_ref() {
-                let exp3ix_rounds = muxer::log_exp3ix_k_rounds_typed(ex, decisions_top);
+                let exp3ix_rounds = log_exp3ix_k_rounds_typed(ex, decisions_top);
                 let eligible_arms = ex
                     .rounds
                     .first()
@@ -3111,7 +3540,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     p,
                     &DecisionLog {
                         schema_version: 6,
-                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        muxer_version: MUXER_VERSION.to_string(),
                         run_id,
                         strategy: "ml-only".to_string(),
                         ml_only_policy: Some(MlOnlyPolicy::Exp3Ix.id_str().to_string()),
@@ -3167,7 +3596,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     p,
                     &DecisionLog {
                         schema_version: 6,
-                        muxer_version: muxer::MUXER_VERSION.to_string(),
+                        muxer_version: MUXER_VERSION.to_string(),
                         run_id,
                         strategy: "ml-only".to_string(),
                         ml_only_policy: Some(MlOnlyPolicy::Exp3Ix.id_str().to_string()),
@@ -3584,7 +4013,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 &DecisionOutcomeLog {
                     schema_version: 3,
                     record_type: "outcome".to_string(),
-                    muxer_version: muxer::MUXER_VERSION.to_string(),
+                    muxer_version: MUXER_VERSION.to_string(),
                     run_id,
                     strategy: strategy_for_log,
                     ml_only_policy: ml_only_policy_for_log,
@@ -3684,7 +4113,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                             cusum
                         );
                     }
-                    st = muxer::exp3ix_update_persisted(
+                    st = exp3ix_update_persisted_prod(
                         exp3ix_config_from_env(seed),
                         st,
                         chosen,

@@ -33,29 +33,87 @@ pub use muxer::{
     guardrail_filter_observed_elapsed,
     novelty_pick_unseen,
     pick_control_arms,
-    pick_random_subset,
     policy_fill_generic,
-    policy_fill_k_observed_with,
+    policy_fill_k_observed_with_coverage,
     policy_plan_generic,
-    policy_plan_observed,
     select_k_without_replacement_by,
-    select_k_without_replacement_by_with_meta,
     split_control_budget,
     stable_hash64,
     suggested_window_cap,
-    suggested_window_cap_for_k,
     worst_first_pick_k,
     worst_first_pick_one,
     // 0.3.7: quality signal
     BanditPolicy,
     // 0.3.x: control-arm helpers + window sizing
     ControlConfig,
-    LatencyGuardrail,
+    CoverageConfig,
+    LatencyGuardrailConfig,
     PipelineOrder,
     PolicyFill,
     PolicyPlan,
     WorstFirstConfig,
 };
+
+/// Compat shim: delegates to `policy_fill_k_observed_with_coverage` with default coverage.
+pub fn policy_fill_k_observed_with<F, P>(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    novelty_enabled: bool,
+    guard: LatencyGuardrailConfig,
+    observed: F,
+    pick_rest: P,
+) -> PolicyFill
+where
+    F: FnMut(&str) -> (u64, u64),
+    P: FnMut(&[String], usize) -> Vec<String>,
+{
+    policy_fill_k_observed_with_coverage(
+        seed,
+        arms,
+        k,
+        novelty_enabled,
+        CoverageConfig::default(),
+        guard,
+        observed,
+        pick_rest,
+    )
+}
+
+/// Compat shim: delegates to `policy_plan_generic` with default coverage and NoveltyFirst order.
+pub fn policy_plan_observed(
+    seed: u64,
+    arms: &[String],
+    k: usize,
+    novelty_enabled: bool,
+    guard: LatencyGuardrailConfig,
+    observed: impl FnMut(&str) -> (u64, u64),
+) -> PolicyPlan {
+    policy_plan_generic(
+        seed,
+        arms,
+        k,
+        novelty_enabled,
+        CoverageConfig::default(),
+        guard,
+        PipelineOrder::NoveltyFirst,
+        observed,
+    )
+}
+
+/// Compat shim: deterministic random subset selection (was public in muxer < 0.3.12).
+pub fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
+    use muxer::stable_hash64;
+    if k >= items.len() {
+        return items.to_vec();
+    }
+    let mut scored: Vec<(u64, &String)> = items
+        .iter()
+        .map(|s| (stable_hash64(seed, s), s))
+        .collect();
+    scored.sort_by_key(|(h, _)| *h);
+    scored.into_iter().take(k).map(|(_, s)| s.clone()).collect()
+}
 
 use std::fmt;
 
@@ -142,7 +200,7 @@ mod prior_tests {
 
     #[test]
     fn test_guardrail_filter_observed_elapsed_require_measured() {
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(10.0),
             allow_fewer: true,
             require_measured: true,
@@ -165,7 +223,7 @@ mod prior_tests {
 
     #[test]
     fn test_policy_plan_observed_stop_early_keeps_prechosen() {
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(1.0),
             allow_fewer: true,
             require_measured: true,
@@ -181,7 +239,7 @@ mod prior_tests {
 
     #[test]
     fn test_policy_fill_falls_back_if_stop_early_would_pick_nothing() {
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(1.0),
             allow_fewer: true,
             require_measured: true,
@@ -205,7 +263,7 @@ mod prior_tests {
     fn test_policy_fill_novelty_then_stop_early_does_not_fallback() {
         // Difficult seam: novelty can create a non-empty chosen set, after which the observed
         // guardrail can stop-early. In that case we must *not* fall back and pick more.
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(10.0),
             allow_fewer: true,
             require_measured: true,
@@ -238,7 +296,7 @@ mod prior_tests {
     fn test_policy_fill_partial_novelty_invokes_algorithm_on_remaining_k() {
         // Difficult seam: novelty might pick < k; ensure the algorithm is invoked with eligible
         // excluding prechosen and with remaining_k only.
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(100.0),
             allow_fewer: false,
             require_measured: false,
@@ -275,7 +333,7 @@ mod prior_tests {
     fn test_policy_fill_fallback_used_when_guardrail_filters_all_and_no_picks_yet() {
         // When require_measured is set, we should stop early rather than falling back to
         // unmeasured arms.
-        let guard = LatencyGuardrail {
+        let guard = LatencyGuardrailConfig {
             max_mean_ms: Some(1.0),
             allow_fewer: true,
             require_measured: true,
@@ -318,7 +376,7 @@ mod prior_tests {
             x = lcg(x);
 
             // Guardrail: sometimes active, sometimes off.
-            let guard = LatencyGuardrail {
+            let guard = LatencyGuardrailConfig {
                 max_mean_ms: if (x & 1) == 1 { Some(10.0) } else { None },
                 allow_fewer: true,
                 require_measured: (x & 2) == 2,
@@ -544,31 +602,8 @@ mod prior_tests {
         assert_eq!(out, vec!["b".to_string()]);
     }
 
-    #[test]
-    fn test_select_k_without_replacement_by_with_meta_preserves_meta_and_ignores_unknown() {
-        let items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
-        let out = select_k_without_replacement_by_with_meta(0, &items, 3, |_seed, _rem, _k| {
-            vec![
-                ("b".to_string(), 11u32),
-                ("x".to_string(), 99u32), // unknown -> ignored
-                ("a".to_string(), 22u32),
-                ("b".to_string(), 33u32), // duplicate -> ignored
-            ]
-        });
-        assert_eq!(
-            out,
-            vec![("b".to_string(), 11u32), ("a".to_string(), 22u32)]
-        );
-    }
-
-    #[test]
-    fn test_select_k_without_replacement_by_with_meta_breaks_on_no_progress() {
-        let items = vec!["a".to_string(), "b".to_string()];
-        let out = select_k_without_replacement_by_with_meta(0, &items, 2, |_seed, _rem, _k| {
-            vec![("x".to_string(), 0u8)]
-        });
-        assert!(out.is_empty());
-    }
+    // Tests for select_k_without_replacement_by_with_meta removed: function is no longer
+    // public in muxer >= 0.3.12.
 }
 
 /// Parse a boolean environment variable with a default.
@@ -710,7 +745,7 @@ fn env_simplex4_opt(name: &str) -> Option<[f64; 4]> {
 }
 
 /// Resolve the effective latency guardrail settings from env/profile presets.
-pub fn latency_guardrail_from_env() -> LatencyGuardrail {
+pub fn latency_guardrail_from_env() -> LatencyGuardrailConfig {
     let profile = std::env::var("ANNO_MUXER_PROFILE")
         .ok()
         .unwrap_or_else(|| "off".to_string())
@@ -732,7 +767,7 @@ pub fn latency_guardrail_from_env() -> LatencyGuardrail {
         profile_require_measured,
     );
 
-    LatencyGuardrail {
+    LatencyGuardrailConfig {
         max_mean_ms,
         allow_fewer,
         require_measured,
