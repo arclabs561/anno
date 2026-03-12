@@ -443,18 +443,16 @@ pub fn cluster_embeddings(
     let dim = index.embeddings[0].dim();
 
     // Use `clump` as the single k-means implementation (k-means++ init + Lloyd).
-    let points: Vec<&[f32]> = index
+    let points: Vec<Vec<f32>> = index
         .embeddings
         .iter()
-        .map(|e| e.embedding.as_slice())
+        .map(|e| e.embedding.to_vec())
         .collect();
-    let cfg = clump::KMeansConfig {
-        k,
-        max_iters: max_iterations.max(1),
-        tol: 1e-4,
-        seed: 42,
-    };
-    let res = match clump::kmeans(&points, &cfg) {
+    let kmeans = clump::Kmeans::new(k)
+        .with_max_iter(max_iterations.max(1))
+        .with_tol(1e-4)
+        .with_seed(42);
+    let res = match kmeans.fit(&points) {
         Ok(r) => r,
         Err(_) => {
             // Conservative fallback: one cluster containing everything.
@@ -474,7 +472,7 @@ pub fn cluster_embeddings(
         }
     };
     let centroids = res.centroids;
-    let assignments = res.assignments;
+    let assignments = res.labels;
 
     // Build cluster objects
     let mut clusters: Vec<EntityCluster> = (0..k)

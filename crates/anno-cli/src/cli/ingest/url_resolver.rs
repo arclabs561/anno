@@ -83,7 +83,13 @@ impl UrlResolver for HttpResolver {
             metadata.insert("content-type".to_string(), "text/html".to_string());
             // Readability extraction with strip_to_text fallback
             let result = deformat::extract_readable(&content, Some(url));
-            metadata.extend(result.metadata);
+            metadata.insert("extractor".to_string(), result.extractor.clone());
+            if let Some(title) = &result.title {
+                metadata.insert("title".to_string(), title.clone());
+            }
+            if result.fallback {
+                metadata.insert("fallback".to_string(), "true".to_string());
+            }
             result.text
         } else {
             metadata.insert("content-type".to_string(), "text/plain".to_string());
