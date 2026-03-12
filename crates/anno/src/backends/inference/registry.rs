@@ -276,8 +276,11 @@ impl SemanticRegistryBuilder {
         self
     }
 
-    /// Build the registry (placeholder - real impl needs encoder).
-    pub fn build_placeholder(self, hidden_dim: usize) -> SemanticRegistry {
+    /// Build the registry with zero-initialized embeddings.
+    ///
+    /// Useful for tests and for pipelines that populate embeddings lazily.
+    /// For production use with a real encoder, prefer `build_with_encoder`.
+    pub fn build_zero(self, hidden_dim: usize) -> SemanticRegistry {
         let num_labels = self.labels.len();
         let label_index: HashMap<String, usize> = self
             .labels
@@ -376,7 +379,7 @@ mod tests {
             .add_entity("person", "a human")
             .add_relation("CEO_OF", "chief executive of")
             .add_entity("org", "an organization")
-            .build_placeholder(4);
+            .build_zero(4);
 
         let entities: Vec<_> = reg.entity_labels().collect();
         let relations: Vec<_> = reg.relation_labels().collect();
@@ -392,7 +395,7 @@ mod tests {
 
     #[test]
     fn builder_empty_produces_empty_registry() {
-        let reg = SemanticRegistryBuilder::new().build_placeholder(8);
+        let reg = SemanticRegistryBuilder::new().build_zero(8);
         assert!(reg.is_empty());
         assert_eq!(reg.len(), 0);
         assert_eq!(reg.embeddings.len(), 0);
@@ -409,7 +412,7 @@ mod tests {
         };
         let reg = SemanticRegistry::builder()
             .add_label(label)
-            .build_placeholder(2);
+            .build_zero(2);
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.labels[0].modality, ModalityHint::Any);
         assert!((reg.labels[0].threshold - 0.3).abs() < f32::EPSILON);
@@ -420,7 +423,7 @@ mod tests {
         let reg = SemanticRegistry::builder()
             .add_entity("a", "desc a")
             .add_entity("b", "desc b")
-            .build_placeholder(4);
+            .build_zero(4);
         assert!(reg.embeddings.iter().all(|&v| v == 0.0));
     }
 
@@ -430,7 +433,7 @@ mod tests {
             .add_entity("alpha", "first")
             .add_relation("BETA", "second")
             .add_entity("gamma", "third")
-            .build_placeholder(2);
+            .build_zero(2);
 
         let slugs: Vec<&str> = reg.labels.iter().map(|l| l.slug.as_str()).collect();
         assert_eq!(slugs, vec!["alpha", "BETA", "gamma"]);

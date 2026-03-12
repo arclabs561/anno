@@ -276,9 +276,9 @@ impl BiLstmCrfNER {
 
     /// Get emission scores for each token.
     ///
-    /// In a full implementation, this would run the BiLSTM.
-    /// Here we use realistic heuristic features as a fallback,
-    /// combining gazetteers, word shape, and contextual patterns.
+    /// Emission scores are computed from heuristic features (gazetteers, word
+    /// shape, capitalization) rather than a learned BiLSTM encoder. The CRF
+    /// layer above is real; only the emission source is simplified.
     fn get_emissions(&self, tokens: &[&str]) -> Vec<Vec<f64>> {
         let n_labels = self.labels.len();
         let mut emissions = vec![vec![0.0; n_labels]; tokens.len()];

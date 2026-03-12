@@ -1328,7 +1328,7 @@ mod tests {
         for slug in slugs {
             builder = builder.add_relation(slug, "test relation");
         }
-        builder.build_placeholder(4)
+        builder.build_zero(4)
     }
 
     /// Convenience: default config with extract_triggers enabled.

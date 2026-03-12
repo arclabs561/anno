@@ -44,10 +44,6 @@
 
 use crate::{Entity, Model, Result};
 
-// Semantic chunking integration pending
-// #[cfg(feature = "semantic-chunking")]
-// use crate::backends::semantic_chunking::{SemanticChunkConfig, SemanticChunker};
-
 /// Configuration for chunked text processing.
 #[derive(Debug, Clone)]
 pub struct ChunkConfig {

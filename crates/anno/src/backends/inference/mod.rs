@@ -127,7 +127,7 @@ mod tests {
             .add_entity("person", "A human being")
             .add_entity("organization", "A company or group")
             .add_relation("WORKS_FOR", "Employment relationship")
-            .build_placeholder(768);
+            .build_zero(768);
 
         assert_eq!(registry.len(), 3);
         assert_eq!(registry.entity_labels().count(), 2);
@@ -215,7 +215,7 @@ mod tests {
 
         let registry = SemanticRegistry::builder()
             .add_relation("FOUNDED", "Founded an organization")
-            .build_placeholder(768);
+            .build_zero(768);
 
         let config = RelationExtractionConfig::default();
         let relations = extract_relations(&entities, text, &registry, &config);
@@ -259,7 +259,7 @@ mod tests {
 
         let registry = SemanticRegistry::builder()
             .add_relation("FOUNDED", "Founded an organization")
-            .build_placeholder(768);
+            .build_zero(768);
 
         let config = RelationExtractionConfig::default();
         let relations = extract_relations(&entities, text, &registry, &config);
@@ -711,7 +711,7 @@ mod tests {
         // Build a registry with one entity label
         let registry = SemanticRegistry::builder()
             .add_entity("person", "A human being")
-            .build_placeholder(768);
+            .build_zero(768);
 
         // 3 tokens, 1 label. Dense layout: [seq_len * seq_len * num_labels]
         // We want (0,1) to have a high score (entity spanning tokens 0..2)
@@ -755,7 +755,7 @@ mod tests {
         // the right count for non-overlapping cells.
         let registry = SemanticRegistry::builder()
             .add_entity("person", "A human being")
-            .build_placeholder(768);
+            .build_zero(768);
 
         // 4 tokens, 1 label. Cell (i=0, j=0) -> span [0, 1), cell (i=0, j=1) -> span [1, 1)
         // cell (i=1, j=1) -> span [1, 2). The spans [0,1) and [1,2) are adjacent, not overlapping.
@@ -799,7 +799,7 @@ mod tests {
         let registry = SemanticRegistry::builder()
             .add_entity("person", "A human being")
             .add_entity("org", "An organization")
-            .build_placeholder(4);
+            .build_zero(4);
 
         let emb = registry.get_embedding("person");
         assert!(emb.is_some());
@@ -811,7 +811,7 @@ mod tests {
 
     #[test]
     fn test_registry_empty() {
-        let registry = SemanticRegistryBuilder::new().build_placeholder(768);
+        let registry = SemanticRegistryBuilder::new().build_zero(768);
         assert!(registry.is_empty());
         assert_eq!(registry.len(), 0);
         assert_eq!(registry.entity_labels().count(), 0);
@@ -903,7 +903,7 @@ mod tests {
     fn test_relation_extraction_empty_entities() {
         let registry = SemanticRegistry::builder()
             .add_relation("FOUNDED", "Founded an organization")
-            .build_placeholder(768);
+            .build_zero(768);
         let config = RelationExtractionConfig::default();
         let relations = extract_relations(&[], "some text", &registry, &config);
         assert!(relations.is_empty());
@@ -918,7 +918,7 @@ mod tests {
         // Registry with only entity labels, no relations
         let registry = SemanticRegistry::builder()
             .add_entity("person", "A human being")
-            .build_placeholder(768);
+            .build_zero(768);
         let config = RelationExtractionConfig::default();
         let text = "Alice works at Acme Corp";
         let relations = extract_relations(&entities, text, &registry, &config);
@@ -933,7 +933,7 @@ mod tests {
         // Entities close together should have higher confidence than distant ones
         let registry = SemanticRegistry::builder()
             .add_relation("FOUNDED", "Founded an organization")
-            .build_placeholder(768);
+            .build_zero(768);
 
         let text_close = "Jobs founded Apple in 1976";
         let entities_close = vec![
@@ -952,7 +952,7 @@ mod tests {
     fn test_extract_relation_triples_overlapping_spans_skipped() {
         let registry = SemanticRegistry::builder()
             .add_relation("PART_OF", "Part of")
-            .build_placeholder(768);
+            .build_zero(768);
         let text = "New York City is a great city";
         // Overlapping entities: "New York City" (0..13) and "York" (4..8)
         let entities = vec![
