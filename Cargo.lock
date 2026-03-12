@@ -74,7 +74,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anno"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "anno-lib",
  "serde_json",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "anno-core"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "bitflags",
  "chrono",
@@ -174,7 +174,7 @@ dependencies = [
 
 [[package]]
 name = "anno-lib"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "anno-core",
  "anno-metrics",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "anno-metrics"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "anno-core",
  "proptest",
@@ -611,12 +611,11 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "clump"
-version = "0.1.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "100df6a8b04b3763ff88edf0192182a0b4a7f4a8ab6261320ec4071f8df0571b"
+checksum = "0607d37987bc6fd37eabec04d16f79d3dca8d2b142a9670de390a3608f5fcc32"
 dependencies = [
  "rand",
- "rand_chacha",
  "thiserror 2.0.18",
 ]
 
@@ -902,6 +901,8 @@ dependencies = [
 [[package]]
 name = "deformat"
 version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f09dae911b7023e1a9438b983f5edc26768f163ce5ba2081bdaba0b15963a17"
 dependencies = [
  "dom_smoothie",
  "memchr",
@@ -2152,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "lattix"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "csv",
  "graphops",
@@ -2716,7 +2717,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2729,7 +2730,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -5211,3 +5212,7 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
+
+[[patch.unused]]
+name = "deformat"
+version = "0.5.0"

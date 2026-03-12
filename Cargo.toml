@@ -17,7 +17,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.3.8"
+version = "0.3.9"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -39,7 +39,7 @@ bitflags = "2"
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
 textprep = "0.1"
 sketchir = "0.2.0"
-clump = "0.1.0"
+clump = "0.4"
 graphops = "0.1.0"
 innr = "0.1"
 
@@ -135,7 +135,7 @@ include = [
 doc = false
 
 [dependencies]
-anno-lib = { path = "crates/anno", package = "anno-lib", version = "0.3.8", default-features = false }
+anno-lib = { path = "crates/anno", package = "anno-lib", version = "0.3.9", default-features = false }
 serde_json = { workspace = true }
 
 [features]

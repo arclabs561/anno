@@ -14,7 +14,7 @@ The crate is published as **`anno`** on crates.io.
 
 ```toml
 [dependencies]
-anno = "0.3.7"
+anno = "0.3.9"
 ```
 
 The default feature (`onnx`) pulls in `ort` (ONNX Runtime C++ bindings). For builds without a C++ runtime, use `default-features = false`.

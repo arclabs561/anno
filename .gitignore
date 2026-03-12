@@ -172,3 +172,9 @@ qa/
 # ONNX model artifacts (large, download on demand)
 *.onnx
 *.onnx_data
+
+# Hygiene (added by guardian audit)
+.env.*
+*.log
+dist/
+build/
