@@ -33,9 +33,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// # Status: Experimental
 ///
-/// This type may change significantly. The current representation uses
-/// `serde_json::Value` as a placeholder; a proper typed representation
-/// will be added once the embedding format stabilizes.
+/// This type may change significantly. The embedding format
+/// (`Vec<f32>` min/max bounds) is functional but the API is not stable.
 ///
 /// # References
 ///
