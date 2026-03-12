@@ -73,7 +73,7 @@ candle-transformers = "0.9"
 safetensors = "0.4"
 
 # Document-to-text extraction
-deformat = "0.4"
+deformat = "0.5"
 
 # Async
 tokio = { version = "1", features = ["rt", "sync", "macros", "rt-multi-thread"] }

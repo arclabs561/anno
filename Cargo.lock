@@ -900,9 +900,7 @@ dependencies = [
 
 [[package]]
 name = "deformat"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f09dae911b7023e1a9438b983f5edc26768f163ce5ba2081bdaba0b15963a17"
+version = "0.5.0"
 dependencies = [
  "dom_smoothie",
  "memchr",
@@ -5212,7 +5210,3 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
-
-[[patch.unused]]
-name = "deformat"
-version = "0.5.0"
