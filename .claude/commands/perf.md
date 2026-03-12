@@ -6,20 +6,20 @@ Measure anno's per-backend latency, throughput, and scaling behavior. Compare ag
 
 - **Run criterion benchmarks first**: they produce stable, statistically valid measurements with confidence intervals. Wall-clock timing is secondary.
 - **Capture machine context**: hardware, OS, load average, Rust version, commit SHA. Performance numbers are meaningless without context.
-- **Compare against prior reports**: read previous `qa/reports/perf-*.md` before running. Regressions >10% from the prior report are flagged.
+- **Compare against prior reports**: check for prior reports in order: `.claude/reports/`, `qa/reports/`, `.qa/reports/`, `.claude/` root. Read the most recent found. If reports exist in old locations, move them to `.claude/reports/` with dated names before proceeding. Regressions >10% from the prior report are flagged.
 - **Separate cold-start from warm**: ONNX backends have ~2s session creation overhead that dominates single-invocation timing. Criterion benchmarks amortize this; CLI wall-clock includes it.
 - **Don't optimize prematurely**: report numbers, don't fix them. Performance fixes go in a separate pass after the report is reviewed.
 
 ## Report convention
 
-Reports go in `qa/reports/perf-YYYY-MM-DD.md` (gitignored). Append a `-suffix` for same-day reruns.
+Write to `.claude/reports/perf-YYYY-MM-DD.md` (globally gitignored via `~/.gitignore_global`). For same-day reruns, append `-v2`, `-v3`.
 
 ## Procedure
 
 ### 0. Read prior reports
 
 ```bash
-eza --sort=modified -r qa/reports/perf-*.md 2>/dev/null | head -3
+eza --sort=modified -r .claude/reports/perf-*.md qa/reports/perf-*.md 2>/dev/null | head -3
 ```
 
 Read the most recent report. Note baseline numbers for comparison.
@@ -226,7 +226,7 @@ Create a comparison table:
 
 ### 9. Write the report
 
-Save to `qa/reports/perf-YYYY-MM-DD.md`. Include:
+Save to `.claude/reports/perf-YYYY-MM-DD.md`. Include:
 
 1. **Environment**: date, commit, hardware, Rust version, load average
 2. **Criterion summary**: table of mean times + confidence intervals for each benchmark group
@@ -250,4 +250,4 @@ Save to `qa/reports/perf-YYYY-MM-DD.md`. Include:
 
 ### Open performance items
 
-Record findings in the report file (`qa/reports/perf-YYYY-MM-DD.md`), not here.
+Record findings in the report file (`.claude/reports/perf-YYYY-MM-DD.md`), not here.
