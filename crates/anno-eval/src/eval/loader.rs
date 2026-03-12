@@ -428,11 +428,10 @@ impl LoadableDatasetId {
             DatasetId::BC5CDR => DatasetParsePlan::Bc5cdr,
             DatasetId::NCBIDisease => DatasetParsePlan::NcbiDisease,
 
-            // Coreference formats (placeholders)
+            // Coreference formats
             // Note: GUM uses CoNLL format and is handled by registry_hint_plan()
-            DatasetId::GAP | DatasetId::WikiCoref | DatasetId::WinoBias => {
-                DatasetParsePlan::GapTsv
-            }
+            DatasetId::GAP | DatasetId::WikiCoref => DatasetParsePlan::GapTsv,
+            DatasetId::WinoBias => DatasetParsePlan::GapTsv,
             DatasetId::PreCo | DatasetId::SciCo => DatasetParsePlan::PrecoJsonl,
             DatasetId::LitBank => DatasetParsePlan::Litbank,
             DatasetId::ECBPlus => DatasetParsePlan::EcbPlus,
@@ -3184,7 +3183,7 @@ impl DatasetLoader {
             | DatasetId::BC4CHEMD => {
                 // Biomedical datasets might have KB versions (UMLS, etc.)
                 Some(TemporalMetadata {
-                    kb_version: Some("UMLS-2023".to_string()), // Placeholder - would need actual KB version
+                    kb_version: None,
                     temporal_cutoff: None,
                     entity_creation_dates: None,
                 })
@@ -5421,19 +5420,23 @@ impl DatasetLoader {
                 // Fall back to CSV parser
                 super::coref_loader::parse_ecb_plus_coref(&content)
             }
-            DatasetId::WikiCoref
-            | DatasetId::GUM
-            | DatasetId::WinoBias
-            | DatasetId::TwiConv
-            | DatasetId::MuDoCo
-            | DatasetId::SciCo => {
-                // For now, use GAP parser as placeholder (similar format)
-                // Full coreference parsing would require more complex logic
+            DatasetId::WikiCoref => {
+                // WikiCoref uses a GAP-compatible TSV format.
                 let examples = super::coref_loader::parse_gap_tsv(&content)?;
                 Ok(examples
                     .into_iter()
                     .map(|ex| ex.to_coref_document())
                     .collect())
+            }
+            DatasetId::GUM
+            | DatasetId::WinoBias
+            | DatasetId::TwiConv
+            | DatasetId::MuDoCo
+            | DatasetId::SciCo => {
+                Err(Error::InvalidInput(format!(
+                    "{:?} coreference format is not yet supported (requires a dedicated parser)",
+                    id
+                )))
             }
             DatasetId::BookCoref | DatasetId::BookCorefSplit => {
                 // BOOKCOREF: Book-scale coreference (Martinelli et al. 2025)
