@@ -1059,7 +1059,7 @@ impl EventExtractor {
             let mut event = EventMention::new(&entity.text, entity.start, entity.end)
                 .with_trigger_type(event_type)
                 .with_polarity(polarity)
-                .with_confidence(entity.confidence);
+                .with_confidence(entity.confidence.into());
 
             if let Some(t) = tense {
                 event = event.with_tense(t);

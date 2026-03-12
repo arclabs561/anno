@@ -46,7 +46,7 @@
 
 #![allow(dead_code)] // Token constants for future prompt encoding
 
-use crate::{Entity, EntityType, Error, Result};
+use crate::{Entity, EntityType, Error, Language, Result};
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "candle")]
