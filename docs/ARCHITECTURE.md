@@ -26,17 +26,22 @@ This repo is **pre-1.0** and prioritizes long-term maintainability over API stab
   - Owns: dataset loaders/registries, metrics, evaluation orchestration, muxer-backed sampling.
   - Depends on: `anno`, `anno-core`, and `anno-metrics`.
 
+- `crates/anno-graph` (**graph/KG export adapters**)
+  - Owns: conversion from extraction output to N-Triples, JSON-LD, and CSV via `lattix`.
+  - Depends on: `anno-core`, `lattix`.
+
 - `crates/anno-cli` (**the `anno` binary**)
   - Owns: CLI UX, command wiring, output formatting, file I/O.
-  - Depends on: `anno`, `anno-core`, and optionally `anno-eval` behind features.
+  - Depends on: `anno`, `anno-core`, `anno-eval`, and optionally `anno-graph` behind features.
 
 ### Intended direction of dependencies
 
 ```
 anno-cli  ─┬─> anno-eval ─┬─> anno
-           │             ├─> anno-metrics ──> anno-core
-           │             └─> anno-core
-           └────────────────> anno-core
+           │              ├─> anno-metrics ──> anno-core
+           │              └─> anno-core
+           ├─> anno-graph ──> anno-core
+           └──────────────── anno-core
 
 anno ───────────────┬──────> anno-core
                     └──────> anno-metrics ──> anno-core
@@ -51,7 +56,7 @@ If you feel pressure to add a dependency “upwards” (e.g. `anno-core -> anno`
   - Offsets/spans are **character offsets** (Unicode scalar values / Rust `char` count), not bytes.
 
 - **Backends and execution live in `anno`**
-  - Feature-gate heavyweight dependencies (onnx/candle/burn/llm) in `anno`.
+  - Feature-gate heavyweight dependencies (onnx/candle/llm) in `anno`.
   - Keep “business logic” out of the CLI; the CLI should orchestrate calls into `anno`/`anno-eval`.
 
 - **Evaluation lives in `anno-eval`**

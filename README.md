@@ -51,9 +51,10 @@ let ents = m.extract_with_labels(
 | `onnx` | Yes | ONNX Runtime backends (GLiNER, NuNER, BERT, W2NER, FCoref) via `ort` |
 | `candle` | No | Pure-Rust Candle backends (no C++ runtime needed) |
 | `analysis` | No | Evaluation helpers, coref metrics, RAG rewriting |
-| `eval` | No | Superset of `analysis`: adds network support for dataset fetching |
+| `eval` | No | Alias for `analysis` (kept for backward compatibility) |
 | `graph` | No | Keywords, summarization, salience (TextRank/LexRank/YAKE) |
 | `schema` | No | JSON Schema generation for output types via `schemars` |
+| `llm` | No | LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, Ollama |
 | `discourse` | No | Centering theory, abstract anaphora, shell nouns |
 
 ## Tasks
@@ -79,6 +80,7 @@ All backends produce the same output type: variable-length spans with character 
 | `bert-onnx` | Sequence labeling (BERT) | PER/ORG/LOC/MISC | No | -- | [bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Devlin et al. [8] |
 | `pattern` | Regex grammars | DATE/MONEY/EMAIL/URL/PHONE/PERCENT | N/A | -- | None | -- |
 | `tplinker` | Joint entity-relation (heuristic) | Custom | -- | Heuristic | None | [10] |
+| `universal-ner` | LLM prompt (any provider) | Custom | Yes | -- | None (API) | -- |
 
 ML backends are feature-gated (`onnx` or `candle`). Weights download from HuggingFace on first use. See [BACKENDS.md](docs/BACKENDS.md) for the full list (including experimental backends) and feature-flag details.
 
@@ -133,7 +135,7 @@ Three coref backends with different tradeoffs:
 
 | Backend | Type | Quality | Speed | Weights |
 |---------|------|---------|-------|---------|
-| `SimpleCorefResolver` | Rule-based (6 sieves) | Low | Fast | None |
+| `SimpleCorefResolver` | Rule-based (9 sieves) | Low | Fast | None |
 | `FCoref` | Neural (DistilRoBERTa) | 78.5 F1 | Medium | ONNX export |
 | `MentionRankingCoref` | Mention-ranking | Medium | Medium | None |
 
