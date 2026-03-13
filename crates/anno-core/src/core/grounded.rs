@@ -1876,7 +1876,6 @@ impl GroundedDocument {
                     },
                     valid_from: None,
                     valid_until: None,
-                    viewport: None,
                     phi_features: None,
                     mention_type: None,
                 }

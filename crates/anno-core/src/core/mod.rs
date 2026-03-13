@@ -88,8 +88,8 @@ pub mod types;
 pub use confidence::Confidence;
 pub use entity::{
     generate_span_candidates, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType,
-    EntityViewport, ExtractionMethod, HashMapLexicon, HierarchicalConfidence, Lexicon, Provenance,
-    RaggedBatch, Relation, Span, SpanCandidate, TypeMapper, ValidationIssue,
+    ExtractionMethod, HashMapLexicon, HierarchicalConfidence, Lexicon, Provenance, RaggedBatch,
+    Relation, Span, SpanCandidate, TypeMapper, ValidationIssue,
 };
 
 pub use grounded::{

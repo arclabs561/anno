@@ -1,6 +1,6 @@
 //! Type-safe confidence score constrained to `[0.0, 1.0]`.
 
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, de};
 use std::fmt;
 
 /// A confidence score guaranteed to be in `[0.0, 1.0]`.
@@ -25,9 +25,19 @@ use std::fmt;
 /// let c: Confidence = 0.8.into();
 /// assert_eq!(c.value(), 0.8);
 /// ```
-#[derive(Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct Confidence(f64);
+
+impl<'de> de::Deserialize<'de> for Confidence {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let v = f64::deserialize(deserializer)?;
+        Ok(Self::new(v))
+    }
+}
 
 impl Confidence {
     /// Certainty: 1.0.
@@ -40,7 +50,8 @@ impl Confidence {
     #[must_use]
     #[inline]
     pub fn new(value: f64) -> Self {
-        Self(value.clamp(0.0, 1.0))
+        let v = if value.is_nan() { 0.0 } else { value };
+        Self(v.clamp(0.0, 1.0))
     }
 
     /// Get the raw `f64` value.
@@ -309,5 +320,29 @@ mod tests {
     fn constants() {
         assert_eq!(Confidence::ZERO.value(), 0.0);
         assert_eq!(Confidence::ONE.value(), 1.0);
+    }
+
+    #[test]
+    fn nan_and_infinity_handling() {
+        assert_eq!(Confidence::new(f64::NAN).value(), 0.0);
+        assert_eq!(Confidence::new(f64::INFINITY).value(), 1.0);
+        assert_eq!(Confidence::new(f64::NEG_INFINITY).value(), 0.0);
+    }
+
+    #[test]
+    fn deserialize_clamps_out_of_range() {
+        let over: Confidence = serde_json::from_str("1.5").unwrap();
+        assert_eq!(over.value(), 1.0);
+
+        let under: Confidence = serde_json::from_str("-0.5").unwrap();
+        assert_eq!(under.value(), 0.0);
+    }
+
+    #[test]
+    fn serde_roundtrip() {
+        let c = Confidence::new(0.73);
+        let json = serde_json::to_string(&c).unwrap();
+        let back: Confidence = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, c);
     }
 }

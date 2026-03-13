@@ -134,125 +134,6 @@ impl std::fmt::Display for EntityCategory {
 }
 
 // ============================================================================
-// Entity Viewport (Research: Entity Manifolds)
-// ============================================================================
-
-/// Viewport context for multi-faceted entity representation.
-///
-/// # Research Background
-///
-/// The concept of "Entity Viewports" comes from the observation that
-/// real-world entities are not monolithic - they present different
-/// facets depending on context:
-///
-/// - "Marie Curie" in an **Academic** context: physicist, Nobel laureate
-/// - "Marie Curie" in a **Technical** context: radioactivity researcher, X-ray pioneer
-/// - "Marie Curie" in a **Personal** context: mother, immigrant, educator
-/// - "Marie Curie" in a **Medical** context: founder of mobile X-ray units
-///
-/// Rather than collapsing all information into a single vector,
-/// the viewport model preserves these distinctions and enables
-/// "projection" at query time.
-///
-/// # Usage in RAG Systems
-///
-/// When answering "What were Curie's scientific contributions?", retrieve
-/// facts from the `Academic` viewport. When answering "What was Curie's
-/// personal life like?", retrieve from `Personal`.
-///
-/// # Example
-///
-/// ```rust
-/// use anno_core::{Entity, EntityType, EntityViewport};
-///
-/// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
-/// entity.viewport = Some(EntityViewport::Academic);
-/// assert!(entity.viewport.as_ref().unwrap().is_professional());
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
-#[non_exhaustive]
-pub enum EntityViewport {
-    /// Business/financial context (CEO, revenue, market cap)
-    Business,
-    /// Legal context (lawsuits, settlements, compliance)
-    Legal,
-    /// Technical/engineering context (patents, inventions, code)
-    Technical,
-    /// Academic/research context (publications, citations, grants)
-    Academic,
-    /// Personal/biographical context (family, hobbies, background)
-    Personal,
-    /// Political context (lobbying, donations, policy positions)
-    Political,
-    /// Media/public relations context (interviews, statements, PR)
-    Media,
-    /// Historical context (past roles, timeline events)
-    Historical,
-    /// Generic/unspecified context
-    #[default]
-    General,
-    /// Custom viewport with a descriptive label
-    Custom(String),
-}
-
-impl EntityViewport {
-    /// Human-readable label for the viewport.
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        match self {
-            EntityViewport::Business => "business",
-            EntityViewport::Legal => "legal",
-            EntityViewport::Technical => "technical",
-            EntityViewport::Academic => "academic",
-            EntityViewport::Personal => "personal",
-            EntityViewport::Political => "political",
-            EntityViewport::Media => "media",
-            EntityViewport::Historical => "historical",
-            EntityViewport::General => "general",
-            EntityViewport::Custom(s) => s,
-        }
-    }
-
-    /// Is this a professional/work-related viewport?
-    #[must_use]
-    pub const fn is_professional(&self) -> bool {
-        matches!(
-            self,
-            EntityViewport::Business
-                | EntityViewport::Legal
-                | EntityViewport::Technical
-                | EntityViewport::Academic
-                | EntityViewport::Political
-        )
-    }
-}
-
-impl std::str::FromStr for EntityViewport {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
-            "business" | "financial" | "corporate" => EntityViewport::Business,
-            "legal" | "law" | "compliance" => EntityViewport::Legal,
-            "technical" | "engineering" | "tech" => EntityViewport::Technical,
-            "academic" | "research" | "scholarly" => EntityViewport::Academic,
-            "personal" | "biographical" | "private" => EntityViewport::Personal,
-            "political" | "policy" | "government" => EntityViewport::Political,
-            "media" | "press" | "pr" | "public_relations" => EntityViewport::Media,
-            "historical" | "history" | "past" => EntityViewport::Historical,
-            "general" | "generic" | "" => EntityViewport::General,
-            other => EntityViewport::Custom(other.to_string()),
-        })
-    }
-}
-
-impl std::fmt::Display for EntityViewport {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-// ============================================================================
 // Entity Type
 // ============================================================================
 
@@ -1362,12 +1243,27 @@ pub struct DiscontinuousSpan {
 impl DiscontinuousSpan {
     /// Create a new discontinuous span from segments.
     ///
-    /// Segments are sorted and validated (no overlaps).
+    /// Segments are sorted by start position and overlapping segments are
+    /// merged. Empty segments (where `start >= end`) are discarded.
     #[must_use]
     pub fn new(mut segments: Vec<std::ops::Range<usize>>) -> Self {
+        // Discard empty segments
+        segments.retain(|r| r.start < r.end);
         // Sort by start position
         segments.sort_by_key(|r| r.start);
-        Self { segments }
+        // Merge overlapping or adjacent segments
+        let mut merged: Vec<std::ops::Range<usize>> = Vec::with_capacity(segments.len());
+        for seg in segments {
+            if let Some(last) = merged.last_mut() {
+                if seg.start <= last.end {
+                    // Overlapping or adjacent -- extend
+                    last.end = last.end.max(seg.end);
+                    continue;
+                }
+            }
+            merged.push(seg);
+        }
+        Self { segments: merged }
     }
 
     /// Create from a single contiguous span.
@@ -1811,7 +1707,6 @@ pub fn generate_filtered_candidates(
 /// | `visual_span` | Multi-modal (ColPali) extraction | Experimental |
 /// | `discontinuous_span` | W2NER non-contiguous entities | Experimental |
 /// | `valid_from`, `valid_until` | Temporal knowledge graphs | Research |
-/// | `viewport` | Multi-faceted entity representation | Research |
 /// | `hierarchical_confidence` | Coarse-to-fine NER | Experimental |
 ///
 /// These fields are `#[serde(skip_serializing_if = "Option::is_none")]` so they
@@ -1912,23 +1807,6 @@ pub struct Entity {
     // =========================================================================
     /// Viewport context for multi-faceted entity representation.
     ///
-    /// The same real-world entity can have different "faces" in different contexts:
-    /// - "Marie Curie" in an academic context: professor, researcher
-    /// - "Marie Curie" in a scientific context: physicist, chemist
-    /// - "Marie Curie" in a personal context: mother, educator
-    ///
-    /// This enables "holographic" entity projection at query time:
-    /// given a query context, project the entity manifold to the relevant viewport.
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType, EntityViewport};
-    ///
-    /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
-    /// entity.viewport = Some(EntityViewport::Academic);
-    /// ```
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub viewport: Option<EntityViewport>,
     /// Phi-features (person, number, gender) for morphological agreement.
     ///
     /// Used for coreference constraints and zero pronoun resolution.
@@ -1979,7 +1857,7 @@ impl Entity {
             discontinuous_span: None,
             valid_from: None,
             valid_until: None,
-            viewport: None,
+
             phi_features: None,
             mention_type: None,
         }
@@ -2010,7 +1888,7 @@ impl Entity {
             discontinuous_span: None,
             valid_from: None,
             valid_until: None,
-            viewport: None,
+
             phi_features: None,
             mention_type: None,
         }
@@ -2040,7 +1918,7 @@ impl Entity {
             discontinuous_span: None,
             valid_from: None,
             valid_until: None,
-            viewport: None,
+
             phi_features: None,
             mention_type: None,
         }
@@ -2069,7 +1947,7 @@ impl Entity {
             discontinuous_span: None,
             valid_from: None,
             valid_until: None,
-            viewport: None,
+
             phi_features: None,
             mention_type: None,
         }
@@ -2466,49 +2344,6 @@ impl Entity {
         self.valid_at(&chrono::Utc::now())
     }
 
-    // =========================================================================
-    // Viewport/Context Methods
-    // =========================================================================
-
-    /// Set the viewport context for this entity.
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType, EntityViewport};
-    ///
-    /// let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
-    /// entity.set_viewport(EntityViewport::Academic);
-    /// assert!(entity.has_viewport());
-    /// ```
-    pub fn set_viewport(&mut self, viewport: EntityViewport) {
-        self.viewport = Some(viewport);
-    }
-
-    /// Check if this entity has a viewport context.
-    #[must_use]
-    pub fn has_viewport(&self) -> bool {
-        self.viewport.is_some()
-    }
-
-    /// Get the viewport, defaulting to General if not set.
-    #[must_use]
-    pub fn viewport_or_default(&self) -> EntityViewport {
-        self.viewport.clone().unwrap_or_default()
-    }
-
-    /// Check if this entity matches a viewport context.
-    ///
-    /// Returns true if:
-    /// - The entity has no viewport (matches any)
-    /// - The entity's viewport matches the query
-    #[must_use]
-    pub fn matches_viewport(&self, query_viewport: &EntityViewport) -> bool {
-        match &self.viewport {
-            None => true, // No viewport = matches any
-            Some(v) => v == query_viewport,
-        }
-    }
-
     /// Create a builder for fluent entity construction.
     #[must_use]
     pub fn builder(text: impl Into<String>, entity_type: EntityType) -> EntityBuilder {
@@ -2785,7 +2620,6 @@ pub struct EntityBuilder {
     discontinuous_span: Option<DiscontinuousSpan>,
     valid_from: Option<chrono::DateTime<chrono::Utc>>,
     valid_until: Option<chrono::DateTime<chrono::Utc>>,
-    viewport: Option<EntityViewport>,
     phi_features: Option<PhiFeatures>,
     mention_type: Option<MentionType>,
 }
@@ -2811,7 +2645,7 @@ impl EntityBuilder {
             discontinuous_span: None,
             valid_from: None,
             valid_until: None,
-            viewport: None,
+
             phi_features: None,
             mention_type: None,
         }
@@ -2927,24 +2761,6 @@ impl EntityBuilder {
         self
     }
 
-    /// Set the viewport context for multi-faceted entity representation.
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{EntityBuilder, EntityType, EntityViewport};
-    ///
-    /// let entity = EntityBuilder::new("Marie Curie", EntityType::Person)
-    ///     .span(0, 11)
-    ///     .viewport(EntityViewport::Academic)
-    ///     .build();
-    /// assert_eq!(entity.viewport, Some(EntityViewport::Academic));
-    /// ```
-    #[must_use]
-    pub fn viewport(mut self, viewport: EntityViewport) -> Self {
-        self.viewport = Some(viewport);
-        self
-    }
-
     /// Set phi-features (person, number, gender) for morphological agreement.
     #[must_use]
     pub fn phi_features(mut self, phi_features: PhiFeatures) -> Self {
@@ -2977,7 +2793,6 @@ impl EntityBuilder {
             discontinuous_span: self.discontinuous_span,
             valid_from: self.valid_from,
             valid_until: self.valid_until,
-            viewport: self.viewport,
             phi_features: self.phi_features,
             mention_type: self.mention_type,
         }
@@ -3862,7 +3677,8 @@ mod proptests {
             prop_assert_eq!(&e.kb_id, &e2.kb_id);
         }
 
-        /// DiscontinuousSpan: total_len() == sum of individual segment lengths.
+        /// DiscontinuousSpan: total_len() == sum of merged segment lengths,
+        /// and merged segments are non-overlapping and sorted.
         #[test]
         fn discontinuous_span_total_length(
             segments in proptest::collection::vec(
@@ -3873,199 +3689,17 @@ mod proptests {
             let ranges: Vec<std::ops::Range<usize>> = segments.iter()
                 .map(|&(start, len)| start..start + len)
                 .collect();
-            let expected_sum: usize = ranges.iter().map(|r| r.end - r.start).sum();
             let span = DiscontinuousSpan::new(ranges);
+            // After merging, total_len must equal sum of the stored segments.
+            let expected_sum: usize = span.segments().iter().map(|r| r.end - r.start).sum();
             prop_assert_eq!(span.total_len(), expected_sum,
-                "total_len must equal sum of segment lengths");
+                "total_len must equal sum of merged segment lengths");
+            // Verify no overlaps in stored segments.
+            for w in span.segments().windows(2) {
+                prop_assert!(w[0].end <= w[1].start,
+                    "segments must not overlap: {:?} vs {:?}", w[0], w[1]);
+            }
         }
-    }
-
-    // ========================================================================
-    // EntityViewport Tests
-    // ========================================================================
-
-    #[test]
-    fn test_entity_viewport_as_str() {
-        assert_eq!(EntityViewport::Business.as_str(), "business");
-        assert_eq!(EntityViewport::Legal.as_str(), "legal");
-        assert_eq!(EntityViewport::Technical.as_str(), "technical");
-        assert_eq!(EntityViewport::Academic.as_str(), "academic");
-        assert_eq!(EntityViewport::Personal.as_str(), "personal");
-        assert_eq!(EntityViewport::Political.as_str(), "political");
-        assert_eq!(EntityViewport::Media.as_str(), "media");
-        assert_eq!(EntityViewport::Historical.as_str(), "historical");
-        assert_eq!(EntityViewport::General.as_str(), "general");
-        assert_eq!(
-            EntityViewport::Custom("custom".to_string()).as_str(),
-            "custom"
-        );
-    }
-
-    #[test]
-    fn test_entity_viewport_is_professional() {
-        assert!(EntityViewport::Business.is_professional());
-        assert!(EntityViewport::Legal.is_professional());
-        assert!(EntityViewport::Technical.is_professional());
-        assert!(EntityViewport::Academic.is_professional());
-        assert!(EntityViewport::Political.is_professional());
-
-        assert!(!EntityViewport::Personal.is_professional());
-        assert!(!EntityViewport::Media.is_professional());
-        assert!(!EntityViewport::Historical.is_professional());
-        assert!(!EntityViewport::General.is_professional());
-        assert!(!EntityViewport::Custom("test".to_string()).is_professional());
-    }
-
-    #[test]
-    fn test_entity_viewport_from_str() {
-        assert_eq!(
-            "business".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-        assert_eq!(
-            "financial".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-        assert_eq!(
-            "corporate".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-
-        assert_eq!(
-            "legal".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Legal
-        );
-        assert_eq!(
-            "law".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Legal
-        );
-
-        assert_eq!(
-            "technical".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Technical
-        );
-        assert_eq!(
-            "engineering".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Technical
-        );
-
-        assert_eq!(
-            "academic".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Academic
-        );
-        assert_eq!(
-            "research".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Academic
-        );
-
-        assert_eq!(
-            "personal".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Personal
-        );
-        assert_eq!(
-            "biographical".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Personal
-        );
-
-        assert_eq!(
-            "political".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Political
-        );
-        assert_eq!(
-            "policy".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Political
-        );
-
-        assert_eq!(
-            "media".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Media
-        );
-        assert_eq!(
-            "press".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Media
-        );
-
-        assert_eq!(
-            "historical".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Historical
-        );
-        assert_eq!(
-            "history".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Historical
-        );
-
-        assert_eq!(
-            "general".parse::<EntityViewport>().unwrap(),
-            EntityViewport::General
-        );
-        assert_eq!(
-            "generic".parse::<EntityViewport>().unwrap(),
-            EntityViewport::General
-        );
-        assert_eq!(
-            "".parse::<EntityViewport>().unwrap(),
-            EntityViewport::General
-        );
-
-        // Custom viewport
-        assert_eq!(
-            "custom_viewport".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Custom("custom_viewport".to_string())
-        );
-    }
-
-    #[test]
-    fn test_entity_viewport_from_str_case_insensitive() {
-        assert_eq!(
-            "BUSINESS".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-        assert_eq!(
-            "Business".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-        assert_eq!(
-            "BuSiNeSs".parse::<EntityViewport>().unwrap(),
-            EntityViewport::Business
-        );
-    }
-
-    #[test]
-    fn test_entity_viewport_display() {
-        assert_eq!(format!("{}", EntityViewport::Business), "business");
-        assert_eq!(format!("{}", EntityViewport::Academic), "academic");
-        assert_eq!(
-            format!("{}", EntityViewport::Custom("test".to_string())),
-            "test"
-        );
-    }
-
-    #[test]
-    fn test_entity_viewport_methods() {
-        let mut entity = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.9);
-
-        // Initially no viewport
-        assert!(!entity.has_viewport());
-        assert_eq!(entity.viewport_or_default(), EntityViewport::General);
-        assert!(entity.matches_viewport(&EntityViewport::Academic)); // No viewport matches any
-
-        // Set viewport
-        entity.set_viewport(EntityViewport::Academic);
-        assert!(entity.has_viewport());
-        assert_eq!(entity.viewport_or_default(), EntityViewport::Academic);
-        assert!(entity.matches_viewport(&EntityViewport::Academic));
-        assert!(!entity.matches_viewport(&EntityViewport::Business));
-    }
-
-    #[test]
-    fn test_entity_builder_with_viewport() {
-        let entity = Entity::builder("Marie Curie", EntityType::Person)
-            .span(0, 11)
-            .viewport(EntityViewport::Academic)
-            .build();
-
-        assert_eq!(entity.viewport, Some(EntityViewport::Academic));
-        assert!(entity.has_viewport());
     }
 
     // ========================================================================

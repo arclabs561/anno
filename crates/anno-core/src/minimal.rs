@@ -50,8 +50,8 @@
 
 // -- Entity layer ----------------------------------------------------------
 pub use crate::core::entity::{
-    DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, EntityViewport,
-    ExtractionMethod, Provenance, Relation, Span,
+    DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod,
+    Provenance, Relation, Span,
 };
 
 // -- Coreference layer -----------------------------------------------------

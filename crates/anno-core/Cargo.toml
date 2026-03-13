@@ -8,7 +8,7 @@ description = "Core types and invariants for anno"
 keywords = ["ner", "nlp", "coreference", "types"]
 categories = ["text-processing"]
 
-publish = true
+publish = false
 
 [dependencies]
 textprep = { workspace = true }
