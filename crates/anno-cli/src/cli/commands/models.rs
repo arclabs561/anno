@@ -87,8 +87,6 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         "gliner-candle" | "gliner_candle" => Some(ModelBackend::GlinerCandle),
         #[cfg(feature = "candle")]
         "candle-ner" | "candle_ner" => Some(ModelBackend::CandleNer),
-        #[cfg(feature = "burn")]
-        "burn" | "burn-ner" | "burn_ner" => Some(ModelBackend::Burn),
         _ => None,
     }
 }

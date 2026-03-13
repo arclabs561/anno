@@ -275,13 +275,6 @@ pub enum ModelBackend {
     /// Candle BERT NER (requires --features candle)
     #[cfg(feature = "candle")]
     CandleNer,
-
-    // === Burn Feature Required ===
-    /// Burn ML framework NER (requires --features burn)
-    #[cfg(feature = "burn")]
-    #[value(alias = "burn-ner")]
-    #[value(hide = true)]
-    Burn,
 }
 
 impl ModelBackend {
@@ -294,14 +287,6 @@ impl ModelBackend {
             return Err(
                 "GLiNER Poly (`gliner-poly`) is scaffolding only and does not implement inference yet. \
 Use `--model gliner` instead."
-                    .to_string(),
-            );
-        }
-        #[cfg(feature = "burn")]
-        if matches!(self, Self::Burn) {
-            return Err(
-                "BurnNER (`burn`) is scaffolding only and does not implement inference yet. \
-Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
                     .to_string(),
             );
         }
@@ -344,9 +329,6 @@ Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
                 Self::GlinerCandle => "gliner_candle",
                 #[cfg(feature = "candle")]
                 Self::CandleNer => "candle_ner",
-                // Burn
-                #[cfg(feature = "burn")]
-                Self::Burn => "burn", // rejected above; kept for exhaustiveness
             };
             BackendFactory::create(factory_name)
                 .map_err(|e| format!("Failed to create model '{}': {}\n  Tip: Run 'anno models list' to see available backends.", self.name(), e))
@@ -435,9 +417,6 @@ Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
                 }
                 #[cfg(feature = "onnx")]
                 Self::GlinerPoly => unreachable!("rejected above"),
-                // Burn (rejected above; scaffolding only)
-                #[cfg(feature = "burn")]
-                Self::Burn => unreachable!("rejected above"),
                 // Candle
                 #[cfg(feature = "candle")]
                 Self::GlinerCandle => anno::backends::gliner_candle::GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL)
@@ -531,9 +510,6 @@ Use `--model bert-onnx`, `--model gliner`, or `--model candle-ner` instead."
             Self::GlinerCandle => "gliner-candle",
             #[cfg(feature = "candle")]
             Self::CandleNer => "candle-ner",
-            // Burn
-            #[cfg(feature = "burn")]
-            Self::Burn => "burn",
         }
     }
 }

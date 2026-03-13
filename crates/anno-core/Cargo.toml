@@ -20,7 +20,6 @@ thiserror = { workspace = true }
 regex = { workspace = true }
 chrono = { workspace = true }
 log = { workspace = true }
-bitflags = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
 
 [dev-dependencies]
