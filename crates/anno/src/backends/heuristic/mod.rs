@@ -1084,6 +1084,5 @@ fn classify_minimal(
     (EntityType::Person, 0.45, "capitalized")
 }
 
-
 #[cfg(test)]
 mod tests;

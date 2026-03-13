@@ -256,7 +256,6 @@ impl Model for LexiconNER {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -110,7 +110,6 @@ impl Model for DeBERTaV3NER {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

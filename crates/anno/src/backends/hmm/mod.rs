@@ -230,6 +230,5 @@ impl Model for HmmNER {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

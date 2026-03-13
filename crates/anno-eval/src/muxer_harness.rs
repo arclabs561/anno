@@ -107,10 +107,8 @@ pub fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> 
     if k >= items.len() {
         return items.to_vec();
     }
-    let mut scored: Vec<(u64, &String)> = items
-        .iter()
-        .map(|s| (stable_hash64(seed, s), s))
-        .collect();
+    let mut scored: Vec<(u64, &String)> =
+        items.iter().map(|s| (stable_hash64(seed, s), s)).collect();
     scored.sort_by_key(|(h, _)| *h);
     scored.into_iter().take(k).map(|(_, s)| s.clone()).collect()
 }

@@ -1,5 +1,5 @@
-use anno::Model;
 use anno::backends::{HeuristicNER, RegexNER, StackedNER};
+use anno::Model;
 
 fn usage() -> &'static str {
     r#"anno - minimal CLI (workspace facade)

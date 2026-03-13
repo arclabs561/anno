@@ -234,7 +234,6 @@ impl Model for NuNER {
     }
 }
 
-
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for NuNER {
     fn extract_with_labels(
@@ -246,7 +245,6 @@ impl crate::DynamicLabels for NuNER {
         self.extract(text, labels, self.threshold as f32)
     }
 }
-
 
 #[cfg(test)]
 mod tests;

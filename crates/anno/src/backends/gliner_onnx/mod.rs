@@ -213,6 +213,5 @@ fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
     entities
 }
 
-
 #[cfg(test)]
 mod postprocess_tests;

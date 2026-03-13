@@ -502,7 +502,6 @@ fn test_german_preposition_location_context() {
     );
 }
 
-
 /// Trailing punctuation is stripped from entity text.
 #[test]
 fn test_trailing_punctuation_stripped() {

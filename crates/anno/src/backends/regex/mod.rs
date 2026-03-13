@@ -465,7 +465,6 @@ fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
     entities.iter().any(|e| !(end <= e.start || start >= e.end))
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1311,7 +1310,6 @@ mod tests {
         }
     }
 }
-
 
 #[cfg(test)]
 mod proptests;

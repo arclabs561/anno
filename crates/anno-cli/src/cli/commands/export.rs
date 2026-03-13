@@ -453,9 +453,7 @@ fn export_conll(text: &str, entities: &[anno_core::Entity]) -> String {
         // Only split trailing punctuation when it's NOT inside an entity span.
         let trimmed = word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']);
         let punct = &word[trimmed.len()..];
-        let inside_entity = entity_full
-            .map(|e| word_end <= e.end)
-            .unwrap_or(false);
+        let inside_entity = entity_full.map(|e| word_end <= e.end).unwrap_or(false);
 
         if inside_entity {
             // Entire word (with punctuation) is inside entity -- keep together.

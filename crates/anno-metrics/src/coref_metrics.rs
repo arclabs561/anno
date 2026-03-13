@@ -87,11 +87,7 @@ fn common_mentions_mode(
 /// and gold chain sets before scoring.
 #[must_use]
 pub fn filter_singletons(chains: &[CorefChain]) -> Vec<CorefChain> {
-    chains
-        .iter()
-        .filter(|c| c.len() > 1)
-        .cloned()
-        .collect()
+    chains.iter().filter(|c| c.len() > 1).cloned().collect()
 }
 
 /// Compute F1 from precision and recall.
@@ -586,10 +582,16 @@ pub fn b_cubed_score_head(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64
 
             if let Some(&pred_chain_idx) = pred_index.get(&span) {
                 let pred_chain = &predicted[pred_chain_idx];
-                let pred_spans: HashSet<SpanId> =
-                    pred_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
-                let gold_spans: HashSet<SpanId> =
-                    gold_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
+                let pred_spans: HashSet<SpanId> = pred_chain
+                    .mentions
+                    .iter()
+                    .map(|m| span_for(m, mode))
+                    .collect();
+                let gold_spans: HashSet<SpanId> = gold_chain
+                    .mentions
+                    .iter()
+                    .map(|m| span_for(m, mode))
+                    .collect();
                 let overlap = pred_spans.intersection(&gold_spans).count();
                 recall_sum += overlap as f64 / gold_chain.mentions.len().max(1) as f64;
             }
@@ -606,10 +608,16 @@ pub fn b_cubed_score_head(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64
 
             if let Some(&gold_chain_idx) = gold_index.get(&span) {
                 let gold_chain = &gold[gold_chain_idx];
-                let pred_spans: HashSet<SpanId> =
-                    pred_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
-                let gold_spans: HashSet<SpanId> =
-                    gold_chain.mentions.iter().map(|m| span_for(m, mode)).collect();
+                let pred_spans: HashSet<SpanId> = pred_chain
+                    .mentions
+                    .iter()
+                    .map(|m| span_for(m, mode))
+                    .collect();
+                let gold_spans: HashSet<SpanId> = gold_chain
+                    .mentions
+                    .iter()
+                    .map(|m| span_for(m, mode))
+                    .collect();
                 let overlap = pred_spans.intersection(&gold_spans).count();
                 precision_sum += overlap as f64 / pred_chain.mentions.len().max(1) as f64;
             }
@@ -2417,7 +2425,10 @@ mod tests {
         };
         let m_antecedent = Mention::new("John", 0, 4);
 
-        let gold = vec![CorefChain::new(vec![m_antecedent.clone(), m_zero_span.clone()])];
+        let gold = vec![CorefChain::new(vec![
+            m_antecedent.clone(),
+            m_zero_span.clone(),
+        ])];
         let pred = vec![CorefChain::new(vec![m_antecedent, m_zero_span])];
 
         let eval = ZeroAnaphorEvaluation::compute(&pred, &gold);

@@ -728,6 +728,5 @@ impl Model for BiLstmCrfNER {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

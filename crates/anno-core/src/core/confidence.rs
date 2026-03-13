@@ -1,6 +1,6 @@
 //! Type-safe confidence score constrained to `[0.0, 1.0]`.
 
-use serde::{Serialize, de};
+use serde::{de, Serialize};
 use std::fmt;
 
 /// A confidence score guaranteed to be in `[0.0, 1.0]`.

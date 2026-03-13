@@ -308,7 +308,6 @@ mod tests {
     }
 }
 
-
 // Advanced backends
 #[cfg(feature = "onnx")]
 pub mod albert;
@@ -327,7 +326,6 @@ pub mod llm_client;
 
 // LLM-based NER prompting (CodeNER-style)
 pub(crate) mod llm_prompt;
-
 
 // GLiNER via ONNX (uses same feature as other ONNX models)
 
@@ -389,7 +387,6 @@ pub use deberta_v3::DeBERTaV3NER;
 pub use gliner_poly::GLiNERPoly;
 pub use glirel::GLiREL;
 pub use universal_ner::UniversalNER;
-
 
 // Re-exports (feature-gated)
 #[cfg(feature = "onnx")]
@@ -465,7 +462,6 @@ pub use middleware::{
     MergeAdjacent, Middleware, MiddlewareContext, NormalizeWhitespace,
     Pipeline as MiddlewarePipeline, PipelineStageAdapter, RemoveOverlaps,
 };
-
 
 // Simple rule-based coreference resolvers.
 #[cfg(all(feature = "eval", feature = "discourse"))]

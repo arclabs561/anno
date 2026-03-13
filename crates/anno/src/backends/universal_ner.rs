@@ -951,7 +951,6 @@ impl Model for UniversalNER {
     }
 }
 
-
 impl crate::DynamicLabels for UniversalNER {
     fn extract_with_labels(
         &self,

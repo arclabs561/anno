@@ -289,6 +289,5 @@ impl Model for CrfNER {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

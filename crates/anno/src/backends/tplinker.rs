@@ -807,7 +807,6 @@ impl Model for TPLinker {
     }
 }
 
-
 impl RelationExtractor for TPLinker {
     fn extract_with_relations(
         &self,
@@ -843,7 +842,6 @@ impl crate::RelationCapable for TPLinker {
         Ok(result.into_anno_relations())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -989,7 +987,6 @@ mod tests {
         assert!(caps.relation_capable);
         assert_eq!(caps.recommended_chunk_size, Some(10_000));
     }
-
 
     #[test]
     fn test_tplinker_custom_thresholds() {

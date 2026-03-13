@@ -5432,12 +5432,10 @@ impl DatasetLoader {
             | DatasetId::WinoBias
             | DatasetId::TwiConv
             | DatasetId::MuDoCo
-            | DatasetId::SciCo => {
-                Err(Error::InvalidInput(format!(
-                    "{:?} coreference format is not yet supported (requires a dedicated parser)",
-                    id
-                )))
-            }
+            | DatasetId::SciCo => Err(Error::InvalidInput(format!(
+                "{:?} coreference format is not yet supported (requires a dedicated parser)",
+                id
+            ))),
             DatasetId::BookCoref | DatasetId::BookCorefSplit => {
                 // BOOKCOREF: Book-scale coreference (Martinelli et al. 2025)
                 // Format: OntoNotes-style with character metadata

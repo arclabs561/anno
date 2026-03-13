@@ -10,10 +10,10 @@ pub mod minimal;
 
 pub use crate::core::{
     generate_span_candidates, Animacy, Confidence, CorefChain, CorefDocument, CoreferenceResolver,
-    Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType,
-    ExtractionMethod, Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity,
-    IdentityId, IdentitySource, Lexicon, Location, Mention, MentionType, Modality, Number, Person,
-    PhiFeatures, Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef, Span,
+    Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod,
+    Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity, IdentityId,
+    IdentitySource, Lexicon, Location, Mention, MentionType, Modality, Number, Person, PhiFeatures,
+    Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef, Span,
     SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
 };
 

@@ -474,9 +474,7 @@ fn log_exp3ix_k_rounds_typed(ex: &Exp3IxKExplain, top_n: usize) -> Vec<Exp3IxKRo
             .eligible
             .iter()
             .map(|arm| {
-                let score = probs
-                    .and_then(|m| m.get(arm).copied())
-                    .unwrap_or(0.0);
+                let score = probs.and_then(|m| m.get(arm).copied()).unwrap_or(0.0);
                 LogTopCandidate {
                     arm: arm.clone(),
                     score,

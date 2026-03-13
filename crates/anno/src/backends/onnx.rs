@@ -788,7 +788,6 @@ impl crate::Model for BertNEROnnx {
     }
 }
 
-
 // Stub implementation when feature is disabled
 crate::backends::macros::define_feature_stub! {
     struct BertNEROnnx;

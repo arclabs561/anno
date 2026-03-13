@@ -193,7 +193,6 @@ impl ZeroShotNER for GLiNERPoly {
 // DynamicLabels trait (ONNX)
 // =============================================================================
 
-
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for GLiNERPoly {
     fn extract_with_labels(
@@ -205,7 +204,6 @@ impl crate::DynamicLabels for GLiNERPoly {
         self.extract(text, labels, 0.5)
     }
 }
-
 
 // =============================================================================
 // Stub when feature disabled
@@ -283,7 +281,6 @@ impl ZeroShotNER for GLiNERPoly {
     }
 }
 
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -352,7 +349,6 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, Error::FeatureNotAvailable(_)));
     }
-
 
     // ---- Tests with onnx feature enabled ----
 

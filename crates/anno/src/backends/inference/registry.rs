@@ -410,9 +410,7 @@ mod tests {
             modality: ModalityHint::Any,
             threshold: 0.3,
         };
-        let reg = SemanticRegistry::builder()
-            .add_label(label)
-            .build_zero(2);
+        let reg = SemanticRegistry::builder().add_label(label).build_zero(2);
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.labels[0].modality, ModalityHint::Any);
         assert!((reg.labels[0].threshold - 0.3).abs() < f32::EPSILON);

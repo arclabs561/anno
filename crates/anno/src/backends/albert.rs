@@ -120,7 +120,6 @@ impl Model for ALBERTNER {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

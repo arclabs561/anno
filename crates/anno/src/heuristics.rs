@@ -575,15 +575,9 @@ pub fn detect_approximate_quantifier(text: &str, entity_start: usize) -> Option<
         .take(entity_start.saturating_sub(window_start))
         .collect();
     let lower = prefix.to_lowercase();
-    if lexicons::EN_MIN_BOUND
-        .iter()
-        .any(|cue| lower.contains(cue))
-    {
+    if lexicons::EN_MIN_BOUND.iter().any(|cue| lower.contains(cue)) {
         Some(Quantifier::MinBound)
-    } else if lexicons::EN_MAX_BOUND
-        .iter()
-        .any(|cue| lower.contains(cue))
-    {
+    } else if lexicons::EN_MAX_BOUND.iter().any(|cue| lower.contains(cue)) {
         Some(Quantifier::MaxBound)
     } else if lexicons::EN_APPROXIMATE
         .iter()

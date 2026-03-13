@@ -175,7 +175,6 @@ impl crate::Model for GLiNERCandle {
     }
 }
 
-
 #[cfg(feature = "candle")]
 impl crate::DynamicLabels for GLiNERCandle {
     fn extract_with_labels(
@@ -236,7 +235,6 @@ crate::backends::macros::define_feature_stub! {
         ZeroShotNER,
     }
 }
-
 
 // =============================================================================
 // Tests

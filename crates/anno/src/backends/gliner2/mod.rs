@@ -294,7 +294,6 @@ impl crate::Model for GLiNER2Onnx {
     }
 }
 
-
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for GLiNER2Onnx {
     fn extract_with_labels(
@@ -367,7 +366,6 @@ impl crate::Model for GLiNER2Candle {
         }
     }
 }
-
 
 #[cfg(feature = "candle")]
 impl crate::DynamicLabels for GLiNER2Candle {
@@ -525,7 +523,6 @@ impl crate::RelationCapable for GLiNER2Candle {
         Ok(result.into_anno_relations())
     }
 }
-
 
 // =============================================================================
 // Tests
