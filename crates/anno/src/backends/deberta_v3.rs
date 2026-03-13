@@ -110,42 +110,6 @@ impl Model for DeBERTaV3NER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for DeBERTaV3NER {}
-
-impl crate::BatchCapable for DeBERTaV3NER {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        #[cfg(feature = "onnx")]
-        {
-            self.inner.extract_entities_batch(texts, language)
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            Err(crate::Error::FeatureNotAvailable(
-                "DeBERTa-v3 NER requires 'onnx' feature".to_string(),
-            ))
-        }
-    }
-}
-
-impl crate::StreamingCapable for DeBERTaV3NER {
-    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
-        #[cfg(feature = "onnx")]
-        {
-            self.inner.extract_entities_streaming(chunk, offset)
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            Err(crate::Error::FeatureNotAvailable(
-                "DeBERTa-v3 NER requires 'onnx' feature".to_string(),
-            ))
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

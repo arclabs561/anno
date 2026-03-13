@@ -33,7 +33,7 @@
 ///     }
 ///     // Optional: extra trait impls
 ///     impls {
-///         ZeroShotNER, BatchCapable, StreamingCapable(4096)
+///         ZeroShotNER
 ///     }
 /// }
 /// ```
@@ -44,7 +44,7 @@
 /// - `#[derive(Debug)] pub struct $Name;`
 /// - `impl $Name { pub fn new(...) -> Result<Self> { Err(...) } }`
 /// - `impl Model for $Name { ... }` (extract_entities returns error, is_available = false)
-/// - Optional: `impl ZeroShotNER`, `impl BatchCapable`, `impl StreamingCapable`
+/// - Optional: `impl ZeroShotNER`
 macro_rules! define_feature_stub {
     (
         $(#[$meta:meta])*
@@ -144,65 +144,6 @@ macro_rules! _impl_stub_traits {
         $crate::backends::macros::_impl_stub_traits!($Name, $feature, $err; $( $rest )*);
     };
 
-    // BatchCapable
-    ($Name:ident, $feature:literal, $err:expr; BatchCapable $($rest:tt)*) => {
-        #[cfg(not(feature = $feature))]
-        impl $crate::BatchCapable for $Name {
-            fn extract_entities_batch(
-                &self,
-                _texts: &[&str],
-                _language: Option<$crate::Language>,
-            ) -> $crate::Result<Vec<Vec<$crate::Entity>>> {
-                Err($crate::Error::FeatureNotAvailable($err.to_string()))
-            }
-
-            fn optimal_batch_size(&self) -> Option<usize> {
-                None
-            }
-        }
-
-        $crate::backends::macros::_impl_stub_traits!($Name, $feature, $err; $( $rest )*);
-    };
-
-    // StreamingCapable with custom chunk size
-    ($Name:ident, $feature:literal, $err:expr; StreamingCapable($chunk:expr) $($rest:tt)*) => {
-        #[cfg(not(feature = $feature))]
-        impl $crate::StreamingCapable for $Name {
-            fn recommended_chunk_size(&self) -> usize {
-                $chunk
-            }
-        }
-
-        $crate::backends::macros::_impl_stub_traits!($Name, $feature, $err; $( $rest )*);
-    };
-
-    // StreamingCapable with default chunk size
-    ($Name:ident, $feature:literal, $err:expr; StreamingCapable $($rest:tt)*) => {
-        #[cfg(not(feature = $feature))]
-        impl $crate::StreamingCapable for $Name {
-            fn recommended_chunk_size(&self) -> usize {
-                4096
-            }
-        }
-
-        $crate::backends::macros::_impl_stub_traits!($Name, $feature, $err; $( $rest )*);
-    };
-
-    // GpuCapable
-    ($Name:ident, $feature:literal, $err:expr; GpuCapable $($rest:tt)*) => {
-        #[cfg(not(feature = $feature))]
-        impl $crate::GpuCapable for $Name {
-            fn is_gpu_active(&self) -> bool {
-                false
-            }
-
-            fn device(&self) -> &str {
-                "cpu"
-            }
-        }
-
-        $crate::backends::macros::_impl_stub_traits!($Name, $feature, $err; $( $rest )*);
-    };
 }
 
 /// Internal helper: emit the stub impl block with new() + optional extra methods.

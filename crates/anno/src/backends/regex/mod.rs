@@ -465,9 +465,6 @@ fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
     entities.iter().any(|e| !(end <= e.start || start >= e.end))
 }
 
-// Capability marker: RegexNER extracts structured entities via regex
-#[allow(deprecated)]
-impl crate::StructuredEntityCapable for RegexNER {}
 
 #[cfg(test)]
 mod tests {
@@ -1315,32 +1312,6 @@ mod tests {
     }
 }
 
-// =============================================================================
-// BatchCapable and StreamingCapable Trait Implementations
-// =============================================================================
-
-impl crate::BatchCapable for RegexNER {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        texts
-            .iter()
-            .map(|text| self.extract_entities(text, language))
-            .collect()
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(64) // Regex matching is fast, can handle larger batches
-    }
-}
-
-impl crate::StreamingCapable for RegexNER {
-    fn recommended_chunk_size(&self) -> usize {
-        10_000 // Regex matching handles larger chunks efficiently
-    }
-}
 
 #[cfg(test)]
 mod proptests;

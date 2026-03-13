@@ -1253,54 +1253,6 @@ fn text_may_need_nuner(text: &str) -> bool {
     false
 }
 
-// =============================================================================
-// Type Aliases for Backwards Compatibility
-// =============================================================================
-
-/// Alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "Use StackedNER instead")]
-pub type LayeredNER = StackedNER;
-
-/// Alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "Use StackedNER::default() instead")]
-pub type TieredNER = StackedNER;
-
-/// Alias for backwards compatibility.
-#[deprecated(since = "0.2.0", note = "Use StackedNER instead")]
-pub type CompositeNER = StackedNER;
-
-// Capability markers: StackedNER combines pattern and heuristic extraction
-#[allow(deprecated)]
-impl crate::StructuredEntityCapable for StackedNER {}
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for StackedNER {}
-
-// =============================================================================
-// BatchCapable and StreamingCapable Trait Implementations
-// =============================================================================
-
-impl crate::BatchCapable for StackedNER {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        texts
-            .iter()
-            .map(|text| self.extract_entities(text, language))
-            .collect()
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(32) // Combination of pattern + heuristic
-    }
-}
-
-impl crate::StreamingCapable for StackedNER {
-    fn recommended_chunk_size(&self) -> usize {
-        8_000 // Slightly smaller due to multi-layer processing
-    }
-}
 
 // =============================================================================
 // Tests

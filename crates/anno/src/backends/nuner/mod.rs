@@ -234,8 +234,6 @@ impl Model for NuNER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for NuNER {}
 
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for NuNER {
@@ -249,25 +247,6 @@ impl crate::DynamicLabels for NuNER {
     }
 }
 
-// =============================================================================
-// BatchCapable Trait Implementation
-// =============================================================================
-
-impl crate::BatchCapable for NuNER {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(8)
-    }
-}
-
-// =============================================================================
-// StreamingCapable Trait Implementation
-// =============================================================================
-
-impl crate::StreamingCapable for NuNER {
-    fn recommended_chunk_size(&self) -> usize {
-        4096 // Characters
-    }
-}
 
 #[cfg(test)]
 mod tests;

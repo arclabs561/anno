@@ -230,8 +230,6 @@ impl Model for HmmNER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for HmmNER {}
 
 #[cfg(test)]
 mod tests;

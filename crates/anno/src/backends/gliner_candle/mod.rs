@@ -175,8 +175,6 @@ impl crate::Model for GLiNERCandle {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for GLiNERCandle {}
 
 #[cfg(feature = "candle")]
 impl crate::DynamicLabels for GLiNERCandle {
@@ -219,7 +217,7 @@ impl crate::backends::inference::ZeroShotNER for GLiNERCandle {
 }
 
 // =============================================================================
-// Non-candle stub (struct + Model + ZeroShotNER + BatchCapable + StreamingCapable + GpuCapable)
+// Non-candle stub (struct + Model + ZeroShotNER)
 // =============================================================================
 
 crate::backends::macros::define_feature_stub! {
@@ -235,69 +233,10 @@ crate::backends::macros::define_feature_stub! {
         }
     }
     impls {
-        ZeroShotNER, BatchCapable, StreamingCapable(4096), GpuCapable,
+        ZeroShotNER,
     }
 }
 
-// =============================================================================
-// BatchCapable Trait Implementation (feature enabled)
-// =============================================================================
-
-#[cfg(feature = "candle")]
-impl crate::BatchCapable for GLiNERCandle {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        if texts.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        // Pre-compute label embeddings for efficiency
-        let _ = self.extract(texts[0], DEFAULT_GLINER_LABELS, 0.5)?;
-
-        // Process texts - label embeddings are now cached internally
-        texts
-            .iter()
-            .map(|text| self.extract(text, DEFAULT_GLINER_LABELS, 0.5))
-            .collect()
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(8)
-    }
-}
-
-// =============================================================================
-// StreamingCapable Trait Implementation (feature enabled)
-// =============================================================================
-
-#[cfg(feature = "candle")]
-impl crate::StreamingCapable for GLiNERCandle {
-    fn recommended_chunk_size(&self) -> usize {
-        4096 // Characters - translates to roughly a few hundred words
-    }
-}
-
-// =============================================================================
-// GpuCapable Trait Implementation (feature enabled)
-// =============================================================================
-
-#[cfg(feature = "candle")]
-impl crate::GpuCapable for GLiNERCandle {
-    fn is_gpu_active(&self) -> bool {
-        matches!(&self.device, Device::Metal(_) | Device::Cuda(_))
-    }
-
-    fn device(&self) -> &str {
-        match &self.device {
-            Device::Cpu => "cpu",
-            Device::Metal(_) => "metal",
-            Device::Cuda(_) => "cuda",
-        }
-    }
-}
 
 // =============================================================================
 // Tests

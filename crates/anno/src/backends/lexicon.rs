@@ -256,29 +256,6 @@ impl Model for LexiconNER {
     }
 }
 
-impl crate::BatchCapable for LexiconNER {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        texts
-            .iter()
-            .map(|text| self.extract_entities(text, None))
-            .collect()
-    }
-}
-
-impl crate::StreamingCapable for LexiconNER {
-    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
-        let mut entities = self.extract_entities(chunk, None)?;
-        for entity in &mut entities {
-            entity.start += offset;
-            entity.end += offset;
-        }
-        Ok(entities)
-    }
-}
 
 #[cfg(test)]
 mod tests {

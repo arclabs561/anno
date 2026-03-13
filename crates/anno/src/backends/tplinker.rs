@@ -807,8 +807,6 @@ impl Model for TPLinker {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for TPLinker {}
 
 impl RelationExtractor for TPLinker {
     fn extract_with_relations(
@@ -846,29 +844,6 @@ impl crate::RelationCapable for TPLinker {
     }
 }
 
-impl crate::BatchCapable for TPLinker {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        texts
-            .iter()
-            .map(|text| self.extract_entities(text, None))
-            .collect()
-    }
-}
-
-impl crate::StreamingCapable for TPLinker {
-    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
-        let mut entities = self.extract_entities(chunk, None)?;
-        for entity in &mut entities {
-            entity.start += offset;
-            entity.end += offset;
-        }
-        Ok(entities)
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -1015,34 +990,6 @@ mod tests {
         assert_eq!(caps.recommended_chunk_size, Some(10_000));
     }
 
-    #[test]
-    fn test_tplinker_batch_extraction() {
-        let tp = TPLinker::with_thresholds(0.15, 0.55);
-        let texts = &["Steve Jobs founded Apple.", "Berlin is in Germany."];
-        let batch = crate::BatchCapable::extract_entities_batch(&tp, texts, None).unwrap();
-        assert_eq!(batch.len(), 2);
-        for (i, entities) in batch.iter().enumerate() {
-            assert!(
-                !entities.is_empty(),
-                "text[{i}] should produce at least one entity"
-            );
-        }
-    }
-
-    #[test]
-    fn test_tplinker_streaming_offset() {
-        let tp = TPLinker::with_thresholds(0.15, 0.55);
-        let offset = 100;
-        let entities =
-            crate::StreamingCapable::extract_entities_streaming(&tp, "Steve Jobs", offset).unwrap();
-        for e in &entities {
-            assert!(
-                e.start >= offset,
-                "streaming offset should be applied: start={}, offset={offset}",
-                e.start
-            );
-        }
-    }
 
     #[test]
     fn test_tplinker_custom_thresholds() {

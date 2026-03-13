@@ -567,21 +567,6 @@ impl Model for EnsembleNER {
     }
 }
 
-// Implement required traits
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for EnsembleNER {}
-
-impl crate::BatchCapable for EnsembleNER {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(8) // Reasonable default for ensemble
-    }
-}
-
-impl crate::StreamingCapable for EnsembleNER {
-    fn recommended_chunk_size(&self) -> usize {
-        8192
-    }
-}
 
 // =============================================================================
 // Weight Learning

@@ -16,7 +16,6 @@
 //! - `Model` - Core entity extraction interface
 //! - `ZeroShotNER` - Open-domain entity types
 //! - `RelationExtractor` - Joint entity-relation extraction (via GLiREL)
-//! - `BatchCapable` - Efficient batch processing
 //!
 //! # Usage
 //!
@@ -295,9 +294,6 @@ impl crate::Model for GLiNER2Onnx {
     }
 }
 
-#[cfg(feature = "onnx")]
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for GLiNER2Onnx {}
 
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for GLiNER2Onnx {
@@ -372,9 +368,6 @@ impl crate::Model for GLiNER2Candle {
     }
 }
 
-#[cfg(feature = "candle")]
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for GLiNER2Candle {}
 
 #[cfg(feature = "candle")]
 impl crate::DynamicLabels for GLiNER2Candle {
@@ -533,217 +526,6 @@ impl crate::RelationCapable for GLiNER2Candle {
     }
 }
 
-// =============================================================================
-// BatchCapable Trait Implementation
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::BatchCapable for GLiNER2Onnx {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        if texts.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let default_types = &["person", "organization", "location", "date", "event"];
-
-        // For true batching, we need to:
-        // 1. Tokenize all texts
-        // 2. Pad to max length
-        // 3. Run as single batch
-        // 4. Split results back
-
-        // Collect word-level tokenizations
-        let text_words: Vec<Vec<&str>> = texts
-            .iter()
-            .map(|t| t.split_whitespace().collect())
-            .collect();
-
-        // Find max word count
-        let max_words = text_words.iter().map(|w| w.len()).max().unwrap_or(0);
-        if max_words == 0 {
-            return Ok(texts.iter().map(|_| Vec::new()).collect());
-        }
-
-        // Encode all prompts (no span tensors needed for current model)
-        let mut all_input_ids = Vec::new();
-        let mut all_attention_masks = Vec::new();
-        let mut all_words_masks = Vec::new();
-        let mut all_text_lengths = Vec::new();
-        let mut seq_lens = Vec::new();
-
-        for words in &text_words {
-            if words.is_empty() {
-                // Handle empty text
-                seq_lens.push(0);
-                continue;
-            }
-
-            let (input_ids, attention_mask, words_mask) =
-                self.encode_ner_prompt(words, default_types)?;
-            seq_lens.push(input_ids.len());
-            all_input_ids.push(input_ids);
-            all_attention_masks.push(attention_mask);
-            all_words_masks.push(words_mask);
-            all_text_lengths.push(words.len() as i64);
-        }
-
-        // If all texts were empty, return empty results
-        if seq_lens.iter().all(|&l| l == 0) {
-            return Ok(texts.iter().map(|_| Vec::new()).collect());
-        }
-
-        // Pad sequences to max length
-        let max_seq_len = seq_lens.iter().copied().max().unwrap_or(0);
-
-        for i in 0..all_input_ids.len() {
-            let pad_len = max_seq_len - all_input_ids[i].len();
-            all_input_ids[i].extend(std::iter::repeat_n(0i64, pad_len));
-            all_attention_masks[i].extend(std::iter::repeat_n(0i64, pad_len));
-            all_words_masks[i].extend(std::iter::repeat_n(0i64, pad_len));
-        }
-
-        // Build batched tensors - only 4 inputs (no span tensors)
-        use ndarray::Array2;
-
-        let batch_size = all_input_ids.len();
-
-        let input_ids_flat: Vec<i64> = all_input_ids.into_iter().flatten().collect();
-        let attention_mask_flat: Vec<i64> = all_attention_masks.into_iter().flatten().collect();
-        let words_mask_flat: Vec<i64> = all_words_masks.into_iter().flatten().collect();
-
-        // Validate lengths before array creation
-        let expected_input_len = batch_size * max_seq_len;
-        if input_ids_flat.len() != expected_input_len {
-            return Err(Error::Parse(format!(
-                "Input IDs length mismatch: expected {}, got {}",
-                expected_input_len,
-                input_ids_flat.len()
-            )));
-        }
-
-        let input_ids_arr = Array2::from_shape_vec((batch_size, max_seq_len), input_ids_flat)
-            .map_err(|e| Error::Parse(format!("Array: {}", e)))?;
-        let attention_mask_arr =
-            Array2::from_shape_vec((batch_size, max_seq_len), attention_mask_flat)
-                .map_err(|e| Error::Parse(format!("Array: {}", e)))?;
-        let words_mask_arr = Array2::from_shape_vec((batch_size, max_seq_len), words_mask_flat)
-            .map_err(|e| Error::Parse(format!("Array: {}", e)))?;
-        let text_lengths_arr = Array2::from_shape_vec((batch_size, 1), all_text_lengths)
-            .map_err(|e| Error::Parse(format!("Array: {}", e)))?;
-
-        let input_ids_t = super::ort_compat::tensor_from_ndarray(input_ids_arr)
-            .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
-        let attention_mask_t = super::ort_compat::tensor_from_ndarray(attention_mask_arr)
-            .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
-        let words_mask_t = super::ort_compat::tensor_from_ndarray(words_mask_arr)
-            .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
-        let text_lengths_t = super::ort_compat::tensor_from_ndarray(text_lengths_arr)
-            .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
-
-        // Run batched inference with blocking lock for thread-safe parallel access
-        let mut session = lock(&self.session);
-
-        let outputs = session
-            .run(ort::inputs![
-                "input_ids" => input_ids_t.into_dyn(),
-                "attention_mask" => attention_mask_t.into_dyn(),
-                "words_mask" => words_mask_t.into_dyn(),
-                "text_lengths" => text_lengths_t.into_dyn(),
-            ])
-            .map_err(|e| Error::Inference(format!("ONNX batch run: {}", e)))?;
-
-        // Decode batch results
-        self.decode_ner_batch_output(&outputs, texts, &text_words, default_types, 0.5)
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(16)
-    }
-}
-
-#[cfg(feature = "candle")]
-impl crate::BatchCapable for GLiNER2Candle {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        if texts.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let default_types = vec![
-            "person".to_string(),
-            "organization".to_string(),
-            "location".to_string(),
-            "date".to_string(),
-            "event".to_string(),
-        ];
-
-        // Pre-compute label embeddings once for all texts
-        let label_refs: Vec<&str> = default_types.iter().map(|s| s.as_str()).collect();
-        let _ = self.encode_labels_cached(&label_refs)?;
-
-        // Process texts - labels are now cached for efficiency
-        let mut results = Vec::with_capacity(texts.len());
-
-        for text in texts {
-            let entities = self.extract_entities(text, &default_types, 0.5)?;
-            results.push(entities);
-        }
-
-        Ok(results)
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(8)
-    }
-}
-
-// =============================================================================
-// StreamingCapable Trait Implementation
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::StreamingCapable for GLiNER2Onnx {
-    // Uses default extract_entities_streaming implementation which adjusts offsets
-
-    fn recommended_chunk_size(&self) -> usize {
-        4096 // Characters - translates to roughly a few hundred words
-    }
-}
-
-#[cfg(feature = "candle")]
-impl crate::StreamingCapable for GLiNER2Candle {
-    // Uses default extract_entities_streaming implementation which adjusts offsets
-
-    fn recommended_chunk_size(&self) -> usize {
-        4096
-    }
-}
-
-// =============================================================================
-// GpuCapable Trait Implementation
-// =============================================================================
-
-#[cfg(feature = "candle")]
-impl crate::GpuCapable for GLiNER2Candle {
-    fn is_gpu_active(&self) -> bool {
-        matches!(&self.device, Device::Metal(_) | Device::Cuda(_))
-    }
-
-    fn device(&self) -> &str {
-        match &self.device {
-            Device::Cpu => "cpu",
-            Device::Metal(_) => "metal",
-            Device::Cuda(_) => "cuda",
-        }
-    }
-}
 
 // =============================================================================
 // Tests

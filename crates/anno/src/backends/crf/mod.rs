@@ -289,20 +289,6 @@ impl Model for CrfNER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for CrfNER {}
-
-impl crate::BatchCapable for CrfNER {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(32) // CRF is fast, can handle batches
-    }
-}
-
-impl crate::StreamingCapable for CrfNER {
-    fn recommended_chunk_size(&self) -> usize {
-        4096 // Smaller chunks since CRF is token-based
-    }
-}
 
 #[cfg(test)]
 mod tests;

@@ -631,7 +631,7 @@ impl GLiNER2Onnx {
             )));
         }
 
-        // Ensure output length matches input texts length (BatchCapable contract).
+        // Ensure output length matches input texts length.
         while results.len() < texts.len() {
             results.push(Vec::new());
         }

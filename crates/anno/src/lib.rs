@@ -1,6 +1,7 @@
 //! # anno
 //!
-//! Information extraction: named entity recognition (NER) and within-document coreference.
+//! Information extraction for unstructured text: named entity recognition (NER),
+//! coreference resolution, entity linking, relation extraction, and zero-shot entity types.
 //!
 //! - **NER output**: variable-length spans with **character offsets** (Unicode scalar values), not
 //!   byte offsets.
@@ -126,7 +127,7 @@ pub use error::{Error, Result};
 pub use anno_core::{
     generate_span_candidates, Animacy, CanonicalId, Confidence, CorefChain, CorefDocument,
     CoreferenceResolver, Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory,
-    EntityType, EntityViewport, ExtractionMethod, Gender, GroundedDocument, HashMapLexicon,
+    EntityType, ExtractionMethod, Gender, GroundedDocument, HashMapLexicon,
     HierarchicalConfidence, Identity, IdentityId, IdentitySource, Lexicon, Location, Mention,
     MentionType, Modality, Number, Person, PhiFeatures, Provenance, Quantifier, RaggedBatch,
     Relation, Signal, SignalId, SignalRef, Span, SpanCandidate, Track, TrackId, TrackRef,
@@ -205,9 +206,6 @@ mod sealed {
 
     #[cfg(feature = "candle")]
     impl<E: Send + Sync> Sealed for super::backends::gliner_pipeline::GLiNERPipeline<E> {}
-
-    #[cfg(feature = "burn")]
-    impl Sealed for super::backends::burn::BurnNER {}
 
     impl Sealed for super::backends::tplinker::TPLinker {}
     impl Sealed for super::backends::universal_ner::UniversalNER {}
@@ -356,11 +354,7 @@ type AnyModelRelationExtractor =
 ///
 /// `AnyModel` supports [`DynamicLabels`] and [`RelationCapable`] via closures
 /// (see [`with_dynamic_labels`](Self::with_dynamic_labels) and
-/// [`with_relations`](Self::with_relations)). `BatchCapable`, `GpuCapable`, and
-/// `StreamingCapable` are **not** supported -- these capability traits require
-/// typed method signatures that cannot be expressed through closures. For
-/// backends needing those capabilities, implement the sealed `Model` trait
-/// directly within this crate.
+/// [`with_relations`](Self::with_relations)).
 pub struct AnyModel {
     name: &'static str,
     description: &'static str,
@@ -514,140 +508,15 @@ impl RelationCapable for AnyModel {
     }
 }
 
-// =============================================================================
-// Capability Marker Traits
-// =============================================================================
-
-/// Trait for models that support batch processing.
-///
-/// Models implementing this trait can process multiple texts efficiently,
-/// potentially using parallel processing or optimized batch operations.
-///
-/// **Note:** When working with `Box<dyn Model>` (trait objects), use
-/// [`Model::capabilities()`] for runtime discovery instead of downcasting.
-/// The [`ModelCapabilities::batch_capable`] field mirrors this trait.
-pub trait BatchCapable: Model {
-    /// Extract entities from multiple texts in a batch.
-    ///
-    /// # Arguments
-    /// * `texts` - Slice of text strings to process
-    /// * `language` - Optional language hint for the texts
-    ///
-    /// # Returns
-    /// A vector of entity vectors, one per input text
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        texts
-            .iter()
-            .map(|text| self.extract_entities(text, language))
-            .collect()
-    }
-
-    /// Get the optimal batch size for this model, if applicable.
-    ///
-    /// Returns `None` if the model doesn't have a specific optimal batch size,
-    /// or `Some(n)` if there's a recommended batch size for best performance.
-    fn optimal_batch_size(&self) -> Option<usize> {
-        None
-    }
-}
-
-/// Trait for models that support GPU acceleration.
-///
-/// Models implementing this trait can report whether GPU is active
-/// and which device they're using.
-///
-/// **Note:** When working with `Box<dyn Model>` (trait objects), use
-/// [`Model::capabilities()`] for runtime discovery instead of downcasting.
-/// The [`ModelCapabilities::gpu_capable`] field mirrors this trait.
-pub trait GpuCapable: Model {
-    /// Check if GPU acceleration is currently active.
-    ///
-    /// Returns `true` if the model is using GPU, `false` if using CPU.
-    fn is_gpu_active(&self) -> bool;
-
-    /// Get the device identifier (e.g., "cuda:0", "cpu").
-    ///
-    /// Returns a string describing the compute device being used.
-    fn device(&self) -> &str;
-}
-
-/// Trait for models that support streaming/chunked extraction.
-///
-/// Useful for processing very long documents by splitting them into chunks
-/// and extracting entities from each chunk with proper offset tracking.
-///
-/// **Note:** When working with `Box<dyn Model>` (trait objects), use
-/// [`Model::capabilities()`] for runtime discovery instead of downcasting.
-/// The [`ModelCapabilities::streaming_capable`] field mirrors this trait.
-pub trait StreamingCapable: Model {
-    /// Extract entities from a chunk of text, adjusting offsets by the chunk's position.
-    ///
-    /// # Arguments
-    ///
-    /// * `chunk` - A portion of the full document text
-    /// * `offset` - Character offset of this chunk within the full document
-    ///
-    /// # Returns
-    ///
-    /// Entities with offsets adjusted to their position in the full document.
-    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
-        let entities = self.extract_entities(chunk, None)?;
-        Ok(entities
-            .into_iter()
-            .map(|mut e| {
-                e.start += offset;
-                e.end += offset;
-                e
-            })
-            .collect())
-    }
-
-    /// Get the recommended chunk size for streaming extraction.
-    ///
-    /// Returns the optimal number of characters per chunk for this model.
-    /// Default implementation returns 10,000 characters.
-    fn recommended_chunk_size(&self) -> usize {
-        10_000
-    }
-}
-
-/// Marker trait for models that extract named entities (persons, organizations, locations).
-///
-/// This is a marker trait used for type-level distinctions between different
-/// model capabilities. All NER models should implement this.
-#[deprecated(
-    since = "0.4.0",
-    note = "Empty marker trait -- use Model::capabilities() for runtime capability discovery instead"
-)]
-pub trait NamedEntityCapable: Model {}
-
-/// Marker trait for models that extract structured entities (dates, times, money, etc.).
-///
-/// This is a marker trait used for type-level distinctions between different
-/// model capabilities. Models that extract structured data (like `RegexNER`) should implement this.
-#[deprecated(
-    since = "0.4.0",
-    note = "Empty marker trait -- use Model::capabilities() for runtime capability discovery instead"
-)]
-pub trait StructuredEntityCapable: Model {}
 
 // =============================================================================
 // Capability Discovery for Trait Objects
 // =============================================================================
 
-/// Primary runtime discovery mechanism for model capabilities behind `Box<dyn Model>`.
+/// Runtime discovery mechanism for model capabilities behind `Box<dyn Model>`.
 ///
-/// Capability traits like [`BatchCapable`], [`GpuCapable`], and [`StreamingCapable`]
-/// carry useful methods but cannot be queried through a `dyn Model` trait object
-/// without downcasting. This struct surfaces the same information through
-/// [`Model::capabilities()`], making it available for any `&dyn Model`.
-///
-/// Prefer this over checking concrete types or downcasting when writing generic
-/// code that operates on `Box<dyn Model>` or `&dyn Model`.
+/// Surfaces capability information through [`Model::capabilities()`],
+/// making it available for any `&dyn Model` without downcasting.
 ///
 /// # Example
 ///
@@ -667,23 +536,23 @@ pub trait StructuredEntityCapable: Model {}
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ModelCapabilities {
-    /// True if the model implements `BatchCapable`.
+    /// True if the model supports batch processing.
     pub batch_capable: bool,
     /// Optimal batch size, if batch capable.
     pub optimal_batch_size: Option<usize>,
-    /// True if the model implements `GpuCapable`.
+    /// True if the model supports GPU acceleration.
     pub gpu_capable: bool,
     /// True if GPU is currently active.
     pub gpu_active: bool,
     /// Device identifier (e.g., "cuda:0", "cpu"), if GPU capable.
     pub device: Option<String>,
-    /// True if the model implements `StreamingCapable`.
+    /// True if the model supports streaming/chunked extraction.
     pub streaming_capable: bool,
     /// Recommended chunk size for streaming, if streaming capable.
     pub recommended_chunk_size: Option<usize>,
-    /// True if the model implements `RelationCapable`.
+    /// True if the model supports relation extraction.
     pub relation_capable: bool,
-    /// True if the model implements `DynamicLabels` (zero-shot, caller-supplied entity types).
+    /// True if the model supports zero-shot, caller-supplied entity types.
     pub dynamic_labels: bool,
     /// True if the model can extract discontinuous entities spanning non-adjacent spans.
     /// Only `W2NER` (when loaded with an ONNX session) sets this today.
@@ -768,10 +637,8 @@ pub use backends::CorefBackend;
 pub use backends::inference::{
     extract_relation_triples, extract_relation_triples_simple, extract_relations, BiEncoder,
     CoreferenceCluster, CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER,
-    DotProductInteraction, EncoderOutput, ExtractionWithRelations, HandshakingCell,
-    HandshakingMatrix, LabelEncoder, LateInteraction, MaxSimInteraction, RelationExtractionConfig,
-    RelationExtractor, RelationTriple, SemanticRegistry, SemanticRegistryBuilder, SpanLabelScore,
-    SpanRepConfig, TextEncoder, ZeroShotNER,
+    ExtractionWithRelations, RelationExtractionConfig, RelationExtractor, RelationTriple,
+    SemanticRegistry, SemanticRegistryBuilder, ZeroShotNER,
 };
 
 #[cfg(feature = "onnx")]
@@ -854,8 +721,7 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
                 Some("onnx") => cfg!(feature = "onnx"),
                 Some("candle") => cfg!(feature = "candle"),
                 Some("llm") => cfg!(feature = "llm"),
-                Some("burn") => cfg!(feature = "burn"),
-                // Unknown/planned feature gates (e.g. "rust-bert") -- not yet in Cargo.toml.
+                // Unknown/planned feature gates -- not yet in Cargo.toml.
                 Some(_) => false,
             };
             (info.name, available)

@@ -788,30 +788,6 @@ impl crate::Model for BertNEROnnx {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for BertNEROnnx {}
-
-// =============================================================================
-// BatchCapable Trait Implementation
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::BatchCapable for BertNEROnnx {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(8)
-    }
-}
-
-// =============================================================================
-// StreamingCapable Trait Implementation
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::StreamingCapable for BertNEROnnx {
-    fn recommended_chunk_size(&self) -> usize {
-        512 // BERT context window
-    }
-}
 
 // Stub implementation when feature is disabled
 crate::backends::macros::define_feature_stub! {

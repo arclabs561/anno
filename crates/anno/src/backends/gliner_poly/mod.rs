@@ -193,9 +193,6 @@ impl ZeroShotNER for GLiNERPoly {
 // DynamicLabels trait (ONNX)
 // =============================================================================
 
-#[cfg(feature = "onnx")]
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for GLiNERPoly {}
 
 #[cfg(feature = "onnx")]
 impl crate::DynamicLabels for GLiNERPoly {
@@ -209,42 +206,6 @@ impl crate::DynamicLabels for GLiNERPoly {
     }
 }
 
-// =============================================================================
-// BatchCapable trait (ONNX)
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::BatchCapable for GLiNERPoly {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        if texts.is_empty() {
-            return Ok(Vec::new());
-        }
-        // Sequential dispatch; true batching can be added later with padded sequences.
-        texts
-            .iter()
-            .map(|text| self.extract(text, DEFAULT_POLY_LABELS, 0.5))
-            .collect()
-    }
-
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(16)
-    }
-}
-
-// =============================================================================
-// StreamingCapable trait (ONNX)
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::StreamingCapable for GLiNERPoly {
-    fn recommended_chunk_size(&self) -> usize {
-        4096
-    }
-}
 
 // =============================================================================
 // Stub when feature disabled
@@ -322,25 +283,6 @@ impl ZeroShotNER for GLiNERPoly {
     }
 }
 
-#[cfg(not(feature = "onnx"))]
-impl crate::BatchCapable for GLiNERPoly {
-    fn extract_entities_batch(
-        &self,
-        _texts: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        Err(Error::FeatureNotAvailable(
-            "GLiNERPoly requires the 'onnx' feature".to_string(),
-        ))
-    }
-}
-
-#[cfg(not(feature = "onnx"))]
-impl crate::StreamingCapable for GLiNERPoly {
-    fn recommended_chunk_size(&self) -> usize {
-        4096
-    }
-}
 
 // =============================================================================
 // Tests
@@ -411,15 +353,6 @@ mod tests {
         assert!(matches!(err, Error::FeatureNotAvailable(_)));
     }
 
-    // ---- Test 7: BatchCapable returns error without onnx ----
-    #[test]
-    #[cfg(not(feature = "onnx"))]
-    fn test_gliner_poly_batch_error() {
-        use crate::BatchCapable;
-        let model = GLiNERPoly { _private: () };
-        let err = model.extract_entities_batch(&["hello"], None).unwrap_err();
-        assert!(matches!(err, Error::FeatureNotAvailable(_)));
-    }
 
     // ---- Tests with onnx feature enabled ----
 

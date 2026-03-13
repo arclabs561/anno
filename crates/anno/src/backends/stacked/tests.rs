@@ -192,7 +192,6 @@ fn mock_entity(text: &str, start: usize, ty: EntityType, conf: f64) -> Entity {
         discontinuous_span: None,
         valid_from: None,
         valid_until: None,
-        viewport: None,
         phi_features: None,
         mention_type: None,
     }
@@ -307,27 +306,6 @@ fn test_highest_conf_multiple_overlaps_ties_prefer_existing() {
     assert_eq!(e[0].text, "aaaaa", "should keep earliest existing entity");
     assert_eq!(e[0].start, 0);
     assert_eq!(e[0].end, 5);
-}
-
-#[test]
-fn test_layer_name_rule_maps_to_heuristic_method() {
-    // StackedNER adds provenance when a backend doesn't.
-    // For legacy RuleBasedNER-like layers (id "rule"), provenance.method should not be Neural.
-    use anno_core::ExtractionMethod;
-
-    let ner = StackedNER::builder()
-        .layer(mock_model(
-            "rule",
-            vec![mock_entity("Apple", 0, EntityType::Organization, 0.8)],
-        ))
-        .strategy(ConflictStrategy::Priority)
-        .build();
-
-    let e = ner.extract_entities("Apple", None).unwrap();
-    assert_eq!(e.len(), 1);
-    let prov = e[0].provenance.as_ref().expect("provenance should be set");
-    assert_eq!(prov.source.as_ref(), "rule");
-    assert_eq!(prov.method, ExtractionMethod::Heuristic);
 }
 
 #[test]
@@ -761,7 +739,6 @@ fn test_method_for_backend_name_all_branches() {
         method_for_backend_name("heuristic"),
         ExtractionMethod::Heuristic
     );
-    assert_eq!(method_for_backend_name("rule"), ExtractionMethod::Heuristic);
     // Anything else maps to Neural (onnx, candle, custom names, etc.)
     assert_eq!(
         method_for_backend_name("onnx-bert"),
@@ -886,7 +863,7 @@ fn test_invalid_span_start_ge_end_skipped() {
                 discontinuous_span: None,
                 valid_from: None,
                 valid_until: None,
-                viewport: None,
+
                 phi_features: None,
                 mention_type: None,
             }])

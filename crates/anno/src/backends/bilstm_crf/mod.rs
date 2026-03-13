@@ -728,13 +728,6 @@ impl Model for BiLstmCrfNER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for BiLstmCrfNER {}
-impl crate::BatchCapable for BiLstmCrfNER {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(32) // BiLSTM benefits from batching
-    }
-}
 
 #[cfg(test)]
 mod tests;

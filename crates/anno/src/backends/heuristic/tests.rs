@@ -502,24 +502,6 @@ fn test_german_preposition_location_context() {
     );
 }
 
-/// BatchCapable and StreamingCapable trait methods return expected values.
-#[test]
-fn test_batch_and_streaming_capabilities() {
-    let ner = HeuristicNER::new();
-    assert_eq!(
-        crate::BatchCapable::optimal_batch_size(&ner),
-        Some(16),
-        "optimal_batch_size should be 16"
-    );
-    assert_eq!(
-        crate::StreamingCapable::recommended_chunk_size(&ner),
-        8192,
-        "recommended_chunk_size should be 8192"
-    );
-    let caps = Model::capabilities(&ner);
-    assert!(caps.batch_capable, "batch_capable should be true");
-    assert!(caps.streaming_capable, "streaming_capable should be true");
-}
 
 /// Trailing punctuation is stripped from entity text.
 #[test]

@@ -120,42 +120,6 @@ impl Model for ALBERTNER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for ALBERTNER {}
-
-impl crate::BatchCapable for ALBERTNER {
-    fn extract_entities_batch(
-        &self,
-        texts: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Vec<Entity>>> {
-        #[cfg(feature = "onnx")]
-        {
-            self.inner.extract_entities_batch(texts, language)
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            Err(crate::Error::FeatureNotAvailable(
-                "ALBERT NER requires 'onnx' feature".to_string(),
-            ))
-        }
-    }
-}
-
-impl crate::StreamingCapable for ALBERTNER {
-    fn extract_entities_streaming(&self, chunk: &str, offset: usize) -> Result<Vec<Entity>> {
-        #[cfg(feature = "onnx")]
-        {
-            self.inner.extract_entities_streaming(chunk, offset)
-        }
-        #[cfg(not(feature = "onnx"))]
-        {
-            Err(crate::Error::FeatureNotAvailable(
-                "ALBERT NER requires 'onnx' feature".to_string(),
-            ))
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

@@ -150,9 +150,6 @@ pub(crate) mod ort_compat;
 pub mod regex;
 /// Language-aware routing for automatic backend selection.
 pub(crate) mod router;
-/// Shared span-tensor utilities for span-based NER backends (GLiNER/NuNER family).
-#[allow(dead_code)]
-pub(crate) mod span_utils;
 pub mod stacked;
 pub mod tplinker;
 pub mod w2ner;
@@ -197,8 +194,6 @@ pub(crate) fn method_for_backend_name(name: &str) -> anno_core::ExtractionMethod
         // Stable IDs used by built-in compositions.
         "regex" => anno_core::ExtractionMethod::Pattern,
         "heuristic" => anno_core::ExtractionMethod::Heuristic,
-        // Legacy backend id (deprecated, but still used in tests/compositions).
-        "rule" => anno_core::ExtractionMethod::Heuristic,
         // Everything else: treat as neural by default.
         _ => anno_core::ExtractionMethod::Neural,
     }
@@ -235,18 +230,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rule_legacy_maps_to_heuristic() {
-        // "rule" is the deprecated legacy ID for the old RuleBasedNER.
-        // It must map to Heuristic so provenance stays consistent with
-        // compositions that still use the old ID.
-        assert_eq!(
-            method_for_backend_name("rule"),
-            ExtractionMethod::Heuristic,
-            "\"rule\" (deprecated) must map to Heuristic for backwards compatibility"
-        );
-    }
-
     // -------------------------------------------------------------------------
     // method_for_backend_name: wildcard / unknown IDs -> Neural
     // -------------------------------------------------------------------------
@@ -270,7 +253,6 @@ mod tests {
             "",
             "REGEX",     // case-sensitive: must NOT match "regex"
             "Heuristic", // case-sensitive: must NOT match "heuristic"
-            "Rule",      // case-sensitive: must NOT match "rule"
         ];
         for name in neural_names {
             assert_eq!(
@@ -308,14 +290,14 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
-    // Stability: the three exact matches remain stable under whitespace
+    // Stability: the two exact matches remain stable under whitespace
     // -------------------------------------------------------------------------
 
     #[test]
     fn match_is_exact_no_trimming() {
         // Whitespace-padded variants are NOT trimmed; they should fall through
         // to Neural, confirming the match is exact byte-equality.
-        for padded in &[" regex", "regex ", " heuristic", "heuristic\n", "\trule"] {
+        for padded in &[" regex", "regex ", " heuristic", "heuristic\n"] {
             assert_eq!(
                 method_for_backend_name(padded),
                 ExtractionMethod::Neural,
@@ -326,9 +308,6 @@ mod tests {
     }
 }
 
-// Burn ML framework (training + inference)
-#[cfg(feature = "burn")]
-pub mod burn;
 
 // Advanced backends
 #[cfg(feature = "onnx")]
@@ -349,9 +328,6 @@ pub mod llm_client;
 // LLM-based NER prompting (CodeNER-style)
 pub(crate) mod llm_prompt;
 
-// Demonstration selection for few-shot NER (CMAS-inspired)
-#[allow(dead_code)]
-pub(crate) mod demonstration;
 
 // GLiNER via ONNX (uses same feature as other ONNX models)
 
@@ -402,16 +378,6 @@ pub use regex::RegexNER;
 pub use router::AutoNER;
 pub use stacked::{ConflictStrategy, StackedNER};
 
-/// Backwards compatibility alias for `HeuristicNER`.
-///
-/// The name "StatisticalNER" was misleading since it doesn't use
-/// statistical/probabilistic methods like CRF or HMM - it uses
-/// capitalization and context heuristics.
-#[deprecated(
-    since = "0.3.0",
-    note = "Use HeuristicNER instead - StatisticalNER was misleading"
-)]
-pub type StatisticalNER = HeuristicNER;
 pub use tplinker::TPLinker;
 pub use w2ner::{W2NERConfig, W2NERRelation, W2NER};
 
@@ -424,9 +390,6 @@ pub use gliner_poly::GLiNERPoly;
 pub use glirel::GLiREL;
 pub use universal_ner::UniversalNER;
 
-// Backwards compatibility
-#[allow(deprecated)]
-pub use stacked::{CompositeNER, LayeredNER, TieredNER};
 
 // Re-exports (feature-gated)
 #[cfg(feature = "onnx")]
@@ -503,9 +466,6 @@ pub use middleware::{
     Pipeline as MiddlewarePipeline, PipelineStageAdapter, RemoveOverlaps,
 };
 
-// Burn ML framework (trainable)
-#[cfg(feature = "burn")]
-pub use burn::{BurnConfig, BurnNER};
 
 // Simple rule-based coreference resolvers.
 #[cfg(all(feature = "eval", feature = "discourse"))]

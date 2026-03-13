@@ -16,69 +16,6 @@
 //! - W2NER: arXiv:2112.10070
 //! - ModernBERT: arXiv:2412.13663
 
-use std::borrow::Cow;
-
-// =============================================================================
-// Modality Types
-// =============================================================================
-
-/// Input modality for the encoder.
-///
-/// Supports text, images, and hybrid (OCR + visual) inputs.
-/// This enables ColPali-style visual document understanding.
-#[derive(Debug, Clone)]
-pub enum ModalityInput<'a> {
-    /// Plain text input
-    Text(Cow<'a, str>),
-    /// Image bytes (PNG/JPEG)
-    Image {
-        /// Raw image bytes
-        data: Cow<'a, [u8]>,
-        /// Image format hint
-        format: ImageFormat,
-    },
-    /// Hybrid: text with visual location (e.g., OCR result)
-    Hybrid {
-        /// Extracted text
-        text: Cow<'a, str>,
-        /// Visual bounding boxes for each token/word
-        visual_positions: Vec<VisualPosition>,
-    },
-}
-
-/// Image format hint for decoding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ImageFormat {
-    /// PNG format
-    #[default]
-    Png,
-    /// JPEG format
-    Jpeg,
-    /// WebP format
-    Webp,
-    /// Unknown/auto-detect
-    Unknown,
-}
-
-/// Visual position of a text token in an image.
-#[derive(Debug, Clone, Copy)]
-pub struct VisualPosition {
-    /// Token/word index
-    pub token_idx: u32,
-    /// Normalized x coordinate (0.0-1.0)
-    pub x: f32,
-    /// Normalized y coordinate (0.0-1.0)
-    pub y: f32,
-    /// Normalized width (0.0-1.0)
-    pub width: f32,
-    /// Normalized height (0.0-1.0)
-    pub height: f32,
-    /// Page number (for multi-page documents)
-    pub page: u32,
-}
-
-// =============================================================================
-
 pub mod registry;
 pub use registry::{
     LabelCategory, LabelDefinition, ModalityHint, SemanticRegistry, SemanticRegistryBuilder,

@@ -844,28 +844,6 @@ impl Model for W2NER {
     }
 }
 
-#[allow(deprecated)]
-impl crate::NamedEntityCapable for W2NER {}
-
-// =============================================================================
-// BatchCapable Trait Implementation
-// =============================================================================
-
-impl crate::BatchCapable for W2NER {
-    fn optimal_batch_size(&self) -> Option<usize> {
-        Some(4) // W2NER is more memory-intensive due to grid computation
-    }
-}
-
-// =============================================================================
-// StreamingCapable Trait Implementation
-// =============================================================================
-
-impl crate::StreamingCapable for W2NER {
-    fn recommended_chunk_size(&self) -> usize {
-        2048 // Smaller chunks due to grid memory requirements
-    }
-}
 
 // =============================================================================
 // DiscontinuousNER Trait Implementation
