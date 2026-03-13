@@ -234,10 +234,14 @@ impl GLiNER2Candle {
         let api = crate::backends::hf_loader::hf_api()?;
         let repo = api.model(model_id.to_string());
 
-        // Load config
+        // Load config -- try config.json first, fall back to gliner_config.json
+        // (GLiNER models like urchade/gliner_multi-v2.1 only have gliner_config.json)
         let config_path = repo
             .get("config.json")
-            .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
+            .or_else(|_| repo.get("gliner_config.json"))
+            .map_err(|e| Error::Retrieval(format!(
+                "config (tried config.json and gliner_config.json): {}", e
+            )))?;
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| Error::Retrieval(format!("read config: {}", e)))?;
         let config: serde_json::Value = serde_json::from_str(&config_str)
