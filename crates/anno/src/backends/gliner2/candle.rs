@@ -273,7 +273,13 @@ impl GLiNER2Candle {
         };
 
         // Build components
-        let encoder = CandleEncoder::from_pretrained(model_id)?;
+        // Resolve encoder model: GLiNER configs specify the underlying encoder in
+        // "model_name" (e.g. "microsoft/mdeberta-v3-base"). Use that for the encoder
+        // so the tokenizer is loaded from the correct repo.
+        let encoder_id = config["model_name"]
+            .as_str()
+            .unwrap_or(model_id);
+        let encoder = CandleEncoder::from_pretrained(encoder_id)?;
         let span_rep = SpanRepLayer::new(hidden_size, MAX_SPAN_WIDTH, vb.pp("span_rep"))?;
         let label_proj = candle_nn::linear(hidden_size, hidden_size, vb.pp("label_projection"))
             .map_err(|e| Error::Retrieval(format!("label_projection: {}", e)))?;
