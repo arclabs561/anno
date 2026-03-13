@@ -65,21 +65,6 @@ impl BackendFactory {
                 Ok(Box::new(BiLstmCrfNER::new()) as Box<dyn Model>)
             }
 
-            // Burn backend
-            #[cfg(feature = "burn")]
-            "burn" | "burnner" | "burn_ner" | "burn-ner" => {
-                use anno::backends::burn::BurnNER;
-                BurnNER::new()
-                    .map(|m| Box::new(m) as Box<dyn Model>)
-                    .map_err(|e| {
-                        anno::Error::FeatureNotAvailable(format!("BurnNER unavailable: {}", e))
-                    })
-            }
-            #[cfg(not(feature = "burn"))]
-            "burn" | "burnner" | "burn_ner" | "burn-ner" => Err(anno::Error::FeatureNotAvailable(
-                "BurnNER requires 'burn' feature".to_string(),
-            )),
-
             // ONNX backends
             #[cfg(feature = "onnx")]
             "bert_onnx" | "bertneronnx" => {

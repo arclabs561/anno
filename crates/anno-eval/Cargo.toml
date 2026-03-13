@@ -79,7 +79,6 @@ eval-bias = []
 eval-parallel = ["parallel"]
 onnx = ["anno/onnx", "hf-hub"]
 candle = ["anno/candle"]
-burn = ["anno/burn"]
 llm = ["anno/llm"]
 hf-hub = ["dep:hf-hub"]
 

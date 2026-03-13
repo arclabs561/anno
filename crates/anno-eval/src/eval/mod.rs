@@ -260,7 +260,6 @@ pub mod abstract_anaphora;
 pub mod advanced_evaluator;
 pub mod advanced_harness;
 pub mod analysis;
-pub mod backend_eval;
 pub mod backend_factory;
 pub mod benchmark;
 pub mod bio_adapter;
