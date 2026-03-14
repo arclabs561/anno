@@ -26,12 +26,6 @@
 //! ]);
 //!
 //! let prompt = CodeNERPrompt::new(schema)
-//!     .with_demonstrations(vec![
-//!         ("Steve Jobs founded Apple.", vec![
-//!             ("Steve Jobs", "PER", 0, 10),
-//!             ("Apple", "ORG", 19, 24),
-//!         ]),
-//!     ])
 //!     .with_chain_of_thought(true);
 //!
 //! let rendered = prompt.render("Lynn Conway worked at IBM.");
@@ -44,14 +38,6 @@
 
 use anno_core::EntityType;
 use std::collections::HashMap;
-
-/// Entity annotation for demonstrations: (text, entity_type, start, end).
-#[allow(dead_code)]
-pub type DemoEntity<'a> = (&'a str, &'a str, usize, usize);
-
-/// Full demonstration: (text, list of entity annotations).
-#[allow(dead_code)]
-pub type DemoExample<'a> = (&'a str, Vec<DemoEntity<'a>>);
 
 /// BIO tagging schema for NER.
 ///
@@ -137,50 +123,6 @@ impl BIOSchema {
     }
 }
 
-/// Demonstration example for few-shot prompting.
-#[derive(Debug, Clone)]
-pub struct Demonstration {
-    /// Input text
-    pub text: String,
-    /// Extracted entities: (text, type_label, start, end)
-    pub entities: Vec<(String, String, usize, usize)>,
-}
-
-impl Demonstration {
-    /// Create a new demonstration.
-    #[must_use]
-    #[allow(dead_code)]
-    pub fn new(text: &str, entities: Vec<(&str, &str, usize, usize)>) -> Self {
-        Self {
-            text: text.to_string(),
-            entities: entities
-                .into_iter()
-                .map(|(t, ty, s, e)| (t.to_string(), ty.to_string(), s, e))
-                .collect(),
-        }
-    }
-
-    /// Render as JSON output.
-    fn render_output(&self) -> String {
-        if self.entities.is_empty() {
-            return "[]".to_string();
-        }
-
-        let items: Vec<String> = self
-            .entities
-            .iter()
-            .map(|(text, ty, start, end)| {
-                format!(
-                    r#"    {{"text": "{}", "type": "{}", "start": {}, "end": {}}}"#,
-                    text, ty, start, end
-                )
-            })
-            .collect();
-
-        format!("[\n{}\n]", items.join(",\n"))
-    }
-}
-
 /// Code-based NER prompt generator.
 ///
 /// Implements CodeNER-style prompting where NER is framed as a
@@ -189,8 +131,6 @@ impl Demonstration {
 pub struct CodeNERPrompt {
     /// BIO schema definition
     schema: BIOSchema,
-    /// Few-shot demonstrations
-    demonstrations: Vec<Demonstration>,
     /// Enable chain-of-thought reasoning
     use_cot: bool,
     /// System message prefix
@@ -203,21 +143,9 @@ impl CodeNERPrompt {
     pub fn new(schema: BIOSchema) -> Self {
         Self {
             schema,
-            demonstrations: vec![],
             use_cot: false,
             system_prefix: None,
         }
-    }
-
-    /// Add few-shot demonstrations.
-    #[must_use]
-    #[allow(dead_code)]
-    pub fn with_demonstrations(mut self, demos: Vec<DemoExample<'_>>) -> Self {
-        self.demonstrations = demos
-            .into_iter()
-            .map(|(text, entities)| Demonstration::new(text, entities))
-            .collect();
-        self
     }
 
     /// Enable chain-of-thought reasoning.
@@ -260,17 +188,6 @@ impl CodeNERPrompt {
             String::new(),
         ];
 
-        // Demonstrations
-        if !self.demonstrations.is_empty() {
-            parts.push("# Examples:".to_string());
-            for (i, demo) in self.demonstrations.iter().enumerate() {
-                parts.push(format!("\n## Example {}:", i + 1));
-                parts.push(format!("Input: \"{}\"", demo.text));
-                parts.push(format!("Output: {}", demo.render_output()));
-            }
-            parts.push("".to_string());
-        }
-
         // Chain-of-thought instruction
         if self.use_cot {
             parts.push("# Instructions:".to_string());
@@ -288,160 +205,7 @@ impl CodeNERPrompt {
 
         parts.join("\n")
     }
-
-    /// Get the expected JSON output format description.
-    #[must_use]
-    #[allow(dead_code)]
-    pub fn output_format(&self) -> &'static str {
-        r#"[{"text": "entity_text", "type": "TYPE", "start": 0, "end": 10}, ...]"#
-    }
 }
-
-/// Parse LLM response into entities.
-///
-/// Attempts to extract a JSON array of entities from the LLM output,
-/// handling common formatting issues.
-#[allow(dead_code)]
-pub fn parse_llm_response(response: &str) -> Result<Vec<ParsedEntity>, ParseError> {
-    // Try to find JSON array in response
-    let json_str = extract_json_array(response)?;
-
-    // Parse JSON
-    let parsed: Vec<serde_json::Value> =
-        serde_json::from_str(&json_str).map_err(|e| ParseError::InvalidJson(e.to_string()))?;
-
-    // Convert to entities
-    let mut entities = Vec::new();
-    for (i, item) in parsed.iter().enumerate() {
-        let text = item
-            .get("text")
-            .and_then(|v| v.as_str())
-            .ok_or(ParseError::MissingField(i, "text"))?
-            .to_string();
-
-        let entity_type = item
-            .get("type")
-            .and_then(|v| v.as_str())
-            .ok_or(ParseError::MissingField(i, "type"))?
-            .to_string();
-
-        let start = item
-            .get("start")
-            .and_then(|v| v.as_u64())
-            .ok_or(ParseError::MissingField(i, "start"))? as usize;
-
-        let end = item
-            .get("end")
-            .and_then(|v| v.as_u64())
-            .ok_or(ParseError::MissingField(i, "end"))? as usize;
-
-        let confidence = item.get("confidence").and_then(|v| v.as_f64());
-
-        entities.push(ParsedEntity {
-            text,
-            entity_type,
-            start,
-            end,
-            confidence,
-        });
-    }
-
-    Ok(entities)
-}
-
-/// Extract JSON array from potentially messy LLM output.
-#[allow(dead_code)]
-fn extract_json_array(text: &str) -> Result<String, ParseError> {
-    // Try direct parse first
-    if let (Some(start), Some(end)) = (text.find('['), text.rfind(']')) {
-        if end > start {
-            return Ok(text[start..=end].to_string());
-        }
-    }
-
-    // Look for ```json block
-    if let Some(start) = text.find("```json") {
-        let start = start + 7;
-        if let Some(end) = text[start..].find("```") {
-            let json = text[start..start + end].trim();
-            if json.starts_with('[') {
-                return Ok(json.to_string());
-            }
-        }
-    }
-
-    // Look for any [ ] pair
-    if let Some(start) = text.find('[') {
-        if let Some(end) = text.rfind(']') {
-            if end > start {
-                return Ok(text[start..=end].to_string());
-            }
-        }
-    }
-
-    Err(ParseError::NoJsonFound)
-}
-
-/// Parsed entity from LLM response.
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct ParsedEntity {
-    /// Entity text
-    pub text: String,
-    /// Entity type label
-    pub entity_type: String,
-    /// Start position in input
-    pub start: usize,
-    /// End position in input
-    pub end: usize,
-    /// Optional confidence score
-    pub confidence: Option<f64>,
-}
-
-impl ParsedEntity {
-    /// Convert to `Entity` with the given entity type mapping.
-    #[allow(dead_code)]
-    pub fn to_entity(&self, type_map: &HashMap<String, EntityType>) -> Option<anno_core::Entity> {
-        let entity_type = type_map
-            .get(&self.entity_type)
-            .or_else(|| type_map.get(&self.entity_type.to_uppercase()))
-            .cloned()?;
-
-        Some(anno_core::Entity::new(
-            &self.text,
-            entity_type,
-            self.start,
-            self.end,
-            self.confidence.unwrap_or(0.8),
-        ))
-    }
-}
-
-/// Error during LLM response parsing.
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum ParseError {
-    /// No JSON array found in response
-    NoJsonFound,
-    /// Invalid JSON syntax
-    InvalidJson(String),
-    /// Missing required field
-    MissingField(usize, &'static str),
-}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NoJsonFound => write!(f, "No JSON array found in LLM response"),
-            Self::InvalidJson(e) => write!(f, "Invalid JSON: {}", e),
-            Self::MissingField(i, field) => {
-                write!(f, "Entity {} missing required field: {}", i, field)
-            }
-        }
-    }
-}
-
-impl std::error::Error for ParseError {}
 
 // =============================================================================
 // Tests
@@ -471,63 +235,6 @@ mod tests {
         assert!(rendered.contains("PER"));
         assert!(rendered.contains("LOC"));
         assert!(rendered.contains("John went to Paris"));
-    }
-
-    #[test]
-    fn test_prompt_with_demonstrations() {
-        let schema = BIOSchema::new(&[EntityType::Person]);
-        let prompt = CodeNERPrompt::new(schema).with_demonstrations(vec![(
-            "Steve Jobs worked at Apple.",
-            vec![("Steve Jobs", "PER", 0, 10)],
-        )]);
-
-        let rendered = prompt.render("Test input.");
-
-        assert!(rendered.contains("Example 1"));
-        assert!(rendered.contains("Steve Jobs"));
-    }
-
-    #[test]
-    fn test_parse_clean_json() {
-        let response = r#"[{"text": "John", "type": "PER", "start": 0, "end": 4}]"#;
-        let entities = parse_llm_response(response).unwrap();
-
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].text, "John");
-        assert_eq!(entities[0].entity_type, "PER");
-    }
-
-    #[test]
-    fn test_parse_json_with_markdown() {
-        let response = r#"
-Here are the entities:
-
-```json
-[{"text": "Paris", "type": "LOC", "start": 10, "end": 15}]
-```
-
-That's all!
-"#;
-        let entities = parse_llm_response(response).unwrap();
-
-        assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].text, "Paris");
-    }
-
-    #[test]
-    fn test_parse_empty_response() {
-        let response = "[]";
-        let entities = parse_llm_response(response).unwrap();
-
-        assert!(entities.is_empty());
-    }
-
-    #[test]
-    fn test_parse_no_json() {
-        let response = "I couldn't find any entities.";
-        let result = parse_llm_response(response);
-
-        assert!(matches!(result, Err(ParseError::NoJsonFound)));
     }
 
     #[test]

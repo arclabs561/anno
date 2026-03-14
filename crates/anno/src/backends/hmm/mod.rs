@@ -185,9 +185,6 @@ pub struct HmmNER {
     /// Emission probabilities: P(word | state)
     /// Key: (state_idx, word), Value: probability
     emissions: HashMap<(usize, String), f64>,
-    /// Vocabulary for unknown word handling.
-    #[allow(dead_code)] // Reserved for OOV handling
-    vocab: HashMap<String, usize>,
     /// Optional bundled emission backoff (small, trained).
     backoff: Option<HmmBackoff>,
 }

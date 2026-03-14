@@ -269,9 +269,7 @@ fn coref_canonical_mention_falls_back_to_longest() {
 
 #[test]
 fn coref_resolver_with_custom_config() {
-    #[allow(deprecated)]
     let config = CorefConfig {
-        similarity_threshold: 0.5,
         max_pronoun_lookback: 1,
         fuzzy_matching: false,
         include_singletons: false,

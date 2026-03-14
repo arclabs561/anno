@@ -98,8 +98,8 @@ pub use confusables::{
     TrainingPair,
 };
 pub use kb::{
-    CrossKBMapper, EntityURI, KnowledgeBase, NILCluster, NeuralArchitecture, NeuralLinkingConfig,
-    UnifiedLinker, UnifiedLinkerBuilder, YAGOEntity,
+    CrossKBMapper, EntityURI, KnowledgeBase, NILCluster, UnifiedLinker, UnifiedLinkerBuilder,
+    YAGOEntity,
 };
 pub use linker::{
     CandidateSummary, EntityLinker, EntityLinkerBuilder, LinkedEntity, LinkingResult, Mention,

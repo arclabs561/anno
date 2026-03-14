@@ -40,10 +40,19 @@ use std::fmt;
 /// // Convert to Confidence (f64) for API consistency
 /// let conf = score.to_confidence();
 /// ```
-#[derive(Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Serialize)]
 #[repr(transparent)]
-#[serde(transparent)]
 pub struct Score(f32);
+
+impl<'de> Deserialize<'de> for Score {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let v = f32::deserialize(deserializer)?;
+        Ok(Self::saturating(v))
+    }
+}
 
 impl Score {
     /// The minimum valid score.

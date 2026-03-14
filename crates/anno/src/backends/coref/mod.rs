@@ -1,24 +1,16 @@
 //! Coreference resolution backends.
 //!
 //! This module groups all within-document coreference resolvers:
-//! - [`resolve`] — Unified `CorefBackend` trait
-//! - [`simple`] — Rule-based resolvers
-//! - [`e2e`] — End-to-end neural coreference (Lee et al. 2017/2018)
-//! - [`graph`] — Graph-based iterative refinement
-//! - [`mention_ranking`] — Mention-ranking coreference (Bourgois & Poibeau 2025)
-//! - [`fcoref`] — Fast neural coreference (ONNX encoder + safetensors scorer)
-//! - [`t5`] — T5-based seq2seq coreference
+//! - [`resolve`] -- Unified `CorefBackend` trait
+//! - [`simple`] -- Rule-based resolvers
+//! - [`mention_ranking`] -- Mention-ranking coreference (Bourgois & Poibeau 2025)
+//! - [`fcoref`] -- Fast neural coreference (ONNX encoder + safetensors scorer)
+//! - [`t5`] -- T5-based seq2seq coreference
 
 /// Unified trait for coreference resolution backends.
 ///
 /// Open trait (not sealed) -- external coref backends can implement it.
 pub mod resolve;
-
-// End-to-end coreference resolution (Lee et al. 2017/2018)
-pub mod e2e;
-
-// Graph-based coreference (iterative refinement)
-pub mod graph;
 
 // Mention-ranking coreference (Bourgois & Poibeau 2025 inspired)
 pub mod mention_ranking;

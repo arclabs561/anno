@@ -406,75 +406,6 @@ impl YAGOEntity {
 }
 
 // =============================================================================
-// Modern Neural Linking Methods
-// =============================================================================
-
-/// Configuration for neural entity linking.
-#[derive(Debug, Clone)]
-pub struct NeuralLinkingConfig {
-    /// Model architecture
-    pub architecture: NeuralArchitecture,
-    /// Maximum candidates to retrieve
-    pub max_candidates: usize,
-    /// Use cross-encoder re-ranking
-    pub use_reranker: bool,
-    /// Confidence threshold
-    pub confidence_threshold: f64,
-    /// Enable zero-shot linking
-    pub zero_shot: bool,
-}
-
-impl Default for NeuralLinkingConfig {
-    fn default() -> Self {
-        Self {
-            architecture: NeuralArchitecture::BiEncoder,
-            max_candidates: 64,
-            use_reranker: true,
-            confidence_threshold: 0.5,
-            zero_shot: false,
-        }
-    }
-}
-
-/// Neural entity linking architectures.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum NeuralArchitecture {
-    /// BLINK-style bi-encoder (Meta AI, 2020)
-    BiEncoder,
-    /// Cross-encoder only (slower but more accurate)
-    CrossEncoder,
-    /// ReFinED end-to-end (Amazon, 2022)
-    ReFinED,
-    /// GENRE autoregressive (Meta AI, 2021)
-    GENRE,
-    /// mGENRE multilingual variant
-    MGENRE,
-    /// EntQA question-answering style
-    EntQA,
-}
-
-impl NeuralArchitecture {
-    /// Get the HuggingFace model ID for this architecture.
-    #[must_use]
-    pub fn model_id(&self) -> &'static str {
-        match self {
-            Self::BiEncoder => "facebook/blink-biencoder",
-            Self::CrossEncoder => "facebook/blink-crossencoder",
-            Self::ReFinED => "amazon/refined-wikipedia",
-            Self::GENRE => "facebook/genre-kilt",
-            Self::MGENRE => "facebook/mgenre-wiki",
-            Self::EntQA => "EntQA/entqa",
-        }
-    }
-
-    /// Does this architecture support zero-shot linking?
-    #[must_use]
-    pub fn supports_zero_shot(&self) -> bool {
-        matches!(self, Self::ReFinED | Self::GENRE | Self::MGENRE)
-    }
-}
-
-// =============================================================================
 // Unified Linker
 // =============================================================================
 
@@ -487,9 +418,6 @@ pub struct UnifiedLinker {
     mapper: CrossKBMapper,
     /// Entity dictionary (for offline linking)
     dictionary: HashMap<String, Vec<EntityURI>>, // mention -> URIs
-    /// Neural config (if using neural linking)
-    #[allow(dead_code)] // Reserved for neural linking integration
-    neural_config: Option<NeuralLinkingConfig>,
 }
 
 impl UnifiedLinker {
@@ -536,7 +464,6 @@ impl UnifiedLinker {
 pub struct UnifiedLinkerBuilder {
     enabled_kbs: Vec<KnowledgeBase>,
     use_common_mappings: bool,
-    neural_config: Option<NeuralLinkingConfig>,
 }
 
 impl UnifiedLinkerBuilder {
@@ -551,12 +478,6 @@ impl UnifiedLinkerBuilder {
     /// Use common entity mappings.
     pub fn with_common_mappings(mut self) -> Self {
         self.use_common_mappings = true;
-        self
-    }
-
-    /// Set neural linking config.
-    pub fn with_neural_config(mut self, config: NeuralLinkingConfig) -> Self {
-        self.neural_config = Some(config);
         self
     }
 
@@ -578,7 +499,6 @@ impl UnifiedLinkerBuilder {
             enabled_kbs,
             mapper,
             dictionary: HashMap::new(),
-            neural_config: self.neural_config,
         }
     }
 }
@@ -710,12 +630,6 @@ mod tests {
         let uris = linker.expand_wikidata("Q937");
         assert!(!uris.is_empty());
         assert!(uris.iter().any(|u| u.kb == KnowledgeBase::Wikidata));
-    }
-
-    #[test]
-    fn test_neural_architecture() {
-        assert!(NeuralArchitecture::GENRE.supports_zero_shot());
-        assert!(!NeuralArchitecture::BiEncoder.supports_zero_shot());
     }
 
     #[test]

@@ -125,18 +125,6 @@ impl Message {
             *new = (1.0 - damping) * *new + damping * *old;
         }
     }
-
-    /// Pointwise multiply two messages (sum in log space).
-    #[allow(dead_code)]
-    pub fn multiply(&self, other: &Message) -> Message {
-        let log_probs: Vec<f64> = self
-            .log_probs
-            .iter()
-            .zip(other.log_probs.iter())
-            .map(|(a, b)| a + b)
-            .collect();
-        Message { log_probs }
-    }
 }
 
 /// Log-sum-exp trick for numerical stability.
@@ -748,19 +736,6 @@ mod tests {
             log_probs: vec![0.5, -0.5],
         };
         assert!((msg1.max_change(&msg2) - 0.5).abs() < 1e-6);
-    }
-
-    #[test]
-    fn test_message_multiply() {
-        let msg1 = Message {
-            log_probs: vec![1.0, 2.0],
-        };
-        let msg2 = Message {
-            log_probs: vec![0.5, 0.5],
-        };
-        let result = msg1.multiply(&msg2);
-        assert!((result.log_probs[0] - 1.5).abs() < 1e-10);
-        assert!((result.log_probs[1] - 2.5).abs() < 1e-10);
     }
 
     #[test]

@@ -81,7 +81,6 @@ impl HmmNER {
             transitions,
             initial,
             emissions,
-            vocab: HashMap::new(),
             backoff: None,
         };
 

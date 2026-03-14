@@ -89,7 +89,6 @@ candle = [
 ]
 metal = ["candle"]
 cuda = ["candle"]
-semantic-chunking = []
 llm = ["dep:ureq"]
 jiff-time = ["dep:jiff"]
 # Runtime-oriented infra toggles are intentionally collapsed to one feature to keep

@@ -165,12 +165,6 @@ pub mod hmm;
 /// Chunked extraction and overlap deduplication for long text.
 pub mod streaming;
 
-/// Chunking helpers for long text.
-///
-/// Always provides a lightweight rule-based chunker (paragraph boundaries + size limits + overlap).
-/// With the `semantic-chunking` feature enabled, adds a sentence-similarity chunker (no embeddings).
-pub mod semantic_chunking;
-
 /// Map a backend name (stable ID used in stacked/ensemble compositions) to an
 /// [`ExtractionMethod`](anno_core::ExtractionMethod).
 ///
@@ -308,7 +302,7 @@ pub mod glirel;
 pub mod universal_ner;
 
 // LLM client abstraction (config, providers, mock)
-pub mod llm_client;
+pub(crate) mod llm_client;
 
 // LLM-based NER prompting (CodeNER-style)
 pub(crate) mod llm_prompt;
@@ -335,9 +329,6 @@ pub mod gliner_candle;
 // GLiNER2 multi-task extraction (ONNX or Candle)
 #[cfg(any(feature = "onnx", feature = "candle"))]
 pub mod gliner2;
-
-// Model warmup for cold-start mitigation
-pub mod warmup;
 
 // Re-exports (always available)
 pub use bilstm_crf::BiLstmCrfNER;
@@ -405,9 +396,6 @@ pub use gliner_onnx::GLiNERConfig;
 
 #[cfg(feature = "onnx")]
 pub use onnx::BertNERConfig;
-
-// Warmup utilities (always available)
-pub use warmup::{warmup_model, warmup_with_callback, WarmupConfig, WarmupResult};
 
 // Coreference resolution trait (from anno-core, always available)
 pub use anno_core::CoreferenceResolver;

@@ -206,9 +206,6 @@ impl Apposition {
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct AppositionExtractor {
-    /// Extract appositives (comma-delimited)
-    #[allow(dead_code)] // Future configurability
-    extract_appositives: bool,
     /// Extract AKA patterns
     extract_aka: bool,
     /// Extract nickname patterns
@@ -223,7 +220,6 @@ impl AppositionExtractor {
     /// Create a new extractor with all patterns enabled.
     pub fn new() -> Self {
         Self {
-            extract_appositives: true,
             extract_aka: true,
             extract_nicknames: true,
             extract_rename: true,

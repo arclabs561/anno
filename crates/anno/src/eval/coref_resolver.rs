@@ -837,39 +837,6 @@ mod tests {
         );
     }
 
-    // ---- Dead config documentation ----
-
-    #[test]
-    #[allow(deprecated)]
-    fn similarity_threshold_has_no_effect() {
-        // similarity_threshold is currently dead code -- it is stored in CorefConfig
-        // but never read by any matching logic in SimpleCorefResolver.
-        let resolver_low = SimpleCorefResolver::new(CorefConfig {
-            similarity_threshold: 0.1,
-            ..CorefConfig::default()
-        });
-        let resolver_high = SimpleCorefResolver::new(CorefConfig {
-            similarity_threshold: 0.99,
-            ..CorefConfig::default()
-        });
-
-        let entities = vec![
-            person("John Smith", 0, 10),
-            person("Smith", 20, 25),
-            person("he", 30, 32),
-        ];
-
-        let resolved_low = resolver_low.resolve(&entities);
-        let resolved_high = resolver_high.resolve(&entities);
-
-        for (a, b) in resolved_low.iter().zip(resolved_high.iter()) {
-            assert_eq!(
-                a.canonical_id, b.canonical_id,
-                "similarity_threshold is dead code: changing it must not alter output"
-            );
-        }
-    }
-
     // ---- String matching edge cases ----
 
     #[test]
@@ -1457,24 +1424,6 @@ mod tests {
         assert_eq!(
             she_id, bob_id,
             "Without gazetteer, 'she' falls back to nearest compatible entity 'Bob'"
-        );
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn test_similarity_threshold_deprecated() {
-        // similarity_threshold is deprecated and has no effect.
-        let config = CorefConfig {
-            similarity_threshold: 0.99,
-            ..CorefConfig::default()
-        };
-        // Should compile with deprecation warning, and not affect output.
-        let resolver = SimpleCorefResolver::new(config);
-        let entities = vec![person("Alice", 0, 5), person("Alice", 10, 15)];
-        let resolved = resolver.resolve(&entities);
-        assert_eq!(
-            resolved[0].canonical_id, resolved[1].canonical_id,
-            "similarity_threshold should not affect exact name matching"
         );
     }
 

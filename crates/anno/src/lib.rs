@@ -85,10 +85,6 @@ pub mod rag;
 pub mod salience;
 pub mod schema;
 pub mod similarity;
-/// Extractive summarization.
-#[cfg(feature = "graph")]
-#[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
-pub mod summarize;
 pub mod sync;
 /// Temporal entity tracking, parsing, and diachronic NER.
 pub mod temporal;
@@ -280,7 +276,7 @@ pub trait Model: sealed::Sealed + Send + Sync {
     /// Get capability summary for this model.
     ///
     /// Override this in implementations that support additional capabilities
-    /// (batch, GPU, streaming, etc.) to enable runtime discovery.
+    /// (relations, dynamic labels, discontinuous entities) to enable runtime discovery.
     ///
     /// # Default
     ///
@@ -598,7 +594,6 @@ pub trait DynamicLabels: Model {
 }
 
 // Re-export backends
-pub use backends::label_prompt::{LabelNormalizer, StandardNormalizer};
 pub use backends::{
     AutoNER, ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER, NuNER, RegexNER,
     StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,

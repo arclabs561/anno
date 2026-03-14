@@ -684,8 +684,6 @@ pub struct YakeExtractor {
     stopwords: HashSet<String>,
     window_size: usize,
     n_gram_max: usize,
-    #[allow(dead_code)] // Future configurability
-    dedup_threshold: f64,
 }
 
 impl Default for YakeExtractor {
@@ -701,7 +699,6 @@ impl YakeExtractor {
             stopwords: default_stopwords(),
             window_size: 2,
             n_gram_max: 3,
-            dedup_threshold: 0.9,
         }
     }
 

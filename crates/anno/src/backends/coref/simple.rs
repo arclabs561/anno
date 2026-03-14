@@ -36,14 +36,6 @@ use std::collections::HashMap;
 /// contribution or to reduce false merges on a particular dataset.
 #[derive(Debug, Clone)]
 pub struct CorefConfig {
-    /// Similarity threshold for name matching (0.0--1.0).
-    ///
-    /// Default: `0.7`.
-    #[deprecated(
-        note = "Not currently used by any matching logic. Will be wired into names_match() in a future version."
-    )]
-    pub similarity_threshold: f64,
-
     /// Maximum number of preceding entities to search when resolving a pronoun (sieve 1).
     ///
     /// The actual lookback window is `max_pronoun_lookback * 10` entities,
@@ -132,11 +124,9 @@ pub struct CorefConfig {
     pub proper_head_word_match: bool,
 }
 
-#[allow(deprecated)]
 impl Default for CorefConfig {
     fn default() -> Self {
         Self {
-            similarity_threshold: 0.7,
             max_pronoun_lookback: 3,
             fuzzy_matching: true,
             include_singletons: true,
