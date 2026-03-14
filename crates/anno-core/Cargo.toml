@@ -28,7 +28,4 @@ proptest = { workspace = true }
 [features]
 default = []
 schema = ["dep:schemars"]
-historical = []
-provisional = []
-calibration = []
 

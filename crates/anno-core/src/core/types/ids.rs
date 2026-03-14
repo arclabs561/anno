@@ -372,12 +372,21 @@ pub struct CharSpan {
 
 impl CharSpan {
     /// Create a new character span.
+    ///
+    /// If `start > end`, the values are swapped to maintain the invariant `start <= end`.
     #[inline]
     #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
-        Self {
-            start: CharOffset::new(start),
-            end: CharOffset::new(end),
+        if start <= end {
+            Self {
+                start: CharOffset::new(start),
+                end: CharOffset::new(end),
+            }
+        } else {
+            Self {
+                start: CharOffset::new(end),
+                end: CharOffset::new(start),
+            }
         }
     }
 
@@ -392,7 +401,7 @@ impl CharSpan {
     #[inline]
     #[must_use]
     pub const fn len(&self) -> usize {
-        self.end.0 - self.start.0
+        self.end.0.saturating_sub(self.start.0)
     }
 
     /// Check if the span is empty.

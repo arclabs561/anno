@@ -675,7 +675,6 @@ impl TypeMapper {
 /// |--------|-----------|--------|----------------|----------|
 /// | Pattern | Very High | Low | N/A (format-based) | Dates, emails, money |
 /// | Neural | High | High | Good | General NER |
-/// | Lexicon | Very High | Low | None | Closed-domain entities |
 /// | SoftLexicon | Medium | High | Good for rare types | Low-resource NER |
 /// | GatedEnsemble | Highest | Highest | Contextual | Short texts, domain shift |
 ///
@@ -691,12 +690,6 @@ pub enum ExtractionMethod {
     /// The recommended default for general NER. Generalizes to unseen entities.
     #[default]
     Neural,
-
-    /// Exact lexicon/gazetteer lookup (deprecated approach).
-    /// High precision on known entities, zero recall on novel entities.
-    /// Only use for closed domains (stock tickers, medical codes).
-    #[deprecated(since = "0.2.0", note = "Use Neural or GatedEnsemble instead")]
-    Lexicon,
 
     /// Embedding-based soft lexicon matching.
     /// Useful for low-resource languages and rare entity types.
@@ -717,18 +710,6 @@ pub enum ExtractionMethod {
 
     /// Unknown or unspecified extraction method.
     Unknown,
-
-    /// Legacy rule-based extraction (for backward compatibility).
-    #[deprecated(since = "0.2.0", note = "Use Heuristic or Pattern instead")]
-    Rule,
-
-    /// Legacy alias for Neural (for backward compatibility).
-    #[deprecated(since = "0.2.0", note = "Use Neural instead")]
-    ML,
-
-    /// Legacy alias for Consensus (for backward compatibility).
-    #[deprecated(since = "0.2.0", note = "Use Consensus instead")]
-    Ensemble,
 }
 
 impl ExtractionMethod {
@@ -746,7 +727,6 @@ impl ExtractionMethod {
     ///
     /// - **Pattern**: Binary (match/no-match); confidence is typically hardcoded
     /// - **Heuristic**: Arbitrary scores from hand-crafted rules
-    /// - **Lexicon**: Binary exact match
     /// - **Consensus**: Agreement count, not a probability
     ///
     /// # Example
@@ -760,20 +740,15 @@ impl ExtractionMethod {
     /// ```
     #[must_use]
     pub const fn is_calibrated(&self) -> bool {
-        #[allow(deprecated)]
         match self {
             ExtractionMethod::Neural => true,
             ExtractionMethod::GatedEnsemble => true,
             ExtractionMethod::SoftLexicon => true,
-            ExtractionMethod::ML => true, // Legacy alias for Neural
             // Everything else is not calibrated
             ExtractionMethod::Pattern => false,
-            ExtractionMethod::Lexicon => false,
             ExtractionMethod::Consensus => false,
             ExtractionMethod::Heuristic => false,
             ExtractionMethod::Unknown => false,
-            ExtractionMethod::Rule => false,
-            ExtractionMethod::Ensemble => false,
         }
     }
 
@@ -785,13 +760,12 @@ impl ExtractionMethod {
     /// - `"binary"`: Score is 0 or 1 (or a fixed value for matches)
     #[must_use]
     pub const fn confidence_interpretation(&self) -> &'static str {
-        #[allow(deprecated)]
         match self {
-            ExtractionMethod::Neural | ExtractionMethod::ML => "probability",
+            ExtractionMethod::Neural => "probability",
             ExtractionMethod::GatedEnsemble | ExtractionMethod::SoftLexicon => "probability",
-            ExtractionMethod::Pattern | ExtractionMethod::Lexicon => "binary",
-            ExtractionMethod::Heuristic | ExtractionMethod::Rule => "heuristic_score",
-            ExtractionMethod::Consensus | ExtractionMethod::Ensemble => "agreement_ratio",
+            ExtractionMethod::Pattern => "binary",
+            ExtractionMethod::Heuristic => "heuristic_score",
+            ExtractionMethod::Consensus => "agreement_ratio",
             ExtractionMethod::Unknown => "unknown",
         }
     }
@@ -799,19 +773,14 @@ impl ExtractionMethod {
 
 impl std::fmt::Display for ExtractionMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        #[allow(deprecated)]
         match self {
             ExtractionMethod::Pattern => write!(f, "pattern"),
             ExtractionMethod::Neural => write!(f, "neural"),
-            ExtractionMethod::Lexicon => write!(f, "lexicon"),
             ExtractionMethod::SoftLexicon => write!(f, "soft_lexicon"),
             ExtractionMethod::GatedEnsemble => write!(f, "gated_ensemble"),
             ExtractionMethod::Consensus => write!(f, "consensus"),
             ExtractionMethod::Heuristic => write!(f, "heuristic"),
             ExtractionMethod::Unknown => write!(f, "unknown"),
-            ExtractionMethod::Rule => write!(f, "heuristic"), // Legacy alias
-            ExtractionMethod::ML => write!(f, "neural"),      // Legacy alias
-            ExtractionMethod::Ensemble => write!(f, "consensus"), // Legacy alias
         }
     }
 }

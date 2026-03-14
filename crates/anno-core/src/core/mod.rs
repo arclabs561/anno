@@ -50,11 +50,8 @@
 //! | [`grounded`] | `GroundedDocument`, `Identity`, `Signal`, `Track` |
 //! | [`coref`] | `Mention`, `CorefChain`, `CorefDocument` |
 //! | `graph` | Export to Neo4j, GraphML, JSON-LD |
-//! | `calibration` | Confidence score calibration |
-//! | `historical` | Ancient language provenance (BCE dates, epigraphy) |
 //! | [`provenance`] | Document origin tracking |
 //! | [`types`] | `Gender`, `MentionType`, `PhiFeatures`, `TypeLabel` |
-//! | `provisional` | Experimental types (`BoxEmbedding`) |
 //!
 //! ## Design Philosophy
 //!
@@ -69,19 +66,13 @@
 //! `anno_core::minimal` (or `anno::core::*` in the `anno` crate) rather than grabbing the entire
 //! re-export surface.
 
-#[cfg(feature = "calibration")]
-pub mod calibration;
 pub mod confidence;
 pub mod coref;
 pub mod entity;
 pub mod error;
 pub mod grounded;
-#[cfg(feature = "historical")]
-pub mod historical;
 pub mod ontology;
 pub mod provenance;
-#[cfg(feature = "provisional")]
-pub mod provisional;
 pub mod types;
 
 // Re-exports for convenience
