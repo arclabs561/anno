@@ -202,14 +202,6 @@ pub enum EntityType {
         /// Category for this custom type
         category: EntityCategory,
     },
-
-    /// Legacy catch-all for unknown types.
-    ///
-    /// **Deprecated**: use `EntityType::custom(name, category)` instead.
-    /// Retained only for serde backward compatibility with existing data.
-    /// Deserialization of `{"Other":"X"}` now routes to `Custom { name: "X", category: Misc }`.
-    #[deprecated(note = "use EntityType::custom(name, EntityCategory::Misc) instead")]
-    Other(String),
 }
 
 impl EntityType {
@@ -235,9 +227,6 @@ impl EntityType {
             EntityType::Email | EntityType::Url | EntityType::Phone => EntityCategory::Contact,
             // Custom with explicit category
             EntityType::Custom { category, .. } => *category,
-            // Legacy Other -- kept for exhaustiveness (variant is #[deprecated])
-            #[allow(deprecated)]
-            EntityType::Other(_) => EntityCategory::Misc,
         }
     }
 
@@ -278,8 +267,6 @@ impl EntityType {
             EntityType::Url => "URL",
             EntityType::Phone => "PHONE",
             EntityType::Custom { name, .. } => name.as_str(),
-            #[allow(deprecated)]
-            EntityType::Other(s) => s.as_str(),
         }
     }
 
@@ -985,16 +972,6 @@ impl Provenance {
             model_version: None,
             timestamp: None,
         }
-    }
-
-    /// Deprecated: Use `ml()` instead which now accepts both static and owned strings.
-    #[deprecated(
-        since = "0.2.1",
-        note = "Use ml() instead, it now accepts owned strings"
-    )]
-    #[must_use]
-    pub fn ml_owned(model_name: impl Into<String>, confidence: impl Into<Confidence>) -> Self {
-        Self::ml(Cow::Owned(model_name.into()), confidence)
     }
 
     /// Create provenance for ensemble/hybrid extraction.
@@ -3559,7 +3536,7 @@ mod proptests {
             }
         }
 
-        /// EntityType::from_label(et.as_label()) == et for all standard (non-Custom, non-Other) types.
+        /// EntityType::from_label(et.as_label()) == et for all standard (non-Custom) types.
         #[test]
         fn entity_type_label_roundtrip_standard(
             idx in 0usize..13,

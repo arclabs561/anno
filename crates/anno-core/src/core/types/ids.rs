@@ -466,12 +466,21 @@ pub struct ByteSpan {
 
 impl ByteSpan {
     /// Create a new byte span.
+    ///
+    /// If `start > end`, the values are swapped to maintain the invariant `start <= end`.
     #[inline]
     #[must_use]
     pub const fn new(start: usize, end: usize) -> Self {
-        Self {
-            start: ByteOffset::new(start),
-            end: ByteOffset::new(end),
+        if start <= end {
+            Self {
+                start: ByteOffset::new(start),
+                end: ByteOffset::new(end),
+            }
+        } else {
+            Self {
+                start: ByteOffset::new(end),
+                end: ByteOffset::new(start),
+            }
         }
     }
 
@@ -479,7 +488,7 @@ impl ByteSpan {
     #[inline]
     #[must_use]
     pub const fn len(&self) -> usize {
-        self.end.0 - self.start.0
+        self.end.0.saturating_sub(self.start.0)
     }
 
     /// Check if the span is empty.
