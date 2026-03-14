@@ -28,7 +28,7 @@ assert!(!ents.is_empty());
 # Ok::<(), anno::Error>(())
 ```
 
-`StackedNER::default()` selects the best available backend at runtime: GLiNER (if `onnx` enabled and model cached), falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
+`StackedNER::default()` selects the best available backend at runtime: BERT or NuNER (if `onnx` enabled and models cached), then GLiNER, falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
 
 Zero-shot custom types via `DynamicLabels` (GLiNER, GLiNER2, NuNER):
 
@@ -51,7 +51,6 @@ let ents = m.extract_with_labels(
 | `onnx` | Yes | ONNX Runtime backends (GLiNER, NuNER, BERT, W2NER, FCoref) via `ort` |
 | `candle` | No | Pure-Rust Candle backends (no C++ runtime needed) |
 | `analysis` | No | Evaluation helpers, coref metrics, RAG rewriting |
-| `eval` | No | Alias for `analysis` (kept for backward compatibility) |
 | `graph` | No | Keywords, summarization, salience (TextRank/LexRank/YAKE) |
 | `schema` | No | JSON Schema generation for output types via `schemars` |
 | `llm` | No | LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, Ollama |
@@ -79,7 +78,11 @@ All backends produce the same output type: variable-length spans with character 
 | `nuner` | Token classifier (BIO) | Custom | Yes | -- | [NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Bogdanov et al. [6] |
 | `bert-onnx` | Sequence labeling (BERT) | PER/ORG/LOC/MISC | No | -- | [bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Devlin et al. [8] |
 | `pattern` | Regex grammars | DATE/MONEY/EMAIL/URL/PHONE/PERCENT | N/A | -- | None | -- |
+| `w2ner` | Word-word relation grid | PER/ORG/LOC/MISC | No | -- | [w2ner-bert-base](https://huggingface.co/ljynlp/w2ner-bert-base) | Li et al. [7] |
 | `tplinker` | Joint entity-relation (heuristic) | Custom | -- | Heuristic | None | [10] |
+| `crf` | Conditional random field | PER/ORG/LOC/MISC | No | -- | Bundled (opt-in) | Lafferty et al. [9] |
+| `hmm` | Hidden Markov model | PER/ORG/LOC/MISC | No | -- | Bundled (opt-in) | Rabiner [12] |
+| `bilstm-crf` | BiLSTM + CRF | PER/ORG/LOC/MISC | No | -- | None | -- |
 | `universal-ner` | LLM prompt (any provider) | Custom | Yes | -- | None (API) | -- |
 
 ML backends are feature-gated (`onnx` or `candle`). Weights download from HuggingFace on first use. See [BACKENDS.md](docs/BACKENDS.md) for the full list (including experimental backends) and feature-flag details.
@@ -234,14 +237,14 @@ Each file produces `{stem}-nodes.csv` + `{stem}-edges.csv` with columns:
 
 | Crate | Published | Purpose |
 |---|---|---|
-| `anno` (root) | Yes | Backends, `Model` trait, extraction pipeline, coref resolvers. |
-| `anno-core` | No (yanked) | Data model (`Entity`, `Relation`, `Mention`, `CorefChain`, `Signal`, `Track`). Re-exported by `anno`. |
+| `anno` (root) | [Yes](https://crates.io/crates/anno) | Backends, `Model` trait, extraction pipeline, coref resolvers. |
+| `anno-core` | No | Data model (`Entity`, `Relation`, `Mention`, `CorefChain`, `Signal`, `Track`). Re-exported by `anno`. |
 | `anno-graph` | No | Graph/KG export adapters (N-Triples, JSON-LD, CSV) |
 | `anno-eval` | No | Evaluation harnesses, dataset loaders, matrix sampling |
 | `anno-cli` | No | CLI binary |
 | `anno-metrics` | No | Shared evaluation primitives (CoNLL F1, encoders) |
 
-`anno-core` exists so that crates needing only data types (`Entity`, `Relation`, etc.) don't pull in ML dependencies. `anno-lib` depends on `anno-core` and re-exports all its types at the crate root.
+`anno-core` isolates data types from ML backends within the workspace. `anno-lib` depends on `anno-core` and re-exports all its types at the crate root.
 
 Pipeline: Text -> Extract -> Coalesce -> structured output. See [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -267,7 +270,7 @@ just ci-matrix-local 42 ner
 
 ## Scope
 
-Inference-time extraction. Training pipelines are out of scope -- use upstream frameworks (Hugging Face Transformers, Flair, etc.) and export ONNX weights for consumption. (The repo contains some experimental training code for box embeddings; this is research-only and not part of the public API.)
+Inference-time extraction. Training pipelines are out of scope -- use upstream frameworks (Hugging Face Transformers, Flair, etc.) and export ONNX weights for consumption.
 
 ## Troubleshooting
 

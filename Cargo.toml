@@ -86,8 +86,6 @@ rayon = "1"
 
 # Utilities
 itertools = "0.14"
-smallvec = { version = "1.13", features = ["serde"] }
-dashmap = "6"
 unicode-normalization = "0.1.25"
 rusqlite = { version = "0.37", features = ["bundled"] }
 
@@ -121,7 +119,6 @@ description = "Information extraction in Rust: NER, coreference resolution, enti
 readme = "README.md"
 keywords = ["ner", "nlp", "extraction", "coreference", "rust"]
 categories = ["text-processing"]
-publish = true
 include = [
     "/src/**/*.rs",
     "/Cargo.toml",
@@ -144,7 +141,6 @@ default = ["onnx"]
 # Keep the facade surface intentionally small: expose stable capability toggles,
 # not every internal wiring switch from `anno-lib`.
 discourse = ["anno-lib/discourse"]
-eval = ["anno-lib/eval"]
 analysis = ["anno-lib/analysis"]
 graph = ["anno-lib/graph"]
 schema = ["anno-lib/schema"]
