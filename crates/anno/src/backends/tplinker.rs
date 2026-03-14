@@ -798,9 +798,6 @@ impl Model for TPLinker {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
-            recommended_chunk_size: Some(10_000),
             relation_capable: true,
             ..Default::default()
         }
@@ -982,10 +979,7 @@ mod tests {
     fn test_tplinker_capabilities() {
         let tp = TPLinker::new().unwrap();
         let caps = tp.capabilities();
-        assert!(caps.batch_capable);
-        assert!(caps.streaming_capable);
         assert!(caps.relation_capable);
-        assert_eq!(caps.recommended_chunk_size, Some(10_000));
     }
 
     #[test]

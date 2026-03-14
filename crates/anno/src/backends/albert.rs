@@ -112,11 +112,7 @@ impl Model for ALBERTNER {
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
-            ..Default::default()
-        }
+        crate::ModelCapabilities::default()
     }
 }
 
@@ -217,8 +213,8 @@ mod tests {
     fn test_albert_capabilities() {
         if let Ok(model) = ALBERTNER::new("albert-base-v2") {
             let caps = model.capabilities();
-            assert!(caps.batch_capable);
-            assert!(caps.streaming_capable);
+            // ModelCapabilities::default() -- no special capabilities
+            let _ = caps;
         }
     }
 

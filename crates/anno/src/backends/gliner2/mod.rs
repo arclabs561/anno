@@ -47,13 +47,10 @@
 //! - **ONNX** (recommended): `cargo build --features onnx`
 //! - **Candle** (native): `cargo build --features candle`
 
-#[cfg(feature = "onnx")]
-use crate::sync::lock;
-use crate::{Entity, EntityType, Error, Language, Result};
+#[cfg(not(any(feature = "onnx", feature = "candle")))]
+use crate::Error;
+use crate::{Entity, EntityType, Language, Result};
 use anno_core::EntityCategory;
-#[cfg(feature = "candle")]
-use candle_core::Device;
-
 pub(crate) mod relations;
 
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, ZeroShotNER};
@@ -285,8 +282,6 @@ impl crate::Model for GLiNER2Onnx {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
             relation_capable: true,
             dynamic_labels: true,
             ..Default::default()
@@ -357,9 +352,6 @@ impl crate::Model for GLiNER2Candle {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
-            gpu_capable: true,
             relation_capable: true,
             dynamic_labels: true,
             ..Default::default()

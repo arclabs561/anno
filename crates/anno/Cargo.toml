@@ -53,12 +53,7 @@ candle-nn = { workspace = true, optional = true }
 candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 
-# Async
-tokio = { workspace = true, optional = true }
-futures = { workspace = true, optional = true }
-
 # Performance
-crossbeam-channel = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 
 # Utilities
@@ -80,10 +75,6 @@ default = ["onnx"]
 discourse = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 analysis = ["dep:anno-metrics"]
-# Evaluation-adjacent tooling (URL ingestion, cache helpers, etc.).
-#
-# This is intentionally an umbrella: it includes `analysis` and adds network support.
-eval = ["analysis"]
 graph = []
 gramdex = ["dep:gramdex"]
 schema = ["dep:schemars", "anno-core/schema"]
@@ -104,9 +95,6 @@ jiff-time = ["dep:jiff"]
 # Runtime-oriented infra toggles are intentionally collapsed to one feature to keep
 # the public feature surface smaller and avoid "splintered" combinatorics.
 production = [
-  "dep:tokio",
-  "dep:futures",
-  "dep:crossbeam-channel",
   "dep:parking_lot",
   "dep:tracing",
 ]

@@ -146,16 +146,6 @@ fn test_heuristic_only() {
     );
 }
 
-#[test]
-#[allow(deprecated)]
-fn test_statistical_only_deprecated_alias() {
-    // Verify backwards compatibility
-    let ner = StackedNER::statistical_only();
-    let e = ner.extract_entities("John", None).unwrap();
-    // Just verify it doesn't panic
-    let _ = e;
-}
-
 // =========================================================================
 // Conflict Strategy Tests
 // =========================================================================

@@ -835,9 +835,6 @@ impl Model for W2NER {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            optimal_batch_size: Some(4),
-            streaming_capable: true,
             discontinuous_capable: true,
             ..Default::default()
         }

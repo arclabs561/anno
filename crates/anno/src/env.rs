@@ -253,7 +253,7 @@ pub fn cache_dir() -> std::path::PathBuf {
 
     // When analysis/eval feature is enabled, use platform-specific cache directories
     // (this gate keeps minimal builds local by default)
-    #[cfg(any(feature = "analysis", feature = "eval"))]
+    #[cfg(feature = "analysis")]
     {
         #[cfg(target_os = "macos")]
         {
@@ -283,7 +283,7 @@ pub fn cache_dir() -> std::path::PathBuf {
     }
 
     // Fallback when analysis/eval feature is not enabled
-    #[cfg(not(any(feature = "analysis", feature = "eval")))]
+    #[cfg(not(feature = "analysis"))]
     {
         std::path::PathBuf::from(".anno-cache")
     }

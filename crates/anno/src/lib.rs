@@ -48,8 +48,8 @@ pub mod error;
 ///
 /// This module is only available when the legacy `eval` feature (or the preferred `analysis`
 /// alias) is enabled.
-#[cfg(any(feature = "analysis", feature = "eval"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "analysis", feature = "eval"))))]
+#[cfg(feature = "analysis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod eval;
 /// Entity feature extraction for downstream ML and analysis.
 pub mod features;
@@ -76,8 +76,8 @@ pub mod preprocess;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
-#[cfg(any(feature = "analysis", feature = "eval"))]
-#[cfg_attr(docsrs, doc(cfg(any(feature = "analysis", feature = "eval"))))]
+#[cfg(feature = "analysis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod rag;
 /// Entity salience and importance ranking.
 #[cfg(feature = "graph")]
@@ -176,7 +176,6 @@ mod sealed {
     impl Sealed for super::CrfNER {}
     impl Sealed for super::NuNER {}
     impl Sealed for super::W2NER {}
-    impl Sealed for super::NERExtractor {}
 
     #[cfg(feature = "onnx")]
     impl Sealed for super::BertNEROnnx {}
@@ -203,9 +202,6 @@ mod sealed {
 
     #[cfg(feature = "candle")]
     impl Sealed for super::backends::gliner2::GLiNER2Candle {}
-
-    #[cfg(feature = "candle")]
-    impl<E: Send + Sync> Sealed for super::backends::gliner_pipeline::GLiNERPipeline<E> {}
 
     impl Sealed for super::backends::tplinker::TPLinker {}
     impl Sealed for super::backends::universal_ner::UniversalNER {}
@@ -525,30 +521,16 @@ impl RelationCapable for AnyModel {
 /// fn process_with_model(model: &dyn Model) {
 ///     let caps = model.capabilities();
 ///
-///     if caps.batch_capable {
-///         println!("Model supports batch processing");
+///     if caps.relation_capable {
+///         println!("Model supports relation extraction");
 ///     }
-///     if caps.gpu_capable {
-///         println!("Model can use GPU: {:?}", caps.device);
+///     if caps.dynamic_labels {
+///         println!("Model supports zero-shot entity types");
 ///     }
 /// }
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct ModelCapabilities {
-    /// True if the model supports batch processing.
-    pub batch_capable: bool,
-    /// Optimal batch size, if batch capable.
-    pub optimal_batch_size: Option<usize>,
-    /// True if the model supports GPU acceleration.
-    pub gpu_capable: bool,
-    /// True if GPU is currently active.
-    pub gpu_active: bool,
-    /// Device identifier (e.g., "cuda:0", "cpu"), if GPU capable.
-    pub device: Option<String>,
-    /// True if the model supports streaming/chunked extraction.
-    pub streaming_capable: bool,
-    /// Recommended chunk size for streaming, if streaming capable.
-    pub recommended_chunk_size: Option<usize>,
     /// True if the model supports relation extraction.
     pub relation_capable: bool,
     /// True if the model supports zero-shot, caller-supplied entity types.
@@ -618,8 +600,8 @@ pub trait DynamicLabels: Model {
 // Re-export backends
 pub use backends::label_prompt::{LabelNormalizer, StandardNormalizer};
 pub use backends::{
-    AutoNER, BackendType, ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER,
-    NERExtractor, NuNER, RegexNER, StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,
+    AutoNER, ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER, NuNER, RegexNER,
+    StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,
 };
 
 // Mention-ranking coreference (Bourgois & Poibeau 2025)
@@ -634,10 +616,10 @@ pub use backends::CorefBackend;
 
 // Re-export inference traits and types used at the crate root
 pub use backends::inference::{
-    extract_relation_triples, extract_relation_triples_simple, extract_relations, BiEncoder,
+    extract_relation_triples, extract_relation_triples_simple, extract_relations,
     CoreferenceCluster, CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER,
     ExtractionWithRelations, RelationExtractionConfig, RelationExtractor, RelationTriple,
-    SemanticRegistry, SemanticRegistryBuilder, ZeroShotNER,
+    ZeroShotNER,
 };
 
 #[cfg(feature = "onnx")]

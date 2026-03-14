@@ -452,11 +452,7 @@ impl Model for RegexNER {
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
-            ..Default::default()
-        }
+        crate::ModelCapabilities::default()
     }
 }
 

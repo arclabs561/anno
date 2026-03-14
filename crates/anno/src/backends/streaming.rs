@@ -384,28 +384,6 @@ pub fn find_word_boundary(chars: &[char], target: usize) -> usize {
 }
 
 // =============================================================================
-// Async Stream Support (requires tokio/async-std)
-// =============================================================================
-
-/// Async streaming adapters for `StreamingExtractor`.
-#[cfg(feature = "production")]
-pub mod async_stream {
-    use super::*;
-    use futures::stream::{self, Stream};
-
-    impl<'m, M: Model + Sync> StreamingExtractor<'m, M> {
-        /// Create an async stream of entities.
-        pub fn extract_stream<'t>(&'m self, text: &'t str) -> impl Stream<Item = Entity> + 'm
-        where
-            't: 'm,
-        {
-            let iter = self.extract(text);
-            stream::iter(iter)
-        }
-    }
-}
-
-// =============================================================================
 // Pipeline Integration Hooks
 // =============================================================================
 

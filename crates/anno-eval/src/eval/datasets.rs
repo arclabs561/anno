@@ -157,12 +157,6 @@ impl GoldEntity {
     }
 }
 
-/// Backwards-compatible alias for GoldEntity.
-///
-/// Deprecated: Use `GoldEntity` directly.
-#[deprecated(since = "0.1.0", note = "Use GoldEntity instead")]
-pub type GroundTruthEntity = GoldEntity;
-
 /// JSON format for NER datasets (OpenNER, MultiNERD style).
 ///
 /// Format:

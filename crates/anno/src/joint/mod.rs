@@ -67,7 +67,7 @@
 //! - Zhao et al. (2025): "Beyond Benchmarks: Building a Richer Cross-Document Event
 //!   Coreference Dataset with Decontextualization" NAACL
 
-#[cfg(any(feature = "analysis", feature = "eval"))]
+#[cfg(feature = "analysis")]
 mod cross_context;
 mod factors;
 mod inference;
@@ -76,7 +76,7 @@ mod providers;
 mod types;
 
 // Cross-context types (xCoRe integration) - requires eval for cluster_encoder
-#[cfg(any(feature = "analysis", feature = "eval"))]
+#[cfg(feature = "analysis")]
 pub use cross_context::{
     Context, CrossContextJointConfig, CrossContextJointModel, CrossContextResult, GlobalCorefChain,
     GlobalEntity, WindowSplitter,

@@ -22,7 +22,7 @@ pub use registry::{
 };
 
 pub mod encoder;
-pub use encoder::{BiEncoder, EncoderOutput, LabelEncoder, SpanLabelScore, TextEncoder};
+pub use encoder::{BiEncoder, EncoderOutput, SpanLabelScore, TextEncoder};
 
 pub mod traits;
 pub use traits::{
@@ -30,9 +30,6 @@ pub use traits::{
     RelationTriple, ZeroShotNER,
 };
 pub(crate) use traits::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
-
-pub mod late_interaction;
-pub use late_interaction::{DotProductInteraction, LateInteraction, MaxSimInteraction};
 
 pub mod span;
 pub use span::{HandshakingCell, HandshakingMatrix, SpanRepConfig, SpanRepresentationLayer};
@@ -46,15 +43,12 @@ pub use relation_extraction::{
     RelationExtractionConfig,
 };
 
-pub mod binary_embeddings;
-pub use binary_embeddings::{two_stage_retrieval, BinaryBlocker, BinaryHash};
 // Tests
 // =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::coref::{resolve_coreferences, CoreferenceConfig};
-    use super::late_interaction::DotProductInteraction;
     use super::*;
     use crate::{Entity, EntityType};
 
@@ -77,28 +71,6 @@ mod tests {
         assert!(registry.len() >= 5);
         assert!(registry.label_index.contains_key("person"));
         assert!(registry.label_index.contains_key("organization"));
-    }
-
-    #[test]
-    fn test_dot_product_interaction() {
-        let interaction = DotProductInteraction::new();
-
-        // 2 spans, 3 labels, hidden_dim=4
-        let span_embs = vec![
-            1.0, 0.0, 0.0, 0.0, // span 0
-            0.0, 1.0, 0.0, 0.0, // span 1
-        ];
-        let label_embs = vec![
-            1.0, 0.0, 0.0, 0.0, // label 0 (matches span 0)
-            0.0, 1.0, 0.0, 0.0, // label 1 (matches span 1)
-            0.5, 0.5, 0.0, 0.0, // label 2 (partial match both)
-        ];
-
-        let scores = interaction.compute_similarity(&span_embs, 2, &label_embs, 3, 4);
-
-        assert_eq!(scores.len(), 6); // 2 * 3
-        assert!((scores[0] - 1.0).abs() < 0.01); // span0 vs label0
-        assert!((scores[4] - 1.0).abs() < 0.01); // span1 vs label1
     }
 
     #[test]
@@ -220,234 +192,6 @@ mod tests {
     }
 
     // =========================================================================
-    // Binary Embedding Tests
-    // =========================================================================
-
-    #[test]
-    fn test_binary_hash_creation() {
-        let embedding = vec![0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8];
-        let hash = BinaryHash::from_embedding(&embedding);
-
-        assert_eq!(hash.dim, 8);
-        // Positive values at indices 0, 2, 4, 6 should be set
-        // bits[0] should have bits 0, 2, 4, 6 set = 0b01010101 = 85
-        assert_eq!(hash.bits[0], 85);
-    }
-
-    #[test]
-    fn test_hamming_distance_identical() {
-        let embedding = vec![0.1; 64];
-        let hash1 = BinaryHash::from_embedding(&embedding);
-        let hash2 = BinaryHash::from_embedding(&embedding);
-
-        assert_eq!(hash1.hamming_distance(&hash2), 0);
-    }
-
-    #[test]
-    fn test_hamming_distance_opposite() {
-        let embedding1 = vec![0.1; 64];
-        let embedding2 = vec![-0.1; 64];
-        let hash1 = BinaryHash::from_embedding(&embedding1);
-        let hash2 = BinaryHash::from_embedding(&embedding2);
-
-        assert_eq!(hash1.hamming_distance(&hash2), 64);
-    }
-
-    #[test]
-    fn test_hamming_distance_half() {
-        let embedding1 = vec![0.1; 64];
-        let mut embedding2 = vec![0.1; 64];
-        // Flip second half
-        embedding2[32..64].iter_mut().for_each(|x| *x = -0.1);
-
-        let hash1 = BinaryHash::from_embedding(&embedding1);
-        let hash2 = BinaryHash::from_embedding(&embedding2);
-
-        assert_eq!(hash1.hamming_distance(&hash2), 32);
-    }
-
-    #[test]
-    fn test_binary_blocker() {
-        let mut blocker = BinaryBlocker::new(5);
-
-        // Add some hashes
-        let base_embedding = vec![0.1; 64];
-        let similar_embedding = {
-            let mut e = vec![0.1; 64];
-            e[0] = -0.1; // Flip 1 bit
-            e[1] = -0.1; // Flip 2 bits
-            e
-        };
-        let different_embedding = vec![-0.1; 64];
-
-        blocker.add(0, BinaryHash::from_embedding(&base_embedding));
-        blocker.add(1, BinaryHash::from_embedding(&similar_embedding));
-        blocker.add(2, BinaryHash::from_embedding(&different_embedding));
-
-        // Query with base
-        let query = BinaryHash::from_embedding(&base_embedding);
-        let candidates = blocker.query(&query);
-
-        assert!(candidates.contains(&0), "Should find exact match");
-        assert!(
-            candidates.contains(&1),
-            "Should find similar (2 bits different)"
-        );
-        assert!(
-            !candidates.contains(&2),
-            "Should NOT find opposite (64 bits different)"
-        );
-    }
-
-    #[test]
-    fn test_two_stage_retrieval() {
-        // Create embeddings
-        let query = vec![1.0, 0.0, 0.0, 0.0];
-        let candidates = vec![
-            vec![1.0, 0.0, 0.0, 0.0],  // Identical
-            vec![0.9, 0.1, 0.0, 0.0],  // Similar
-            vec![-1.0, 0.0, 0.0, 0.0], // Opposite
-            vec![0.0, 1.0, 0.0, 0.0],  // Orthogonal
-        ];
-
-        // Generous threshold to get candidates
-        let results = two_stage_retrieval(&query, &candidates, 4, 2);
-
-        assert!(!results.is_empty());
-        // First result should be exact match
-        assert_eq!(results[0].0, 0);
-        assert!((results[0].1 - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_approximate_cosine() {
-        let embedding1 = vec![0.1; 768];
-        let embedding2 = vec![0.1; 768];
-        let hash1 = BinaryHash::from_embedding(&embedding1);
-        let hash2 = BinaryHash::from_embedding(&embedding2);
-
-        // Identical → approximate cosine should be ~1.0
-        let approx = hash1.approximate_cosine(&hash2);
-        assert!((approx - 1.0).abs() < 0.001);
-
-        // Opposite → approximate cosine should be ~-1.0
-        let embedding3 = vec![-0.1; 768];
-        let hash3 = BinaryHash::from_embedding(&embedding3);
-        let approx_opp = hash1.approximate_cosine(&hash3);
-        assert!((approx_opp - (-1.0)).abs() < 0.001);
-    }
-
-    // =========================================================================
-    // Late Interaction: temperature scaling
-    // =========================================================================
-
-    #[test]
-    fn test_dot_product_temperature_scaling() {
-        // Temperature > 1 should amplify scores
-        let hot = DotProductInteraction::with_temperature(10.0);
-        let cold = DotProductInteraction::with_temperature(0.1);
-
-        let span_embs = vec![1.0, 0.0, 0.0, 0.0];
-        let label_embs = vec![0.5, 0.5, 0.0, 0.0];
-
-        let hot_scores = hot.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-        let cold_scores = cold.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-
-        // hot: 0.5 * 10.0 = 5.0; cold: 0.5 * 0.1 = 0.05
-        assert!(
-            (hot_scores[0] - 5.0).abs() < 0.001,
-            "hot score: {}",
-            hot_scores[0]
-        );
-        assert!(
-            (cold_scores[0] - 0.05).abs() < 0.001,
-            "cold score: {}",
-            cold_scores[0]
-        );
-    }
-
-    #[test]
-    fn test_dot_product_default_temperature_is_one() {
-        let interaction = DotProductInteraction::new();
-        assert!((interaction.temperature - 1.0).abs() < f32::EPSILON);
-
-        // Default and new() should agree on temperature=1.0
-        let default = DotProductInteraction::default();
-        assert!((default.temperature - 1.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn test_sigmoid_activation() {
-        let interaction = DotProductInteraction::new();
-        let mut scores = vec![0.0, 10.0, -10.0, 1.0, -1.0];
-        interaction.apply_sigmoid(&mut scores);
-
-        // sigmoid(0) = 0.5
-        assert!((scores[0] - 0.5).abs() < 0.001);
-        // sigmoid(10) ~= 1.0
-        assert!(scores[1] > 0.999);
-        // sigmoid(-10) ~= 0.0
-        assert!(scores[2] < 0.001);
-        // sigmoid(1) ~= 0.731
-        assert!((scores[3] - 0.7311).abs() < 0.01);
-        // sigmoid(-1) ~= 0.269
-        assert!((scores[4] - 0.2689).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_dot_product_orthogonal_embeddings() {
-        let interaction = DotProductInteraction::new();
-
-        // Orthogonal vectors should produce zero similarity
-        let span_embs = vec![1.0, 0.0, 0.0, 0.0];
-        let label_embs = vec![0.0, 1.0, 0.0, 0.0];
-
-        let scores = interaction.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-        assert!((scores[0]).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_dot_product_anti_aligned() {
-        let interaction = DotProductInteraction::new();
-
-        // Anti-aligned vectors should produce negative similarity
-        let span_embs = vec![1.0, 0.0, 0.0, 0.0];
-        let label_embs = vec![-1.0, 0.0, 0.0, 0.0];
-
-        let scores = interaction.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-        assert!(
-            (scores[0] - (-1.0)).abs() < 0.001,
-            "anti-aligned: {}",
-            scores[0]
-        );
-    }
-
-    // =========================================================================
-    // MaxSim interaction
-    // =========================================================================
-
-    #[test]
-    fn test_maxsim_degrades_to_dot_product_for_single_vectors() {
-        use super::late_interaction::MaxSimInteraction;
-
-        let maxsim = MaxSimInteraction::new();
-        let dot = DotProductInteraction::new();
-
-        let span_embs = vec![0.3, 0.7, 0.1, 0.5];
-        let label_embs = vec![0.6, 0.2, 0.8, 0.4];
-
-        let maxsim_scores = maxsim.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-        let dot_scores = dot.compute_similarity(&span_embs, 1, &label_embs, 1, 4);
-
-        assert!(
-            (maxsim_scores[0] - dot_scores[0]).abs() < 0.001,
-            "MaxSim should match DotProduct for single-vector: {} vs {}",
-            maxsim_scores[0],
-            dot_scores[0]
-        );
-    }
-
-    // =========================================================================
     // Coreference: edge cases
     // =========================================================================
 
@@ -532,94 +276,6 @@ mod tests {
         assert_eq!(clusters.len(), 1);
         assert_eq!(clusters[0].members.len(), 3);
         assert_eq!(clusters[0].canonical_name, "Robert Johnson");
-    }
-
-    // =========================================================================
-    // Binary Embeddings: additional coverage
-    // =========================================================================
-
-    #[test]
-    fn test_binary_hash_from_embedding_f64() {
-        let embedding: Vec<f64> = vec![0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8];
-        let hash = BinaryHash::from_embedding_f64(&embedding);
-
-        assert_eq!(hash.dim, 8);
-        // Same bit pattern as f32 version: positive at 0,2,4,6
-        assert_eq!(hash.bits[0], 85);
-    }
-
-    #[test]
-    fn test_hamming_distance_normalized() {
-        let all_pos = BinaryHash::from_embedding(&vec![0.1; 64]);
-        let all_neg = BinaryHash::from_embedding(&vec![-0.1; 64]);
-        let same = BinaryHash::from_embedding(&vec![0.1; 64]);
-
-        assert!((all_pos.hamming_distance_normalized(&same) - 0.0).abs() < 0.001);
-        assert!((all_pos.hamming_distance_normalized(&all_neg) - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_hamming_distance_normalized_empty() {
-        let hash = BinaryHash {
-            bits: vec![],
-            dim: 0,
-        };
-        // dim=0 should return 0.0 (avoid division by zero)
-        assert!((hash.hamming_distance_normalized(&hash) - 0.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_binary_blocker_query_with_distance() {
-        let mut blocker = BinaryBlocker::new(5);
-        let base = BinaryHash::from_embedding(&vec![0.1; 64]);
-        let near = {
-            let mut e = vec![0.1; 64];
-            e[0] = -0.1;
-            BinaryHash::from_embedding(&e)
-        };
-        let far = BinaryHash::from_embedding(&vec![-0.1; 64]);
-
-        blocker.add(0, base.clone());
-        blocker.add(1, near);
-        blocker.add(2, far);
-
-        let results = blocker.query_with_distance(&base);
-        assert_eq!(results.len(), 2); // base (dist=0), near (dist=1)
-
-        // Verify the exact match has distance 0
-        let exact = results.iter().find(|(id, _)| *id == 0).unwrap();
-        assert_eq!(exact.1, 0);
-
-        // Verify the near match has distance 1
-        let near_result = results.iter().find(|(id, _)| *id == 1).unwrap();
-        assert_eq!(near_result.1, 1);
-    }
-
-    #[test]
-    fn test_binary_blocker_add_batch() {
-        let mut blocker = BinaryBlocker::new(10);
-        assert!(blocker.is_empty());
-        assert_eq!(blocker.len(), 0);
-
-        let entries: Vec<(usize, BinaryHash)> = (0..5)
-            .map(|i| (i, BinaryHash::from_embedding(&vec![0.1; 64])))
-            .collect();
-        blocker.add_batch(entries);
-
-        assert_eq!(blocker.len(), 5);
-        assert!(!blocker.is_empty());
-    }
-
-    #[test]
-    fn test_binary_blocker_clear() {
-        let mut blocker = BinaryBlocker::new(10);
-        blocker.add(0, BinaryHash::from_embedding(&vec![0.1; 64]));
-        blocker.add(1, BinaryHash::from_embedding(&vec![0.2; 64]));
-        assert_eq!(blocker.len(), 2);
-
-        blocker.clear();
-        assert!(blocker.is_empty());
-        assert_eq!(blocker.len(), 0);
     }
 
     // =========================================================================
@@ -902,26 +558,5 @@ mod tests {
             triples.is_empty(),
             "Overlapping spans should be skipped in extract_relation_triples"
         );
-    }
-
-    // =========================================================================
-    // Two-stage retrieval: edge cases
-    // =========================================================================
-
-    #[test]
-    fn test_two_stage_retrieval_empty_candidates() {
-        let query = vec![1.0, 0.0, 0.0];
-        let results = two_stage_retrieval(&query, &[], 4, 5);
-        assert!(results.is_empty());
-    }
-
-    #[test]
-    fn test_two_stage_retrieval_top_k_truncation() {
-        let query = vec![1.0, 0.0, 0.0, 0.0];
-        let candidates: Vec<Vec<f32>> = (0..10).map(|_| vec![1.0, 0.0, 0.0, 0.0]).collect();
-
-        // All identical -> all should pass binary filter, but top_k=3
-        let results = two_stage_retrieval(&query, &candidates, 4, 3);
-        assert_eq!(results.len(), 3);
     }
 }

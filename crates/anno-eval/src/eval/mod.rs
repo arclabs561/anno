@@ -374,8 +374,7 @@ pub mod similarity;
 pub mod viewpoint;
 
 // Re-exports
-#[allow(deprecated)]
-pub use datasets::{GoldEntity, GroundTruthEntity};
+pub use datasets::GoldEntity;
 
 // Dataset loading and registry API
 //

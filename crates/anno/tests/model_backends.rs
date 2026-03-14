@@ -190,17 +190,8 @@ fn test_model_capabilities() {
     let ner = StackedNER::default();
     let caps = ner.capabilities();
 
-    assert!(caps.batch_capable, "StackedNER should report batch_capable");
-    assert!(
-        caps.streaming_capable,
-        "StackedNER should report streaming_capable"
-    );
-    assert!(
-        caps.optimal_batch_size.is_some(),
-        "StackedNER should report an optimal batch size"
-    );
-    assert!(
-        caps.recommended_chunk_size.is_some(),
-        "StackedNER should report a recommended chunk size"
-    );
+    // StackedNER has no special capabilities by default
+    assert!(!caps.relation_capable);
+    assert!(!caps.dynamic_labels);
+    assert!(!caps.discontinuous_capable);
 }

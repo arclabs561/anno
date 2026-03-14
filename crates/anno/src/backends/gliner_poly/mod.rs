@@ -143,8 +143,6 @@ impl crate::Model for GLiNERPoly {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
             dynamic_labels: true,
             ..Default::default()
         }

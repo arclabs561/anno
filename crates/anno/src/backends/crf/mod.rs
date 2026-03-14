@@ -280,12 +280,7 @@ impl Model for CrfNER {
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            batch_capable: true,
-            optimal_batch_size: Some(32),
-            streaming_capable: true,
-            ..Default::default()
-        }
+        crate::ModelCapabilities::default()
     }
 }
 

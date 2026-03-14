@@ -324,13 +324,6 @@ impl StackedNER {
             .build()
     }
 
-    /// Backwards compatibility alias.
-    #[deprecated(since = "0.3.0", note = "Use with_heuristic_threshold instead")]
-    #[must_use]
-    pub fn with_statistical_threshold(threshold: f64) -> Self {
-        Self::with_heuristic_threshold(threshold)
-    }
-
     /// Pattern-only configuration (no heuristic layer).
     ///
     /// Extracts only structured entities: dates, times, money, percentages,
@@ -346,13 +339,6 @@ impl StackedNER {
     #[must_use]
     pub fn heuristic_only() -> Self {
         Self::builder().layer(HeuristicNER::new()).build()
-    }
-
-    /// Backwards compatibility alias.
-    #[deprecated(since = "0.3.0", note = "Use heuristic_only instead")]
-    #[must_use]
-    pub fn statistical_only() -> Self {
-        Self::heuristic_only()
     }
 
     /// Add an ML backend as highest priority.
@@ -854,13 +840,7 @@ impl Model for StackedNER {
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            batch_capable: true,
-            optimal_batch_size: Some(32),
-            streaming_capable: true,
-            recommended_chunk_size: Some(8_000),
-            ..Default::default()
-        }
+        crate::ModelCapabilities::default()
     }
 }
 

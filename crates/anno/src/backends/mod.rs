@@ -40,9 +40,7 @@
 //!
 //! # When to Use What
 //!
-//! - **Default choice**: `NERExtractor::best_available()` (picks the best available backend at
-//!   runtime, based on enabled features)
-//! - **Zero deps**: `StackedNER::default()` - no ML, good baseline
+//! - **Default choice**: `StackedNER::default()` - cascading: ML first (if available), then heuristic + pattern
 //! - **Hybrid approach**: `StackedNER` with ML backends - combine ML accuracy with pattern speed
 //! - **Custom types**: `GLiNER` or `NuNER` - zero-shot, any entity type
 //! - **Nested entities**: `W2NER` - handles overlapping spans
@@ -137,9 +135,6 @@ pub mod coref;
 pub mod bilstm_crf;
 pub mod catalog;
 pub mod crf;
-pub mod encoder;
-pub mod event_extractor;
-pub mod extractor;
 pub mod heuristic;
 pub mod inference;
 /// Label prompt normalization for zero-shot NER systems.
@@ -167,16 +162,7 @@ pub mod ensemble;
 /// before CRFs. Useful as a baseline and for understanding NER history.
 pub mod hmm;
 
-/// Middleware pipeline for preprocessing and postprocessing.
-///
-/// Provides a chain-of-responsibility pattern for transforming text before
-/// entity extraction and filtering/enriching entities afterward.
-pub mod middleware;
-
-/// Streaming NER for incremental entity extraction.
-///
-/// Iterator-based API for processing large documents in chunks,
-/// with backpressure support and boundary handling.
+/// Chunked extraction and overlap deduplication for long text.
 pub mod streaming;
 
 /// Chunking helpers for long text.
@@ -346,19 +332,9 @@ pub mod encoder_candle;
 #[cfg(feature = "candle")]
 pub mod gliner_candle;
 
-#[cfg(feature = "candle")]
-pub mod gliner_pipeline;
-
 // GLiNER2 multi-task extraction (ONNX or Candle)
 #[cfg(any(feature = "onnx", feature = "candle"))]
 pub mod gliner2;
-
-// Production infrastructure
-#[cfg(feature = "production")]
-pub mod async_adapter;
-
-#[cfg(all(feature = "production", feature = "onnx"))]
-pub mod session_pool;
 
 // Model warmup for cold-start mitigation
 pub mod warmup;
@@ -367,8 +343,6 @@ pub mod warmup;
 pub use bilstm_crf::BiLstmCrfNER;
 pub use crf::CrfNER;
 pub use ensemble::EnsembleNER;
-pub use event_extractor::{Event, EventExtractor, RuleBasedEventExtractor};
-pub use extractor::{BackendType, NERExtractor};
 pub use heuristic::HeuristicNER;
 pub use lexicon::LexiconNER;
 pub use nuner::NuNER;
@@ -417,13 +391,6 @@ pub use gliner2::GLiNER2Onnx;
 #[cfg(feature = "candle")]
 pub use gliner2::GLiNER2Candle;
 
-// Production infrastructure re-exports
-#[cfg(feature = "production")]
-pub use async_adapter::{batch_extract, batch_extract_limited, AsyncNER, IntoAsync};
-
-#[cfg(all(feature = "production", feature = "onnx"))]
-pub use session_pool::{GLiNERPool, PoolConfig, SessionPool};
-
 // T5 coreference
 #[cfg(feature = "onnx")]
 pub use coref::t5::{CorefCluster, T5Coref, T5CorefConfig};
@@ -451,20 +418,11 @@ pub use coref::resolve::CorefBackend;
 // Classical HMM NER (zero deps)
 pub use hmm::{HmmConfig, HmmNER};
 
-// Streaming NER utilities
-pub use streaming::{
-    deduplicate_overlapping, ChunkConfig, EntityIterator, OverlapStrategy, StreamingExtractor,
-};
-
-// Middleware pipeline
-pub use middleware::{
-    AddProvenance, Callback, FilterByConfidence, FilterByType, HookEvent, HookedPipeline,
-    MergeAdjacent, Middleware, MiddlewareContext, NormalizeWhitespace,
-    Pipeline as MiddlewarePipeline, PipelineStageAdapter, RemoveOverlaps,
-};
+// Chunking and overlap deduplication
+pub use streaming::{deduplicate_overlapping, ChunkConfig, OverlapStrategy};
 
 // Simple rule-based coreference resolvers.
-#[cfg(all(feature = "eval", feature = "discourse"))]
+#[cfg(all(feature = "analysis", feature = "discourse"))]
 pub use crate::eval::coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
-#[cfg(any(feature = "analysis", feature = "eval"))]
+#[cfg(feature = "analysis")]
 pub use coref::simple::{CorefConfig, SimpleCorefResolver};

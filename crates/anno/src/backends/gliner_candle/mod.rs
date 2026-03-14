@@ -166,9 +166,6 @@ impl crate::Model for GLiNERCandle {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            batch_capable: true,
-            streaming_capable: true,
-            gpu_capable: true,
             dynamic_labels: true,
             ..Default::default()
         }
