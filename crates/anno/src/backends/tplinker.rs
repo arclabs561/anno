@@ -54,7 +54,7 @@
 //! ```
 
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor};
-use crate::{Entity, EntityCategory, EntityType, Language, Model, Result};
+use crate::{Confidence, Entity, EntityCategory, EntityType, Language, Model, Result};
 use std::borrow::Cow;
 
 // =============================================================================
@@ -450,9 +450,9 @@ mod onnx_impl {
 
                         // Softmax confidence for the winning non-NONE class
                         let sum = (head_none.exp() + head_sh2oh.exp() + head_oh2st.exp()).ln();
-                        let confidence = (head_max - sum).exp();
+                        let conf_f32 = (head_max - sum).exp();
 
-                        if confidence < rel_threshold {
+                        if conf_f32 < rel_threshold {
                             continue;
                         }
 
@@ -474,7 +474,7 @@ mod onnx_impl {
                             head_idx,
                             tail_idx,
                             relation_type: rel_label.clone(),
-                            confidence,
+                            confidence: Confidence::new(conf_f32 as f64),
                         });
                     }
                 }

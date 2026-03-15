@@ -436,7 +436,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Apply relation confidence threshold (best-effort; non-fatal).
     if args.extract_relations && !relation_triples.is_empty() {
-        relation_triples.retain(|r| r.confidence >= relation_threshold);
+        relation_triples.retain(|r| r.confidence >= relation_threshold as f64);
     }
 
     // Build signals with negation/quantifier annotations, then add to doc.

@@ -251,7 +251,7 @@ impl From<&CrossDocCluster> for anno_core::Identity {
             description: None,
             embedding: None,
             aliases: Vec::new(),
-            confidence: cluster.confidence as f32,
+            confidence: anno_core::Confidence::new(cluster.confidence),
             source: None, // Cannot determine source from CDCR format (no track_ids)
         }
     }

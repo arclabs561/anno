@@ -208,7 +208,7 @@ impl RelationPrediction {
             tail_span: (tail.start, tail.end),
             tail_type: tail.entity_type.as_label().to_string(),
             relation_type: triple.relation_type.clone(),
-            confidence: triple.confidence,
+            confidence: triple.confidence.value() as f32,
         })
     }
 }

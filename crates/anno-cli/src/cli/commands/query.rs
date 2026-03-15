@@ -106,7 +106,7 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
         // Apply additional filters
         if let Some(min_conf) = args.min_confidence {
             // Filter by confidence (could use confident_signals, but already have collection)
-            signals.retain(|s| s.confidence >= min_conf as f32);
+            signals.retain(|s| s.confidence >= min_conf);
         }
 
         if let Some(ref entity_text) = args.entity {

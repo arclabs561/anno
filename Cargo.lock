@@ -2680,7 +2680,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2693,12 +2693,14 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "pare"
 version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa1a3660dfbc78a7ba76be7f517950204bbbb34b998d7bd2e0f54e07b0181944"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -5175,4 +5177,8 @@ dependencies = [
 
 [[patch.unused]]
 name = "logp"
+version = "0.2.0"
+
+[[patch.unused]]
+name = "pare"
 version = "0.2.0"

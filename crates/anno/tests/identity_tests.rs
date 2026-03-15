@@ -68,9 +68,9 @@ fn test_identity_with_entity_type() {
 fn test_identity_confidence() {
     let id = IdentityId::new(400);
     let mut identity = Identity::new(id, "Uncertain Entity");
-    identity.confidence = 0.75;
+    identity.set_confidence(0.75);
 
-    assert!((identity.confidence - 0.75).abs() < f32::EPSILON);
+    assert!((identity.confidence.value() - 0.75).abs() < f64::EPSILON);
 }
 
 #[test]

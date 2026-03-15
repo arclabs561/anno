@@ -135,7 +135,7 @@ pub fn evaluate_discontinuous_gold_vs_gold() -> DiscontinuousNERMetrics {
             spans: g.spans.clone(),
             text: g.text.clone(),
             entity_type: g.entity_type.clone(),
-            confidence: 1.0,
+            confidence: anno_core::Confidence::ONE,
         })
         .collect();
 
@@ -177,7 +177,7 @@ pub fn evaluate_relations_synthetic<M: RelationExtractor>(
                     tail_span: (tail.start, tail.end),
                     tail_type: tail.entity_type.as_label().to_string(),
                     relation_type: rel.relation_type.clone(),
-                    confidence: rel.confidence,
+                    confidence: rel.confidence.value() as f32,
                 });
             }
         }

@@ -103,7 +103,7 @@ pub mod decode;
 pub use decode::{map_label_to_entity_type, DiscontinuousDecodeRow, W2NERRelation};
 
 use crate::backends::inference::{DiscontinuousEntity, DiscontinuousNER, HandshakingMatrix};
-use crate::{Entity, EntityType, Language, Model, Result};
+use crate::{Confidence, Entity, EntityType, Language, Model, Result};
 
 #[cfg(feature = "onnx")]
 use crate::Error;
@@ -749,7 +749,7 @@ impl W2NER {
                 spans: char_spans,
                 text: entity_text,
                 entity_type: type_label,
-                confidence: score as f32,
+                confidence: Confidence::new(score),
             });
         }
 

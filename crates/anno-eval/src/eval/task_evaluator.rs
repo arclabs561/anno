@@ -2666,7 +2666,7 @@ impl TaskEvaluator {
                                         tail_span: (tail.start, tail.end),
                                         tail_type: tail.entity_type.as_label().to_string(),
                                         relation_type: t.relation_type.clone(),
-                                        confidence: t.confidence,
+                                        confidence: t.confidence.value() as f32,
                                     });
                                 }
                             }
@@ -2754,7 +2754,7 @@ impl TaskEvaluator {
                                         tail_span: (tail.start, tail.end),
                                         tail_type: tail.entity_type.as_label().to_string(),
                                         relation_type: t.relation_type.clone(),
-                                        confidence: t.confidence,
+                                        confidence: t.confidence.value() as f32,
                                     });
                                 }
                             }
@@ -2774,7 +2774,7 @@ impl TaskEvaluator {
                                     tail_span: (tail.start, tail.end),
                                     tail_type: tail.entity_type.as_label().to_string(),
                                     relation_type: triple.relation_type.clone(),
-                                    confidence: triple.confidence,
+                                    confidence: triple.confidence.value() as f32,
                                 });
                             }
                         }

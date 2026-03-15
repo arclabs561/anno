@@ -194,7 +194,7 @@ impl DiscontinuousEvaluator {
                 spans: vec![(e.start, e.end)],
                 text: e.text.clone(),
                 entity_type: e.entity_type.as_label().to_string(),
-                confidence: f32::from(e.confidence),
+                confidence: e.confidence,
             })
             .collect()
     }

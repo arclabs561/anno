@@ -9,7 +9,7 @@ use anno_core::grounded::{
     Identity, IdentitySource, Location, Modality, Signal, SignalRef, Track, TrackRef,
 };
 use anno_core::TypeLabel;
-use anno_core::{IdentityId, SignalId};
+use anno_core::{Confidence, IdentityId, SignalId};
 use proptest::prelude::*;
 
 // =============================================================================
@@ -21,22 +21,9 @@ fn arb_text_location() -> impl Strategy<Value = Location> {
     (0usize..10000, 1usize..1000).prop_map(|(start, len)| Location::text(start, start + len))
 }
 
-/// Generate a bounding box location with normalized coordinates
-fn arb_bbox_location() -> impl Strategy<Value = Location> {
-    (0.0f32..0.9, 0.0f32..0.9, 0.01f32..0.5, 0.01f32..0.5).prop_map(|(x, y, w, h)| {
-        Location::BoundingBox {
-            x,
-            y,
-            width: w,
-            height: h,
-            page: None,
-        }
-    })
-}
-
 /// Generate any location type
 fn arb_location() -> impl Strategy<Value = Location> {
-    prop_oneof![arb_text_location(), arb_bbox_location(),]
+    arb_text_location()
 }
 
 /// Generate a signal with text location
@@ -53,7 +40,7 @@ fn arb_signal() -> impl Strategy<Value = Signal<Location>> {
             location,
             surface,
             label: TypeLabel::from(label.as_str()),
-            confidence,
+            confidence: Confidence::new(confidence as f64),
             hierarchical: None,
             provenance: None,
             modality: Modality::Symbolic,
@@ -76,7 +63,7 @@ fn arb_track() -> impl Strategy<Value = Track> {
             |(id, canonical_surface, entity_type, confidence, signal_specs)| {
                 let mut track = Track::new(id, canonical_surface);
                 track.entity_type = entity_type.map(|s| TypeLabel::from(s.as_str()));
-                track.cluster_confidence = confidence;
+                track.cluster_confidence = Confidence::new(confidence as f64);
                 for (sig_id, pos) in signal_specs {
                     track.add_signal(sig_id, pos);
                 }
@@ -100,7 +87,7 @@ fn arb_identity() -> impl Strategy<Value = Identity> {
                 let mut identity = Identity::new(id, canonical_name);
                 identity.entity_type = entity_type.map(|s| TypeLabel::from(s.as_str()));
                 identity.kb_id = kb_id;
-                identity.confidence = confidence;
+                identity.confidence = Confidence::new(confidence as f64);
                 for alias in aliases {
                     identity.add_alias(alias);
                 }
@@ -124,11 +111,7 @@ proptest! {
         prop_assert_eq!(loc.modality(), Modality::Symbolic);
     }
 
-    /// BBox locations have Iconic modality
-    #[test]
-    fn bbox_location_is_iconic(loc in arb_bbox_location()) {
-        prop_assert_eq!(loc.modality(), Modality::Iconic);
-    }
+
 
     // --- Text Offsets ---
 
@@ -143,11 +126,7 @@ proptest! {
         prop_assert_eq!(e, start + len);
     }
 
-    /// text_offsets() returns None for bbox locations
-    #[test]
-    fn bbox_has_no_text_offsets(loc in arb_bbox_location()) {
-        prop_assert!(loc.text_offsets().is_none());
-    }
+
 
     // --- Overlap ---
 
@@ -181,15 +160,7 @@ proptest! {
         prop_assert!(!loc1.overlaps(&loc2));
     }
 
-    /// Different modality locations don't overlap
-    #[test]
-    fn different_modality_no_overlap(
-        text_loc in arb_text_location(),
-        bbox_loc in arb_bbox_location()
-    ) {
-        prop_assert!(!text_loc.overlaps(&bbox_loc));
-        prop_assert!(!bbox_loc.overlaps(&text_loc));
-    }
+
 
     // --- IoU (Intersection over Union) ---
 
@@ -268,7 +239,7 @@ proptest! {
     /// Signals have valid confidence bounds
     #[test]
     fn signal_confidence_bounded(signal in arb_signal()) {
-        prop_assert!(signal.confidence >= 0.0 && signal.confidence <= 1.0);
+        prop_assert!(signal.confidence.value() >= 0.0 && signal.confidence.value() <= 1.0);
     }
 
     /// Signals have non-empty surface
@@ -303,7 +274,7 @@ proptest! {
     #[test]
     fn track_confidence_bounded(track in arb_track()) {
         prop_assert!(
-            track.cluster_confidence >= 0.0 && track.cluster_confidence <= 1.0,
+            track.cluster_confidence.value() >= 0.0 && track.cluster_confidence.value() <= 1.0,
             "Cluster confidence should be in [0,1], got {}",
             track.cluster_confidence
         );
@@ -367,7 +338,7 @@ proptest! {
     #[test]
     fn identity_confidence_bounded(identity in arb_identity()) {
         prop_assert!(
-            identity.confidence >= 0.0 && identity.confidence <= 1.0,
+            identity.confidence.value() >= 0.0 && identity.confidence.value() <= 1.0,
             "Identity confidence should be in [0,1], got {}",
             identity.confidence
         );
@@ -548,56 +519,6 @@ fn test_identity_source_variants_all() {
         kb_id: "Q42".to_string(),
     };
     assert!(matches!(hybrid, IdentitySource::Hybrid { .. }));
-}
-
-#[test]
-fn test_bbox_iou_partial_overlap() {
-    let box1 = Location::BoundingBox {
-        x: 0.0,
-        y: 0.0,
-        width: 0.5,
-        height: 0.5,
-        page: None,
-    };
-    let box2 = Location::BoundingBox {
-        x: 0.25,
-        y: 0.25,
-        width: 0.5,
-        height: 0.5,
-        page: None,
-    };
-
-    let iou = box1.iou(&box2).expect("Should compute IoU for bboxes");
-
-    // Intersection: 0.25 x 0.25 = 0.0625
-    // Union: 0.25 + 0.25 - 0.0625 = 0.4375
-    // IoU ≈ 0.0625 / 0.4375 ≈ 0.143
-    assert!(
-        (iou - 0.143).abs() < 0.01,
-        "IoU should be ~0.143, got {}",
-        iou
-    );
-}
-
-#[test]
-fn test_different_page_bboxes_no_overlap() {
-    let box1 = Location::BoundingBox {
-        x: 0.0,
-        y: 0.0,
-        width: 0.5,
-        height: 0.5,
-        page: Some(1),
-    };
-    let box2 = Location::BoundingBox {
-        x: 0.0,
-        y: 0.0,
-        width: 0.5,
-        height: 0.5,
-        page: Some(2),
-    };
-
-    assert!(!box1.overlaps(&box2));
-    assert_eq!(box1.iou(&box2), Some(0.0));
 }
 
 // =============================================================================

@@ -2,7 +2,7 @@
 //! and DiscontinuousNER.
 
 #[allow(unused_imports)]
-use crate::{Entity, EntityType, Relation};
+use crate::{Confidence, Entity, EntityType, Relation};
 
 // Zero-Shot NER Trait
 // =============================================================================
@@ -250,7 +250,7 @@ pub struct RelationTriple {
     /// Relation type
     pub relation_type: String,
     /// Confidence score
-    pub confidence: f32,
+    pub confidence: Confidence,
 }
 
 // =============================================================================
@@ -300,7 +300,7 @@ impl ExtractionWithRelations {
                     head,
                     tail,
                     t.relation_type.clone(),
-                    t.confidence as f64,
+                    t.confidence,
                 ))
             })
             .collect();
@@ -402,7 +402,7 @@ pub struct DiscontinuousEntity {
     /// Entity type
     pub entity_type: String,
     /// Confidence score
-    pub confidence: f32,
+    pub confidence: Confidence,
 }
 
 impl DiscontinuousEntity {
@@ -420,7 +420,7 @@ impl DiscontinuousEntity {
                 EntityType::from_label(&self.entity_type),
                 start,
                 end,
-                self.confidence as f64,
+                self.confidence,
             ))
         } else {
             None
@@ -519,13 +519,13 @@ mod tests {
                     head_idx: 0,
                     tail_idx: 2,
                     relation_type: "WORKS_FOR".to_string(),
-                    confidence: 0.8,
+                    confidence: Confidence::new(0.8),
                 },
                 RelationTriple {
                     head_idx: 1,
                     tail_idx: 2,
                     relation_type: "WORKS_FOR".to_string(),
-                    confidence: 0.7,
+                    confidence: Confidence::new(0.7),
                 },
             ],
         };
@@ -549,19 +549,19 @@ mod tests {
                     head_idx: 0,
                     tail_idx: 1,
                     relation_type: "VALID".to_string(),
-                    confidence: 0.9,
+                    confidence: Confidence::new(0.9),
                 },
                 RelationTriple {
                     head_idx: 0,
                     tail_idx: 100,
                     relation_type: "INVALID_TAIL".to_string(),
-                    confidence: 0.5,
+                    confidence: Confidence::new(0.5),
                 },
                 RelationTriple {
                     head_idx: 50,
                     tail_idx: 1,
                     relation_type: "INVALID_HEAD".to_string(),
-                    confidence: 0.5,
+                    confidence: Confidence::new(0.5),
                 },
             ],
         };
@@ -581,13 +581,13 @@ mod tests {
             head_idx: 0,
             tail_idx: 1,
             relation_type: "FOUNDED".to_string(),
-            confidence: 0.95,
+            confidence: Confidence::new(0.95),
         };
         let cloned = triple.clone();
         assert_eq!(cloned.head_idx, 0);
         assert_eq!(cloned.tail_idx, 1);
         assert_eq!(cloned.relation_type, "FOUNDED");
-        assert!((cloned.confidence - 0.95).abs() < f32::EPSILON);
+        assert!((cloned.confidence.value() - 0.95).abs() < f64::EPSILON);
     }
 
     // =========================================================================
@@ -600,7 +600,7 @@ mod tests {
             spans: vec![],
             text: String::new(),
             entity_type: "misc".to_string(),
-            confidence: 0.5,
+            confidence: Confidence::new(0.5),
         };
         assert!(!entity.is_contiguous());
         assert!(entity.to_entity().is_none());
@@ -612,7 +612,7 @@ mod tests {
             spans: vec![(0, 3), (10, 15), (20, 25)],
             text: "compound entity".to_string(),
             entity_type: "location".to_string(),
-            confidence: 0.7,
+            confidence: Confidence::new(0.7),
         };
         assert!(!entity.is_contiguous());
         assert!(entity.to_entity().is_none());
@@ -624,7 +624,7 @@ mod tests {
             spans: vec![(5, 10)],
             text: "Smith".to_string(),
             entity_type: "person".to_string(),
-            confidence: 0.88,
+            confidence: Confidence::new(0.88),
         };
         let converted = entity.to_entity().expect("single span should convert");
         assert_eq!(converted.text, "Smith");

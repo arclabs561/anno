@@ -50,7 +50,7 @@ mod tests {
     use super::registry::{SemanticRegistry, SemanticRegistryBuilder};
     use super::span::SpanRepConfig;
     use super::*;
-    use crate::{Entity, EntityType};
+    use crate::{Confidence, Entity, EntityType};
 
     #[test]
     fn test_semantic_registry_builder() {
@@ -421,7 +421,7 @@ mod tests {
             spans: vec![(0, 5)],
             text: "hello".to_string(),
             entity_type: "person".to_string(),
-            confidence: 0.9,
+            confidence: Confidence::new(0.9),
         };
         assert!(entity.is_contiguous());
         let converted = entity.to_entity().expect("should convert single-span");
@@ -436,7 +436,7 @@ mod tests {
             spans: vec![(0, 3), (10, 15)],
             text: "New airports".to_string(),
             entity_type: "location".to_string(),
-            confidence: 0.8,
+            confidence: Confidence::new(0.8),
         };
         assert!(!entity.is_contiguous());
         assert!(entity.to_entity().is_none());
@@ -457,7 +457,7 @@ mod tests {
                 head_idx: 0,
                 tail_idx: 1,
                 relation_type: "WORKS_FOR".to_string(),
-                confidence: 0.85,
+                confidence: Confidence::new(0.85),
             }],
         };
 
@@ -477,7 +477,7 @@ mod tests {
                 head_idx: 0,
                 tail_idx: 99, // out of bounds
                 relation_type: "WORKS_FOR".to_string(),
-                confidence: 0.85,
+                confidence: Confidence::new(0.85),
             }],
         };
 

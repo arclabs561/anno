@@ -216,7 +216,7 @@ pub fn extract_relation_triples(
                     head_idx: i,
                     tail_idx: j,
                     relation_type: rel_type.to_string(),
-                    confidence: confidence as f32,
+                    confidence: Confidence::new(confidence),
                 });
             }
         }
@@ -1251,7 +1251,7 @@ pub fn extract_relation_triples_simple(
                     head_idx: i,
                     tail_idx: j,
                     relation_type: rel_type.to_string(),
-                    confidence: confidence as f32,
+                    confidence: Confidence::new(confidence),
                 });
                 continue;
             }
@@ -1273,14 +1273,14 @@ pub fn extract_relation_triples_simple(
                     let out_label = pick_relation_label(rel_type, relation_types)
                         .unwrap_or_else(|| rel_type.to_string());
 
-                    let confidence =
+                    let conf_f32 =
                         proximity * base_score * (head.confidence + tail.confidence) as f32 / 2.0;
-                    if confidence >= config.threshold {
+                    if conf_f32 >= config.threshold {
                         triples.push(RelationTriple {
                             head_idx: i,
                             tail_idx: j,
                             relation_type: out_label,
-                            confidence,
+                            confidence: Confidence::new(conf_f32 as f64),
                         });
                         break; // One type-based relation per pair
                     }
@@ -1768,7 +1768,7 @@ mod tests {
         let rels = extract_relations(&entities, text, &reg, &default_config());
         for r in &rels {
             assert!(
-                (0.0..=1.0).contains(&r.confidence),
+                (0.0..=1.0).contains(&r.confidence.value()),
                 "confidence {} not in [0, 1]",
                 r.confidence
             );

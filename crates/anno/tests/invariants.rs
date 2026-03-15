@@ -175,7 +175,7 @@ fn test_multilingual_similarity_symmetry() {
 fn create_track(id: u64, surface: &str, entity_type: &str) -> Track {
     let mut track = Track::new(id, surface);
     track.entity_type = Some(TypeLabel::from(entity_type));
-    track.cluster_confidence = 0.9;
+    track.set_cluster_confidence(0.9);
     track
 }
 

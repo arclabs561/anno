@@ -187,7 +187,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                         s.label.to_entity_type(),
                         start,
                         end,
-                        s.confidence as f64,
+                        s.confidence.value(),
                     ))
                 })
                 .collect();

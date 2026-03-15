@@ -232,7 +232,7 @@ fn parse_entities_from_any_json(content: &str) -> Result<Vec<ComparableEntity>, 
                     entity_type: s.label().to_string(),
                     start,
                     end,
-                    confidence: s.confidence as f64,
+                    confidence: s.confidence.value(),
                 }
             })
             .collect());

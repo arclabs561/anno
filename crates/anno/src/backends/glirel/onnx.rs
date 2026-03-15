@@ -6,7 +6,7 @@
 use crate::backends::hf_loader;
 use crate::backends::inference::RelationTriple;
 use crate::sync::{lock, Mutex};
-use crate::{Entity, Error, Result};
+use crate::{Confidence, Entity, Error, Result};
 use ndarray::Array2;
 use std::path::{Path, PathBuf};
 
@@ -73,7 +73,7 @@ pub struct ScoredRelation {
     /// Relation type label.
     pub relation_type: String,
     /// Confidence score (sigmoid of raw score).
-    pub confidence: f32,
+    pub confidence: Confidence,
 }
 
 impl GLiREL {
@@ -320,13 +320,13 @@ impl GLiREL {
                 for (rel_idx, rel_type) in relation_types.iter().enumerate() {
                     let flat_idx = head_idx * stride_head + tail_idx * num_relations + rel_idx;
                     let raw_score = scores_data[flat_idx];
-                    let confidence = sigmoid(raw_score);
-                    if confidence >= threshold {
+                    let conf_f32 = sigmoid(raw_score);
+                    if conf_f32 >= threshold {
                         relations.push(RelationTriple {
                             head_idx,
                             tail_idx,
                             relation_type: rel_type.to_string(),
-                            confidence,
+                            confidence: Confidence::new(conf_f32 as f64),
                         });
                     }
                 }
