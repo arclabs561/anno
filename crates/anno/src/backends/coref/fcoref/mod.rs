@@ -55,7 +55,7 @@ use ndarray::Array2;
 use ort::session::Session;
 use tokenizers::Tokenizer;
 
-use super::t5::CorefCluster;
+use super::resolve::CorefCluster;
 use crate::offset::SpanConverter;
 use crate::{Error, Result};
 use clustering::MentionSpan;

@@ -30,8 +30,11 @@ pub mod simple;
 // Re-exports: keep everything accessible at the coref:: level
 pub use resolve::CorefBackend;
 
+// CorefCluster is always available from resolve (not feature-gated).
+pub use resolve::CorefCluster;
+
 #[cfg(feature = "onnx")]
-pub use t5::{CorefCluster, T5Coref, T5CorefConfig};
+pub use t5::{T5Coref, T5CorefConfig};
 
 #[cfg(feature = "onnx")]
 pub use fcoref::{FCoref, FCorefConfig};

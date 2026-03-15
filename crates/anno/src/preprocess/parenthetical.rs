@@ -35,6 +35,7 @@
 //! ```
 
 use crate::offset::TextSpan;
+use anno_core::Confidence;
 use serde::{Deserialize, Serialize};
 
 /// Type of parenthetical content.
@@ -85,7 +86,7 @@ pub struct Parenthetical {
     /// Type of parenthetical
     pub parenthetical_type: ParentheticalType,
     /// Confidence in the classification
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Whether this creates an alias relationship
     pub is_alias: bool,
 }
@@ -108,7 +109,7 @@ impl Parenthetical {
             content_start,
             content_end,
             parenthetical_type: ParentheticalType::Unknown,
-            confidence: 0.5,
+            confidence: Confidence::new(0.5),
             is_alias: false,
         }
     }
@@ -311,7 +312,7 @@ impl ParentheticalExtractor {
             {
                 paren.parenthetical_type = ParentheticalType::Ticker;
                 paren.is_alias = true;
-                paren.confidence = 0.9;
+                paren.confidence = Confidence::new(0.9);
                 return paren;
             }
         }
@@ -320,14 +321,14 @@ impl ParentheticalExtractor {
         if self.is_likely_abbreviation(antecedent, content) {
             paren.parenthetical_type = ParentheticalType::Abbreviation;
             paren.is_alias = true;
-            paren.confidence = 0.85;
+            paren.confidence = Confidence::new(0.85);
             return paren;
         }
 
         // Check for temporal bounds (years, date ranges)
         if self.is_temporal_bounds(content) {
             paren.parenthetical_type = ParentheticalType::TemporalBounds;
-            paren.confidence = 0.9;
+            paren.confidence = Confidence::new(0.9);
             return paren;
         }
 
@@ -335,21 +336,21 @@ impl ParentheticalExtractor {
         if !content.is_ascii() || !antecedent.is_ascii() {
             paren.parenthetical_type = ParentheticalType::Translation;
             paren.is_alias = true;
-            paren.confidence = 0.7;
+            paren.confidence = Confidence::new(0.7);
             return paren;
         }
 
         // Check for role/title
         if self.is_role(content) {
             paren.parenthetical_type = ParentheticalType::Role;
-            paren.confidence = 0.8;
+            paren.confidence = Confidence::new(0.8);
             return paren;
         }
 
         // Check for location qualifier
         if self.is_location_qualifier(content) {
             paren.parenthetical_type = ParentheticalType::LocationQualifier;
-            paren.confidence = 0.75;
+            paren.confidence = Confidence::new(0.75);
             return paren;
         }
 
@@ -360,7 +361,7 @@ impl ParentheticalExtractor {
             || content.contains("20")
         {
             paren.parenthetical_type = ParentheticalType::Citation;
-            paren.confidence = 0.7;
+            paren.confidence = Confidence::new(0.7);
             return paren;
         }
 
@@ -374,13 +375,13 @@ impl ParentheticalExtractor {
         {
             paren.parenthetical_type = ParentheticalType::Alias;
             paren.is_alias = true;
-            paren.confidence = 0.6;
+            paren.confidence = Confidence::new(0.6);
             return paren;
         }
 
         // Default to clarification
         paren.parenthetical_type = ParentheticalType::Clarification;
-        paren.confidence = 0.5;
+        paren.confidence = Confidence::new(0.5);
         paren
     }
 
@@ -499,7 +500,7 @@ pub struct AliasPair {
     /// Source document ID
     pub doc_id: Option<String>,
     /// Confidence in this alias relationship
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Type of alias relationship
     pub alias_type: ParentheticalType,
 }

@@ -1067,7 +1067,7 @@ impl JointModel {
                                 source: CandidateSource::Wikidata,
                                 label: None,
                                 iri: None,
-                                confidence: prob,
+                                confidence: Confidence::new(prob),
                                 is_nil: false,
                                 nil_reason: None,
                                 nil_action: None,

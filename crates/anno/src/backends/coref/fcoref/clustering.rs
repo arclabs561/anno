@@ -3,7 +3,7 @@
 //! Converts antecedent predictions (each mention's best preceding coreferent)
 //! into clusters of co-referring mentions using a disjoint-set data structure.
 
-use super::super::t5::CorefCluster;
+use super::super::resolve::CorefCluster;
 
 /// Disjoint-set (union-find) with path compression and union by rank.
 pub(crate) struct UnionFind {

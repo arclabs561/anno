@@ -27,6 +27,7 @@
 //! 4. Coverage heuristics (mention characteristics)
 //! 5. Learned classifier (optional)
 
+use anno_core::Confidence;
 use serde::{Deserialize, Serialize};
 
 use super::candidate::Candidate;
@@ -383,7 +384,7 @@ impl NilDetector {
                 NilAnalysis {
                     is_nil: false,
                     reason: None,
-                    confidence: best_sim,
+                    confidence: Confidence::new(best_sim),
                     action: NilAction::Link,
                 }
             }
@@ -430,7 +431,7 @@ impl NilDetector {
                 NilAnalysis {
                     is_nil: true,
                     reason: Some(reason),
-                    confidence,
+                    confidence: Confidence::new(confidence),
                     action,
                 }
             }
@@ -446,7 +447,7 @@ pub struct NilAnalysis {
     /// Reason if NIL
     pub reason: Option<NilReason>,
     /// Confidence in the NIL decision (0-1)
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Suggested action
     pub action: NilAction,
 }
@@ -486,7 +487,7 @@ impl NilDetector {
                 NilAnalysis {
                     is_nil: false,
                     reason: None,
-                    confidence: top_score,
+                    confidence: Confidence::new(top_score),
                     action: NilAction::Link,
                 }
             }
@@ -512,7 +513,7 @@ impl NilDetector {
                 NilAnalysis {
                     is_nil: true,
                     reason: Some(reason),
-                    confidence,
+                    confidence: Confidence::new(confidence),
                     action,
                 }
             }

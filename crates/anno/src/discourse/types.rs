@@ -82,7 +82,7 @@
 //! assert!(referent.referent_type.is_abstract());
 //! ```
 
-use anno_core::Entity;
+use anno_core::{Confidence, Entity};
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -252,7 +252,7 @@ pub struct EventMention {
     /// Common roles: Agent, Patient, Location, Time, Instrument
     pub arguments: Vec<(String, String)>,
     /// Confidence score for this event extraction
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Event polarity (positive, negative, uncertain)
     pub polarity: EventPolarity,
     /// Event tense/aspect
@@ -294,7 +294,7 @@ impl EventMention {
             trigger_end: end,
             trigger_type: None,
             arguments: Vec::new(),
-            confidence: 1.0,
+            confidence: Confidence::ONE,
             polarity: EventPolarity::default(),
             tense: None,
         }
@@ -320,7 +320,7 @@ impl EventMention {
     /// Set confidence score.
     #[must_use]
     pub fn with_confidence(mut self, confidence: f64) -> Self {
-        self.confidence = confidence.clamp(0.0, 1.0);
+        self.confidence = Confidence::new(confidence);
         self
     }
 
@@ -389,7 +389,7 @@ pub struct DiscourseReferent {
     /// Coreference cluster ID (shared with entities that refer to this)
     pub canonical_id: Option<anno_core::CanonicalId>,
     /// Confidence that this is a valid discourse referent
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Discourse depth (how nested this referent is)
     /// 0 = main clause, 1 = subordinate, 2 = embedded subordinate, etc.
     pub depth: u32,
@@ -407,7 +407,7 @@ impl DiscourseReferent {
             text: None,
             event: None,
             canonical_id: None,
-            confidence: 1.0,
+            confidence: Confidence::ONE,
             depth: 0,
         }
     }
@@ -423,7 +423,7 @@ impl DiscourseReferent {
             text: Some(entity.text.clone()),
             event: None,
             canonical_id: entity.canonical_id,
-            confidence: entity.confidence.into(),
+            confidence: entity.confidence,
             depth: 0,
         }
     }
@@ -459,7 +459,7 @@ impl DiscourseReferent {
     /// Set confidence.
     #[must_use]
     pub fn with_confidence(mut self, confidence: f64) -> Self {
-        self.confidence = confidence.clamp(0.0, 1.0);
+        self.confidence = Confidence::new(confidence);
         self
     }
 
@@ -1078,7 +1078,7 @@ pub struct EventCluster {
     /// Canonical event type (e.g., "attack")
     pub event_type: Option<String>,
     /// Confidence in this clustering
-    pub confidence: f64,
+    pub confidence: Confidence,
 }
 
 impl EventCluster {
@@ -1094,7 +1094,7 @@ impl EventCluster {
             mentions,
             id: 0,
             event_type,
-            confidence: 1.0,
+            confidence: Confidence::ONE,
         }
     }
 

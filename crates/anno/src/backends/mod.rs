@@ -382,9 +382,12 @@ pub use gliner2::GLiNER2Onnx;
 #[cfg(feature = "candle")]
 pub use gliner2::GLiNER2Candle;
 
+// CorefCluster is always available (lives in coref::resolve, not feature-gated).
+pub use coref::CorefCluster;
+
 // T5 coreference
 #[cfg(feature = "onnx")]
-pub use coref::t5::{CorefCluster, T5Coref, T5CorefConfig};
+pub use coref::t5::{T5Coref, T5CorefConfig};
 
 // F-coref neural coreference
 #[cfg(feature = "onnx")]

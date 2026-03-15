@@ -7,7 +7,7 @@ use super::candidate::{
     Candidate, CandidateGenerator, CandidateSource, DictionaryCandidateGenerator,
 };
 use super::nil::{NilAction, NilDetector, NilReason};
-use anno_core::EntityType;
+use anno_core::{Confidence, EntityType};
 
 /// A mention to be linked.
 #[derive(Debug, Clone)]
@@ -58,7 +58,7 @@ pub struct LinkedEntity {
     /// Full IRI/URI
     pub iri: Option<String>,
     /// Linking confidence
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Is this a NIL entity?
     pub is_nil: bool,
     /// NIL reason if applicable
@@ -205,7 +205,7 @@ impl EntityLinker {
                     source: top_candidate.source.clone(),
                     label: Some(top_candidate.label.clone()),
                     iri: Some(top_candidate.to_iri()),
-                    confidence: top_candidate.score,
+                    confidence: Confidence::new(top_candidate.score),
                     is_nil: false,
                     nil_reason: None,
                     nil_action: None,
@@ -478,7 +478,7 @@ mod tests {
             source: CandidateSource::Wikidata,
             label: Some("Albert Einstein".to_string()),
             iri: Some("http://www.wikidata.org/entity/Q937".to_string()),
-            confidence: 0.95,
+            confidence: Confidence::new(0.95),
             is_nil: false,
             nil_reason: None,
             nil_action: None,

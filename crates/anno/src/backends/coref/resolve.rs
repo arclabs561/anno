@@ -33,31 +33,6 @@ pub struct CorefCluster {
     pub canonical: String,
 }
 
-// Bidirectional conversion with coref_t5::CorefCluster when onnx is enabled.
-#[cfg(feature = "onnx")]
-impl From<super::t5::CorefCluster> for CorefCluster {
-    fn from(c: super::t5::CorefCluster) -> Self {
-        Self {
-            id: c.id,
-            mentions: c.mentions,
-            spans: c.spans,
-            canonical: c.canonical,
-        }
-    }
-}
-
-#[cfg(feature = "onnx")]
-impl From<CorefCluster> for super::t5::CorefCluster {
-    fn from(c: CorefCluster) -> Self {
-        Self {
-            id: c.id,
-            mentions: c.mentions,
-            spans: c.spans,
-            canonical: c.canonical,
-        }
-    }
-}
-
 /// Unified interface for within-document coreference resolution.
 ///
 /// Accepts raw text and returns clusters of co-referring mentions.
@@ -103,13 +78,11 @@ pub trait CorefBackend: Send + Sync {
 // Implementations for existing backends
 // =============================================================================
 
-// FCoref: exact signature match -- resolve(&self, text: &str) -> Result<Vec<coref_t5::CorefCluster>>
-// We convert via From.
+// FCoref: returns Vec<CorefCluster> directly (same type via re-export).
 #[cfg(feature = "onnx")]
 impl CorefBackend for super::fcoref::FCoref {
     fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
         self.resolve(text)
-            .map(|v| v.into_iter().map(CorefCluster::from).collect())
     }
 
     fn name(&self) -> &'static str {
@@ -121,12 +94,11 @@ impl CorefBackend for super::fcoref::FCoref {
     }
 }
 
-// T5Coref: exact signature match -- resolve(&self, text: &str) -> Result<Vec<coref_t5::CorefCluster>>
+// T5Coref: returns Vec<CorefCluster> directly (same type via re-export).
 #[cfg(feature = "onnx")]
 impl CorefBackend for super::t5::T5Coref {
     fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
         self.resolve(text)
-            .map(|v| v.into_iter().map(CorefCluster::from).collect())
     }
 
     fn name(&self) -> &'static str {

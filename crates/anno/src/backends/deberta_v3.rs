@@ -26,14 +26,11 @@ use crate::backends::onnx::BertNEROnnx;
 
 /// DeBERTa-v3 NER backend using ONNX Runtime.
 ///
-/// Currently wraps BertNEROnnx with DeBERTa-v3 model support.
-/// DeBERTa-v3 models use the same ONNX interface as BERT.
+/// Named variant of `BertNEROnnx` for DeBERTa-v3 models. DeBERTa-v3 models use
+/// the same ONNX interface as BERT; this wrapper exists for catalog/CLI naming.
 pub struct DeBERTaV3NER {
     #[cfg(feature = "onnx")]
     inner: BertNEROnnx,
-    /// Model name for debugging/logging (e.g., "microsoft/deberta-v3-base")
-    #[allow(dead_code)] // Reserved for future logging/debugging
-    model_name: String,
 }
 
 impl DeBERTaV3NER {
@@ -46,13 +43,11 @@ impl DeBERTaV3NER {
         {
             // DeBERTa-v3 uses same ONNX interface as BERT
             let inner = BertNEROnnx::new(model_name)?;
-            Ok(Self {
-                inner,
-                model_name: model_name.to_string(),
-            })
+            Ok(Self { inner })
         }
         #[cfg(not(feature = "onnx"))]
         {
+            let _ = model_name;
             Err(crate::Error::FeatureNotAvailable(
                 "DeBERTa-v3 NER requires 'onnx' feature".to_string(),
             ))

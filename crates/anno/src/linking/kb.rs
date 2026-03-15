@@ -57,6 +57,7 @@
 //! }
 //! ```
 
+use anno_core::Confidence;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -522,7 +523,7 @@ pub struct NILCluster {
     /// Inferred entity type
     pub entity_type: Option<String>,
     /// Cluster confidence
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Number of mentions
     pub mention_count: usize,
 }
@@ -535,7 +536,7 @@ impl NILCluster {
             canonical: canonical.to_string(),
             surfaces: vec![canonical.to_string()],
             entity_type: None,
-            confidence: 1.0,
+            confidence: Confidence::ONE,
             mention_count: 1,
         }
     }

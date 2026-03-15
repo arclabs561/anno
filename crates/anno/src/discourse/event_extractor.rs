@@ -1165,7 +1165,7 @@ impl EventExtractor {
                 DiscourseReferent::new(ReferentType::Event, clause_char_start, clause_char_end)
                     .with_event(event.clone())
                     .with_text(clause_text)
-                    .with_confidence(event.confidence)
+                    .with_confidence(event.confidence.value())
             })
             .collect()
     }

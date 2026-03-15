@@ -70,19 +70,5 @@ pub mod morphology;
 pub mod parenthetical;
 pub mod reference;
 
-// Re-export commonly used types
-pub use morphology::{
-    Morpheme, MorphemeType, MorphologicalAnalyzer, MorphologicalPreprocessor, ProdropConfig,
-    SegmentationResult, SegmentationStrategy,
-};
-
-pub use parenthetical::{
-    extract_aliases, AliasPair, Parenthetical, ParentheticalExtractor, ParentheticalType,
-};
-
-pub use reference::{
-    ExtractedEntity, Reference, ReferenceExtractor, ReferenceGraph, ReferenceType,
-    ResolvedReference,
-};
-
-pub use apposition::{extract_all_aliases, Apposition, AppositionExtractor, AppositionType};
+// Re-exports intentionally omitted: this module is pub(crate), so
+// internal consumers import directly from the submodules.

@@ -16,10 +16,7 @@
 //! - W2NER: arXiv:2112.10070
 //! - ModernBERT: arXiv:2412.13663
 
-pub mod registry;
-pub use registry::{
-    LabelCategory, LabelDefinition, ModalityHint, SemanticRegistry, SemanticRegistryBuilder,
-};
+pub(crate) mod registry;
 
 pub mod encoder;
 pub use encoder::{BiEncoder, EncoderOutput, SpanLabelScore, TextEncoder};
@@ -31,11 +28,12 @@ pub use traits::{
 };
 pub(crate) use traits::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
 
-pub mod span;
-pub use span::{HandshakingCell, HandshakingMatrix, SpanRepConfig, SpanRepresentationLayer};
+pub(crate) mod span;
+pub(crate) use span::{HandshakingCell, HandshakingMatrix};
 
 pub mod coref;
-pub use coref::{resolve_coreferences, CoreferenceCluster, CoreferenceConfig};
+pub(crate) use coref::CoreferenceCluster;
+pub use coref::{resolve_coreferences, CoreferenceConfig};
 
 pub mod relation_extraction;
 pub use relation_extraction::{
@@ -49,6 +47,8 @@ pub use relation_extraction::{
 #[cfg(test)]
 mod tests {
     use super::coref::{resolve_coreferences, CoreferenceConfig};
+    use super::registry::{SemanticRegistry, SemanticRegistryBuilder};
+    use super::span::SpanRepConfig;
     use super::*;
     use crate::{Entity, EntityType};
 

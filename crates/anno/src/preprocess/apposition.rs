@@ -65,6 +65,7 @@
 //! This module focuses specifically on **alias-introducing patterns** that establish
 //! identity relationships between different surface forms of the same entity.
 
+use anno_core::Confidence;
 use serde::{Deserialize, Serialize};
 
 /// Type of apposition/alias pattern.
@@ -130,7 +131,7 @@ pub struct Apposition {
     /// Type of apposition pattern
     pub apposition_type: AppositionType,
     /// Confidence in extraction (0.0-1.0)
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Direction: true if primary→alias is the name→alias direction
     pub primary_is_canonical: bool,
 }
@@ -146,7 +147,7 @@ impl Apposition {
             start,
             end,
             apposition_type: AppositionType::Generic,
-            confidence: 0.7,
+            confidence: Confidence::new(0.7),
             primary_is_canonical: true,
         }
     }
@@ -314,7 +315,7 @@ impl AppositionExtractor {
                         if !*primary_canonical {
                             appo = appo.alias_is_canonical();
                         }
-                        appo.confidence = 0.9;
+                        appo.confidence = Confidence::new(0.9);
 
                         results.push(appo);
                     }
@@ -399,7 +400,7 @@ impl AppositionExtractor {
                         if !*primary_canonical {
                             appo = appo.alias_is_canonical();
                         }
-                        appo.confidence = 0.85;
+                        appo.confidence = Confidence::new(0.85);
 
                         results.push(appo);
                     }
@@ -537,10 +538,10 @@ impl AppositionExtractor {
 ///
 /// // Will find both the ticker parenthetical and the formerly pattern
 /// for (canonical, alternate, confidence) in aliases {
-///     println!("{} = {} ({:.2})", canonical, alternate, confidence);
+///     println!("{} = {} ({})", canonical, alternate, confidence);
 /// }
 /// ```
-pub fn extract_all_aliases(text: &str) -> Vec<(String, String, f64)> {
+pub fn extract_all_aliases(text: &str) -> Vec<(String, String, Confidence)> {
     use super::parenthetical::ParentheticalExtractor;
 
     let mut aliases = Vec::new();

@@ -32,12 +32,12 @@ use crate::backends::onnx::BertNEROnnx;
 
 /// ALBERT NER backend using ONNX Runtime.
 ///
-/// Currently wraps BertNEROnnx with ALBERT model support.
-/// ALBERT models use the same ONNX interface as BERT.
+/// Named variant of `BertNEROnnx` for ALBERT models. ALBERT models use the same
+/// ONNX interface as BERT; this wrapper exists for catalog/CLI naming.
 pub struct ALBERTNER {
     #[cfg(feature = "onnx")]
     inner: BertNEROnnx,
-    /// Model name for debugging/logging (e.g., "albert-base-v2")
+    /// HuggingFace model ID (e.g., "albert-base-v2"), exposed via `model_id()`.
     model_name: String,
 }
 

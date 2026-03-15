@@ -94,18 +94,8 @@ use std::sync::Arc;
 use ort::session::Session;
 use tokenizers::Tokenizer;
 
-/// A coreference cluster (group of mentions referring to the same entity).
-#[derive(Debug, Clone)]
-pub struct CorefCluster {
-    /// Cluster ID
-    pub id: u32,
-    /// Member mention texts
-    pub mentions: Vec<String>,
-    /// Member mention spans (start, end)
-    pub spans: Vec<(usize, usize)>,
-    /// Canonical name (longest/most informative mention)
-    pub canonical: String,
-}
+// Use the canonical CorefCluster from the resolve module.
+pub use super::resolve::CorefCluster;
 
 /// Configuration for T5 coreference model.
 #[derive(Debug, Clone)]

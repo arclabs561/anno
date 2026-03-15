@@ -14,7 +14,7 @@ pub fn tensor_from_ndarray<T, D>(
     arr: ndarray::ArrayBase<ndarray::OwnedRepr<T>, D>,
 ) -> ort::Result<Tensor<T>>
 where
-    T: ort::tensor::PrimitiveTensorElementType + Clone + std::fmt::Debug + 'static,
+    T: ort::value::PrimitiveTensorElementType + Clone + std::fmt::Debug + 'static,
     D: ndarray::Dimension,
 {
     let shape: Vec<usize> = arr.shape().to_vec();

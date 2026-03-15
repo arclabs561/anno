@@ -7,8 +7,11 @@ use std::collections::HashMap;
 // =============================================================================
 
 /// A coreference cluster (mentions referring to same entity).
+///
+/// This is a different shape from `coref::resolve::CorefCluster` -- it stores
+/// entity indices rather than mention texts, for use with embedding-based resolution.
 #[derive(Debug, Clone)]
-pub struct CoreferenceCluster {
+pub(crate) struct CoreferenceCluster {
     /// Cluster ID
     pub id: u64,
     /// Member entities (indices into entity list)

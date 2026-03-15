@@ -45,6 +45,7 @@
 //! ```
 
 use crate::offset::TextSpan;
+use anno_core::Confidence;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -446,7 +447,7 @@ pub struct ExtractedEntity {
     /// Entity type
     pub entity_type: String,
     /// Confidence
-    pub confidence: f64,
+    pub confidence: Confidence,
     /// Start offset in resolved content
     pub start: usize,
     /// End offset in resolved content

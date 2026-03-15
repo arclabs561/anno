@@ -148,6 +148,7 @@
 //! - Adjaye, Joseph K. (1994): "Time in the Black Experience"
 
 use crate::{Entity, EntityType};
+use anno_core::Confidence;
 use chrono::{DateTime, Duration, NaiveDate, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -421,7 +422,7 @@ impl TemporalReference for GregorianReference {
     }
 
     fn confidence(&self) -> f64 {
-        self.expression.grounding_confidence
+        self.expression.grounding_confidence.value()
     }
 }
 
@@ -1500,7 +1501,7 @@ pub struct AbstractTemporalExpression {
     /// For "January 2024", this would be (2024-01-01, 2024-01-31)
     pub grounded_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
     /// Confidence in the grounding (0.0 to 1.0)
-    pub grounding_confidence: f64,
+    pub grounding_confidence: Confidence,
     /// Whether this requires external context to resolve
     pub requires_context: bool,
 }
@@ -1514,7 +1515,7 @@ impl AbstractTemporalExpression {
             expression_type: TemporalExpressionType::Absolute,
             granularity,
             grounded_range: None,
-            grounding_confidence: 1.0,
+            grounding_confidence: Confidence::ONE,
             requires_context: false,
         }
     }
@@ -1530,7 +1531,7 @@ impl AbstractTemporalExpression {
             },
             granularity: TemporalGranularity::Day,
             grounded_range: None,
-            grounding_confidence: 0.0, // Needs grounding
+            grounding_confidence: Confidence::ZERO, // Needs grounding
             requires_context: true,
         }
     }
@@ -1546,7 +1547,7 @@ impl AbstractTemporalExpression {
             },
             granularity: TemporalGranularity::Unknown,
             grounded_range: None,
-            grounding_confidence: 0.0,
+            grounding_confidence: Confidence::ZERO,
             requires_context: true,
         }
     }
@@ -1571,7 +1572,7 @@ impl AbstractTemporalExpression {
                     .map(|dt| Utc.from_utc_datetime(&dt))?;
 
                 grounded.grounded_range = Some((start, end));
-                grounded.grounding_confidence = 0.95;
+                grounded.grounding_confidence = Confidence::new(0.95);
                 grounded.requires_context = false;
                 Some(grounded)
             }
@@ -1590,7 +1591,7 @@ impl AbstractTemporalExpression {
                 let end = *document_date + Duration::days(i64::from(max_days));
 
                 grounded.grounded_range = Some((start, end));
-                grounded.grounding_confidence = 0.3; // Low confidence for fuzzy
+                grounded.grounding_confidence = Confidence::new(0.3); // Low confidence for fuzzy
                 grounded.requires_context = false;
                 Some(grounded)
             }
@@ -1661,7 +1662,7 @@ pub fn parse_temporal_expression(text: &str) -> AbstractTemporalExpression {
         },
         granularity: TemporalGranularity::Unknown,
         grounded_range: None,
-        grounding_confidence: 0.0,
+        grounding_confidence: Confidence::ZERO,
         requires_context: true,
     }
 }
@@ -1779,7 +1780,7 @@ fn parse_recurring_expression(text: &str) -> Option<AbstractTemporalExpression> 
         },
         granularity: TemporalGranularity::Unknown,
         grounded_range: None,
-        grounding_confidence: 0.0,
+        grounding_confidence: Confidence::ZERO,
         requires_context: true,
     })
 }
@@ -2370,7 +2371,7 @@ mod tests {
                 Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
                 Utc.with_ymd_and_hms(2024, 1, 31, 23, 59, 59).unwrap(),
             )),
-            grounding_confidence: 1.0,
+            grounding_confidence: Confidence::ONE,
             requires_context: false,
         };
 
@@ -2382,7 +2383,7 @@ mod tests {
                 Utc.with_ymd_and_hms(2024, 1, 15, 0, 0, 0).unwrap(),
                 Utc.with_ymd_and_hms(2024, 1, 15, 23, 59, 59).unwrap(),
             )),
-            grounding_confidence: 1.0,
+            grounding_confidence: Confidence::ONE,
             requires_context: false,
         };
 
@@ -2394,7 +2395,7 @@ mod tests {
                 Utc.with_ymd_and_hms(2024, 2, 1, 0, 0, 0).unwrap(),
                 Utc.with_ymd_and_hms(2024, 2, 29, 23, 59, 59).unwrap(),
             )),
-            grounding_confidence: 1.0,
+            grounding_confidence: Confidence::ONE,
             requires_context: false,
         };
 

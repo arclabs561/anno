@@ -40,7 +40,7 @@
 mod ext;
 mod score;
 /// Uncertain predictions and abstention for selective NER.
-pub mod uncertain;
+pub(crate) mod uncertain;
 
 pub use anno_core::Confidence;
 pub use ext::EntitySliceExt;

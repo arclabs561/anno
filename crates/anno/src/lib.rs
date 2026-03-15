@@ -72,7 +72,7 @@ pub mod offset;
 #[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
 pub mod pagerank;
 /// Preprocessing for mention detection.
-pub mod preprocess;
+pub(crate) mod preprocess;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
@@ -135,7 +135,7 @@ pub use anno_core::{
 /// This exists for readability in downstream codebases (e.g. `anno::core::Entity`)
 /// and mirrors the structure of the internal `anno-core` crate.
 pub mod core {
-    pub use anno_core::core::*;
+    pub use anno_core::core::{coref, grounded};
 }
 
 // Re-export commonly used types
@@ -612,9 +612,8 @@ pub use backends::CorefBackend;
 // Re-export inference traits and types used at the crate root
 pub use backends::inference::{
     extract_relation_triples, extract_relation_triples_simple, extract_relations,
-    CoreferenceCluster, CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER,
-    ExtractionWithRelations, RelationExtractionConfig, RelationExtractor, RelationTriple,
-    ZeroShotNER,
+    CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER, ExtractionWithRelations,
+    RelationExtractionConfig, RelationExtractor, RelationTriple, ZeroShotNER,
 };
 
 #[cfg(feature = "onnx")]
