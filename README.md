@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Named entity recognition, coreference resolution, and zero-shot entity types for unstructured text.
+Extract named entities, relations, and coreference chains from unstructured text. Fixed entity types (PER/ORG/LOC/MISC) or zero-shot custom labels.
 
 Dual-licensed under MIT or Apache-2.0. MSRV: 1.85.
 
@@ -20,23 +20,28 @@ use anno::{Model, StackedNER};
 
 let m = StackedNER::default();
 let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
-assert!(!ents.is_empty());
+for e in &ents {
+    println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
+}
+// Sophie Wilson [PER] (0,13) 0.95
+// ARM [ORG] (27,30) 0.90
 # Ok::<(), anno::Error>(())
 ```
 
 `StackedNER::default()` selects the best available backend at runtime: BERT or NuNER (if `onnx` enabled and models cached), then GLiNER, falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
 
-Zero-shot custom types via `DynamicLabels`:
+Zero-shot custom types via GLiNER:
 
 ```rust
-use anno::{DynamicLabels, GLiNEROnnx};
+use anno::GLiNEROnnx;
 
 let m = GLiNEROnnx::new("onnx-community/gliner_small-v2.1")?;
-let ents = m.extract_with_labels(
-    "Aspirin treats headaches.",
-    &["drug", "symptom"],
-    None,
-)?;
+let ents = m.extract("Aspirin treats headaches.", &["drug", "symptom"], 0.5)?;
+for e in &ents {
+    println!("{}: {}", e.entity_type, e.text);
+}
+// drug: Aspirin
+// symptom: headaches
 # Ok::<(), anno::Error>(())
 ```
 
@@ -72,11 +77,15 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 |---------|---------|-------------|
 | `onnx` | Yes | ONNX Runtime backends via `ort` |
 | `candle` | No | Pure-Rust backends (no C++ runtime) |
+| `metal` | No | Metal GPU acceleration (enables `candle`) |
+| `cuda` | No | CUDA GPU acceleration (enables `candle`) |
 | `analysis` | No | Coref metrics, RAG rewriting |
-| `graph` | No | Keywords, summarization, graph export |
+| `graph` | No | Keywords, salience ranking, graph export |
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
 | `discourse` | No | Centering theory, abstract anaphora |
+| `joint` | No | Joint NER + coref + entity linking (Durrett & Klein 2014) |
+| `production` | No | `parking_lot` locks + `tracing` instrumentation |
 
 ## CLI
 
@@ -105,7 +114,7 @@ JSON output with `--format json`. Batch processing with `anno batch`. Graph expo
 | Backend | Type | Quality | Speed |
 |---------|------|---------|-------|
 | `SimpleCorefResolver` | Rule-based (9 sieves) | Low | Fast |
-| `FCoref` | Neural (DistilRoBERTa) | 78.5 F1 | Medium |
+| `FCoref` | Neural (DistilRoBERTa) | 78.5 F1 [3] | Medium |
 | `MentionRankingCoref` | Mention-ranking | Medium | Medium |
 
 `FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
@@ -136,7 +145,7 @@ Inference-time extraction. Training pipelines are out of scope -- use upstream f
 
 [1] Grishman & Sundheim, *COLING* 1996.
 [2] Tjong Kim Sang & De Meulder, *CoNLL* 2003.
-[3] Lee et al., *EMNLP* 2017.
+[3] Otmazgin et al., *AACL* 2022 (F-COREF).
 [4] Jurafsky & Martin, *SLP3* 2024.
 [5] Zaratiana et al., *NAACL* 2024 (GLiNER).
 [6] Bogdanov et al., 2024 (NuNER).
