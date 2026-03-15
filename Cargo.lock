@@ -3603,9 +3603,9 @@ checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
 
 [[package]]
 name = "sketchir"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc77597c8b43208cfea8c7cdf87d8ff3964bfc051f7c2f2f14adddb49816ee6a"
+checksum = "0dec5adcaad5c00042b4124bbf0e78dada7623578e082a778721251a51bf4d46"
 
 [[package]]
 name = "slab"
