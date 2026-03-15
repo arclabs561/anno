@@ -96,8 +96,8 @@ impl From<&Entity> for EvalSpan {
     fn from(entity: &Entity) -> Self {
         Self {
             entity_type: entity.entity_type.clone(),
-            start: entity.start,
-            end: entity.end,
+            start: entity.start(),
+            end: entity.end(),
             text: entity.text.clone(),
         }
     }

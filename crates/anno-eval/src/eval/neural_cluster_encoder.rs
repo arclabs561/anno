@@ -455,11 +455,11 @@ impl CDCRAdapter {
                 .collect();
 
             for entity in &doc.entities {
-                if !chained_starts.contains(&entity.start) {
+                if !chained_starts.contains(&entity.start()) {
                     let mut cluster = LocalCluster::new(clusters.len(), doc_idx);
                     cluster.add_mention(ClusterMention {
-                        start: entity.start,
-                        end: entity.end,
+                        start: entity.start(),
+                        end: entity.end(),
                         text: entity.text.clone(),
                         context_id: doc_idx,
                     });
@@ -493,7 +493,7 @@ impl CDCRAdapter {
                         let entity_idx = doc
                             .entities
                             .iter()
-                            .position(|e| e.start == mention.start && e.end == mention.end)
+                            .position(|e| e.start() == mention.start && e.end() == mention.end)
                             .unwrap_or(0);
                         cluster.add_mention(&doc.id, entity_idx);
                     }

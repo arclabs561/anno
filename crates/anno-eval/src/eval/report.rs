@@ -591,8 +591,8 @@ impl ReportBuilder {
                 entry.0 += 1; // gold count
 
                 let matched = predictions.iter().any(|p| {
-                    p.start == gold.start
-                        && p.end == gold.end
+                    p.start() == gold.start
+                        && p.end() == gold.end
                         && p.entity_type.as_label() == gold.entity_type
                 });
 

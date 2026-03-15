@@ -416,8 +416,8 @@ fn export_brat(entities: &[anno_core::Entity], include_confidence: bool) -> Stri
             "{}\t{} {} {}\t{}",
             tid,
             entity.entity_type.as_label(),
-            entity.start,
-            entity.end,
+            entity.start(),
+            entity.end(),
             entity.text
         );
         if include_confidence {
@@ -448,18 +448,18 @@ fn export_conll(text: &str, entities: &[anno_core::Entity]) -> String {
         // Check if the whole word (including trailing punctuation) falls inside an entity span.
         let entity_full = entities
             .iter()
-            .find(|e| word_start < e.end && word_end > e.start);
+            .find(|e| word_start < e.end() && word_end > e.start());
 
         // Only split trailing punctuation when it's NOT inside an entity span.
         let trimmed = word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']);
         let punct = &word[trimmed.len()..];
-        let inside_entity = entity_full.map(|e| word_end <= e.end).unwrap_or(false);
+        let inside_entity = entity_full.map(|e| word_end <= e.end()).unwrap_or(false);
 
         if inside_entity {
             // Entire word (with punctuation) is inside entity -- keep together.
             let tag = match entity_full {
                 Some(e) => {
-                    if word_start <= e.start {
+                    if word_start <= e.start() {
                         format!("B-{}", e.entity_type.as_label())
                     } else {
                         format!("I-{}", e.entity_type.as_label())
@@ -473,10 +473,10 @@ fn export_conll(text: &str, entities: &[anno_core::Entity]) -> String {
             if !trimmed.is_empty() {
                 let entity = entities
                     .iter()
-                    .find(|e| word_start < e.end && trimmed_end > e.start);
+                    .find(|e| word_start < e.end() && trimmed_end > e.start());
                 let tag = match entity {
                     Some(e) => {
-                        if word_start <= e.start {
+                        if word_start <= e.start() {
                             format!("B-{}", e.entity_type.as_label())
                         } else {
                             format!("I-{}", e.entity_type.as_label())
@@ -502,8 +502,8 @@ fn export_jsonl(entities: &[anno_core::Entity], source: &Path, include_confidenc
             let mut obj = serde_json::json!({
                 "text": e.text,
                 "type": e.entity_type.as_label(),
-                "start": e.start,
-                "end": e.end,
+                "start": e.start(),
+                "end": e.end(),
                 "source": source.to_string_lossy(),
             });
             if include_confidence {
@@ -584,7 +584,7 @@ fn export_ntriples(
     let ent_uri: Vec<String> = entities
         .iter()
         .enumerate()
-        .map(|(i, e)| entity_uri(base_uri, e.entity_type.as_label(), i, &e.text, e.start))
+        .map(|(i, e)| entity_uri(base_uri, e.entity_type.as_label(), i, &e.text, e.start()))
         .collect();
 
     for (idx, entity) in entities.iter().enumerate() {
@@ -599,11 +599,15 @@ fn export_ntriples(
         ));
         lines.push(format!(
             "{} <{}startOffset> \"{}\"^^<http://www.w3.org/2001/XMLSchema#integer> .",
-            ent, anno_ns, entity.start
+            ent,
+            anno_ns,
+            entity.start()
         ));
         lines.push(format!(
             "{} <{}endOffset> \"{}\"^^<http://www.w3.org/2001/XMLSchema#integer> .",
-            ent, anno_ns, entity.end
+            ent,
+            anno_ns,
+            entity.end()
         ));
         lines.push(format!(
             "{} <{}confidence> \"{}\"^^<http://www.w3.org/2001/XMLSchema#float> .",
@@ -620,10 +624,10 @@ fn export_ntriples(
     for rel in relations {
         // Find matching entity URIs by matching head/tail text + offsets.
         let head_uri = ent_uri.iter().zip(entities.iter()).find_map(|(u, e)| {
-            (e.text == rel.head.text && e.start == rel.head.start).then_some(u.as_str())
+            (e.text == rel.head.text && e.start() == rel.head.start()).then_some(u.as_str())
         });
         let tail_uri = ent_uri.iter().zip(entities.iter()).find_map(|(u, e)| {
-            (e.text == rel.tail.text && e.start == rel.tail.start).then_some(u.as_str())
+            (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(u.as_str())
         });
         if let (Some(h), Some(t)) = (head_uri, tail_uri) {
             let pred = rel_predicate_uri(base_uri, &rel.relation_type);
@@ -661,7 +665,7 @@ fn export_jsonld(
                 e.entity_type.as_label().to_lowercase(),
                 i,
                 uri_safe(&e.text),
-                e.start,
+                e.start(),
             )
         })
         .collect();
@@ -671,10 +675,10 @@ fn export_jsonld(
         std::collections::HashMap::new();
     for rel in relations {
         let head_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-            (e.text == rel.head.text && e.start == rel.head.start).then_some(id.as_str())
+            (e.text == rel.head.text && e.start() == rel.head.start()).then_some(id.as_str())
         });
         let tail_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-            (e.text == rel.tail.text && e.start == rel.tail.start).then_some(id.as_str())
+            (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(id.as_str())
         });
         if let (Some(h), Some(t)) = (head_id, tail_id) {
             rel_by_head.entry(h).or_default().push(serde_json::json!({
@@ -693,8 +697,8 @@ fn export_jsonld(
                 "@id": id,
                 "@type": format!("{}{}Type", anno_ns, e.entity_type.as_label()),
                 "rdfs:label": e.text,
-                "anno:startOffset": e.start,
-                "anno:endOffset": e.end,
+                "anno:startOffset": e.start(),
+                "anno:endOffset": e.end(),
                 "prov:hadPrimarySource": {
                     "@id": format!("{}/doc/{}", base, doc_stem)
                 }
@@ -792,8 +796,8 @@ fn export_graph_csv(
             csv_escape(&entity_ids[i]),
             csv_escape(e.entity_type.as_label()),
             csv_escape(&e.text),
-            e.start,
-            e.end,
+            e.start(),
+            e.end(),
             csv_escape(&source_str),
         ));
         if include_confidence {
@@ -809,10 +813,10 @@ fn export_graph_csv(
         // Real semantic edges from a RelationCapable backend.
         for rel in relations {
             let head_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-                (e.text == rel.head.text && e.start == rel.head.start).then_some(id.as_str())
+                (e.text == rel.head.text && e.start() == rel.head.start()).then_some(id.as_str())
             });
             let tail_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-                (e.text == rel.tail.text && e.start == rel.tail.start).then_some(id.as_str())
+                (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(id.as_str())
             });
             if let (Some(h), Some(t)) = (head_id, tail_id) {
                 edges.push_str(&format!(
@@ -829,10 +833,10 @@ fn export_graph_csv(
         const COOCCUR_WINDOW: usize = 200;
         for (i, a) in entities.iter().enumerate() {
             for (j, b) in entities.iter().enumerate().skip(i + 1) {
-                let distance = if a.end <= b.start {
-                    b.start.saturating_sub(a.end)
-                } else if b.end <= a.start {
-                    a.start.saturating_sub(b.end)
+                let distance = if a.end() <= b.start() {
+                    b.start().saturating_sub(a.end())
+                } else if b.end() <= a.start() {
+                    a.start().saturating_sub(b.end())
                 } else {
                     0
                 };

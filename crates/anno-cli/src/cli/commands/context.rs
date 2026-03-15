@@ -158,8 +158,8 @@ fn build_context(
     window: usize,
     full_sentence: bool,
 ) -> EntityContext {
-    let start = entity.start; // CHARACTER offset
-    let end = entity.end; // CHARACTER offset
+    let start = entity.start(); // CHARACTER offset
+    let end = entity.end(); // CHARACTER offset
     let char_count = text.chars().count();
 
     // Character-based context window (entity offsets are CHARACTER offsets)

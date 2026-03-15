@@ -589,16 +589,16 @@ impl IncrementalCorefResolver {
 
         for (i, entity) in entities.iter().enumerate() {
             // Check if we've moved to a new window
-            if entity.start >= current_window_start + self.config.window_size {
+            if entity.start() >= current_window_start + self.config.window_size {
                 window_idx += 1;
-                current_window_start = entity.start.saturating_sub(self.config.window_overlap);
+                current_window_start = entity.start().saturating_sub(self.config.window_overlap);
                 memory.advance_window();
             }
 
             let mention = MentionRecord {
                 text: entity.text.clone(),
-                start: entity.start,
-                end: entity.end,
+                start: entity.start(),
+                end: entity.end(),
                 window_index: window_idx,
                 mention_type: self.classify_mention_type(&entity.text),
             };

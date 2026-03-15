@@ -191,7 +191,7 @@ impl DiscontinuousEvaluator {
         entities
             .iter()
             .map(|e| DiscontinuousEntity {
-                spans: vec![(e.start, e.end)],
+                spans: vec![(e.start(), e.end())],
                 text: e.text.clone(),
                 entity_type: e.entity_type.as_label().to_string(),
                 confidence: e.confidence,

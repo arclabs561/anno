@@ -334,7 +334,7 @@ pub fn print_signals(doc: &GroundedDocument, text: &str, verbose_level: u8) {
 /// Print annotated entities inline with text
 pub fn print_annotated_entities(text: &str, entities: &[Entity]) {
     let mut sorted: Vec<&Entity> = entities.iter().collect();
-    sorted.sort_by_key(|e| e.start);
+    sorted.sort_by_key(|e| e.start());
 
     let chars: Vec<char> = text.chars().collect();
     let char_len = chars.len();
@@ -342,25 +342,25 @@ pub fn print_annotated_entities(text: &str, entities: &[Entity]) {
     let mut last_end = 0;
 
     for e in sorted {
-        if e.start >= char_len || e.end > char_len || e.start >= e.end {
+        if e.start() >= char_len || e.end() > char_len || e.start() >= e.end() {
             continue;
         }
-        if e.start < last_end {
+        if e.start() < last_end {
             continue;
         }
 
-        if e.start > last_end {
-            let before: String = chars[last_end..e.start].iter().collect();
+        if e.start() > last_end {
+            let before: String = chars[last_end..e.start()].iter().collect();
             result.push_str(&before);
         }
 
         let col = type_color(e.entity_type.as_label());
-        let entity_text: String = chars[e.start..e.end].iter().collect();
+        let entity_text: String = chars[e.start()..e.end()].iter().collect();
         result.push_str(&color(
             col,
             &format!("[{}: {}]", e.entity_type.as_label(), entity_text),
         ));
-        last_end = e.end;
+        last_end = e.end();
     }
 
     if last_end < char_len {

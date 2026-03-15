@@ -422,7 +422,7 @@ pub fn entities_to_bio(
         // Find tokens that overlap with this entity
         let mut entity_tokens: Vec<usize> = Vec::new();
         for (i, &(tok_start, tok_end)) in tokens.iter().enumerate() {
-            if tok_start < entity.end && tok_end > entity.start {
+            if tok_start < entity.end() && tok_end > entity.start() {
                 entity_tokens.push(i);
             }
         }
@@ -848,10 +848,10 @@ mod tests {
             bio_to_entities(&tokens, &tags, BioScheme::IOB2).expect("valid BIO tags should parse");
 
         assert_eq!(entities.len(), 1);
-        assert_eq!(entities[0].start, 0);
+        assert_eq!(entities[0].start(), 0);
         // "John" (4) + space (1) + "Smith" (5) = 10, but text is "John Smith"
         // start of "John" = 0, end of "Smith" = 4 + 1 + 5 = 10
-        assert_eq!(entities[0].end, 10);
+        assert_eq!(entities[0].end(), 10);
     }
 
     #[test]

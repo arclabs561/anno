@@ -444,11 +444,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         .iter()
         .map(|e| {
             let mut signal = Signal::from(e).with_modality(Modality::Symbolic);
-            if args.negation && is_negated_en(&text, e.start) {
+            if args.negation && is_negated_en(&text, e.start()) {
                 signal = signal.negated();
             }
             if args.quantifiers {
-                if let Some(q) = detect_quantifier_en(&text, e.start) {
+                if let Some(q) = detect_quantifier_en(&text, e.start()) {
                     signal = signal.with_quantifier(q);
                 }
             }
@@ -499,14 +499,14 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                     "head": {
                         "text": head.text,
                         "type": head.entity_type.as_label(),
-                        "start": head.start,
-                        "end": head.end,
+                        "start": head.start(),
+                        "end": head.end(),
                     },
                     "tail": {
                         "text": tail.text,
                         "type": tail.entity_type.as_label(),
-                        "start": tail.start,
-                        "end": tail.end,
+                        "start": tail.start(),
+                        "end": tail.end(),
                     },
                     "type": r.relation_type,
                     "confidence": r.confidence,

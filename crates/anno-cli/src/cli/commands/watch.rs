@@ -268,8 +268,8 @@ fn process_file(path: &Path, model: &dyn anno::Model, args: &WatchArgs) -> Resul
                 serde_json::json!({
                     "text": e.text,
                     "type": e.entity_type.as_label(),
-                    "start": e.start,
-                    "end": e.end,
+                    "start": e.start(),
+                    "end": e.end(),
                     "confidence": e.confidence,
                 })
             }).collect::<Vec<_>>()
@@ -289,8 +289,8 @@ fn process_file(path: &Path, model: &dyn anno::Model, args: &WatchArgs) -> Resul
                 serde_json::json!({
                     "text": e.text,
                     "type": e.entity_type.as_label(),
-                    "start": e.start,
-                    "end": e.end,
+                    "start": e.start(),
+                    "end": e.end(),
                     "confidence": e.confidence,
                 })
             }).collect::<Vec<_>>()

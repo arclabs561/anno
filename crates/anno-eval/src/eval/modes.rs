@@ -411,22 +411,22 @@ fn entities_match(pred: &Entity, gold: &GoldEntity, mode: EvalMode) -> bool {
     match mode {
         EvalMode::Strict => {
             // Exact boundary AND exact type
-            pred.start == gold.start
-                && pred.end == gold.end
+            pred.start() == gold.start
+                && pred.end() == gold.end
                 && types_match(&pred.entity_type, &gold.entity_type)
         }
         EvalMode::Exact => {
             // Exact boundary only (type can differ)
-            pred.start == gold.start && pred.end == gold.end
+            pred.start() == gold.start && pred.end() == gold.end
         }
         EvalMode::Partial => {
             // Partial overlap AND exact type
-            has_overlap(pred.start, pred.end, gold.start, gold.end)
+            has_overlap(pred.start(), pred.end(), gold.start, gold.end)
                 && types_match(&pred.entity_type, &gold.entity_type)
         }
         EvalMode::Type => {
             // Any overlap AND exact type
-            has_overlap(pred.start, pred.end, gold.start, gold.end)
+            has_overlap(pred.start(), pred.end(), gold.start, gold.end)
                 && types_match(&pred.entity_type, &gold.entity_type)
         }
     }
@@ -634,15 +634,15 @@ fn entities_match_with_config(
 ) -> bool {
     match mode {
         EvalMode::Strict => {
-            pred.start == gold.start
-                && pred.end == gold.end
+            pred.start() == gold.start
+                && pred.end() == gold.end
                 && types_match(&pred.entity_type, &gold.entity_type)
         }
-        EvalMode::Exact => pred.start == gold.start && pred.end == gold.end,
+        EvalMode::Exact => pred.start() == gold.start && pred.end() == gold.end,
         EvalMode::Partial | EvalMode::Type => {
             has_sufficient_overlap(
-                pred.start,
-                pred.end,
+                pred.start(),
+                pred.end(),
                 gold.start,
                 gold.end,
                 config.min_overlap,

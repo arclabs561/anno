@@ -241,7 +241,7 @@ impl ErrorAnalysis {
                 }
 
                 // Check for exact match
-                if pred.start == g.start && pred.end == g.end {
+                if pred.start() == g.start && pred.end() == g.end {
                     if pred.entity_type == g.entity_type {
                         // Correct - not an error
                         gold_matched[i] = true;
@@ -252,7 +252,7 @@ impl ErrorAnalysis {
                     }
                 }
                 // Check for overlap
-                else if pred.start < g.end && pred.end > g.start {
+                else if pred.start() < g.end && pred.end() > g.start {
                     let error = if pred.entity_type == g.entity_type {
                         ErrorType::BoundaryError
                     } else {
@@ -273,8 +273,8 @@ impl ErrorAnalysis {
                 // Found a match but with an error (type/boundary)
                 gold_matched[gold_idx] = true;
                 let char_count = text.chars().count();
-                let context_start = pred.start.saturating_sub(20);
-                let context_end = (pred.end + 20).min(char_count);
+                let context_start = pred.start().saturating_sub(20);
+                let context_end = (pred.end() + 20).min(char_count);
 
                 // Extract context using character offsets (not byte offsets)
                 let context: String = text
@@ -300,16 +300,16 @@ impl ErrorAnalysis {
                 // then this prediction is a duplicate (spurious), not a correct match.
                 let _is_duplicate = gold.iter().enumerate().any(|(i, g)| {
                     gold_matched[i]
-                        && pred.start == g.start
-                        && pred.end == g.end
+                        && pred.start() == g.start
+                        && pred.end() == g.end
                         && pred.entity_type == g.entity_type
                 });
 
                 // This prediction is spurious (either duplicate or no match)
                 // Both duplicates and non-matching predictions are spurious
                 let char_count = text.chars().count();
-                let context_start = pred.start.saturating_sub(20);
-                let context_end = (pred.end + 20).min(char_count);
+                let context_start = pred.start().saturating_sub(20);
+                let context_end = (pred.end() + 20).min(char_count);
 
                 // Extract context using character offsets (not byte offsets)
                 let context: String = text
@@ -566,7 +566,7 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
                 }
 
                 // Check for overlap
-                if pred.start < gold.end && pred.end > gold.start {
+                if pred.start() < gold.end && pred.end() > gold.start {
                     let gold_type = gold.entity_type.as_label().to_string();
                     matrix.add(&pred_type, &gold_type);
                     gold_matched[i] = true;

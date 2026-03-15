@@ -368,8 +368,8 @@ impl NEREvaluator for StandardNEREvaluator {
                 if gold_matched[gt_idx] {
                     continue; // This gold entity already matched
                 }
-                if pred.start == gt.start
-                    && pred.end == gt.end
+                if pred.start() == gt.start
+                    && pred.end() == gt.end
                     && super::entity_type_matches(&pred.entity_type, &gt.entity_type)
                 {
                     gold_matched[gt_idx] = true;
@@ -393,8 +393,8 @@ impl NEREvaluator for StandardNEREvaluator {
             // Check if this ground truth entity was found (only count once per gold entity)
             if !gold_matched_per_type[gt_idx] {
                 for pred in &predicted {
-                    if pred.start == gt.start
-                        && pred.end == gt.end
+                    if pred.start() == gt.start
+                        && pred.end() == gt.end
                         && super::entity_type_matches(&pred.entity_type, &gt.entity_type)
                     {
                         gold_matched_per_type[gt_idx] = true;

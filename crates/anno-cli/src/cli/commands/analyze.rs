@@ -104,7 +104,7 @@ pub fn run(args: AnalyzeArgs) -> Result<(), String> {
             .filter(|(_, entities)| {
                 entities
                     .iter()
-                    .any(|o| o.start == e.start && o.end == e.end)
+                    .any(|o| o.start() == e.start() && o.end() == e.end())
             })
             .count();
         if confirming > 0 {
@@ -126,7 +126,11 @@ pub fn run(args: AnalyzeArgs) -> Result<(), String> {
         };
         let unique_count = entities
             .iter()
-            .filter(|e| !stacked.iter().any(|s| s.start == e.start && s.end == e.end))
+            .filter(|e| {
+                !stacked
+                    .iter()
+                    .any(|s| s.start() == e.start() && s.end() == e.end())
+            })
             .count();
         if unique_count > 0 {
             println!(

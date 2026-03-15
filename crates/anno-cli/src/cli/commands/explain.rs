@@ -98,7 +98,7 @@ pub fn run(args: ExplainArgs) -> Result<(), String> {
     let entities_to_explain: Vec<_> = if let Some((start, end)) = span {
         entities
             .iter()
-            .filter(|e| e.start == start && e.end == end)
+            .filter(|e| e.start() == start && e.end() == end)
             .collect()
     } else {
         entities.iter().collect()
@@ -154,22 +154,22 @@ pub fn run(args: ExplainArgs) -> Result<(), String> {
         println!();
 
         // Context
-        let ctx_start = entity.start.saturating_sub(30);
-        let ctx_end = (entity.end + 30).min(text.chars().count());
+        let ctx_start = entity.start().saturating_sub(30);
+        let ctx_end = (entity.end() + 30).min(text.chars().count());
         let before: String = text
             .chars()
             .skip(ctx_start)
-            .take(entity.start - ctx_start)
+            .take(entity.start() - ctx_start)
             .collect();
         let entity_text: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         let after: String = text
             .chars()
-            .skip(entity.end)
-            .take(ctx_end - entity.end)
+            .skip(entity.end())
+            .take(ctx_end - entity.end())
             .collect();
 
         println!("{}:", color("1;33", "Context"));
@@ -189,20 +189,20 @@ pub fn run(args: ExplainArgs) -> Result<(), String> {
 
         // Span info
         println!("{}:", color("1;33", "Span"));
-        println!("  start: {} (character offset)", entity.start);
-        println!("  end: {} (exclusive, character offset)", entity.end);
-        println!("  length: {} chars", entity.end - entity.start);
+        println!("  start: {} (character offset)", entity.start());
+        println!("  end: {} (exclusive, character offset)", entity.end());
+        println!("  length: {} chars", entity.end() - entity.start());
 
         // If showing all candidates, show other potential extractions
         if args.show_all && entities.len() > 1 {
             println!();
             println!("{}:", color("1;33", "Other Candidates"));
             for other in &entities {
-                if other.start == entity.start && other.end == entity.end {
+                if other.start() == entity.start() && other.end() == entity.end() {
                     continue;
                 }
                 // Check for overlap
-                let overlaps = !(other.end <= entity.start || other.start >= entity.end);
+                let overlaps = !(other.end() <= entity.start() || other.start() >= entity.end());
                 if overlaps {
                     let other_source = other
                         .provenance
@@ -273,7 +273,7 @@ fn analyze_features(text: &str, entity: &anno_core::Entity) -> Vec<FeatureContri
     });
 
     // Left context analysis
-    let left_ctx: String = text.chars().take(entity.start).collect();
+    let left_ctx: String = text.chars().take(entity.start()).collect();
     let left_words: Vec<&str> = left_ctx.split_whitespace().rev().take(3).collect();
 
     // Title detection
@@ -290,7 +290,7 @@ fn analyze_features(text: &str, entity: &anno_core::Entity) -> Vec<FeatureContri
     }
 
     // Verb context for persons
-    let right_ctx: String = text.chars().skip(entity.end).take(50).collect();
+    let right_ctx: String = text.chars().skip(entity.end()).take(50).collect();
     let person_verbs = ["said", "says", "told", "announced", "declared", "stated"];
     for verb in &person_verbs {
         if right_ctx.to_lowercase().starts_with(&format!(" {}", verb))

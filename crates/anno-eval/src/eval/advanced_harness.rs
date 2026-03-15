@@ -172,9 +172,9 @@ pub fn evaluate_relations_synthetic<M: RelationExtractor>(
                 let head = &result.entities[rel.head_idx];
                 let tail = &result.entities[rel.tail_idx];
                 all_pred.push(RelationPrediction {
-                    head_span: (head.start, head.end),
+                    head_span: (head.start(), head.end()),
                     head_type: head.entity_type.as_label().to_string(),
-                    tail_span: (tail.start, tail.end),
+                    tail_span: (tail.start(), tail.end()),
                     tail_type: tail.entity_type.as_label().to_string(),
                     relation_type: rel.relation_type.clone(),
                     confidence: rel.confidence.value() as f32,

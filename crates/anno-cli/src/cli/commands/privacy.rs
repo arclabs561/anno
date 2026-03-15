@@ -252,8 +252,8 @@ fn classify_pii(entity: &Entity) -> Option<PIIEntity> {
     Some(PIIEntity {
         text: text.clone(),
         pii_type: pii_type.to_string(),
-        start: entity.start,
-        end: entity.end,
+        start: entity.start(),
+        end: entity.end(),
         risk_level: risk_level.to_string(),
     })
 }

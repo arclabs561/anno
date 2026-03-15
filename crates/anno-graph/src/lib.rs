@@ -64,7 +64,7 @@ pub fn entities_to_graph_document(
 
         let mut node = GraphNode::new(&node_id, entity.entity_type.as_label(), &entity.text)
             .with_mentions_count(1)
-            .with_first_seen(entity.start);
+            .with_first_seen(entity.start());
 
         if let Some(valid_from) = &entity.valid_from {
             node = node.with_property("valid_from", valid_from.to_rfc3339());
@@ -188,7 +188,7 @@ pub fn entities_to_knowledge_graph(
                 e.entity_type.as_label().to_lowercase(),
                 i,
                 uri_safe(&e.text),
-                e.start,
+                e.start(),
             )
         })
         .collect();
@@ -206,12 +206,12 @@ pub fn entities_to_knowledge_graph(
         kg.add_triple(Triple::new(
             iri.as_str(),
             format!("{}startOffset", anno_ns),
-            format!("\"{}\"^^<{}>", entity.start, XSD_INT),
+            format!("\"{}\"^^<{}>", entity.start(), XSD_INT),
         ));
         kg.add_triple(Triple::new(
             iri.as_str(),
             format!("{}endOffset", anno_ns),
-            format!("\"{}\"^^<{}>", entity.end, XSD_INT),
+            format!("\"{}\"^^<{}>", entity.end(), XSD_INT),
         ));
         kg.add_triple(Triple::new(
             iri.as_str(),
@@ -230,16 +230,16 @@ pub fn entities_to_knowledge_graph(
     let entity_lookup: std::collections::HashMap<(&str, usize, usize), usize> = entities
         .iter()
         .enumerate()
-        .map(|(i, e)| ((e.text.as_str(), e.start, e.end), i))
+        .map(|(i, e)| ((e.text.as_str(), e.start(), e.end()), i))
         .collect();
 
     // Semantic relation triples from RelationCapable backends.
     for rel in relations {
         let head_iri = entity_lookup
-            .get(&(rel.head.text.as_str(), rel.head.start, rel.head.end))
+            .get(&(rel.head.text.as_str(), rel.head.start(), rel.head.end()))
             .map(|&i| entity_iris[i].as_str());
         let tail_iri = entity_lookup
-            .get(&(rel.tail.text.as_str(), rel.tail.start, rel.tail.end))
+            .get(&(rel.tail.text.as_str(), rel.tail.start(), rel.tail.end()))
             .map(|&i| entity_iris[i].as_str());
         if let (Some(h), Some(t)) = (head_iri, tail_iri) {
             let pred = format!("{}/rel/{}", base, uri_safe(&rel.relation_type));

@@ -146,8 +146,8 @@ fn analyze_singletons(entities: &[anno_core::Entity], text: &str) -> SingletonRe
         let singleton = SingletonEntity {
             text: entity.text.clone(),
             entity_type: entity_type.clone(),
-            start: entity.start,
-            end: entity.end,
+            start: entity.start(),
+            end: entity.end(),
             confidence: f32::from(entity.confidence),
             reason: reason.clone(),
         };
@@ -210,7 +210,7 @@ fn classify_singleton(
         let other_text = other.text.to_lowercase();
 
         // Exact match elsewhere (definite missed coref)
-        if entity_text == other_text && entity.start != other.start {
+        if entity_text == other_text && entity.start() != other.start() {
             return SingletonReason::LikelyMissed {
                 similar_to: other.text.clone(),
                 similarity: 1.0,
@@ -248,8 +248,8 @@ fn classify_singleton(
     // Note: entity.start is a CHARACTER offset, not byte offset
     let before_context: String = text
         .chars()
-        .skip(entity.start.saturating_sub(10))
-        .take(10.min(entity.start))
+        .skip(entity.start().saturating_sub(10))
+        .take(10.min(entity.start()))
         .collect();
     if before_context.contains(" of ")
         || before_context.contains(" for ")
@@ -260,8 +260,8 @@ fn classify_singleton(
     }
 
     // Check if it's a proper noun (capitalized and not at sentence start)
-    if entity.start > 0 && entity.text.chars().next().is_some_and(|c| c.is_uppercase()) {
-        let prev_char = text.chars().nth(entity.start - 1);
+    if entity.start() > 0 && entity.text.chars().next().is_some_and(|c| c.is_uppercase()) {
+        let prev_char = text.chars().nth(entity.start() - 1);
         if prev_char.is_some_and(|c| c != '.' && c != '!' && c != '?') {
             return SingletonReason::UniqueProperNoun;
         }

@@ -91,7 +91,7 @@ pub fn calculate_partial_match_metrics(
             }
 
             // Calculate overlap
-            let overlap = calculate_overlap(pred.start, pred.end, gt.start, gt.end);
+            let overlap = calculate_overlap(pred.start(), pred.end(), gt.start, gt.end);
 
             let should_update = match best_match {
                 None => true,

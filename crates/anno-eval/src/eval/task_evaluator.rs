@@ -2661,9 +2661,9 @@ impl TaskEvaluator {
                                     oracle_entities.get(t.tail_idx),
                                 ) {
                                     all_predicted_relations.push(RelationPrediction {
-                                        head_span: (head.start, head.end),
+                                        head_span: (head.start(), head.end()),
                                         head_type: head.entity_type.as_label().to_string(),
-                                        tail_span: (tail.start, tail.end),
+                                        tail_span: (tail.start(), tail.end()),
                                         tail_type: tail.entity_type.as_label().to_string(),
                                         relation_type: t.relation_type.clone(),
                                         confidence: t.confidence.value() as f32,
@@ -2749,9 +2749,9 @@ impl TaskEvaluator {
                                     oracle_entities.get(t.tail_idx),
                                 ) {
                                     all_predicted_relations.push(RelationPrediction {
-                                        head_span: (head.start, head.end),
+                                        head_span: (head.start(), head.end()),
                                         head_type: head.entity_type.as_label().to_string(),
-                                        tail_span: (tail.start, tail.end),
+                                        tail_span: (tail.start(), tail.end()),
                                         tail_type: tail.entity_type.as_label().to_string(),
                                         relation_type: t.relation_type.clone(),
                                         confidence: t.confidence.value() as f32,
@@ -2769,9 +2769,9 @@ impl TaskEvaluator {
                                 extraction.entities.get(triple.tail_idx),
                             ) {
                                 all_predicted_relations.push(RelationPrediction {
-                                    head_span: (head.start, head.end),
+                                    head_span: (head.start(), head.end()),
                                     head_type: head.entity_type.as_label().to_string(),
-                                    tail_span: (tail.start, tail.end),
+                                    tail_span: (tail.start(), tail.end()),
                                     tail_type: tail.entity_type.as_label().to_string(),
                                     relation_type: triple.relation_type.clone(),
                                     confidence: triple.confidence.value() as f32,
@@ -2801,9 +2801,9 @@ impl TaskEvaluator {
                             let tail = &entities[j];
 
                             all_predicted_relations.push(RelationPrediction {
-                                head_span: (head.start, head.end),
+                                head_span: (head.start(), head.end()),
                                 head_type: head.entity_type.as_label().to_string(),
-                                tail_span: (tail.start, tail.end),
+                                tail_span: (tail.start(), tail.end()),
                                 tail_type: tail.entity_type.as_label().to_string(),
                                 relation_type: "RELATED".to_string(), // Proximity heuristic
                                 confidence: 0.5,
