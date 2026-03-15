@@ -72,6 +72,7 @@
 //! let sim = multilingual_similarity("東京", "东京");
 //! ```
 
+use crate::Confidence;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -823,7 +824,7 @@ pub trait SynonymSource: Send + Sync {
         if match_a.canonical_id == match_b.canonical_id {
             Some(SynonymMatch {
                 canonical_id: match_a.canonical_id,
-                confidence: (match_a.confidence + match_b.confidence) / 2.0,
+                confidence: Confidence::new((match_a.confidence + match_b.confidence) / 2.0),
                 source: match_a.source,
             })
         } else {
@@ -841,7 +842,7 @@ pub struct SynonymMatch {
     /// Canonical identifier (e.g., UMLS CUI, WordNet synset ID)
     pub canonical_id: String,
     /// Confidence in the match [0, 1]
-    pub confidence: f32,
+    pub confidence: Confidence,
     /// Name of the source that produced this match
     pub source: String,
 }

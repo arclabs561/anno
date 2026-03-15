@@ -63,6 +63,26 @@ impl Confidence {
 }
 
 // ---------------------------------------------------------------------------
+// JSON Schema (behind `schema` feature)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "schema")]
+impl schemars::JsonSchema for Confidence {
+    fn schema_name() -> String {
+        "Confidence".to_string()
+    }
+
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        // Transparent: appears as f64 with [0.0, 1.0] bounds in JSON Schema.
+        let mut schema = gen.subschema_for::<f64>().into_object();
+        schema.number().minimum = Some(0.0);
+        schema.number().maximum = Some(1.0);
+        schema.metadata().description = Some("Confidence score in [0.0, 1.0]".to_string());
+        schemars::schema::Schema::Object(schema)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Conversions
 // ---------------------------------------------------------------------------
 

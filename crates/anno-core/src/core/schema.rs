@@ -59,6 +59,8 @@
 //! ```
 
 #[cfg(feature = "schema")]
+use crate::Confidence;
+#[cfg(feature = "schema")]
 use schemars::{schema_for, JsonSchema};
 
 #[cfg(feature = "schema")]
@@ -193,7 +195,7 @@ mod schema_types {
         /// End character offset (exclusive).
         pub end: usize,
         /// Confidence score (0.0-1.0).
-        pub confidence: f64,
+        pub confidence: Confidence,
         /// Normalized/canonical form.
         #[serde(skip_serializing_if = "Option::is_none")]
         pub normalized: Option<String>,
@@ -215,7 +217,7 @@ mod schema_types {
         /// Relation type (e.g., "CEO_OF", "LOCATED_IN").
         pub relation_type: String,
         /// Confidence score (0.0-1.0).
-        pub confidence: f64,
+        pub confidence: Confidence,
         /// Trigger text span (e.g., "works at").
         #[serde(skip_serializing_if = "Option::is_none")]
         pub trigger: Option<SchemaSpan>,
