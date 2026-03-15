@@ -115,9 +115,9 @@ authors = { workspace = true }
 repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
-description = "Information extraction in Rust: NER, coreference resolution, entity linking, event extraction, and zero-shot entity types"
+description = "Named entity recognition, coreference resolution, and zero-shot entity types"
 readme = "README.md"
-keywords = ["ner", "nlp", "extraction", "coreference", "rust"]
+keywords = ["ner", "nlp", "information-extraction", "coreference", "zero-shot"]
 categories = ["text-processing"]
 include = [
     "/src/**/*.rs",

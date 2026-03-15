@@ -165,6 +165,7 @@ pub enum Commands {
     Batch(commands::BatchArgs),
 
     /// Joint entity analysis (experimental; optional linking)
+    #[cfg(feature = "joint")]
     #[command(visible_alias = "j")]
     #[command(hide = true)]
     Joint(commands::JointArgs),

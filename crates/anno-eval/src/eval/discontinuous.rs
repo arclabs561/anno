@@ -181,7 +181,7 @@ impl Default for DiscontinuousEvalConfig {
 ///         spans: vec![(0, 8), (25, 33)],
 ///         text: "New York airports".to_string(),
 ///         entity_type: "location".to_string(),
-///         confidence: 0.9,
+///         confidence: anno_core::Confidence::new(0.9),
 ///     },
 /// ];
 ///
@@ -479,7 +479,7 @@ mod tests {
             spans: vec![(0, 5), (10, 15)],
             text: "test".to_string(),
             entity_type: "LOC".to_string(),
-            confidence: 0.9,
+            confidence: anno_core::Confidence::new(0.9),
         }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
@@ -498,7 +498,7 @@ mod tests {
             spans: vec![(0, 3), (3, 5), (10, 15)],
             text: "test".to_string(),
             entity_type: "LOC".to_string(),
-            confidence: 0.9,
+            confidence: anno_core::Confidence::new(0.9),
         }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());
@@ -534,7 +534,7 @@ mod tests {
             spans: vec![(0, 5)],
             text: "John".to_string(),
             entity_type: "ORG".to_string(), // Wrong type
-            confidence: 0.9,
+            confidence: anno_core::Confidence::new(0.9),
         }];
 
         let config = DiscontinuousEvalConfig {
@@ -552,7 +552,7 @@ mod tests {
             spans: vec![(5, 15)], // 50% overlap
             text: "test".to_string(),
             entity_type: "LOC".to_string(),
-            confidence: 0.9,
+            confidence: anno_core::Confidence::new(0.9),
         }];
 
         let metrics = evaluate_discontinuous_ner(&gold, &pred, &DiscontinuousEvalConfig::default());

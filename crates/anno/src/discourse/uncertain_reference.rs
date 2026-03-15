@@ -813,7 +813,12 @@ pub fn resolve_uncertain(
 
 /// Log-sum-exp for numerically stable probability combination.
 fn log_sum_exp(a: f64, b: f64) -> f64 {
-    crate::joint::log_sum_exp(&[a, b])
+    let max = a.max(b);
+    if max == f64::NEG_INFINITY {
+        f64::NEG_INFINITY
+    } else {
+        max + ((a - max).exp() + (b - max).exp()).ln()
+    }
 }
 
 // =============================================================================

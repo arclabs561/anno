@@ -58,6 +58,7 @@ pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
 /// Joint inference experiments (optional; not the primary API surface).
+#[cfg(feature = "joint")]
 pub mod joint;
 /// Keyword and keyphrase extraction (TF-IDF, YAKE, TextRank).
 #[cfg(feature = "graph")]
@@ -208,6 +209,7 @@ mod sealed {
     impl Sealed for super::backends::router::AutoNER {}
 
     impl Sealed for super::MockModel {}
+    #[cfg(feature = "joint")]
     impl Sealed for super::joint::JointModel {}
 }
 
