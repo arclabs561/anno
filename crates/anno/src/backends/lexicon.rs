@@ -219,7 +219,7 @@ impl Model for LexiconNER {
         }
 
         // Sort by position and remove overlaps (keep longest)
-        entities.sort_by_key(|e| (e.start, e.end));
+        entities.sort_by_key(|e| (e.start(), e.end()));
         let mut deduped: Vec<Entity> = Vec::new();
         for entity in entities {
             if deduped.is_empty() || !deduped.last().unwrap().overlaps(&entity) {
@@ -227,7 +227,7 @@ impl Model for LexiconNER {
             } else {
                 // Keep the longer span
                 let last = deduped.last_mut().unwrap();
-                if entity.end - entity.start > last.end - last.start {
+                if entity.end() - entity.start() > last.end() - last.start() {
                     *last = entity;
                 }
             }
@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(entities.len(), 1);
         let entity = &entities[0];
         assert_eq!(entity.text, "東京");
-        assert!(entity.start < entity.end);
-        assert!(entity.end <= text.chars().count());
+        assert!(entity.start() < entity.end());
+        assert!(entity.end() <= text.chars().count());
     }
 }

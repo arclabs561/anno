@@ -62,8 +62,8 @@ fn test_unicode_offsets() {
     let entities = ner.extract_entities(text, None).unwrap();
 
     for entity in &entities {
-        assert!(entity.start <= entity.end);
-        assert!(entity.end <= char_count);
+        assert!(entity.start() <= entity.end());
+        assert!(entity.end() <= char_count);
     }
 }
 
@@ -145,7 +145,8 @@ fn test_duplicate_entity_offsets() {
 
     if google_entities.len() >= 2 {
         assert_ne!(
-            google_entities[0].start, google_entities[1].start,
+            google_entities[0].start(),
+            google_entities[1].start(),
             "Duplicate entities should have different start positions"
         );
     }

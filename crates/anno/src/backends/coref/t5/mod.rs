@@ -521,7 +521,7 @@ impl T5Coref {
             Ok(_) => {
                 let mentions: Vec<(String, usize, usize)> = entities
                     .iter()
-                    .map(|e| (e.text.clone(), e.start, e.end))
+                    .map(|e| (e.text.clone(), e.start(), e.end()))
                     .collect();
                 self.cluster_mentions(text, &mentions)
             }
@@ -532,7 +532,7 @@ impl T5Coref {
                 );
                 let mentions: Vec<(String, usize, usize)> = entities
                     .iter()
-                    .map(|e| (e.text.clone(), e.start, e.end))
+                    .map(|e| (e.text.clone(), e.start(), e.end()))
                     .collect();
                 self.cluster_mentions(text, &mentions)
             }
@@ -561,25 +561,25 @@ impl T5Coref {
         let char_len = chars.len();
 
         let mut sorted: Vec<&Entity> = entities.iter().collect();
-        sorted.sort_by_key(|e| e.start);
+        sorted.sort_by_key(|e| e.start());
 
         let mut out = String::with_capacity(text.len() + entities.len() * 10);
         let mut cursor = 0usize; // char offset
 
         for e in &sorted {
-            if e.start >= e.end || e.start < cursor || e.end > char_len {
+            if e.start() >= e.end() || e.start() < cursor || e.end() > char_len {
                 continue;
             }
             // Text before this entity
-            for &ch in &chars[cursor..e.start] {
+            for &ch in &chars[cursor..e.start()] {
                 out.push(ch);
             }
             out.push_str("<m> ");
-            for &ch in &chars[e.start..e.end] {
+            for &ch in &chars[e.start()..e.end()] {
                 out.push(ch);
             }
             out.push_str(" </m>");
-            cursor = e.end;
+            cursor = e.end();
         }
 
         // Remaining text

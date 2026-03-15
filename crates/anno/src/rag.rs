@@ -159,7 +159,7 @@ pub fn resolve_for_rag(
     // Sort entities by start offset to ensure deterministic backward-search
     // behavior. Callers may pass entities out of document order.
     let mut sorted_entities = entities.to_vec();
-    sorted_entities.sort_by_key(|e| e.start);
+    sorted_entities.sort_by_key(|e| e.start());
 
     let resolver = SimpleCorefResolver::new(config.coref);
     let resolved = resolver.resolve(&sorted_entities);
@@ -196,7 +196,7 @@ pub fn resolve_for_rag(
             continue;
         }
         // Skip pleonastic "it" (non-referential: weather, extraposition, idioms)
-        if is_pleonastic_it(text, entity.start, entity.end) {
+        if is_pleonastic_it(text, entity.start(), entity.end()) {
             continue;
         }
         // Skip reflexive pronouns unless explicitly configured
@@ -208,8 +208,8 @@ pub fn resolve_for_rag(
                 // Don't rewrite if antecedent is same as pronoun
                 if antecedent.to_lowercase() != entity.text.to_lowercase() {
                     rewrites.push(PronounRewrite {
-                        start: entity.start,
-                        end: entity.end,
+                        start: entity.start(),
+                        end: entity.end(),
                         original: entity.text.clone(),
                         replacement: antecedent.to_string(),
                     });
@@ -226,11 +226,11 @@ pub fn resolve_for_rag(
                 continue;
             }
             if candidate.entity_type == entity.entity_type {
-                let distance = entity.start.saturating_sub(candidate.end);
+                let distance = entity.start().saturating_sub(candidate.end());
                 if distance <= config.max_char_distance {
                     rewrites.push(PronounRewrite {
-                        start: entity.start,
-                        end: entity.end,
+                        start: entity.start(),
+                        end: entity.end(),
                         original: entity.text.clone(),
                         replacement: candidate.text.clone(),
                     });
@@ -258,14 +258,14 @@ pub fn resolve_for_rag(
                 continue;
             }
             // Skip pleonastic and reflexive (same filters as anaphoric pass)
-            if is_pleonastic_it(text, entity.start, entity.end) {
+            if is_pleonastic_it(text, entity.start(), entity.end()) {
                 continue;
             }
             if !config.rewrite_reflexives && is_reflexive_pronoun(&entity.text) {
                 continue;
             }
             // Skip pronouns already resolved in the anaphoric pass
-            if rewritten_starts.contains(&entity.start) {
+            if rewritten_starts.contains(&entity.start()) {
                 continue;
             }
             // Search forward for a compatible non-pronoun entity
@@ -274,11 +274,11 @@ pub fn resolve_for_rag(
                     continue;
                 }
                 if candidate.entity_type == entity.entity_type {
-                    let distance = candidate.start.saturating_sub(entity.end);
+                    let distance = candidate.start().saturating_sub(entity.end());
                     if distance <= config.max_char_distance {
                         cataphoric_rewrites.push(PronounRewrite {
-                            start: entity.start,
-                            end: entity.end,
+                            start: entity.start(),
+                            end: entity.end(),
                             original: entity.text.clone(),
                             replacement: candidate.text.clone(),
                         });
@@ -1819,7 +1819,7 @@ mod tests {
                     Entity::new("She", EntityType::Person, 10.min(char_len.saturating_sub(1)), 13.min(char_len), 0.8),
                 ];
                 // Only run if offsets are valid
-                if entities[1].start >= entities[1].end || entities[1].end > char_len {
+                if entities[1].start() >= entities[1].end() || entities[1].end() > char_len {
                     return Ok(());
                 }
                 let result = resolve_for_rag(text_str, &entities, None);
@@ -1843,7 +1843,7 @@ mod tests {
                     Entity::new("He", EntityType::Person, 8.min(char_len.saturating_sub(1)), 10.min(char_len), 0.8),
                     Entity::new("him", EntityType::Person, 15.min(char_len.saturating_sub(1)), 18.min(char_len), 0.8),
                 ];
-                if entities.iter().any(|e| e.start >= e.end || e.end > char_len) {
+                if entities.iter().any(|e| e.start() >= e.end() || e.end() > char_len) {
                     return Ok(());
                 }
                 let result = resolve_for_rag(&text, &entities, None);
@@ -1867,7 +1867,7 @@ mod tests {
                     Entity::new("She", EntityType::Person, 10.min(char_len.saturating_sub(1)), 13.min(char_len), 0.8),
                     Entity::new("her", EntityType::Person, 20.min(char_len.saturating_sub(1)), 23.min(char_len), 0.8),
                 ];
-                if entities.iter().any(|e| e.start >= e.end || e.end > char_len) {
+                if entities.iter().any(|e| e.start() >= e.end() || e.end() > char_len) {
                     return Ok(());
                 }
                 let result = resolve_for_rag(&text, &entities, None);
@@ -1894,7 +1894,7 @@ mod tests {
                     Entity::new("it", EntityType::Organization, 25.min(char_len.saturating_sub(1)), 27.min(char_len), 0.7),
                     Entity::new("they", EntityType::Person, 33.min(char_len.saturating_sub(1)), 37.min(char_len), 0.7),
                 ];
-                if entities.iter().any(|e| e.start >= e.end || e.end > char_len) {
+                if entities.iter().any(|e| e.start() >= e.end() || e.end() > char_len) {
                     return Ok(());
                 }
                 let result = resolve_for_rag(&text, &entities, None);
@@ -1920,7 +1920,7 @@ mod tests {
                     Entity::new("Alice", EntityType::Person, 0, 5.min(char_len), 0.9),
                     Entity::new("She", EntityType::Person, 10.min(char_len.saturating_sub(1)), 13.min(char_len), 0.8),
                 ];
-                if entities.iter().any(|e| e.start >= e.end || e.end > char_len) {
+                if entities.iter().any(|e| e.start() >= e.end() || e.end() > char_len) {
                     return Ok(());
                 }
                 let result = resolve_for_rag(&text, &entities, None);
@@ -1949,7 +1949,7 @@ mod tests {
                     Entity::new("He", EntityType::Person, 8.min(char_len.saturating_sub(1)), 10.min(char_len), 0.8),
                     Entity::new("him", EntityType::Person, 15.min(char_len.saturating_sub(1)), 18.min(char_len), 0.8),
                 ];
-                if entities.iter().any(|e| e.start >= e.end || e.end > char_len) {
+                if entities.iter().any(|e| e.start() >= e.end() || e.end() > char_len) {
                     return Ok(());
                 }
                 let result = resolve_for_rag(&text, &entities, None);

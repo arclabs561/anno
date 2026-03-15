@@ -644,16 +644,16 @@ impl GLiNERPoly {
 
         // Sort by position, deduplicate.
         entities.sort_unstable_by(|a, b| {
-            a.start
-                .cmp(&b.start)
-                .then_with(|| b.end.cmp(&a.end))
+            a.start()
+                .cmp(&b.start())
+                .then_with(|| b.end().cmp(&a.end()))
                 .then_with(|| {
                     b.confidence
                         .partial_cmp(&a.confidence)
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
         });
-        entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+        entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 
         // Strip trailing/leading punctuation.
         let entities: Vec<Entity> = entities
@@ -663,10 +663,13 @@ impl GLiNERPoly {
                 if cleaned.is_empty() {
                     return None;
                 }
-                e.start += head;
-                e.end -= tail;
-                e.text = cleaned.to_string();
-                (e.start < e.end).then_some(e)
+                let new_start = e.start() + head;
+                let new_end = e.end() - tail;
+                let cleaned_text = cleaned.to_string();
+                e.set_start(new_start);
+                e.set_end(new_end);
+                e.text = cleaned_text;
+                (e.start() < e.end()).then_some(e)
             })
             .collect();
 

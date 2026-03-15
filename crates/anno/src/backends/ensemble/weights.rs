@@ -188,8 +188,8 @@ pub(super) struct SpanKey {
 impl SpanKey {
     pub(super) fn from_entity(e: &Entity) -> Self {
         Self {
-            start: e.start,
-            end: e.end,
+            start: e.start(),
+            end: e.end(),
         }
     }
 

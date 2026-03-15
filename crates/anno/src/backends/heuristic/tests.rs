@@ -206,14 +206,14 @@ fn test_entity_offsets_are_valid() {
 
     let char_count = text.chars().count();
     for entity in &entities {
-        assert!(entity.start <= entity.end, "start should be <= end");
-        assert!(entity.end <= char_count, "end should be within text");
+        assert!(entity.start() <= entity.end(), "start should be <= end");
+        assert!(entity.end() <= char_count, "end should be within text");
 
         // Verify text matches span
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert_eq!(
             extracted, entity.text,
@@ -232,8 +232,8 @@ fn test_unicode_text_handling() {
     for entity in &entities {
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert_eq!(extracted, entity.text, "Unicode offsets should be correct");
     }
@@ -539,16 +539,16 @@ fn test_span_offsets_with_multiple_spaces() {
     for entity in &entities {
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         // The entity text is joined with single spaces, so it won't match the original
         // multi-space text. But the span boundaries must still be valid character offsets.
-        assert!(entity.start < entity.end, "start < end");
+        assert!(entity.start() < entity.end(), "start < end");
         assert!(
-            entity.end <= text.chars().count(),
+            entity.end() <= text.chars().count(),
             "end ({}) within text len ({})",
-            entity.end,
+            entity.end(),
             text.chars().count()
         );
         // The extracted span must start and end with the entity's first/last word
@@ -601,8 +601,8 @@ fn test_unicode_name_offsets_correct() {
     for entity in &entities {
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert_eq!(
             extracted, entity.text,
@@ -627,8 +627,8 @@ fn test_leading_punct_char_count_not_bytes() {
         );
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert_eq!(
             extracted, entity.text,
@@ -835,17 +835,17 @@ fn test_offset_validity_comprehensive() {
         let char_count = text.chars().count();
         for entity in &entities {
             assert!(
-                entity.start < entity.end,
+                entity.start() < entity.end(),
                 "start ({}) < end ({}) for '{}' in '{}'",
-                entity.start,
-                entity.end,
+                entity.start(),
+                entity.end(),
                 entity.text,
                 text
             );
             assert!(
-                entity.end <= char_count,
+                entity.end() <= char_count,
                 "end ({}) <= text len ({}) for '{}' in '{}'",
-                entity.end,
+                entity.end(),
                 char_count,
                 entity.text,
                 text

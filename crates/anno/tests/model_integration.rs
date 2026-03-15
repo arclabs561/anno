@@ -143,19 +143,19 @@ fn stacked_ner_entity_offsets_are_char_based() {
         for entity in &entities {
             // start < end
             assert!(
-                entity.start < entity.end,
+                entity.start() < entity.end(),
                 "Entity {:?}: start ({}) must be < end ({})",
                 entity.text,
-                entity.start,
-                entity.end
+                entity.start(),
+                entity.end()
             );
 
             // Within bounds (char count, not byte count)
             assert!(
-                entity.end <= char_count,
+                entity.end() <= char_count,
                 "Entity {:?}: end ({}) exceeds char count ({})",
                 entity.text,
-                entity.end,
+                entity.end(),
                 char_count
             );
 
@@ -170,8 +170,8 @@ fn stacked_ner_entity_offsets_are_char_based() {
             // Extractable text matches
             let extracted: String = text
                 .chars()
-                .skip(entity.start)
-                .take(entity.end - entity.start)
+                .skip(entity.start())
+                .take(entity.end() - entity.start())
                 .collect();
             // Allow whitespace normalization
             let norm_extracted = extracted.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -179,8 +179,8 @@ fn stacked_ner_entity_offsets_are_char_based() {
             assert!(
                 norm_extracted.contains(&norm_entity) || norm_entity.contains(&norm_extracted),
                 "Span [{},{}) = {:?} doesn't match entity text {:?}",
-                entity.start,
-                entity.end,
+                entity.start(),
+                entity.end(),
                 extracted,
                 entity.text
             );
@@ -347,7 +347,7 @@ fn gliner_onnx_basic() {
 
     for entity in &entities {
         assert!((0.0..=1.0).contains(&entity.confidence));
-        assert!(entity.start < entity.end);
+        assert!(entity.start() < entity.end());
         assert!(!entity.text.is_empty());
     }
 }
@@ -375,7 +375,7 @@ fn nuner_onnx_basic() {
     // NuNER may or may not find entities depending on default labels
     for entity in &entities {
         assert!((0.0..=1.0).contains(&entity.confidence));
-        assert!(entity.start < entity.end);
+        assert!(entity.start() < entity.end());
         assert!(!entity.text.is_empty());
     }
 }
@@ -401,7 +401,7 @@ fn bert_ner_onnx_basic() {
 
     for entity in &entities {
         assert!((0.0..=1.0).contains(&entity.confidence));
-        assert!(entity.start < entity.end);
+        assert!(entity.start() < entity.end());
         assert!(!entity.text.is_empty());
     }
 }
@@ -427,8 +427,8 @@ fn stacked_ner_deterministic() {
 
     for (a, b) in run1.iter().zip(run2.iter()) {
         assert_eq!(a.text, b.text);
-        assert_eq!(a.start, b.start);
-        assert_eq!(a.end, b.end);
+        assert_eq!(a.start(), b.start());
+        assert_eq!(a.end(), b.end());
         assert_eq!(a.entity_type, b.entity_type);
         assert!(
             (a.confidence - b.confidence).abs() < 1e-10,

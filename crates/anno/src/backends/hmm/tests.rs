@@ -93,8 +93,8 @@ fn test_unicode_offsets() {
     let entities = ner.extract_entities(text, None).unwrap();
 
     for entity in &entities {
-        assert!(entity.start <= entity.end);
-        assert!(entity.end <= char_count);
+        assert!(entity.start() <= entity.end());
+        assert!(entity.end() <= char_count);
     }
 }
 

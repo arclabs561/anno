@@ -220,13 +220,17 @@ fn clip_entities_at_sentence_boundaries(text: &str, entities: &mut Vec<Entity>) 
     entities.retain_mut(|e| {
         for &b in &boundaries {
             // Boundary is inside the entity span
-            if b > e.start && b < e.end {
+            if b > e.start() && b < e.end() {
                 // Truncate entity to end at the boundary
-                e.end = b;
+                e.set_end(b);
                 // Rebuild entity text from the truncated span
-                let new_text: String = text.chars().skip(e.start).take(e.end - e.start).collect();
+                let new_text: String = text
+                    .chars()
+                    .skip(e.start())
+                    .take(e.end() - e.start())
+                    .collect();
                 e.text = new_text.trim_end().to_string();
-                if e.text.is_empty() || e.start >= e.end {
+                if e.text.is_empty() || e.start() >= e.end() {
                     return false; // remove empty entity
                 }
             }

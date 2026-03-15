@@ -472,8 +472,8 @@ fn test_ensemble_provenance_tracking() {
             "Entity '{}' ({:?}) at {}..{} has no provenance",
             e.text,
             e.entity_type,
-            e.start,
-            e.end
+            e.start(),
+            e.end()
         );
         let prov = e.provenance.as_ref().unwrap();
         // Provenance source should not be empty
@@ -548,8 +548,8 @@ fn test_parallel_execution_is_deterministic() {
         .into_iter()
         .map(|e| {
             (
-                e.start,
-                e.end,
+                e.start(),
+                e.end(),
                 e.entity_type.as_label().to_string(),
                 e.confidence,
             )
@@ -568,8 +568,8 @@ fn test_parallel_execution_is_deterministic() {
             .into_iter()
             .map(|e| {
                 (
-                    e.start,
-                    e.end,
+                    e.start(),
+                    e.end(),
                     e.entity_type.as_label().to_string(),
                     e.confidence,
                 )

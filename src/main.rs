@@ -145,8 +145,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!(
                             "{}:{}-{} \"{}\"",
                             e.entity_type.as_label(),
-                            e.start,
-                            e.end,
+                            e.start(),
+                            e.end(),
                             e.text.replace('\n', "\\n")
                         );
                     }

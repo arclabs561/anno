@@ -66,10 +66,10 @@ pub fn extract_relations(
             }
 
             // Check distance
-            let distance = if head.end <= tail.start {
-                tail.start - head.end
+            let distance = if head.end() <= tail.start() {
+                tail.start() - head.end()
             } else {
-                head.start.saturating_sub(tail.end)
+                head.start().saturating_sub(tail.end())
             };
 
             if distance > config.max_span_distance {
@@ -77,10 +77,10 @@ pub fn extract_relations(
             }
 
             // Look for relation triggers in the text between entities
-            let (span_start, span_end) = if head.end <= tail.start {
-                (head.end, tail.start)
+            let (span_start, span_end) = if head.end() <= tail.start() {
+                (head.end(), tail.start())
             } else {
-                (tail.end, head.start)
+                (tail.end(), head.start())
             };
 
             let between_span = span_converter.from_chars(span_start, span_end);
@@ -170,24 +170,24 @@ pub fn extract_relation_triples(
             }
 
             // Skip overlapping spans (avoids self-nesting artifacts like "New York" vs "York").
-            if head.start < tail.end && tail.start < head.end {
+            if head.start() < tail.end() && tail.start() < head.end() {
                 continue;
             }
 
             // Check distance (character offsets)
-            let distance = if head.end <= tail.start {
-                tail.start - head.end
+            let distance = if head.end() <= tail.start() {
+                tail.start() - head.end()
             } else {
-                head.start.saturating_sub(tail.end)
+                head.start().saturating_sub(tail.end())
             };
             if distance > config.max_span_distance {
                 continue;
             }
 
-            let (span_start, span_end) = if head.end <= tail.start {
-                (head.end, tail.start)
+            let (span_start, span_end) = if head.end() <= tail.start() {
+                (head.end(), tail.start())
             } else {
-                (tail.end, head.start)
+                (tail.end(), head.start())
             };
 
             let between_span = span_converter.from_chars(span_start, span_end);
@@ -1203,24 +1203,24 @@ pub fn extract_relation_triples_simple(
             }
 
             // Skip overlapping spans.
-            if head.start < tail.end && tail.start < head.end {
+            if head.start() < tail.end() && tail.start() < head.end() {
                 continue;
             }
 
             // Check distance (character offsets).
-            let distance = if head.end <= tail.start {
-                tail.start - head.end
+            let distance = if head.end() <= tail.start() {
+                tail.start() - head.end()
             } else {
-                head.start.saturating_sub(tail.end)
+                head.start().saturating_sub(tail.end())
             };
             if distance > config.max_span_distance {
                 continue;
             }
 
-            let (span_start, span_end) = if head.end <= tail.start {
-                (head.end, tail.start)
+            let (span_start, span_end) = if head.end() <= tail.start() {
+                (head.end(), tail.start())
             } else {
-                (tail.end, head.start)
+                (tail.end(), head.start())
             };
 
             let between_span = span_converter.from_chars(span_start, span_end);
@@ -1257,8 +1257,8 @@ pub fn extract_relation_triples_simple(
             }
 
             // Type-based fallback: infer relation from entity type pair.
-            let head_center = (head.start + head.end) as f32 / 2.0;
-            let tail_center = (tail.start + tail.end) as f32 / 2.0;
+            let head_center = (head.start() + head.end()) as f32 / 2.0;
+            let tail_center = (tail.start() + tail.end()) as f32 / 2.0;
             let proximity = 1.0 - ((head_center - tail_center).abs() / text_char_len).min(1.0);
 
             if proximity > 0.3 {

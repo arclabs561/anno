@@ -633,9 +633,9 @@ impl GLiNEROnnx {
         // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by start position, then by descending span length, then by descending confidence
         entities.sort_unstable_by(|a, b| {
-            a.start
-                .cmp(&b.start)
-                .then_with(|| b.end.cmp(&a.end))
+            a.start()
+                .cmp(&b.start())
+                .then_with(|| b.end().cmp(&a.end()))
                 .then_with(|| {
                     b.confidence
                         .partial_cmp(&a.confidence)
@@ -644,7 +644,7 @@ impl GLiNEROnnx {
         });
 
         // Remove exact duplicates
-        entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+        entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 
         // Remove overlapping spans, keeping the highest confidence one
         // This addresses the common issue where GLiNER detects both
@@ -659,9 +659,12 @@ impl GLiNEROnnx {
                 if cleaned.is_empty() {
                     return None;
                 }
-                e.start += head;
-                e.end -= tail;
-                e.text = cleaned.to_string();
+                let new_start = e.start() + head;
+                let new_end = e.end() - tail;
+                let cleaned_text = cleaned.to_string();
+                e.set_start(new_start);
+                e.set_end(new_end);
+                e.text = cleaned_text;
 
                 // Post-process: GLiNER sometimes tags obvious companies as PRODUCT.
                 // If the surface form has strong company markers, remap PRODUCT → ORG.
@@ -674,7 +677,7 @@ impl GLiNEROnnx {
                     e.entity_type = EntityType::Organization;
                 }
 
-                (e.start < e.end).then_some(e)
+                (e.start() < e.end()).then_some(e)
             })
             .collect();
 

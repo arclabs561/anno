@@ -426,8 +426,8 @@ mod tests {
         assert!(entity.is_contiguous());
         let converted = entity.to_entity().expect("should convert single-span");
         assert_eq!(converted.text, "hello");
-        assert_eq!(converted.start, 0);
-        assert_eq!(converted.end, 5);
+        assert_eq!(converted.start(), 0);
+        assert_eq!(converted.end(), 5);
     }
 
     #[test]

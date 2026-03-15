@@ -131,15 +131,15 @@ fn test_unicode_char_offsets() {
     let char_count = text.chars().count();
     for entity in &entities {
         assert!(
-            entity.start <= entity.end,
+            entity.start() <= entity.end(),
             "Invalid span: start {} > end {}",
-            entity.start,
-            entity.end
+            entity.start(),
+            entity.end()
         );
         assert!(
-            entity.end <= char_count,
+            entity.end() <= char_count,
             "Entity end {} exceeds char count {} for text {:?}",
-            entity.end,
+            entity.end(),
             char_count,
             text
         );
@@ -147,14 +147,14 @@ fn test_unicode_char_offsets() {
         // Also verify we can extract the text at those offsets
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert!(
-            !extracted.is_empty() || entity.start == entity.end,
+            !extracted.is_empty() || entity.start() == entity.end(),
             "Empty extraction for entity at {}..{} in {:?}",
-            entity.start,
-            entity.end,
+            entity.start(),
+            entity.end(),
             text
         );
     }
@@ -180,9 +180,13 @@ fn test_multilingual_inputs_no_panic_and_valid_spans() {
         let entities = ner.extract_entities(text, None).unwrap();
         let char_count = text.chars().count();
         for e in entities {
-            assert!(e.start <= e.end);
-            assert!(e.end <= char_count);
-            let _span: String = text.chars().skip(e.start).take(e.end - e.start).collect();
+            assert!(e.start() <= e.end());
+            assert!(e.end() <= char_count);
+            let _span: String = text
+                .chars()
+                .skip(e.start())
+                .take(e.end() - e.start())
+                .collect();
         }
     }
 }
@@ -482,14 +486,14 @@ fn test_labels_to_entities_simple() {
     // First entity: "John Smith" (Person)
     assert_eq!(entities[0].text, "John Smith");
     assert_eq!(entities[0].entity_type, EntityType::Person);
-    assert_eq!(entities[0].start, 0);
-    assert_eq!(entities[0].end, 10);
+    assert_eq!(entities[0].start(), 0);
+    assert_eq!(entities[0].end(), 10);
 
     // Second entity: "Google" (Organization)
     assert_eq!(entities[1].text, "Google");
     assert_eq!(entities[1].entity_type, EntityType::Organization);
-    assert_eq!(entities[1].start, 20);
-    assert_eq!(entities[1].end, 26);
+    assert_eq!(entities[1].start(), 20);
+    assert_eq!(entities[1].end(), 26);
 }
 
 /// labels_to_entities handles entity at end of sequence (no trailing O).
@@ -953,7 +957,7 @@ fn crf_no_cross_sentence_span() {
     // Entity should be clipped to end before "Doudna"
     for e in &entities {
         assert!(
-            e.end <= 34,
+            e.end() <= 34,
             "Entity should not cross sentence boundary: {:?}",
             e
         );

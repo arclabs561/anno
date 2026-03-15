@@ -103,10 +103,10 @@ pub fn resolve_coreferences(
 
             // Distance check
             if let Some(max_dist) = config.max_distance {
-                let dist = if entities[i].end <= entities[j].start {
-                    entities[j].start - entities[i].end
+                let dist = if entities[i].end() <= entities[j].start() {
+                    entities[j].start() - entities[i].end()
                 } else {
-                    entities[i].start.saturating_sub(entities[j].end)
+                    entities[i].start().saturating_sub(entities[j].end())
                 };
                 if dist > max_dist {
                     continue;

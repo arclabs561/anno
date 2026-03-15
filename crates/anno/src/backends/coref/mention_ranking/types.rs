@@ -536,8 +536,8 @@ impl From<RankedMention> for anno_core::Mention {
 impl From<&crate::Entity> for RankedMention {
     fn from(entity: &crate::Entity) -> Self {
         Self {
-            start: entity.start,
-            end: entity.end,
+            start: entity.start(),
+            end: entity.end(),
             text: entity.text.clone(),
             mention_type: MentionType::classify(&entity.text),
             gender: None,

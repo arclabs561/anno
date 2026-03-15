@@ -405,10 +405,10 @@ impl EnsembleNER {
 
         // Boundary: agreement on span boundaries
         // Check if all winning candidates have the same start/end
-        let reference_span = (best_candidate.entity.start, best_candidate.entity.end);
+        let reference_span = (best_candidate.entity.start(), best_candidate.entity.end());
         let span_agreement_count = winning_candidates
             .iter()
-            .filter(|c| c.entity.start == reference_span.0 && c.entity.end == reference_span.1)
+            .filter(|c| c.entity.start() == reference_span.0 && c.entity.end() == reference_span.1)
             .count();
         let boundary = if num_winners > 0.0 {
             (span_agreement_count as f32 / num_winners).min(1.0)
@@ -525,7 +525,7 @@ impl Model for EnsembleNER {
         }
 
         // Sort by position
-        results.sort_by_key(|e| (e.start, e.end));
+        results.sort_by_key(|e| (e.start(), e.end()));
 
         Ok(results)
     }
@@ -712,15 +712,15 @@ impl WeightLearner {
             let mut example = WeightTrainingExample {
                 text: gold.text.clone(),
                 gold_type: gold.entity_type.clone(),
-                start: gold.start,
-                end: gold.end,
+                start: gold.start(),
+                end: gold.end(),
                 predictions: Vec::new(),
             };
 
             for (backend_name, entities) in &backend_preds {
                 // Find matching prediction (same span)
                 for pred in entities {
-                    if pred.start == gold.start && pred.end == gold.end {
+                    if pred.start() == gold.start() && pred.end() == gold.end() {
                         example.predictions.push((
                             backend_name.clone(),
                             pred.entity_type.clone(),

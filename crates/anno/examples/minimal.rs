@@ -13,8 +13,12 @@ fn main() {
 
     for e in entities {
         println!(
-            "{} [{}..{}] {:?} conf={}",
-            e.text, e.start, e.end, e.entity_type, e.confidence
+            "{} [{}] ({},{}) {:.2}",
+            e.text,
+            e.entity_type,
+            e.start(),
+            e.end(),
+            e.confidence
         );
     }
 }

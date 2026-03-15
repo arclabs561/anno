@@ -14,9 +14,9 @@ proptest! {
         if let Ok(entities) = ner.extract_entities(&text, None) {
             let text_char_len = text.chars().count();
             for e in entities {
-                prop_assert!(e.start <= text_char_len);
-                prop_assert!(e.end <= text_char_len);
-                prop_assert!(e.start <= e.end);
+                prop_assert!(e.start() <= text_char_len);
+                prop_assert!(e.end() <= text_char_len);
+                prop_assert!(e.start() <= e.end());
             }
         }
     }
@@ -73,7 +73,7 @@ proptest! {
                 for j in (i + 1)..entities.len() {
                     let e1 = &entities[i];
                     let e2 = &entities[j];
-                    let overlap = e1.start < e2.end && e2.start < e1.end;
+                    let overlap = e1.start() < e2.end() && e2.start() < e1.end();
                     prop_assert!(!overlap, "Overlap: {:?} and {:?}", e1, e2);
                 }
             }

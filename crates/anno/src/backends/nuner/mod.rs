@@ -170,8 +170,8 @@ impl Model for NuNER {
                     return extract_chunked_parallel(text, &config, |chunk_text, char_offset| {
                         let mut entities = self.extract(chunk_text, &labels, threshold)?;
                         for e in &mut entities {
-                            e.start += char_offset;
-                            e.end += char_offset;
+                            e.set_start(e.start() + char_offset);
+                            e.set_end(e.end() + char_offset);
                         }
                         Ok(entities)
                     });

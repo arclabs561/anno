@@ -110,31 +110,31 @@ fn test_stacked_ner_char_offsets_valid() {
 
     for entity in &entities {
         assert!(
-            entity.start < entity.end,
+            entity.start() < entity.end(),
             "entity {:?}: start ({}) must be < end ({})",
             entity.text,
-            entity.start,
-            entity.end
+            entity.start(),
+            entity.end()
         );
         assert!(
-            entity.end <= text_char_count,
+            entity.end() <= text_char_count,
             "entity {:?}: end ({}) exceeds text length ({})",
             entity.text,
-            entity.end,
+            entity.end(),
             text_char_count
         );
         // Verify the span text matches the entity text (character offsets)
         let extracted: String = text
             .chars()
-            .skip(entity.start)
-            .take(entity.end - entity.start)
+            .skip(entity.start())
+            .take(entity.end() - entity.start())
             .collect();
         assert_eq!(
             extracted.trim(),
             entity.text.trim(),
             "span text mismatch for entity at [{}, {})",
-            entity.start,
-            entity.end
+            entity.start(),
+            entity.end()
         );
     }
 }

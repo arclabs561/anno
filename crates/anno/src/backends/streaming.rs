@@ -217,7 +217,7 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
         OverlapStrategy::KeepFirst => {
             // Sort by start, then by confidence (desc)
             entities.sort_by(|a, b| {
-                a.start.cmp(&b.start).then(
+                a.start().cmp(&b.start()).then(
                     b.confidence
                         .partial_cmp(&a.confidence)
                         .expect("confidence values should be comparable"),
@@ -228,8 +228,8 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
             let mut last_end = 0;
 
             for entity in entities.drain(..) {
-                if entity.start >= last_end {
-                    last_end = entity.end;
+                if entity.start() >= last_end {
+                    last_end = entity.end();
                     out.push(entity);
                 }
             }
@@ -248,18 +248,18 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
             for entity in entities.drain(..) {
                 let overlaps = out
                     .iter()
-                    .any(|e: &Entity| entity.start < e.end && entity.end > e.start);
+                    .any(|e: &Entity| entity.start() < e.end() && entity.end() > e.start());
                 if !overlaps {
                     out.push(entity);
                 }
             }
             // Re-sort by position
-            out.sort_by_key(|e| e.start);
+            out.sort_by_key(|e| e.start());
             out
         }
 
         OverlapStrategy::KeepLongerSameType => {
-            entities.sort_by_key(|e| (e.start, e.end));
+            entities.sort_by_key(|e| (e.start(), e.end()));
 
             let mut out: Vec<Entity> = Vec::with_capacity(entities.len());
 
@@ -267,14 +267,14 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
                 // Check ALL kept entities for same-type overlap, not just the last one.
                 // This handles interleaved different-type entities correctly.
                 let overlapping_idx = out.iter().rposition(|prev: &Entity| {
-                    entity.start < prev.end
-                        && prev.start < entity.end
+                    entity.start() < prev.end()
+                        && prev.start() < entity.end()
                         && prev.entity_type == entity.entity_type
                 });
 
                 if let Some(idx) = overlapping_idx {
-                    let prev_len = out[idx].end - out[idx].start;
-                    let cand_len = entity.end - entity.start;
+                    let prev_len = out[idx].end() - out[idx].start();
+                    let cand_len = entity.end() - entity.start();
                     if cand_len > prev_len {
                         out[idx] = entity;
                     }
@@ -288,8 +288,8 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
         OverlapStrategy::KeepShortest => {
             // Sort by span length (shorter first), then confidence desc
             entities.sort_unstable_by(|a, b| {
-                let len_a = a.end - a.start;
-                let len_b = b.end - b.start;
+                let len_a = a.end() - a.start();
+                let len_b = b.end() - b.start();
                 len_a.cmp(&len_b).then_with(|| {
                     b.confidence
                         .partial_cmp(&a.confidence)
@@ -302,7 +302,7 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
             for entity in entities.drain(..) {
                 let is_superset_of_existing = out
                     .iter()
-                    .any(|kept| entity.start <= kept.start && entity.end >= kept.end);
+                    .any(|kept| entity.start() <= kept.start() && entity.end() >= kept.end());
 
                 if is_superset_of_existing {
                     continue;
@@ -310,13 +310,13 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
 
                 let overlaps_existing = out
                     .iter()
-                    .any(|kept| entity.start < kept.end && kept.start < entity.end);
+                    .any(|kept| entity.start() < kept.end() && kept.start() < entity.end());
 
                 if !overlaps_existing {
                     out.push(entity);
                 }
             }
-            out.sort_unstable_by_key(|e| e.start);
+            out.sort_unstable_by_key(|e| e.start());
             out
         }
     };
@@ -370,13 +370,13 @@ where
     for result in results {
         let entities = result?;
         for entity in entities {
-            if seen.insert((entity.start, entity.end)) {
+            if seen.insert((entity.start(), entity.end())) {
                 all_entities.push(entity);
             }
         }
     }
 
-    all_entities.sort_by_key(|e| (e.start, e.end));
+    all_entities.sort_by_key(|e| (e.start(), e.end()));
     deduplicate_overlapping(&mut all_entities, OverlapStrategy::KeepLongerSameType);
 
     Ok(all_entities)
@@ -813,7 +813,7 @@ mod tests {
             // Non-overlapping, so all kept; verify sorted by start
             for i in 1..entities.len() {
                 assert!(
-                    entities[i].start >= entities[i - 1].start,
+                    entities[i].start() >= entities[i - 1].start(),
                     "result must be sorted by position for {:?}",
                     strategy
                 );
@@ -861,7 +861,7 @@ mod tests {
 
         // Result must be sorted by start position.
         for i in 1..entities.len() {
-            assert!(entities[i].start >= entities[i - 1].start);
+            assert!(entities[i].start() >= entities[i - 1].start());
         }
     }
 
@@ -1052,13 +1052,13 @@ mod tests {
             assert!(
                 entities
                     .iter()
-                    .any(|e| e.start == 5 + off && e.end == 10 + off),
+                    .any(|e| e.start() == 5 + off && e.end() == 10 + off),
                 "global entity [{}, {}] must be present; got: {:?}",
                 5 + off,
                 10 + off,
                 entities
                     .iter()
-                    .map(|e| (e.start, e.end))
+                    .map(|e| (e.start(), e.end()))
                     .collect::<Vec<_>>()
             );
         }
@@ -1070,13 +1070,13 @@ mod tests {
             "one entity per chunk, no duplicates; got: {:?}",
             entities
                 .iter()
-                .map(|e| (e.start, e.end))
+                .map(|e| (e.start(), e.end()))
                 .collect::<Vec<_>>()
         );
 
         // Result must be sorted by position.
         for i in 1..entities.len() {
-            assert!(entities[i].start >= entities[i - 1].start);
+            assert!(entities[i].start() >= entities[i - 1].start());
         }
     }
 
@@ -1106,8 +1106,8 @@ mod tests {
             "duplicate global span [5,10] must be deduplicated; got {} entities",
             entities.len()
         );
-        assert_eq!(entities[0].start, 5);
-        assert_eq!(entities[0].end, 10);
+        assert_eq!(entities[0].start(), 5);
+        assert_eq!(entities[0].end(), 10);
     }
 
     /// Empty text returns no entities and does not error.

@@ -6,6 +6,12 @@
 
 use anno::{EnsembleNER, HeuristicNER, Model, RegexNER};
 use proptest::prelude::*;
+use std::sync::LazyLock;
+
+/// Cached EnsembleNER to avoid reconstructing per proptest case.
+/// `EnsembleNER::new()` compiles regex patterns and initializes backends,
+/// which is expensive when repeated 50+ times.
+static ENSEMBLE: LazyLock<EnsembleNER> = LazyLock::new(EnsembleNER::new);
 
 /// Normalize whitespace: collapse runs of whitespace to a single space and trim.
 fn normalize_ws(s: &str) -> String {
@@ -83,33 +89,33 @@ fn check_entity_invariants(text: &str, backend_name: &str, backend: &dyn Model) 
         if !text.is_empty() {
             // start <= end (zero-length spans are permitted but unusual)
             assert!(
-                entity.start <= entity.end,
+                entity.start() <= entity.end(),
                 "{}: entity {:?} has start ({}) > end ({})",
                 backend_name,
                 entity.text,
-                entity.start,
-                entity.end,
+                entity.start(),
+                entity.end(),
             );
         }
 
         // End within text bounds
         assert!(
-            entity.end <= char_count,
+            entity.end() <= char_count,
             "{}: entity {:?} end ({}) exceeds text char count ({})",
             backend_name,
             entity.text,
-            entity.end,
+            entity.end(),
             char_count,
         );
 
         // Span text matches entity text (character offsets, not byte offsets).
         // Backends may normalize whitespace (collapse multiple spaces) or trim
         // trailing punctuation, so we compare after normalization.
-        if entity.start < entity.end {
+        if entity.start() < entity.end() {
             let extracted: String = text
                 .chars()
-                .skip(entity.start)
-                .take(entity.end - entity.start)
+                .skip(entity.start())
+                .take(entity.end() - entity.start())
                 .collect();
             let norm_extracted = normalize_ws(&extracted);
             let norm_entity = normalize_ws(&entity.text);
@@ -118,8 +124,8 @@ fn check_entity_invariants(text: &str, backend_name: &str, backend: &dyn Model) 
                     || norm_entity.contains(norm_extracted.trim()),
                 "{}: span [{},{}) = {:?} doesn't match entity text {:?} (after ws normalization)",
                 backend_name,
-                entity.start,
-                entity.end,
+                entity.start(),
+                entity.end(),
                 extracted,
                 entity.text,
             );
@@ -129,13 +135,13 @@ fn check_entity_invariants(text: &str, backend_name: &str, backend: &dyn Model) 
     // No duplicate spans: same (start, end, type) should not appear twice
     let mut seen = std::collections::HashSet::new();
     for entity in &entities {
-        let key = (entity.start, entity.end, entity.entity_type.as_label());
+        let key = (entity.start(), entity.end(), entity.entity_type.as_label());
         assert!(
             seen.insert(key),
             "{}: duplicate entity at [{},{}) type={:?}",
             backend_name,
-            entity.start,
-            entity.end,
+            entity.start(),
+            entity.end(),
             entity.entity_type.as_label(),
         );
     }
@@ -143,13 +149,13 @@ fn check_entity_invariants(text: &str, backend_name: &str, backend: &dyn Model) 
     // Entities should be sorted by position
     for pair in entities.windows(2) {
         assert!(
-            pair[0].start <= pair[1].start,
+            pair[0].start() <= pair[1].start(),
             "{}: entities not sorted by position: [{},{}] before [{},{}]",
             backend_name,
-            pair[0].start,
-            pair[0].end,
-            pair[1].start,
-            pair[1].end,
+            pair[0].start(),
+            pair[0].end(),
+            pair[1].start(),
+            pair[1].end(),
         );
     }
 }
@@ -193,14 +199,12 @@ proptest! {
 
     #[test]
     fn ensemble_invariants(text in arb_ner_text()) {
-        let backend = EnsembleNER::new();
-        check_entity_invariants(&text, "EnsembleNER", &backend);
+        check_entity_invariants(&text, "EnsembleNER", &*ENSEMBLE);
     }
 
     #[test]
     fn ensemble_fuzz(text in arb_fuzz_text()) {
-        let backend = EnsembleNER::new();
-        check_entity_invariants(&text, "EnsembleNER", &backend);
+        check_entity_invariants(&text, "EnsembleNER", &*ENSEMBLE);
     }
 }
 
@@ -214,9 +218,8 @@ proptest! {
     /// Same input -> same output (ensemble uses no RNG).
     #[test]
     fn ensemble_deterministic(text in arb_ner_text()) {
-        let backend = EnsembleNER::new();
-        let run1 = backend.extract_entities(&text, None).unwrap();
-        let run2 = backend.extract_entities(&text, None).unwrap();
+        let run1 = ENSEMBLE.extract_entities(&text, None).unwrap();
+        let run2 = ENSEMBLE.extract_entities(&text, None).unwrap();
 
         prop_assert_eq!(
             run1.len(), run2.len(),
@@ -224,8 +227,8 @@ proptest! {
         );
 
         for (a, b) in run1.iter().zip(run2.iter()) {
-            prop_assert_eq!(a.start, b.start);
-            prop_assert_eq!(a.end, b.end);
+            prop_assert_eq!(a.start(), b.start());
+            prop_assert_eq!(a.end(), b.end());
             prop_assert_eq!(a.entity_type.as_label(), b.entity_type.as_label());
             prop_assert!(
                 (a.confidence - b.confidence).abs() < 1e-10,
@@ -329,8 +332,8 @@ fn ensemble_all_entities_have_provenance() {
             "Entity {:?} ({:?}) at [{},{}) missing provenance",
             entity.text,
             entity.entity_type,
-            entity.start,
-            entity.end,
+            entity.start(),
+            entity.end(),
         );
 
         let prov = entity.provenance.as_ref().unwrap();

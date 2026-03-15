@@ -78,11 +78,11 @@ fn heuristic_threshold_zero_returns_all_candidates() {
         assert!(
             permissive_ents
                 .iter()
-                .any(|pe| pe.start == se.start && pe.end == se.end),
+                .any(|pe| pe.start() == se.start() && pe.end() == se.end()),
             "Strict entity '{}' [{},{}) not found in permissive results",
             se.text,
-            se.start,
-            se.end,
+            se.start(),
+            se.end(),
         );
     }
 }
@@ -332,12 +332,17 @@ fn stacked_resolves_overlapping_spans() {
     for (i, a) in entities.iter().enumerate() {
         for b in entities.iter().skip(i + 1) {
             if a.entity_type == b.entity_type {
-                let overlaps = a.start < b.end && b.start < a.end;
+                let overlaps = a.start() < b.end() && b.start() < a.end();
                 assert!(
                     !overlaps,
                     "Stacked backend produced overlapping same-type entities: \
                      '{}' [{},{}) and '{}' [{},{})",
-                    a.text, a.start, a.end, b.text, b.start, b.end,
+                    a.text,
+                    a.start(),
+                    a.end(),
+                    b.text,
+                    b.start(),
+                    b.end(),
                 );
             }
         }
@@ -537,11 +542,11 @@ fn unicode_precomposed_vs_decomposed_no_crash() {
                 precomposed
             };
             assert!(
-                entity.end <= text_to_check.chars().count(),
+                entity.end() <= text_to_check.chars().count(),
                 "{}: entity '{}' end {} exceeds char count {} in {:?}",
                 name,
                 entity.text,
-                entity.end,
+                entity.end(),
                 text_to_check.chars().count(),
                 text_to_check,
             );
@@ -843,8 +848,8 @@ fn all_backends_deterministic() {
         );
 
         for (a, b) in run1.iter().zip(run2.iter()) {
-            assert_eq!(a.start, b.start, "{}: start mismatch", name);
-            assert_eq!(a.end, b.end, "{}: end mismatch", name);
+            assert_eq!(a.start(), b.start(), "{}: start mismatch", name);
+            assert_eq!(a.end(), b.end(), "{}: end mismatch", name);
             assert_eq!(
                 a.entity_type.as_label(),
                 b.entity_type.as_label(),
@@ -890,8 +895,8 @@ fn entity_text_matches_span_extraction() {
             for entity in &entities {
                 let extracted: String = text
                     .chars()
-                    .skip(entity.start)
-                    .take(entity.end - entity.start)
+                    .skip(entity.start())
+                    .take(entity.end() - entity.start())
                     .collect();
 
                 // Allow whitespace normalization (some backends trim/collapse)
@@ -904,8 +909,8 @@ fn entity_text_matches_span_extraction() {
                     norm_extracted.contains(&norm_entity) || norm_entity.contains(&norm_extracted),
                     "{}: span [{},{}) extracts '{}' but entity.text is '{}' in '{}'",
                     name,
-                    entity.start,
-                    entity.end,
+                    entity.start(),
+                    entity.end(),
                     extracted,
                     entity.text,
                     text,

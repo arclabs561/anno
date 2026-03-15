@@ -413,7 +413,7 @@ impl GLiREL {
 
                 for (word_idx, &(ws, we)) in word_starts.iter().enumerate() {
                     // Check overlap between entity span and word span
-                    if we > ent.start && ws < ent.end {
+                    if we > ent.start() && ws < ent.end() {
                         if !found {
                             best_start = word_idx as i64;
                             found = true;

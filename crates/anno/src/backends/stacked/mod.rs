@@ -53,9 +53,9 @@ impl ConflictStrategy {
         // and has a more specific structured type (Money, Date, Phone, etc.)
         // while existing is generic (Other/misc), prefer the candidate.
         // Example: "EUR 3.2 billion" (MONEY) subsumes "EUR" (misc).
-        if candidate.start <= existing.start
-            && candidate.end >= existing.end
-            && candidate.end > candidate.start
+        if candidate.start() <= existing.start()
+            && candidate.end() >= existing.end()
+            && candidate.end() > candidate.start()
             && is_structured_type(&candidate.entity_type)
             && is_generic_type(&existing.entity_type)
         {
@@ -66,8 +66,8 @@ impl ConflictStrategy {
             ConflictStrategy::Priority => Resolution::KeepExisting,
 
             ConflictStrategy::LongestSpan => {
-                let existing_len = existing.end - existing.start;
-                let candidate_len = candidate.end - candidate.start;
+                let existing_len = existing.end() - existing.start();
+                let candidate_len = candidate.end() - candidate.start();
                 if candidate_len > existing_len {
                     Resolution::Replace
                 } else if candidate_len < existing_len {
@@ -552,34 +552,34 @@ impl Model for StackedNER {
                 // Defensive: Clamp entity offsets to valid range
                 // Some backends may produce out-of-bounds offsets in edge cases (Unicode, control chars)
                 // Use cached text_char_count instead of recalculating (performance optimization)
-                if candidate.end > text_char_count {
+                if candidate.end() > text_char_count {
                     log::debug!(
                         "StackedNER: Clamping entity end offset from {} to {} (text length: {})",
-                        candidate.end,
+                        candidate.end(),
                         text_char_count,
                         text_char_count
                     );
-                    candidate.end = text_char_count;
+                    candidate.set_end(text_char_count);
                     // Keep `entity.text` consistent with the adjusted span (Unicode-safe).
                     //
                     // This only triggers on buggy/out-of-bounds backends, but when it does,
                     // returning a span/text mismatch is more confusing than truncating text.
-                    if candidate.start < candidate.end {
+                    if candidate.start() < candidate.end() {
                         candidate.text = crate::offset::TextSpan::from_chars(
                             text,
-                            candidate.start,
-                            candidate.end,
+                            candidate.start(),
+                            candidate.end(),
                         )
                         .extract(text)
                         .to_string();
                     }
                 }
-                if candidate.start >= candidate.end || candidate.start > text_char_count {
+                if candidate.start() >= candidate.end() || candidate.start() > text_char_count {
                     // Invalid span - skip this entity
                     log::debug!(
                         "StackedNER: Skipping entity with invalid span: start={}, end={}, text_len={}",
-                        candidate.start,
-                        candidate.end,
+                        candidate.start(),
+                        candidate.end(),
                         text_char_count
                     );
                     continue;
@@ -613,7 +613,7 @@ impl Model for StackedNER {
                     .filter_map(|(idx, e)| {
                         // Check if candidate overlaps with existing entity
                         // Overlap: !(candidate.end <= e.start || candidate.start >= e.end)
-                        if candidate.end > e.start && candidate.start < e.end {
+                        if candidate.end() > e.start() && candidate.start() < e.end() {
                             Some(idx)
                         } else {
                             None
@@ -653,8 +653,8 @@ impl Model for StackedNER {
                                         a.cmp(&b).reverse()
                                     }
                                     ConflictStrategy::LongestSpan => {
-                                        let len_a = entities[a].end - entities[a].start;
-                                        let len_b = entities[b].end - entities[b].start;
+                                        let len_a = entities[a].end() - entities[a].start();
+                                        let len_b = entities[b].end() - entities[b].start();
                                         len_a.cmp(&len_b).then_with(|| b.cmp(&a))
                                     }
                                     ConflictStrategy::HighestConf => entities[a]
@@ -754,9 +754,9 @@ impl Model for StackedNER {
                 .map(|p| p.source.as_ref())
                 .unwrap_or("");
 
-            (a.start, a.end, a_ty, a_src, a.text.as_str()).cmp(&(
-                b.start,
-                b.end,
+            (a.start(), a.end(), a_ty, a_src, a.text.as_str()).cmp(&(
+                b.start(),
+                b.end(),
                 b_ty,
                 b_src,
                 b.text.as_str(),
@@ -769,7 +769,7 @@ impl Model for StackedNER {
             // Two entities are duplicates if they have same span and type
             // Performance: dedup_by is O(n) and efficient for sorted vec
             entities.dedup_by(|a, b| {
-                a.start == b.start && a.end == b.end && a.entity_type == b.entity_type
+                a.start() == b.start() && a.end() == b.end() && a.entity_type == b.entity_type
             });
         }
 
@@ -801,11 +801,11 @@ impl Model for StackedNER {
         // Validate final entities (defensive programming)
         // This catches bugs in individual backends that might produce invalid spans
         for entity in &entities {
-            if entity.start >= entity.end {
+            if entity.start() >= entity.end() {
                 log::warn!(
                     "StackedNER: Invalid entity span detected: start={}, end={}, text={:?}, type={:?}",
-                    entity.start,
-                    entity.end,
+                    entity.start(),
+                    entity.end(),
                     entity.text,
                     entity.entity_type
                 );
@@ -864,32 +864,32 @@ fn heal_adjacent_spans(text: &str, entities: &mut Vec<Entity>) {
         // is alphanumeric or whitespace (not a sentence-ending punctuation).
         // Only heal truly adjacent spans (next starts at or just after current ends).
         // Skip overlapping or identical spans (e.g. from Union strategy keeping duplicates).
-        let gap = next.start.saturating_sub(current.end);
-        let truly_adjacent = next.start >= current.end && next.start > current.start;
+        let gap = next.start().saturating_sub(current.end());
+        let truly_adjacent = next.start() >= current.end() && next.start() > current.start();
         let same_type = current.entity_type == next.entity_type;
         let gap_ok = truly_adjacent
             && gap <= 1
             && (gap == 0
                 || text
                     .chars()
-                    .nth(current.end)
+                    .nth(current.end())
                     .is_some_and(|c| c.is_alphanumeric() || c == ' '));
 
         // A very short adjacent fragment (1-3 chars, gap=0) from ONNX
         // subword mislabeling should be absorbed into the preceding entity
         // regardless of type.  Example: "Merkel" tokenized as
         // [PER: "Merk"] + [LOC: "el"] -- the "el" is not a real LOC.
-        let next_len = next.end.saturating_sub(next.start);
+        let next_len = next.end().saturating_sub(next.start());
         let is_fragment = truly_adjacent && gap == 0 && next_len <= 3;
 
         if (same_type && gap_ok) || is_fragment {
             // Merge: extend current to cover next
-            current.end = next.end;
+            current.set_end(next.end());
             // Rebuild text from the merged span
             current.text = text
                 .chars()
-                .skip(current.start)
-                .take(current.end - current.start)
+                .skip(current.start())
+                .take(current.end() - current.start())
                 .collect();
             // Keep higher confidence
             if next.confidence > current.confidence {
@@ -1035,7 +1035,7 @@ fn extend_person_spans(text: &str, entities: &mut [Entity]) {
 
     // Build a set of char-offset ranges that are already covered by entities,
     // so we only extend into truly untagged territory.
-    let occupied: Vec<(usize, usize)> = entities.iter().map(|e| (e.start, e.end)).collect();
+    let occupied: Vec<(usize, usize)> = entities.iter().map(|e| (e.start(), e.end())).collect();
 
     let mut changed = true;
     while changed {
@@ -1045,7 +1045,7 @@ fn extend_person_spans(text: &str, entities: &mut [Entity]) {
                 continue;
             }
 
-            let end = entities[i].end;
+            let end = entities[i].end();
             if end >= text_len {
                 continue;
             }
@@ -1099,8 +1099,8 @@ fn extend_person_spans(text: &str, entities: &mut [Entity]) {
             }
 
             // Extend the entity span
-            entities[i].end = word_end;
-            entities[i].text = text_chars[entities[i].start..word_end].iter().collect();
+            entities[i].set_end(word_end);
+            entities[i].text = text_chars[entities[i].start()..word_end].iter().collect();
             changed = true;
         }
     }

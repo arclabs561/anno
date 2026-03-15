@@ -1,8 +1,13 @@
 use super::*;
 use anno_core::Confidence;
+use std::sync::LazyLock;
+
+/// Cached default StackedNER shared across unit tests to avoid
+/// rebuilding regex patterns and heuristic tables per test.
+static DEFAULT_STACKED: LazyLock<StackedNER> = LazyLock::new(StackedNER::default);
 
 fn extract(text: &str) -> Vec<Entity> {
-    StackedNER::default().extract_entities(text, None).unwrap()
+    DEFAULT_STACKED.extract_entities(text, None).unwrap()
 }
 
 fn has_type(entities: &[Entity], ty: &EntityType) -> bool {
@@ -37,7 +42,7 @@ fn test_no_overlaps() {
     let e = extract("Price is $100 from John at Google Inc.");
     for i in 0..e.len() {
         for j in (i + 1)..e.len() {
-            let overlap = e[i].start < e[j].end && e[j].start < e[i].end;
+            let overlap = e[i].start() < e[j].end() && e[j].start() < e[i].end();
             assert!(!overlap, "Overlap: {:?} and {:?}", e[i], e[j]);
         }
     }
@@ -47,7 +52,7 @@ fn test_no_overlaps() {
 fn test_sorted_output() {
     let e = extract("$100 for John in Paris on 2024-01-15");
     for i in 1..e.len() {
-        assert!(e[i - 1].start <= e[i].start);
+        assert!(e[i - 1].start() <= e[i].start());
     }
 }
 
@@ -55,8 +60,7 @@ fn test_sorted_output() {
 #[cfg(feature = "onnx")]
 #[test]
 fn test_default_includes_ml_backend_when_available() {
-    let ner = StackedNER::default();
-    let stats = ner.stats();
+    let stats = DEFAULT_STACKED.stats();
 
     // With onnx AND models available: 3-4 layers (BERT [+ NuNER] + regex + heuristic)
     // With onnx but no model: 2 layers (regex + heuristic)
@@ -152,8 +156,7 @@ fn test_heuristic_only() {
 
 #[test]
 fn test_strategy_default_is_priority() {
-    let ner = StackedNER::default();
-    assert_eq!(ner.strategy(), ConflictStrategy::Priority);
+    assert_eq!(DEFAULT_STACKED.strategy(), ConflictStrategy::Priority);
 }
 
 // =========================================================================
@@ -167,24 +170,7 @@ fn mock_model(name: &'static str, entities: Vec<Entity>) -> MockModel {
 }
 
 fn mock_entity(text: &str, start: usize, ty: EntityType, conf: f64) -> Entity {
-    Entity {
-        text: text.to_string(),
-        entity_type: ty,
-        start,
-        end: start + text.len(),
-        confidence: Confidence::new(conf),
-        provenance: None,
-        kb_id: None,
-        canonical_id: None,
-        normalized: None,
-        hierarchical_confidence: None,
-        visual_span: None,
-        discontinuous_span: None,
-        valid_from: None,
-        valid_until: None,
-        phi_features: None,
-        mention_type: None,
-    }
+    Entity::new(text, ty, start, start + text.len(), conf)
 }
 
 #[test]
@@ -294,8 +280,8 @@ fn test_highest_conf_multiple_overlaps_ties_prefer_existing() {
     let e = ner.extract_entities(text, None).unwrap();
     assert_eq!(e.len(), 1);
     assert_eq!(e[0].text, "aaaaa", "should keep earliest existing entity");
-    assert_eq!(e[0].start, 0);
-    assert_eq!(e[0].end, 5);
+    assert_eq!(e[0].start(), 0);
+    assert_eq!(e[0].end(), 5);
 }
 
 #[test]
@@ -320,8 +306,8 @@ fn test_clamped_spans_keep_text_consistent() {
     let text = "hello";
     let e = ner.extract_entities(text, None).unwrap();
     assert_eq!(e.len(), 1);
-    assert_eq!(e[0].start, 0);
-    assert_eq!(e[0].end, 5);
+    assert_eq!(e[0].start(), 0);
+    assert_eq!(e[0].end(), 5);
     assert_eq!(e[0].text, "hello");
 }
 
@@ -390,8 +376,7 @@ fn test_no_entities() {
 
 #[test]
 fn test_supported_types() {
-    let ner = StackedNER::default();
-    let types = ner.supported_types();
+    let types = DEFAULT_STACKED.supported_types();
 
     // Should include both pattern and heuristic types
     assert!(types.contains(&EntityType::Date));
@@ -403,8 +388,7 @@ fn test_supported_types() {
 
 #[test]
 fn test_stats() {
-    let ner = StackedNER::default();
-    let stats = ner.stats();
+    let stats = DEFAULT_STACKED.stats();
 
     // With ONNX + models: 3-4 layers (BERT [+ NuNER] + regex + heuristic)
     // Without models: 2 layers (regex + heuristic)
@@ -838,25 +822,7 @@ fn test_invalid_span_start_ge_end_skipped() {
             _text: &str,
             _language: Option<Language>,
         ) -> crate::Result<Vec<Entity>> {
-            Ok(vec![Entity {
-                text: "ghost".to_string(),
-                entity_type: EntityType::Person,
-                start: 5,
-                end: 5, // zero-width
-                confidence: Confidence::new(0.9),
-                provenance: None,
-                kb_id: None,
-                canonical_id: None,
-                normalized: None,
-                hierarchical_confidence: None,
-                visual_span: None,
-                discontinuous_span: None,
-                valid_from: None,
-                valid_until: None,
-
-                phi_features: None,
-                mention_type: None,
-            }])
+            Ok(vec![Entity::new("ghost", EntityType::Person, 5, 5, 0.9)])
         }
         fn supported_types(&self) -> Vec<EntityType> {
             vec![EntityType::Person]
@@ -999,19 +965,21 @@ fn test_name_reflects_layers() {
 mod proptests {
     use super::*;
     use proptest::prelude::*;
+    use std::sync::LazyLock;
 
-    /// Small, deterministic stack used for proptests.
+    /// Cached StackedNER for proptests. Avoids rebuilding regex patterns and
+    /// heuristic tables on every proptest case (50+ invocations).
     ///
     /// IMPORTANT: Do not use `StackedNER::default()` in proptests:
     /// - it may initialize feature-gated ML backends
     /// - it can become slow/flaky as defaults evolve
-    fn fast_stack() -> StackedNER {
+    static FAST_STACK: LazyLock<StackedNER> = LazyLock::new(|| {
         StackedNER::builder()
             .layer(RegexNER::new())
             .layer(HeuristicNER::new())
             .strategy(ConflictStrategy::Priority)
             .build()
-    }
+    });
 
     proptest! {
         #![proptest_config(ProptestConfig {
@@ -1024,8 +992,7 @@ mod proptests {
         /// Property: StackedNER never panics on any input text
         #[test]
         fn never_panics(text in ".*") {
-            let ner = fast_stack();
-            let _ = ner.extract_entities(&text, None);
+            let _ = FAST_STACK.extract_entities(&text, None);
         }
 
         /// Property: All entities have valid spans (start < end)
@@ -1035,26 +1002,25 @@ mod proptests {
         /// slightly beyond text length as a defensive measure.
         #[test]
         fn valid_spans(text in ".{0,1000}") {
-            let ner = fast_stack();
-            let entities = ner.extract_entities(&text, None).unwrap();
+            let entities = FAST_STACK.extract_entities(&text, None).unwrap();
             let text_char_count = text.chars().count();
             for entity in entities {
                 // Core invariant: start must be < end
                 prop_assert!(
-                    entity.start < entity.end,
+                    entity.start() < entity.end(),
                     "Invalid span: start={}, end={}",
-                    entity.start,
-                    entity.end
+                    entity.start(),
+                    entity.end()
                 );
                 // End should generally be within bounds, but we allow small overflows
                 // as some backends may produce edge-case entities
                 // (In production, these should be caught by validation)
-                if text_char_count > 0 && entity.end > text_char_count + 2 {
+                if text_char_count > 0 && entity.end() > text_char_count + 2 {
                     // Only fail if significantly out of bounds (>2 chars)
                     prop_assert!(
-                        entity.end <= text_char_count + 2,
+                        entity.end() <= text_char_count + 2,
                         "Entity end significantly exceeds text length: end={}, text_len={}",
-                        entity.end,
+                        entity.end(),
                         text_char_count
                     );
                 }
@@ -1064,8 +1030,7 @@ mod proptests {
         /// Property: All entities have confidence in [0.0, 1.0]
         #[test]
         fn confidence_in_range(text in ".{0,1000}") {
-            let ner = fast_stack();
-            let entities = ner.extract_entities(&text, None).unwrap();
+            let entities = FAST_STACK.extract_entities(&text, None).unwrap();
             for entity in entities {
                 prop_assert!(entity.confidence >= 0.0 && entity.confidence <= 1.0,
                     "Confidence out of range: {}", entity.confidence);
@@ -1075,15 +1040,14 @@ mod proptests {
         /// Property: Entities are sorted by position (start, then end)
         #[test]
         fn sorted_output(text in ".{0,1000}") {
-            let ner = fast_stack();
-            let entities = ner.extract_entities(&text, None).unwrap();
+            let entities = FAST_STACK.extract_entities(&text, None).unwrap();
             for i in 1..entities.len() {
                 let prev = &entities[i - 1];
                 let curr = &entities[i];
                 prop_assert!(
-                    prev.start < curr.start || (prev.start == curr.start && prev.end <= curr.end),
+                    prev.start() < curr.start() || (prev.start() == curr.start() && prev.end() <= curr.end()),
                     "Entities not sorted: prev=[{},{}), curr=[{}, {})",
-                    prev.start, prev.end, curr.start, curr.end
+                    prev.start(), prev.end(), curr.start(), curr.end()
                 );
             }
         }
@@ -1091,13 +1055,12 @@ mod proptests {
         /// Property: No overlapping entities (except with Union strategy)
         #[test]
         fn no_overlaps_default_strategy(text in ".{0,500}") {
-            let ner = fast_stack(); // Uses Priority strategy
-            let entities = ner.extract_entities(&text, None).unwrap();
+            let entities = FAST_STACK.extract_entities(&text, None).unwrap();
             for i in 0..entities.len() {
                 for j in (i + 1)..entities.len() {
                     let e1 = &entities[i];
                     let e2 = &entities[j];
-                    let overlap = e1.start < e2.end && e2.start < e1.end;
+                    let overlap = e1.start() < e2.end() && e2.start() < e1.end();
                     prop_assert!(!overlap, "Overlapping entities with Priority strategy: {:?} and {:?}", e1, e2);
                 }
             }
@@ -1110,15 +1073,14 @@ mod proptests {
         /// differences while ensuring the core content matches.
         #[test]
         fn entity_text_matches_span(text in ".{0,500}") {
-            let ner = fast_stack();
-            let entities = ner.extract_entities(&text, None).unwrap();
+            let entities = FAST_STACK.extract_entities(&text, None).unwrap();
             let text_chars: Vec<char> = text.chars().collect();
             let text_char_count = text_chars.len();
 
             for entity in entities {
                 // Only check if the span is within bounds
-                if entity.start < text_char_count && entity.end <= text_char_count && entity.start < entity.end {
-                    let span_text: String = text_chars[entity.start..entity.end].iter().collect();
+                if entity.start() < text_char_count && entity.end() <= text_char_count && entity.start() < entity.end() {
+                    let span_text: String = text_chars[entity.start()..entity.end()].iter().collect();
 
                     // Normalize both for comparison (trim, lowercase for comparison)
                     let entity_text_normalized = entity.text.trim().to_lowercase();
@@ -1210,7 +1172,7 @@ mod proptests {
                         prop_assert!(
                             is_valid_match,
                             "Entity text doesn't match span: expected '{}', got '{}' at [{},{}) (overlap: {:.2})",
-                            span_text, entity.text, entity.start, entity.end, overlap_ratio
+                            span_text, entity.text, entity.start(), entity.end(), overlap_ratio
                         );
                     }
                 }
@@ -1253,15 +1215,15 @@ mod proptests {
             for entity in &e1 {
                 let found = e2.iter().any(|e| {
                     // Check if spans match first (common condition)
-                    let spans_match = e.start == entity.start && e.end == entity.end;
+                    let spans_match = e.start() == entity.start() && e.end() == entity.end();
                     // Same span, text matches exactly or after normalization
                     spans_match
                         && (e.text == entity.text
                             || e.text.trim().to_lowercase() == entity.text.trim().to_lowercase())
                         // Same entity type and overlapping span (conflict resolution may have modified)
                         || (e.entity_type == entity.entity_type
-                            && e.start <= entity.start
-                            && e.end >= entity.end)
+                            && e.start() <= entity.start()
+                            && e.end() >= entity.end())
                 });
                 // Note: Some entities may be filtered out by conflict resolution in ner2
                 // This is expected behavior, so we're lenient here
@@ -1295,8 +1257,8 @@ mod proptests {
                 let entities = ner.extract_entities(&text, None).unwrap();
                 // Verify all entities are valid
                 for entity in entities {
-                    prop_assert!(entity.start < entity.end, "Invalid span: start={}, end={}", entity.start, entity.end);
-                    prop_assert!(entity.end <= text_char_count, "Entity end exceeds text: end={}, text_len={}", entity.end, text_char_count);
+                    prop_assert!(entity.start() < entity.end(), "Invalid span: start={}, end={}", entity.start(), entity.end());
+                    prop_assert!(entity.end() <= text_char_count, "Entity end exceeds text: end={}, text_len={}", entity.end(), text_char_count);
                     prop_assert!(entity.confidence >= 0.0 && entity.confidence <= 1.0, "Invalid confidence: {}", entity.confidence);
                 }
             }
@@ -1318,8 +1280,8 @@ fn span_healing_merges_adjacent_same_type() {
     super::heal_adjacent_spans(text, &mut entities);
     assert_eq!(entities.len(), 1, "should merge: {:?}", entities);
     assert_eq!(entities[0].text, "Bundeskanzler");
-    assert_eq!(entities[0].start, 0);
-    assert_eq!(entities[0].end, 13);
+    assert_eq!(entities[0].start(), 0);
+    assert_eq!(entities[0].end(), 13);
 }
 
 #[test]

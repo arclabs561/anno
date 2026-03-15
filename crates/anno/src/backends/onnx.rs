@@ -309,8 +309,8 @@ impl BertNEROnnx {
             if *byte_start > 0 {
                 let char_offset = text[..*byte_start].chars().count();
                 for e in &mut chunk_entities {
-                    e.start += char_offset;
-                    e.end += char_offset;
+                    e.set_start(e.start() + char_offset);
+                    e.set_end(e.end() + char_offset);
                 }
             }
             all_entities.extend(chunk_entities);
@@ -319,13 +319,13 @@ impl BertNEROnnx {
         // Deduplicate entities from overlapping regions.
         // Keep the higher-confidence version when (start, end, type) collide.
         all_entities.sort_by(|a, b| {
-            a.start
-                .cmp(&b.start)
-                .then(a.end.cmp(&b.end))
+            a.start()
+                .cmp(&b.start())
+                .then(a.end().cmp(&b.end()))
                 .then(a.entity_type.to_string().cmp(&b.entity_type.to_string()))
         });
         all_entities.dedup_by(|b, a| {
-            a.start == b.start && a.end == b.end && a.entity_type == b.entity_type
+            a.start() == b.start() && a.end() == b.end() && a.entity_type == b.entity_type
         });
         // Also remove entities fully contained within a larger entity (from overlap)
         let mut keep = vec![true; all_entities.len()];
@@ -333,10 +333,10 @@ impl BertNEROnnx {
             for j in 0..all_entities.len() {
                 if i != j
                     && keep[j]
-                    && all_entities[i].start >= all_entities[j].start
-                    && all_entities[i].end <= all_entities[j].end
-                    && (all_entities[i].start != all_entities[j].start
-                        || all_entities[i].end != all_entities[j].end)
+                    && all_entities[i].start() >= all_entities[j].start()
+                    && all_entities[i].end() <= all_entities[j].end()
+                    && (all_entities[i].start() != all_entities[j].start()
+                        || all_entities[i].end() != all_entities[j].end())
                 {
                     keep[i] = false;
                     break;

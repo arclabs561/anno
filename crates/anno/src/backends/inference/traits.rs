@@ -628,8 +628,8 @@ mod tests {
         };
         let converted = entity.to_entity().expect("single span should convert");
         assert_eq!(converted.text, "Smith");
-        assert_eq!(converted.start, 5);
-        assert_eq!(converted.end, 10);
+        assert_eq!(converted.start(), 5);
+        assert_eq!(converted.end(), 10);
         assert_eq!(converted.entity_type, EntityType::Person);
         assert!((converted.confidence - 0.88).abs() < 0.001);
     }

@@ -422,7 +422,7 @@ impl Model for RegexNER {
 
         // Performance: Use unstable sort (we don't need stable sort here)
         // Sort by position for consistent output
-        entities.sort_unstable_by_key(|e| e.start);
+        entities.sort_unstable_by_key(|e| e.start());
 
         Ok(entities)
     }
@@ -458,7 +458,9 @@ impl Model for RegexNER {
 
 /// Check if a span overlaps with existing entities.
 fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
-    entities.iter().any(|e| !(end <= e.start || start >= e.end))
+    entities
+        .iter()
+        .any(|e| !(end <= e.start() || start >= e.end()))
 }
 
 #[cfg(test)]
@@ -624,15 +626,20 @@ mod tests {
         assert_eq!(money.len(), 2, "Expected 2 money entities, got {:?}", money);
 
         // First entity: "€50" at char 7
-        assert_eq!(money[0].start, 7, "First € should be at char 7, not byte 7");
-        assert_eq!(money[0].end, 10, "First entity end should be char 10");
+        assert_eq!(
+            money[0].start(),
+            7,
+            "First € should be at char 7, not byte 7"
+        );
+        assert_eq!(money[0].end(), 10, "First entity end should be char 10");
 
         // Second entity: "€100" at char 16
         assert_eq!(
-            money[1].start, 16,
+            money[1].start(),
+            16,
             "Second € should be at char 16, not byte 18"
         );
-        assert_eq!(money[1].end, 20, "Second entity end should be char 20");
+        assert_eq!(money[1].end(), 20, "Second entity end should be char 20");
     }
 
     #[test]
@@ -806,7 +813,7 @@ mod tests {
     #[test]
     fn entities_sorted_by_position() {
         let e = extract("$100 on 2024-01-01 at 50%");
-        let positions: Vec<usize> = e.iter().map(|e| e.start).collect();
+        let positions: Vec<usize> = e.iter().map(|e| e.start()).collect();
         let mut sorted = positions.clone();
         sorted.sort();
         assert_eq!(positions, sorted);
@@ -817,7 +824,7 @@ mod tests {
         let e = extract("The price is $1,000,000 (1 million dollars).");
         for i in 0..e.len() {
             for j in (i + 1)..e.len() {
-                let overlap = e[i].start < e[j].end && e[j].start < e[i].end;
+                let overlap = e[i].start() < e[j].end() && e[j].start() < e[i].end();
                 assert!(!overlap, "Overlap: {:?} and {:?}", e[i], e[j]);
             }
         }
@@ -843,7 +850,7 @@ mod tests {
         let e = extract(text);
         let money = find_text(&e, "$100").expect("money entity should be found");
         assert_eq!(
-            TextSpan::from_chars(text, money.start, money.end).extract(text),
+            TextSpan::from_chars(text, money.start(), money.end()).extract(text),
             "$100"
         );
     }
@@ -1169,8 +1176,8 @@ mod tests {
             if entity.entity_type == EntityType::Money {
                 let extracted: String = text
                     .chars()
-                    .skip(entity.start)
-                    .take(entity.end - entity.start)
+                    .skip(entity.start())
+                    .take(entity.end() - entity.start())
                     .collect();
                 assert_eq!(
                     extracted, entity.text,

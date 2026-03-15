@@ -82,7 +82,7 @@ fn test_create_entity_converts_byte_offsets_to_char_offsets() {
 
     assert_eq!(e.text, "Beijing");
     assert_eq!(
-        (e.start, e.end),
+        (e.start(), e.end()),
         (3, 10),
         "expected char offsets for Beijing"
     );

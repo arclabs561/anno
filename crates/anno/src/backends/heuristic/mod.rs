@@ -502,7 +502,7 @@ impl Model for HeuristicNER {
                         // Avoid duplicates if already found (simple overlap check)
                         if !entities
                             .iter()
-                            .any(|e| e.start == char_start && e.end == char_end)
+                            .any(|e| e.start() == char_start && e.end() == char_end)
                         {
                             entities.push(Entity::new(
                                 org.to_string(),
@@ -529,7 +529,7 @@ impl Model for HeuristicNER {
                         let char_end = char_start + loc_char_count;
                         if !entities
                             .iter()
-                            .any(|e| e.start == char_start && e.end == char_end)
+                            .any(|e| e.start() == char_start && e.end() == char_end)
                         {
                             entities.push(Entity::new(
                                 loc.to_string(),

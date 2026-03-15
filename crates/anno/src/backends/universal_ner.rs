@@ -1059,7 +1059,7 @@ mod tests {
         assert!(!ents.is_empty());
 
         for e in ents {
-            let extracted = TextSpan::from_chars(text, e.start, e.end).extract(text);
+            let extracted = TextSpan::from_chars(text, e.start(), e.end()).extract(text);
             assert_eq!(extracted, e.text, "entity span should round-trip");
         }
     }
@@ -1266,7 +1266,7 @@ mod tests {
 
         let apples: Vec<_> = ents.into_iter().filter(|e| e.text == "Apple").collect();
         assert_eq!(apples.len(), 3);
-        let mut starts: Vec<usize> = apples.iter().map(|e| e.start).collect();
+        let mut starts: Vec<usize> = apples.iter().map(|e| e.start()).collect();
         starts.sort_unstable();
         starts.dedup();
         assert_eq!(

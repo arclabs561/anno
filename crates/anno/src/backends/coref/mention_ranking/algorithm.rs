@@ -824,8 +824,8 @@ impl MentionRankingCoref {
             let entities = ner.extract_entities(text, None)?;
             for entity in entities {
                 mentions.push(RankedMention {
-                    start: entity.start,
-                    end: entity.end,
+                    start: entity.start(),
+                    end: entity.end(),
                     text: entity.text.clone(),
                     mention_type: MentionType::Proper,
                     gender: None,
@@ -2134,8 +2134,8 @@ impl CoreferenceResolver for MentionRankingCoref {
                 };
 
                 RankedMention {
-                    start: e.start,
-                    end: e.end,
+                    start: e.start(),
+                    end: e.end(),
                     text: e.text.clone(),
                     mention_type,
                     gender,
@@ -2176,7 +2176,7 @@ impl CoreferenceResolver for MentionRankingCoref {
             .iter()
             .map(|e| {
                 let mut entity = e.clone();
-                if let Some(&cluster_id) = canonical_map.get(&(e.start, e.end)) {
+                if let Some(&cluster_id) = canonical_map.get(&(e.start(), e.end())) {
                     entity.canonical_id = Some(anno_core::CanonicalId::new(cluster_id as u64));
                 } else {
                     // Assign unique ID to singleton

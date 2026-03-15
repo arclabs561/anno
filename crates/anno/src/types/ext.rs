@@ -113,7 +113,7 @@ impl EntitySliceExt for [Entity] {
 
     fn sorted_by_position(&self) -> Vec<&Entity> {
         let mut sorted: Vec<_> = self.iter().collect();
-        sorted.sort_by_key(|e| (e.start, e.end));
+        sorted.sort_by_key(|e| (e.start(), e.end()));
         sorted
     }
 
@@ -145,11 +145,11 @@ impl EntitySliceExt for [Entity] {
     }
 
     fn contains_position(&self, pos: usize) -> bool {
-        self.iter().any(|e| pos >= e.start && pos < e.end)
+        self.iter().any(|e| pos >= e.start() && pos < e.end())
     }
 
     fn at_position(&self, pos: usize) -> Option<&Entity> {
-        self.iter().find(|e| pos >= e.start && pos < e.end)
+        self.iter().find(|e| pos >= e.start() && pos < e.end())
     }
 
     fn named_only(&self) -> impl Iterator<Item = &Entity> {

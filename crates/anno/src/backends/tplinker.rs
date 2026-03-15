@@ -384,7 +384,7 @@ mod onnx_impl {
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
             let mut seen_spans = std::collections::HashSet::new();
-            entities.retain(|e| seen_spans.insert((e.start, e.end)));
+            entities.retain(|e| seen_spans.insert((e.start(), e.end())));
 
             Ok(entities)
         }
@@ -421,7 +421,7 @@ mod onnx_impl {
                         continue;
                     }
 
-                    let (hi, hj) = (head_ent.start, tail_ent.start);
+                    let (hi, hj) = (head_ent.start(), tail_ent.start());
                     let (i, j) = if hi <= hj { (hi, hj) } else { (hj, hi) };
 
                     if j >= seq_len {
@@ -1013,14 +1013,19 @@ mod tests {
 
         let text_len = text.chars().count();
         for e in &out.entities {
-            assert!(e.start < e.end, "invalid span: {:?}", (e.start, e.end));
             assert!(
-                e.end <= text_len,
+                e.start() < e.end(),
+                "invalid span: {:?}",
+                (e.start(), e.end())
+            );
+            assert!(
+                e.end() <= text_len,
                 "span out of bounds: {:?} (len={})",
-                (e.start, e.end),
+                (e.start(), e.end()),
                 text_len
             );
-            let extracted = crate::offset::TextSpan::from_chars(text, e.start, e.end).extract(text);
+            let extracted =
+                crate::offset::TextSpan::from_chars(text, e.start(), e.end()).extract(text);
             assert_eq!(extracted, e.text);
         }
         for r in &out.relations {

@@ -529,10 +529,10 @@ impl SimpleCorefResolver {
             return false;
         }
         // Order-independent gap check: one must immediately follow the other.
-        let gap = if a.start >= b.end {
-            a.start - b.end
-        } else if b.start >= a.end {
-            b.start - a.end
+        let gap = if a.start() >= b.end() {
+            a.start() - b.end()
+        } else if b.start() >= a.end() {
+            b.start() - a.end()
         } else {
             // Overlapping spans -- not an appositive.
             return false;
@@ -559,7 +559,9 @@ impl SimpleCorefResolver {
             return false;
         }
         // I-within-i: reject if one span is nested inside the other.
-        if (a.start >= b.start && a.end <= b.end) || (b.start >= a.start && b.end <= a.end) {
+        if (a.start() >= b.start() && a.end() <= b.end())
+            || (b.start() >= a.start() && b.end() <= a.end())
+        {
             return false;
         }
         let head_a = Self::head_word(&a.text);

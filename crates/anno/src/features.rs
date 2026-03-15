@@ -120,16 +120,16 @@ impl MentionContext {
         let text_len = text_chars.len();
 
         // Safe bounds for context extraction
-        let left_start = entity.start.saturating_sub(config.context_window);
-        let left_end = entity.start;
-        let right_start = entity.end.min(text_len);
-        let right_end = (entity.end + config.context_window).min(text_len);
+        let left_start = entity.start().saturating_sub(config.context_window);
+        let left_end = entity.start();
+        let right_start = entity.end().min(text_len);
+        let right_end = (entity.end() + config.context_window).min(text_len);
 
         let left_context: String = text_chars[left_start..left_end].iter().collect();
         let right_context: String = text_chars[right_start..right_end].iter().collect();
 
         let relative_position = if text_len > 0 {
-            entity.start as f64 / text_len as f64
+            entity.start() as f64 / text_len as f64
         } else {
             0.0
         };
@@ -173,7 +173,7 @@ impl MentionContext {
             left_context,
             right_context,
             relative_position,
-            absolute_position: entity.start,
+            absolute_position: entity.start(),
             sentence_index: None, // Would need sentence segmentation
             likely_subject,
             likely_heading,
@@ -277,8 +277,8 @@ impl ChainFeatures {
             .unwrap_or_else(|| mentions[0].text.clone());
 
         // Positions
-        let first_pos = mentions.iter().map(|m| m.start).min().unwrap_or(0);
-        let last_pos = mentions.iter().map(|m| m.end).max().unwrap_or(0);
+        let first_pos = mentions.iter().map(|m| m.start()).min().unwrap_or(0);
+        let last_pos = mentions.iter().map(|m| m.end()).max().unwrap_or(0);
         let spread = last_pos.saturating_sub(first_pos);
         let relative_spread = if text_len > 0 {
             spread as f64 / text_len as f64
@@ -303,7 +303,7 @@ impl ChainFeatures {
         let pronoun_ratio = pronominal_count as f64 / total as f64;
 
         // Statistical features
-        let positions: Vec<f64> = mentions.iter().map(|m| m.start as f64).collect();
+        let positions: Vec<f64> = mentions.iter().map(|m| m.start() as f64).collect();
         let mean_position = positions.iter().sum::<f64>() / total as f64;
 
         // Positional entropy: how spread out?
@@ -312,7 +312,7 @@ impl ChainFeatures {
             let bin_size = text_len / n_bins;
             let mut bins = vec![0usize; n_bins];
             for m in mentions {
-                let bin = (m.start / bin_size.max(1)).min(n_bins - 1);
+                let bin = (m.start() / bin_size.max(1)).min(n_bins - 1);
                 bins[bin] += 1;
             }
             let total_f = total as f64;
@@ -656,10 +656,10 @@ impl EntityFeatureExtractor {
                 }
 
                 // Check if within cooccurrence window
-                let distance = if e1.end <= e2.start {
-                    e2.start - e1.end
-                } else if e2.end <= e1.start {
-                    e1.start.saturating_sub(e2.end)
+                let distance = if e1.end() <= e2.start() {
+                    e2.start() - e1.end()
+                } else if e2.end() <= e1.start() {
+                    e1.start().saturating_sub(e2.end())
                 } else {
                     0 // overlapping
                 };
@@ -733,10 +733,10 @@ pub struct PairwiseFeatures {
 impl PairwiseFeatures {
     /// Compute pairwise features between two mentions.
     pub fn compute(a: &Entity, b: &Entity, mention_distance: usize) -> Self {
-        let char_distance = if a.end <= b.start {
-            b.start - a.end
-        } else if b.end <= a.start {
-            a.start.saturating_sub(b.end)
+        let char_distance = if a.end() <= b.start() {
+            b.start() - a.end()
+        } else if b.end() <= a.start() {
+            a.start().saturating_sub(b.end())
         } else {
             0
         };
@@ -763,7 +763,7 @@ impl PairwiseFeatures {
         // Pronominal anaphora: second mention is pronoun, first is not
         let is_pronominal_anaphora = mention_type_b == MentionType::Pronominal
             && mention_type_a != MentionType::Pronominal
-            && b.start > a.start;
+            && b.start() > a.start();
 
         Self {
             char_distance,

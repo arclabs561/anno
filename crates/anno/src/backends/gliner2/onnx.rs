@@ -406,15 +406,21 @@ impl GLiNER2Onnx {
         }
 
         // Deduplicate
-        entities.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end)));
-        entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+        entities.sort_by(|a, b| {
+            a.start()
+                .cmp(&b.start())
+                .then_with(|| b.end().cmp(&a.end()))
+        });
+        entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 
         // Trim trailing punctuation from entity spans (e.g., "Seattle." -> "Seattle")
         for entity in &mut entities {
             let (trimmed, chars_removed) = textprep::spans::clean_span_tail(&entity.text);
             if chars_removed > 0 {
-                entity.end = entity.end.saturating_sub(chars_removed);
-                entity.text = trimmed.to_string();
+                let new_end = entity.end().saturating_sub(chars_removed);
+                let trimmed_text = trimmed.to_string();
+                entity.set_end(new_end);
+                entity.text = trimmed_text;
             }
         }
 

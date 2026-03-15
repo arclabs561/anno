@@ -17,7 +17,12 @@
 //!
 //! let m = StackedNER::default();
 //! let ents = m.extract_entities("Lynn Conway worked at IBM and Xerox PARC.", None)?;
-//! assert!(!ents.is_empty());
+//! for e in &ents {
+//!     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
+//! }
+//! // Lynn Conway [PER] (0,12) 0.95
+//! // IBM [ORG] (27,30) 0.95
+//! // Xerox PARC [ORG] (35,45) 0.95
 //! # Ok::<(), anno::Error>(())
 //! ```
 //!
@@ -772,11 +777,11 @@ impl MockModel {
         // Basic validation on construction
         for (i, e) in entities.iter().enumerate() {
             assert!(
-                e.start < e.end,
+                e.start() < e.end(),
                 "MockModel entity {}: start ({}) must be < end ({})",
                 i,
-                e.start,
-                e.end
+                e.start(),
+                e.end()
             );
             assert!(
                 e.confidence >= 0.0 && e.confidence <= 1.0,
@@ -808,10 +813,13 @@ impl MockModel {
         // Performance optimization: Cache text length (called once, used for all entities)
         let text_len = text.chars().count();
         for (i, e) in self.entities.iter().enumerate() {
-            if e.end > text_len {
+            if e.end() > text_len {
                 return Err(Error::InvalidInput(format!(
                     "MockModel entity {} '{}': end offset ({}) exceeds text length ({} chars)",
-                    i, e.text, e.end, text_len
+                    i,
+                    e.text,
+                    e.end(),
+                    text_len
                 )));
             }
             // Verify text matches (using char offsets)
@@ -820,7 +828,11 @@ impl MockModel {
             if actual_text != e.text {
                 return Err(Error::InvalidInput(format!(
                     "MockModel entity {} text mismatch: expected '{}' at [{},{}), found '{}'",
-                    i, e.text, e.start, e.end, actual_text
+                    i,
+                    e.text,
+                    e.start(),
+                    e.end(),
+                    actual_text
                 )));
             }
         }

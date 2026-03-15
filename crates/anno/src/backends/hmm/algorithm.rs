@@ -1226,8 +1226,8 @@ mod tests {
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "John");
         assert_eq!(entities[0].entity_type, EntityType::Person);
-        assert_eq!(entities[0].start, 0);
-        assert_eq!(entities[0].end, 4);
+        assert_eq!(entities[0].start(), 0);
+        assert_eq!(entities[0].end(), 4);
     }
 
     #[test]
@@ -1245,8 +1245,8 @@ mod tests {
         assert_eq!(entities[0].text, "New York");
         assert_eq!(entities[0].entity_type, EntityType::Location);
         // "New" starts at char 0, "York" ends at char 8
-        assert_eq!(entities[0].start, 0);
-        assert_eq!(entities[0].end, 8);
+        assert_eq!(entities[0].start(), 0);
+        assert_eq!(entities[0].end(), 8);
     }
 
     #[test]
@@ -1279,8 +1279,8 @@ mod tests {
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].text, "Google");
         // "Google" starts at char 9, ends at char 15
-        assert_eq!(entities[0].start, 9);
-        assert_eq!(entities[0].end, 15);
+        assert_eq!(entities[0].start(), 9);
+        assert_eq!(entities[0].end(), 15);
     }
 
     #[test]

@@ -93,8 +93,8 @@ impl crate::Model for GLiNEROnnx {
                 return extract_chunked_parallel(text, &config, |chunk_text, char_offset| {
                     let mut entities = self.extract(chunk_text, DEFAULT_GLINER_LABELS, 0.5)?;
                     for e in &mut entities {
-                        e.start += char_offset;
-                        e.end += char_offset;
+                        e.set_start(e.start() + char_offset);
+                        e.set_end(e.end() + char_offset);
                     }
                     Ok(entities)
                 });
