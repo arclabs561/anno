@@ -539,8 +539,8 @@ impl From<&Entity> for Mention {
     fn from(entity: &Entity) -> Self {
         Self {
             text: entity.text.clone(),
-            start: entity.start,
-            end: entity.end,
+            start: entity.start(),
+            end: entity.end(),
             head_start: None,
             head_end: None,
             entity_type: Some(entity.entity_type.as_label().to_string()),

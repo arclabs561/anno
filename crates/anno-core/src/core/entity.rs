@@ -1680,12 +1680,16 @@ pub struct Entity {
     ///
     /// For Unicode text, character offsets differ from byte offsets.
     /// Use `anno::offset::bytes_to_chars` to convert if needed.
-    pub start: usize,
+    ///
+    /// Access via [`Entity::start()`] / [`Entity::set_start()`].
+    start: usize,
     /// End position (character offset, exclusive).
     ///
     /// For Unicode text, character offsets differ from byte offsets.
     /// Use `anno::offset::bytes_to_chars` to convert if needed.
-    pub end: usize,
+    ///
+    /// Access via [`Entity::end()`] / [`Entity::set_end()`].
+    end: usize,
     /// Confidence score (0.0-1.0, calibrated).
     ///
     /// Construction via [`Confidence::new`] clamps to `[0.0, 1.0]`.
@@ -1778,7 +1782,7 @@ impl Entity {
     /// let e = Entity::new("Berlin", EntityType::Location, 10, 16, 0.95);
     /// assert_eq!(e.text, "Berlin");
     /// assert_eq!(e.entity_type, EntityType::Location);
-    /// assert_eq!((e.start, e.end), (10, 16));
+    /// assert_eq!((e.start(), e.end()), (10, 16));
     /// ```
     #[must_use]
     pub fn new(
@@ -1807,6 +1811,32 @@ impl Entity {
             phi_features: None,
             mention_type: None,
         }
+    }
+
+    /// Start character offset (inclusive, 0-indexed).
+    #[inline]
+    #[must_use]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// End character offset (exclusive).
+    #[inline]
+    #[must_use]
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// Set the start offset. For use in post-processing pipelines.
+    #[inline]
+    pub fn set_start(&mut self, start: usize) {
+        self.start = start;
+    }
+
+    /// Set the end offset. For use in post-processing pipelines.
+    #[inline]
+    pub fn set_end(&mut self, end: usize) {
+        self.end = end;
     }
 
     /// Create a new entity with provenance information.
@@ -2155,7 +2185,7 @@ impl Entity {
     /// ```rust,ignore
     /// use anno_core::{Entity, EntityType};
     ///
-    /// let (byte_start, byte_end) = char_to_byte_offsets(text, entity.start, entity.end);
+    /// let (byte_start, byte_end) = char_to_byte_offsets(text, entity.start(), entity.end());
     /// ```
     /// Set visual span for multi-modal extraction.
     pub fn set_visual_span(&mut self, span: Span) {
@@ -3229,8 +3259,8 @@ mod tests {
 
         assert_eq!(entity.text, "John");
         assert_eq!(entity.entity_type, EntityType::Person);
-        assert_eq!(entity.start, 0);
-        assert_eq!(entity.end, 4);
+        assert_eq!(entity.start(), 0);
+        assert_eq!(entity.end(), 4);
         assert!((entity.confidence - 0.95).abs() < f64::EPSILON);
     }
 
@@ -3314,8 +3344,8 @@ mod tests {
         );
 
         assert!(entity.is_visual());
-        assert_eq!(entity.start, 0);
-        assert_eq!(entity.end, 0);
+        assert_eq!(entity.start(), 0);
+        assert_eq!(entity.end(), 0);
         assert!((entity.confidence - 0.92).abs() < f64::EPSILON);
     }
 
@@ -3614,8 +3644,8 @@ mod proptests {
 
             prop_assert_eq!(&e.text, &e2.text);
             prop_assert_eq!(&e.entity_type, &e2.entity_type);
-            prop_assert_eq!(e.start, e2.start);
-            prop_assert_eq!(e.end, e2.end);
+            prop_assert_eq!(e.start(), e2.start());
+            prop_assert_eq!(e.end(), e2.end());
             // f64 roundtrip through JSON: compare with tolerance
             prop_assert!((e.confidence - e2.confidence).abs() < 1e-10,
                 "confidence roundtrip: {} vs {}", e.confidence, e2.confidence);

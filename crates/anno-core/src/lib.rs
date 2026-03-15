@@ -17,4 +17,6 @@ pub use crate::core::{
     SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
 };
 
+pub use crate::core::types::{ByteOffset, CharOffset};
+
 pub use crate::core::types::CanonicalId;

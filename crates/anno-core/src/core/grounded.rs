@@ -657,7 +657,7 @@ impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
         let mut signal = Signal::new(
             SignalId::ZERO,
-            Location::text(e.start, e.end),
+            Location::text(e.start(), e.end()),
             &e.text,
             e.entity_type.as_label(),
             f32::from(e.confidence),
@@ -1672,7 +1672,7 @@ impl GroundedDocument {
             } else if let Some(visual) = &entity.visual_span {
                 Location::from(visual)
             } else {
-                Location::text(entity.start, entity.end)
+                Location::text(entity.start(), entity.end())
             };
 
             let mut signal = Signal::new(
@@ -5489,8 +5489,8 @@ mod proptests {
 
             prop_assert_eq!(converted.len(), 1, "Should have exactly one entity");
             prop_assert_eq!(&converted[0].text, &text, "Text should be preserved");
-            prop_assert_eq!(converted[0].start, start, "Start should be preserved");
-            prop_assert_eq!(converted[0].end, end, "End should be preserved");
+            prop_assert_eq!(converted[0].start(), start, "Start should be preserved");
+            prop_assert_eq!(converted[0].end(), end, "End should be preserved");
         }
 
         // Note: Property test that depends on anno::eval::coref types has been moved to anno crate
