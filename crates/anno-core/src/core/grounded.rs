@@ -132,52 +132,17 @@ pub enum Modality {
     Hybrid,
 }
 
-impl Modality {
-    /// Check if linguistic features (negation, quantification) are relevant.
-    #[must_use]
-    pub const fn supports_linguistic_features(&self) -> bool {
-        matches!(self, Self::Symbolic | Self::Hybrid)
-    }
-
-    /// Check if geometric features (bbox, IoU) are relevant.
-    #[must_use]
-    pub const fn supports_geometric_features(&self) -> bool {
-        matches!(self, Self::Iconic | Self::Hybrid)
-    }
-}
-
 // =============================================================================
 // Location: The Universal Localization Unit
 // =============================================================================
 
-/// A location in some source medium.
+/// A location in text.
 ///
-/// This is the universal "localization unit" that enables the isomorphism
-/// between vision detection and NER. Both tasks answer "where is it?"
-/// just in different coordinate systems.
+/// Two variants:
+/// - `Text`: contiguous character span `[start, end)`
+/// - `Discontinuous`: non-contiguous character regions
 ///
-/// # Relationship to `Span`
-///
-/// [`entity::Span`] is a simplified subset of `Location` for the detection layer:
-///
-/// | `Location` variant | `Span` equivalent |
-/// |--------------------|-------------------|
-/// | `Text` | `Span::Text` |
-/// | `BoundingBox` | `Span::BoundingBox` |
-/// | `TextWithBbox` | `Span::Hybrid` |
-/// | `Temporal` | *none* |
-/// | `Cuboid` | *none* |
-/// | `Genomic` | *none* |
-/// | `Discontinuous` | *none* (use `DiscontinuousSpan`) |
-///
-/// Use [`to_span()`](Self::to_span) to convert where possible.
-///
-/// # Design Note
-///
-/// We use an enum rather than a trait to enable:
-/// - Efficient storage in contiguous arrays
-/// - Easy serialization
-/// - Exhaustive matching for safety
+/// Use [`to_span()`](Self::to_span) to convert `Text` to [`entity::Span`].
 ///
 /// [`entity::Span`]: super::entity::Span
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -189,61 +154,10 @@ pub enum Location {
         /// End character offset (exclusive)
         end: usize,
     },
-    /// Visual bounding box: 2D rectangle in normalized `[0,1]` coordinates.
-    BoundingBox {
-        /// X coordinate of top-left corner
-        x: f32,
-        /// Y coordinate of top-left corner
-        y: f32,
-        /// Width
-        width: f32,
-        /// Height
-        height: f32,
-        /// Page number for multi-page documents
-        page: Option<u32>,
-    },
-    /// Temporal interval: for audio/video signals.
-    Temporal {
-        /// Start time in seconds
-        start_sec: f64,
-        /// End time in seconds
-        end_sec: f64,
-        /// Optional frame number for video
-        frame: Option<u64>,
-    },
-    /// 3D cuboid: for LiDAR/point cloud signals.
-    Cuboid {
-        /// Center position (x, y, z)
-        center: [f32; 3],
-        /// Dimensions (width, height, depth)
-        dimensions: [f32; 3],
-        /// Rotation (quaternion: w, x, y, z)
-        rotation: [f32; 4],
-    },
-    /// Genomic interval: 1D interval in sequence coordinates.
-    Genomic {
-        /// Chromosome/contig identifier
-        contig: String,
-        /// Start position (0-based, inclusive)
-        start: u64,
-        /// End position (0-based, exclusive)
-        end: u64,
-        /// Strand (+/-)
-        strand: Option<char>,
-    },
     /// Discontinuous text span: non-contiguous regions.
     Discontinuous {
         /// Multiple text intervals
         segments: Vec<(usize, usize)>,
-    },
-    /// Hybrid: text with visual location (OCR).
-    TextWithBbox {
-        /// Text start offset
-        start: usize,
-        /// Text end offset
-        end: usize,
-        /// Visual bounding box
-        bbox: Box<Location>,
     },
 }
 
@@ -254,28 +168,11 @@ impl Location {
         Self::Text { start, end }
     }
 
-    /// Create a bounding box location.
-    #[must_use]
-    pub fn bbox(x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self::BoundingBox {
-            x,
-            y,
-            width,
-            height,
-            page: None,
-        }
-    }
-
     /// Get the modality of this location.
     #[must_use]
     pub const fn modality(&self) -> Modality {
         match self {
-            Self::Text { .. } | Self::Genomic { .. } | Self::Discontinuous { .. } => {
-                Modality::Symbolic
-            }
-            Self::BoundingBox { .. } | Self::Cuboid { .. } => Modality::Iconic,
-            Self::Temporal { .. } => Modality::Iconic, // Audio/video is iconic
-            Self::TextWithBbox { .. } => Modality::Hybrid,
+            Self::Text { .. } | Self::Discontinuous { .. } => Modality::Symbolic,
         }
     }
 
@@ -284,13 +181,11 @@ impl Location {
     pub fn text_offsets(&self) -> Option<(usize, usize)> {
         match self {
             Self::Text { start, end } => Some((*start, *end)),
-            Self::TextWithBbox { start, end, .. } => Some((*start, *end)),
             Self::Discontinuous { segments } => {
                 let start = segments.iter().map(|(s, _)| *s).min()?;
                 let end = segments.iter().map(|(_, e)| *e).max()?;
                 Some((start, end))
             }
-            _ => None,
         }
     }
 
@@ -300,29 +195,6 @@ impl Location {
         match (self, other) {
             (Self::Text { start: s1, end: e1 }, Self::Text { start: s2, end: e2 }) => {
                 s1 < e2 && s2 < e1
-            }
-            (
-                Self::BoundingBox {
-                    x: x1,
-                    y: y1,
-                    width: w1,
-                    height: h1,
-                    page: p1,
-                },
-                Self::BoundingBox {
-                    x: x2,
-                    y: y2,
-                    width: w2,
-                    height: h2,
-                    page: p2,
-                },
-            ) => {
-                // Pages must match (or both None)
-                if p1 != p2 {
-                    return false;
-                }
-                // Standard 2D rectangle overlap
-                x1 < &(x2 + w2) && &(x1 + w1) > x2 && y1 < &(y2 + h2) && &(y1 + h1) > y2
             }
             _ => false, // Different types don't overlap
         }
@@ -348,40 +220,6 @@ impl Location {
                     Some(intersection / union)
                 }
             }
-            (
-                Self::BoundingBox {
-                    x: x1,
-                    y: y1,
-                    width: w1,
-                    height: h1,
-                    page: p1,
-                },
-                Self::BoundingBox {
-                    x: x2,
-                    y: y2,
-                    width: w2,
-                    height: h2,
-                    page: p2,
-                },
-            ) => {
-                if p1 != p2 {
-                    return Some(0.0);
-                }
-                let x_overlap = (x1 + w1).min(x2 + w2) - x1.max(*x2);
-                let y_overlap = (y1 + h1).min(y2 + h2) - y1.max(*y2);
-                if x_overlap <= 0.0 || y_overlap <= 0.0 {
-                    return Some(0.0);
-                }
-                let intersection = (x_overlap * y_overlap) as f64;
-                let area1 = (*w1 * *h1) as f64;
-                let area2 = (*w2 * *h2) as f64;
-                let union = area1 + area2 - intersection;
-                if union == 0.0 {
-                    Some(0.0)
-                } else {
-                    Some(intersection / union)
-                }
-            }
             _ => None,
         }
     }
@@ -400,23 +238,12 @@ impl From<&Span> for Location {
                 start: *start,
                 end: *end,
             },
-            Span::BoundingBox {
-                x,
-                y,
-                width,
-                height,
-                page,
-            } => Self::BoundingBox {
-                x: *x,
-                y: *y,
-                width: *width,
-                height: *height,
-                page: *page,
-            },
-            Span::Hybrid { start, end, bbox } => Self::TextWithBbox {
+            // BoundingBox and Hybrid spans have no Location equivalent;
+            // extract text offsets where available, otherwise default.
+            Span::BoundingBox { .. } => Self::Text { start: 0, end: 0 },
+            Span::Hybrid { start, end, .. } => Self::Text {
                 start: *start,
                 end: *end,
-                bbox: Box::new(Location::from(bbox.as_ref())),
             },
         }
     }
@@ -430,17 +257,12 @@ impl From<Span> for Location {
 
 /// Convert `Location` to `Span` where possible.
 ///
-/// Not all `Location` variants have a corresponding `Span`:
-/// - `Location::Text` → `Span::Text`
-/// - `Location::BoundingBox` → `Span::BoundingBox`
-/// - `Location::TextWithBbox` → `Span::Hybrid`
-/// - `Location::Discontinuous` → `None` (use `DiscontinuousSpan` instead)
-/// - `Location::Temporal`, `Location::Cuboid`, `Location::Genomic` → `None`
+/// - `Location::Text` -> `Span::Text`
+/// - `Location::Discontinuous` -> `None` (use `DiscontinuousSpan` instead)
 impl Location {
     /// Try to convert this Location to a Span.
     ///
-    /// Returns `None` for `Location` variants that don't map to `Span`
-    /// (Temporal, Cuboid, Genomic, Discontinuous).
+    /// Returns `None` for `Location::Discontinuous`.
     #[must_use]
     pub fn to_span(&self) -> Option<Span> {
         match self {
@@ -448,32 +270,7 @@ impl Location {
                 start: *start,
                 end: *end,
             }),
-            Self::BoundingBox {
-                x,
-                y,
-                width,
-                height,
-                page,
-            } => Some(Span::BoundingBox {
-                x: *x,
-                y: *y,
-                width: *width,
-                height: *height,
-                page: *page,
-            }),
-            Self::TextWithBbox { start, end, bbox } => {
-                let inner_span = bbox.to_span()?;
-                Some(Span::Hybrid {
-                    start: *start,
-                    end: *end,
-                    bbox: Box::new(inner_span),
-                })
-            }
-            // These Location variants don't have Span equivalents
-            Self::Temporal { .. }
-            | Self::Cuboid { .. }
-            | Self::Genomic { .. }
-            | Self::Discontinuous { .. } => None,
+            Self::Discontinuous { .. } => None,
         }
     }
 }
@@ -527,7 +324,7 @@ pub struct Signal<L = Location> {
     /// Stored as a `TypeLabel` to support both core taxonomy types and domain-specific labels.
     pub label: super::types::TypeLabel,
     /// Detection confidence in [0, 1]
-    pub confidence: f32,
+    pub confidence: Confidence,
     /// Hierarchical confidence if available (linkage/type/boundary)
     pub hierarchical: Option<HierarchicalConfidence>,
     /// Provenance: which detector produced this signal
@@ -590,7 +387,7 @@ impl<L> Signal<L> {
             location,
             surface: surface.into(),
             label: label.into(),
-            confidence: confidence.clamp(0.0, 1.0),
+            confidence: Confidence::new(confidence as f64),
             hierarchical: None,
             provenance: None,
             modality: Modality::default(),
@@ -621,7 +418,7 @@ impl<L> Signal<L> {
     /// Check if this signal is above a confidence threshold.
     #[must_use]
     pub fn is_confident(&self, threshold: f32) -> bool {
-        self.confidence >= threshold
+        self.confidence >= threshold as f64
     }
 
     /// Set the modality.
@@ -851,8 +648,7 @@ impl std::fmt::Display for SignalValidationError {
 
 impl std::error::Error for SignalValidationError {}
 
-/// Convert an [`Entity`] to a [`Signal<Location>`], mapping Entity's `f64` confidence
-/// to Signal's `f32` (clamped to `[0,1]`).
+/// Convert an [`Entity`] to a [`Signal<Location>`].
 ///
 /// Uses `Location::Text` for the span and preserves `normalized`, `provenance`,
 /// and `hierarchical_confidence` fields. Discontinuous and visual spans are not
@@ -936,7 +732,7 @@ pub struct Track {
     /// Link to global identity (Level 3), if resolved
     pub identity_id: Option<IdentityId>,
     /// Confidence that signals are correctly clustered
-    pub cluster_confidence: f32,
+    pub cluster_confidence: Confidence,
     /// Optional embedding for track-level representation
     /// (aggregated from signal embeddings)
     pub embedding: Option<Vec<f32>>,
@@ -952,7 +748,7 @@ impl Track {
             entity_type: None,
             canonical_surface: canonical_surface.into(),
             identity_id: None,
-            cluster_confidence: 1.0,
+            cluster_confidence: Confidence::ONE,
             embedding: None,
         }
     }
@@ -1010,13 +806,13 @@ impl Track {
 
     /// Get the cluster confidence score.
     #[must_use]
-    pub const fn cluster_confidence(&self) -> f32 {
+    pub const fn cluster_confidence(&self) -> Confidence {
         self.cluster_confidence
     }
 
     /// Set the cluster confidence score.
     pub fn set_cluster_confidence(&mut self, confidence: f32) {
-        self.cluster_confidence = confidence.clamp(0.0, 1.0);
+        self.cluster_confidence = Confidence::new(confidence as f64);
     }
 
     /// Link this track to a global identity (mutable setter).
@@ -1136,7 +932,7 @@ impl Track {
                 doc.signals
                     .iter()
                     .find(|s| s.id == sr.signal_id)
-                    .map(|s| s.confidence)
+                    .map(|s| s.confidence.value() as f32)
             })
             .collect();
 
@@ -1309,7 +1105,7 @@ pub struct Identity {
     /// Alias names (other known surface forms)
     pub aliases: Vec<String>,
     /// Confidence that this identity is correctly resolved
-    pub confidence: f32,
+    pub confidence: Confidence,
     /// Source of identity formation (how it was created)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<IdentitySource>,
@@ -1328,7 +1124,7 @@ impl Identity {
             description: None,
             embedding: None,
             aliases: Vec::new(),
-            confidence: 1.0,
+            confidence: Confidence::ONE,
             source: None,
         }
     }
@@ -1352,7 +1148,7 @@ impl Identity {
             description: None,
             embedding: None,
             aliases: Vec::new(),
-            confidence: 1.0,
+            confidence: Confidence::ONE,
             source: Some(IdentitySource::KnowledgeBase {
                 kb_name: kb_name_str,
                 kb_id: kb_id_str,
@@ -1397,13 +1193,13 @@ impl Identity {
 
     /// Get the confidence score.
     #[must_use]
-    pub const fn confidence(&self) -> f32 {
+    pub const fn confidence(&self) -> Confidence {
         self.confidence
     }
 
     /// Set the confidence score.
     pub fn set_confidence(&mut self, confidence: f32) {
-        self.confidence = confidence.clamp(0.0, 1.0);
+        self.confidence = Confidence::new(confidence as f64);
     }
 
     /// Get the identity source.
@@ -1821,63 +1617,25 @@ impl GroundedDocument {
                 let track = self.track_for_signal(signal.id);
                 let identity = track.and_then(|t| self.identity_for_track(t.id));
 
-                Entity {
-                    text: signal.surface.clone(),
-                    entity_type: EntityType::from_label(signal.label.as_str()),
-                    start,
-                    end,
-                    confidence: Confidence::from(signal.confidence),
-                    normalized: signal.normalized.clone(),
-                    provenance: signal.provenance.clone(),
-                    kb_id: identity.and_then(|i| i.kb_id.clone()),
-                    canonical_id: track.map(|t| super::types::CanonicalId::new(t.id.get())),
-                    hierarchical_confidence: signal.hierarchical,
-                    visual_span: match &signal.location {
-                        Location::BoundingBox {
-                            x,
-                            y,
-                            width,
-                            height,
-                            page,
-                        } => Some(Span::BoundingBox {
-                            x: *x,
-                            y: *y,
-                            width: *width,
-                            height: *height,
-                            page: *page,
-                        }),
-                        Location::TextWithBbox { bbox, .. } => {
-                            if let Location::BoundingBox {
-                                x,
-                                y,
-                                width,
-                                height,
-                                page,
-                            } = bbox.as_ref()
-                            {
-                                Some(Span::BoundingBox {
-                                    x: *x,
-                                    y: *y,
-                                    width: *width,
-                                    height: *height,
-                                    page: *page,
-                                })
-                            } else {
-                                None
-                            }
-                        }
-                        _ => None,
-                    },
-                    discontinuous_span: match &signal.location {
-                        Location::Discontinuous { segments } => Some(DiscontinuousSpan::new(
+                {
+                    let mut entity = Entity::new(
+                        signal.surface.clone(),
+                        EntityType::from_label(signal.label.as_str()),
+                        start,
+                        end,
+                        signal.confidence,
+                    );
+                    entity.normalized = signal.normalized.clone();
+                    entity.provenance = signal.provenance.clone();
+                    entity.kb_id = identity.and_then(|i| i.kb_id.clone());
+                    entity.canonical_id = track.map(|t| super::types::CanonicalId::new(t.id.get()));
+                    entity.hierarchical_confidence = signal.hierarchical;
+                    if let Location::Discontinuous { segments } = &signal.location {
+                        entity.set_discontinuous_span(DiscontinuousSpan::new(
                             segments.iter().map(|(s, e)| (*s)..(*e)).collect(),
-                        )),
-                        _ => None,
-                    },
-                    valid_from: None,
-                    valid_until: None,
-                    phi_features: None,
-                    mention_type: None,
+                        ));
+                    }
+                    entity
                 }
             })
             .collect()
@@ -1985,7 +1743,7 @@ impl GroundedDocument {
     pub fn confident_signals(&self, threshold: f32) -> Vec<&Signal<Location>> {
         self.signals
             .iter()
-            .filter(|s| s.confidence >= threshold)
+            .filter(|s| s.confidence >= threshold as f64)
             .collect()
     }
 
@@ -2307,7 +2065,11 @@ impl GroundedDocument {
         let singleton_count = self.tracks.values().filter(|t| t.is_singleton()).count();
 
         let avg_confidence = if signal_count > 0 {
-            self.signals.iter().map(|s| s.confidence).sum::<f32>() / signal_count as f32
+            self.signals
+                .iter()
+                .map(|s| s.confidence.value() as f32)
+                .sum::<f32>()
+                / signal_count as f32
         } else {
             0.0
         };
@@ -3037,7 +2799,7 @@ tr:hover{background:var(--hover)}
             surface = html_escape(&signal.surface),
             label = html_escape(signal.label.as_str()),
             neg = neg,
-            conf = signal.confidence,
+            conf = signal.confidence.value(),
             track = track_id,
             track_attr = track_attr,
             offs_attr = offs_attr
@@ -3543,7 +3305,7 @@ fn annotate_text_html(
     struct SigMeta {
         sid: String,
         label: String,
-        conf: f32,
+        conf: f64,
         track_id: Option<TrackId>,
         covered_len: usize,
     }
@@ -3563,9 +3325,7 @@ fn annotate_text_html(
     for s in signals {
         let raw_segments: Vec<(usize, usize)> = match &s.location {
             Location::Text { start, end } => vec![(*start, *end)],
-            Location::TextWithBbox { start, end, .. } => vec![(*start, *end)],
             Location::Discontinuous { segments } => segments.clone(),
-            _ => Vec::new(),
         };
         if raw_segments.is_empty() {
             continue;
@@ -3591,7 +3351,7 @@ fn annotate_text_html(
         metas.push(SigMeta {
             sid: format!("S{}", s.id),
             label: s.label.to_string(),
-            conf: s.confidence,
+            conf: s.confidence.value(),
             track_id,
             covered_len,
         });
@@ -4875,30 +4635,12 @@ mod tests {
     }
 
     #[test]
-    fn test_location_bbox_iou() {
-        let b1 = Location::bbox(0.0, 0.0, 0.5, 0.5);
-        let b2 = Location::bbox(0.25, 0.25, 0.5, 0.5);
-        let iou = b1.iou(&b2).unwrap();
-        // Intersection: 0.25 * 0.25 = 0.0625
-        // Union: 0.5*0.5 + 0.5*0.5 - 0.0625 = 0.4375
-        // IoU = 0.0625/0.4375 ≈ 0.143
-        assert!((iou - 0.143).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_location_different_types_no_iou() {
-        let text = Location::text(0, 10);
-        let bbox = Location::bbox(0.0, 0.0, 0.5, 0.5);
-        assert!(text.iou(&bbox).is_none());
-    }
-
-    #[test]
     fn test_signal_creation() {
         let signal: Signal<Location> =
             Signal::new(0, Location::text(0, 11), "Marie Curie", "Person", 0.95);
         assert_eq!(signal.surface, "Marie Curie");
         assert_eq!(signal.label, "Person".into());
-        assert!((signal.confidence - 0.95).abs() < 0.001);
+        assert!((signal.confidence.value() - 0.95).abs() < 0.001);
         assert!(!signal.negated);
     }
 
@@ -4912,7 +4654,7 @@ mod tests {
 
         assert!(signal.negated);
         assert_eq!(signal.quantifier, Some(Quantifier::Existential));
-        assert!(signal.modality.supports_linguistic_features());
+        assert_eq!(signal.modality, Modality::Symbolic);
     }
 
     #[test]
@@ -5004,15 +4746,9 @@ mod tests {
     }
 
     #[test]
-    fn test_modality_features() {
-        assert!(Modality::Symbolic.supports_linguistic_features());
-        assert!(!Modality::Symbolic.supports_geometric_features());
-
-        assert!(!Modality::Iconic.supports_linguistic_features());
-        assert!(Modality::Iconic.supports_geometric_features());
-
-        assert!(Modality::Hybrid.supports_linguistic_features());
-        assert!(Modality::Hybrid.supports_geometric_features());
+    fn test_modality_variants() {
+        assert_eq!(Modality::default(), Modality::Symbolic);
+        assert_eq!(Location::text(0, 10).modality(), Modality::Symbolic);
     }
 
     #[test]
@@ -5020,16 +4756,6 @@ mod tests {
         let span = Span::Text { start: 0, end: 10 };
         let location = Location::from(&span);
         assert_eq!(location.text_offsets(), Some((0, 10)));
-
-        let span = Span::BoundingBox {
-            x: 0.1,
-            y: 0.2,
-            width: 0.3,
-            height: 0.4,
-            page: Some(1),
-        };
-        let location = Location::from(&span);
-        assert!(matches!(location, Location::BoundingBox { .. }));
     }
 
     #[test]
@@ -5134,25 +4860,6 @@ mod tests {
 
         assert_eq!(doc.linked_tracks().count(), 1);
         assert_eq!(doc.unlinked_tracks().count(), 1);
-    }
-
-    #[test]
-    fn test_location_overlaps() {
-        let l1 = Location::text(0, 10);
-        let l2 = Location::text(5, 15);
-        let l3 = Location::text(15, 20);
-
-        assert!(l1.overlaps(&l2));
-        assert!(!l1.overlaps(&l3));
-        assert!(!l2.overlaps(&l3)); // [5,15) and [15,20) don't overlap
-
-        // Bounding boxes
-        let b1 = Location::bbox(0.0, 0.0, 0.5, 0.5);
-        let b2 = Location::bbox(0.4, 0.4, 0.5, 0.5);
-        let b3 = Location::bbox(0.6, 0.6, 0.2, 0.2);
-
-        assert!(b1.overlaps(&b2));
-        assert!(!b1.overlaps(&b3));
     }
 
     #[test]
@@ -5341,26 +5048,6 @@ mod tests {
     }
 
     #[test]
-    fn test_modality_filtering() {
-        let mut doc = GroundedDocument::new("doc1", "Test");
-
-        // Add text signal
-        let mut text_signal = Signal::new(0, Location::text(0, 4), "Test", "Type", 0.9);
-        text_signal.modality = Modality::Symbolic;
-        doc.add_signal(text_signal);
-
-        // Add visual signal
-        let mut visual_signal =
-            Signal::new(0, Location::bbox(0.0, 0.0, 0.5, 0.5), "Box", "Type", 0.8);
-        visual_signal.modality = Modality::Iconic;
-        doc.add_signal(visual_signal);
-
-        assert_eq!(doc.text_signals().len(), 1);
-        assert_eq!(doc.visual_signals().len(), 1);
-        assert_eq!(doc.signals_by_modality(Modality::Hybrid).len(), 0);
-    }
-
-    #[test]
     fn test_quantifier_variants() {
         // Ensure all quantifier variants work
         let quantifiers = [
@@ -5386,31 +5073,12 @@ mod tests {
     fn test_location_modality_derivation() {
         assert_eq!(Location::text(0, 10).modality(), Modality::Symbolic);
         assert_eq!(
-            Location::bbox(0.0, 0.0, 0.5, 0.5).modality(),
-            Modality::Iconic
+            Location::Discontinuous {
+                segments: vec![(0, 5), (10, 15)]
+            }
+            .modality(),
+            Modality::Symbolic
         );
-
-        let temporal = Location::Temporal {
-            start_sec: 0.0,
-            end_sec: 5.0,
-            frame: None,
-        };
-        assert_eq!(temporal.modality(), Modality::Iconic);
-
-        let genomic = Location::Genomic {
-            contig: "chr1".into(),
-            start: 0,
-            end: 1000,
-            strand: Some('+'),
-        };
-        assert_eq!(genomic.modality(), Modality::Symbolic);
-
-        let hybrid = Location::TextWithBbox {
-            start: 0,
-            end: 10,
-            bbox: Box::new(Location::bbox(0.0, 0.0, 0.5, 0.5)),
-        };
-        assert_eq!(hybrid.modality(), Modality::Hybrid);
     }
 
     // Note: CrossDocCluster conversion test moved to anno crate
@@ -5527,36 +5195,7 @@ mod proptests {
             );
         }
 
-        /// BoundingBox IoU is also symmetric and bounded
-        #[test]
-        fn bbox_iou_symmetric_bounded(
-            x1 in 0.0f32..0.8,
-            y1 in 0.0f32..0.8,
-            w1 in 0.05f32..0.2,
-            h1 in 0.05f32..0.2,
-            x2 in 0.0f32..0.8,
-            y2 in 0.0f32..0.8,
-            w2 in 0.05f32..0.2,
-            h2 in 0.05f32..0.2,
-        ) {
-            let a = Location::bbox(x1, y1, w1, h1);
-            let b = Location::bbox(x2, y2, w2, h2);
 
-            let iou_ab = a.iou(&b);
-            let iou_ba = b.iou(&a);
-
-            // Symmetry
-            prop_assert_eq!(iou_ab, iou_ba, "BBox IoU must be symmetric");
-
-            // Bounded
-            if let Some(iou) = iou_ab {
-                prop_assert!(
-                    (0.0..=1.0).contains(&iou),
-                    "BBox IoU out of bounds: {}",
-                    iou
-                );
-            }
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -5575,8 +5214,8 @@ mod proptests {
                 raw_conf,
             );
 
-            prop_assert!(signal.confidence >= 0.0, "Confidence below 0: {}", signal.confidence);
-            prop_assert!(signal.confidence <= 1.0, "Confidence above 1: {}", signal.confidence);
+            prop_assert!(signal.confidence.value() >= 0.0, "Confidence below 0: {}", signal.confidence);
+            prop_assert!(signal.confidence.value() <= 1.0, "Confidence above 1: {}", signal.confidence);
         }
 
         /// Signal with valid inputs preserves surface and label
@@ -5618,31 +5257,17 @@ mod proptests {
             prop_assert!(signal.negated, "Signal should be negated after .negated()");
         }
 
-        /// Symbolic modality supports linguistic features
+        /// Text locations have Symbolic modality
         #[test]
-        fn symbolic_supports_linguistic(
+        fn text_location_is_symbolic(
             start in 0usize..1000,
             len in 1usize..100,
         ) {
             let loc = Location::text(start, start + len);
-            prop_assert!(
-                loc.modality().supports_linguistic_features(),
-                "Text locations must support linguistic features"
-            );
-        }
-
-        /// Iconic modality supports geometric features
-        #[test]
-        fn iconic_supports_geometric(
-            x in 0.0f32..0.9,
-            y in 0.0f32..0.9,
-            w in 0.01f32..0.5,
-            h in 0.01f32..0.5,
-        ) {
-            let loc = Location::bbox(x, y, w, h);
-            prop_assert!(
-                loc.modality().supports_geometric_features(),
-                "BBox locations must support geometric features"
+            prop_assert_eq!(
+                loc.modality(),
+                Modality::Symbolic,
+                "Text locations must be Symbolic"
             );
         }
     }
@@ -5875,24 +5500,6 @@ mod proptests {
     // -------------------------------------------------------------------------
     // Modality Invariants
     // -------------------------------------------------------------------------
-
-    proptest! {
-        /// Modality feature support is consistent with semiotic theory
-        #[test]
-        fn modality_feature_consistency(_dummy in 0..1) {
-            // Iconic: supports geometric, not linguistic
-            prop_assert!(Modality::Iconic.supports_geometric_features());
-            prop_assert!(!Modality::Iconic.supports_linguistic_features());
-
-            // Symbolic: supports linguistic, not geometric
-            prop_assert!(Modality::Symbolic.supports_linguistic_features());
-            prop_assert!(!Modality::Symbolic.supports_geometric_features());
-
-            // Hybrid: supports both
-            prop_assert!(Modality::Hybrid.supports_linguistic_features());
-            prop_assert!(Modality::Hybrid.supports_geometric_features());
-        }
-    }
 
     // -------------------------------------------------------------------------
     // Location Overlap Properties
@@ -6145,11 +5752,11 @@ mod proptests {
                 doc.add_signal(signal);
             }
 
-            // Add iconic signals
+            // Add iconic-modality signals (modality overridden on text locations)
             for i in 0..iconic_count {
                 let mut signal = Signal::new(
                     0,
-                    Location::bbox(i as f32 * 0.1, 0.0, 0.05, 0.05),
+                    Location::text(1000 + i * 10, 1000 + i * 10 + 5),
                     "entity",
                     "Type",
                     0.9,

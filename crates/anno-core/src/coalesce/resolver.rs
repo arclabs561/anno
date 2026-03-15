@@ -125,7 +125,7 @@ impl Resolver {
             track_ref: TrackRef,
             canonical_surface: String,
             entity_type: Option<crate::TypeLabel>,
-            cluster_confidence: f32,
+            cluster_confidence: crate::Confidence,
             embedding: Option<Vec<f32>>,
         }
 
