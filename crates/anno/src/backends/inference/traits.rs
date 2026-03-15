@@ -39,7 +39,7 @@ use crate::{Entity, EntityType, Relation};
 /// # Example
 ///
 /// ```ignore
-/// use anno::ZeroShotNER;
+/// use anno::backends::inference::ZeroShotNER;
 ///
 /// fn extract_medical_entities(ner: &dyn ZeroShotNER, clinical_note: &str) {
 ///     // Define custom medical entity types at runtime
@@ -120,7 +120,7 @@ pub trait ZeroShotNER: Send + Sync {
     /// # Example: Extending defaults
     ///
     /// ```ignore
-    /// use anno::ZeroShotNER;
+    /// use anno::backends::inference::ZeroShotNER;
     ///
     /// let ner: &dyn ZeroShotNER = ...;
     /// let defaults = ner.default_types();

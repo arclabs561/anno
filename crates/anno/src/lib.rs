@@ -564,6 +564,15 @@ pub trait RelationCapable: Model {
 /// specified at inference time (e.g., GLiNER, UniversalNER), rather than
 /// being limited to a fixed set of pre-trained types.
 ///
+/// # Relationship to `ZeroShotNER`
+///
+/// `DynamicLabels` is the sealed, `Model`-hierarchy trait for zero-shot extraction.
+/// [`ZeroShotNER`](backends::inference::ZeroShotNER) is the open, backend-internal trait
+/// with additional parameters (threshold, descriptions). Backends that support zero-shot
+/// typically implement both: `DynamicLabels` delegates to `ZeroShotNER` with a default
+/// threshold. Use `DynamicLabels` in application code; use `ZeroShotNER` only when you
+/// need direct threshold control.
+///
 /// # Label count warning
 ///
 /// GLiNER-family models degrade significantly when more than ~30 labels are
@@ -613,7 +622,7 @@ pub use backends::CorefBackend;
 pub use backends::inference::{
     extract_relation_triples, extract_relation_triples_simple, extract_relations,
     CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER, ExtractionWithRelations,
-    RelationExtractionConfig, RelationExtractor, RelationTriple, ZeroShotNER,
+    RelationExtractionConfig, RelationExtractor, RelationTriple,
 };
 
 #[cfg(feature = "onnx")]
