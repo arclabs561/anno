@@ -79,6 +79,8 @@ pub mod offset;
 #[cfg(feature = "graph")]
 #[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
 pub mod pagerank;
+/// PII detection and redaction (library-level privacy functions).
+pub mod pii;
 /// Preprocessing for mention detection.
 pub(crate) mod preprocess;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
