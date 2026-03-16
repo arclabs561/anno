@@ -57,8 +57,6 @@ pub fn run() -> Result<(), String> {
         v.push("eval");
         #[cfg(feature = "eval-bias")]
         v.push("eval-bias");
-        #[cfg(feature = "discourse")]
-        v.push("discourse");
         v
     };
     if features.is_empty() {

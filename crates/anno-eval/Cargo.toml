@@ -70,7 +70,6 @@ tempfile = "3"
 [features]
 default = []
 parallel = ["dep:rayon"]
-discourse = ["anno/discourse"]
 # Muxer-backed evaluation harnesses + sampling tooling.
 # Pulls in bundled trained weights so classical backends use real parameters, not heuristics.
 eval = ["dep:muxer", "bundled-crf-weights", "bundled-hmm-params"]

@@ -140,9 +140,7 @@ default = ["onnx"]
 
 # Keep the facade surface intentionally small: expose stable capability toggles,
 # not every internal wiring switch from `anno-lib`.
-discourse = ["anno-lib/discourse"]
 analysis = ["anno-lib/analysis"]
-graph = ["anno-lib/graph"]
 schema = ["anno-lib/schema"]
 onnx = ["anno-lib/onnx"]
 candle = ["anno-lib/candle"]

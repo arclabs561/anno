@@ -413,7 +413,5 @@ pub use hmm::{HmmConfig, HmmNER};
 pub use streaming::{deduplicate_overlapping, ChunkConfig, OverlapStrategy};
 
 // Simple rule-based coreference resolvers.
-#[cfg(all(feature = "analysis", feature = "discourse"))]
-pub use crate::eval::coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
 #[cfg(feature = "analysis")]
 pub use coref::simple::{CorefConfig, SimpleCorefResolver};

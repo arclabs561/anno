@@ -64,16 +64,8 @@ pub mod features;
 pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
-/// Keyword and keyphrase extraction (TF-IDF, YAKE, TextRank).
-#[cfg(feature = "graph")]
-#[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
-pub mod keywords;
 pub mod lang;
 pub mod offset;
-/// Shared PageRank algorithm for graph-based ranking.
-#[cfg(feature = "graph")]
-#[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
-pub mod pagerank;
 /// PII detection and redaction (library-level privacy functions).
 pub mod pii;
 /// Preprocessing for mention detection.
@@ -84,38 +76,15 @@ pub(crate) mod preprocess;
 #[cfg(feature = "analysis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod rag;
-/// Entity salience and importance ranking.
-#[cfg(feature = "graph")]
-#[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
-pub mod salience;
 pub mod schema;
 pub mod similarity;
 pub mod sync;
-/// Temporal entity tracking, parsing, and diachronic NER.
-pub mod temporal;
 /// Language-specific tokenization for multilingual NLP.
 pub mod tokenizer;
 pub mod types;
 
 // Note: research-only geometry experiments were archived out of `anno` to keep the public
 // surface grounded. Prefer `docs/` for repo-local design notes and experiments.
-
-/// Discourse-level analysis for coreference resolution.
-///
-/// Provides infrastructure for handling phenomena that span sentence boundaries:
-///
-/// - **Centering theory**: Track discourse focus through forward/backward-looking centers
-/// - **Uncertain reference**: Deferred resolution using epsilon-term semantics
-/// - **Abstract anaphora**: Pronouns referring to events, propositions, facts
-/// - **Shell nouns**: Abstract nouns like "problem", "issue", "fact"
-///
-/// Enable with the `discourse` feature.
-///
-/// See `discourse::centering` for salience-based pronoun resolution and
-/// `discourse::uncertain_reference` for handling ambiguous references.
-#[cfg(feature = "discourse")]
-#[cfg_attr(docsrs, doc(cfg(feature = "discourse")))]
-pub mod discourse;
 
 // Re-export error types
 pub use error::{Error, Result};

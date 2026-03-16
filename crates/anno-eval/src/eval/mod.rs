@@ -255,8 +255,6 @@ pub mod coref_metrics {
 // CORE MODULES (always available with `eval` feature)
 // Basic P/R/F1, datasets, coreference metrics
 // =============================================================================
-#[cfg(feature = "discourse")]
-pub mod abstract_anaphora;
 pub mod advanced_evaluator;
 pub mod advanced_harness;
 pub mod analysis;
@@ -279,8 +277,6 @@ pub mod dataset_registry;
 pub mod dataset_spec;
 pub mod datasets;
 pub mod discontinuous;
-#[cfg(feature = "discourse")]
-pub mod discourse_deixis;
 pub mod evaluator;
 pub mod harness;
 pub mod history;
@@ -421,8 +417,6 @@ pub use book_scale::{
 
 // Coreference resolution
 pub use coref_resolver::{CorefConfig, CoreferenceResolver, SimpleCorefResolver};
-#[cfg(feature = "discourse")]
-pub use coref_resolver::{DiscourseAwareResolver, DiscourseCorefConfig};
 
 // Cross-document coreference resolution (CDCR)
 pub use inter_doc_coref::InterDocCorefMetrics;
@@ -442,15 +436,6 @@ pub use cdcr::{
     Document,
     LSHBlocker,
     MentionRef,
-};
-
-// Abstract anaphora research evaluation
-#[cfg(feature = "discourse")]
-pub use abstract_anaphora::{
-    AbstractAnaphoraDataset, AbstractAnaphoraEvaluator, AnaphorSpan, AnaphoraTestCase,
-    AnaphoraType, AntecedentSpan, CandidateRankingMetrics,
-    DatasetStats as AbstractAnaphoraDatasetStats, EvaluationResults as AbstractAnaphoraResults,
-    LeaAnalysis, ShellNounAnalysis,
 };
 
 // Discontinuous NER evaluation
