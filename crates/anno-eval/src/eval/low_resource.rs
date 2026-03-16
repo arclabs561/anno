@@ -308,8 +308,8 @@ impl LowResourceEvaluator {
             // Create character-level prediction mask
             let mut pred_mask = vec![false; text_char_len];
             for entity in &predictions {
-                let start = entity.start.min(text_char_len);
-                let end = entity.end.min(text_char_len);
+                let start = entity.start().min(text_char_len);
+                let end = entity.end().min(text_char_len);
                 for slot in pred_mask.iter_mut().take(end).skip(start) {
                     *slot = true;
                 }
@@ -384,8 +384,8 @@ impl LowResourceEvaluator {
                 let char_count = text.chars().count();
                 let entity_text: String = text
                     .chars()
-                    .skip(entity.start)
-                    .take(entity.end.min(char_count).saturating_sub(entity.start))
+                    .skip(entity.start())
+                    .take(entity.end().min(char_count).saturating_sub(entity.start()))
                     .collect();
                 let morpheme_count = entity_text
                     .split(config.boundary_char)
@@ -396,7 +396,7 @@ impl LowResourceEvaluator {
 
                 // Check if this prediction matches a gold entity
                 for gold in gold_entities {
-                    if entity.start == gold.start && entity.end == gold.end {
+                    if entity.start() == gold.start && entity.end() == gold.end {
                         total_correct_morphemes += morpheme_count;
                         break;
                     }

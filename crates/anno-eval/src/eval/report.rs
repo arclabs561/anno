@@ -431,8 +431,8 @@ impl ReportBuilder {
 
                 // Match to gold to determine correctness
                 let is_correct = case.gold_entities.iter().any(|gold| {
-                    entity.start == gold.start
-                        && entity.end == gold.end
+                    entity.start() == gold.start
+                        && entity.end() == gold.end
                         && entity.entity_type.as_label() == gold.entity_type
                 });
 

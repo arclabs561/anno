@@ -191,7 +191,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     fn identity_to_cluster(identity: &Identity, corpus: &Corpus) -> CrossDocCluster {
         let mut cluster = CrossDocCluster::new(identity.id, &identity.canonical_name);
         cluster.kb_id = identity.kb_id.clone();
-        cluster.confidence = identity.confidence as f64;
+        cluster.confidence = f64::from(identity.confidence);
         if let Some(ref entity_type) = identity.entity_type {
             cluster.entity_type = Some(entity_type.to_entity_type());
         }
@@ -248,7 +248,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                                     EntityType::from_label(signal.label()),
                                     start,
                                     end,
-                                    signal.confidence as f64,
+                                    f64::from(signal.confidence),
                                 )
                             })
                         })
@@ -263,7 +263,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                                     .unwrap_or(EntityType::custom("UNKNOWN", EntityCategory::Misc)),
                                 0,
                                 0,
-                                track.cluster_confidence as f64,
+                                f64::from(track.cluster_confidence),
                             ))
                         })
                 })
@@ -279,7 +279,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                         EntityType::from_label(s.label()),
                         start,
                         end,
-                        s.confidence as f64,
+                        f64::from(s.confidence),
                     )
                 })
                 .collect()
@@ -934,8 +934,12 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                         if let Some(doc) = doc_index.get(doc_id.as_str()) {
                             if let Some(entity) = doc.entities.get(*entity_idx) {
                                 if args.verbose {
-                                    let snippet =
-                                        context_snippet(&doc.text, entity.start, entity.end, 50);
+                                    let snippet = context_snippet(
+                                        &doc.text,
+                                        entity.start(),
+                                        entity.end(),
+                                        50,
+                                    );
 
                                     output.push_str(&format!(
                                         "    {} {}: {}{}[{}]{}{}\n",

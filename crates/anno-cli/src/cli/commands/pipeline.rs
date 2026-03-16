@@ -191,7 +191,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
                                 anno::EntityType::from_label(s.label()),
                                 start,
                                 end,
-                                s.confidence as f64,
+                                f64::from(s.confidence),
                             )
                         })
                         .collect();

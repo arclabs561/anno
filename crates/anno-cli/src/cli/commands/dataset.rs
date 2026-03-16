@@ -500,8 +500,8 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                         return false; // Already matched
                                     }
 
-                                    let span_match =
-                                        e.start == gold_entity.start && e.end == gold_entity.end;
+                                    let span_match = e.start() == gold_entity.start
+                                        && e.end() == gold_entity.end;
                                     if !span_match {
                                         return false;
                                     }
@@ -1061,18 +1061,18 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                         oracle_entities.get(t.tail_idx),
                                                     ) {
                                                         let pred = RelationPrediction {
-                                                            head_span: (head.start, head.end),
+                                                            head_span: (head.start(), head.end()),
                                                             head_type: head
                                                                 .entity_type
                                                                 .as_label()
                                                                 .to_string(),
-                                                            tail_span: (tail.start, tail.end),
+                                                            tail_span: (tail.start(), tail.end()),
                                                             tail_type: tail
                                                                 .entity_type
                                                                 .as_label()
                                                                 .to_string(),
                                                             relation_type: t.relation_type.clone(),
-                                                            confidence: t.confidence,
+                                                            confidence: f32::from(t.confidence),
                                                         };
                                                         all_pred.push(pred.clone());
                                                         pred_this.push(pred);

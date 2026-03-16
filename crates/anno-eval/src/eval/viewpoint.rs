@@ -375,8 +375,8 @@ impl ViewpointExtractor {
 
         // For each entity, determine its attribution context
         for entity in entities {
-            let context = self.get_context(text, entity.start, 100);
-            let (source, status) = self.analyze_context(&context, &lower, entity.start);
+            let context = self.get_context(text, entity.start(), 100);
+            let (source, status) = self.analyze_context(&context, &lower, entity.start());
 
             let mut attr = Attribution::new(entity, source, status);
             attr.claim_text = Some(context);
@@ -395,8 +395,8 @@ impl ViewpointExtractor {
         entities
             .iter()
             .map(|entity| {
-                let context = self.get_context(text, entity.start, 100);
-                let (source, status) = self.analyze_context(&context, &lower, entity.start);
+                let context = self.get_context(text, entity.start(), 100);
+                let (source, status) = self.analyze_context(&context, &lower, entity.start());
 
                 let mut attr = Attribution::new(entity.clone(), source, status);
                 attr.claim_text = Some(context);
