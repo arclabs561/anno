@@ -19,13 +19,24 @@ anno = "0.3.9"
 use anno::{Model, StackedNER};
 
 let m = StackedNER::default();
+println!("Backend: {}", m.name());
 let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
 for e in &ents {
     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
 }
+// Backend: stacked
 // Sophie Wilson [PER] (0,13) 0.95
 // ARM [ORG] (27,30) 0.90
 # Ok::<(), anno::Error>(())
+```
+
+Filter results with `EntitySliceExt`:
+
+```rust
+use anno::{EntitySliceExt, EntityType};
+
+let people: Vec<_> = ents.of_type(&EntityType::Person).collect();
+let confident: Vec<_> = ents.above_confidence(0.8).collect();
 ```
 
 `StackedNER::default()` selects the best available backend at runtime: BERT or NuNER (if `onnx` enabled and models cached), then GLiNER, falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
@@ -42,6 +53,25 @@ for e in &ents {
 }
 // drug: Aspirin
 // symptom: headaches
+# Ok::<(), anno::Error>(())
+```
+
+### Custom backends
+
+`AnyModel` wraps a closure into a `Model`, bypassing the sealed trait when you need to plug in an external NER system:
+
+```rust
+use anno::{AnyModel, Entity, EntityType, Language, Model, Result};
+
+let model = AnyModel::new(
+    "my-ner",
+    "REST API wrapper",
+    vec![EntityType::Person, EntityType::Organization],
+    |text: &str, _lang: Option<Language>| -> Result<Vec<Entity>> {
+        Ok(vec![]) // call your backend here
+    },
+);
+let ents = model.extract_entities("test", None)?;
 # Ok::<(), anno::Error>(())
 ```
 
