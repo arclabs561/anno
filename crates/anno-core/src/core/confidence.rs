@@ -328,6 +328,16 @@ mod tests {
     }
 
     #[test]
+    fn cross_type_comparison_reverse() {
+        let c = Confidence::new(0.8);
+        // f64 on the left, Confidence on the right
+        assert!(0.5 < c);
+        assert!(0.9 > c);
+        assert!(0.8 == c);
+        assert!(0.7 != c);
+    }
+
+    #[test]
     fn serde_transparent() {
         let c = Confidence::new(0.42);
         let json = serde_json::to_string(&c).unwrap();
