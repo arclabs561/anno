@@ -329,8 +329,12 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
             }
         }
 
-        let (nodes_csv, edges_csv) =
-            export_graph_csv(&ext.entities, &ext.relations, input, include_confidence);
+        let (nodes_csv, edges_csv) = anno::export::to_graph_csv(
+            &ext.entities,
+            &ext.relations,
+            &input.to_string_lossy(),
+            include_confidence,
+        );
         fs::write(&nodes_path, nodes_csv)
             .map_err(|e| format!("Failed to write nodes CSV: {}", e))?;
         fs::write(&edges_path, edges_csv)
@@ -364,15 +368,20 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         ));
     }
 
+    let source_label = input.to_string_lossy();
     let output_content = match format {
-        ExportFormat::Brat => export_brat(&ext.entities, include_confidence),
-        ExportFormat::Conll => export_conll(content, &ext.entities),
-        ExportFormat::Jsonl => export_jsonl(&ext.entities, input, include_confidence),
-        ExportFormat::NTriples => export_ntriples(&ext.entities, &ext.relations, input, base_uri),
-        ExportFormat::JsonLd => export_jsonld(
+        ExportFormat::Brat => anno::export::to_brat(&ext.entities, include_confidence),
+        ExportFormat::Conll => anno::export::to_conll(content, &ext.entities),
+        ExportFormat::Jsonl => {
+            anno::export::to_jsonl(&ext.entities, &source_label, include_confidence)
+        }
+        ExportFormat::NTriples => {
+            anno::export::to_ntriples(&ext.entities, &ext.relations, &source_label, base_uri)
+        }
+        ExportFormat::JsonLd => anno::export::to_jsonld(
             &ext.entities,
             &ext.relations,
-            input,
+            &source_label,
             include_confidence,
             base_uri,
         ),
