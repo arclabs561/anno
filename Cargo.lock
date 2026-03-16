@@ -82,7 +82,7 @@ dependencies = [
 
 [[package]]
 name = "anno-cli"
-version = "0.3.0"
+version = "0.3.9"
 dependencies = [
  "anno-core",
  "anno-eval",
