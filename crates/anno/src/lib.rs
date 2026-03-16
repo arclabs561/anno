@@ -56,6 +56,8 @@ pub mod error;
 #[cfg(feature = "analysis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod eval;
+/// Export entity results to annotation and interchange formats (brat, CoNLL, JSONL, RDF, JSON-LD, CSV).
+pub mod export;
 /// Entity feature extraction for downstream ML and analysis.
 pub mod features;
 /// Small, dependency-light heuristics (negation, quantifiers, etc.).
