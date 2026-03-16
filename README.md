@@ -110,10 +110,8 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 | `metal` | No | Metal GPU acceleration (enables `candle`) |
 | `cuda` | No | CUDA GPU acceleration (enables `candle`) |
 | `analysis` | No | Coref metrics, RAG rewriting |
-| `graph` | No | Keywords, salience ranking, graph export |
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
-| `discourse` | No | Centering theory, abstract anaphora |
 | `production` | No | `parking_lot` locks + `tracing` instrumentation |
 
 ## CLI

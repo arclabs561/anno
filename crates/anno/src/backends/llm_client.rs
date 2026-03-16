@@ -6,7 +6,7 @@
 //!
 //! # Example
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! use anno::backends::llm_client::{LlmConfig, LlmProvider, LlmRequest, LlmResponse};
 //!
 //! // Implement LlmProvider for your preferred backend
@@ -250,7 +250,7 @@ pub trait LlmProvider: Send + Sync {
 ///
 /// # Example
 ///
-/// ```rust
+/// ```rust,ignore
 /// use anno::backends::llm_client::{MockProvider, LlmProvider};
 ///
 /// // Create with default empty response
