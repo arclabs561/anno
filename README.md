@@ -114,7 +114,6 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
 | `discourse` | No | Centering theory, abstract anaphora |
-| `joint` | No | Joint NER + coref + entity linking (Durrett & Klein 2014) |
 | `production` | No | `parking_lot` locks + `tracing` instrumentation |
 
 ## CLI

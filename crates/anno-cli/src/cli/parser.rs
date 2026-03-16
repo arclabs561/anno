@@ -44,7 +44,7 @@ OFFLINE:
 
 ADVANCED:
   • Some commands are intentionally hidden from the default help.
-  • If you know the name, run `anno help <command>` (e.g. `anno help joint`).
+  • If you know the name, run `anno help <command>` (e.g. `anno help debug`).
 "#
 )]
 #[command(propagate_version = true)]
@@ -163,12 +163,6 @@ pub enum Commands {
     #[command(visible_alias = "b")]
     #[command(hide = true)]
     Batch(commands::BatchArgs),
-
-    /// Joint entity analysis (experimental; optional linking)
-    #[cfg(feature = "joint")]
-    #[command(visible_alias = "j")]
-    #[command(hide = true)]
-    Joint(commands::JointArgs),
 
     /// Privacy: detect and redact PII
     #[command(visible_alias = "priv")]

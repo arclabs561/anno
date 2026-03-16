@@ -21,8 +21,6 @@ pub mod extract;
 pub mod history;
 pub mod import;
 pub mod info;
-#[cfg(feature = "joint")]
-pub mod joint;
 pub mod models;
 #[cfg(feature = "eval")]
 pub mod muxer;
@@ -56,8 +54,6 @@ pub use export::{ExportArgs, ExportFormat};
 pub use extract::ExtractArgs;
 pub use history::HistoryArgs;
 pub use import::ImportArgs;
-#[cfg(feature = "joint")]
-pub use joint::JointArgs;
 pub use models::ModelsArgs;
 pub use pipeline::PipelineArgs;
 pub use privacy::PrivacyArgs;

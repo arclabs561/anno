@@ -86,8 +86,6 @@ fn main() -> ExitCode {
         Some(Commands::History(args)) => history::run(args).map_err(CliError::from),
         Some(Commands::Config(args)) => config::run(args).map_err(CliError::from),
         Some(Commands::Batch(args)) => batch::run(args).map_err(CliError::from),
-        #[cfg(feature = "joint")]
-        Some(Commands::Joint(args)) => joint::run(args).map_err(CliError::from),
         Some(Commands::Privacy(args)) => privacy::run(args).map_err(CliError::from),
         Some(Commands::Watch(args)) => watch::run(args).map_err(CliError::from),
         Some(Commands::Domain(args)) => domain::run(args).map_err(CliError::from),

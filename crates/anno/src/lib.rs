@@ -1,7 +1,7 @@
 //! # anno
 //!
 //! Information extraction for unstructured text: named entity recognition (NER),
-//! coreference resolution, entity linking, relation extraction, and zero-shot entity types.
+//! coreference resolution, relation extraction, and zero-shot entity types.
 //!
 //! - **NER output**: variable-length spans with **character offsets** (Unicode scalar values), not
 //!   byte offsets.
@@ -64,16 +64,11 @@ pub mod features;
 pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
-/// Joint inference experiments (optional; not the primary API surface).
-#[cfg(feature = "joint")]
-pub mod joint;
 /// Keyword and keyphrase extraction (TF-IDF, YAKE, TextRank).
 #[cfg(feature = "graph")]
 #[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
 pub mod keywords;
 pub mod lang;
-/// Knowledge-base linking helpers (experimental).
-pub mod linking;
 pub mod offset;
 /// Shared PageRank algorithm for graph-based ranking.
 #[cfg(feature = "graph")]
@@ -218,8 +213,6 @@ mod sealed {
     impl Sealed for super::backends::router::AutoNER {}
 
     impl Sealed for super::MockModel {}
-    #[cfg(feature = "joint")]
-    impl Sealed for super::joint::JointModel {}
 }
 
 /// Trait for NER model backends.

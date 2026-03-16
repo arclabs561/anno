@@ -73,7 +73,6 @@ criterion = { workspace = true }
 [features]
 default = ["onnx"]
 discourse = []
-joint = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 analysis = ["dep:anno-metrics"]
 graph = []
@@ -106,10 +105,6 @@ production = [
 # redistribution of large artifacts.
 bundled-crf-weights = []
 bundled-hmm-params = []
-
-[[bench]]
-name = "similarity"
-harness = false
 
 [[bench]]
 name = "backends"

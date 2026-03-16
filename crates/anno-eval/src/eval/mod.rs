@@ -362,8 +362,6 @@ pub mod annotator;
 pub mod attribution;
 #[cfg(feature = "eval")]
 pub mod bridging;
-#[cfg(all(feature = "eval", feature = "joint"))]
-pub mod joint;
 #[cfg(feature = "eval")]
 pub mod ranking;
 #[cfg(feature = "eval")]
