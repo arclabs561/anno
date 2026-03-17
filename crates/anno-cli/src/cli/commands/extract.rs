@@ -912,14 +912,14 @@ fn extract_with_custom_types(
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             ModelBackend::Nuner => {
-                use anno::DynamicLabels;
+                use anno::ZeroShotNER;
                 let model =
                     anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
                         .map_err(|e| {
                             CliError::from(format!("Failed to create NuNER model: {}", e))
                         })?;
                 return model
-                    .extract_with_labels(text, &type_refs, None)
+                    .extract_with_types(text, &type_refs, threshold)
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
             _ => {}

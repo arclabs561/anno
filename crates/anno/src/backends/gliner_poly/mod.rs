@@ -143,7 +143,7 @@ impl crate::Model for GLiNERPoly {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
     }
@@ -184,22 +184,6 @@ impl ZeroShotNER for GLiNERPoly {
 
     fn default_types(&self) -> &[&'static str] {
         DEFAULT_POLY_LABELS
-    }
-}
-
-// =============================================================================
-// DynamicLabels trait (ONNX)
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-impl crate::DynamicLabels for GLiNERPoly {
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
-    ) -> Result<Vec<Entity>> {
-        self.extract(text, labels, 0.5)
     }
 }
 

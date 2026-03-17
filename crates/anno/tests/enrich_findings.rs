@@ -588,7 +588,7 @@ fn unicode_mixed_scripts_entity_boundary() {
 // =============================================================================
 // 8. Large entity type count stress test (source: spaCy test_issue2800)
 //
-// Verify that DynamicLabels backends and TypeMapper handle large type counts
+// Verify that ZeroShotNER backends and TypeMapper handle large type counts
 // without panicking or excessive slowdown.
 // =============================================================================
 

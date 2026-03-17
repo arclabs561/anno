@@ -244,7 +244,7 @@ pub trait Model: sealed::Sealed + Send + Sync {
     /// Get capability summary for this model.
     ///
     /// Override this in implementations that support additional capabilities
-    /// (relations, dynamic labels, discontinuous entities) to enable runtime discovery.
+    /// (relations, zero-shot types, discontinuous entities) to enable runtime discovery.
     ///
     /// # Default
     ///
@@ -302,9 +302,8 @@ pub trait Model: sealed::Sealed + Send + Sync {
 /// Type alias for the `AnyModel` extractor closure.
 type AnyModelExtractor = dyn Fn(&str, Option<Language>) -> Result<Vec<Entity>> + Send + Sync;
 
-/// Type alias for the `AnyModel` label-extraction closure (`DynamicLabels`).
-type AnyModelLabelExtractor =
-    dyn Fn(&str, &[&str], Option<Language>) -> Result<Vec<Entity>> + Send + Sync;
+/// Type alias for the `AnyModel` zero-shot extraction closure (`ZeroShotNER`).
+type AnyModelZeroShotExtractor = dyn Fn(&str, &[&str], f32) -> Result<Vec<Entity>> + Send + Sync;
 
 /// Type alias for the `AnyModel` relation-extraction closure (`RelationCapable`).
 type AnyModelRelationExtractor =
@@ -312,17 +311,17 @@ type AnyModelRelationExtractor =
 
 /// A wrapper that turns an extractor closure into a `Model`.
 ///
-/// `AnyModel` supports [`DynamicLabels`] and [`RelationCapable`] via closures
-/// (see [`with_dynamic_labels`](Self::with_dynamic_labels) and
-/// [`with_relations`](Self::with_relations)).
+/// `AnyModel` supports [`ZeroShotNER`](backends::inference::ZeroShotNER) and
+/// [`RelationCapable`] via closures (see [`with_zero_shot`](Self::with_zero_shot)
+/// and [`with_relations`](Self::with_relations)).
 pub struct AnyModel {
     name: &'static str,
     description: &'static str,
     supported_types: Vec<EntityType>,
     extractor: Box<AnyModelExtractor>,
     version: String,
-    /// Optional closure backing [`DynamicLabels::extract_with_labels`].
-    label_extractor: Option<Box<AnyModelLabelExtractor>>,
+    /// Optional closure backing [`ZeroShotNER::extract_with_types`](backends::inference::ZeroShotNER::extract_with_types).
+    zero_shot_extractor: Option<Box<AnyModelZeroShotExtractor>>,
     /// Optional closure backing [`RelationCapable::extract_with_relations`].
     relation_extractor: Option<Box<AnyModelRelationExtractor>>,
 }
@@ -348,7 +347,7 @@ impl AnyModel {
             supported_types,
             extractor: Box::new(extractor),
             version: "1".to_string(),
-            label_extractor: None,
+            zero_shot_extractor: None,
             relation_extractor: None,
         }
     }
@@ -359,16 +358,16 @@ impl AnyModel {
         self
     }
 
-    /// Attach a `DynamicLabels` implementation via closure.
+    /// Attach a [`ZeroShotNER`](backends::inference::ZeroShotNER) implementation via closure.
     ///
-    /// When set, `AnyModel` will implement [`DynamicLabels`] by delegating to this
-    /// closure, and [`Model::capabilities()`] will report `dynamic_labels = true`.
+    /// When set, `AnyModel` will implement `ZeroShotNER` by delegating to this
+    /// closure, and [`Model::capabilities()`] will report `zero_shot = true`.
     #[must_use]
-    pub fn with_dynamic_labels(
+    pub fn with_zero_shot(
         mut self,
-        f: impl Fn(&str, &[&str], Option<Language>) -> Result<Vec<Entity>> + Send + Sync + 'static,
+        f: impl Fn(&str, &[&str], f32) -> Result<Vec<Entity>> + Send + Sync + 'static,
     ) -> Self {
-        self.label_extractor = Some(Box::new(f));
+        self.zero_shot_extractor = Some(Box::new(f));
         self
     }
 
@@ -425,7 +424,7 @@ impl Model for AnyModel {
 
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities {
-            dynamic_labels: self.label_extractor.is_some(),
+            zero_shot: self.zero_shot_extractor.is_some(),
             relation_capable: self.relation_extractor.is_some(),
             ..ModelCapabilities::default()
         }
@@ -436,20 +435,33 @@ impl Model for AnyModel {
     }
 }
 
-impl DynamicLabels for AnyModel {
-    fn extract_with_labels(
+impl backends::inference::ZeroShotNER for AnyModel {
+    fn extract_with_types(
         &self,
         text: &str,
-        labels: &[&str],
-        language: Option<Language>,
+        entity_types: &[&str],
+        threshold: f32,
     ) -> Result<Vec<Entity>> {
-        match &self.label_extractor {
-            Some(f) => f(text, labels, language),
+        match &self.zero_shot_extractor {
+            Some(f) => f(text, entity_types, threshold),
             None => Err(Error::FeatureNotAvailable(
-                "AnyModel: DynamicLabels closure not configured (use .with_dynamic_labels())"
-                    .into(),
+                "AnyModel: ZeroShotNER closure not configured (use .with_zero_shot())".into(),
             )),
         }
+    }
+
+    fn extract_with_descriptions(
+        &self,
+        text: &str,
+        descriptions: &[&str],
+        threshold: f32,
+    ) -> Result<Vec<Entity>> {
+        // Descriptions are treated the same as types for closure-based backends.
+        self.extract_with_types(text, descriptions, threshold)
+    }
+
+    fn default_types(&self) -> &[&'static str] {
+        &[]
     }
 }
 
@@ -488,7 +500,7 @@ impl RelationCapable for AnyModel {
 ///     if caps.relation_capable {
 ///         println!("Model supports relation extraction");
 ///     }
-///     if caps.dynamic_labels {
+///     if caps.zero_shot {
 ///         println!("Model supports zero-shot entity types");
 ///     }
 /// }
@@ -497,8 +509,9 @@ impl RelationCapable for AnyModel {
 pub struct ModelCapabilities {
     /// True if the model supports relation extraction.
     pub relation_capable: bool,
-    /// True if the model supports zero-shot, caller-supplied entity types.
-    pub dynamic_labels: bool,
+    /// True if the model supports zero-shot, caller-supplied entity types
+    /// via [`ZeroShotNER`](backends::inference::ZeroShotNER).
+    pub zero_shot: bool,
     /// True if the model can extract discontinuous entities spanning non-adjacent spans.
     /// Only `W2NER` (when loaded with an ONNX session) sets this today.
     pub discontinuous_capable: bool,
@@ -526,50 +539,6 @@ pub trait RelationCapable: Model {
     ) -> Result<(Vec<Entity>, Vec<Relation>)>;
 }
 
-/// Trait for models that support dynamic/zero-shot entity type specification.
-///
-/// Models implementing this trait can extract entities of arbitrary types
-/// specified at inference time (e.g., GLiNER, UniversalNER), rather than
-/// being limited to a fixed set of pre-trained types.
-///
-/// # Relationship to `ZeroShotNER`
-///
-/// `DynamicLabels` is the sealed, `Model`-hierarchy trait for zero-shot extraction.
-/// [`ZeroShotNER`](backends::inference::ZeroShotNER) is the open, backend-internal trait
-/// with additional parameters (threshold, descriptions). Backends that support zero-shot
-/// typically implement both: `DynamicLabels` delegates to `ZeroShotNER` with a default
-/// threshold. Use `DynamicLabels` in application code; use `ZeroShotNER` only when you
-/// need direct threshold control.
-///
-/// # Label count warning
-///
-/// GLiNER-family models degrade significantly when more than ~30 labels are
-/// passed in a single call. The label-token cross-attention matrix grows
-/// quadratically, causing both latency spikes and accuracy drops (the model
-/// was trained with at most ~20-30 types per batch). If you need >30 types,
-/// split them into batches and merge results with span-level deduplication.
-pub trait DynamicLabels: Model {
-    /// Extract entities with custom type labels.
-    ///
-    /// # Arguments
-    ///
-    /// * `text` - Input text to extract from
-    /// * `labels` - Custom entity type labels to extract (e.g., ["PERSON", "ORGANIZATION"]).
-    ///   Passing more than 30 labels may degrade accuracy for GLiNER-family models;
-    ///   consider batching labels if the count exceeds this threshold.
-    /// * `language` - Optional language hint (e.g., "en", "es")
-    ///
-    /// # Returns
-    ///
-    /// Entities of the specified types found in the text.
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        language: Option<Language>,
-    ) -> Result<Vec<Entity>>;
-}
-
 // Re-export backends
 pub use backends::{
     ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER, NuNER, RegexNER, StackedNER,
@@ -590,7 +559,7 @@ pub use backends::CorefBackend;
 pub use backends::inference::{
     extract_relation_triples, extract_relation_triples_simple, extract_relations,
     CoreferenceConfig, DiscontinuousEntity, DiscontinuousNER, ExtractionWithRelations,
-    RelationExtractionConfig, RelationExtractor, RelationTriple,
+    RelationExtractionConfig, RelationExtractor, RelationTriple, ZeroShotNER,
 };
 
 #[cfg(feature = "onnx")]
@@ -897,12 +866,12 @@ mod any_model_tests {
     }
 
     #[test]
-    fn any_model_capabilities_default_no_dynamic_no_relations() {
+    fn any_model_capabilities_default_no_zero_shot_no_relations() {
         let m = base_any_model();
         let caps = m.capabilities();
         assert!(
-            !caps.dynamic_labels,
-            "should not report dynamic_labels without closure"
+            !caps.zero_shot,
+            "should not report zero_shot without closure"
         );
         assert!(
             !caps.relation_capable,
@@ -911,9 +880,9 @@ mod any_model_tests {
     }
 
     #[test]
-    fn any_model_dynamic_labels_returns_entities() {
-        let m = base_any_model().with_dynamic_labels(|_text, labels, _lang| {
-            Ok(labels
+    fn any_model_zero_shot_returns_entities() {
+        let m = base_any_model().with_zero_shot(|_text, types, _threshold| {
+            Ok(types
                 .iter()
                 .enumerate()
                 .map(|(i, &lbl)| {
@@ -927,9 +896,9 @@ mod any_model_tests {
                 })
                 .collect())
         });
-        assert!(m.capabilities().dynamic_labels);
+        assert!(m.capabilities().zero_shot);
         let ents = m
-            .extract_with_labels("hello world", &["GREETING", "NOUN"], None)
+            .extract_with_types("hello world", &["GREETING", "NOUN"], 0.5)
             .unwrap();
         assert_eq!(ents.len(), 2);
         assert_eq!(ents[0].text, "GREETING");
@@ -937,9 +906,10 @@ mod any_model_tests {
     }
 
     #[test]
-    fn any_model_dynamic_labels_missing_returns_feature_not_available() {
+    fn any_model_zero_shot_missing_returns_feature_not_available() {
         let m = base_any_model();
-        let err = m.extract_with_labels("hello", &["X"], None).unwrap_err();
+        let ents: Result<Vec<Entity>> = m.extract_with_types("hello", &["X"], 0.5);
+        let err = ents.unwrap_err();
         assert!(
             matches!(err, Error::FeatureNotAvailable(_)),
             "expected FeatureNotAvailable, got: {err:?}"

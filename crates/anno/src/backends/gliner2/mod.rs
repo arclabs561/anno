@@ -283,21 +283,9 @@ impl crate::Model for GLiNER2Onnx {
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
             relation_capable: true,
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
-    }
-}
-
-#[cfg(feature = "onnx")]
-impl crate::DynamicLabels for GLiNER2Onnx {
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
-    ) -> crate::Result<Vec<crate::Entity>> {
-        <Self as ZeroShotNER>::extract_with_types(self, text, labels, 0.3)
     }
 }
 
@@ -353,21 +341,9 @@ impl crate::Model for GLiNER2Candle {
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
             relation_capable: true,
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
-    }
-}
-
-#[cfg(feature = "candle")]
-impl crate::DynamicLabels for GLiNER2Candle {
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
-    ) -> crate::Result<Vec<crate::Entity>> {
-        <Self as ZeroShotNER>::extract_with_types(self, text, labels, 0.3)
     }
 }
 

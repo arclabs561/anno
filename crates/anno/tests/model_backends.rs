@@ -192,6 +192,6 @@ fn test_model_capabilities() {
 
     // StackedNER has no special capabilities by default
     assert!(!caps.relation_capable);
-    assert!(!caps.dynamic_labels);
+    assert!(!caps.zero_shot);
     assert!(!caps.discontinuous_capable);
 }

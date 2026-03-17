@@ -166,23 +166,9 @@ impl crate::Model for GLiNERCandle {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
-    }
-}
-
-#[cfg(feature = "candle")]
-impl crate::DynamicLabels for GLiNERCandle {
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
-    ) -> crate::Result<Vec<Entity>> {
-        <Self as crate::backends::inference::ZeroShotNER>::extract_with_types(
-            self, text, labels, 0.3,
-        )
     }
 }
 

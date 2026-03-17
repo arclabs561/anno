@@ -37,7 +37,7 @@ exact string you pass in.
 
 **In scope**
 - Inference-time extraction (regex/heuristics/ML backends).
-- Zero-shot extraction with custom entity types (`DynamicLabels` backends: GLiNER, GLiNER2, NuNER — use `extract_with_labels`; CLI `--extract-types`).
+- Zero-shot extraction with custom entity types (`ZeroShotNER` backends: GLiNER, GLiNER2, NuNER -- use `extract_with_types`; CLI `--extract-types`).
 - Relation extraction (`RelationCapable` backends: `tplinker`, `gliner2`).
 - Graph/KG export: the `graph` feature exposes `GraphDocument` and N-Triples export.
 - Evaluation + dataset loading behind feature flags (for benchmarking, not required for usage).

@@ -226,21 +226,35 @@ impl Model for NuNER {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
     }
 }
 
 #[cfg(feature = "onnx")]
-impl crate::DynamicLabels for NuNER {
-    fn extract_with_labels(
+impl crate::backends::inference::ZeroShotNER for NuNER {
+    fn extract_with_types(
         &self,
         text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
+        entity_types: &[&str],
+        threshold: f32,
     ) -> crate::Result<Vec<crate::Entity>> {
-        self.extract(text, labels, self.threshold as f32)
+        self.extract(text, entity_types, threshold)
+    }
+
+    fn extract_with_descriptions(
+        &self,
+        text: &str,
+        descriptions: &[&str],
+        threshold: f32,
+    ) -> crate::Result<Vec<crate::Entity>> {
+        // NuNER uses token-level bi-encoder, so descriptions work the same as type labels.
+        self.extract(text, descriptions, threshold)
+    }
+
+    fn default_types(&self) -> &[&'static str] {
+        &["person", "organization", "location", "date", "event"]
     }
 }
 

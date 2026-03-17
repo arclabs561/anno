@@ -945,20 +945,9 @@ impl Model for UniversalNER {
 
     fn capabilities(&self) -> crate::ModelCapabilities {
         crate::ModelCapabilities {
-            dynamic_labels: true,
+            zero_shot: true,
             ..Default::default()
         }
-    }
-}
-
-impl crate::DynamicLabels for UniversalNER {
-    fn extract_with_labels(
-        &self,
-        text: &str,
-        labels: &[&str],
-        _language: Option<Language>,
-    ) -> crate::Result<Vec<Entity>> {
-        <Self as ZeroShotNER>::extract_with_types(self, text, labels, 0.3)
     }
 }
 
@@ -1090,8 +1079,8 @@ mod tests {
         let model = UniversalNER::new().unwrap();
         let caps = model.capabilities();
         assert!(
-            caps.dynamic_labels,
-            "UniversalNER should have dynamic_labels capability"
+            caps.zero_shot,
+            "UniversalNER should have zero_shot capability"
         );
     }
 
