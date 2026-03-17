@@ -287,7 +287,13 @@ impl fmt::Debug for Confidence {
 
 impl fmt::Display for Confidence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:.4}", self.0)
+        // Respect caller's precision (e.g., `{:.2}` for 2 decimals).
+        // Default to 4 decimals when no precision is specified.
+        if let Some(precision) = f.precision() {
+            write!(f, "{:.*}", precision, self.0)
+        } else {
+            write!(f, "{:.4}", self.0)
+        }
     }
 }
 
@@ -374,5 +380,15 @@ mod tests {
         let json = serde_json::to_string(&c).unwrap();
         let back: Confidence = serde_json::from_str(&json).unwrap();
         assert_eq!(back, c);
+    }
+
+    #[test]
+    fn display_respects_precision() {
+        let c = Confidence::new(0.9512);
+        assert_eq!(format!("{:.2}", c), "0.95");
+        assert_eq!(format!("{:.4}", c), "0.9512");
+        assert_eq!(format!("{:.0}", c), "1");
+        // Default (no precision specified) = 4 decimals
+        assert_eq!(format!("{}", c), "0.9512");
     }
 }
