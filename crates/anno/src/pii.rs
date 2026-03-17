@@ -445,16 +445,48 @@ mod tests {
 
     #[test]
     fn redact_replaces_pii() {
+        // "My SSN is " = 10 chars, "123-45-6789" = chars 10..21
         let entities = vec![PiiEntity {
             text: "123-45-6789".to_string(),
             pii_type: "ID_NUMBER".to_string(),
-            start: 11,
-            end: 22,
+            start: 10,
+            end: 21,
             risk_level: "CRITICAL".to_string(),
         }];
         let result = redact("My SSN is 123-45-6789.", &entities);
-        assert!(result.contains("[ID_NUMBER_1]"));
+        assert_eq!(result, "My SSN is [ID_NUMBER_1].");
+    }
+
+    #[test]
+    fn redact_non_ascii() {
+        // "caf\u{e9}" is 4 chars (e with accent = 1 char, 2 bytes)
+        let text = "caf\u{e9} SSN: 123-45-6789.";
+        let entities = vec![PiiEntity {
+            text: "123-45-6789".to_string(),
+            pii_type: "ID_NUMBER".to_string(),
+            start: 10, // "caf\u{e9} SSN: " = 10 chars
+            end: 21,   // 10 + 11 chars
+            risk_level: "CRITICAL".to_string(),
+        }];
+        let result = redact(text, &entities);
+        assert_eq!(result, "caf\u{e9} SSN: [ID_NUMBER_1].");
         assert!(!result.contains("123-45-6789"));
+    }
+
+    #[test]
+    fn scan_patterns_returns_char_offsets() {
+        let text = "caf\u{e9} SSN: 123-45-6789 end";
+        let pii = scan_patterns(text);
+        let ssn = pii.iter().find(|p| p.text == "123-45-6789");
+        assert!(ssn.is_some(), "should detect SSN");
+        let ssn = ssn.unwrap();
+        // Verify these are char offsets, not byte offsets
+        let extracted: String = text
+            .chars()
+            .skip(ssn.start)
+            .take(ssn.end - ssn.start)
+            .collect();
+        assert_eq!(extracted, "123-45-6789");
     }
 
     #[test]
