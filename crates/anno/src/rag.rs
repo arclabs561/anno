@@ -584,6 +584,91 @@ fn is_demonstrative_pronoun(text: &str) -> bool {
     matches!(lower.as_str(), "this" | "that" | "these" | "those")
 }
 
+/// Chunk text, extract entities per chunk, resolve coreference, return self-contained chunks.
+///
+/// This is the full RAG preprocessing pipeline in one call:
+/// 1. Split text into chunks (respecting sentence boundaries)
+/// 2. Extract entities per chunk using the provided model
+/// 3. Resolve coreference within each chunk (pronoun -> antecedent)
+/// 4. Return chunks with their entities and rewritten text
+///
+/// ```rust,ignore
+/// use anno::{rag, Model, StackedNER};
+///
+/// let m = StackedNER::default();
+/// let chunks = rag::preprocess("Long document text...", &m, None)?;
+/// for chunk in &chunks {
+///     println!("Chunk: {}...", &chunk.text[..40.min(chunk.text.len())]);
+///     println!("  {} entities", chunk.entities.len());
+/// }
+/// ```
+pub fn preprocess(
+    text: &str,
+    model: &dyn crate::Model,
+    config: Option<RagPreprocessConfig>,
+) -> crate::Result<Vec<RagChunk>> {
+    let config = config.unwrap_or_default();
+    let chunks = crate::backends::chunking::chunk_text(text, &config.chunk_config);
+
+    let mut result = Vec::with_capacity(chunks.len());
+    for chunk in &chunks {
+        let entities = model.extract_entities(&chunk.text, None)?;
+        let coref_result = resolve_for_rag(&chunk.text, &entities, Some(config.coref.clone()));
+
+        let char_start = chunk.char_offset;
+        let char_end = chunk.char_offset + chunk.text.chars().count();
+        result.push(RagChunk {
+            text: coref_result.text,
+            original_text: chunk.text.clone(),
+            char_start,
+            char_end,
+            entities,
+            rewrites: coref_result.rewrites.len(),
+        });
+    }
+
+    Ok(result)
+}
+
+/// Configuration for the full RAG preprocessing pipeline.
+#[derive(Debug, Clone)]
+pub struct RagPreprocessConfig {
+    /// Chunking configuration.
+    pub chunk_config: crate::backends::chunking::ChunkConfig,
+    /// Coreference resolution configuration.
+    pub coref: RagCorefConfig,
+}
+
+impl Default for RagPreprocessConfig {
+    fn default() -> Self {
+        Self {
+            chunk_config: crate::backends::chunking::ChunkConfig::long_document(),
+            coref: RagCorefConfig::default(),
+        }
+    }
+}
+
+/// A preprocessed text chunk ready for RAG embedding.
+#[derive(Debug, Clone)]
+pub struct RagChunk {
+    /// Coref-resolved text (pronouns replaced with antecedents).
+    pub text: String,
+    /// Original text before coreference resolution.
+    pub original_text: String,
+    /// Character offset of chunk start in the source document.
+    pub char_start: usize,
+    /// Character offset of chunk end in the source document.
+    pub char_end: usize,
+    /// Entities extracted from this chunk (offsets relative to `original_text`).
+    pub entities: Vec<Entity>,
+    /// Number of pronoun rewrites applied.
+    pub rewrites: usize,
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
 /// Check if a text span is a pronoun for the given language.
 ///
 /// For unsupported languages (CJK, Arabic, Russian, etc.) this returns `false`,
