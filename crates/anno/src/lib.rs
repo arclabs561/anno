@@ -603,38 +603,92 @@ pub use backends::{FCoref, FCorefConfig};
 #[cfg_attr(docsrs, doc(cfg(feature = "candle")))]
 pub use backends::CandleNER;
 
-// Constants
+// =============================================================================
+// Convenience API
+// =============================================================================
 
-/// Default BERT ONNX model identifier (HuggingFace model ID).
-pub const DEFAULT_BERT_ONNX_MODEL: &str = "protectai/bert-base-NER-onnx";
-
-/// Default GLiNER ONNX model identifier (HuggingFace model ID).
-pub const DEFAULT_GLINER_MODEL: &str = "onnx-community/gliner_small-v2.1";
-
-/// Default GLiNER2 ONNX model identifier (HuggingFace model ID).
-pub const DEFAULT_GLINER2_MODEL: &str = "onnx-community/gliner-multitask-large-v0.5";
-
-/// Default Candle model identifier (HuggingFace model ID).
-/// Uses dbmdz's model which has both tokenizer.json and safetensors.
-pub const DEFAULT_CANDLE_MODEL: &str = "dslim/bert-base-NER";
-
-/// Default GLiNER Candle model identifier (HuggingFace model ID).
-/// Uses a model with tokenizer.json and pytorch_model.bin for Candle compatibility.
-/// The backend converts pytorch_model.bin to safetensors automatically.
-// NeuML/gliner-bert-tiny uses BERT (not DeBERTa) which is compatible with CandleEncoder
-// Other GLiNER models use DeBERTa-v3 which has different architecture (relative attention)
-pub const DEFAULT_GLINER_CANDLE_MODEL: &str = "NeuML/gliner-bert-tiny";
-
-/// Default NuNER ONNX model identifier (HuggingFace model ID).
-pub const DEFAULT_NUNER_MODEL: &str = "deepanwa/NuNerZero_onnx";
-
-/// Default GLiNER Poly-Encoder ONNX model identifier (HuggingFace model ID).
+/// Extract entities from text using the best available backend.
 ///
-/// Uses the bi-encoder large v1.0 (DeBERTa text + BGE label encoder).
-pub const DEFAULT_GLINER_POLY_MODEL: &str = "knowledgator/gliner-bi-large-v1.0";
+/// This is a one-liner convenience function. For control over which backend
+/// to use, construct a specific model (e.g., [`StackedNER`], [`GLiNEROnnx`]).
+///
+/// ```rust
+/// let entities = anno::extract("Marie Curie won the Nobel Prize.")?;
+/// for e in &entities {
+///     println!("{} [{}]", e.text, e.entity_type);
+/// }
+/// # Ok::<(), anno::Error>(())
+/// ```
+pub fn extract(text: &str) -> Result<Vec<Entity>> {
+    let model = StackedNER::default();
+    model.extract_entities(text, None)
+}
 
-/// Default W2NER ONNX model identifier (HuggingFace model ID).
-pub const DEFAULT_W2NER_MODEL: &str = "ljynlp/w2ner-bert-base";
+// =============================================================================
+// Prelude
+// =============================================================================
+
+/// Common imports for working with anno.
+///
+/// ```rust
+/// use anno::prelude::*;
+///
+/// let m = StackedNER::default();
+/// let ents = m.extract_entities("Marie Curie won the Nobel Prize.", None)?;
+/// let people: Vec<_> = ents.of_type(&EntityType::Person).collect();
+/// let confident: Vec<_> = ents.above_confidence(0.8).collect();
+/// # Ok::<(), anno::Error>(())
+/// ```
+pub mod prelude {
+    pub use crate::types::EntitySliceExt;
+    pub use crate::{Confidence, Entity, EntityType, Error, Language, Model, Result, StackedNER};
+}
+
+// =============================================================================
+// Model IDs (backend-internal, re-exported for direct backend construction)
+// =============================================================================
+
+/// Default model identifiers for backend construction.
+///
+/// These are only needed when constructing backends directly (e.g.,
+/// `BertNEROnnx::new(models::BERT_ONNX)`). Users of [`StackedNER`] or
+/// [`extract()`] do not need these.
+pub mod models {
+    /// BERT ONNX model (HuggingFace).
+    pub const BERT_ONNX: &str = "protectai/bert-base-NER-onnx";
+    /// GLiNER ONNX model (HuggingFace).
+    pub const GLINER: &str = "onnx-community/gliner_small-v2.1";
+    /// GLiNER2 ONNX model (HuggingFace).
+    pub const GLINER2: &str = "onnx-community/gliner-multitask-large-v0.5";
+    /// BERT Candle model (HuggingFace).
+    pub const CANDLE: &str = "dslim/bert-base-NER";
+    /// GLiNER Candle model (HuggingFace, BERT-based).
+    pub const GLINER_CANDLE: &str = "NeuML/gliner-bert-tiny";
+    /// NuNER ONNX model (HuggingFace).
+    pub const NUNER: &str = "deepanwa/NuNerZero_onnx";
+    /// GLiNER Poly-Encoder ONNX model (HuggingFace).
+    pub const GLINER_POLY: &str = "knowledgator/gliner-bi-large-v1.0";
+    /// W2NER ONNX model (HuggingFace).
+    pub const W2NER: &str = "ljynlp/w2ner-bert-base";
+}
+
+// Backward-compat aliases (hidden from docs).
+#[doc(hidden)]
+pub const DEFAULT_BERT_ONNX_MODEL: &str = models::BERT_ONNX;
+#[doc(hidden)]
+pub const DEFAULT_GLINER_MODEL: &str = models::GLINER;
+#[doc(hidden)]
+pub const DEFAULT_GLINER2_MODEL: &str = models::GLINER2;
+#[doc(hidden)]
+pub const DEFAULT_CANDLE_MODEL: &str = models::CANDLE;
+#[doc(hidden)]
+pub const DEFAULT_GLINER_CANDLE_MODEL: &str = models::GLINER_CANDLE;
+#[doc(hidden)]
+pub const DEFAULT_NUNER_MODEL: &str = models::NUNER;
+#[doc(hidden)]
+pub const DEFAULT_GLINER_POLY_MODEL: &str = models::GLINER_POLY;
+#[doc(hidden)]
+pub const DEFAULT_W2NER_MODEL: &str = models::W2NER;
 
 /// Automatically select the best available NER backend.
 pub fn auto() -> Result<Box<dyn Model>> {

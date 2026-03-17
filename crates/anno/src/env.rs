@@ -218,7 +218,7 @@ pub fn has_llm_api_key() -> bool {
 ///
 /// Priority: OpenRouter (unified gateway) > Anthropic > Gemini > Groq > Ollama (local).
 #[must_use]
-pub fn llm_api_key() -> Option<(String, &'static str)> {
+pub(crate) fn llm_api_key() -> Option<(String, &'static str)> {
     let nonempty = |name: &str| -> Option<String> {
         std::env::var(name).ok().filter(|v| !v.trim().is_empty())
     };
