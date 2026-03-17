@@ -110,17 +110,24 @@ let redacted = pii::redact(text, &pii_ents);
 
 ## Backends
 
-| Backend | Zero-shot | Weights | Reference |
+| Backend | Feature | Zero-shot | Reference |
 |---|---|---|---|
-| `stacked` (default) | -- | HF (when ML enabled) | -- |
-| `gliner` | Yes | [gliner_small-v2.1](https://huggingface.co/onnx-community/gliner_small-v2.1) | Zaratiana et al. [5] |
-| `gliner2` | Yes | [gliner-multitask-large-v0.5](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5) | [11] |
-| `nuner` | Yes | [NuNerZero_onnx](https://huggingface.co/deepanwa/NuNerZero_onnx) | Bogdanov et al. [6] |
-| `bert-onnx` | No | [bert-base-NER-onnx](https://huggingface.co/protectai/bert-base-NER-onnx) | Devlin et al. [8] |
-| `pattern` | N/A | None | -- |
-| `universal-ner` | Yes | None (LLM API) | -- |
+| `stacked` (default) | -- | -- | -- |
+| `gliner` | `onnx` | Yes | Zaratiana et al. [5] |
+| `gliner2` | `onnx` | Yes | [11] |
+| `nuner` | `onnx` | Yes | Bogdanov et al. [6] |
+| `bert-onnx` | `onnx` | No | Devlin et al. [8] |
+| `w2ner` | `onnx` | No | Li et al. [7] |
+| `tplinker` | `onnx` | No | Wang et al. [10] |
+| `pattern` | -- | N/A | -- |
+| `heuristic` | -- | No | -- |
+| `crf` | -- | No | Lafferty et al. [9] |
+| `hmm` | -- | No | Rabiner [12] |
+| `universal_ner` | `llm` | Yes | -- |
+| `candle` | `candle` | No | -- |
+| `gliner_candle` | `candle` | Yes | -- |
 
-Statistical baselines (`crf` [9], `hmm` [12], `bilstm-crf`) and structural backends (`w2ner` [7], `tplinker` [10]) are also available. See [BACKENDS.md](docs/BACKENDS.md) for the full list.
+See [BACKENDS.md](docs/BACKENDS.md) for the full list including ensemble, lexicon, and experimental backends.
 
 ML backends are feature-gated (`onnx` or `candle`). Weights download from HuggingFace on first use.
 
