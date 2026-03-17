@@ -53,11 +53,9 @@
 //! - [`MentionType`] - Types of referring expressions (proper, nominal, pronominal, zero)
 //! - [`PhiFeatures`] - Person/number/gender features for morphological agreement
 //!
-//! ## Temporal & Statistical
+//! ## Statistical
 //!
 //! - [`MetricStats`] - Statistical metrics with variance and confidence intervals
-//! - [`HistoricalDate`] - Dates that can represent BCE/CE with uncertainty
-//! - [`TemporalValidity`] - Time range during which an entity is valid
 //!
 //! ## Discourse & Framing
 //!
@@ -70,7 +68,6 @@ mod ids;
 mod mention_type;
 mod metric;
 mod phi_features;
-mod temporal;
 mod type_label;
 
 pub use framing::{
@@ -84,5 +81,4 @@ pub use ids::{
 pub use mention_type::MentionType;
 pub use metric::MetricStats;
 pub use phi_features::{Animacy, Number, Person, PhiFeatures};
-pub use temporal::{DatePrecision, HistoricalDate, TemporalValidity};
 pub use type_label::TypeLabel;

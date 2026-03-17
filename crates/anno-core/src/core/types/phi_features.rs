@@ -1108,39 +1108,8 @@ mod tests {
         assert!(!base.is_compatible(&diff_animacy));
     }
 
-    // =========================================================================
-    // Entity integration: phi_features serde round-trip
-    // =========================================================================
-
-    #[test]
-    fn test_entity_phi_features_serde_roundtrip() {
-        use crate::{Entity, EntityType};
-
-        let mut entity = Entity::new("Ahmad", EntityType::Person, 0, 5, 0.95);
-        entity.phi_features = Some(PhiFeatures::third_sg_masc().with_animacy(Animacy::Animate));
-        entity.mention_type = Some(crate::MentionType::Proper);
-
-        let json = serde_json::to_string(&entity).expect("serialize Entity");
-        let recovered: Entity = serde_json::from_str(&json).expect("deserialize Entity");
-
-        assert_eq!(recovered.phi_features, entity.phi_features);
-        assert_eq!(recovered.mention_type, entity.mention_type);
-    }
-
-    #[test]
-    fn test_entity_without_phi_features_omits_field() {
-        use crate::{Entity, EntityType};
-
-        let entity = Entity::new("Berlin", EntityType::Location, 0, 6, 0.90);
-        let json = serde_json::to_string(&entity).expect("serialize Entity");
-
-        // phi_features is skip_serializing_if = "Option::is_none", so absent
-        assert!(
-            !json.contains("phi_features"),
-            "phi_features should be omitted when None, got: {}",
-            json
-        );
-    }
+    // Entity phi_features field was removed (zero consumers outside tests).
+    // PhiFeatures types remain available for coref backends.
 
     // =========================================================================
     // Property tests (proptest)

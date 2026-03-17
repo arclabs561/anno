@@ -117,14 +117,12 @@ name = "anno-core"
 version = "0.3.9"
 dependencies = [
  "chrono",
- "innr",
  "log",
  "proptest",
  "regex",
  "schemars",
  "serde",
  "serde_json",
- "sketchir",
  "textprep",
  "thiserror 2.0.18",
 ]
@@ -180,11 +178,9 @@ dependencies = [
  "candle-core",
  "candle-nn",
  "candle-transformers",
- "chrono",
  "criterion",
  "deformat",
  "dirs 5.0.1",
- "gramdex",
  "hf-hub",
  "innr",
  "itertools 0.14.0",
@@ -1542,15 +1538,6 @@ name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
-
-[[package]]
-name = "gramdex"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97445bfe797bf29b030c5b9438a21e816dac27c72a8d461476fcc031541fe9ca"
-dependencies = [
- "thiserror 2.0.18",
-]
 
 [[package]]
 name = "graphops"
@@ -3561,12 +3548,6 @@ name = "siphasher"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
-
-[[package]]
-name = "sketchir"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0dec5adcaad5c00042b4124bbf0e78dada7623578e082a778721251a51bf4d46"
 
 [[package]]
 name = "slab"

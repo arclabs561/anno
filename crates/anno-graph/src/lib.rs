@@ -66,13 +66,6 @@ pub fn entities_to_graph_document(
             .with_mentions_count(1)
             .with_first_seen(entity.start());
 
-        if let Some(valid_from) = &entity.valid_from {
-            node = node.with_property("valid_from", valid_from.to_rfc3339());
-        }
-        if let Some(valid_until) = &entity.valid_until {
-            node = node.with_property("valid_until", valid_until.to_rfc3339());
-        }
-
         seen_nodes.insert(node_id.clone(), doc.nodes.len());
         entity_to_node.insert(idx, node_id);
         doc.nodes.push(node);

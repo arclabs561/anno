@@ -23,7 +23,7 @@
 //! // Build an entity at character offsets 0..6.
 //! let entity = Entity::new("Berlin", EntityType::Location, 0, 6, 0.95);
 //! assert_eq!(entity.text, "Berlin");
-//! assert_eq!((entity.start, entity.end), (0, 6));
+//! assert_eq!((entity.start(), entity.end()), (0, 6));
 //!
 //! // Build a coreference chain from two mentions.
 //! let m1 = Mention::new("John", 0, 4);

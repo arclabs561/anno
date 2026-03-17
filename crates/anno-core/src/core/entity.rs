@@ -36,7 +36,7 @@
 //! 5. **Multi-modal ready**: Spans can be text offsets or visual bboxes
 
 use super::confidence::Confidence;
-use super::types::{MentionType, PhiFeatures};
+use super::types::MentionType;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -662,8 +662,6 @@ impl TypeMapper {
 /// |--------|-----------|--------|----------------|----------|
 /// | Pattern | Very High | Low | N/A (format-based) | Dates, emails, money |
 /// | Neural | High | High | Good | General NER |
-/// | SoftLexicon | Medium | High | Good for rare types | Low-resource NER |
-/// | GatedEnsemble | Highest | Highest | Contextual | Short texts, domain shift |
 ///
 /// See `docs/` for repo-local notes and entry points.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -677,16 +675,6 @@ pub enum ExtractionMethod {
     /// The recommended default for general NER. Generalizes to unseen entities.
     #[default]
     Neural,
-
-    /// Embedding-based soft lexicon matching.
-    /// Useful for low-resource languages and rare entity types.
-    /// See: Rijhwani et al. (2020) "Soft Gazetteers for Low-Resource NER"
-    SoftLexicon,
-
-    /// Gated ensemble: neural + lexicon with learned weighting.
-    /// Model learns when to trust lexicon vs. context.
-    /// See: Nie et al. (2021) "GEMNET: Effective Gated Gazetteer Representations"
-    GatedEnsemble,
 
     /// Multiple methods agreed on this entity (high confidence).
     Consensus,
@@ -707,8 +695,6 @@ impl ExtractionMethod {
     ///
     /// - **Neural**: Softmax outputs are intended to be probabilistic (though may need
     ///   temperature scaling for true calibration)
-    /// - **GatedEnsemble**: Produces learned probability estimates
-    /// - **SoftLexicon**: Embedding similarity is pseudo-probabilistic
     ///
     /// # Uncalibrated Methods
     ///
@@ -729,8 +715,6 @@ impl ExtractionMethod {
     pub const fn is_calibrated(&self) -> bool {
         match self {
             ExtractionMethod::Neural => true,
-            ExtractionMethod::GatedEnsemble => true,
-            ExtractionMethod::SoftLexicon => true,
             // Everything else is not calibrated
             ExtractionMethod::Pattern => false,
             ExtractionMethod::Consensus => false,
@@ -749,7 +733,6 @@ impl ExtractionMethod {
     pub const fn confidence_interpretation(&self) -> &'static str {
         match self {
             ExtractionMethod::Neural => "probability",
-            ExtractionMethod::GatedEnsemble | ExtractionMethod::SoftLexicon => "probability",
             ExtractionMethod::Pattern => "binary",
             ExtractionMethod::Heuristic => "heuristic_score",
             ExtractionMethod::Consensus => "agreement_ratio",
@@ -763,8 +746,6 @@ impl std::fmt::Display for ExtractionMethod {
         match self {
             ExtractionMethod::Pattern => write!(f, "pattern"),
             ExtractionMethod::Neural => write!(f, "neural"),
-            ExtractionMethod::SoftLexicon => write!(f, "soft_lexicon"),
-            ExtractionMethod::GatedEnsemble => write!(f, "gated_ensemble"),
             ExtractionMethod::Consensus => write!(f, "consensus"),
             ExtractionMethod::Heuristic => write!(f, "heuristic"),
             ExtractionMethod::Unknown => write!(f, "unknown"),
@@ -1652,7 +1633,6 @@ pub fn generate_filtered_candidates(
 /// |-------|---------|--------|
 /// | `visual_span` | Multi-modal (ColPali) extraction | Experimental |
 /// | `discontinuous_span` | W2NER non-contiguous entities | Experimental |
-/// | `valid_from`, `valid_until` | Temporal knowledge graphs | Research |
 /// | `hierarchical_confidence` | Coarse-to-fine NER | Experimental |
 ///
 /// These fields are `#[serde(skip_serializing_if = "Option::is_none")]` so they
@@ -1723,47 +1703,6 @@ pub struct Entity {
     /// Example: "New York and LA \[airports\]" where "airports" modifies both.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discontinuous_span: Option<DiscontinuousSpan>,
-    // =========================================================================
-    // Temporal Validity (Research: Temporal Knowledge Graphs)
-    // =========================================================================
-    /// Start of temporal validity interval for this entity assertion.
-    ///
-    /// Entities are facts that may change over time:
-    /// - "Satya Nadella is CEO of Microsoft" is valid from [2014, present]
-    /// - "Steve Ballmer was CEO of Microsoft" was valid from [2000, 2014]
-    ///
-    /// When `None`, the entity is either:
-    /// - Currently valid (no known end date)
-    /// - Atemporal (timeless fact like "Paris is in France")
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType};
-    /// use chrono::{TimeZone, Utc};
-    ///
-    /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
-    /// entity.valid_from = Some(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap());
-    /// ```
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub valid_from: Option<chrono::DateTime<chrono::Utc>>,
-    /// End of temporal validity interval for this entity assertion.
-    ///
-    /// When `None` and `valid_from` is set, the fact is currently valid.
-    /// When both are `None`, the entity is atemporal.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub valid_until: Option<chrono::DateTime<chrono::Utc>>,
-    // =========================================================================
-    // Viewport / Context (Research: Entity Manifolds)
-    // =========================================================================
-    /// Viewport context for multi-faceted entity representation.
-    ///
-    /// Phi-features (person, number, gender) for morphological agreement.
-    ///
-    /// Used for coreference constraints and zero pronoun resolution.
-    /// In pro-drop languages (Arabic, Spanish, Japanese), verb morphology
-    /// encodes subject features even when the pronoun is dropped.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub phi_features: Option<PhiFeatures>,
     /// Mention type classification (Proper, Nominal, Pronominal, Zero).
     ///
     /// Classifies the referring expression type for coreference resolution.
@@ -1805,10 +1744,6 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
-            valid_from: None,
-            valid_until: None,
-
-            phi_features: None,
             mention_type: None,
         }
     }
@@ -1862,10 +1797,6 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
-            valid_from: None,
-            valid_until: None,
-
-            phi_features: None,
             mention_type: None,
         }
     }
@@ -1892,10 +1823,6 @@ impl Entity {
             hierarchical_confidence: Some(confidence),
             visual_span: None,
             discontinuous_span: None,
-            valid_from: None,
-            valid_until: None,
-
-            phi_features: None,
             mention_type: None,
         }
     }
@@ -1921,10 +1848,6 @@ impl Entity {
             hierarchical_confidence: None,
             visual_span: Some(bbox),
             discontinuous_span: None,
-            valid_from: None,
-            valid_until: None,
-
-            phi_features: None,
             mention_type: None,
         }
     }
@@ -2243,83 +2166,6 @@ impl Entity {
             .collect()
     }
 
-    // =========================================================================
-    // Temporal Validity Methods
-    // =========================================================================
-
-    /// Set the temporal validity start for this entity assertion.
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType};
-    /// use chrono::{TimeZone, Utc};
-    ///
-    /// let mut entity = Entity::new("CEO", EntityType::Person, 0, 3, 0.9);
-    /// entity.set_valid_from(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap());
-    /// assert!(entity.is_temporal());
-    /// ```
-    pub fn set_valid_from(&mut self, dt: chrono::DateTime<chrono::Utc>) {
-        self.valid_from = Some(dt);
-    }
-
-    /// Set the temporal validity end for this entity assertion.
-    pub fn set_valid_until(&mut self, dt: chrono::DateTime<chrono::Utc>) {
-        self.valid_until = Some(dt);
-    }
-
-    /// Set both temporal bounds at once.
-    pub fn set_temporal_range(
-        &mut self,
-        from: chrono::DateTime<chrono::Utc>,
-        until: chrono::DateTime<chrono::Utc>,
-    ) {
-        self.valid_from = Some(from);
-        self.valid_until = Some(until);
-    }
-
-    /// Check if this entity has temporal validity information.
-    #[must_use]
-    pub fn is_temporal(&self) -> bool {
-        self.valid_from.is_some() || self.valid_until.is_some()
-    }
-
-    /// Check if this entity was valid at a specific point in time.
-    ///
-    /// Returns `true` if:
-    /// - No temporal bounds are set (atemporal entity)
-    /// - The timestamp falls within [valid_from, valid_until]
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{Entity, EntityType};
-    /// use chrono::{TimeZone, Utc};
-    ///
-    /// let mut entity = Entity::new("CEO of Microsoft", EntityType::Person, 0, 16, 0.9);
-    /// entity.set_valid_from(Utc.with_ymd_and_hms(2008, 1, 1, 0, 0, 0).unwrap());
-    /// entity.set_valid_until(Utc.with_ymd_and_hms(2023, 12, 31, 0, 0, 0).unwrap());
-    ///
-    /// let query_2015 = Utc.with_ymd_and_hms(2015, 6, 1, 0, 0, 0).unwrap();
-    /// let query_2005 = Utc.with_ymd_and_hms(2005, 6, 1, 0, 0, 0).unwrap();
-    ///
-    /// assert!(entity.valid_at(&query_2015));
-    /// assert!(!entity.valid_at(&query_2005));
-    /// ```
-    #[must_use]
-    pub fn valid_at(&self, timestamp: &chrono::DateTime<chrono::Utc>) -> bool {
-        match (&self.valid_from, &self.valid_until) {
-            (None, None) => true,                      // Atemporal - always valid
-            (Some(from), None) => timestamp >= from,   // Started, still valid
-            (None, Some(until)) => timestamp <= until, // Unknown start, ended
-            (Some(from), Some(until)) => timestamp >= from && timestamp <= until,
-        }
-    }
-
-    /// Check if this entity is currently valid (at the current time).
-    #[must_use]
-    pub fn is_currently_valid(&self) -> bool {
-        self.valid_at(&chrono::Utc::now())
-    }
-
     /// Create a builder for fluent entity construction.
     #[must_use]
     pub fn builder(text: impl Into<String>, entity_type: EntityType) -> EntityBuilder {
@@ -2594,9 +2440,6 @@ pub struct EntityBuilder {
     hierarchical_confidence: Option<HierarchicalConfidence>,
     visual_span: Option<Span>,
     discontinuous_span: Option<DiscontinuousSpan>,
-    valid_from: Option<chrono::DateTime<chrono::Utc>>,
-    valid_until: Option<chrono::DateTime<chrono::Utc>>,
-    phi_features: Option<PhiFeatures>,
     mention_type: Option<MentionType>,
 }
 
@@ -2619,10 +2462,6 @@ impl EntityBuilder {
             hierarchical_confidence: None,
             visual_span: None,
             discontinuous_span: None,
-            valid_from: None,
-            valid_until: None,
-
-            phi_features: None,
             mention_type: None,
         }
     }
@@ -2699,51 +2538,6 @@ impl EntityBuilder {
         self
     }
 
-    /// Set temporal validity start (when this entity assertion became true).
-    ///
-    /// # Example
-    /// ```rust
-    /// use anno_core::{EntityBuilder, EntityType};
-    /// use chrono::{TimeZone, Utc};
-    ///
-    /// let entity = EntityBuilder::new("CEO of Microsoft", EntityType::Person)
-    ///     .span(0, 12)
-    ///     .valid_from(Utc.with_ymd_and_hms(2008, 10, 1, 0, 0, 0).unwrap())
-    ///     .build();
-    /// assert!(entity.valid_from.is_some());
-    /// ```
-    #[must_use]
-    pub fn valid_from(mut self, dt: chrono::DateTime<chrono::Utc>) -> Self {
-        self.valid_from = Some(dt);
-        self
-    }
-
-    /// Set temporal validity end (when this entity assertion stopped being true).
-    #[must_use]
-    pub fn valid_until(mut self, dt: chrono::DateTime<chrono::Utc>) -> Self {
-        self.valid_until = Some(dt);
-        self
-    }
-
-    /// Set temporal validity range (convenience method).
-    #[must_use]
-    pub fn temporal_range(
-        mut self,
-        from: chrono::DateTime<chrono::Utc>,
-        until: chrono::DateTime<chrono::Utc>,
-    ) -> Self {
-        self.valid_from = Some(from);
-        self.valid_until = Some(until);
-        self
-    }
-
-    /// Set phi-features (person, number, gender) for morphological agreement.
-    #[must_use]
-    pub fn phi_features(mut self, phi_features: PhiFeatures) -> Self {
-        self.phi_features = Some(phi_features);
-        self
-    }
-
     /// Set mention type classification.
     #[must_use]
     pub fn mention_type(mut self, mention_type: MentionType) -> Self {
@@ -2767,9 +2561,6 @@ impl EntityBuilder {
             hierarchical_confidence: self.hierarchical_confidence,
             visual_span: self.visual_span,
             discontinuous_span: self.discontinuous_span,
-            valid_from: self.valid_from,
-            valid_until: self.valid_until,
-            phi_features: self.phi_features,
             mention_type: self.mention_type,
         }
     }

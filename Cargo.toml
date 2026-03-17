@@ -40,7 +40,6 @@ bitflags = "2"
 textprep = "0.1"
 sketchir = "0.3.0"
 clump = "0.4"
-graphops = "0.1.0"
 innr = "0.1"
 
 ## Clustering / stratification
@@ -75,12 +74,7 @@ safetensors = "0.4"
 # Document-to-text extraction
 deformat = "0.5"
 
-# Async
-tokio = { version = "1", features = ["rt", "sync", "macros", "rt-multi-thread"] }
-futures = "0.3"
-
 # Performance
-crossbeam-channel = "0.5"
 parking_lot = "0.12"
 rayon = "1"
 

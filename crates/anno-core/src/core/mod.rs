@@ -51,7 +51,7 @@
 //! | [`coref`] | `Mention`, `CorefChain`, `CorefDocument` |
 //! | `graph` | Export to Neo4j, GraphML, JSON-LD |
 //! | [`provenance`] | Document origin tracking |
-//! | [`types`] | `Gender`, `MentionType`, `PhiFeatures`, `TypeLabel` |
+//! | [`types`] | `Gender`, `MentionType`, `TypeLabel` |
 //!
 //! ## Design Philosophy
 //!
@@ -71,7 +71,6 @@ pub mod coref;
 pub mod entity;
 pub mod error;
 pub mod grounded;
-pub mod ontology;
 pub mod provenance;
 pub mod types;
 
@@ -95,6 +94,5 @@ pub use coref::{entities_to_chains, CorefChain, CorefDocument, CoreferenceResolv
 
 // Other modules accessible via anno_core::module_name
 pub use types::{
-    Animacy, DatePrecision, Gender, HistoricalDate, MentionType, MetricStats, Number, Person,
-    PhiFeatures, TemporalValidity, TypeLabel,
+    Animacy, Gender, MentionType, MetricStats, Number, Person, PhiFeatures, TypeLabel,
 };
