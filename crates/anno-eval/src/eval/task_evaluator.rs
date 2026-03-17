@@ -21,11 +21,16 @@ use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
 use anno::backends::inference::ZeroShotNER;
-use anno::sync::{lock, Mutex};
 use anno::{Entity, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::time::Instant;
+
+/// Lock a std::sync::Mutex, recovering from poisoning.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 // Type aliases for complex types
 type PerExampleScores = Vec<(Vec<anno_core::Entity>, Vec<anno_core::Entity>, String)>;

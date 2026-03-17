@@ -160,7 +160,7 @@ impl Model for NuNER {
                 let threshold = self.threshold as f32;
 
                 if text.chars().count() > MAX_INPUT_CHARS {
-                    use crate::backends::streaming::{extract_chunked_parallel, ChunkConfig};
+                    use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
                     let config = ChunkConfig {
                         chunk_size: MAX_INPUT_CHARS,
                         overlap: 200,

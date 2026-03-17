@@ -83,7 +83,7 @@ impl crate::Model for GLiNEROnnx {
         #[cfg(feature = "onnx")]
         {
             if text.chars().count() > MAX_INPUT_CHARS {
-                use crate::backends::streaming::{extract_chunked_parallel, ChunkConfig};
+                use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
                 let config = ChunkConfig {
                     chunk_size: MAX_INPUT_CHARS,
                     overlap: 200,
@@ -206,9 +206,9 @@ crate::backends::macros::define_feature_stub! {
 /// 2. For truly overlapping spans of similar length, keep highest confidence
 /// 3. Handle comma-separated entities (e.g., "IBM, NASA" should become "IBM" + "NASA")
 fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
-    super::streaming::deduplicate_overlapping(
+    super::chunking::deduplicate_overlapping(
         &mut entities,
-        super::streaming::OverlapStrategy::KeepShortest,
+        super::chunking::OverlapStrategy::KeepShortest,
     );
     entities
 }

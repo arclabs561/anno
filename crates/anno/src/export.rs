@@ -22,7 +22,7 @@
 //!
 //! let m = StackedNER::default();
 //! let ents = m.extract_entities("Marie Curie won the Nobel Prize.", None)?;
-//! let brat = export::to_brat(&ents, false);
+//! let brat = export::to_brat("Marie Curie won the Nobel Prize.", &ents, false);
 //! let conll = export::to_conll("Marie Curie won the Nobel Prize.", &ents);
 //! # Ok::<(), anno::Error>(())
 //! ```
@@ -33,16 +33,25 @@ use anno_core::{Entity, Relation};
 ///
 /// Each entity becomes a `T`-annotation line. When `include_confidence` is true,
 /// `A`-annotation lines are added with confidence scores.
-pub fn to_brat(entities: &[Entity], include_confidence: bool) -> String {
+///
+/// Brat requires UTF-8 byte offsets. Entity start/end are character offsets, so
+/// `text` is needed to convert them.
+pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
     for (idx, entity) in entities.iter().enumerate() {
+        let byte_start: usize = text
+            .chars()
+            .take(entity.start())
+            .map(|c| c.len_utf8())
+            .sum();
+        let byte_end: usize = text.chars().take(entity.end()).map(|c| c.len_utf8()).sum();
         let tid = format!("T{}", idx + 1);
         let line = format!(
             "{}\t{} {} {}\t{}",
             tid,
             entity.entity_type.as_label(),
-            entity.start(),
-            entity.end(),
+            byte_start,
+            byte_end,
             entity.text
         );
         if include_confidence {
@@ -66,14 +75,19 @@ pub fn to_brat(entities: &[Entity], include_confidence: bool) -> String {
 /// falls inside an entity span.
 pub fn to_conll(text: &str, entities: &[Entity]) -> String {
     let mut lines = Vec::new();
-    let mut char_idx = 0;
+    let mut byte_idx = 0;
     for word in text.split_whitespace() {
-        let word_start = text[char_idx..]
+        // Find the byte position of this word in the remaining text
+        let byte_start = text[byte_idx..]
             .find(word)
-            .map(|i| char_idx + i)
-            .unwrap_or(char_idx);
-        let word_end = word_start + word.len();
-        char_idx = word_end;
+            .map(|i| byte_idx + i)
+            .unwrap_or(byte_idx);
+        let byte_end = byte_start + word.len();
+        byte_idx = byte_end;
+
+        // Convert byte offsets to char offsets for entity comparison
+        let word_start = text[..byte_start].chars().count();
+        let word_end = text[..byte_end].chars().count();
 
         let entity_full = entities
             .iter()
@@ -96,7 +110,7 @@ pub fn to_conll(text: &str, entities: &[Entity]) -> String {
             };
             lines.push(format!("{}\t{}", word, tag));
         } else {
-            let trimmed_end = word_start + trimmed.len();
+            let trimmed_end = word_start + trimmed.chars().count();
             if !trimmed.is_empty() {
                 let entity = entities
                     .iter()
@@ -451,19 +465,21 @@ mod tests {
 
     #[test]
     fn brat_basic() {
+        let text = "Apple CEO Tim Cook is here.";
         let entities = vec![
             Entity::new("Apple", EntityType::Organization, 0, 5, 0.9),
             Entity::new("Tim Cook", EntityType::Person, 10, 18, 0.95),
         ];
-        let output = to_brat(&entities, false);
+        let output = to_brat(text, &entities, false);
         assert!(output.contains("T1\tORG 0 5\tApple"));
         assert!(output.contains("T2\tPER 10 18\tTim Cook"));
     }
 
     #[test]
     fn brat_with_confidence() {
+        let text = "Apple is great.";
         let entities = vec![Entity::new("Apple", EntityType::Organization, 0, 5, 0.9)];
-        let output = to_brat(&entities, true);
+        let output = to_brat(text, &entities, true);
         assert!(output.contains("A1\tConfidence T1 0.90"));
     }
 
@@ -515,5 +531,29 @@ mod tests {
         assert!(nodes.contains("Apple"));
         assert!(nodes.contains("Tim Cook"));
         assert!(edges.contains("CO_OCCURS"));
+    }
+
+    #[test]
+    fn conll_non_ascii() {
+        // "cafe" with accent: "caf\u{e9}" is 4 chars but 5 bytes
+        let text = "Visit caf\u{e9} in Paris today.";
+        let entities = vec![Entity::new("Paris", EntityType::Location, 14, 19, 0.9)];
+        let output = to_conll(text, &entities);
+        assert!(output.contains("Paris\tB-LOC"), "got: {}", output);
+    }
+
+    #[test]
+    fn brat_non_ascii() {
+        let text = "Visit caf\u{e9} in Paris today.";
+        let entities = vec![Entity::new("Paris", EntityType::Location, 14, 19, 0.9)];
+        let output = to_brat(text, &entities, false);
+        // brat uses byte offsets: "caf\u{e9}" is 5 bytes, so "Paris" starts at byte 15
+        let byte_start: usize = text.chars().take(14).map(|c| c.len_utf8()).sum();
+        let byte_end: usize = text.chars().take(19).map(|c| c.len_utf8()).sum();
+        assert!(
+            output.contains(&format!("{} {}", byte_start, byte_end)),
+            "got: {}",
+            output
+        );
     }
 }

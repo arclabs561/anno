@@ -32,10 +32,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
-chrono = { workspace = true }
 log = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
-gramdex = { version = "0.1.0", optional = true }
 
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
@@ -72,7 +70,6 @@ criterion = { workspace = true }
 default = ["onnx"]
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 analysis = ["dep:anno-metrics"]
-gramdex = ["dep:gramdex"]
 schema = ["dep:schemars", "anno-core/schema"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru", "dep:safetensors"]
 candle = [

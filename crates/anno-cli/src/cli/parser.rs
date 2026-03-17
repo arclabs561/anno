@@ -330,13 +330,13 @@ Use `--model gliner` instead."
         }
         #[cfg(not(feature = "eval"))]
         {
-            use anno::{AutoNER, HeuristicNER, RegexNER, StackedNER};
+            use anno::{HeuristicNER, RegexNER, StackedNER};
             match self {
                 // Always available
                 Self::Pattern => Ok(Box::new(RegexNER::new())),
                 Self::Heuristic => Ok(Box::new(HeuristicNER::new())),
                 Self::Minimal => Ok(Box::new(HeuristicNER::new())),
-                Self::Auto => Ok(Box::new(AutoNER::new())),
+                Self::Auto => Ok(Box::new(StackedNER::default())),
                 Self::Stacked => Ok(Box::new(StackedNER::default())),
                 Self::Crf => Ok(Box::new(anno::backends::crf::CrfNER::new())),
                 Self::Hmm => Ok(Box::new(anno::backends::hmm::HmmNER::new())),

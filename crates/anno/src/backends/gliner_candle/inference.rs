@@ -558,9 +558,9 @@ impl GLiNERCandle {
         }
 
         // Remove overlapping spans, keeping highest confidence
-        crate::backends::streaming::deduplicate_overlapping(
+        crate::backends::chunking::deduplicate_overlapping(
             &mut entities,
-            crate::backends::streaming::OverlapStrategy::KeepHighestConfidence,
+            crate::backends::chunking::OverlapStrategy::KeepHighestConfidence,
         );
         Ok(entities)
     }

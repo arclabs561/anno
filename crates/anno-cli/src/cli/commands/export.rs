@@ -370,7 +370,7 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
 
     let source_label = input.to_string_lossy();
     let output_content = match format {
-        ExportFormat::Brat => anno::export::to_brat(&ext.entities, include_confidence),
+        ExportFormat::Brat => anno::export::to_brat(content, &ext.entities, include_confidence),
         ExportFormat::Conll => anno::export::to_conll(content, &ext.entities),
         ExportFormat::Jsonl => {
             anno::export::to_jsonl(&ext.entities, &source_label, include_confidence)

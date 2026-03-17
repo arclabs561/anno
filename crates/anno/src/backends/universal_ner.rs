@@ -55,10 +55,10 @@ use std::collections::HashMap;
 use crate::sync::lock;
 use crate::sync::Mutex;
 
+#[cfg(feature = "llm")]
+use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
 use crate::backends::inference::ZeroShotNER;
 use crate::backends::llm_prompt::{BIOSchema, CodeNERPrompt};
-#[cfg(feature = "llm")]
-use crate::backends::streaming::{extract_chunked_parallel, ChunkConfig};
 use crate::offset::TextSpan;
 use crate::{Entity, EntityType, Language, Model, Result};
 

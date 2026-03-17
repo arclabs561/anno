@@ -58,8 +58,6 @@ pub mod error;
 pub mod eval;
 /// Export entity results to annotation and interchange formats (brat, CoNLL, JSONL, RDF, JSON-LD, CSV).
 pub mod export;
-/// Entity feature extraction for downstream ML and analysis.
-pub mod features;
 /// Small, dependency-light heuristics (negation, quantifiers, etc.).
 pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
@@ -78,9 +76,7 @@ pub(crate) mod preprocess;
 pub mod rag;
 pub mod schema;
 pub mod similarity;
-pub mod sync;
-/// Language-specific tokenization for multilingual NLP.
-pub mod tokenizer;
+pub(crate) mod sync;
 pub mod types;
 
 // Note: research-only geometry experiments were archived out of `anno` to keep the public
@@ -95,12 +91,12 @@ pub use error::{Error, Result};
 
 // Re-export core types at the crate root (the `anno` public API surface).
 pub use anno_core::{
-    generate_span_candidates, Animacy, CanonicalId, Confidence, CorefChain, CorefDocument,
+    generate_span_candidates, CanonicalId, Confidence, CorefChain, CorefDocument,
     CoreferenceResolver, Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory,
     EntityType, ExtractionMethod, Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence,
     Identity, IdentityId, IdentitySource, Lexicon, Location, Mention, MentionType, Modality,
-    Number, Person, PhiFeatures, Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId,
-    SignalRef, Span, SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper,
+    Number, Person, Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef,
+    Span, SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper,
     ValidationIssue,
 };
 
@@ -121,7 +117,6 @@ pub use schema::{
     map_to_canonical, CanonicalType, CoarseType, DatasetSchema, InformationLoss, SchemaMapper,
 };
 pub use similarity::{jaccard_word_similarity, jaccard_word_similarity_f32, string_similarity};
-pub use sync::{lock, read_lock, try_lock, write_lock, Mutex, RwLock};
 pub use types::{EntitySliceExt, Score};
 
 // =============================================================================
@@ -179,8 +174,6 @@ mod sealed {
 
     impl Sealed for super::backends::hmm::HmmNER {}
     impl Sealed for super::backends::bilstm_crf::BiLstmCrfNER {}
-    impl Sealed for super::backends::router::AutoNER {}
-
     impl Sealed for super::MockModel {}
 }
 
@@ -577,8 +570,8 @@ pub trait DynamicLabels: Model {
 
 // Re-export backends
 pub use backends::{
-    AutoNER, ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER, NuNER, RegexNER,
-    StackedNER, TPLinker, W2NERConfig, W2NERRelation, W2NER,
+    ConflictStrategy, CrfNER, EnsembleNER, HeuristicNER, LexiconNER, NuNER, RegexNER, StackedNER,
+    TPLinker, W2NERConfig, W2NERRelation, W2NER,
 };
 
 // Mention-ranking coreference (Bourgois & Poibeau 2025)
@@ -709,6 +702,7 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
 ///
 /// // Use mock in tests
 /// ```
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct MockModel {
     /// Model name identifier.

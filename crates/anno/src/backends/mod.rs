@@ -137,14 +137,10 @@ pub mod catalog;
 pub mod crf;
 pub mod heuristic;
 pub mod inference;
-/// Label prompt normalization for zero-shot NER systems.
-pub mod label_prompt;
 pub mod lexicon;
 pub mod nuner;
 pub(crate) mod ort_compat;
 pub mod regex;
-/// Language-aware routing for automatic backend selection.
-pub(crate) mod router;
 pub mod stacked;
 pub mod tplinker;
 pub mod w2ner;
@@ -163,7 +159,7 @@ pub mod ensemble;
 pub mod hmm;
 
 /// Chunked extraction and overlap deduplication for long text.
-pub mod streaming;
+pub mod chunking;
 
 /// Map a backend name (stable ID used in stacked/ensemble compositions) to an
 /// [`ExtractionMethod`](anno_core::ExtractionMethod).
@@ -338,7 +334,6 @@ pub use heuristic::HeuristicNER;
 pub use lexicon::LexiconNER;
 pub use nuner::NuNER;
 pub use regex::RegexNER;
-pub use router::AutoNER;
 pub use stacked::{ConflictStrategy, StackedNER};
 
 pub use tplinker::TPLinker;
@@ -410,7 +405,7 @@ pub use coref::resolve::CorefBackend;
 pub use hmm::{HmmConfig, HmmNER};
 
 // Chunking and overlap deduplication
-pub use streaming::{deduplicate_overlapping, ChunkConfig, OverlapStrategy};
+pub use chunking::{deduplicate_overlapping, ChunkConfig, OverlapStrategy};
 
 // Simple rule-based coreference resolvers.
 #[cfg(feature = "analysis")]

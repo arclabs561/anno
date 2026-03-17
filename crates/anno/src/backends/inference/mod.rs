@@ -19,7 +19,7 @@
 pub(crate) mod registry;
 
 pub mod encoder;
-pub use encoder::{BiEncoder, EncoderOutput, SpanLabelScore, TextEncoder};
+pub use encoder::{EncoderOutput, TextEncoder};
 
 pub mod traits;
 pub use traits::{
