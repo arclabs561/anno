@@ -28,15 +28,25 @@
 //!
 //! # Backend Comparison
 //!
-//! | Backend | Feature | Zero-Shot | Nested | Notes |
-//! |---------|---------|-----------|--------|-------|
+//! | Backend | Feature | Zero-Shot | Relations | Notes |
+//! |---------|---------|-----------|-----------|-------|
 //! | `StackedNER` | - | No | No | Composable with any backend |
+//! | `EnsembleNER` | - | No | No | Weighted voting across backends |
 //! | `RegexNER` | - | No | No | Structured entities only |
-//! | `HeuristicNER` | - | No | No | Simple heuristic baseline |
-//! | `GLiNER` | `onnx` | Yes | No | Span-based |
-//! | `NuNER` | `onnx` | Yes | No | Token-based |
-//! | `W2NER` | `onnx` | No | Yes | Grid-based |
+//! | `HeuristicNER` | - | No | No | Heuristic baseline |
+//! | `CrfNER` | - | No | No | CRF statistical baseline |
+//! | `HmmNER` | - | No | No | HMM statistical baseline |
+//! | `LexiconNER` | - | No | No | Dictionary lookup |
+//! | `GLiNEROnnx` | `onnx` | Yes | No | Span-based zero-shot |
+//! | `GLiNER2Onnx` | `onnx` | Yes | Yes | Multi-task (NER + RE) |
+//! | `NuNER` | `onnx` | Yes | No | Token-based zero-shot |
+//! | `W2NER` | `onnx` | No | No | Grid-based, nested entities |
 //! | `BertNEROnnx` | `onnx` | No | No | Traditional fixed-label NER |
+//! | `TPLinker` | `onnx` | No | Yes | Handshaking matrix RE |
+//! | `UniversalNER` | `llm` | Yes | No | LLM-based extraction |
+//! | `CandleNER` | `candle` | No | No | Pure-Rust inference |
+//! | `GLiNERCandle` | `candle` | Yes | No | Pure-Rust GLiNER |
+//! | `BiLstmCrfNER` | - | No | No | BiLSTM-CRF baseline |
 //!
 //! # When to Use What
 //!

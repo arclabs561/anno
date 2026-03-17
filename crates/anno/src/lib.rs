@@ -1,11 +1,14 @@
 //! # anno
 //!
 //! Information extraction for unstructured text: named entity recognition (NER),
-//! coreference resolution, relation extraction, and zero-shot entity types.
+//! coreference resolution, relation extraction, PII detection, and zero-shot entity types.
 //!
 //! - **NER output**: variable-length spans with **character offsets** (Unicode scalar values), not
 //!   byte offsets.
 //! - **Coreference output**: clusters (“tracks”) of mentions within one document.
+//! - **Relation output**: `(head, relation, tail)` triples via [`RelationCapable`] backends.
+//! - **PII detection**: [`pii`] module for detecting and redacting personally identifiable information.
+//! - **Export**: [`export`] module for brat, CoNLL, JSONL, N-Triples, JSON-LD, and graph CSV.
 //!
 //! This crate focuses on inference-time extraction. Dataset loaders, benchmarking, and matrix
 //! evaluation tooling live in `anno-eval` (and the `anno` CLI lives in `anno-cli`).
@@ -51,8 +54,7 @@ pub mod env;
 pub mod error;
 /// Evaluation/analysis primitives (coref metrics, cluster encoders, etc.).
 ///
-/// This module is only available when the legacy `eval` feature (or the preferred `analysis`
-/// alias) is enabled.
+/// This module is only available when the `analysis` feature is enabled.
 #[cfg(feature = "analysis")]
 #[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod eval;

@@ -129,8 +129,7 @@ fn test_identity_serialization() {
 #[test]
 fn test_identity_deserialize_ignores_legacy_box_embedding_field() {
     // Older serialized identities may contain a `box_embedding` field.
-    // The stable `Identity` type intentionally does not carry box embeddings;
-    // those live in `provisional::ProvisionalIdentity`.
+    // The stable `Identity` type intentionally does not carry box embeddings.
     let json = serde_json::json!({
         "id": 7186,
         "canonical_name": "Marie Curie",
