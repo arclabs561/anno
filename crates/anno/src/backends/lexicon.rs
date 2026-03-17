@@ -193,7 +193,7 @@ impl Model for LexiconNER {
 
                     let provenance = anno_core::Provenance {
                         source: std::borrow::Cow::Borrowed("lexicon"),
-                        method: anno_core::ExtractionMethod::Neural, // Lexicon variant deprecated
+                        method: anno_core::ExtractionMethod::Heuristic,
                         pattern: Some(std::borrow::Cow::Owned(format!(
                             "lexicon:{}",
                             self.lexicon.source()

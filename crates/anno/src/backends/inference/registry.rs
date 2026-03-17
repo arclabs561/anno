@@ -126,8 +126,6 @@ pub enum ModalityHint {
     /// Text-only (most entity types)
     #[default]
     TextOnly,
-    /// Visual-only (e.g., logos, signatures)
-    VisualOnly,
     /// Works with both text and visual
     Any,
 }

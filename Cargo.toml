@@ -38,7 +38,6 @@ bitflags = "2"
 # `textprep` is published on crates.io. For local development with sibling checkouts,
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
 textprep = "0.1"
-sketchir = "0.3.0"
 clump = "0.4"
 innr = "0.1"
 

@@ -1731,6 +1731,12 @@ impl Entity {
         end: usize,
         confidence: impl Into<Confidence>,
     ) -> Self {
+        // Normalize inverted spans (same as CharSpan::new)
+        let (start, end) = if start > end {
+            (end, start)
+        } else {
+            (start, end)
+        };
         Self {
             text: text.into(),
             entity_type,
@@ -1784,6 +1790,11 @@ impl Entity {
         confidence: impl Into<Confidence>,
         provenance: Provenance,
     ) -> Self {
+        let (start, end) = if start > end {
+            (end, start)
+        } else {
+            (start, end)
+        };
         Self {
             text: text.into(),
             entity_type,
@@ -1810,6 +1821,11 @@ impl Entity {
         end: usize,
         confidence: HierarchicalConfidence,
     ) -> Self {
+        let (start, end) = if start > end {
+            (end, start)
+        } else {
+            (start, end)
+        };
         Self {
             text: text.into(),
             entity_type,
@@ -2670,6 +2686,13 @@ impl Relation {
 mod tests {
     #![allow(clippy::unwrap_used)] // unwrap() is acceptable in test code
     use super::*;
+
+    #[test]
+    fn entity_new_swaps_inverted_span() {
+        let e = Entity::new("test", EntityType::Person, 10, 5, 0.9);
+        assert_eq!(e.start(), 5);
+        assert_eq!(e.end(), 10);
+    }
 
     #[test]
     fn test_entity_type_roundtrip() {

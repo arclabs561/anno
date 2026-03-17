@@ -29,10 +29,6 @@ pub enum BackendStatus {
     Beta,
     /// Work in progress
     WIP,
-    /// Planned for future implementation
-    Planned,
-    /// Research only, not planned
-    Research,
 }
 
 impl std::fmt::Display for BackendStatus {
@@ -41,8 +37,6 @@ impl std::fmt::Display for BackendStatus {
             BackendStatus::Stable => write!(f, "stable"),
             BackendStatus::Beta => write!(f, "beta"),
             BackendStatus::WIP => write!(f, "wip"),
-            BackendStatus::Planned => write!(f, "planned"),
-            BackendStatus::Research => write!(f, "research"),
         }
     }
 }
@@ -256,21 +250,6 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         description: "BERT NER via Candle (pure Rust; Metal/CUDA)",
         recommended_models: &["dslim/bert-base-NER"],
     },
-    // =========================================================================
-    // Planned Backends
-    // =========================================================================
-    BackendInfo {
-        name: "rust_bert",
-        feature: Some("rust-bert"),
-        status: BackendStatus::Planned,
-        zero_shot: false,
-        gpu_support: true,
-        description: "rust-bert integration (requires libtorch)",
-        recommended_models: &[
-            "bert-base-NER",
-            "dbmdz/bert-large-cased-finetuned-conll03-english",
-        ],
-    },
     BackendInfo {
         name: "glirel",
         feature: Some("onnx"),
@@ -297,49 +276,6 @@ impl BackendInfo {
     pub fn by_name(name: &str) -> Option<&'static BackendInfo> {
         BACKEND_CATALOG.iter().find(|b| b.name == name)
     }
-
-    /// Get all stable backends.
-    #[must_use]
-    pub fn stable() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG
-            .iter()
-            .filter(|b| b.status == BackendStatus::Stable)
-            .collect()
-    }
-
-    /// Get all zero-shot capable backends.
-    #[must_use]
-    pub fn zero_shot() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG.iter().filter(|b| b.zero_shot).collect()
-    }
-
-    /// Get all GPU-capable backends.
-    #[must_use]
-    pub fn with_gpu() -> Vec<&'static BackendInfo> {
-        BACKEND_CATALOG.iter().filter(|b| b.gpu_support).collect()
-    }
-}
-
-/// Print a summary of available backends.
-pub fn print_catalog() {
-    println!("NER Backend Catalog");
-    println!("{}", "=".repeat(80));
-    println!(
-        "{:15} {:10} {:8} {:5} {:5} Description",
-        "Name", "Feature", "Status", "0-shot", "GPU"
-    );
-    println!("{}", "-".repeat(80));
-
-    for backend in BACKEND_CATALOG {
-        let feature = backend.feature.unwrap_or("-");
-        let zero_shot = if backend.zero_shot { "yes" } else { "no" };
-        let gpu = if backend.gpu_support { "yes" } else { "no" };
-
-        println!(
-            "{:15} {:10} {:8} {:5} {:5} {}",
-            backend.name, feature, backend.status, zero_shot, gpu, backend.description
-        );
-    }
 }
 
 #[cfg(test)]
@@ -354,16 +290,19 @@ mod tests {
     }
 
     #[test]
-    fn test_stable_backends() {
-        let stable = BackendInfo::stable();
-        assert!(!stable.is_empty());
-        assert!(stable.iter().all(|b| b.status == BackendStatus::Stable));
-    }
-
-    #[test]
-    fn test_zero_shot_backends() {
-        let zero_shot = BackendInfo::zero_shot();
-        assert!(!zero_shot.is_empty());
-        assert!(zero_shot.iter().all(|b| b.zero_shot));
+    fn all_entries_are_implemented() {
+        // After removing Planned/Research, every catalog entry should be
+        // Stable, Beta, or WIP.
+        for info in BACKEND_CATALOG {
+            assert!(
+                matches!(
+                    info.status,
+                    BackendStatus::Stable | BackendStatus::Beta | BackendStatus::WIP
+                ),
+                "{} has unexpected status {:?}",
+                info.name,
+                info.status
+            );
+        }
     }
 }
