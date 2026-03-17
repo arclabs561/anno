@@ -111,8 +111,7 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
 /// Scan text for structured PII patterns (SSN, credit card, IBAN, email, phone, address).
 ///
 /// This is independent of NER -- it catches structured PII via regex.
-/// Note: offsets are byte offsets from regex matches, not character offsets.
-/// For ASCII-only PII patterns (SSN, CC, IBAN, email, phone), byte == character offset.
+/// Offsets are character offsets (Unicode scalar values), consistent with [`classify_entity`].
 pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
     let mut results = Vec::new();
 
@@ -148,8 +147,9 @@ pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
     for &(pat, pii_type, risk) in patterns {
         if let Ok(re) = Regex::new(pat) {
             for m in re.find_iter(text) {
-                let start = m.start();
-                let end = m.end();
+                // Convert byte offsets from regex to character offsets
+                let start = text[..m.start()].chars().count();
+                let end = text[..m.end()].chars().count();
                 let overlaps = results
                     .iter()
                     .any(|e: &PiiEntity| !(end <= e.start || start >= e.end));
@@ -216,6 +216,8 @@ pub fn report(entities: &[PiiEntity]) -> PiiReport {
 }
 
 /// Redact PII by replacing with type tokens (`[PERSON_1]`, `[ID_NUMBER_2]`, etc.).
+///
+/// Entity offsets are character offsets (Unicode scalar values).
 pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     let mut result = text.to_string();
     let mut type_counts: HashMap<&str, usize> = HashMap::new();
@@ -227,7 +229,14 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
         let count = type_counts.entry(&entity.pii_type).or_insert(0);
         *count += 1;
         let replacement = format!("[{}_{}]", entity.pii_type, count);
-        result.replace_range(entity.start..entity.end, &replacement);
+        // Convert char offsets to byte offsets for replace_range
+        let byte_start: usize = result
+            .chars()
+            .take(entity.start)
+            .map(|c| c.len_utf8())
+            .sum();
+        let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
+        result.replace_range(byte_start..byte_end, &replacement);
     }
 
     result
@@ -292,10 +301,38 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
             fake
         };
 
-        result.replace_range(entity.start..entity.end, &fake);
+        // Convert char offsets to byte offsets for replace_range
+        let byte_start: usize = result
+            .chars()
+            .take(entity.start)
+            .map(|c| c.len_utf8())
+            .sum();
+        let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
+        result.replace_range(byte_start..byte_end, &fake);
     }
 
     (result, mapping)
+}
+
+/// Scan for PII and redact in one call.
+///
+/// Combines [`classify_entity`] (NER-based) with [`scan_patterns`] (regex-based)
+/// and applies [`redact`].
+///
+/// ```
+/// use anno::{pii, Model, StackedNER};
+///
+/// let text = "John's SSN is 123-45-6789.";
+/// let m = StackedNER::default();
+/// let redacted = pii::scan_and_redact(text, &m)?;
+/// assert!(!redacted.contains("123-45-6789"));
+/// # Ok::<(), anno::Error>(())
+/// ```
+pub fn scan_and_redact(text: &str, model: &dyn crate::Model) -> crate::Result<String> {
+    let entities = model.extract_entities(text, None)?;
+    let mut pii_entities: Vec<PiiEntity> = entities.iter().filter_map(classify_entity).collect();
+    pii_entities.extend(scan_patterns(text));
+    Ok(redact(text, &pii_entities))
 }
 
 // ---------------------------------------------------------------------------
