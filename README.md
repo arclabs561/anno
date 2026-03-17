@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Extract named entities, relations, and coreference chains from unstructured text. Fixed entity types (PER/ORG/LOC/MISC) or zero-shot custom labels.
+Extract named entities, relations, coreference chains, and PII from unstructured text. Fixed entity types (PER/ORG/LOC/MISC) or zero-shot custom labels.
 
 Dual-licensed under MIT or Apache-2.0. MSRV: 1.85.
 
@@ -16,27 +16,32 @@ anno = "0.3.9"
 ```
 
 ```rust
-use anno::{Model, StackedNER};
-
-let m = StackedNER::default();
-println!("Backend: {}", m.name());
-let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
-for e in &ents {
+let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
+for e in &entities {
     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
 }
-// Backend: stacked
 // Sophie Wilson [PER] (0,13) 0.95
 // ARM [ORG] (27,30) 0.90
 # Ok::<(), anno::Error>(())
 ```
 
-Filter results with `EntitySliceExt`:
+Filter results with `prelude`:
 
 ```rust
-use anno::{EntitySliceExt, EntityType};
+use anno::prelude::*;
 
-let people: Vec<_> = ents.of_type(&EntityType::Person).collect();
-let confident: Vec<_> = ents.above_confidence(0.8).collect();
+let people: Vec<_> = entities.of_type(&EntityType::Person).collect();
+let confident: Vec<_> = entities.above_confidence(0.8).collect();
+```
+
+For backend control, construct a model directly:
+
+```rust
+use anno::{Model, StackedNER};
+
+let m = StackedNER::default();
+let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)?;
+# Ok::<(), anno::Error>(())
 ```
 
 `StackedNER::default()` selects the best available backend at runtime: BERT or NuNER (if `onnx` enabled and models cached), then GLiNER, falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
@@ -84,6 +89,24 @@ let ents = model.extract_entities("test", None)?;
 **Structured patterns.** Dates, monetary amounts, emails, URLs, phone numbers via deterministic regex grammars.
 
 **Relation extraction.** `(head, relation, tail)` triples via `RelationCapable` backends (`gliner2`, `tplinker`). Other backends produce co-occurrence edges for graph export.
+
+**PII detection.** Classify NER entities as PII and scan for structured patterns (SSN, credit card, IBAN, email, phone). Redact or pseudonymize in one call:
+
+```rust
+use anno::{pii, Model, StackedNER};
+
+let text = "John Smith's SSN is 123-45-6789.";
+let m = StackedNER::default();
+let ents = m.extract_entities(text, None)?;
+
+let mut pii_ents: Vec<_> = ents.iter().filter_map(pii::classify_entity).collect();
+pii_ents.extend(pii::scan_patterns(text));
+let redacted = pii::redact(text, &pii_ents);
+// "[REDACTED]'s SSN is [REDACTED]."
+# Ok::<(), anno::Error>(())
+```
+
+**Export.** Brat standoff, CoNLL BIO tags, JSONL, N-Triples, JSON-LD, and graph CSV via pure functions in `anno::export`.
 
 ## Backends
 
