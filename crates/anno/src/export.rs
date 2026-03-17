@@ -543,6 +543,74 @@ mod tests {
     }
 
     #[test]
+    fn conll_multi_word_entity() {
+        let text = "The United States of America is large.";
+        let entities = vec![Entity::new(
+            "United States of America",
+            EntityType::Location,
+            4,
+            28,
+            0.9,
+        )];
+        let output = to_conll(text, &entities);
+        let lines: Vec<&str> = output.lines().collect();
+        assert_eq!(lines[0], "The\tO");
+        assert_eq!(lines[1], "United\tB-LOC");
+        assert_eq!(lines[2], "States\tI-LOC");
+        assert_eq!(lines[3], "of\tI-LOC");
+        assert_eq!(lines[4], "America\tI-LOC");
+        assert_eq!(lines[5], "is\tO");
+    }
+
+    #[test]
+    fn brat_multiple_entities_ascii() {
+        let text = "Alice met Bob in London.";
+        let entities = vec![
+            Entity::new("Alice", EntityType::Person, 0, 5, 0.95),
+            Entity::new("Bob", EntityType::Person, 10, 13, 0.9),
+            Entity::new("London", EntityType::Location, 17, 23, 0.85),
+        ];
+        let output = to_brat(text, &entities, false);
+        assert!(output.contains("T1\tPER 0 5\tAlice"));
+        assert!(output.contains("T2\tPER 10 13\tBob"));
+        assert!(output.contains("T3\tLOC 17 23\tLondon"));
+    }
+
+    #[test]
+    fn graph_csv_with_relations() {
+        let alice = Entity::new("Alice", EntityType::Person, 0, 5, 0.9);
+        let acme = Entity::new("Acme", EntityType::Organization, 20, 24, 0.85);
+        let rel = Relation::new(alice.clone(), acme.clone(), "WORKS_AT", 0.8);
+        let (nodes, edges) = to_graph_csv(&[alice, acme], &[rel], "test.txt", true);
+        assert!(nodes.contains("Alice"));
+        assert!(nodes.contains("Acme"));
+        assert!(edges.contains("WORKS_AT"));
+        assert!(
+            !edges.contains("CO_OCCURS"),
+            "relations should suppress co-occurrence"
+        );
+    }
+
+    #[test]
+    fn ntriples_basic() {
+        let entities = vec![Entity::new("Alice", EntityType::Person, 0, 5, 0.9)];
+        let output = to_ntriples(&entities, &[], "test.txt", "http://example.org");
+        assert!(output.contains("rdf-syntax-ns#type"));
+        assert!(output.contains("rdf-schema#label"));
+        assert!(output.contains("Alice"));
+    }
+
+    #[test]
+    fn jsonld_basic() {
+        let entities = vec![Entity::new("Alice", EntityType::Person, 0, 5, 0.9)];
+        let output = to_jsonld(&entities, &[], "test.txt", true, "http://example.org");
+        assert!(output.contains("@context"));
+        assert!(output.contains("@graph"));
+        assert!(output.contains("Alice"));
+        assert!(output.contains("confidence"));
+    }
+
+    #[test]
     fn brat_non_ascii() {
         let text = "Visit caf\u{e9} in Paris today.";
         let entities = vec![Entity::new("Paris", EntityType::Location, 14, 19, 0.9)];

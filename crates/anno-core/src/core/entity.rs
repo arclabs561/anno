@@ -3209,6 +3209,28 @@ mod tests {
         assert_eq!(restored.model_version.as_deref(), Some("v1.0"));
         assert_eq!(restored.timestamp.as_deref(), Some("2024-01-01"));
     }
+
+    #[test]
+    fn entity_serde_roundtrip_no_temporal_fields() {
+        let entity = Entity::new("Berlin", EntityType::Location, 0, 6, 0.95);
+        let json = serde_json::to_string(&entity).unwrap();
+        // Verify removed fields don't appear
+        assert!(!json.contains("valid_from"));
+        assert!(!json.contains("valid_until"));
+        assert!(!json.contains("phi_features"));
+        // Roundtrip works
+        let recovered: Entity = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.text, "Berlin");
+        assert_eq!(recovered.start(), 0);
+        assert_eq!(recovered.end(), 6);
+    }
+
+    #[test]
+    fn entity_deserialize_ignores_unknown_fields() {
+        let json = r#"{"text":"Berlin","entity_type":"LOC","start":0,"end":6,"confidence":0.95,"valid_from":null,"phi_features":null}"#;
+        let entity: Entity = serde_json::from_str(json).unwrap();
+        assert_eq!(entity.text, "Berlin");
+    }
 }
 
 #[cfg(test)]

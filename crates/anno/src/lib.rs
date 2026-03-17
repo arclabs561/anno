@@ -973,3 +973,28 @@ mod any_model_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod convenience_tests {
+    use super::*;
+
+    #[test]
+    fn extract_finds_entities() {
+        let ents = extract("Marie Curie won the Nobel Prize.").unwrap();
+        assert!(!ents.is_empty(), "extract() should find entities");
+    }
+
+    #[test]
+    fn extract_empty_text() {
+        let ents = extract("").unwrap();
+        assert!(ents.is_empty());
+    }
+
+    #[test]
+    fn prelude_imports_work() {
+        use crate::prelude::*;
+        let m = StackedNER::default();
+        let ents = m.extract_entities("Test input", None).unwrap();
+        let _: Vec<_> = ents.above_confidence(0.5).collect();
+    }
+}
