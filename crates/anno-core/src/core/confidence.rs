@@ -273,6 +273,40 @@ impl Confidence {
     pub fn clamped(value: f64) -> Self {
         Self::new(value)
     }
+
+    /// Create from a raw logit by applying sigmoid: `1 / (1 + e^(-x))`.
+    ///
+    /// Common for NER models whose final layer outputs logits.
+    ///
+    /// ```rust
+    /// use anno_core::Confidence;
+    ///
+    /// let c = Confidence::from_logit(0.0);
+    /// assert!((c.value() - 0.5).abs() < 0.001);
+    ///
+    /// let high = Confidence::from_logit(10.0);
+    /// assert!(high > 0.99);
+    /// ```
+    #[must_use]
+    #[inline]
+    pub fn from_logit(logit: f64) -> Self {
+        Self(1.0 / (1.0 + (-logit).exp()))
+    }
+
+    /// Create from a temperature-scaled logit.
+    ///
+    /// Higher temperature (> 1) produces a softer distribution.
+    /// Lower temperature (< 1) produces a sharper distribution.
+    #[must_use]
+    #[inline]
+    pub fn from_logit_scaled(logit: f64, temperature: f64) -> Self {
+        let scaled = if temperature > 0.0 {
+            logit / temperature
+        } else {
+            logit
+        };
+        Self::from_logit(scaled)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +414,21 @@ mod tests {
         let json = serde_json::to_string(&c).unwrap();
         let back: Confidence = serde_json::from_str(&json).unwrap();
         assert_eq!(back, c);
+    }
+
+    #[test]
+    fn from_logit_sigmoid() {
+        let c = Confidence::from_logit(0.0);
+        assert!((c.value() - 0.5).abs() < 0.001);
+        assert!(Confidence::from_logit(10.0) > 0.99);
+        assert!(Confidence::from_logit(-10.0) < 0.01);
+    }
+
+    #[test]
+    fn from_logit_scaled_temperature() {
+        let soft = Confidence::from_logit_scaled(2.0, 5.0);
+        let sharp = Confidence::from_logit_scaled(2.0, 0.1);
+        assert!(sharp > soft);
     }
 
     #[test]

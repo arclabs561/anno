@@ -119,7 +119,7 @@ pub use schema::{
     map_to_canonical, CanonicalType, CoarseType, DatasetSchema, InformationLoss, SchemaMapper,
 };
 pub use similarity::{jaccard_word_similarity, jaccard_word_similarity_f32, string_similarity};
-pub use types::{EntitySliceExt, Score};
+pub use types::EntitySliceExt;
 
 // =============================================================================
 // Sealed Trait Pattern

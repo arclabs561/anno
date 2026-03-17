@@ -136,6 +136,8 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
 | `production` | No | `parking_lot` locks + `tracing` instrumentation |
+| `bundled-crf-weights` | No | Embed trained CRF weights in binary |
+| `bundled-hmm-params` | No | Embed HMM parameters in binary |
 
 ## CLI
 
