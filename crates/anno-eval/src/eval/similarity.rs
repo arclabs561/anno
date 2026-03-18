@@ -35,7 +35,7 @@
 //!
 //! // Create embeddings
 //! let e1 = EntityEmbedding::new("Q937", "Albert Einstein", vec![0.1, 0.2, 0.3]);
-//! let e2 = EntityEmbedding::new("Q317521", "Elon Musk", vec![0.1, 0.25, 0.35]);
+//! let e2 = EntityEmbedding::new("Q468756", "Marie Curie", vec![0.1, 0.25, 0.35]);
 //!
 //! // Build index
 //! let index = SimilarityIndex::new(vec![e1.clone(), e2.clone()]);

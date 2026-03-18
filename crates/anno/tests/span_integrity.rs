@@ -167,12 +167,12 @@ mod nuner_trim {
 
     #[test]
     fn trailing_possessive_stripped() {
-        let input = "elon musk's";
+        let input = "marie curie's";
         let trimmed = input
             .trim_end_matches(['.', ',', ';', ':', '!', '?'])
             .trim_end_matches("'s")
             .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "elon musk");
+        assert_eq!(trimmed, "marie curie");
     }
 
     #[test]

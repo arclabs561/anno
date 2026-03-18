@@ -197,7 +197,7 @@ fn llm_extraction_llama3() {
     let config = LlmConfig::llama3();
     let model = UniversalNER::with_config(config).expect("create with llama3 config");
 
-    let text = "Elon Musk founded SpaceX in Hawthorne, California.";
+    let text = "Jensen Huang founded NVIDIA in Santa Clara, California.";
     let entities = model
         .extract_entities(text, None)
         .expect("llama3 extraction");

@@ -864,7 +864,7 @@ impl NuNER {
 
         // Trim trailing punctuation that leaks from word-boundary tokenization
         // (e.g. "thrive capital." -> "thrive capital",
-        //        "elon musk's"   -> "elon musk").
+        //        "marie curie's"  -> "marie curie").
         let (entity_text, _chars_removed) = textprep::spans::clean_span_tail(raw_text);
         if entity_text.is_empty() {
             return None;

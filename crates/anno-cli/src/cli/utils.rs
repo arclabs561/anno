@@ -712,7 +712,7 @@ mod tests {
         <html><head><title>Test</title></head>
         <body>
         <nav>Skip this</nav>
-        <article><p>Elon Musk founded SpaceX in Hawthorne, California.</p></article>
+        <article><p>Marie Curie discovered radium at the University of Paris.</p></article>
         <footer>Copyright</footer>
         </body></html>"#;
         assert!(
@@ -720,8 +720,11 @@ mod tests {
             "should detect HTML content"
         );
         let text = deformat::extract_readable(html, None).text;
-        assert!(text.contains("Elon Musk"), "should extract article text");
-        assert!(text.contains("SpaceX"), "should extract org name");
+        assert!(text.contains("Marie Curie"), "should extract article text");
+        assert!(
+            text.contains("University of Paris"),
+            "should extract org name"
+        );
         assert!(!text.contains("<nav>"), "should not contain HTML tags");
         assert!(
             !text.contains("Skip this"),
