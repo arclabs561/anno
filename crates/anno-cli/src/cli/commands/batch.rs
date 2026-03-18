@@ -385,25 +385,97 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
 
 // Output writing
 
+/// Convert a GroundedDocument to the clean JSON schema used by `extract --format json`.
+///
+/// Schema: `{id, entities: [{text, type, start, end, confidence, negated, quantifier}], tracks}`
+/// This matches the extract command's output so consumers get a consistent schema.
+fn doc_to_clean_json(doc: &anno_core::GroundedDocument, model_name: &str) -> serde_json::Value {
+    let entities: Vec<serde_json::Value> = doc
+        .signals()
+        .iter()
+        .map(|s| {
+            let (start, end) = s.text_offsets().unwrap_or((0, 0));
+            serde_json::json!({
+                "text": s.surface(),
+                "type": s.label(),
+                "start": start,
+                "end": end,
+                "confidence": s.confidence,
+                "negated": s.negated,
+                "quantifier": s.quantifier.map(|q| format!("{:?}", q)),
+            })
+        })
+        .collect();
+
+    let tracks: Vec<serde_json::Value> = doc
+        .tracks()
+        .map(|t| {
+            let mentions: Vec<serde_json::Value> = t
+                .signals
+                .iter()
+                .filter_map(|sr| {
+                    let sig = doc.get_signal(sr.signal_id)?;
+                    let (start, end) = sig.text_offsets().unwrap_or((0, 0));
+                    Some(serde_json::json!({
+                        "text": sig.surface(),
+                        "type": sig.label(),
+                        "start": start,
+                        "end": end,
+                    }))
+                })
+                .collect();
+            serde_json::json!({
+                "canonical": t.canonical_surface,
+                "mentions": mentions,
+            })
+        })
+        .collect();
+
+    let mut obj = serde_json::json!({
+        "id": doc.id,
+        "model": model_name,
+        "text_length": doc.text.chars().count(),
+        "entity_count": entities.len(),
+        "entities": entities,
+    });
+    if !tracks.is_empty() {
+        obj["tracks"] = serde_json::json!(tracks);
+    }
+    obj
+}
+
 fn write_outputs(
     documents: &[anno_core::GroundedDocument],
     args: &BatchArgs,
 ) -> Result<(), String> {
     use super::super::output::{color, print_signals};
 
+    let model_name = args.model.name();
+
     let Some(ref out_dir_str) = args.output else {
         // No output directory: print to stdout
         match args.format {
-            OutputFormat::Json | OutputFormat::Grounded => {
-                // Emit a valid JSON array so output is parseable
+            OutputFormat::Json => {
+                // Clean schema matching `extract --format json`
+                let clean: Vec<serde_json::Value> = documents
+                    .iter()
+                    .map(|d| doc_to_clean_json(d, model_name))
+                    .collect();
+                let output = serde_json::to_string_pretty(&clean)
+                    .map_err(|e| format!("Failed to serialize batch output: {}", e))?;
+                println!("{}", output);
+            }
+            OutputFormat::Grounded => {
+                // Raw GroundedDocument for pipeline integration
                 let output = serde_json::to_string_pretty(documents)
                     .map_err(|e| format!("Failed to serialize batch output: {}", e))?;
                 println!("{}", output);
             }
             OutputFormat::Jsonl => {
-                // One JSON object per line -- machine-parseable
+                // One clean JSON object per line
                 for doc in documents {
-                    let line = serde_json::to_string(doc)
+                    let clean = doc_to_clean_json(doc, model_name);
+                    let line = serde_json::to_string(&clean)
                         .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
                     println!("{}", line);
                 }
@@ -432,14 +504,24 @@ fn write_outputs(
 
     for doc in documents {
         match args.format {
+            OutputFormat::Json => {
+                let path = out_dir.join(format!("{}.json", doc.id));
+                let clean = doc_to_clean_json(doc, model_name);
+                let payload = serde_json::to_string_pretty(&clean)
+                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
+                std::fs::write(&path, payload)
+                    .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
+            }
             OutputFormat::Jsonl => {
                 let path = out_dir.join(format!("{}.jsonl", doc.id));
-                let payload = serde_json::to_string(doc)
+                let clean = doc_to_clean_json(doc, model_name);
+                let payload = serde_json::to_string(&clean)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
                 std::fs::write(&path, payload + "\n")
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }
             _ => {
+                // Grounded and other formats: raw GroundedDocument
                 let path = out_dir.join(format!("{}.json", doc.id));
                 let payload = serde_json::to_string_pretty(doc)
                     .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
@@ -571,5 +653,46 @@ mod tests {
             }
         }
         assert!(found.is_empty());
+    }
+
+    /// doc_to_clean_json produces the expected schema with correct field names
+    #[test]
+    fn clean_json_schema() {
+        let mut doc = anno_core::GroundedDocument::new("test_doc", "Alice met Bob in Paris.");
+        let signal = anno_core::Signal::new(
+            anno_core::SignalId::ZERO,
+            anno_core::Location::Text { start: 0, end: 5 },
+            "Alice".to_string(),
+            anno_core::TypeLabel::from("PER"),
+            0.95,
+        );
+        doc.add_signal(signal);
+
+        let json = super::doc_to_clean_json(&doc, "bert-onnx");
+        assert_eq!(json["id"], "test_doc");
+        assert_eq!(json["model"], "bert-onnx");
+        assert_eq!(json["entity_count"], 1);
+        assert_eq!(json["text_length"], 23);
+
+        let entity = &json["entities"][0];
+        assert_eq!(entity["text"], "Alice");
+        assert_eq!(entity["type"], "PER");
+        assert_eq!(entity["start"], 0);
+        assert_eq!(entity["end"], 5);
+        let conf = entity["confidence"].as_f64().unwrap();
+        assert!(
+            (conf - 0.95).abs() < 0.01,
+            "confidence should be ~0.95, got {}",
+            conf
+        );
+        assert_eq!(entity["negated"], false);
+
+        // Should NOT contain GroundedDocument-specific fields
+        assert!(json.get("signals").is_none());
+        assert!(json.get("identities").is_none());
+        assert!(
+            json.get("text").is_none(),
+            "full text not included in clean json"
+        );
     }
 }
