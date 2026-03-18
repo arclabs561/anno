@@ -21,7 +21,7 @@ use std::sync::Arc;
 /// Batch processing
 #[derive(Parser, Debug)]
 pub struct BatchArgs {
-    /// Process directory of .txt/.md files
+    /// Process directory of text files (.txt, .md, .html, .htm, .pdf)
     #[arg(short, long, value_name = "DIR")]
     pub dir: Option<String>,
 
@@ -228,12 +228,18 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
             let ext_ok = path
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|e| e == "txt" || e == "md")
+                .map(|e| {
+                    matches!(
+                        e,
+                        "txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text"
+                    )
+                })
                 .unwrap_or(false);
             if !ext_ok {
                 continue;
             }
-            let text = std::fs::read_to_string(&path)
+            let path_str = path.to_string_lossy();
+            let text = crate::cli::utils::read_input_file(&path_str)
                 .map_err(|e| format!("Failed to read '{}': {}", path.display(), e))?;
             let doc_id = path
                 .file_stem()
@@ -245,10 +251,11 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
 
         if out.is_empty() {
             return Err(format!(
-                "No input files found under '{}' (expected .txt or .md)",
+                "No input files found under '{}' (expected .txt, .md, .html, .htm, .pdf, .rst)",
                 args.dir.as_deref().unwrap_or("")
             ));
         }
+        out.sort_by(|a, b| a.0.cmp(&b.0));
         out
     };
 
@@ -386,17 +393,26 @@ fn write_outputs(
 
     let Some(ref out_dir_str) = args.output else {
         // No output directory: print to stdout
-        for doc in documents {
-            if !args.quiet {
-                println!("\n{}", color("1;36", &format!("Document: {}", doc.id)));
+        match args.format {
+            OutputFormat::Json | OutputFormat::Grounded => {
+                // Emit a valid JSON array so output is parseable
+                let output = serde_json::to_string_pretty(documents)
+                    .map_err(|e| format!("Failed to serialize batch output: {}", e))?;
+                println!("{}", output);
             }
-            match args.format {
-                OutputFormat::Json | OutputFormat::Grounded => {
-                    let output = serde_json::to_string_pretty(doc)
+            OutputFormat::Jsonl => {
+                // One JSON object per line -- machine-parseable
+                for doc in documents {
+                    let line = serde_json::to_string(doc)
                         .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
-                    println!("{}", output);
+                    println!("{}", line);
                 }
-                _ => {
+            }
+            _ => {
+                for doc in documents {
+                    if !args.quiet {
+                        println!("\n{}", color("1;36", &format!("Document: {}", doc.id)));
+                    }
                     print_signals(doc, &doc.text, 0);
                 }
             }
@@ -434,4 +450,126 @@ fn write_outputs(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    /// Batch should accept .html files alongside .txt and .md
+    #[test]
+    fn dir_scan_accepts_html_files() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.txt"), "Alice met Bob.").unwrap();
+        fs::write(dir.path().join("b.md"), "Charlie met Dave.").unwrap();
+        fs::write(
+            dir.path().join("c.html"),
+            "<html><body><p>Eve met Frank.</p></body></html>",
+        )
+        .unwrap();
+        fs::write(dir.path().join("d.csv"), "should,be,ignored").unwrap();
+
+        let mut found = Vec::new();
+        for entry in fs::read_dir(dir.path()).unwrap() {
+            let path = entry.unwrap().path();
+            if !path.is_file() {
+                continue;
+            }
+            let ext_ok = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| {
+                    matches!(
+                        e,
+                        "txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text"
+                    )
+                })
+                .unwrap_or(false);
+            if ext_ok {
+                found.push(path.file_name().unwrap().to_string_lossy().to_string());
+            }
+        }
+        found.sort();
+        assert_eq!(found, vec!["a.txt", "b.md", "c.html"]);
+    }
+
+    /// HTML files in batch dir should be stripped to text via read_input_file
+    #[test]
+    fn html_file_stripped_in_batch() {
+        let dir = tempfile::tempdir().unwrap();
+        let html = r#"<!DOCTYPE html>
+        <html><body>
+        <nav>Navigation</nav>
+        <p>Jensen Huang announced the Blackwell GPU.</p>
+        <footer>Footer text</footer>
+        </body></html>"#;
+        fs::write(dir.path().join("test.html"), html).unwrap();
+
+        let text =
+            crate::cli::utils::read_input_file(dir.path().join("test.html").to_str().unwrap())
+                .unwrap();
+        assert!(text.contains("Jensen Huang"), "should extract article text");
+        assert!(!text.contains("<nav>"), "should not contain raw HTML tags");
+    }
+
+    /// Batch output files should be sorted deterministically by doc_id
+    #[test]
+    fn output_sorted_by_doc_id() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("zulu.txt"), "Zulu text.").unwrap();
+        fs::write(dir.path().join("alpha.txt"), "Alpha text.").unwrap();
+        fs::write(dir.path().join("mike.txt"), "Mike text.").unwrap();
+
+        let mut docs = Vec::new();
+        for entry in fs::read_dir(dir.path()).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) == Some("txt") {
+                let id = path.file_stem().unwrap().to_str().unwrap().to_string();
+                let text = fs::read_to_string(&path).unwrap();
+                docs.push((id, text));
+            }
+        }
+        docs.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let ids: Vec<&str> = docs.iter().map(|(id, _)| id.as_str()).collect();
+        assert_eq!(ids, vec!["alpha", "mike", "zulu"]);
+    }
+
+    /// Empty file should not cause panic
+    #[test]
+    fn empty_file_handled() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("empty.txt"), "").unwrap();
+
+        let text =
+            crate::cli::utils::read_input_file(dir.path().join("empty.txt").to_str().unwrap())
+                .unwrap();
+        assert!(text.is_empty());
+    }
+
+    /// No matching files should produce error, not silently succeed
+    #[test]
+    fn no_matching_files_detected() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("data.csv"), "a,b,c").unwrap();
+
+        let mut found = Vec::new();
+        for entry in fs::read_dir(dir.path()).unwrap() {
+            let path = entry.unwrap().path();
+            let ext_ok = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| {
+                    matches!(
+                        e,
+                        "txt" | "md" | "html" | "htm" | "xhtml" | "pdf" | "rst" | "text"
+                    )
+                })
+                .unwrap_or(false);
+            if ext_ok {
+                found.push(path);
+            }
+        }
+        assert!(found.is_empty());
+    }
 }

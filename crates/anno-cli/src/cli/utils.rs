@@ -38,6 +38,12 @@ pub fn get_input_text(
             .read_to_string(&mut buf)
             .map_err(|e| format_error("read stdin", &e.to_string()))?;
         if !buf.is_empty() {
+            // Auto-detect HTML in stdin and strip it, same as --file does
+            if deformat::detect::is_html(&buf) {
+                eprintln!("note: detected HTML content on stdin, converting to text");
+                let text = deformat::extract_readable(&buf, None).text;
+                return Ok(text);
+            }
             return Ok(sanitize_input(&buf));
         }
     }
@@ -696,6 +702,41 @@ mod tests {
         let result = read_input_file(path.to_str().unwrap());
         // Should attempt PDF extraction and fail (not valid PDF)
         assert!(result.is_err());
+    }
+
+    /// Stdin HTML content should be detected and stripped automatically.
+    /// This tests the detection logic -- actual stdin piping is tested via CLI integration.
+    #[test]
+    fn html_content_detected_for_stripping() {
+        let html = r#"<!DOCTYPE html>
+        <html><head><title>Test</title></head>
+        <body>
+        <nav>Skip this</nav>
+        <article><p>Elon Musk founded SpaceX in Hawthorne, California.</p></article>
+        <footer>Copyright</footer>
+        </body></html>"#;
+        assert!(
+            deformat::detect::is_html(html),
+            "should detect HTML content"
+        );
+        let text = deformat::extract_readable(html, None).text;
+        assert!(text.contains("Elon Musk"), "should extract article text");
+        assert!(text.contains("SpaceX"), "should extract org name");
+        assert!(!text.contains("<nav>"), "should not contain HTML tags");
+        assert!(
+            !text.contains("Skip this"),
+            "nav content should be stripped"
+        );
+    }
+
+    /// Plain text should NOT be detected as HTML
+    #[test]
+    fn plain_text_not_detected_as_html() {
+        let text = "Angela Merkel met Emmanuel Macron in Berlin on Tuesday.";
+        assert!(
+            !deformat::detect::is_html(text),
+            "plain text should not trigger HTML detection"
+        );
     }
 
     #[cfg(not(feature = "pdf"))]

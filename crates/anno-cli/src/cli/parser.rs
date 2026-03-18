@@ -14,20 +14,6 @@ use crate::cli::commands;
     long_about = r#"
 anno - Information extraction from text
 
-CAPABILITIES:
-  • Named Entity Recognition (NER) - detect spans (PER/ORG/LOC, etc.)
-  • Zero-shot custom types - define entity types (--extract-types; GLiNER)
-  • Relations (best-effort) - extract head/rel/tail triples (--extract-relations)
-  • Coreference - link mentions within one document ("Sophie Wilson" → "She")
-  • Structured patterns - dates, money, emails (pattern backend)
-
-BACKENDS:
-  • stacked    - best available for this build (feature-gated)
-  • gliner     - zero-shot custom types (requires onnx)
-  • gliner2    - multitask (NER + relation heuristics; requires onnx)
-  • tplinker   - relation baseline (heuristic today; no extra deps)
-  • pattern    - high-precision structured extraction (no weights)
-
 EXAMPLES:
   anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
   anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
@@ -35,16 +21,15 @@ EXAMPLES:
   anno extract --extract-relations --relation-types "FOUNDED,WORKS_FOR" \
     --text "Steve Jobs founded Apple in 1976."
   anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+  anno batch --dir ./docs --output ./results --format json
   anno models download ...
   anno info
 
 OFFLINE:
-  • Prefetch: anno models download ...
-  • Cached-only: ANNO_NO_DOWNLOADS=1
+  anno models download ...          # prefetch weights
+  ANNO_NO_DOWNLOADS=1 anno ...      # cached-only mode
 
-ADVANCED:
-  • Some commands are intentionally hidden from the default help.
-  • If you know the name, run `anno help <command>` (e.g. `anno help debug`).
+Run `anno help <command>` for details on any subcommand.
 "#
 )]
 #[command(propagate_version = true)]

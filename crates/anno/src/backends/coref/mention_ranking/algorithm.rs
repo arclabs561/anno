@@ -2072,10 +2072,42 @@ impl MentionRankingCoref {
         text: &str,
         doc: &mut anno_core::GroundedDocument,
     ) -> Result<Vec<anno_core::TrackId>> {
-        let (signals, tracks) = self.resolve_to_grounded(text)?;
+        let (mut signals, tracks) = self.resolve_to_grounded(text)?;
         let mut track_ids = Vec::new();
 
-        // Build old→new signal ID map (add_signal reassigns IDs)
+        // Propagate NER entity type labels to coref signals that only have
+        // mention-type labels (proper/pronominal/nominal). Match by exact span
+        // overlap with existing NER signals in the document.
+        let mention_labels: std::collections::HashSet<&str> =
+            ["proper", "pronominal", "nominal", "zero", "unknown"]
+                .into_iter()
+                .collect();
+
+        for coref_sig in &mut signals {
+            if !mention_labels.contains(coref_sig.label.as_str()) {
+                continue;
+            }
+            let coref_loc = &coref_sig.location;
+            let mut found = false;
+            // Find a NER signal with overlapping span and inherit its label
+            for ner_sig in doc.signals() {
+                if mention_labels.contains(ner_sig.label.as_str()) {
+                    continue;
+                }
+                if ner_sig.location == *coref_loc || spans_overlap(&ner_sig.location, coref_loc) {
+                    coref_sig.label = ner_sig.label.clone();
+                    found = true;
+                    break;
+                }
+            }
+            // Mentions with no NER overlap: prefix with COREF_ for clarity
+            if !found {
+                let prefixed = format!("COREF_{}", coref_sig.label.as_str());
+                coref_sig.label = anno_core::TypeLabel::from(prefixed.as_str());
+            }
+        }
+
+        // Build old->new signal ID map (add_signal reassigns IDs)
         let old_ids: Vec<anno_core::SignalId> = signals.iter().map(|s| s.id).collect();
         let new_ids = doc.add_signals(signals);
         let id_map: std::collections::HashMap<anno_core::SignalId, anno_core::SignalId> =
@@ -2093,6 +2125,23 @@ impl MentionRankingCoref {
         }
 
         Ok(track_ids)
+    }
+}
+
+/// Check if two Location::Text spans overlap.
+fn spans_overlap(a: &anno_core::Location, b: &anno_core::Location) -> bool {
+    match (a, b) {
+        (
+            anno_core::Location::Text {
+                start: a_s,
+                end: a_e,
+            },
+            anno_core::Location::Text {
+                start: b_s,
+                end: b_e,
+            },
+        ) => a_s < b_e && b_s < a_e,
+        _ => false,
     }
 }
 
@@ -4738,5 +4787,44 @@ mod tests {
                 }
             }
         }
+    }
+
+    // =========================================================================
+    // spans_overlap tests
+    // =========================================================================
+
+    #[test]
+    fn spans_overlap_exact_match() {
+        let a = anno_core::Location::Text { start: 10, end: 20 };
+        let b = anno_core::Location::Text { start: 10, end: 20 };
+        assert!(super::spans_overlap(&a, &b));
+    }
+
+    #[test]
+    fn spans_overlap_partial() {
+        let a = anno_core::Location::Text { start: 10, end: 20 };
+        let b = anno_core::Location::Text { start: 15, end: 25 };
+        assert!(super::spans_overlap(&a, &b));
+    }
+
+    #[test]
+    fn spans_overlap_containment() {
+        let a = anno_core::Location::Text { start: 10, end: 30 };
+        let b = anno_core::Location::Text { start: 15, end: 20 };
+        assert!(super::spans_overlap(&a, &b));
+    }
+
+    #[test]
+    fn spans_no_overlap_adjacent() {
+        let a = anno_core::Location::Text { start: 10, end: 20 };
+        let b = anno_core::Location::Text { start: 20, end: 30 };
+        assert!(!super::spans_overlap(&a, &b));
+    }
+
+    #[test]
+    fn spans_no_overlap_disjoint() {
+        let a = anno_core::Location::Text { start: 10, end: 20 };
+        let b = anno_core::Location::Text { start: 30, end: 40 };
+        assert!(!super::spans_overlap(&a, &b));
     }
 }

@@ -589,6 +589,10 @@ impl MentionCluster {
             .iter()
             .enumerate()
             .map(|(idx, mention)| {
+                let label = match &mention.entity_type {
+                    Some(et) => anno_core::TypeLabel::from(et.as_label()),
+                    None => anno_core::TypeLabel::from(mention.mention_type.as_label()),
+                };
                 anno_core::Signal::new(
                     signal_id_base + idx as u64,
                     anno_core::Location::Text {
@@ -596,7 +600,7 @@ impl MentionCluster {
                         end: mention.end,
                     },
                     mention.text.clone(),
-                    anno_core::TypeLabel::from(mention.mention_type.as_label()),
+                    label,
                     1.0,
                 )
             })
@@ -657,11 +661,18 @@ impl MentionCluster {
 
 impl RankedMention {
     /// Convert to a Signal with Location::Text.
+    ///
+    /// Uses the NER entity type label when available (e.g. "PER", "ORG"),
+    /// falling back to the mention type label ("proper", "pronominal").
     #[must_use]
     pub fn to_signal(
         &self,
         signal_id: anno_core::SignalId,
     ) -> anno_core::Signal<anno_core::Location> {
+        let label = match &self.entity_type {
+            Some(et) => anno_core::TypeLabel::from(et.as_label()),
+            None => anno_core::TypeLabel::from(self.mention_type.as_label()),
+        };
         anno_core::Signal::new(
             signal_id,
             anno_core::Location::Text {
@@ -669,7 +680,7 @@ impl RankedMention {
                 end: self.end,
             },
             self.text.clone(),
-            anno_core::TypeLabel::from(self.mention_type.as_label()),
+            label,
             1.0,
         )
     }
@@ -889,5 +900,49 @@ mod tests {
             mentions: vec![],
         };
         assert!(cluster.canonical_mention().is_none());
+    }
+
+    // =========================================================================
+    // Signal label tests (to_signal should use entity_type when available)
+    // =========================================================================
+
+    #[test]
+    fn to_signal_uses_entity_type_when_set() {
+        let mut mention = make_mention("Jensen Huang", 0, 12, MentionType::Proper);
+        mention.entity_type = Some(anno_core::EntityType::Person);
+        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        assert_eq!(signal.label.as_str(), "PER");
+    }
+
+    #[test]
+    fn to_signal_falls_back_to_mention_type() {
+        let mention = make_mention("Jensen Huang", 0, 12, MentionType::Proper);
+        // entity_type is None
+        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        assert_eq!(signal.label.as_str(), "proper");
+    }
+
+    #[test]
+    fn to_signal_pronominal_with_entity_type() {
+        let mut mention = make_mention("he", 50, 52, MentionType::Pronominal);
+        mention.entity_type = Some(anno_core::EntityType::Person);
+        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        assert_eq!(signal.label.as_str(), "PER");
+    }
+
+    #[test]
+    fn to_signals_cluster_propagates_entity_types() {
+        let mut m1 = make_mention("NVIDIA", 0, 6, MentionType::Proper);
+        m1.entity_type = Some(anno_core::EntityType::Organization);
+        let m2 = make_mention("the company", 20, 31, MentionType::Nominal);
+        // m2 has no entity_type
+        let cluster = MentionCluster {
+            id: 0,
+            mentions: vec![m1, m2],
+        };
+        let signals = cluster.to_signals(anno_core::SignalId::ZERO);
+        assert_eq!(signals[0].label.as_str(), "ORG");
+        // m2 has no entity_type, falls back to mention type label
+        assert_eq!(signals[1].label.as_str(), "nominal");
     }
 }
