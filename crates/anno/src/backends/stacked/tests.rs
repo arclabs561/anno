@@ -1355,3 +1355,57 @@ fn filter_title_words_keeps_multi_word_orgs() {
     super::filter_title_words(&mut entities);
     assert_eq!(entities.len(), 2, "Multi-word ORGs should be kept");
 }
+
+// =========================================================================
+// Subsumption / conflict resolution tests
+// =========================================================================
+
+#[test]
+fn structured_type_subsumes_generic() {
+    // "EUR 2 billion" (MONEY) should subsume "EUR" (misc)
+    let existing = Entity::new("EUR", EntityType::from_label("misc"), 0, 3, 0.8);
+    let candidate = Entity::new("EUR 2 billion", EntityType::Money, 0, 13, 0.95);
+    let strategy = ConflictStrategy::Priority;
+    let resolution = strategy.resolve(&existing, &candidate);
+    assert!(
+        matches!(resolution, Resolution::Replace),
+        "MONEY should subsume misc via structured-type rule"
+    );
+}
+
+#[test]
+fn priority_keeps_existing_on_overlap() {
+    // Same span, different types: priority keeps the first
+    let existing = Entity::new("Jensen Huang", EntityType::Person, 0, 12, 0.99);
+    let candidate = Entity::new("Jensen Huang", EntityType::Organization, 0, 12, 0.95);
+    let strategy = ConflictStrategy::Priority;
+    let resolution = strategy.resolve(&existing, &candidate);
+    assert!(
+        matches!(resolution, Resolution::KeepExisting),
+        "Priority should keep first-layer entity"
+    );
+}
+
+#[test]
+fn longest_span_prefers_longer() {
+    let existing = Entity::new("New York", EntityType::Location, 0, 8, 0.95);
+    let candidate = Entity::new("New York City", EntityType::Location, 0, 13, 0.90);
+    let strategy = ConflictStrategy::LongestSpan;
+    let resolution = strategy.resolve(&existing, &candidate);
+    assert!(
+        matches!(resolution, Resolution::Replace),
+        "LongestSpan should prefer longer entity"
+    );
+}
+
+#[test]
+fn highest_conf_prefers_higher() {
+    let existing = Entity::new("Berlin", EntityType::Location, 0, 6, 0.7);
+    let candidate = Entity::new("Berlin", EntityType::Location, 0, 6, 0.95);
+    let strategy = ConflictStrategy::HighestConf;
+    let resolution = strategy.resolve(&existing, &candidate);
+    assert!(
+        matches!(resolution, Resolution::Replace),
+        "HighestConf should prefer higher confidence"
+    );
+}

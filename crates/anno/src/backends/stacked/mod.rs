@@ -27,6 +27,7 @@ pub enum ConflictStrategy {
     Priority,
 
     /// Longest span wins. Prefers "New York City" over "New York".
+    /// Equal length falls back to layer priority.
     LongestSpan,
 
     /// Highest confidence score wins.
@@ -49,10 +50,8 @@ impl ConflictStrategy {
     /// When confidence/length are equal, we prefer `existing` to respect
     /// layer priority (earlier layers have higher priority).
     fn resolve(&self, existing: &Entity, candidate: &Entity) -> Resolution {
-        // Subsumption rule: if the candidate fully contains the existing entity
-        // and has a more specific structured type (Money, Date, Phone, etc.)
-        // while existing is generic (Other/misc), prefer the candidate.
-        // Example: "EUR 3.2 billion" (MONEY) subsumes "EUR" (misc).
+        // Subsumption rule 1: structured type over generic.
+        // "EUR 3.2 billion" (MONEY) subsumes "EUR" (misc).
         if candidate.start() <= existing.start()
             && candidate.end() >= existing.end()
             && candidate.end() > candidate.start()
@@ -301,10 +300,10 @@ impl StackedNER {
         StackedNERBuilder::default()
     }
 
-    /// Create with explicit layers and default priority strategy.
+    /// Create with explicit layers and default longest-span strategy.
     #[must_use]
     pub fn with_layers(layers: Vec<Box<dyn Model + Send + Sync>>) -> Self {
-        let mut builder = Self::builder().strategy(ConflictStrategy::Priority);
+        let mut builder = Self::builder();
         for layer in layers {
             builder = builder.layer_boxed(layer);
         }
