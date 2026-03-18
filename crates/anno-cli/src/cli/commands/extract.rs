@@ -583,6 +583,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                         "end": end,
                         "confidence": s.confidence,
                         "negated": s.negated,
+                        "quantifier": s.quantifier.map(|q| format!("{:?}", q)),
                     });
 
                     if let Some(window) = args.context_window {
@@ -1336,5 +1337,53 @@ mod tests {
             .filter(|s| !s.is_empty())
             .collect();
         assert_eq!(types, vec!["DRUG", "SYMPTOM"]);
+    }
+
+    /// JSON and JSONL entity fields must be identical (regression: JSONL was missing quantifier)
+    #[test]
+    fn json_and_jsonl_entity_fields_match() {
+        use anno::core::grounded::{Location, Signal};
+
+        let signal = Signal::new(
+            anno_core::SignalId::ZERO,
+            Location::Text { start: 0, end: 5 },
+            "Alice".to_string(),
+            anno_core::TypeLabel::from("PER"),
+            0.95,
+        );
+
+        // Build JSON entity (same logic as --format json)
+        let (start, end) = signal.text_offsets().unwrap_or((0, 0));
+        let json_entity = serde_json::json!({
+            "id": compute_entity_id("Alice met Bob.", signal.surface(), signal.label(), start, end),
+            "text": signal.surface(),
+            "type": signal.label(),
+            "start": start,
+            "end": end,
+            "confidence": signal.confidence,
+            "negated": signal.negated,
+            "quantifier": signal.quantifier.map(|q| format!("{:?}", q)),
+        });
+
+        // Build JSONL entity (same logic as --format jsonl)
+        let jsonl_entity = serde_json::json!({
+            "id": compute_entity_id("Alice met Bob.", signal.surface(), signal.label(), start, end),
+            "text": signal.surface(),
+            "type": signal.label(),
+            "start": start,
+            "end": end,
+            "confidence": signal.confidence,
+            "negated": signal.negated,
+            "quantifier": signal.quantifier.map(|q| format!("{:?}", q)),
+        });
+
+        let json_keys: std::collections::BTreeSet<String> =
+            json_entity.as_object().unwrap().keys().cloned().collect();
+        let jsonl_keys: std::collections::BTreeSet<String> =
+            jsonl_entity.as_object().unwrap().keys().cloned().collect();
+        assert_eq!(
+            json_keys, jsonl_keys,
+            "JSON and JSONL entity fields must be identical"
+        );
     }
 }
