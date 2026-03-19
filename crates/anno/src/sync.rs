@@ -98,43 +98,43 @@ pub fn try_lock<T>(mutex: &Mutex<T>) -> crate::Result<std::sync::MutexGuard<'_, 
 // RwLock
 // ---------------------------------------------------------------------------
 
-#[cfg(feature = "production")]
+#[cfg(all(feature = "production", feature = "candle"))]
 use parking_lot::RwLock as ParkingLotRwLock;
 
-#[cfg(not(feature = "production"))]
+#[cfg(all(not(feature = "production"), feature = "candle"))]
 use std::sync::RwLock as StdRwLock;
 
 /// RwLock type that conditionally uses parking_lot or std::sync::RwLock.
 ///
 /// When `production` feature is enabled, uses `parking_lot::RwLock` for better
 /// performance. Otherwise uses `std::sync::RwLock`.
-#[cfg(feature = "production")]
+#[cfg(all(feature = "production", feature = "candle"))]
 pub type RwLock<T> = ParkingLotRwLock<T>;
 
 /// RwLock type using std::sync::RwLock (default, no `production` feature).
-#[cfg(not(feature = "production"))]
+#[cfg(all(not(feature = "production"), feature = "candle"))]
 pub type RwLock<T> = StdRwLock<T>;
 
 /// Acquire a read lock, handling poisoning gracefully.
-#[cfg(feature = "production")]
+#[cfg(all(feature = "production", feature = "candle"))]
 pub fn read_lock<T>(rw: &RwLock<T>) -> parking_lot::RwLockReadGuard<'_, T> {
     rw.read()
 }
 
 /// Acquire a read lock using std::sync::RwLock, recovering from poisoning.
-#[cfg(not(feature = "production"))]
+#[cfg(all(not(feature = "production"), feature = "candle"))]
 pub fn read_lock<T>(rw: &RwLock<T>) -> std::sync::RwLockReadGuard<'_, T> {
     rw.read().unwrap_or_else(|e| e.into_inner())
 }
 
 /// Acquire a write lock, handling poisoning gracefully.
-#[cfg(feature = "production")]
+#[cfg(all(feature = "production", feature = "candle"))]
 pub fn write_lock<T>(rw: &RwLock<T>) -> parking_lot::RwLockWriteGuard<'_, T> {
     rw.write()
 }
 
 /// Acquire a write lock using std::sync::RwLock, recovering from poisoning.
-#[cfg(not(feature = "production"))]
+#[cfg(all(not(feature = "production"), feature = "candle"))]
 pub fn write_lock<T>(rw: &RwLock<T>) -> std::sync::RwLockWriteGuard<'_, T> {
     rw.write().unwrap_or_else(|e| e.into_inner())
 }

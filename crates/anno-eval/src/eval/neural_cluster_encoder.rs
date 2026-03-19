@@ -347,7 +347,7 @@ pub struct NeuralMergeScorer {
 #[cfg(feature = "candle")]
 impl NeuralMergeScorer {
     /// Create a new neural merge scorer.
-    pub fn new(hidden_dim: usize, _threshold: f32) -> crate::Result<Self> {
+    pub fn new(hidden_dim: usize) -> crate::Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
         let varmap = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);

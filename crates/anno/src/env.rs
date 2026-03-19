@@ -217,6 +217,7 @@ pub fn has_llm_api_key() -> bool {
 /// Returns (key, provider) tuple.
 ///
 /// Priority: OpenRouter (unified gateway) > Anthropic > Gemini > Groq > Ollama (local).
+#[cfg(feature = "llm")]
 #[must_use]
 pub(crate) fn llm_api_key() -> Option<(String, &'static str)> {
     let nonempty = |name: &str| -> Option<String> {
