@@ -425,8 +425,8 @@ Output:"#
                     .map(|e| {
                         let mut e = e.clone();
                         if char_offset > 0 {
-                            e.start += char_offset;
-                            e.end += char_offset;
+                            e.set_start(e.start() + char_offset);
+                            e.set_end(e.end() + char_offset);
                         }
                         e
                     })
@@ -551,8 +551,8 @@ Output:"#
         // Adjust offsets from chunk-local to document-global
         if char_offset > 0 {
             for entity in &mut entities {
-                entity.start += char_offset;
-                entity.end += char_offset;
+                entity.set_start(entity.start() + char_offset);
+                entity.set_end(entity.end() + char_offset);
             }
         }
 

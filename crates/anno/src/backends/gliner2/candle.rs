@@ -753,8 +753,12 @@ impl GLiNER2Candle {
         }
 
         // Deduplicate
-        entities.sort_by(|a, b| a.start.cmp(&b.start).then_with(|| b.end.cmp(&a.end)));
-        entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+        entities.sort_by(|a, b| {
+            a.start()
+                .cmp(&b.start())
+                .then_with(|| b.end().cmp(&a.end()))
+        });
+        entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 
         Ok(entities)
     }
