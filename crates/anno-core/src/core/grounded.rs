@@ -417,8 +417,8 @@ impl<L> Signal<L> {
 
     /// Check if this signal is above a confidence threshold.
     #[must_use]
-    pub fn is_confident(&self, threshold: f32) -> bool {
-        self.confidence >= threshold as f64
+    pub fn is_confident(&self, threshold: Confidence) -> bool {
+        self.confidence >= threshold
     }
 
     /// Set the modality.
@@ -988,9 +988,9 @@ impl Track {
             relative_spread,
             first_position,
             last_position,
-            min_confidence: min_conf,
-            max_confidence: max_conf,
-            mean_confidence: mean_conf,
+            min_confidence: Confidence::new(min_conf as f64),
+            max_confidence: Confidence::new(max_conf as f64),
+            mean_confidence: Confidence::new(mean_conf as f64),
             has_embedding: self.embedding.is_some(),
         }
     }
@@ -1014,11 +1014,11 @@ pub struct TrackStats {
     /// Position of last mention.
     pub last_position: usize,
     /// Minimum confidence across mentions.
-    pub min_confidence: f32,
+    pub min_confidence: Confidence,
     /// Maximum confidence across mentions.
-    pub max_confidence: f32,
+    pub max_confidence: Confidence,
     /// Mean confidence across mentions.
-    pub mean_confidence: f32,
+    pub mean_confidence: Confidence,
     /// Whether this track has an embedding.
     pub has_embedding: bool,
 }
@@ -1356,15 +1356,15 @@ impl From<GroundedDocumentWire> for GroundedDocument {
 #[serde(from = "GroundedDocumentWire")]
 pub struct GroundedDocument {
     /// Document identifier
-    pub id: String,
+    id: String,
     /// Raw text content
-    pub text: String,
+    text: String,
     /// Level 1: Raw signals (detections)
-    pub signals: Vec<Signal<Location>>,
+    signals: Vec<Signal<Location>>,
     /// Level 2: Tracks (within-document coreference chains)
-    pub tracks: HashMap<TrackId, Track>,
+    tracks: HashMap<TrackId, Track>,
     /// Level 3: Global identities (KB-linked entities)
-    pub identities: HashMap<IdentityId, Identity>,
+    identities: HashMap<IdentityId, Identity>,
     /// Index: signal_id → track_id (for efficient lookup).
     /// Not serialized; rebuilt on deserialization.
     #[serde(skip)]
@@ -1405,10 +1405,55 @@ impl GroundedDocument {
         }
     }
 
-    /// Rebuild all internal indexes from the public data fields.
+    /// Get the document identifier.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Get the raw text content.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Get a mutable reference to the signals vector.
+    pub fn signals_mut(&mut self) -> &mut Vec<Signal<Location>> {
+        &mut self.signals
+    }
+
+    /// Get the tracks map.
+    #[must_use]
+    pub fn tracks_map(&self) -> &HashMap<TrackId, Track> {
+        &self.tracks
+    }
+
+    /// Get a mutable reference to the tracks map.
     ///
-    /// Call this after deserializing a `GroundedDocument` or after directly mutating the
-    /// `signals`, `tracks`, or `identities` fields. The method recomputes:
+    /// After mutating tracks, call [`rebuild_indexes`](Self::rebuild_indexes) to
+    /// keep internal indexes consistent.
+    pub fn tracks_map_mut(&mut self) -> &mut HashMap<TrackId, Track> {
+        &mut self.tracks
+    }
+
+    /// Get the identities map.
+    #[must_use]
+    pub fn identities_map(&self) -> &HashMap<IdentityId, Identity> {
+        &self.identities
+    }
+
+    /// Get a mutable reference to the identities map.
+    ///
+    /// After mutating identities, call [`rebuild_indexes`](Self::rebuild_indexes) to
+    /// keep internal indexes consistent.
+    pub fn identities_map_mut(&mut self) -> &mut HashMap<IdentityId, Identity> {
+        &mut self.identities
+    }
+
+    /// Rebuild all internal indexes from the data fields.
+    ///
+    /// Call this after deserializing a `GroundedDocument` or after mutating
+    /// via `signals_mut()`, `tracks_map_mut()`, or `identities_map_mut()`. The method recomputes:
     /// - `signal_to_track` from each track's signal list
     /// - `track_to_identity` from each track's `identity_id`
     /// - `next_signal_id`, `next_track_id`, `next_identity_id` counters
@@ -1740,10 +1785,10 @@ impl GroundedDocument {
 
     /// Get signals above a confidence threshold.
     #[must_use]
-    pub fn confident_signals(&self, threshold: f32) -> Vec<&Signal<Location>> {
+    pub fn confident_signals(&self, threshold: Confidence) -> Vec<&Signal<Location>> {
         self.signals
             .iter()
-            .filter(|s| s.confidence >= threshold as f64)
+            .filter(|s| s.confidence >= threshold)
             .collect()
     }
 
@@ -2064,15 +2109,15 @@ impl GroundedDocument {
 
         let singleton_count = self.tracks.values().filter(|t| t.is_singleton()).count();
 
-        let avg_confidence = if signal_count > 0 {
+        let avg_confidence = Confidence::new(if signal_count > 0 {
             self.signals
                 .iter()
-                .map(|s| s.confidence.value() as f32)
-                .sum::<f32>()
-                / signal_count as f32
+                .map(|s| s.confidence.value())
+                .sum::<f64>()
+                / signal_count as f64
         } else {
             0.0
-        };
+        });
 
         let negated_count = self.signals.iter().filter(|s| s.negated).count();
 
@@ -2224,7 +2269,7 @@ pub struct DocumentStats {
     /// Number of singleton tracks (single mention)
     pub singleton_count: usize,
     /// Average signal confidence
-    pub avg_confidence: f32,
+    pub avg_confidence: Confidence,
     /// Number of negated signals
     pub negated_count: usize,
     /// Number of symbolic (text) signals
@@ -2241,7 +2286,8 @@ impl std::fmt::Display for DocumentStats {
         writeln!(
             f,
             "  Signals: {} (avg confidence: {:.2})",
-            self.signal_count, self.avg_confidence
+            self.signal_count,
+            self.avg_confidence.value()
         )?;
         writeln!(
             f,
@@ -4261,7 +4307,7 @@ pub struct ProcessOptions {
     /// Labels to extract (empty = all)
     pub labels: Vec<String>,
     /// Confidence threshold
-    pub threshold: f32,
+    pub threshold: Confidence,
 }
 
 /// Result of processing input.
@@ -4785,9 +4831,9 @@ mod tests {
     #[test]
     fn test_signal_confidence_threshold() {
         let signal: Signal<Location> = Signal::new(0, Location::text(0, 10), "test", "Type", 0.75);
-        assert!(signal.is_confident(0.5));
-        assert!(signal.is_confident(0.75));
-        assert!(!signal.is_confident(0.8));
+        assert!(signal.is_confident(Confidence::new(0.5)));
+        assert!(signal.is_confident(Confidence::new(0.75)));
+        assert!(!signal.is_confident(Confidence::new(0.8)));
     }
 
     #[test]
@@ -4806,7 +4852,7 @@ mod tests {
         ));
 
         // Filter by confidence
-        let confident = doc.confident_signals(0.5);
+        let confident = doc.confident_signals(Confidence::new(0.5));
         assert_eq!(confident.len(), 2);
 
         // Filter by label
@@ -5614,8 +5660,8 @@ mod proptests {
             }
 
             let stats = doc.stats();
-            prop_assert!(stats.avg_confidence >= 0.0);
-            prop_assert!(stats.avg_confidence <= 1.0);
+            prop_assert!(stats.avg_confidence.value() >= 0.0);
+            prop_assert!(stats.avg_confidence.value() <= 1.0);
         }
     }
 
@@ -5927,9 +5973,9 @@ mod proptests {
         assert_eq!(stats.variation_count, 1, "One unique surface form");
         assert!(stats.spread > 0, "Spread should be positive");
         assert!(stats.relative_spread > 0.0 && stats.relative_spread < 1.0);
-        assert!((stats.min_confidence - 0.90).abs() < 0.01);
-        assert!((stats.max_confidence - 0.95).abs() < 0.01);
-        assert!((stats.mean_confidence - 0.925).abs() < 0.01);
+        assert!((stats.min_confidence.value() - 0.90).abs() < 0.01);
+        assert!((stats.max_confidence.value() - 0.95).abs() < 0.01);
+        assert!((stats.mean_confidence.value() - 0.925).abs() < 0.01);
     }
 
     #[test]
@@ -5954,6 +6000,6 @@ mod proptests {
         assert_eq!(stats.chain_length, 1);
         assert_eq!(stats.spread, 0, "Singleton has zero spread");
         assert_eq!(stats.first_position, stats.last_position);
-        assert!((stats.min_confidence - stats.max_confidence).abs() < 0.001);
+        assert!((stats.min_confidence.value() - stats.max_confidence.value()).abs() < 0.001);
     }
 }

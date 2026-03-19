@@ -432,9 +432,9 @@ fn doc_to_clean_json(doc: &anno_core::GroundedDocument, model_name: &str) -> ser
         .collect();
 
     let mut obj = serde_json::json!({
-        "id": doc.id,
+        "id": doc.id(),
         "model": model_name,
-        "text_length": doc.text.chars().count(),
+        "text_length": doc.text().chars().count(),
         "entity_count": entities.len(),
         "entities": entities,
     });
@@ -476,16 +476,16 @@ fn write_outputs(
                 for doc in documents {
                     let clean = doc_to_clean_json(doc, model_name);
                     let line = serde_json::to_string(&clean)
-                        .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
+                        .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                     println!("{}", line);
                 }
             }
             _ => {
                 for doc in documents {
                     if !args.quiet {
-                        println!("\n{}", color("1;36", &format!("Document: {}", doc.id)));
+                        println!("\n{}", color("1;36", &format!("Document: {}", doc.id())));
                     }
-                    print_signals(doc, &doc.text, 0);
+                    print_signals(doc, doc.text(), 0);
                 }
             }
         }
@@ -505,26 +505,26 @@ fn write_outputs(
     for doc in documents {
         match args.format {
             OutputFormat::Json => {
-                let path = out_dir.join(format!("{}.json", doc.id));
+                let path = out_dir.join(format!("{}.json", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name);
                 let payload = serde_json::to_string_pretty(&clean)
-                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
+                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload)
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }
             OutputFormat::Jsonl => {
-                let path = out_dir.join(format!("{}.jsonl", doc.id));
+                let path = out_dir.join(format!("{}.jsonl", doc.id()));
                 let clean = doc_to_clean_json(doc, model_name);
                 let payload = serde_json::to_string(&clean)
-                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
+                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload + "\n")
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }
             _ => {
                 // Grounded and other formats: raw GroundedDocument
-                let path = out_dir.join(format!("{}.json", doc.id));
+                let path = out_dir.join(format!("{}.json", doc.id()));
                 let payload = serde_json::to_string_pretty(doc)
-                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id, e))?;
+                    .map_err(|e| format!("Failed to serialize '{}': {}", doc.id(), e))?;
                 std::fs::write(&path, payload)
                     .map_err(|e| format!("Failed to write '{}': {}", path.display(), e))?;
             }

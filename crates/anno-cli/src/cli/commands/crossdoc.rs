@@ -286,7 +286,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         };
 
         let entity_count = entities.len();
-        let cdcr_doc = Document::new(&doc.id, &doc.text).with_entities(entities);
+        let cdcr_doc = Document::new(doc.id(), doc.text()).with_entities(entities);
         (cdcr_doc, entity_count)
     }
 
@@ -311,7 +311,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 let doc: GroundedDocument = serde_json::from_str(&line)
                     .map_err(|e| format!("Failed to parse stdin line {}: {}", line_num + 1, e))?;
                 // Ensure tracks exist - if not, create them from signals for better clustering
-                if doc.tracks.is_empty() && !doc.signals.is_empty() {
+                if doc.tracks_map().is_empty() && !doc.signals().is_empty() {
                     // Could run within-doc coref here, but for now just use signals
                     // The Corpus will cluster based on signals if no tracks
                 }
@@ -319,7 +319,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 doc_paths.insert(
                     corpus
                         .get_document(&format!("stdin:{}", line_num + 1))
-                        .map(|d| d.id.clone())
+                        .map(|d| d.id().to_owned())
                         .unwrap_or_else(|| format!("stdin:{}", line_num + 1)),
                     format!("stdin:{}", line_num + 1),
                 );
@@ -353,7 +353,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                         let doc: GroundedDocument = serde_json::from_str(&line).map_err(|e| {
                             format!("Failed to parse stdin line {}: {}", line_num + 1, e)
                         })?;
-                        let doc_id = doc.id.clone();
+                        let doc_id = doc.id().to_owned();
                         corpus.add_document(doc);
                         doc_paths.insert(doc_id.clone(), format!("stdin:{}", line_num + 1));
                         if args.verbose {
@@ -448,7 +448,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 doc_paths.insert(
                     corpus
                         .get_document(&file_path.display().to_string())
-                        .map(|d| d.id.clone())
+                        .map(|d| d.id().to_owned())
                         .unwrap_or_else(|| file_path.display().to_string()),
                     file_path.display().to_string(),
                 );

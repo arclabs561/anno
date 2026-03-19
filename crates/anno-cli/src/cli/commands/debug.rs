@@ -174,8 +174,8 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
             "signals" => {
                 let signals: Vec<_> = doc.signals().to_vec();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }
@@ -195,8 +195,8 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
                     })
                     .collect();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }

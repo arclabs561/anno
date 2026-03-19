@@ -69,7 +69,7 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
 
     // Apply enhancements
     if args.coref {
-        let text = doc.text.clone();
+        let text = doc.text().to_owned();
         resolve_coreference(&mut doc, &text, &signal_ids);
         log_success("Applied coreference resolution", args.quiet);
     }
@@ -87,8 +87,8 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
             "signals" => {
                 let signals: Vec<_> = doc.signals().to_vec();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }
@@ -108,8 +108,8 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
                     })
                     .collect();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }
@@ -163,7 +163,7 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
                 println!("  Identities: {}", stats.identity_count);
                 println!();
             }
-            print_signals(&doc, &doc.text, 0);
+            print_signals(&doc, doc.text(), 0);
         }
         _ => {
             return Err(format!(

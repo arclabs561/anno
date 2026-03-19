@@ -2970,12 +2970,12 @@ mod tests {
         let track_ids = coref.resolve_into_document(text, &mut doc).unwrap();
 
         // Document should have signals and tracks
-        assert!(!doc.signals.is_empty());
-        assert!(!doc.tracks.is_empty());
+        assert!(!doc.signals().is_empty());
+        assert!(!doc.tracks_map().is_empty());
 
         // Returned track IDs should match document
         for track_id in &track_ids {
-            assert!(doc.tracks.contains_key(track_id));
+            assert!(doc.tracks_map().contains_key(track_id));
         }
     }
 

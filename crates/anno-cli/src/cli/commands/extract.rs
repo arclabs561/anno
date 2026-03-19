@@ -8,7 +8,7 @@ use super::super::output::{color, log_info, print_annotated_signals, print_signa
 use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::get_input_text;
 use anno::heuristics::{detect_quantifier_en, is_negated_en};
-use anno::Language;
+use anno::{Confidence, Language};
 
 #[cfg(feature = "eval")]
 use crate::cli::ingest::CompositeResolver;
@@ -427,7 +427,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     if args.extract_relations && relation_triples.is_empty() {
         let rel_strs: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
         let cfg = RelationExtractionConfig {
-            threshold: relation_threshold,
+            threshold: Confidence::new(relation_threshold as f64),
             max_span_distance: args.relation_max_span_distance,
             extract_triggers: false,
         };
@@ -723,7 +723,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                     let text_len = text.chars().count();
                     println!();
                     println!("  {}:", color("90", "Metadata"));
-                    println!("    document: {}", doc.id);
+                    println!("    document: {}", doc.id());
                     println!("    model: {}", args.model.name());
                     println!("    timing: {:.1}ms", elapsed.as_secs_f64() * 1000.0);
                     println!("    text length: {} chars", text_len);
@@ -745,8 +745,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             "signals" => {
                 let signals: Vec<_> = doc.signals().to_vec();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }
@@ -766,8 +766,8 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                     })
                     .collect();
                 serde_json::json!({
-                    "id": doc.id,
-                    "text": doc.text,
+                    "id": doc.id(),
+                    "text": doc.text(),
                     "signals": signals
                 })
             }

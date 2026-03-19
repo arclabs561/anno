@@ -195,7 +195,7 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
                             )
                         })
                         .collect();
-                    Document::new(&doc.id, &doc.text).with_entities(entities)
+                    Document::new(doc.id(), doc.text()).with_entities(entities)
                 })
                 .collect();
 
@@ -280,8 +280,8 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
                 // Human-readable output
                 for doc in &documents {
                     println!();
-                    println!("{}", color("1;36", &format!("Document: {}", doc.id)));
-                    print_signals(doc, &doc.text, 0);
+                    println!("{}", color("1;36", &format!("Document: {}", doc.id())));
+                    print_signals(doc, doc.text(), 0);
                 }
             }
         }

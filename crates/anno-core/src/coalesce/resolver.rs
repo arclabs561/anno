@@ -131,7 +131,7 @@ impl Resolver {
 
         let mut track_data: Vec<TrackData> = Vec::new();
         // Collect document IDs first to avoid borrow checker issues
-        let doc_ids: Vec<String> = corpus.documents().map(|d| d.id.clone()).collect();
+        let doc_ids: Vec<String> = corpus.documents().map(|d| d.id().to_owned()).collect();
         for doc_id in doc_ids {
             if let Some(doc) = corpus.get_document(&doc_id) {
                 for track in doc.tracks() {
