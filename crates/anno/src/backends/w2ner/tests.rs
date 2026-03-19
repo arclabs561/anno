@@ -16,7 +16,7 @@ fn test_w2ner_relation_conversion() {
 #[test]
 fn test_w2ner_config_defaults() {
     let config = W2NERConfig::default();
-    assert!((config.threshold - 0.5).abs() < f64::EPSILON);
+    assert!((config.threshold.value() - 0.5).abs() < f64::EPSILON);
     assert!(config.allow_nested);
     assert!(config.allow_discontinuous);
     assert_eq!(config.entity_labels.len(), 3);

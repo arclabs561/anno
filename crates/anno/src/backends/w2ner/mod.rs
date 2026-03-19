@@ -118,7 +118,7 @@ use crate::Error;
 #[derive(Debug, Clone)]
 pub struct W2NERConfig {
     /// Confidence threshold for grid predictions
-    pub threshold: f64,
+    pub threshold: Confidence,
     /// Entity type labels (maps grid channels to types)
     pub entity_labels: Vec<String>,
     /// Whether to extract nested entities
@@ -136,7 +136,7 @@ pub struct W2NERConfig {
 impl Default for W2NERConfig {
     fn default() -> Self {
         Self {
-            threshold: 0.5,
+            threshold: Confidence::new(0.5),
             entity_labels: vec!["PER".to_string(), "ORG".to_string(), "LOC".to_string()],
             allow_nested: true,
             allow_discontinuous: true,
@@ -398,7 +398,7 @@ impl W2NER {
     /// Set confidence threshold.
     #[must_use]
     pub fn with_threshold(mut self, threshold: f64) -> Self {
-        self.config.threshold = threshold.clamp(0.0, 1.0);
+        self.config.threshold = Confidence::new(threshold);
         self
     }
 
@@ -430,7 +430,7 @@ impl W2NER {
             matrix,
             tokens,
             entity_type_idx,
-            self.config.threshold as f32,
+            self.config.threshold.value() as f32,
             self.config.allow_nested,
         )
     }
@@ -785,7 +785,7 @@ impl Model for W2NER {
         #[cfg(feature = "onnx")]
         {
             if self.session.is_some() {
-                return self.extract_with_grid(text, self.config.threshold as f32);
+                return self.extract_with_grid(text, self.config.threshold.value() as f32);
             }
 
             Err(crate::Error::ModelInit(

@@ -1,6 +1,6 @@
 //! Coreference resolution utilities and data structures.
 
-use crate::Entity;
+use crate::{Confidence, Entity};
 use std::collections::HashMap;
 
 // Coreference Resolution
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 /// This is a different shape from `coref::resolve::CorefCluster` -- it stores
 /// entity indices rather than mention texts, for use with embedding-based resolution.
 #[derive(Debug, Clone)]
-pub(crate) struct CoreferenceCluster {
+pub struct CoreferenceCluster {
     /// Cluster ID
     pub id: u64,
     /// Member entities (indices into entity list)
@@ -26,7 +26,7 @@ pub(crate) struct CoreferenceCluster {
 #[derive(Debug, Clone)]
 pub struct CoreferenceConfig {
     /// Minimum cosine similarity to link mentions
-    pub similarity_threshold: f32,
+    pub similarity_threshold: Confidence,
     /// Maximum token distance between coreferent mentions
     pub max_distance: Option<usize>,
     /// Whether to use exact string matching as a signal
@@ -36,7 +36,7 @@ pub struct CoreferenceConfig {
 impl Default for CoreferenceConfig {
     fn default() -> Self {
         Self {
-            similarity_threshold: 0.85,
+            similarity_threshold: Confidence::new(0.85),
             max_distance: Some(500),
             use_string_match: true,
         }
@@ -120,7 +120,7 @@ pub fn resolve_coreferences(
 
                 let similarity = innr::cosine(emb_i, emb_j);
 
-                if similarity >= config.similarity_threshold {
+                if similarity >= config.similarity_threshold.value() as f32 {
                     // Same entity type required
                     if entities[i].entity_type == entities[j].entity_type {
                         union(&mut parent, i, j);
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_coreference_config_default() {
         let config = CoreferenceConfig::default();
-        assert!((config.similarity_threshold - 0.85).abs() < f32::EPSILON);
+        assert!((config.similarity_threshold.value() - 0.85).abs() < f64::EPSILON);
         assert_eq!(config.max_distance, Some(500));
         assert!(config.use_string_match);
     }
@@ -186,12 +186,12 @@ mod tests {
     #[test]
     fn test_coreference_config_clone() {
         let config = CoreferenceConfig {
-            similarity_threshold: 0.7,
+            similarity_threshold: Confidence::new(0.7),
             max_distance: None,
             use_string_match: false,
         };
         let cloned = config.clone();
-        assert!((cloned.similarity_threshold - 0.7).abs() < f32::EPSILON);
+        assert!((cloned.similarity_threshold.value() - 0.7).abs() < f64::EPSILON);
         assert!(cloned.max_distance.is_none());
         assert!(!cloned.use_string_match);
     }
@@ -216,7 +216,7 @@ mod tests {
         ];
 
         let config = CoreferenceConfig {
-            similarity_threshold: 0.85,
+            similarity_threshold: Confidence::new(0.85),
             max_distance: Some(500),
             use_string_match: false, // disable string match to test embedding path
         };
@@ -241,7 +241,7 @@ mod tests {
         ];
 
         let config = CoreferenceConfig {
-            similarity_threshold: 0.85,
+            similarity_threshold: Confidence::new(0.85),
             max_distance: Some(500),
             use_string_match: false,
         };
@@ -270,7 +270,7 @@ mod tests {
         ];
 
         let config = CoreferenceConfig {
-            similarity_threshold: 0.5,
+            similarity_threshold: Confidence::new(0.5),
             max_distance: Some(500),
             use_string_match: false,
         };
@@ -293,7 +293,7 @@ mod tests {
 
         let embeddings = vec![0.0f32; 2 * 4];
         let config = CoreferenceConfig {
-            similarity_threshold: 0.85,
+            similarity_threshold: Confidence::new(0.85),
             max_distance: None, // no distance limit
             use_string_match: true,
         };

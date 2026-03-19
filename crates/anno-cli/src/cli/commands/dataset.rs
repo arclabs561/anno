@@ -993,7 +993,9 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                     extract_relation_triples_simple,
                                                     RelationExtractionConfig,
                                                 };
-                                                use anno::{Entity as PredEntity, EntityType};
+                                                use anno::{
+                                                    Confidence, Entity as PredEntity, EntityType,
+                                                };
                                                 use std::collections::BTreeMap;
 
                                                 if doc_idx == 0 {
@@ -1045,7 +1047,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                 let rel_strs: Vec<&str> =
                                                     relation_types_vec.to_vec();
                                                 let rel_cfg = RelationExtractionConfig {
-                                                    threshold: 0.5,
+                                                    threshold: Confidence::new(0.5),
                                                     max_span_distance: 120,
                                                     extract_triggers: false,
                                                 };

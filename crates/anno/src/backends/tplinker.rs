@@ -657,7 +657,7 @@ mod heuristic_impl {
             };
 
             let rel_config = RelationExtractionConfig {
-                threshold: rel_threshold,
+                threshold: Confidence::new(rel_threshold as f64),
                 max_span_distance: 120,
                 extract_triggers: false,
             };

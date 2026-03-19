@@ -82,6 +82,12 @@ impl schemars::JsonSchema for Confidence {
     }
 }
 
+impl Default for Confidence {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Conversions
 // ---------------------------------------------------------------------------

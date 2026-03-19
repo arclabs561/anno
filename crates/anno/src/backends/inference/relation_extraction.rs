@@ -13,7 +13,7 @@ pub struct RelationExtractionConfig {
     /// Maximum token distance between head and tail
     pub max_span_distance: usize,
     /// Minimum confidence for relation
-    pub threshold: f32,
+    pub threshold: Confidence,
     /// Whether to extract relation triggers
     pub extract_triggers: bool,
 }
@@ -22,7 +22,7 @@ impl Default for RelationExtractionConfig {
     fn default() -> Self {
         Self {
             max_span_distance: 50,
-            threshold: 0.5,
+            threshold: Confidence::new(0.5),
             extract_triggers: true,
         }
     }
@@ -103,7 +103,7 @@ pub fn extract_relations(
                 };
                 confidence *= distance_penalty;
 
-                if confidence < config.threshold as f64 {
+                if confidence < config.threshold.value() {
                     continue;
                 }
 
@@ -208,7 +208,7 @@ pub fn extract_relation_triples(
                 };
                 confidence *= distance_penalty;
 
-                if confidence < config.threshold as f64 {
+                if confidence < config.threshold.value() {
                     continue;
                 }
 
@@ -1243,7 +1243,7 @@ pub fn extract_relation_triples_simple(
                 // Incorporate entity confidence.
                 confidence *= (head.confidence + tail.confidence) / 2.0;
 
-                if confidence < config.threshold as f64 {
+                if confidence < config.threshold.value() {
                     continue;
                 }
 
@@ -1275,7 +1275,7 @@ pub fn extract_relation_triples_simple(
 
                     let conf_f32 =
                         proximity * base_score * (head.confidence + tail.confidence) as f32 / 2.0;
-                    if conf_f32 >= config.threshold {
+                    if conf_f32 >= config.threshold.value() as f32 {
                         triples.push(RelationTriple {
                             head_idx: i,
                             tail_idx: j,
@@ -1558,7 +1558,7 @@ mod tests {
         let entities = vec![person("A", 0, 1), org("B", 12, 13)];
         let reg = registry_with_relations(&["WORKS_FOR"]);
         let config = RelationExtractionConfig {
-            threshold: 0.95,
+            threshold: Confidence::new(0.95),
             ..default_config()
         };
         let rels = extract_relations(&entities, text, &reg, &config);
@@ -1898,7 +1898,7 @@ mod tests {
         let entities_far = vec![person("Alice", 0, 5), org("BigCo", 28, 33)];
         let reg = registry_with_relations(&["WORKS_FOR"]);
         let low_threshold = RelationExtractionConfig {
-            threshold: 0.3,
+            threshold: Confidence::new(0.3),
             ..default_config()
         };
         let rels_close = extract_relations(&entities_close, text_close, &reg, &low_threshold);
@@ -1925,7 +1925,7 @@ mod tests {
         let actual_conf = rels[0].confidence;
         // Threshold just above actual confidence: should filter.
         let config = RelationExtractionConfig {
-            threshold: (actual_conf + 0.01) as f32,
+            threshold: Confidence::new(actual_conf.value() + 0.01),
             ..default_config()
         };
         let rels2 = extract_relations(&entities, text, &reg, &config);
@@ -2068,7 +2068,7 @@ mod tests {
         let reg = registry_with_relations(&["LOCATED_IN"]);
         // Use a low threshold so the distance penalty doesn't mask the trigger match.
         let config = RelationExtractionConfig {
-            threshold: 0.3,
+            threshold: Confidence::new(0.3),
             ..default_config()
         };
         let rels = extract_relations(&entities, text, &reg, &config);

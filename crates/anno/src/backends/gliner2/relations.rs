@@ -18,7 +18,7 @@ pub(crate) fn extract_relations_heuristic(
     };
 
     let config = RelationExtractionConfig {
-        threshold,
+        threshold: crate::Confidence::new(threshold as f64),
         max_span_distance: 120,
         extract_triggers: false,
     };

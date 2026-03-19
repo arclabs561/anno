@@ -1108,7 +1108,7 @@ impl TaskEvaluator {
             thread_local! {
                 // Store (normalized_name, backend_name_used_for_creation, backend)
                 // Using enum instead of Box<dyn Any> for type safety
-                static THREAD_CACHED_BACKEND: RefCell<Option<(String, String, CachedBackend)>> = RefCell::new(None);
+                static THREAD_CACHED_BACKEND: RefCell<Option<(String, String, CachedBackend)>> = const { RefCell::new(None) };
             }
 
             // Normalize backend name to lowercase for consistent caching
@@ -1181,7 +1181,7 @@ impl TaskEvaluator {
                     let processed = progress_counter.fetch_add(1, Ordering::Relaxed) + 1;
                     let current_percent = (processed * 100) / total_sentences;
                     let mut last_percent = lock(&last_progress_percent);
-                    if current_percent >= *last_percent + 10 || processed % 10 == 0 {
+                    if current_percent >= *last_percent + 10 || processed.is_multiple_of(10) {
                         let elapsed = lock(&start_time_arc).elapsed();
                         let elapsed_secs = elapsed.as_secs_f64();
                         let rate = if elapsed_secs > 0.0 {
@@ -1200,7 +1200,7 @@ impl TaskEvaluator {
                             String::new()
                         };
                         eprint!("\rProcessing: {}/{} sentences ({:.0}%) for backend '{}' on dataset '{}'{}\x1b[K",
-                            processed, total_sentences, current_percent, backend_name, dataset.to_string(), remaining_str);
+                            processed, total_sentences, current_percent, backend_name, dataset, remaining_str);
                         *last_percent = current_percent;
                     }
 
@@ -1231,7 +1231,7 @@ impl TaskEvaluator {
                 total_sentences,
                 total_sentences,
                 backend_name,
-                dataset.to_string(),
+                dataset,
                 time_str,
                 rate_str
             );
@@ -2614,7 +2614,7 @@ impl TaskEvaluator {
                             use anno::backends::inference::{
                                 extract_relation_triples_simple, RelationExtractionConfig,
                             };
-                            use anno::{Entity as PredEntity, EntityType};
+                            use anno::{Confidence, Entity as PredEntity, EntityType};
                             use std::collections::BTreeMap;
 
                             // Dedup entities by (start,end,type,text) while preserving a stable order.
@@ -2650,7 +2650,7 @@ impl TaskEvaluator {
 
                             let rel_strs: Vec<&str> = relation_types.iter().map(|s| &**s).collect();
                             let rel_cfg = RelationExtractionConfig {
-                                threshold: config.relation_threshold,
+                                threshold: Confidence::new(config.relation_threshold as f64),
                                 max_span_distance: 120,
                                 extract_triggers: false,
                             };
@@ -2702,7 +2702,7 @@ impl TaskEvaluator {
                             use anno::backends::inference::{
                                 extract_relation_triples_simple, RelationExtractionConfig,
                             };
-                            use anno::{Entity as PredEntity, EntityType};
+                            use anno::{Confidence, Entity as PredEntity, EntityType};
                             use std::collections::BTreeMap;
 
                             // Dedup entities by (start,end,type,text) while preserving a stable order.
@@ -2738,7 +2738,7 @@ impl TaskEvaluator {
 
                             let rel_strs: Vec<&str> = relation_types.iter().map(|s| &**s).collect();
                             let rel_cfg = RelationExtractionConfig {
-                                threshold: config.relation_threshold,
+                                threshold: Confidence::new(config.relation_threshold as f64),
                                 max_span_distance: 120,
                                 extract_triggers: false,
                             };

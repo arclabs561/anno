@@ -3,6 +3,7 @@
 //! `SemanticRegistry` stores relation labels and class embeddings used by
 //! the encoder-based extraction pipeline.
 
+use crate::Confidence;
 use std::collections::HashMap;
 
 // Semantic Registry (Pre-computed Label Embeddings)
@@ -106,7 +107,7 @@ pub struct LabelDefinition {
     /// Expected source modality
     pub modality: ModalityHint,
     /// Minimum confidence threshold for this label
-    pub threshold: f32,
+    pub threshold: Confidence,
 }
 
 /// Category of semantic label.
@@ -181,35 +182,35 @@ impl SemanticRegistry {
                 description: "A named individual human being".into(),
                 category: LabelCategory::Entity,
                 modality: ModalityHint::TextOnly,
-                threshold: 0.5,
+                threshold: Confidence::new(0.5),
             },
             LabelDefinition {
                 slug: "organization".into(),
                 description: "A company, institution, agency, or other group".into(),
                 category: LabelCategory::Entity,
                 modality: ModalityHint::TextOnly,
-                threshold: 0.5,
+                threshold: Confidence::new(0.5),
             },
             LabelDefinition {
                 slug: "location".into(),
                 description: "A geographical place, city, country, or region".into(),
                 category: LabelCategory::Entity,
                 modality: ModalityHint::TextOnly,
-                threshold: 0.5,
+                threshold: Confidence::new(0.5),
             },
             LabelDefinition {
                 slug: "date".into(),
                 description: "A calendar date or time expression".into(),
                 category: LabelCategory::Entity,
                 modality: ModalityHint::TextOnly,
-                threshold: 0.5,
+                threshold: Confidence::new(0.5),
             },
             LabelDefinition {
                 slug: "money".into(),
                 description: "A monetary amount with currency".into(),
                 category: LabelCategory::Entity,
                 modality: ModalityHint::TextOnly,
-                threshold: 0.5,
+                threshold: Confidence::new(0.5),
             },
         ];
 
@@ -251,7 +252,7 @@ impl SemanticRegistryBuilder {
             description: description.into(),
             category: LabelCategory::Entity,
             modality: ModalityHint::TextOnly,
-            threshold: 0.5,
+            threshold: Confidence::new(0.5),
         });
         self
     }
@@ -263,7 +264,7 @@ impl SemanticRegistryBuilder {
             description: description.into(),
             category: LabelCategory::Relation,
             modality: ModalityHint::TextOnly,
-            threshold: 0.5,
+            threshold: Confidence::new(0.5),
         });
         self
     }
@@ -406,12 +407,12 @@ mod tests {
             description: "a pharmaceutical compound".into(),
             category: LabelCategory::Entity,
             modality: ModalityHint::Any,
-            threshold: 0.3,
+            threshold: Confidence::new(0.3),
         };
         let reg = SemanticRegistry::builder().add_label(label).build_zero(2);
         assert_eq!(reg.len(), 1);
         assert_eq!(reg.labels[0].modality, ModalityHint::Any);
-        assert!((reg.labels[0].threshold - 0.3).abs() < f32::EPSILON);
+        assert!((reg.labels[0].threshold.value() - 0.3).abs() < f64::EPSILON);
     }
 
     #[test]
