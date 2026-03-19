@@ -16,7 +16,7 @@
 //! # Design
 //!
 //! - Pure Rust, no model downloads, sub-millisecond latency
-//! - Uses `SimpleCorefResolver` from the `eval` module
+//! - Uses `SimpleCorefResolver` from `backends::coref::simple`
 //! - Rewrites right-to-left to preserve character offsets
 //! - Only replaces pronouns (not nominal mentions) by default
 //!
@@ -28,7 +28,7 @@
 //! mentions, producing no rewrites). Model-based detection is needed for those
 //! languages. Set `language` to `None` (the default) for English.
 
-use crate::eval::coref_resolver::{CorefConfig, SimpleCorefResolver};
+use crate::backends::coref::simple::{CorefConfig, SimpleCorefResolver};
 use crate::lang::Language;
 use crate::Entity;
 #[cfg(test)]

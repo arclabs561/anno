@@ -143,7 +143,7 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 | `candle` | No | Pure-Rust backends (no C++ runtime) |
 | `metal` | No | Metal GPU acceleration (enables `candle`) |
 | `cuda` | No | CUDA GPU acceleration (enables `candle`) |
-| `analysis` | No | Coref metrics, RAG rewriting |
+| `analysis` | No | Coref metrics, cluster encoders |
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
 | `production` | No | `parking_lot` locks + `tracing` instrumentation |
@@ -182,7 +182,7 @@ JSON output with `--format json`. Batch processing with `anno batch`. Graph expo
 
 `FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
 
-RAG preprocessing (`rag::resolve_for_rag()`, `analysis` feature): rewrites pronouns for self-contained chunks after splitting.
+RAG preprocessing (`rag::resolve_for_rag()`, `rag::preprocess()`): rewrites pronouns for self-contained chunks after splitting. Always available (no feature flag required).
 
 ## Scope
 

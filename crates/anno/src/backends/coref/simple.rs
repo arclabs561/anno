@@ -235,6 +235,9 @@ impl SimpleCorefResolver {
     }
 
     /// Convert resolved entities directly to coreference chains.
+    ///
+    /// Requires the `analysis` feature.
+    #[cfg(feature = "analysis")]
     #[must_use]
     pub fn resolve_to_chains(&self, entities: &[Entity]) -> Vec<crate::eval::coref::CorefChain> {
         let resolved = self.resolve_entities(entities);

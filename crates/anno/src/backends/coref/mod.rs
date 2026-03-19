@@ -24,7 +24,6 @@ pub mod t5;
 pub mod fcoref;
 
 // Simple rule-based coreference resolvers.
-#[cfg(feature = "analysis")]
 pub mod simple;
 
 // Re-exports: keep everything accessible at the coref:: level
@@ -39,5 +38,4 @@ pub use t5::{T5Coref, T5CorefConfig};
 #[cfg(feature = "onnx")]
 pub use fcoref::{FCoref, FCorefConfig};
 
-#[cfg(feature = "analysis")]
 pub use simple::{CorefConfig, SimpleCorefResolver};
