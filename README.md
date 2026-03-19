@@ -110,24 +110,28 @@ let redacted = pii::redact(text, &pii_ents);
 
 ## Backends
 
-| Backend | Feature | Zero-shot | Reference |
-|---|---|---|---|
-| `stacked` (default) | -- | -- | -- |
-| `gliner` | `onnx` | Yes | Zaratiana et al. [5] |
-| `gliner2` | `onnx` | Yes | [11] |
-| `nuner` | `onnx` | Yes | Bogdanov et al. [6] |
-| `bert-onnx` | `onnx` | No | Devlin et al. [8] |
-| `w2ner` | `onnx` | No | Li et al. [7] |
-| `tplinker` | `onnx` | No | Wang et al. [10] |
-| `pattern` | -- | N/A | -- |
-| `heuristic` | -- | No | -- |
-| `crf` | -- | No | Lafferty et al. [9] |
-| `hmm` | -- | No | Rabiner [12] |
-| `universal_ner` | `llm` | Yes | -- |
-| `candle` | `candle` | No | -- |
-| `gliner_candle` | `candle` | Yes | -- |
+| Backend | Feature | Zero-shot | Status | Reference |
+|---|---|---|---|---|
+| `stacked` (default) | -- | -- | stable | -- |
+| `gliner` | `onnx` | Yes | stable | Zaratiana et al. [5] |
+| `gliner2` | `onnx` | Yes | beta | [11] |
+| `nuner` | `onnx` | Yes | stable | Bogdanov et al. [6] |
+| `bert_onnx` | `onnx` | No | beta | Devlin et al. [8] |
+| `w2ner` | `onnx` | No | beta | Li et al. [7] |
+| `tplinker` | `onnx` | No | beta | Wang et al. [10] |
+| `glirel` | `onnx` | Yes | beta | -- |
+| `gliner_poly` | `onnx` | Yes | beta | -- |
+| `gliner_candle` | `candle` | Yes | beta | -- |
+| `candle_ner` | `candle` | No | beta | -- |
+| `pattern` | -- | N/A | stable | -- |
+| `heuristic` | -- | No | stable | -- |
+| `crf` | -- | No | stable | Lafferty et al. [9] |
+| `hmm` | -- | No | stable | Rabiner [12] |
+| `ensemble` | -- | No | beta | -- |
+| `bilstm_crf` | -- | No | beta | -- |
+| `universal_ner` | `llm` | Yes | beta | -- |
 
-See [BACKENDS.md](docs/BACKENDS.md) for the full list including ensemble, lexicon, and experimental backends.
+See [BACKENDS.md](docs/BACKENDS.md) for details, default models, and WIP backends.
 
 ML backends are feature-gated (`onnx` or `candle`). Weights download from HuggingFace on first use.
 

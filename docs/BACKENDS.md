@@ -4,22 +4,43 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 ## Model Families
 
-### Neural (2018+, feature-gated)
+### Neural -- ONNX (feature `onnx`)
 
-| Model | Architecture | Zero-shot | Weights |
-|-------|--------------|-----------|---------|
-| GLiNER | Bi-encoder span classifier | Yes | HuggingFace |
-| GLiNER2 | Multi-task span classifier | Yes | HuggingFace |
-| NuNER | Token classifier (BIO) | Yes | HuggingFace |
-| BERT-NER | Sequence labeling | No | HuggingFace |
-| W2NER | Word-word grids (nested) | No | HuggingFace |
+| Backend | Architecture | Zero-shot | Status | Default model |
+|---------|--------------|-----------|--------|---------------|
+| `gliner` | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
+| `gliner2` | Multi-task span classifier | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
+| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` |
+| `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
+| `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
+| `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- |
+| `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
+| `gliner_poly` | Poly-encoder with label attention fusion | Yes | beta | `knowledgator/modern-gliner-poly-large-v1.0` |
+| `gliner_onnx` | GLiNER manual ONNX impl | Yes | beta | `onnx-community/gliner_small-v2.1` |
+| `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
+| `albert` | ALBERT NER (local export) | No | WIP | -- |
 
-### Classical (pre-2015)
+### Neural -- Candle (feature `candle`)
 
-| Model | Method | Notes |
-|-------|--------|-------|
-| CRF | Conditional Random Fields | Common pre-neural baseline for sequence labeling (incl. NER); ships heuristic params, can load trained |
-| HMM | Hidden Markov Model | Historical baseline for sequence labeling; useful for comparison/education |
+| Backend | Architecture | Zero-shot | Status | Default model |
+|---------|--------------|-----------|--------|---------------|
+| `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `NeuML/gliner-bert-tiny` |
+| `candle_ner` | BERT NER via Candle | No | beta | `dslim/bert-base-NER` |
+
+### Neural -- LLM (feature `llm`)
+
+| Backend | Architecture | Zero-shot | Status | Default model |
+|---------|--------------|-----------|--------|---------------|
+| `universal_ner` | LLM-backed zero-shot (OpenRouter/Anthropic/Groq/Ollama) | Yes | beta | `google/gemini-2.5-flash-lite` |
+
+### Classical (no feature gate)
+
+| Backend | Method | Status | Notes |
+|---------|--------|--------|-------|
+| `crf` | Conditional Random Fields | stable | Ships heuristic params, can load trained |
+| `hmm` | Hidden Markov Model | stable | Historical baseline; optional bundled trained params |
+| `bilstm_crf` | BiLSTM+CRF | beta | Neural baseline without transformer deps |
+| `ensemble` | Weighted voting across backends | beta | Combines multiple backend outputs |
 
 **Status**:
 
@@ -44,12 +65,13 @@ Pointers (for “what good looks like” in classical NER):
 - The McCallum CRF tutorial discusses the relationship between **HMMs** and **CRFs** in NLP. See: `https://people.cs.umass.edu/~mccallum/papers/crf-tutorial.pdf`
 - The CoNLL-2003 shared task paper summarizes baseline behavior and the variety of systems used at the time. See: `https://ar5iv.labs.arxiv.org/html/cs/0306050`
 
-### Rule-based (no weights)
+### Rule-based (no feature gate)
 
-| Model | Method | Entity Types |
-|-------|--------|--------------|
-| Pattern | Regex | DATE, MONEY, EMAIL, URL, PHONE |
-| Heuristic | Capitalization + context | PER, ORG, LOC |
+| Backend | Method | Entity Types |
+|---------|--------|--------------|
+| `stacked` (default) | Pattern + heuristic combined | PER, ORG, LOC, DATE, MONEY, etc. |
+| `pattern` | Regex | DATE, MONEY, EMAIL, URL, PHONE |
+| `heuristic` | Capitalization + context | PER, ORG, LOC |
 
 ## Choose by constraints
 
@@ -76,12 +98,7 @@ not “backends” in the NER table sense:
 
 ## Where weights come from
 
-All ML models download from HuggingFace on first use. Default models:
-
-- GLiNER: `onnx-community/gliner_small-v2.1`
-- GLiNER2: `onnx-community/gliner-multitask-large-v0.5`
-- NuNER: `deepanwa/NuNerZero_onnx`
-- BERT-NER: `protectai/bert-base-NER-onnx`
+All ML models download from HuggingFace on first use. See the tables above for default model IDs per backend.
 
 Override with model-specific flags or environment variables.
 

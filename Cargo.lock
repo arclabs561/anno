@@ -135,6 +135,8 @@ dependencies = [
  "anno-lib",
  "anno-metrics",
  "bitflags",
+ "candle-core",
+ "candle-nn",
  "chrono",
  "clump",
  "dirs 5.0.1",
