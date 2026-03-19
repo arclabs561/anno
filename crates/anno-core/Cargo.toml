@@ -4,7 +4,7 @@ version = "0.3.9"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
-description = "Core types and invariants for anno"
+description = "Core types and invariants for anno: entities, spans, confidence scores, coreference chains"
 keywords = ["ner", "nlp", "coreference", "types"]
 categories = ["text-processing"]
 

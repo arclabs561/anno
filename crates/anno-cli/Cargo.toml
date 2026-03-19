@@ -4,7 +4,7 @@ version = { workspace = true }
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
-description = "CLI for anno"
+description = "CLI for anno: extract entities, coreference chains, relations, and PII from text, HTML, and URLs"
 publish = false
 
 [dependencies]
