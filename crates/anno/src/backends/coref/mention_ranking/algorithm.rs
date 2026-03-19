@@ -4,6 +4,7 @@
 use super::types::*;
 #[allow(unused_imports)]
 use super::*;
+use anno_core::Animacy;
 
 /// Non-person indicator words. If one mention contains one of these and the
 /// other does not, they are semantically incompatible for coreference.
@@ -44,6 +45,47 @@ fn is_type_incompatible(mention_a: &str, mention_b: &str) -> bool {
 
     // Incompatible only when exactly one side has an indicator
     a_has != b_has
+}
+
+/// Infer animacy from a pronoun's lowercased text.
+fn animacy_from_pronoun(text_lower: &str) -> Animacy {
+    match text_lower {
+        // Animate pronouns (persons)
+        "he" | "him" | "his" | "himself"
+        | "she" | "her" | "hers" | "herself"
+        | "they" | "them" | "their" | "theirs" | "themselves" | "themself"
+        | "i" | "me" | "my" | "mine" | "myself"
+        | "we" | "us" | "our" | "ours" | "ourselves"
+        | "you" | "your" | "yours" | "yourself" | "yourselves"
+        | "who" | "whom" | "whose"
+        // Neopronouns (animate by convention)
+        | "ze" | "hir" | "hirs" | "hirself"
+        | "xe" | "xem" | "xyr" | "xyrs" | "xemself"
+        | "ey" | "em" | "eir" | "eirs" | "emself"
+        | "fae" | "faer" | "faers" | "faerself" => Animacy::Animate,
+        // Inanimate pronouns
+        "it" | "its" | "itself" | "which" | "that" => Animacy::Inanimate,
+        _ => Animacy::Unknown,
+    }
+}
+
+/// Infer animacy from NER entity type.
+fn animacy_from_entity_type(entity_type: &anno_core::EntityType) -> Animacy {
+    use anno_core::EntityType;
+    match entity_type {
+        EntityType::Person => Animacy::Animate,
+        EntityType::Organization => Animacy::Animate,
+        EntityType::Location => Animacy::Inanimate,
+        EntityType::Date
+        | EntityType::Time
+        | EntityType::Money
+        | EntityType::Percent
+        | EntityType::Quantity
+        | EntityType::Cardinal
+        | EntityType::Ordinal => Animacy::Inanimate,
+        EntityType::Email | EntityType::Url | EntityType::Phone => Animacy::Inanimate,
+        _ => Animacy::Unknown,
+    }
 }
 
 /// Mention-ranking coreference resolver.
@@ -830,6 +872,7 @@ impl MentionRankingCoref {
                     mention_type: MentionType::Proper,
                     gender: None,
                     number: None,
+                    animacy: animacy_from_entity_type(&entity.entity_type),
                     head: self.get_head(&entity.text),
                     entity_type: Some(entity.entity_type.clone()),
                 });
@@ -1005,6 +1048,7 @@ impl MentionRankingCoref {
                         mention_type: MentionType::Pronominal,
                         gender: Some(gender),
                         number: Some(number),
+                        animacy: animacy_from_pronoun(pronoun),
                         head: pronoun.to_string(),
                         entity_type: None,
                     });
@@ -1081,6 +1125,7 @@ impl MentionRankingCoref {
                         mention_type: MentionType::Proper,
                         gender: None,
                         number: Some(Number::Singular),
+                        animacy: Animacy::Unknown,
                         head: clean_word.to_string(),
                         entity_type: None,
                     });
@@ -1342,6 +1387,7 @@ impl MentionRankingCoref {
                                 mention_type: MentionType::Nominal,
                                 gender: Some(Gender::Unknown), // Groups are gender-neutral
                                 number: Some(Number::Plural),  // Grammatically plural
+                                animacy: Animacy::Animate,     // Nominal adjectives refer to people
                                 head: adj.to_string(),         // Head is the adjective
                                 entity_type: None,
                             });
@@ -1925,6 +1971,23 @@ impl MentionRankingCoref {
         }
 
         // =========================================================================
+        // Animacy agreement (phi-feature: animate vs inanimate)
+        //
+        // Hard constraint: animate/inanimate mismatch blocks coreference
+        // ("John... it" is ungrammatical). Unknown is wildcard.
+        // See Jurafsky & Martin SLP3 Ch. 26, Fig. 26.4.
+        // =========================================================================
+        match (mention.animacy, antecedent.animacy) {
+            (Animacy::Animate, Animacy::Inanimate) | (Animacy::Inanimate, Animacy::Animate) => {
+                score -= self.config.type_compat_weight * 0.6;
+            }
+            (Animacy::Animate, Animacy::Animate) | (Animacy::Inanimate, Animacy::Inanimate) => {
+                score += self.config.type_compat_weight * 0.1;
+            }
+            _ => {} // Unknown is wildcard -- no bonus or penalty
+        }
+
+        // =========================================================================
         // Distance penalty
         // =========================================================================
         score -= self.config.distance_weight * (distance as f64).ln().max(0.0);
@@ -2189,6 +2252,7 @@ impl CoreferenceResolver for MentionRankingCoref {
                     mention_type,
                     gender,
                     number,
+                    animacy: animacy_from_entity_type(&e.entity_type),
                     head: self.get_head(&e.text),
                     entity_type: Some(e.entity_type.clone()),
                 }
@@ -2304,6 +2368,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "John".to_string(),
             entity_type: None,
         };
@@ -2315,6 +2380,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "He".to_string(),
             entity_type: None,
         };
@@ -2334,6 +2400,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Feminine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Mary".to_string(),
             entity_type: None,
         };
@@ -2345,6 +2412,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "He".to_string(),
             entity_type: None,
         };
@@ -2676,6 +2744,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "He".to_string(),
             entity_type: None,
         };
@@ -2687,6 +2756,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "John".to_string(),
             entity_type: None,
         };
@@ -2698,6 +2768,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Bob".to_string(),
             entity_type: None,
         };
@@ -2735,6 +2806,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "He".to_string(),
             entity_type: None,
         };
@@ -2746,6 +2818,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "John".to_string(),
             entity_type: None,
         };
@@ -2826,6 +2899,7 @@ mod tests {
                     mention_type: MentionType::Proper,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "John".to_string(),
                     entity_type: None,
                 },
@@ -2836,6 +2910,7 @@ mod tests {
                     mention_type: MentionType::Pronominal,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "He".to_string(),
                     entity_type: None,
                 },
@@ -2871,6 +2946,7 @@ mod tests {
                     mention_type: MentionType::Proper,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "John".to_string(),
                     entity_type: None,
                 },
@@ -2881,6 +2957,7 @@ mod tests {
                     mention_type: MentionType::Pronominal,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "He".to_string(),
                     entity_type: None,
                 },
@@ -2913,6 +2990,7 @@ mod tests {
                     mention_type: MentionType::Pronominal,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "He".to_string(),
                     entity_type: None,
                 },
@@ -2923,6 +3001,7 @@ mod tests {
                     mention_type: MentionType::Proper,
                     gender: Some(Gender::Masculine),
                     number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
                     head: "John".to_string(),
                     entity_type: None,
                 },
@@ -2988,6 +3067,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "company".to_string(),
             entity_type: None,
         };
@@ -3048,6 +3128,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "patient".to_string(),
             entity_type: None,
         };
@@ -3059,6 +3140,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Smith".to_string(),
             entity_type: None,
         };
@@ -3087,6 +3169,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "John".to_string(),
             entity_type: None,
         };
@@ -3098,6 +3181,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Feminine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Mary".to_string(),
             entity_type: None,
         };
@@ -3120,6 +3204,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "MRSA".to_string(),
             entity_type: None,
         };
@@ -3131,6 +3216,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "aureus".to_string(),
             entity_type: None,
         };
@@ -3152,6 +3238,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "WHO".to_string(),
             entity_type: None,
         };
@@ -3163,6 +3250,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Organization".to_string(),
             entity_type: None,
         };
@@ -3184,6 +3272,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "IBM".to_string(),
             entity_type: None,
         };
@@ -3195,6 +3284,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Apple".to_string(),
             entity_type: None,
         };
@@ -3220,6 +3310,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "patient".to_string(),
             entity_type: None,
         };
@@ -3231,6 +3322,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "patient".to_string(),
             entity_type: None,
         };
@@ -3261,6 +3353,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "diabetic".to_string(),
             entity_type: None,
         };
@@ -3273,6 +3366,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "diabetic".to_string(),
             entity_type: None,
         };
@@ -3322,6 +3416,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Obama".to_string(),
             entity_type: None,
         };
@@ -3333,6 +3428,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "obama".to_string(),
             entity_type: None,
         };
@@ -3358,6 +3454,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "heart".to_string(),
             entity_type: None,
         };
@@ -3369,6 +3466,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "cardiac".to_string(),
             entity_type: None,
         };
@@ -3438,6 +3536,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "organism".to_string(),
             entity_type: None,
         };
@@ -3449,6 +3548,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: None,
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "MRSA".to_string(),
             entity_type: None,
         };
@@ -3784,6 +3884,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: Some(Gender::Unknown),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "patient".to_string(),
             entity_type: None,
         };
@@ -3805,6 +3906,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: None,
             number: None,
+            animacy: Animacy::Unknown,
             head: "test".to_string(),
             entity_type: None,
         };
@@ -4028,6 +4130,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: Some(Gender::Neutral),
             number: Some(Number::Dual),
+            animacy: Animacy::Unknown,
             head: "كتابان".to_string(),
             entity_type: None,
         };
@@ -4039,6 +4142,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Unknown),
             number: Some(Number::Plural),
+            animacy: Animacy::Unknown,
             head: "هم".to_string(),
             entity_type: None,
         };
@@ -4050,6 +4154,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Masculine),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "هو".to_string(),
             entity_type: None,
         };
@@ -4095,6 +4200,7 @@ mod tests {
             mention_type: MentionType::Pronominal,
             gender: Some(Gender::Unknown),
             number: Some(Number::Unknown), // Singular or plural
+            animacy: Animacy::Animate,
             head: "They".to_string(),
             entity_type: None,
         };
@@ -4106,6 +4212,7 @@ mod tests {
             mention_type: MentionType::Proper,
             gender: Some(Gender::Unknown),
             number: Some(Number::Singular),
+            animacy: Animacy::Unknown,
             head: "Alex".to_string(),
             entity_type: None,
         };
@@ -4117,6 +4224,7 @@ mod tests {
             mention_type: MentionType::Nominal,
             gender: Some(Gender::Unknown),
             number: Some(Number::Plural),
+            animacy: Animacy::Unknown,
             head: "students".to_string(),
             entity_type: None,
         };

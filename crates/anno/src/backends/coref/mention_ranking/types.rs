@@ -5,7 +5,7 @@ use super::*;
 
 #[allow(unused_imports)]
 use crate::{Model, Result};
-use anno_core::{Gender, MentionType};
+use anno_core::{Animacy, Gender, MentionType};
 #[allow(unused_imports)]
 use std::collections::{HashMap, HashSet};
 
@@ -420,21 +420,23 @@ impl MentionRankingConfig {
 ///
 /// - **Span** (`start`, `end`): Character offsets in the source text
 /// - **Type** (`mention_type`): Proper/Nominal/Pronominal/Zero (affects salience)
-/// - **Phi-features** (`gender`, `number`): Agreement constraints
+/// - **Phi-features** (`gender`, `number`, `animacy`): Agreement constraints
 /// - **Head** (`head`): Syntactic head for matching
 ///
 /// # Phi-Features and Agreement
 ///
-/// The `gender` and `number` fields encode phi-features (φ-features) from
-/// linguistic theory. These are the grammatical features that govern agreement:
+/// The `gender`, `number`, and `animacy` fields encode phi-features (φ-features)
+/// from linguistic theory. These are the grammatical features that govern agreement:
 ///
 /// | Feature | Purpose | Example constraint |
 /// |---------|---------|-------------------|
 /// | Gender | Pronoun resolution | "Mary... she" not "he" |
 /// | Number | Singular/plural match | "The dogs... they" not "it" |
+/// | Animacy | Animate/inanimate | "John... he" not "it" |
 ///
 /// `None` values indicate unknown features, which are treated as compatible
-/// with any value (permissive matching).
+/// with any value (permissive matching). `Animacy::Unknown` is likewise
+/// compatible with any animacy value.
 ///
 /// # Cross-Linguistic Notes
 ///
@@ -481,6 +483,13 @@ pub struct RankedMention {
     /// - `Some(Unknown)`: "you" (ambiguous), singular "they"
     /// - `None`: Feature not detected
     pub number: Option<Number>,
+
+    /// Animacy (animate vs inanimate).
+    ///
+    /// - `Animate`: people, animals ("he", "she", PER entities)
+    /// - `Inanimate`: objects, places ("it", LOC entities)
+    /// - `Unknown`: not determined (compatible with anything)
+    pub animacy: Animacy,
 
     /// Syntactic head word of the mention.
     ///
@@ -542,6 +551,7 @@ impl From<&crate::Entity> for RankedMention {
             mention_type: MentionType::classify(&entity.text),
             gender: None,
             number: None,
+            animacy: Animacy::Unknown,
             head: extract_head(&entity.text),
             entity_type: Some(entity.entity_type.clone()),
         }
@@ -609,7 +619,7 @@ impl MentionCluster {
 
     /// Convert this cluster to a Track for use with GroundedDocument.
     ///
-    /// This bridges mention-ranking output to the canonical Signal→Track→Identity hierarchy.
+    /// This bridges mention-ranking output to the canonical Signal->Track->Identity hierarchy.
     ///
     /// # Arguments
     /// * `signal_id_base` - Starting signal ID for the signals in this track
@@ -702,6 +712,7 @@ mod tests {
             mention_type: mt,
             gender: None,
             number: None,
+            animacy: Animacy::Unknown,
             head: extract_head(text),
             entity_type: None,
         }
