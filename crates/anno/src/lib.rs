@@ -8,6 +8,8 @@
 //! - **Coreference output**: clusters (“tracks”) of mentions within one document.
 //! - **Relation output**: `(head, relation, tail)` triples via [`RelationCapable`] backends.
 //! - **PII detection**: [`pii`] module for detecting and redacting personally identifiable information.
+//! - **RAG preprocessing**: [`rag::preprocess`] chunks text, extracts entities, and rewrites pronouns
+//!   for self-contained retrieval chunks.
 //! - **Export**: [`export`] module for brat, CoNLL, JSONL, N-Triples, JSON-LD, and graph CSV.
 //!
 //! This crate focuses on inference-time extraction. Dataset loaders, benchmarking, and matrix
@@ -47,6 +49,7 @@
 extern crate self as anno;
 
 // Module declarations (standard Cargo layout under `src/`)
+mod annotated;
 pub mod backends;
 /// Edit distance algorithms.
 pub mod edit_distance;
@@ -251,6 +254,25 @@ pub trait Model: sealed::Sealed + Send + Sync {
     /// Returns a [`ModelCapabilities`] with all fields set to `false`/`None`.
     fn capabilities(&self) -> ModelCapabilities {
         ModelCapabilities::default()
+    }
+
+    /// Extract entities from multiple texts.
+    ///
+    /// The default implementation calls [`extract_entities`](Self::extract_entities)
+    /// sequentially. ONNX backends can override this with internal batching for
+    /// better throughput.
+    ///
+    /// Each element in the returned `Vec` is independent: a failure on one text
+    /// does not affect the others.
+    fn extract_batch(
+        &self,
+        texts: &[&str],
+        language: Option<Language>,
+    ) -> Vec<Result<Vec<Entity>>> {
+        texts
+            .iter()
+            .map(|t| self.extract_entities(t, language))
+            .collect()
     }
 
     /// Get a version identifier for the model configuration/weights.
@@ -595,6 +617,27 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
     model.extract_entities(text, None)
 }
 
+/// Extract entities from multiple texts using the best available backend.
+///
+/// Batch counterpart to [`extract()`]. Each result is independent: a failure
+/// on one text does not prevent others from succeeding.
+///
+/// ```rust
+/// let results = anno::extract_batch(&[
+///     "Marie Curie won the Nobel Prize.",
+///     "Ada Lovelace wrote the first program.",
+/// ]);
+/// assert_eq!(results.len(), 2);
+/// # Ok::<(), anno::Error>(())
+/// ```
+pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
+    let model = StackedNER::default();
+    model.extract_batch(texts, None)
+}
+
+pub use annotated::annotate;
+pub use annotated::AnnotatedDoc;
+
 // =============================================================================
 // Prelude
 // =============================================================================
@@ -612,7 +655,9 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
 /// ```
 pub mod prelude {
     pub use crate::types::EntitySliceExt;
-    pub use crate::{Confidence, Entity, EntityType, Error, Language, Model, Result, StackedNER};
+    pub use crate::{
+        AnnotatedDoc, Confidence, Entity, EntityType, Error, Language, Model, Result, StackedNER,
+    };
 }
 
 // =============================================================================
@@ -966,5 +1011,52 @@ mod convenience_tests {
         let m = StackedNER::default();
         let ents = m.extract_entities("Test input", None).unwrap();
         let _: Vec<_> = ents.above_confidence(0.5).collect();
+    }
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+
+    #[test]
+    fn extract_batch_empty_slice() {
+        let results = extract_batch(&[]);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn extract_batch_single_text() {
+        let results = extract_batch(&["Marie Curie won the Nobel Prize."]);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].is_ok());
+        assert!(!results[0].as_ref().unwrap().is_empty());
+    }
+
+    #[test]
+    fn extract_batch_multiple_texts() {
+        let results = extract_batch(&[
+            "Marie Curie won the Nobel Prize.",
+            "Ada Lovelace wrote the first program.",
+            "No entities here in this plain sentence.",
+        ]);
+        assert_eq!(results.len(), 3);
+        for r in &results {
+            assert!(r.is_ok());
+        }
+    }
+
+    #[test]
+    fn trait_method_extract_batch_empty() {
+        let m = StackedNER::default();
+        let results = m.extract_batch(&[], None);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn trait_method_extract_batch_count() {
+        let m = StackedNER::default();
+        let texts = ["Alice", "Bob", "Carol"];
+        let results = m.extract_batch(&texts, None);
+        assert_eq!(results.len(), 3);
     }
 }
