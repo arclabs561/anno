@@ -1,0 +1,54 @@
+{
+  "description": "Expected entity counts and key entities per fixture document. Used by regression tests.",
+  "note": "Counts are approximate minimums (model may find more). Key entities must appear.",
+  "documents": {
+    "news": {
+      "min_entities": 5,
+      "must_find_PER": ["Jerome Powell", "Janet Yellen"],
+      "must_find_LOC": ["New York"],
+      "must_find_ORG": ["Federal Reserve"]
+    },
+    "biotech": {
+      "min_entities": 5,
+      "must_find_PER": ["Stephane Bancel", "Anthony Fauci"],
+      "must_find_ORG": ["Moderna", "Pfizer"]
+    },
+    "geopolitics": {
+      "min_entities": 8,
+      "must_find_PER": ["Josep Borrell", "Jens Stoltenberg", "Rustem Umerov"],
+      "must_find_LOC": ["Brussels", "Russia"],
+      "must_find_ORG": ["European Union", "NATO"]
+    },
+    "tech": {
+      "min_entities": 8,
+      "must_find_PER": ["Jensen Huang"],
+      "must_find_ORG": ["NVIDIA", "Microsoft", "Google"]
+    },
+    "legal": {
+      "min_entities": 6,
+      "must_find_PER": ["Merrick Garland"],
+      "must_find_ORG": ["Google", "Apple", "Department of Justice"]
+    },
+    "science": {
+      "min_entities": 5,
+      "must_find_PER": ["Kaiming He", "Ashish Vaswani"],
+      "must_find_ORG": ["Microsoft Research", "Google Brain"]
+    },
+    "sports": {
+      "min_entities": 6,
+      "must_find_PER": ["Robert Lewandowski", "Lamine Yamal"],
+      "must_find_ORG": ["Barcelona", "Real Madrid"]
+    },
+    "international": {
+      "min_entities": 6,
+      "must_find_PER": ["Fumio Kishida", "Morris Chang"],
+      "must_find_LOC": ["Seoul", "Taipei"]
+    },
+    "press_release": {
+      "min_entities": 4,
+      "must_find_PER": ["Bill Nelson"],
+      "must_find_ORG": ["NASA"],
+      "must_not_contain": ["Home", "About", "Copyright"]
+    }
+  }
+}
