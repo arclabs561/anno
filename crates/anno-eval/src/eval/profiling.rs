@@ -33,7 +33,7 @@ impl Profiler {
             let duration = start.elapsed();
             self.timings
                 .entry(operation.to_string())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(duration);
         }
     }

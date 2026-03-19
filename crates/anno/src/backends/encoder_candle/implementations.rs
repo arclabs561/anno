@@ -49,7 +49,7 @@ pub mod candle_impl {
         /// Sine cache: [max_seq_len, head_dim/2]
         sin_cache: Tensor,
         /// Head dimension
-        head_dim: usize,
+        _head_dim: usize,
     }
 
     impl RotaryEmbedding {
@@ -89,7 +89,7 @@ pub mod candle_impl {
             Ok(Self {
                 cos_cache,
                 sin_cache,
-                head_dim,
+                _head_dim: head_dim,
             })
         }
 

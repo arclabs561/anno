@@ -62,7 +62,7 @@ pub fn entities_to_graph_document(
             continue;
         }
 
-        let mut node = GraphNode::new(&node_id, entity.entity_type.as_label(), &entity.text)
+        let node = GraphNode::new(&node_id, entity.entity_type.as_label(), &entity.text)
             .with_mentions_count(1)
             .with_first_seen(entity.start());
 

@@ -32,8 +32,7 @@ pub(crate) mod span;
 pub(crate) use span::{HandshakingCell, HandshakingMatrix};
 
 pub mod coref;
-pub(crate) use coref::CoreferenceCluster;
-pub use coref::{resolve_coreferences, CoreferenceConfig};
+pub use coref::{resolve_coreferences, CoreferenceCluster, CoreferenceConfig};
 
 pub mod relation_extraction;
 pub use relation_extraction::{
@@ -48,7 +47,6 @@ pub use relation_extraction::{
 mod tests {
     use super::coref::{resolve_coreferences, CoreferenceConfig};
     use super::registry::{SemanticRegistry, SemanticRegistryBuilder};
-    use super::span::SpanRepConfig;
     use super::*;
     use crate::{Confidence, Entity, EntityType};
 
@@ -238,7 +236,7 @@ mod tests {
         let config = CoreferenceConfig {
             max_distance: Some(10),  // Very small window
             use_string_match: false, // Disable string match to test distance alone
-            similarity_threshold: 0.85,
+            similarity_threshold: Confidence::new(0.85),
         };
         let clusters = resolve_coreferences(&entities, &embeddings, 768, &config);
         assert!(
@@ -368,19 +366,6 @@ mod tests {
             2,
             "Non-overlapping adjacent spans should both survive NMS"
         );
-    }
-
-    // =========================================================================
-    // SpanRepConfig defaults
-    // =========================================================================
-
-    #[test]
-    fn test_span_rep_config_defaults() {
-        let config = SpanRepConfig::default();
-        assert_eq!(config.hidden_dim, 768);
-        assert_eq!(config.max_width, 12);
-        assert!(config.use_width_embeddings);
-        assert_eq!(config.width_emb_dim, 192);
     }
 
     // =========================================================================

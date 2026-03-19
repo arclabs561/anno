@@ -354,9 +354,7 @@ fn exp3ix_decide_k_guardrailed(
     } else {
         eligible.to_vec()
     };
-    let final_eligible = if filtered.is_empty() && guardrail_cfg.allow_fewer {
-        eligible.to_vec()
-    } else if filtered.is_empty() {
+    let final_eligible = if filtered.is_empty() {
         eligible.to_vec()
     } else {
         filtered
