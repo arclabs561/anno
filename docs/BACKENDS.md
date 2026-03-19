@@ -73,6 +73,16 @@ Pointers (for “what good looks like” in classical NER):
 | `pattern` | Regex | DATE, MONEY, EMAIL, URL, PHONE |
 | `heuristic` | Capitalization + context | PER, ORG, LOC |
 
+## GLiNER entity type limit
+
+GLiNER and GLiNER2 use a bi-encoder architecture that encodes entity type labels
+into a fixed-size representation. Performance degrades beyond ~30 entity types
+per inference call. If you need more types, batch them into groups of 20-30 and
+merge results across calls.
+
+Source: practitioner findings from the GLiNER community and "Illustrated GLiNER"
+(Shahrukh Khan).
+
 ## Choose by constraints
 
 - **No ML deps**: `--model pattern`, `heuristic`, or `stacked` with `default-features = false`
