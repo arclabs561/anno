@@ -1650,7 +1650,7 @@ pub fn generate_filtered_candidates(
 /// - Dates: "Jan 15" → "2024-01-15" (ISO 8601)
 /// - Money: "$1.5M" → "1500000 USD"
 /// - Locations: "NYC" → "New York City"
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Entity {
     /// Entity text (surface form as it appears in source)
     pub text: String,
@@ -1710,6 +1710,50 @@ pub struct Entity {
     /// Proper > Nominal > Pronominal > Zero.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mention_type: Option<MentionType>,
+}
+
+impl<'de> Deserialize<'de> for Entity {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Helper that mirrors Entity's fields so serde can derive the parsing,
+        /// then we route through `Entity::new()` to enforce invariants (e.g.
+        /// inverted span normalization).
+        #[derive(Deserialize)]
+        struct EntityHelper {
+            text: String,
+            entity_type: EntityType,
+            start: usize,
+            end: usize,
+            confidence: Confidence,
+            #[serde(default)]
+            normalized: Option<String>,
+            #[serde(default)]
+            provenance: Option<Provenance>,
+            #[serde(default)]
+            kb_id: Option<String>,
+            #[serde(default)]
+            canonical_id: Option<super::types::CanonicalId>,
+            #[serde(default)]
+            hierarchical_confidence: Option<HierarchicalConfidence>,
+            #[serde(default)]
+            visual_span: Option<Span>,
+            #[serde(default)]
+            discontinuous_span: Option<DiscontinuousSpan>,
+            #[serde(default)]
+            mention_type: Option<MentionType>,
+        }
+
+        let h = EntityHelper::deserialize(deserializer)?;
+        let mut entity = Entity::new(h.text, h.entity_type, h.start, h.end, h.confidence);
+        entity.normalized = h.normalized;
+        entity.provenance = h.provenance;
+        entity.kb_id = h.kb_id;
+        entity.canonical_id = h.canonical_id;
+        entity.hierarchical_confidence = h.hierarchical_confidence;
+        entity.visual_span = h.visual_span;
+        entity.discontinuous_span = h.discontinuous_span;
+        entity.mention_type = h.mention_type;
+        Ok(entity)
+    }
 }
 
 impl Entity {
@@ -2692,6 +2736,26 @@ mod tests {
         let e = Entity::new("test", EntityType::Person, 10, 5, 0.9);
         assert_eq!(e.start(), 5);
         assert_eq!(e.end(), 10);
+    }
+
+    #[test]
+    fn entity_deserialize_swaps_inverted_span() {
+        let json = r#"{"text":"test","entity_type":"PER","start":10,"end":5,"confidence":0.9}"#;
+        let e: Entity = serde_json::from_str(json).unwrap();
+        assert_eq!(e.start(), 5);
+        assert_eq!(e.end(), 10);
+    }
+
+    #[test]
+    fn entity_serde_round_trip() {
+        let original = Entity::new("Berlin", EntityType::Location, 10, 16, 0.95);
+        let json = serde_json::to_string(&original).unwrap();
+        let restored: Entity = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.text, original.text);
+        assert_eq!(restored.entity_type, original.entity_type);
+        assert_eq!(restored.start(), original.start());
+        assert_eq!(restored.end(), original.end());
+        assert!((restored.confidence.value() - original.confidence.value()).abs() < f64::EPSILON);
     }
 
     #[test]
