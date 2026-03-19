@@ -62,6 +62,8 @@ rayon = { workspace = true, optional = true }
 
 muxer = { version = "0.3.12", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 hf-hub = { workspace = true, optional = true }
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -77,7 +79,7 @@ eval-profiling = []
 eval-bias = []
 eval-parallel = ["parallel"]
 onnx = ["anno/onnx", "hf-hub"]
-candle = ["anno/candle"]
+candle = ["anno/candle", "dep:candle-core", "dep:candle-nn"]
 llm = ["anno/llm"]
 hf-hub = ["dep:hf-hub"]
 

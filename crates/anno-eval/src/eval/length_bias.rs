@@ -223,8 +223,12 @@ impl EntityLengthEvaluator {
                     && example
                         .sentence
                         .get(
-                            anno::offset::TextSpan::from_chars(&example.sentence, e.start, e.end)
-                                .byte_range(),
+                            anno::offset::TextSpan::from_chars(
+                                &example.sentence,
+                                e.start(),
+                                e.end(),
+                            )
+                            .byte_range(),
                         )
                         .map(|s| s.contains(&example.entity_text))
                         .unwrap_or(false)

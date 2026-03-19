@@ -36,7 +36,7 @@ use std::collections::HashMap;
 #[cfg(feature = "candle")]
 use {
     anno::backends::encoder_candle::TextEncoder,
-    candle_core::{DType, Device, IndexOp, Module, Tensor, D},
+    candle_core::{DType, Device, Module, Tensor, D},
     candle_nn::{layer_norm, linear, LayerNorm, Linear, VarBuilder},
 };
 
@@ -98,7 +98,7 @@ pub struct CandleClusterEncoder<E: TextEncoder> {
 #[cfg(feature = "candle")]
 impl<E: TextEncoder> CandleClusterEncoder<E> {
     /// Create a new neural cluster encoder.
-    pub fn new(encoder: E, config: NeuralClusterConfig) -> Result<Self> {
+    pub fn new(encoder: E, config: NeuralClusterConfig) -> crate::Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
         let pooling_layer = ClusterPoolingLayer::new(&config, &device)?;
 
@@ -111,7 +111,7 @@ impl<E: TextEncoder> CandleClusterEncoder<E> {
     }
 
     /// Encode a cluster's mentions into a single embedding.
-    fn encode_cluster_impl(&self, cluster: &LocalCluster) -> Result<Vec<f32>> {
+    fn encode_cluster_impl(&self, cluster: &LocalCluster) -> crate::Result<Vec<f32>> {
         if cluster.mentions.is_empty() {
             return Ok(vec![0.0; self.config.hidden_dim]);
         }
@@ -148,7 +148,7 @@ impl<E: TextEncoder> CandleClusterEncoder<E> {
         let num_mentions = mention_embeddings.len();
         let flat: Vec<f32> = mention_embeddings.into_iter().flatten().collect();
         let tensor = Tensor::from_vec(flat, (num_mentions, self.config.hidden_dim), &self.device)
-            .map_err(|e| crate::Error::Inference(e.to_string()))?;
+            .map_err(|e: candle_core::Error| crate::Error::Inference(e.to_string()))?;
 
         // Apply pooling transformer
         let pooled = self.pooling_layer.forward(&tensor)?;
@@ -156,7 +156,7 @@ impl<E: TextEncoder> CandleClusterEncoder<E> {
         // Extract as Vec<f32>
         let result = pooled
             .to_vec1::<f32>()
-            .map_err(|e| crate::Error::Inference(e.to_string()))?;
+            .map_err(|e: candle_core::Error| crate::Error::Inference(e.to_string()))?;
 
         Ok(result)
     }
@@ -167,7 +167,7 @@ impl<E: TextEncoder> ClusterEncoder for CandleClusterEncoder<E> {
     fn encode_cluster(
         &self,
         cluster: &LocalCluster,
-        _context_text: Option<&str>,
+        _hidden_states: Option<&[Vec<f32>]>,
     ) -> ClusterEmbedding {
         let embedding = self
             .encode_cluster_impl(cluster)
@@ -177,6 +177,7 @@ impl<E: TextEncoder> ClusterEncoder for CandleClusterEncoder<E> {
             cluster_id: cluster.id,
             context_id: cluster.context_id,
             embedding,
+            mention_count: cluster.mentions.len(),
         }
     }
 
@@ -214,7 +215,7 @@ struct ClusterPoolingLayer {
 
 #[cfg(feature = "candle")]
 impl ClusterPoolingLayer {
-    fn new(config: &NeuralClusterConfig, device: &Device) -> Result<Self> {
+    fn new(config: &NeuralClusterConfig, device: &Device) -> crate::Result<Self> {
         let varmap = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, device);
 
@@ -245,7 +246,7 @@ impl ClusterPoolingLayer {
     }
 
     /// Forward pass: pool mentions into single cluster representation.
-    fn forward(&self, x: &Tensor) -> Result<Tensor> {
+    fn forward(&self, x: &Tensor) -> crate::Result<Tensor> {
         let (seq_len, hidden_dim) = x
             .dims2()
             .map_err(|e| crate::Error::Inference(format!("Dims: {}", e)))?;
@@ -339,8 +340,6 @@ pub struct NeuralMergeScorer {
     bilinear: Linear,
     /// Output classification layer
     classifier: Linear,
-    /// Merge threshold
-    threshold: f32,
     /// Device
     device: Device,
 }
@@ -348,7 +347,7 @@ pub struct NeuralMergeScorer {
 #[cfg(feature = "candle")]
 impl NeuralMergeScorer {
     /// Create a new neural merge scorer.
-    pub fn new(hidden_dim: usize, threshold: f32) -> Result<Self> {
+    pub fn new(hidden_dim: usize, _threshold: f32) -> crate::Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
         let varmap = candle_nn::VarMap::new();
         let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
@@ -362,13 +361,12 @@ impl NeuralMergeScorer {
         Ok(Self {
             bilinear,
             classifier,
-            threshold,
             device,
         })
     }
 
     /// Score a pair of cluster embeddings.
-    fn score_impl(&self, emb_a: &[f32], emb_b: &[f32]) -> Result<f32> {
+    fn score_impl(&self, emb_a: &[f32], emb_b: &[f32]) -> crate::Result<f32> {
         // Concatenate embeddings
         let concat: Vec<f32> = emb_a.iter().chain(emb_b.iter()).cloned().collect();
         let input = Tensor::from_vec(concat, (1, emb_a.len() + emb_b.len()), &self.device)
@@ -404,10 +402,6 @@ impl MergeScorer for NeuralMergeScorer {
     fn score(&self, embedding_a: &ClusterEmbedding, embedding_b: &ClusterEmbedding) -> f32 {
         self.score_impl(&embedding_a.embedding, &embedding_b.embedding)
             .unwrap_or(0.0)
-    }
-
-    fn threshold(&self) -> f32 {
-        self.threshold
     }
 }
 

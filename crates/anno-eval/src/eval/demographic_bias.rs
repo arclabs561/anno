@@ -425,7 +425,7 @@ impl DemographicBiasEvaluator {
                 detailed_results.push(NameResult {
                     name: name_example.name.clone(),
                     recognized,
-                    confidence,
+                    confidence: confidence.map(|c| c.value()),
                     ethnicity: eth_key,
                     script: script_key,
                 });
