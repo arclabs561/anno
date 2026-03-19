@@ -76,8 +76,6 @@ pub(crate) mod preprocess;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
-#[cfg(feature = "analysis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
 pub mod rag;
 pub mod schema;
 pub mod similarity;
