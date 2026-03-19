@@ -307,7 +307,7 @@ impl BiLstmCrfNER {
             "george",
             "bill",
             "hillary",
-            "elon",
+            "satya",
             "jeff",
             "mr",
             "mrs",

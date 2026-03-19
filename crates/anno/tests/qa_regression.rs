@@ -120,7 +120,7 @@ fn qa_w3_two_word_names_at_sentence_start() {
 fn qa_w3_known_persons_at_sentence_start() {
     // Known person first names at sentence start should be detected
     // (they pass via the KNOWN_PERSONS rule)
-    let text = "Barack spoke at the event. Elon presented the design.";
+    let text = "Barack spoke at the event. Satya presented the design.";
     let entities = heuristic_entities(text);
     let pers = per_entities(&entities);
 
@@ -129,8 +129,8 @@ fn qa_w3_known_persons_at_sentence_start() {
         "Barack (known person) should be PER: {pers:?}"
     );
     assert!(
-        pers.iter().any(|p| p.contains("Elon")),
-        "Elon (known person) should be PER: {pers:?}"
+        pers.iter().any(|p| p.contains("Satya")),
+        "Satya (known person) should be PER: {pers:?}"
     );
 }
 

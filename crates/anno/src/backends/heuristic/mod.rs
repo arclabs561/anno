@@ -456,10 +456,9 @@ const KNOWN_LOCS: &[&str] = &[
 const KNOWN_PERSONS: &[&str] = &[
     "john", "jane", "mary", "james", "robert", "michael", "william", "david", "richard", "joseph",
     "thomas", "charles", "barack", "donald", "joe", "george", "bill", "vladimir", "emmanuel",
-    "boris", "narendra", "justin", "elon", "jeff", "mark", "steve", "tim", "satya", "sundar",
-    "albert", "isaac", "stephen", "neil", "peter", "paul", "matthew", "andrew", "philip", "simon",
-    "marie", "angela", "hillary", "nancy", "kamala", "michelle", "melania", "jill", "theresa",
-    "ursula",
+    "boris", "narendra", "justin", "jeff", "mark", "steve", "tim", "satya", "sundar", "albert",
+    "isaac", "stephen", "neil", "peter", "paul", "matthew", "andrew", "philip", "simon", "marie",
+    "angela", "hillary", "nancy", "kamala", "michelle", "melania", "jill", "theresa", "ursula",
 ];
 
 impl Model for HeuristicNER {

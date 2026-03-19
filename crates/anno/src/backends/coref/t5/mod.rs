@@ -5,8 +5,8 @@
 //! The intended approach treats coreference as a text-to-text transformation:
 //!
 //! ```text
-//! Input:  "<m> Elon </m> founded <m> Tesla </m>. <m> He </m> later led SpaceX."
-//! Output: "Elon | 1 founded Tesla | 2. He | 1 later led SpaceX."
+//! Input:  "<m> Jensen </m> founded <m> NVIDIA </m>. <m> He </m> later led its AI division."
+//! Output: "Jensen | 1 founded NVIDIA | 2. He | 1 later led its AI division."
 //! ```
 //!
 //! The model learns to assign cluster IDs to mentions, enabling coreference
@@ -465,7 +465,7 @@ impl T5Coref {
     ///
     /// The expected output format is:
     /// ```text
-    /// "Elon | 1 founded Tesla | 2. He | 1 later led SpaceX."
+    /// "Jensen | 1 founded NVIDIA | 2. He | 1 later led its AI division."
     /// ```
     /// where ` | N` immediately follows a mention token and assigns it to cluster `N`.
     ///

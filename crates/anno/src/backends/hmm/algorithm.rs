@@ -232,7 +232,7 @@ impl HmmNER {
             "george",
             "bill",
             "hillary",
-            "elon",
+            "satya",
             "jeff",
             "angela",
             "vladimir",
