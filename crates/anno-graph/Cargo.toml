@@ -8,7 +8,7 @@ description = "Graph/KG export adapters for anno: converts extraction output to 
 publish = false
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.3.9" }
+anno-core = { path = "../anno-core", version = "0.4.0" }
 # crates.io `lattix` currently requires its default feature set enabled.
 lattix = { version = "0.5.4" }
 serde_json.workspace = true

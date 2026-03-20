@@ -1,6 +1,6 @@
 [package]
 name = "anno-core"
-version = "0.3.9"
+version = "0.4.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
@@ -8,7 +8,6 @@ description = "Core types and invariants for anno: entities, spans, confidence s
 keywords = ["ner", "nlp", "coreference", "types"]
 categories = ["text-processing"]
 
-publish = false
 
 [dependencies]
 textprep = { workspace = true }
