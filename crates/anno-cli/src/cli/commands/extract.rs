@@ -206,6 +206,16 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             .collect()
     });
 
+    // Warn when --extract-types is given but resolves to no types (e.g. "" or ",,,")
+    if let Some(ref types) = extract_types {
+        if types.is_empty() && !args.quiet {
+            eprintln!(
+                "{} --extract-types resolved to zero types after parsing. No entities will be extracted.",
+                color("33", "warning:")
+            );
+        }
+    }
+
     // Conservative default relation schema (matches `anno::backends::inference` heuristics).
     const DEFAULT_RELATION_TYPES: &[&str] = &[
         "CEO_OF",
