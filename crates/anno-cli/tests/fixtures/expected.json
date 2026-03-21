@@ -11,6 +11,7 @@
     "biotech": {
       "min_entities": 5,
       "must_find_PER": ["Stephane Bancel", "Anthony Fauci"],
+      "must_find_LOC": ["United States"],
       "must_find_ORG": ["Moderna", "Pfizer"]
     },
     "geopolitics": {
