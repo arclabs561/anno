@@ -302,7 +302,6 @@ const COMMON_SENTENCE_STARTERS: &[&str] = &[
     "off",
     "upon",
     "still",
-    "yet",
     "once",
     "even",
     "just",
