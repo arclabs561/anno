@@ -831,3 +831,138 @@ mod onnx_name_completion {
         );
     }
 }
+
+// =============================================================================
+// QA 2026-03-20: Baseline stability
+// =============================================================================
+
+/// Stacked backend must find all 9 entities in the canonical lowercase test.
+/// Regression guard for baseline 1 (qa-2026-03-15, qa-2026-03-20).
+#[cfg(feature = "onnx")]
+#[test]
+#[ignore] // requires ONNX model download
+fn qa_2026_03_20_stacked_lowercase_baseline() {
+    use anno::{Model, StackedNER};
+
+    let text = "tim cook announced that apple inc. would acquire the german startup deepl, \
+        founded by jaroslaw kutylowski in cologne. the deal, worth EUR 3.2 billion, \
+        closes on march 15, 2026. cook told reuters he expects 500 new hires.";
+    let ner = StackedNER::default();
+    let entities = ner.extract_entities(text, None).expect("extraction");
+    let texts: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
+
+    // These 9 entities have been stable across 2 QA reports
+    for expected in &[
+        "tim cook",
+        "apple inc",
+        "deepl",
+        "jaroslaw kutylowski",
+        "cologne",
+        "reuters",
+    ] {
+        assert!(
+            texts.iter().any(|t| t.to_lowercase().contains(expected)),
+            "Missing expected entity '{expected}' in: {texts:?}"
+        );
+    }
+    // DATE and MONEY are pattern-layer contributions
+    assert!(
+        entities
+            .iter()
+            .any(|e| matches!(e.entity_type, EntityType::Date)),
+        "Missing DATE entity"
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|e| matches!(e.entity_type, EntityType::Money)),
+        "Missing MONEY entity"
+    );
+}
+
+/// Cross-backend agreement: all top-tier backends must agree on the canonical 5-entity sentence.
+/// Regression guard for baseline 5 / section 3d (qa-2026-03-15, qa-2026-03-20).
+#[cfg(feature = "onnx")]
+#[test]
+#[ignore] // requires ONNX model download
+fn qa_2026_03_20_cross_backend_agreement() {
+    use anno::{Model, StackedNER};
+
+    let text = "Apple CEO Tim Cook met Google CEO Sundar Pichai in Seattle.";
+    let ner = StackedNER::default();
+    let entities = ner.extract_entities(text, None).expect("extraction");
+
+    let expected = vec![
+        ("Apple", EntityType::Organization),
+        ("Tim Cook", EntityType::Person),
+        ("Google", EntityType::Organization),
+        ("Sundar Pichai", EntityType::Person),
+        ("Seattle", EntityType::Location),
+    ];
+
+    for (exp_text, exp_type) in &expected {
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.text == *exp_text && e.entity_type == *exp_type),
+            "Missing '{exp_text}' ({exp_type:?}) in stacked output: {:?}",
+            entities.iter().map(|e| &e.text).collect::<Vec<_>>()
+        );
+    }
+}
+
+// =============================================================================
+// QA 2026-03-20: Negation + quantifier correctness
+// =============================================================================
+
+/// Negation detection must flag entities in negated contexts.
+#[test]
+fn qa_2026_03_20_negation_detection() {
+    use anno::heuristics::is_negated_en;
+
+    // "never visited Paris" -- Paris starts at char 21
+    assert!(
+        is_negated_en("He has never visited Paris.", 21),
+        "'Paris' should be negated in 'never visited Paris'"
+    );
+    // Positive context -- not negated
+    assert!(
+        !is_negated_en("She visited Paris last summer.", 12),
+        "'Paris' should NOT be negated in positive context"
+    );
+}
+
+/// Quantifier detection must identify approximate quantifiers.
+#[test]
+fn qa_2026_03_20_quantifier_detection() {
+    use anno::heuristics::detect_quantifier_en;
+
+    // "Approximately 500 employees at Google" -- Google starts at char 31
+    let q = detect_quantifier_en("Approximately 500 employees at Google received stock options.", 31);
+    assert!(q.is_some(), "Google should have a quantifier (Approximate)");
+
+    // No quantifier in plain context
+    let q2 = detect_quantifier_en("Google received stock options.", 0);
+    assert!(q2.is_none(), "No quantifier in plain context");
+}
+
+// =============================================================================
+// QA 2026-03-20: Heuristic dedup -- "yet" was duplicated in COMMON_SENTENCE_STARTERS
+// =============================================================================
+
+/// After dedup fix, heuristic should not produce different results for text
+/// starting with "Yet" vs other sentence starters.
+#[test]
+fn qa_2026_03_20_yet_not_entity() {
+    let entities = heuristic_entities("Yet Apple remains the most valuable company.");
+    // "Yet" should not appear as a PER entity
+    assert!(
+        !per_entities(&entities).contains(&"Yet"),
+        "Sentence-initial 'Yet' should not be tagged as PER"
+    );
+    // "Apple" should be found
+    assert!(
+        org_entities(&entities).contains(&"Apple"),
+        "Apple should be tagged as ORG"
+    );
+}

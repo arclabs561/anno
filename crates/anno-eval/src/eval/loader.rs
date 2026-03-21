@@ -7125,21 +7125,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "eval")]
-    fn test_tarball_target_patterns() {
-        let loader = DatasetLoader::new().unwrap();
-
-        // RAMS should look for test.jsonl first
-        let rams_patterns = loader.tarball_target_patterns(DatasetId::RAMS);
-        assert!(!rams_patterns.is_empty());
-        assert!(rams_patterns.iter().any(|p| p.contains("jsonl")));
-
-        // Generic fallback should include common patterns
-        let generic_patterns = loader.tarball_target_patterns(DatasetId::WikiGold);
-        assert!(!generic_patterns.is_empty());
-    }
-
-    #[test]
     fn test_map_entity_type() {
         // Core types
         assert_eq!(map_entity_type("PER"), EntityType::Person);

@@ -587,7 +587,7 @@ mod simple_extraction_tests {
         assert!(!ents.is_empty(), "expected at least one extracted entity");
 
         for e in ents {
-            let extracted = TextSpan::from_chars(text, e.start, e.end).extract(text);
+            let extracted = TextSpan::from_chars(text, e.start(), e.end()).extract(text);
             assert_eq!(extracted, e.text);
         }
     }
