@@ -394,7 +394,14 @@ impl CharSpan {
     #[inline]
     #[must_use]
     pub const fn from_offsets(start: CharOffset, end: CharOffset) -> Self {
-        Self { start, end }
+        if start.0 <= end.0 {
+            Self { start, end }
+        } else {
+            Self {
+                start: end,
+                end: start,
+            }
+        }
     }
 
     /// Length in characters.

@@ -1160,11 +1160,27 @@ impl Span {
 /// assert_eq!(span.num_segments(), 2);
 /// assert!(span.is_discontinuous());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DiscontinuousSpan {
     /// Non-overlapping segments, sorted by start position.
     /// Each `Range<usize>` represents (start_char, end_char).
     segments: Vec<std::ops::Range<usize>>,
+}
+
+impl<'de> serde::Deserialize<'de> for DiscontinuousSpan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        /// Helper to drive the default Vec<Range<usize>> deserialization.
+        #[derive(serde::Deserialize)]
+        struct Raw {
+            segments: Vec<std::ops::Range<usize>>,
+        }
+        let raw = Raw::deserialize(deserializer)?;
+        // Route through `new()` so segments are sorted, merged, and deduplicated.
+        Ok(Self::new(raw.segments))
+    }
 }
 
 impl DiscontinuousSpan {
@@ -1194,11 +1210,25 @@ impl DiscontinuousSpan {
     }
 
     /// Create from a single contiguous span.
+    ///
+    /// If `start > end`, the values are swapped.  Empty spans (`start == end`) produce
+    /// a zero-segment span.
     #[must_use]
     #[allow(clippy::single_range_in_vec_init)] // Intentional: contiguous is special case of discontinuous
     pub fn contiguous(start: usize, end: usize) -> Self {
-        Self {
-            segments: vec![start..end],
+        let (lo, hi) = if start <= end {
+            (start, end)
+        } else {
+            (end, start)
+        };
+        if lo == hi {
+            Self {
+                segments: Vec::new(),
+            }
+        } else {
+            Self {
+                segments: vec![lo..hi],
+            }
         }
     }
 
@@ -2606,13 +2636,20 @@ impl EntityBuilder {
     }
 
     /// Build the entity.
+    ///
+    /// If `start > end`, the values are swapped (matching [`Entity::new`] behaviour).
     #[must_use]
     pub fn build(self) -> Entity {
+        let (start, end) = if self.start <= self.end {
+            (self.start, self.end)
+        } else {
+            (self.end, self.start)
+        };
         Entity {
             text: self.text,
             entity_type: self.entity_type,
-            start: self.start,
-            end: self.end,
+            start,
+            end,
             confidence: self.confidence,
             normalized: self.normalized,
             provenance: self.provenance,

@@ -296,7 +296,7 @@ impl Confidence {
     #[must_use]
     #[inline]
     pub fn from_logit(logit: f64) -> Self {
-        Self(1.0 / (1.0 + (-logit).exp()))
+        Self::new(1.0 / (1.0 + (-logit).exp()))
     }
 
     /// Create from a temperature-scaled logit.
