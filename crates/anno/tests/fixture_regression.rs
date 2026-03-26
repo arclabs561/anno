@@ -4,13 +4,10 @@
 //! This test ensures the extraction pipeline finds expected entities
 //! in each domain-specific document.
 
-use anno::{Entity, EntityType, HeuristicNER, Model};
+use anno::{Entity, EntityType, Model};
 use std::collections::HashMap;
 
-const FIXTURES_DIR: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/../anno-cli/tests/fixtures"
-);
+const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../anno-cli/tests/fixtures");
 
 #[derive(serde::Deserialize)]
 struct Expected {
@@ -18,6 +15,7 @@ struct Expected {
 }
 
 #[derive(serde::Deserialize)]
+#[allow(non_snake_case)]
 struct DocExpected {
     min_entities: usize,
     #[serde(default)]

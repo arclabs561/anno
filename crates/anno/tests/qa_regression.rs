@@ -938,7 +938,10 @@ fn qa_2026_03_20_quantifier_detection() {
     use anno::heuristics::detect_quantifier_en;
 
     // "Approximately 500 employees at Google" -- Google starts at char 31
-    let q = detect_quantifier_en("Approximately 500 employees at Google received stock options.", 31);
+    let q = detect_quantifier_en(
+        "Approximately 500 employees at Google received stock options.",
+        31,
+    );
     assert!(q.is_some(), "Google should have a quantifier (Approximate)");
 
     // No quantifier in plain context
