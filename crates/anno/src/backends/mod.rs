@@ -46,7 +46,7 @@
 //! | `UniversalNER` | `llm` | Yes | No | LLM-based extraction |
 //! | `CandleNER` | `candle` | No | No | Pure-Rust inference |
 //! | `GLiNERCandle` | `candle` | Yes | No | Pure-Rust GLiNER |
-//! | `BiLstmCrfNER` | - | No | No | BiLSTM-CRF baseline |
+//! | `HeuristicCrfNER` | - | No | No | CRF with heuristic emissions |
 //!
 //! # When to Use What
 //!
@@ -138,10 +138,14 @@ pub(crate) mod hf_loader;
 pub mod coref;
 
 // Always available (zero deps beyond std)
-/// BiLSTM + CRF NER - neural baseline from 2015-2018.
+/// CRF sequence labeling with heuristic emission features.
 ///
-/// Bidirectional LSTM with Conditional Random Field output layer.
-/// The dominant neural NER architecture before BERT/transformers.
+/// Real CRF layer (Viterbi + transition matrix) with gazetteer/word-shape
+/// emission features. Renamed from `bilstm_crf` for honest naming.
+pub mod heuristic_crf;
+
+/// Backward-compatibility shim for the renamed `heuristic_crf` module.
+#[deprecated(since = "0.5.0", note = "renamed to heuristic_crf")]
 pub mod bilstm_crf;
 pub mod catalog;
 pub mod crf;
@@ -337,10 +341,10 @@ pub mod gliner_candle;
 pub mod gliner2;
 
 // Re-exports (always available)
-pub use bilstm_crf::BiLstmCrfNER;
 pub use crf::CrfNER;
 pub use ensemble::EnsembleNER;
 pub use heuristic::HeuristicNER;
+pub use heuristic_crf::HeuristicCrfNER;
 pub use lexicon::LexiconNER;
 pub use nuner::NuNER;
 pub use regex::RegexNER;

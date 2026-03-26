@@ -207,10 +207,9 @@ pub enum ModelBackend {
     Hmm,
     /// Ensemble: weighted voting across multiple backends
     Ensemble,
-    /// BiLSTM + CRF (neural baseline, heuristic weights)
-    #[value(alias = "bilstm-crf")]
-    #[value(hide = true)]
-    BiLstmCrf,
+    /// CRF with heuristic emission features (gazetteer, word shape)
+    #[value(alias = "heuristic-crf", alias = "bilstm-crf", alias = "bilstm_crf")]
+    HeuristicCrf,
     /// TPLinker: joint entity-relation extraction
     #[value(alias = "tplink")]
     Tplinker,
@@ -284,7 +283,7 @@ Use `--model gliner` instead."
                 Self::Crf => "crf",
                 Self::Hmm => "hmm",
                 Self::Ensemble => "ensemble",
-                Self::BiLstmCrf => "bilstm_crf",
+                Self::HeuristicCrf => "heuristic_crf",
                 Self::Tplinker => "tplinker",
                 Self::UniversalNer => "universal_ner",
                 // ONNX
@@ -326,7 +325,7 @@ Use `--model gliner` instead."
                 Self::Crf => Ok(Box::new(anno::backends::crf::CrfNER::new())),
                 Self::Hmm => Ok(Box::new(anno::backends::hmm::HmmNER::new())),
                 Self::Ensemble => Ok(Box::new(anno::backends::ensemble::EnsembleNER::default())),
-                Self::BiLstmCrf => Ok(Box::new(anno::backends::bilstm_crf::BiLstmCrfNER::new())),
+                Self::HeuristicCrf => Ok(Box::new(anno::backends::heuristic_crf::HeuristicCrfNER::new())),
                 Self::Tplinker => anno::backends::tplinker::TPLinker::new()
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to create TPLinker: {}\n  Tip: Use 'anno models info tplinker' to check model status.", e)),
@@ -465,7 +464,7 @@ Use `--model gliner` instead."
             Self::Crf => "crf",
             Self::Hmm => "hmm",
             Self::Ensemble => "ensemble",
-            Self::BiLstmCrf => "bilstm-crf",
+            Self::HeuristicCrf => "heuristic-crf",
             Self::Tplinker => "tplinker",
             Self::UniversalNer => "universal-ner",
             // ONNX

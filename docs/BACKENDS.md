@@ -39,7 +39,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 |---------|--------|--------|-------|
 | `crf` | Conditional Random Fields | stable | Ships heuristic params, can load trained |
 | `hmm` | Hidden Markov Model | stable | Historical baseline; optional bundled trained params |
-| `bilstm_crf` | BiLSTM+CRF | beta | Neural baseline without transformer deps |
+| `heuristic_crf` | CRF + heuristic emissions | stable | CRF sequence labeling with gazetteer/word-shape features |
 | `ensemble` | Weighted voting across backends | beta | Combines multiple backend outputs |
 
 **Status**:

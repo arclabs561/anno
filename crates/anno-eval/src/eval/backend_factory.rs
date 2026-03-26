@@ -60,9 +60,10 @@ impl BackendFactory {
                 use anno::backends::ensemble::EnsembleNER;
                 Ok(Box::new(EnsembleNER::default()) as Box<dyn Model>)
             }
-            "bilstm_crf" | "bilstm-crf" | "bilstmcrf" | "bilstmcrfner" => {
-                use anno::backends::bilstm_crf::BiLstmCrfNER;
-                Ok(Box::new(BiLstmCrfNER::new()) as Box<dyn Model>)
+            "heuristic_crf" | "heuristic-crf" | "heuristiccrfner"
+            | "bilstm_crf" | "bilstm-crf" | "bilstmcrf" | "bilstmcrfner" => {
+                use anno::backends::heuristic_crf::HeuristicCrfNER;
+                Ok(Box::new(HeuristicCrfNER::new()) as Box<dyn Model>)
             }
 
             // ONNX backends
@@ -341,7 +342,7 @@ impl BackendFactory {
 
             // Unknown backend
             _ => Err(crate::Error::InvalidInput(format!(
-                "Unknown backend: '{}'. Available: pattern, heuristic, stacked, crf, hmm, ensemble, bilstm_crf, tplinker{}",
+                "Unknown backend: '{}'. Available: pattern, heuristic, stacked, crf, hmm, ensemble, heuristic_crf, tplinker{}",
                 backend_name,
                 if cfg!(feature = "onnx") {
                     ", bert_onnx, gliner_onnx, nuner, w2ner, gliner2"
@@ -363,7 +364,7 @@ impl BackendFactory {
             "crf",
             "hmm",
             "ensemble",
-            "bilstm_crf",
+            "heuristic_crf",
             "tplinker",
         ];
 

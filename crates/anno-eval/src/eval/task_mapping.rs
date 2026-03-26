@@ -410,7 +410,8 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "crf" | "CrfNER" => &[Task::NER],
         "hmm" | "HmmNER" => &[Task::NER],
         "ensemble" | "EnsembleNER" => &[Task::NER],
-        "bilstm_crf" | "bilstm-crf" | "BiLstmCrfNER" => &[Task::NER],
+        "heuristic_crf" | "heuristic-crf" | "HeuristicCrfNER" | "bilstm_crf" | "bilstm-crf"
+        | "BiLstmCrfNER" => &[Task::NER],
 
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
@@ -515,7 +516,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "hmm",
         "heuristic",
         "ensemble",
-        "bilstm_crf",
+        "heuristic_crf",
         // Pattern is intentionally excluded from NER eval by default (structured-only),
         // but it still advertises NER capability via `backend_tasks` and can be enabled by callers.
         // "pattern",
@@ -591,7 +592,7 @@ impl TaskMapping {
             "crf",
             "hmm",
             "ensemble",
-            "bilstm_crf",
+            "heuristic_crf",
             "bert_onnx",
             "candle_ner",
             "nuner",

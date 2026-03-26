@@ -71,8 +71,6 @@ pub mod lang;
 pub mod offset;
 /// PII detection and redaction (library-level privacy functions).
 pub mod pii;
-/// Preprocessing for mention detection.
-pub(crate) mod preprocess;
 /// Coreference preprocessing for RAG: rewrite pronouns for self-contained chunks.
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
@@ -176,7 +174,8 @@ mod sealed {
     impl Sealed for super::backends::lexicon::LexiconNER {}
 
     impl Sealed for super::backends::hmm::HmmNER {}
-    impl Sealed for super::backends::bilstm_crf::BiLstmCrfNER {}
+    impl Sealed for super::backends::heuristic_crf::HeuristicCrfNER {}
+    #[cfg(test)]
     impl Sealed for super::MockModel {}
 }
 
@@ -573,8 +572,6 @@ pub use backends::coref::mention_ranking::{
 // Unified coref backend trait (open, not sealed)
 pub use backends::CorefBackend;
 
-// Re-export MockModel for testing
-
 // Re-export inference traits and types used at the crate root
 pub use backends::inference::{
     extract_relation_triples, extract_relation_triples_simple, extract_relations,
@@ -754,25 +751,14 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
 ///
 /// # Entity Validation
 ///
+/// Mock NER model for testing.
+///
 /// By default, `extract_entities` validates that entity offsets are within
 /// the input text bounds and that `start < end`. Set `validate = false`
 /// to disable this (useful for testing error handling).
-///
-/// # Example
-///
-/// ```rust
-/// use anno::{MockModel, Entity, EntityType, Result};
-///
-/// let mock = MockModel::new("test-mock")
-///     .with_entities(vec![
-///         Entity::new("John", EntityType::Person, 0, 4, 0.9),
-///     ]);
-///
-/// // Use mock in tests
-/// ```
-#[doc(hidden)]
+#[cfg(test)]
 #[derive(Clone)]
-pub struct MockModel {
+pub(crate) struct MockModel {
     /// Model name identifier.
     name: &'static str,
     /// Entities to return when `extract_entities` is called.
@@ -783,6 +769,7 @@ pub struct MockModel {
     validate: bool,
 }
 
+#[cfg(test)]
 impl MockModel {
     /// Create a new mock model.
     #[must_use]
@@ -819,13 +806,6 @@ impl MockModel {
             );
         }
         self.entities = entities;
-        self
-    }
-
-    /// Set supported entity types.
-    #[must_use]
-    pub fn with_types(mut self, types: Vec<EntityType>) -> Self {
-        self.types = types;
         self
     }
 
@@ -868,6 +848,7 @@ impl MockModel {
     }
 }
 
+#[cfg(test)]
 impl Model for MockModel {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if self.validate && !self.entities.is_empty() {

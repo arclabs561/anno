@@ -120,12 +120,12 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &[],
     },
     BackendInfo {
-        name: "bilstm_crf",
+        name: "heuristic_crf",
         feature: None,
-        status: BackendStatus::Beta,
+        status: BackendStatus::Stable,
         zero_shot: false,
         gpu_support: false,
-        description: "BiLSTM+CRF neural baseline (no transformer deps)",
+        description: "CRF sequence labeling with heuristic emission features (capitalization, word shape, gazetteer)",
         recommended_models: &[],
     },
     BackendInfo {

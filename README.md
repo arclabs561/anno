@@ -12,7 +12,7 @@ Dual-licensed under MIT or Apache-2.0. MSRV: 1.85.
 
 ```toml
 [dependencies]
-anno = "0.3.9"
+anno = "0.4.0"
 ```
 
 ```rust
@@ -128,7 +128,7 @@ let redacted = pii::redact(text, &pii_ents);
 | `crf` | -- | No | stable | Lafferty et al. [9] |
 | `hmm` | -- | No | stable | Rabiner [12] |
 | `ensemble` | -- | No | beta | -- |
-| `bilstm_crf` | -- | No | beta | -- |
+| `heuristic_crf` | -- | No | stable | -- |
 | `universal_ner` | `llm` | Yes | beta | -- |
 
 See [BACKENDS.md](docs/BACKENDS.md) for details, default models, and WIP backends.

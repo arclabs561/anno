@@ -48,7 +48,7 @@ Academic papers, datasets, and software cited across the anno codebase.
 
 - Z. Huang, W. Xu, and K. Yu. "Bidirectional LSTM-CRF Models for Sequence Tagging." 2015.
   [[arXiv:1508.01991]](https://arxiv.org/abs/1508.01991)
-  — Foundational architecture for the `bilstm_crf` backend.
+  — Foundational architecture for the `heuristic_crf` backend (CRF layer design).
 
 - G. Lample, M. Ballesteros, S. Subramanian, K. Kawakami, and C. Dyer. "Neural Architectures for Named Entity Recognition." *NAACL-HLT*, 2016.
   [[PDF]](https://aclanthology.org/N16-1030.pdf)
