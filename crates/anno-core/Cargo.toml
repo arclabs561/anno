@@ -15,7 +15,6 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
-chrono = { workspace = true }
 log = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
 
@@ -25,4 +24,3 @@ proptest = { workspace = true }
 [features]
 default = []
 schema = ["dep:schemars"]
-

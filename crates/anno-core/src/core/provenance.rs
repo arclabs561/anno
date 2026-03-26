@@ -29,7 +29,37 @@
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Produce an RFC 3339 UTC timestamp from `SystemTime::now()` without chrono.
+fn now_rfc3339() -> String {
+    let dur = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = dur.as_secs();
+    let days = secs / 86400;
+    let rem = secs % 86400;
+    let hours = rem / 3600;
+    let mins = (rem % 3600) / 60;
+    let s = rem % 60;
+    let (year, month, day) = days_to_ymd(days);
+    format!("{year:04}-{month:02}-{day:02}T{hours:02}:{mins:02}:{s:02}Z")
+}
+
+/// Civil calendar conversion (Howard Hinnant algorithm).
+fn days_to_ymd(days: u64) -> (u64, u64, u64) {
+    let z = days + 719_468;
+    let era = z / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
+}
 
 /// Complete provenance for a document annotation pipeline.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -388,13 +418,13 @@ impl ProvenanceBuilder {
             format!("{:?}", source).hash(&mut hasher);
         }
         SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0)
             .hash(&mut hasher);
 
         let id = format!("prov:{:x}", hasher.finish());
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = now_rfc3339();
 
         DocumentProvenance {
             id,
@@ -419,7 +449,7 @@ impl DocumentProvenance {
 
     /// Mark as completed.
     pub fn complete(&mut self) {
-        self.completed_at = Some(chrono::Utc::now().to_rfc3339());
+        self.completed_at = Some(now_rfc3339());
     }
 
     /// Add extraction pipeline.
