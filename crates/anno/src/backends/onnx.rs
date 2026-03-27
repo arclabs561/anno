@@ -22,10 +22,7 @@ use crate::{Entity, Error, Language, Result};
 use anno_core::{EntityCategory, EntityType};
 
 #[cfg(feature = "onnx")]
-use {
-    ndarray::Array2, ort::session::Session, std::collections::HashMap, std::sync::Mutex,
-    tokenizers::Tokenizer,
-};
+use {ndarray::Array2, ort::session::Session, std::collections::HashMap, tokenizers::Tokenizer};
 
 /// Configuration for BERT NER model loading.
 #[cfg(feature = "onnx")]

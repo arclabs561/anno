@@ -7,12 +7,12 @@
 #          (anno)   (anno-core)
 #
 members = [
-    "crates/anno",
-    "crates/anno-core",
-    "crates/anno-eval",
-    "crates/anno-cli",
-    "crates/anno-graph",
-    "crates/anno-metrics",
+  "crates/anno",
+  "crates/anno-core",
+  "crates/anno-eval",
+  "crates/anno-cli",
+  "crates/anno-graph",
+  "crates/anno-metrics",
 ]
 resolver = "2"
 
@@ -74,7 +74,6 @@ safetensors = "0.4"
 deformat = "0.5"
 
 # Performance
-parking_lot = "0.12"
 rayon = "1"
 
 # Utilities
@@ -113,12 +112,12 @@ readme = "README.md"
 keywords = ["ner", "nlp", "extraction", "coreference", "zero-shot"]
 categories = ["text-processing"]
 include = [
-    "/src/**/*.rs",
-    "/Cargo.toml",
-    "/Cargo.lock",
-    "/LICENSE",
-    "/LICENSE-*",
-    "/README.md",
+  "/src/**/*.rs",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/LICENSE",
+  "/LICENSE-*",
+  "/README.md",
 ]
 
 [lib]

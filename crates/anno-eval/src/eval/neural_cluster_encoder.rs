@@ -35,7 +35,7 @@ use std::collections::HashMap;
 
 #[cfg(feature = "candle")]
 use {
-    anno::backends::encoder_candle::TextEncoder,
+    anno::backends::encoder_candle::CandleTextEncoder,
     candle_core::{DType, Device, Module, Tensor, D},
     candle_nn::{layer_norm, linear, LayerNorm, Linear, VarBuilder},
 };
@@ -84,7 +84,7 @@ impl Default for NeuralClusterConfig {
 /// Encodes clusters using:
 /// 1. Pre-trained text encoder for mention representations
 /// 2. Single-layer Transformer for cluster pooling (xCoRe style)
-pub struct CandleClusterEncoder<E: TextEncoder> {
+pub struct CandleClusterEncoder<E: CandleTextEncoder> {
     /// Text encoder (DeBERTa, ModernBERT, etc.)
     encoder: E,
     /// Pooling transformer layer
@@ -96,7 +96,7 @@ pub struct CandleClusterEncoder<E: TextEncoder> {
 }
 
 #[cfg(feature = "candle")]
-impl<E: TextEncoder> CandleClusterEncoder<E> {
+impl<E: CandleTextEncoder> CandleClusterEncoder<E> {
     /// Create a new neural cluster encoder.
     pub fn new(encoder: E, config: NeuralClusterConfig) -> crate::Result<Self> {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
@@ -163,7 +163,7 @@ impl<E: TextEncoder> CandleClusterEncoder<E> {
 }
 
 #[cfg(feature = "candle")]
-impl<E: TextEncoder> ClusterEncoder for CandleClusterEncoder<E> {
+impl<E: CandleTextEncoder> ClusterEncoder for CandleClusterEncoder<E> {
     fn encode_cluster(
         &self,
         cluster: &LocalCluster,

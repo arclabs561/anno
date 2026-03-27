@@ -16,12 +16,12 @@
 /// Relations: 0
 /// ```
 fn main() -> anno::Result<()> {
-    #[allow(deprecated)]
-    use anno::{RelationCapable, TPLinker};
+    use anno::backends::inference::RelationExtractor;
+    use anno::TPLinker;
 
     let text = "Alice works at Acme Corp in Portland.";
     let tp = TPLinker::new()?;
-    let (entities, relations) = tp.extract_with_relations(text, None)?;
+    let (entities, relations) = tp.extract_relations_default(text)?;
 
     println!("Entities: {}", entities.len());
     for e in &entities {

@@ -1,22 +1,18 @@
 name: CI
-
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  workflow_dispatch:  # Manual trigger
-
+  workflow_dispatch: # Manual trigger
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-
 permissions:
   contents: read
   checks: write
   security-events: write
   id-token: write
-
 jobs:
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
@@ -28,7 +24,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Docs hygiene checks (fast, offline)
         run: python3 scripts/docs_audit.py
-
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -39,7 +34,6 @@ jobs:
         with:
           cache-all-crates: true
       - run: cargo check --workspace --all-targets
-
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -49,7 +43,6 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
-
   typecheck-python:
     name: Typecheck (Python / ty)
     runs-on: ubuntu-latest
@@ -62,7 +55,6 @@ jobs:
           cache-dependency-glob: ty.toml
       - name: Run ty
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
-
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -75,8 +67,7 @@ jobs:
         with:
           cache-all-crates: true
       # All targets (lib + tests + bins + examples) so test code is also linted.
-      - run: cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
-
+      - run: cargo clippy --workspace --all-targets --features eval -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
@@ -91,12 +82,11 @@ jobs:
           cache-all-crates: true
       - run: cargo test --package anno --no-default-features --lib
       - run: cargo test --package anno --lib
-
   # ==========================================================================
   # Evaluation framework tests
   # ==========================================================================
   test-eval:
-    name: Test (eval + discourse)
+    name: Test (eval)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,12 +94,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-
       # Optional: enable S3 dataset cache via AWS OIDC (no long-lived secrets).
       # Configure the role ARN as a repo variable: Settings → Secrets and variables → Actions → Variables.
       - name: Configure AWS credentials (OIDC) for dataset cache
@@ -118,7 +106,6 @@ jobs:
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       # Note: we intentionally do not support access-key secrets here.
       # GitHub Actions expressions in `if:` do not allow `secrets.*` (workflow won't parse).
       - name: Enable S3 dataset cache (when AWS is configured)
@@ -126,11 +113,9 @@ jobs:
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -138,15 +123,13 @@ jobs:
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
-          
       - name: Build with eval features
-        run: cargo build --workspace --features "eval discourse"
+        run: cargo build --workspace --features eval
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
       - name: Run library tests
-        run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
+        run: cargo test --workspace --lib --features eval -- --skip test_randomized_matrix_sample
       - name: Run integration tests
-        run: cargo test --package anno --tests --features "eval discourse"
-
+        run: cargo test --package anno --tests --features eval
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -168,7 +151,6 @@ jobs:
         run: cargo build --workspace --no-default-features
       - name: Test
         run: cargo test --workspace --no-default-features --lib
-
   # ==========================================================================
   # ONNX backend tests (Linux only)
   # ==========================================================================
@@ -181,7 +163,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -189,12 +170,10 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-          
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
         run: cargo test --workspace --lib --features onnx
-
   # ==========================================================================
   # Candle backend tests (pure Rust)
   # ==========================================================================
@@ -207,7 +186,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -215,12 +193,10 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-          
       - name: Build Candle backend
         run: cargo build --workspace --features candle
       - name: Test Candle (unit)
         run: cargo test --workspace --lib --features candle
-
   # ==========================================================================
   # Feature Combination Tests (important combos not covered above)
   # ==========================================================================
@@ -242,7 +218,6 @@ jobs:
         run: cargo build --workspace --features "onnx,eval"
       - name: Test
         run: cargo test --workspace --lib --features "onnx,eval"
-
   test-candle-eval:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest
@@ -261,7 +236,6 @@ jobs:
         run: cargo build --workspace --features "candle,eval"
       - name: Test
         run: cargo test --workspace --lib --features "candle,eval"
-
   test-production:
     name: Test (production features)
     runs-on: ubuntu-latest
@@ -280,7 +254,6 @@ jobs:
         run: cargo build --workspace --features "production"
       - name: Test production
         run: cargo test --workspace --lib --features "production"
-
   test-metal:
     name: Test (Metal on macOS)
     runs-on: macos-latest
@@ -299,7 +272,6 @@ jobs:
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
         run: cargo test --workspace --lib --features "metal"
-
   # ==========================================================================
   # MSRV (Minimum Supported Rust Version)
   # ==========================================================================
@@ -316,7 +288,6 @@ jobs:
         # --locked is omitted: the workspace rust-version = "1.85" provides
         # the MSRV guarantee without fighting a moving crates.io index.
         run: cargo check --workspace
-
   # ==========================================================================
   # Documentation
   # ==========================================================================
@@ -331,10 +302,9 @@ jobs:
           cache-all-crates: true
       # Document library crates only to avoid filename collisions between the
       # `anno` library crate and the `anno` binary (package `anno-cli`).
-      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
+      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features eval
         env:
           RUSTDOCFLAGS: -D warnings
-
   # ==========================================================================
   # Property tests (proptest)
   # ==========================================================================
@@ -351,7 +321,6 @@ jobs:
         run: cargo test --workspace --lib --features "eval" -- proptest
         env:
           PROPTEST_CASES: 100
-
   # ==========================================================================
   # Randomized Matrix Test (backends x datasets x tasks)
   # ==========================================================================
@@ -365,29 +334,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -395,7 +359,6 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -403,7 +366,6 @@ jobs:
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
-
       # Muxer history + eval history in their own cache lineage so MAB learning and
       # dataset observation counts are never overwritten by test-eval/eval-sanity writes.
       - name: Cache muxer state and eval history (persistent MAB learning)
@@ -417,10 +379,8 @@ jobs:
           key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
             anno-muxer-${{ runner.os }}-v1-
-      
       - name: Build matrix sampler harness (enable ML backends)
         run: cargo build -p anno-eval --features "onnx,eval"
-
       - name: Run randomized matrix test (NER)
         run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
@@ -433,7 +393,6 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-
       - name: Run randomized matrix test (RE)
         run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
@@ -444,7 +403,6 @@ jobs:
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-
       - name: Run randomized matrix test (Coref)
         run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
@@ -455,7 +413,6 @@ jobs:
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-
       - name: Run randomized matrix test (Temporal)
         run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
         env:
@@ -466,7 +423,6 @@ jobs:
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-      
       - name: Run worst-first matrix test (+ regression detection)
         run: |
           cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
@@ -480,7 +436,6 @@ jobs:
           # Enable regression detection (emits warnings when Cohen's d >= 2.0 over 20+ obs).
           # Non-fatal: fires on stderr, does not fail the job.
           ANNO_CHECK_REGRESSIONS: "1"
-
   # ==========================================================================
   # F1 Unit Tests (evaluator math invariants)
   # Note: actual eval-history regression detection runs in matrix-test (worst-first step,
@@ -496,8 +451,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run evaluator unit tests
-        run: cargo test -p anno-eval --lib --features "eval discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
-
+        run: cargo test -p anno-eval --lib --features eval test_comprehensive_eval_results_average_f1 -- --nocapture
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
@@ -511,12 +465,9 @@ jobs:
         with:
           cache-all-crates: true
       - name: Build examples (eval)
-        run: cargo build --workspace --examples --features "eval discourse"
-      - name: Build examples (discourse)
-        run: cargo build --workspace --examples --features discourse
+        run: cargo build --workspace --examples --features eval
       - name: Run muxer decision-loop example (offline smoke)
         run: cargo run -p anno-eval --example muxer_decision_loop --features eval
-
   # ==========================================================================
   # Sanity Check Evaluations (small random samples on push)
   # ==========================================================================
@@ -530,29 +481,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
-
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -560,7 +506,6 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -568,7 +513,6 @@ jobs:
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
-
       # Restore eval history so CLI benchmark accumulates observation counts across runs.
       # Uses the same anno-muxer key family as matrix-test to share state.
       - name: Cache eval history (persistent observation counts)
@@ -580,14 +524,12 @@ jobs:
           key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
             anno-muxer-${{ runner.os }}-v1-
-
       - name: Run sanity check evaluations
         run: ./scripts/eval-sanity.sh
         env:
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
           # Note: cli feature is included in eval via script
-
       - name: Ensure sanity report exists
         if: always()
         run: |
@@ -599,7 +541,6 @@ jobs:
               '_Report was not generated by the script; see job logs._' \
               > reports/eval-sanity-report.md
           fi
-
       - name: Upload sanity report
         uses: actions/upload-artifact@v4
         if: always()
@@ -607,7 +548,6 @@ jobs:
           name: eval-sanity-report
           path: reports/eval-sanity-report.md
           if-no-files-found: error
-
   # ==========================================================================
   # Full Evaluations (only on eval-* branches or manual trigger)
   # ==========================================================================
@@ -624,29 +564,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
-
       - name: Enable S3 dataset cache (when AWS is configured)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: |
           echo "ANNO_S3_CACHE=1" >> "$GITHUB_ENV"
           echo "ANNO_S3_BUCKET=${{ vars.ANNO_S3_BUCKET != '' && vars.ANNO_S3_BUCKET || 'arc-anno-data' }}" >> "$GITHUB_ENV"
-      
       - name: Verify AWS CLI available (S3 cache)
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
-
       - name: Cache HF models
         uses: actions/cache@v4
         with:
@@ -654,7 +589,6 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-
       - name: Cache datasets
         uses: actions/cache@v4
         with:
@@ -662,7 +596,6 @@ jobs:
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
-
       # Restore eval history so full evals seed from accumulated observation counts.
       - name: Cache eval history (persistent observation counts)
         uses: actions/cache@v4
@@ -673,19 +606,16 @@ jobs:
           key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
             anno-muxer-${{ runner.os }}-v1-
-
       - name: Run full evaluations
         run: ./scripts/eval-full.sh
         env:
           MAX_EXAMPLES: ${{ github.event.inputs.max_examples || '' }}
-
       - name: Upload full report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: eval-full-report
           path: eval-full-report.md
-
   # ==========================================================================
   # Security audit (cargo-audit - legacy, kept for compatibility)
   # ==========================================================================
@@ -701,11 +631,10 @@ jobs:
           # Note: Unmaintained crate warnings (number_prefix, paste) are expected
           # This job will show warnings but won't fail the workflow
           # Actual security vulnerabilities would still be reported
-
   # ==========================================================================
   # Static Analysis Tools
   # ==========================================================================
-  
+
   # Comprehensive dependency linting (replaces/enhances cargo-audit)
   cargo-deny:
     name: Cargo Deny
@@ -720,7 +649,6 @@ jobs:
         run: cargo install --locked cargo-deny
       - name: Check dependencies
         run: cargo deny check
-
   # Fast unused dependency detection
   unused-deps:
     name: Unused Dependencies
@@ -736,7 +664,6 @@ jobs:
         run: cargo install cargo-machete
       - name: Check unused dependencies
         run: ./scripts/static-analysis-common.sh machete
-
   # Unsafe code statistics (creative: generate report)
   safety-report:
     name: Safety Report (Unsafe Code Stats)
@@ -763,7 +690,6 @@ jobs:
         with:
           name: safety-report
           path: safety-report.json
-
   # Miri: undefined behavior detection (selective on unsafe code)
   # Only runs on push to main/master or manual trigger (too slow for PRs)
   miri-unsafe:
@@ -792,7 +718,6 @@ jobs:
           # Run Miri on files with unsafe code (selective approach)
           cargo miri test --lib --features onnx -- --test-threads=1 --nocapture || true
         timeout-minutes: 10
-
   # OpenGrep: Custom security pattern detection
   opengrep:
     name: OpenGrep Static Analysis
@@ -863,7 +788,6 @@ jobs:
         continue-on-error: true
         with:
           sarif_file: opengrep-results.sarif
-
       - name: Ensure JSON outputs exist
         if: always()
         run: |
@@ -894,7 +818,6 @@ jobs:
             opengrep-error-results.json
             opengrep-memory-results.json
           if-no-files-found: error
-
   # NLP/ML-specific pattern checks
   nlp-ml-patterns:
     name: NLP/ML Pattern Analysis
@@ -930,7 +853,6 @@ jobs:
           name: nlp-ml-analysis
           path: |
             evaluation-pattern-analysis.md
-
   # Unified static analysis report
   unified-static-analysis:
     name: Unified Static Analysis Report
@@ -964,7 +886,6 @@ jobs:
         with:
           name: unified-static-analysis
           path: unified-static-analysis-report.md
-
   # Static analysis failure summary
   static-analysis-summary:
     name: Static Analysis Summary
@@ -1003,7 +924,6 @@ jobs:
                 body: `## Static Analysis Summary\n\n${summary}`
               });
             }
-
   # Code coverage (optional, runs on schedule or manual trigger)
   # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs)
   coverage:
@@ -1029,7 +949,6 @@ jobs:
           file: ./lcov.info
           flags: unittests
           name: codecov-anno
-
   # ==========================================================================
   # Publish Validation (best-effort; expected to fail while publishing is paused)
   # ==========================================================================
@@ -1043,14 +962,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      
       - name: Validate workspace structure
         run: |
           echo "## Workspace Structure Validation" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           cargo metadata --format-version 1 | jq -r '.workspace_members[]' | sort >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-      
       - name: Check publish readiness (anno)
         id: anno
         run: |
@@ -1062,7 +979,6 @@ jobs:
             echo "status=error" >> $GITHUB_OUTPUT
             echo "[error] anno: Publish validation failed (expected while publishing is paused)" >> $GITHUB_STEP_SUMMARY
           fi
-      
       - name: Check crates.io status
         run: |
           echo "## Crates.io Status" >> $GITHUB_STEP_SUMMARY
@@ -1074,24 +990,22 @@ jobs:
               echo "- **$crate**: Not published" >> $GITHUB_STEP_SUMMARY
             fi
           done
-      
       - name: Generate publish status report
         run: |
           cat > publish-validation-report.md << EOF
           # Publish Validation Report
-          
+
           Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-          
+
           ## Publish Readiness Status
-          
+
           ### anno
           $([ "${{ steps.anno.outputs.status }}" == "ready" ] && echo "[ok] **Ready to publish**" || echo "[error] **Publish validation failed**")
-          
+
           ## Next Steps
-          
+
           See \`docs/PUBLISH_STATUS.md\` for detailed information and fixes.
           EOF
-      
       - name: Upload publish validation report
         uses: actions/upload-artifact@v4
         if: always()

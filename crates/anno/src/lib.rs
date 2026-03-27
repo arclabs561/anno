@@ -538,7 +538,7 @@ pub struct ModelCapabilities {
 
 /// Convenience trait for models that extract relations with default types.
 ///
-/// Prefer [`RelationExtractor::extract_relations_default`](backends::inference::RelationExtractor::extract_relations_default)
+/// Prefer [`RelationExtractor::extract_relations_default`]
 /// for new code. This trait exists for backward compatibility and will be
 /// removed in a future version.
 #[deprecated(
@@ -950,6 +950,7 @@ mod any_model_tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn any_model_relations_returns_entities_and_relations() {
         let m = base_any_model().with_relations(|_text, _lang| {
             let head = Entity::new("Alice", EntityType::Person, 0, 5, 0.9);
@@ -967,6 +968,7 @@ mod any_model_tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn any_model_relations_missing_returns_feature_not_available() {
         let m = base_any_model();
         let err = m.extract_with_relations("hello", None).unwrap_err();
