@@ -20,18 +20,21 @@ let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
 for e in &entities {
     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
 }
-// Sophie Wilson [PER] (0,13) 0.95
-// ARM [ORG] (27,30) 0.90
+// Sophie Wilson [PER] (0,13) 1.00
+// ARM [misc] (27,30) 0.99
+// Output varies by backend. With `onnx` feature and models cached,
+// the ML backends produce more specific types (e.g. ARM -> ORG).
 # Ok::<(), anno::Error>(())
 ```
 
-Filter results with `prelude`:
+Filter results with `prelude` (re-exports common types including `Result`):
 
 ```rust
 use anno::prelude::*;
 
 let people: Vec<_> = entities.of_type(&EntityType::Person).collect();
 let confident: Vec<_> = entities.above_confidence(0.8).collect();
+# Ok::<(), Error>(())
 ```
 
 For backend control, construct a model directly:
