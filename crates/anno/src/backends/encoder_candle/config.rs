@@ -7,7 +7,7 @@ use super::*;
 /// Trait for text-to-embedding encoders.
 ///
 /// This is the main abstraction that allows swapping BERT/RoBERTa/ModernBERT.
-pub trait TextEncoder: Send + Sync {
+pub trait CandleTextEncoder: Send + Sync {
     /// Encode text into token embeddings.
     ///
     /// # Returns

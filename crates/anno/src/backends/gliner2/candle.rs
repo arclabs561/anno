@@ -21,7 +21,7 @@ use std::collections::HashMap;
 // =============================================================================
 
 #[cfg(feature = "candle")]
-use crate::backends::encoder_candle::TextEncoder;
+use crate::backends::encoder_candle::CandleTextEncoder;
 #[cfg(feature = "candle")]
 use candle_core::{DType, Device, IndexOp, Module, Tensor, D};
 #[cfg(feature = "candle")]

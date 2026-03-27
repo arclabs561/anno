@@ -1037,7 +1037,7 @@ pub mod candle_impl {
         }
     }
 
-    impl TextEncoder for CandleEncoder {
+    impl CandleTextEncoder for CandleEncoder {
         fn encode(&self, text: &str) -> Result<(Vec<f32>, usize)> {
             // Tokenize
             let encoding = self

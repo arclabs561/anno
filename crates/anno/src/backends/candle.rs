@@ -43,7 +43,7 @@ use crate::{Entity, EntityCategory, EntityType, Error, Language, Model, Result};
 
 #[cfg(feature = "candle")]
 use {
-    super::encoder_candle::{CandleEncoder, TextEncoder},
+    super::encoder_candle::{CandleEncoder, CandleTextEncoder},
     candle_core::{DType, Device, Module, Tensor, D},
     candle_nn::{linear, Linear, VarBuilder},
     std::collections::HashMap,

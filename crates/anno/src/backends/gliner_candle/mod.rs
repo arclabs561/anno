@@ -51,7 +51,7 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "candle")]
 use {
-    super::encoder_candle::{CandleEncoder, TextEncoder},
+    super::encoder_candle::{CandleEncoder, CandleTextEncoder},
     candle_core::{DType, Device, IndexOp, Module, Tensor, D},
     candle_nn::{linear, Linear, VarBuilder},
     tokenizers::Tokenizer,
