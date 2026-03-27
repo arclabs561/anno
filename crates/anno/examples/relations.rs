@@ -16,6 +16,7 @@
 /// Relations: 0
 /// ```
 fn main() -> anno::Result<()> {
+    #[allow(deprecated)]
     use anno::{RelationCapable, TPLinker};
 
     let text = "Alice works at Acme Corp in Portland.";

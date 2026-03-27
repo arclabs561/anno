@@ -427,6 +427,7 @@ Use `--model gliner` instead."
     /// Create a `RelationCapable` model instance, if this backend supports joint entity+relation
     /// extraction.  Returns `None` for all other backends (callers should fall back to
     /// `create_model()` + co-occurrence edges).
+    #[allow(deprecated)]
     pub fn try_create_relation_model(
         self,
     ) -> Option<Result<Box<dyn anno::RelationCapable>, String>> {

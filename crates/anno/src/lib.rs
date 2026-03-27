@@ -483,6 +483,7 @@ impl backends::inference::ZeroShotNER for AnyModel {
     }
 }
 
+#[allow(deprecated)]
 impl RelationCapable for AnyModel {
     fn extract_with_relations(
         &self,
@@ -535,10 +536,15 @@ pub struct ModelCapabilities {
     pub discontinuous_capable: bool,
 }
 
-/// Trait for models that can extract relations between entities.
+/// Convenience trait for models that extract relations with default types.
 ///
-/// Models implementing this trait can jointly extract entities and their relationships,
-/// producing (head, relation_type, tail) triples.
+/// Prefer [`RelationExtractor::extract_relations_default`](backends::inference::RelationExtractor::extract_relations_default)
+/// for new code. This trait exists for backward compatibility and will be
+/// removed in a future version.
+#[deprecated(
+    since = "0.5.0",
+    note = "use RelationExtractor::extract_relations_default instead"
+)]
 pub trait RelationCapable: Model {
     /// Extract entities and their relations from text.
     ///

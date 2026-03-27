@@ -255,7 +255,9 @@ impl GLiNEROnnx {
 
         // Check cache (lock scope minimized)
         let cached_result = {
-            let mut cache_guard = cache.lock().map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
+            let mut cache_guard = cache
+                .lock()
+                .map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
             cache_guard.get(&key).cloned()
         };
 
@@ -275,7 +277,9 @@ impl GLiNEROnnx {
 
         // Store in cache (re-acquire lock)
         {
-            let mut cache_guard = cache.lock().map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
+            let mut cache_guard = cache
+                .lock()
+                .map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
             cache_guard.put(
                 key,
                 PromptCacheValue {

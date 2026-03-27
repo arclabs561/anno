@@ -30,10 +30,10 @@
 #![allow(clippy::items_after_test_module)] // Large file; keep local tests near helpers
 #![allow(unused_imports)] // EntityType used conditionally
 
-#[cfg(feature = "onnx")]
-use std::sync::Mutex;
 use crate::{Entity, Error, Language, Result};
 use anno_core::{EntityCategory, EntityType};
+#[cfg(feature = "onnx")]
+use std::sync::Mutex;
 
 /// Special token IDs for GLiNER models
 const TOKEN_START: u32 = 1;

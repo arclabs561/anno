@@ -455,6 +455,7 @@ impl RelationExtractor for GLiNER2Candle {
 // =============================================================================
 
 #[cfg(feature = "onnx")]
+#[allow(deprecated)]
 impl crate::RelationCapable for GLiNER2Onnx {
     fn extract_with_relations(
         &self,
@@ -474,6 +475,7 @@ impl crate::RelationCapable for GLiNER2Onnx {
 }
 
 #[cfg(feature = "candle")]
+#[allow(deprecated)]
 impl crate::RelationCapable for GLiNER2Candle {
     fn extract_with_relations(
         &self,

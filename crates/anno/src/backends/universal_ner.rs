@@ -544,7 +544,10 @@ Output:"#
         }
 
         // Cache the chunk-local result (before offset adjustment)
-        self.cache.lock().unwrap_or_else(|e| e.into_inner()).insert(key, entities.clone());
+        self.cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(key, entities.clone());
 
         // Adjust offsets from chunk-local to document-global
         if char_offset > 0 {

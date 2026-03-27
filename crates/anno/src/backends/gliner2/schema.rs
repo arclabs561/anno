@@ -3,12 +3,12 @@
 //!
 //! These are feature-agnostic — imported by both the ONNX and Candle backends.
 
-#[cfg(feature = "candle")]
-use std::sync::RwLock;
 use crate::{Entity, EntityType, Error, Result};
 use anno_core::EntityCategory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+#[cfg(feature = "candle")]
+use std::sync::RwLock;
 
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, ZeroShotNER};
 
@@ -59,11 +59,18 @@ impl LabelCache {
     }
 
     pub(super) fn get(&self, label: &str) -> Option<Vec<f32>> {
-        self.cache.read().unwrap_or_else(|e| e.into_inner()).get(label).cloned()
+        self.cache
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(label)
+            .cloned()
     }
 
     pub(super) fn insert(&self, label: String, embedding: Vec<f32>) {
-        self.cache.write().unwrap_or_else(|e| e.into_inner()).insert(label, embedding);
+        self.cache
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(label, embedding);
     }
 }
 

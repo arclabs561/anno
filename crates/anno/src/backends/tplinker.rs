@@ -67,10 +67,10 @@ mod onnx_impl {
     use crate::backends::hf_loader;
     use crate::backends::inference::RelationTriple;
     use crate::backends::ort_compat::tensor_from_ndarray;
-    use std::sync::Mutex;
     use crate::Error;
     use ndarray::Array2;
     use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
 
     /// Default cache directory for TPLinker models.
     fn default_model_dir() -> PathBuf {
@@ -822,6 +822,7 @@ impl RelationExtractor for TPLinker {
     }
 }
 
+#[allow(deprecated)]
 impl crate::RelationCapable for TPLinker {
     fn extract_with_relations(
         &self,

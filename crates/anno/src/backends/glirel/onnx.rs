@@ -5,10 +5,10 @@
 
 use crate::backends::hf_loader;
 use crate::backends::inference::RelationTriple;
-use std::sync::Mutex;
 use crate::{Confidence, Entity, Error, Result};
 use ndarray::Array2;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 /// Default cache directory for GLiREL models.
 fn default_model_dir() -> PathBuf {

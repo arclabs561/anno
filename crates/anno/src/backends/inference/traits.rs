@@ -229,6 +229,20 @@ pub trait RelationExtractor: Send + Sync {
         relation_types: &[&str],
         threshold: f32,
     ) -> crate::Result<ExtractionWithRelations>;
+
+    /// Convenience: extract with broad default entity/relation types and threshold 0.5.
+    ///
+    /// Returns `(entities, relations)` matching the [`RelationCapable`](crate::RelationCapable)
+    /// signature. Prefer this over constructing a `RelationCapable` when you already have
+    /// a `RelationExtractor`.
+    fn extract_relations_default(
+        &self,
+        text: &str,
+    ) -> crate::Result<(Vec<crate::Entity>, Vec<crate::Relation>)> {
+        let result =
+            self.extract_with_relations(text, DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES, 0.5)?;
+        Ok(result.into_anno_relations())
+    }
 }
 
 /// Output from joint entity-relation extraction.
