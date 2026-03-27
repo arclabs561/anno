@@ -439,38 +439,16 @@ impl Default for StackedNER {
                 }
             }
 
-            struct EnvVarGuard {
-                key: &'static str,
-                prev: Option<String>,
+            // When downloads are disabled, skip ML backends entirely and fall
+            // through to regex + heuristic. The Rust `hf_hub` crate (unlike
+            // Python `huggingface_hub`) does not read HF_HUB_OFFLINE, so the
+            // only reliable way to prevent downloads is to not attempt loading.
+            if no_downloads() {
+                return Self::builder()
+                    .layer(crate::RegexNER::new())
+                    .layer(crate::HeuristicNER::new())
+                    .build();
             }
-
-            impl EnvVarGuard {
-                fn set(key: &'static str, value: &str) -> Self {
-                    let prev = std::env::var(key).ok();
-                    // SAFETY: env var mutation required because hf_hub reads
-                    // HF_HUB_OFFLINE from the environment. Called once in
-                    // Default::default(), typically at program start. The
-                    // guard restores the previous value on drop.
-                    unsafe { std::env::set_var(key, value) };
-                    Self { key, prev }
-                }
-            }
-
-            impl Drop for EnvVarGuard {
-                fn drop(&mut self) {
-                    // SAFETY: restoring env var to pre-guard state (see set()).
-                    unsafe {
-                        match &self.prev {
-                            Some(v) => std::env::set_var(self.key, v),
-                            None => std::env::remove_var(self.key),
-                        }
-                    }
-                }
-            }
-
-            // Opt-out policy: allow downloads unless explicitly disabled.
-            // GLiNER/BERT loaders use `hf_hub`, which honors `HF_HUB_OFFLINE=1`.
-            let _offline = no_downloads().then(|| EnvVarGuard::set("HF_HUB_OFFLINE", "1"));
 
             // Try ML backends independently: each is useful on its own.
             // BERT handles standard NER; NuNER handles lowercase/informal text;
