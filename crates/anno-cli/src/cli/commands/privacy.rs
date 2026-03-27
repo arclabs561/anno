@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
+use anno::pii::{looks_like_address, looks_like_id_number};
 use anno::Entity;
 
 /// Privacy analysis and redaction
@@ -277,60 +278,6 @@ fn looks_like_dob(text: &str) -> bool {
     } else {
         false
     }
-}
-
-fn looks_like_address(text: &str) -> bool {
-    // Contains number + street indicator
-    let has_number = text.chars().any(|c| c.is_numeric());
-    let street_indicators = [
-        "St", "Street", "Ave", "Avenue", "Rd", "Road", "Blvd", "Dr", "Lane", "Ln", "Way", "Drive",
-        "Court", "Ct", "Place", "Pl", "Circle", "Cir",
-    ];
-    let has_street = street_indicators.iter().any(|ind| text.contains(ind));
-
-    // Also match ZIP code patterns (US 5-digit or 5+4) with state abbreviation
-    let has_zip = Regex::new(r"\b\d{5}(?:-\d{4})?\b")
-        .map(|re| re.is_match(text))
-        .unwrap_or(false);
-    let us_states = [
-        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
-        "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-        "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
-        "VA", "WA", "WV", "WI", "WY", "DC",
-    ];
-    let has_state = us_states.iter().any(|s| text.contains(s));
-
-    (has_number && has_street) || (has_zip && has_state)
-}
-
-fn looks_like_id_number(text: &str) -> bool {
-    // SSN pattern: XXX-XX-XXXX
-    if let Ok(ssn_pattern) = Regex::new(r"\d{3}-\d{2}-\d{4}") {
-        if ssn_pattern.is_match(text) {
-            return true;
-        }
-    }
-    // Credit card pattern: 4 groups of 4 digits
-    if let Ok(cc_pattern) = Regex::new(r"\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}") {
-        if cc_pattern.is_match(text) {
-            return true;
-        }
-    }
-    // IBAN pattern
-    if let Ok(iban_pattern) = Regex::new(r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?") {
-        if iban_pattern.is_match(text) {
-            return true;
-        }
-    }
-    // MRN pattern: alphanumeric 6-10 chars, must contain at least one digit
-    if text.len() >= 6
-        && text.len() <= 10
-        && text.chars().all(|c| c.is_alphanumeric())
-        && text.chars().any(|c| c.is_ascii_digit())
-    {
-        return true;
-    }
-    false
 }
 
 /// Pre-NER scan for structured PII patterns directly on input text.
