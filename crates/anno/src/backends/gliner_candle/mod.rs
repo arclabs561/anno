@@ -140,9 +140,8 @@ const DEFAULT_GLINER_LABELS: &[&str] = &[
 #[cfg(feature = "candle")]
 impl crate::Model for GLiNERCandle {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
-        // Use lower threshold for smaller models (NeuML/gliner-bert-tiny)
-        // The threshold may need tuning based on the specific model
-        self.extract(text, DEFAULT_GLINER_LABELS, 0.3)
+        // Threshold 0.5 matches the ONNX GLiNER default (same underlying model)
+        self.extract(text, DEFAULT_GLINER_LABELS, 0.5)
     }
 
     fn supported_types(&self) -> Vec<EntityType> {

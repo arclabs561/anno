@@ -673,7 +673,11 @@ pub mod models {
     /// BERT Candle model (HuggingFace).
     pub const CANDLE: &str = "dslim/bert-base-NER";
     /// GLiNER Candle model (HuggingFace, BERT-based).
-    pub const GLINER_CANDLE: &str = "NeuML/gliner-bert-tiny";
+    ///
+    /// Uses the same underlying weights as [`GLINER`] for quality parity.
+    /// First load may require Python (torch + safetensors) for format conversion
+    /// if HuggingFace hasn't auto-generated safetensors for this repo.
+    pub const GLINER_CANDLE: &str = "urchade/gliner_small-v2.1";
     /// NuNER ONNX model (HuggingFace).
     pub const NUNER: &str = "deepanwa/NuNerZero_onnx";
     /// GLiNER Poly-Encoder ONNX model (HuggingFace).
