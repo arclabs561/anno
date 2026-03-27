@@ -49,9 +49,6 @@ candle-nn = { workspace = true, optional = true }
 candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 
-# Performance
-parking_lot = { workspace = true, optional = true }
-
 # Utilities
 itertools = { workspace = true }
 
@@ -85,7 +82,6 @@ llm = ["dep:ureq"]
 # Runtime-oriented infra toggles are intentionally collapsed to one feature to keep
 # the public feature surface smaller and avoid "splintered" combinatorics.
 production = [
-  "dep:parking_lot",
   "dep:tracing",
 ]
 

@@ -168,7 +168,7 @@ impl Default for W2NERConfig {
 pub struct W2NER {
     config: W2NERConfig,
     #[cfg(feature = "onnx")]
-    session: Option<crate::sync::Mutex<ort::session::Session>>,
+    session: Option<std::sync::Mutex<ort::session::Session>>,
     #[cfg(feature = "onnx")]
     tokenizer: Option<tokenizers::Tokenizer>,
 }
@@ -390,7 +390,7 @@ impl W2NER {
                 model_id: model_path.to_string(),
                 ..Default::default()
             },
-            session: Some(crate::sync::Mutex::new(session)),
+            session: Some(std::sync::Mutex::new(session)),
             tokenizer: Some(tokenizer),
         })
     }
@@ -517,7 +517,7 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         // Run inference with blocking lock for thread-safe parallel access
-        let mut session_guard = crate::sync::lock(session);
+        let mut session_guard = session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = session_guard
             .run(ort::inputs![
@@ -667,7 +667,7 @@ impl W2NER {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         let grid: Vec<f32> = {
-            let mut session_guard = crate::sync::lock(session);
+            let mut session_guard = session.lock().unwrap_or_else(|e| e.into_inner());
             let outputs = session_guard
                 .run(ort::inputs![
                     "input_ids" => input_ids_t.into_dyn(),

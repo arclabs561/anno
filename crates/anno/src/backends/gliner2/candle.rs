@@ -12,7 +12,7 @@ use super::schema::{
 use super::{map_entity_type, word_span_to_char_offsets};
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, ZeroShotNER};
 #[cfg(feature = "candle")]
-use crate::sync::RwLock;
+use std::sync::RwLock;
 use crate::{Entity, EntityType, Error, Result};
 use anno_core::EntityCategory;
 use std::collections::HashMap;

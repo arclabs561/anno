@@ -23,7 +23,7 @@ use anno_core::{EntityCategory, EntityType};
 
 #[cfg(feature = "onnx")]
 use {
-    crate::sync::lock, ndarray::Array2, ort::session::Session, std::collections::HashMap,
+    ndarray::Array2, ort::session::Session, std::collections::HashMap, std::sync::Mutex,
     tokenizers::Tokenizer,
 };
 
@@ -56,7 +56,7 @@ impl Default for BertNERConfig {
 /// Thread-safe with `Arc<Tokenizer>` for efficient sharing.
 #[cfg(feature = "onnx")]
 pub struct BertNEROnnx {
-    session: crate::sync::Mutex<Session>,
+    session: std::sync::Mutex<Session>,
     /// Arc-wrapped tokenizer for cheap cloning across threads.
     tokenizer: std::sync::Arc<Tokenizer>,
     id_to_label: HashMap<usize, String>,
@@ -130,7 +130,7 @@ impl BertNEROnnx {
         )?;
 
         Ok(Self {
-            session: crate::sync::Mutex::new(session),
+            session: std::sync::Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             id_to_label,
             label_to_entity_type,
@@ -396,7 +396,7 @@ impl BertNEROnnx {
             .map_err(|e| Error::Parse(format!("Failed to create token_type_ids tensor: {}", e)))?;
 
         // Run inference with blocking lock for thread-safe parallel access
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = session
             .run(ort::inputs![

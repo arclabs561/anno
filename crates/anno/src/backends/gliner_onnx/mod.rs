@@ -31,7 +31,7 @@
 #![allow(unused_imports)] // EntityType used conditionally
 
 #[cfg(feature = "onnx")]
-use crate::sync::{lock, try_lock, Mutex};
+use std::sync::Mutex;
 use crate::{Entity, Error, Language, Result};
 use anno_core::{EntityCategory, EntityType};
 

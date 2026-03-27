@@ -11,7 +11,7 @@ use super::schema::{
 use super::{map_entity_type, word_span_to_char_offsets};
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor, ZeroShotNER};
 #[cfg(feature = "onnx")]
-use crate::sync::{lock, Mutex};
+use std::sync::Mutex;
 use crate::{Entity, EntityType, Error, Result};
 use anno_core::EntityCategory;
 use std::collections::HashMap;
@@ -150,7 +150,7 @@ impl GLiNER2Onnx {
             .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
 
         // Run inference with blocking lock for thread-safe parallel access
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = session
             .run(ort::inputs![
@@ -488,7 +488,7 @@ impl GLiNER2Onnx {
 
         // For classification models, we typically need just input_ids and attention_mask
         // The model should output classification logits
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
         // Try running with standard classification inputs
         let outputs = session

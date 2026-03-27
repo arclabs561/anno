@@ -319,7 +319,7 @@ impl GLiNERPoly {
             .map_err(|e| Error::Parse(format!("Tensor: {}", e)))?;
 
         // Run inference.
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = session
             .run(ort::inputs![

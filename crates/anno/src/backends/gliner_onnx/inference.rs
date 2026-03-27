@@ -173,7 +173,7 @@ impl GLiNEROnnx {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
         // Run inference with blocking lock for thread-safe parallel access
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = session
             .run(ort::inputs![
@@ -255,7 +255,7 @@ impl GLiNEROnnx {
 
         // Check cache (lock scope minimized)
         let cached_result = {
-            let mut cache_guard = try_lock(cache)?;
+            let mut cache_guard = cache.lock().map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
             cache_guard.get(&key).cloned()
         };
 
@@ -275,7 +275,7 @@ impl GLiNEROnnx {
 
         // Store in cache (re-acquire lock)
         {
-            let mut cache_guard = try_lock(cache)?;
+            let mut cache_guard = cache.lock().map_err(|e| crate::Error::Retrieval(format!("cache lock poisoned: {e}")))?;
             cache_guard.put(
                 key,
                 PromptCacheValue {

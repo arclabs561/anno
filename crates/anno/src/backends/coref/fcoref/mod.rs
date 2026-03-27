@@ -93,7 +93,7 @@ impl Default for FCorefConfig {
 /// Uses a DistilRoBERTa encoder (ONNX) with learned scorer heads (ndarray/safetensors)
 /// to perform fast, accurate within-document coreference resolution.
 pub struct FCoref {
-    encoder: crate::sync::Mutex<Session>,
+    encoder: std::sync::Mutex<Session>,
     tokenizer: Arc<Tokenizer>,
     scorer: ScorerWeights,
     config: FCorefConfig,
@@ -173,7 +173,7 @@ impl FCoref {
         log::info!("[f-coref] Loaded model from {}", model_path);
 
         Ok(Self {
-            encoder: crate::sync::Mutex::new(session),
+            encoder: std::sync::Mutex::new(session),
             tokenizer: Arc::new(tokenizer),
             scorer,
             config,
@@ -259,7 +259,7 @@ impl FCoref {
         log::info!("[f-coref] Loaded model from {}", model_id);
 
         Ok(Self {
-            encoder: crate::sync::Mutex::new(session),
+            encoder: std::sync::Mutex::new(session),
             tokenizer: Arc::new(tokenizer),
             scorer,
             config,
@@ -403,7 +403,7 @@ impl FCoref {
             .map_err(|e| Error::Parse(format!("mask tensor: {}", e)))?;
 
         let hidden_flat = {
-            let mut session = crate::sync::lock(&self.encoder);
+            let mut session = self.encoder.lock().unwrap_or_else(|e| e.into_inner());
             let outputs = session
                 .run(ort::inputs![
                     "input_ids" => ids_t.into_dyn(),

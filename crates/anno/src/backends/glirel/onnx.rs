@@ -5,7 +5,7 @@
 
 use crate::backends::hf_loader;
 use crate::backends::inference::RelationTriple;
-use crate::sync::{lock, Mutex};
+use std::sync::Mutex;
 use crate::{Confidence, Entity, Error, Result};
 use ndarray::Array2;
 use std::path::{Path, PathBuf};
@@ -276,7 +276,7 @@ impl GLiREL {
             .map_err(|e| Error::Inference(format!("tensor rel_attention_mask: {e}")))?;
 
         // Run ONNX inference
-        let mut session = lock(&self.session);
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
         let outputs = session
             .run(ort::inputs![
                 "input_ids" => t_input_ids.into_dyn(),

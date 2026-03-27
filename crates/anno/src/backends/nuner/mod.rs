@@ -128,7 +128,7 @@ pub struct NuNER {
     default_labels: Vec<String>,
     /// ONNX session (when feature enabled)
     #[cfg(feature = "onnx")]
-    session: Option<crate::sync::Mutex<ort::session::Session>>,
+    session: Option<std::sync::Mutex<ort::session::Session>>,
     /// Tokenizer (when feature enabled)
     #[cfg(feature = "onnx")]
     tokenizer: Option<tokenizers::Tokenizer>,

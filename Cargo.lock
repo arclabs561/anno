@@ -189,7 +189,6 @@ dependencies = [
  "lru",
  "ndarray 0.16.1",
  "ort",
- "parking_lot",
  "proptest",
  "regex",
  "safetensors 0.4.5",

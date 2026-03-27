@@ -77,7 +77,6 @@ pub mod pii;
 pub mod rag;
 pub mod schema;
 pub mod similarity;
-pub(crate) mod sync;
 pub mod types;
 
 // Note: research-only geometry experiments were archived out of `anno` to keep the public

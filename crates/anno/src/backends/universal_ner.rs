@@ -51,9 +51,7 @@
 
 use std::collections::HashMap;
 
-#[cfg(any(feature = "llm", test))]
-use crate::sync::lock;
-use crate::sync::Mutex;
+use std::sync::Mutex;
 
 #[cfg(feature = "llm")]
 use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
@@ -417,7 +415,7 @@ Output:"#
         // Check cache first (keyed on chunk text, not full document)
         let key = cache_key(chunk_text, entity_types, &model_for_cache);
         {
-            let cache = lock(&self.cache);
+            let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(cached) = cache.get(key) {
                 // Adjust offsets from chunk-local to document-global
                 let adjusted: Vec<Entity> = cached
@@ -546,7 +544,7 @@ Output:"#
         }
 
         // Cache the chunk-local result (before offset adjustment)
-        lock(&self.cache).insert(key, entities.clone());
+        self.cache.lock().unwrap_or_else(|e| e.into_inner()).insert(key, entities.clone());
 
         // Adjust offsets from chunk-local to document-global
         if char_offset > 0 {
@@ -997,7 +995,10 @@ mod tests {
     fn test_universal_ner_availability_reflects_api_key() {
         // Env vars are global; serialize to avoid interference with other tests.
         static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        let _guard = lock(ENV_LOCK.get_or_init(|| Mutex::new(())));
+        let _guard = ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         // Override any `.env` values (dotenv only sets if unset).
         for k in [

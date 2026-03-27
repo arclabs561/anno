@@ -134,9 +134,9 @@ impl Default for T5CorefConfig {
 /// is planned for a future release when encoder-decoder ONNX support matures.
 pub struct T5Coref {
     /// Encoder ONNX session.
-    encoder: crate::sync::Mutex<Session>,
+    encoder: std::sync::Mutex<Session>,
     /// Decoder ONNX session.
-    decoder: crate::sync::Mutex<Session>,
+    decoder: std::sync::Mutex<Session>,
     /// HuggingFace tokenizer for input encoding and output decoding.
     tokenizer: Arc<Tokenizer>,
     /// Inference configuration.
@@ -183,8 +183,8 @@ impl T5Coref {
         log::info!("[T5-Coref] Loaded model from {}", model_path);
 
         Ok(Self {
-            encoder: crate::sync::Mutex::new(encoder),
-            decoder: crate::sync::Mutex::new(decoder),
+            encoder: std::sync::Mutex::new(encoder),
+            decoder: std::sync::Mutex::new(decoder),
             tokenizer: Arc::new(tokenizer),
             config,
             model_path: model_path.to_string(),
@@ -232,8 +232,8 @@ impl T5Coref {
         log::info!("[T5-Coref] Loaded model from {}", model_id);
 
         Ok(Self {
-            encoder: crate::sync::Mutex::new(encoder),
-            decoder: crate::sync::Mutex::new(decoder),
+            encoder: std::sync::Mutex::new(encoder),
+            decoder: std::sync::Mutex::new(decoder),
             tokenizer: Arc::new(tokenizer),
             config,
             model_path: model_id.to_string(),
@@ -328,7 +328,7 @@ impl T5Coref {
         // Scope the mutex guard: `outputs` borrows from the session; extract owned
         // data before the guard drops.
         let (hidden_flat, hidden_size) = {
-            let mut enc = crate::sync::lock(&self.encoder);
+            let mut enc = self.encoder.lock().unwrap_or_else(|e| e.into_inner());
             let outputs = enc
                 .run(ort::inputs![
                     "input_ids" => ids_t.into_dyn(),
@@ -388,7 +388,7 @@ impl T5Coref {
 
         // Scope the mutex guard: extract owned data before the guard drops.
         let next_token = {
-            let mut dec = crate::sync::lock(&self.decoder);
+            let mut dec = self.decoder.lock().unwrap_or_else(|e| e.into_inner());
             let outputs = dec
                 .run(ort::inputs![
                     "encoder_hidden_states" => enc_h_t.into_dyn(),

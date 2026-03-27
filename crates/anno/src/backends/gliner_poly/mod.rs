@@ -78,7 +78,7 @@ fn local_model_cache_candidates() -> [std::path::PathBuf; 2] {
 // =============================================================================
 
 #[cfg(feature = "onnx")]
-use crate::sync::{lock, Mutex};
+use std::sync::Mutex;
 
 /// Poly-Encoder GLiNER backend for zero-shot NER with inter-label interactions.
 ///

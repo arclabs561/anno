@@ -4,7 +4,7 @@
 //! These are feature-agnostic — imported by both the ONNX and Candle backends.
 
 #[cfg(feature = "candle")]
-use crate::sync::RwLock;
+use std::sync::RwLock;
 use crate::{Entity, EntityType, Error, Result};
 use anno_core::EntityCategory;
 use serde::{Deserialize, Serialize};
@@ -59,11 +59,11 @@ impl LabelCache {
     }
 
     pub(super) fn get(&self, label: &str) -> Option<Vec<f32>> {
-        crate::sync::read_lock(&self.cache).get(label).cloned()
+        self.cache.read().unwrap_or_else(|e| e.into_inner()).get(label).cloned()
     }
 
     pub(super) fn insert(&self, label: String, embedding: Vec<f32>) {
-        crate::sync::write_lock(&self.cache).insert(label, embedding);
+        self.cache.write().unwrap_or_else(|e| e.into_inner()).insert(label, embedding);
     }
 }
 

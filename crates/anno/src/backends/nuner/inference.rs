@@ -63,7 +63,7 @@ impl NuNER {
                 "organization".to_string(),
                 "location".to_string(),
             ],
-            session: Some(crate::sync::Mutex::new(session)),
+            session: Some(std::sync::Mutex::new(session)),
             tokenizer: Some(tokenizer),
         })
     }
@@ -209,7 +209,7 @@ impl NuNER {
         let mut needs_span_tensors = self.requires_span_tensors.load(Ordering::Relaxed);
 
         // Use blocking lock for thread-safe parallel access
-        let mut session_guard = crate::sync::lock(session);
+        let mut session_guard = session.lock().unwrap_or_else(|e| e.into_inner());
 
         let outputs = loop {
             if needs_span_tensors {
