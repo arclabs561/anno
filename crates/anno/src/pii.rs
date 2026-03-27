@@ -217,13 +217,20 @@ pub fn report(entities: &[PiiEntity]) -> PiiReport {
 
 /// Redact PII by replacing with type tokens (`[PERSON_1]`, `[ID_NUMBER_2]`, etc.).
 ///
-/// Entity offsets are character offsets (Unicode scalar values).
+/// Entity offsets are character offsets (Unicode scalar values). Entities must
+/// not overlap -- overlapping spans produce garbled output because each
+/// replacement shifts byte offsets for subsequent replacements.
 pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     let mut result = text.to_string();
     let mut type_counts: HashMap<&str, usize> = HashMap::new();
 
     let mut sorted: Vec<_> = entities.iter().collect();
     sorted.sort_by(|a, b| b.start.cmp(&a.start));
+
+    debug_assert!(
+        sorted.windows(2).all(|w| w[0].start >= w[1].end),
+        "pii::redact requires non-overlapping entities"
+    );
 
     for entity in sorted {
         let count = type_counts.entry(&entity.pii_type).or_insert(0);

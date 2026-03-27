@@ -447,16 +447,23 @@ impl Default for StackedNER {
             impl EnvVarGuard {
                 fn set(key: &'static str, value: &str) -> Self {
                     let prev = std::env::var(key).ok();
-                    std::env::set_var(key, value);
+                    // SAFETY: env var mutation required because hf_hub reads
+                    // HF_HUB_OFFLINE from the environment. Called once in
+                    // Default::default(), typically at program start. The
+                    // guard restores the previous value on drop.
+                    unsafe { std::env::set_var(key, value) };
                     Self { key, prev }
                 }
             }
 
             impl Drop for EnvVarGuard {
                 fn drop(&mut self) {
-                    match &self.prev {
-                        Some(v) => std::env::set_var(self.key, v),
-                        None => std::env::remove_var(self.key),
+                    // SAFETY: restoring env var to pre-guard state (see set()).
+                    unsafe {
+                        match &self.prev {
+                            Some(v) => std::env::set_var(self.key, v),
+                            None => std::env::remove_var(self.key),
+                        }
                     }
                 }
             }
