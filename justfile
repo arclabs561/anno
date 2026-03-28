@@ -12,11 +12,11 @@ check:
     set -e
     just docs-audit
     cargo fmt --manifest-path Cargo.toml -p anno -- --check
-    cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval discourse" -- -D warnings
+    cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval" -- -D warnings
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
+        cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval"
     else
-        cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
+        cargo test --manifest-path Cargo.toml --workspace --lib --features "eval"
     fi
 
 # Run fast checks without features (minimal, for quick iteration)
@@ -61,18 +61,18 @@ fmt-check:
 test:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick --lib --features "eval discourse"
+        cargo nextest run --profile quick --lib --features "eval"
     else
-    cargo test --lib --features "eval discourse"
+    cargo test --lib --features "eval"
     fi
 
 # Run all tests including integration (prefers nextest)
 test-all:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick --workspace --features "eval discourse"
+        cargo nextest run --profile quick --workspace --features "eval"
     else
-    cargo test --features "eval discourse"
+    cargo test --features "eval"
     fi
 
 # Quick single-test run with filter (e.g., just t test_name)
@@ -89,9 +89,9 @@ t FILTER:
 tf FILTER:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features "eval discourse"
+        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features "eval"
     else
-        cargo test -p anno --features "eval discourse" -- '{{FILTER}}'
+        cargo test -p anno --features "eval" -- '{{FILTER}}'
     fi
 
 # === Test Profiling (Nextest + Rust Tooling) ===
@@ -122,7 +122,7 @@ profile-filter FILTER:
 
 # Quick timing report (no full run, just analyze existing)
 profile-timing:
-    @NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 cargo nextest run --profile quick --workspace --features "eval discourse" --message-format libtest-json-plus --status-level all
+    @NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 cargo nextest run --profile quick --workspace --features "eval" --message-format libtest-json-plus --status-level all
 
 # Show slowest tests from last profile run
 profile-slowest:
@@ -174,16 +174,16 @@ ci: fmt
     just docs-audit
     cargo fmt --all -- --check
     cargo check --workspace --all-targets
-    cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
+    cargo clippy --workspace --all-targets --features "eval" -- -D warnings
     cargo test --package anno --no-default-features --lib
     cargo test --package anno --lib
-    cargo build --workspace --features "eval discourse"
-    cargo test --workspace --lib --features "eval discourse"
-    cargo test --package anno --tests --features "eval discourse"
+    cargo build --workspace --features "eval"
+    cargo test --workspace --lib --features "eval"
+    cargo test --package anno --tests --features "eval"
     cargo build -p anno-cli --features "eval onnx pdf"
     cargo build --workspace --no-default-features
     cargo test --workspace --no-default-features --lib
-    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
+    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval"
     @echo "CI simulation passed"
 
 # Simulate CI with sanity evals (includes small random sample evals)
@@ -294,10 +294,6 @@ eval-seed SEED MAX_EXAMPLES="20":
         --cached-only \
         --output eval-seed-{{SEED}}.md
 
-# Run abstract anaphora evaluation
-eval-anaphora:
-    cargo run --example abstract_anaphora_eval --features discourse
-
 # Run comprehensive local evaluation (resumable)
 # Example: just eval-comprehensive 50
 eval-comprehensive MAX_EXAMPLES="50":
@@ -360,11 +356,11 @@ test-models:
 
 # Build docs
 docs:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval"
 
 # Open docs in browser
 docs-open:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse" --open
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval" --open
 
 # Check internal docs markdown links (fast, no network).
 docs-links:
@@ -453,7 +449,7 @@ cdcr-eval:
 
 # Build release binary
 build-release:
-    cargo build --release -p anno-cli --bin anno --features "eval discourse onnx"
+    cargo build --release -p anno-cli --bin anno --features "eval onnx"
 
 # Run clippy with stricter lints
 clippy-strict:
@@ -620,12 +616,12 @@ static-analysis:
 # Run tests with cargo-nextest (better output)
 test-nextest:
     @which cargo-nextest > /dev/null || (echo "Install: cargo install cargo-nextest" && exit 1)
-    cargo nextest run --workspace --features "eval discourse"
+    cargo nextest run --workspace --features "eval"
 
 # Generate code coverage report
 coverage:
     @which cargo-llvm-cov > /dev/null || (echo "Install: cargo install cargo-llvm-cov" && exit 1)
-    cargo llvm-cov --features "eval discourse" --workspace --lcov --output-path lcov.info
+    cargo llvm-cov --features "eval" --workspace --lcov --output-path lcov.info
     @echo "Coverage report generated: lcov.info"
     @echo "View with: genhtml lcov.info -o coverage-html && open coverage-html/index.html"
 
@@ -772,7 +768,7 @@ validate-commit-msg COMMIT_MSG:
 pre-commit-check:
     @echo "Running pre-commit checks..."
     @cargo fmt --all -- --check
-    @cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
+    @cargo clippy --workspace --all-targets --features "eval" -- -D warnings
     @just machete || echo "warning:  cargo-machete not installed, skipping"
     @echo "ok: Pre-commit checks passed"
 
@@ -810,9 +806,9 @@ run-pre-commit-hook:
 run-pre-push-hook:
     @echo "Simulating pre-push hook..."
     @cargo fmt --all -- --check
-    @cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
-    @cargo test --workspace --lib --features "eval discourse" --quiet
-    @cargo test --workspace --doc --features "eval discourse" --quiet || echo "warning:  Doc test warnings"
+    @cargo clippy --workspace --all-targets --features "eval" -- -D warnings
+    @cargo test --workspace --lib --features "eval" --quiet
+    @cargo test --workspace --doc --features "eval" --quiet || echo "warning:  Doc test warnings"
 
 # Generate HTML dashboard (creative: visual analysis results)
 dashboard:
