@@ -671,8 +671,6 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 [[package]]
 name = "clump"
 version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bff1d74d4ed7faabf11e917522292958f49d61d7f718c15a8bc74b9ec13f052"
 dependencies = [
  "rand",
  "thiserror 2.0.18",
@@ -2247,8 +2245,6 @@ dependencies = [
 [[package]]
 name = "innr"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1939fc7c2be2808e0276a82b0630b70882d4a0f8a555ce5fa2064518a6bd7fb2"
 
 [[package]]
 name = "inout"
@@ -2330,6 +2326,8 @@ dependencies = [
 [[package]]
 name = "lattix"
 version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb01fc37f9c34c844260a5d9bfafeb72a17a886c5992d3d171f5e522ec126926"
 dependencies = [
  "csv",
  "graphops",
@@ -2437,7 +2435,9 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "logp"
-version = "0.2.0"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52fe4e14c3733cc805691a244c5af0a3fdf65883cced7c2fb4fcfd53fd78da9d"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2644,7 +2644,9 @@ dependencies = [
 
 [[package]]
 name = "muxer"
-version = "0.4.0"
+version = "0.3.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca7aa938616b3b7d15325d1d8d46176ce47ae4a5d933cf41c845634eedc870ad"
 dependencies = [
  "logp",
  "pare",
@@ -3045,7 +3047,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3058,7 +3060,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5619,6 +5621,18 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
+
+[[patch.unused]]
+name = "lattix"
+version = "0.6.0"
+
+[[patch.unused]]
+name = "logp"
+version = "0.2.0"
+
+[[patch.unused]]
+name = "muxer"
+version = "0.4.0"
 
 [[patch.unused]]
 name = "pare"
