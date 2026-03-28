@@ -35,9 +35,15 @@ impl GLiNEROnnx {
         let api = hf_loader::hf_api()?;
         let repo = api.model(model_name.to_string());
 
-        // Download model - try quantized first if preferred
+        // Download model - try ONNX first, fall back to auto-export from PyTorch
         let (model_path, is_quantized) =
-            hf_loader::download_onnx_model(&repo, config.prefer_quantized)?;
+            hf_loader::download_onnx_model(&repo, config.prefer_quantized).or_else(|_| {
+                log::info!(
+                    "[GLiNER] No ONNX model in repo '{}', attempting auto-export from PyTorch...",
+                    model_name
+                );
+                export_pytorch_to_onnx(model_name, &repo, config.prefer_quantized)
+            })?;
 
         let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
 
@@ -76,12 +82,25 @@ impl GLiNEROnnx {
         // The export script produces `label_encoder.onnx` alongside `model.onnx`.
         let (label_encoder_session, label_tokenizer) = if encoder_mode == config::EncoderMode::Bi {
             log::info!("[GLiNER] Bi-encoder model detected, loading label encoder...");
-            let le_session = hf_loader::download_model_file(
+
+            // Try HF repo first, then check the local cache dir (auto-export writes there)
+            let le_path = hf_loader::download_model_file(
                 &repo,
                 &["label_encoder.onnx", "label_encoder_quantized.onnx"],
             )
             .ok()
-            .and_then(|path| {
+            .or_else(|| {
+                // Check the same directory as the main model (auto-export output location)
+                let cache_dir = model_path.parent()?;
+                let local = cache_dir.join("label_encoder.onnx");
+                if local.exists() {
+                    Some(local)
+                } else {
+                    None
+                }
+            });
+
+            let le_session = le_path.and_then(|path| {
                 hf_loader::create_onnx_session(
                     &path,
                     hf_loader::OnnxSessionConfig {
@@ -102,9 +121,19 @@ impl GLiNEROnnx {
                 );
             }
 
-            // Try loading a separate label tokenizer (BGE models use different tokenizer)
+            // Try loading a separate label tokenizer (BGE models use different tokenizer).
+            // Check HF repo first, then local cache dir.
             let le_tokenizer = hf_loader::download_model_file(&repo, &["label_tokenizer.json"])
                 .ok()
+                .or_else(|| {
+                    let cache_dir = model_path.parent()?;
+                    let local = cache_dir.join("label_tokenizer.json");
+                    if local.exists() {
+                        Some(local)
+                    } else {
+                        None
+                    }
+                })
                 .and_then(|path| hf_loader::load_tokenizer(&path).ok());
 
             (
@@ -1281,6 +1310,146 @@ fn detect_encoder_mode(session: &ort::session::Session) -> config::EncoderMode {
 // =============================================================================
 // Model Trait Implementation
 // =============================================================================
+
+/// Auto-export a PyTorch GLiNER model to ONNX format.
+///
+/// Runs `scripts/export_gliner_poly_onnx.py` via `uv run` (or `python3` fallback).
+/// The export produces `model.onnx` (+ optionally `label_encoder.onnx` for bi-encoder
+/// models) in the HF cache directory alongside the PyTorch weights.
+///
+/// This follows the same pattern as `convert_pytorch_to_safetensors` in the Candle backend:
+/// automatic on-demand conversion at load time, cached for subsequent loads.
+#[cfg(feature = "onnx")]
+fn export_pytorch_to_onnx(
+    model_name: &str,
+    repo: &hf_hub::api::sync::ApiRepo,
+    prefer_quantized: bool,
+) -> Result<(std::path::PathBuf, bool)> {
+    use std::path::Path;
+
+    // Verify PyTorch weights exist (otherwise this isn't an exportable model)
+    let _pytorch_path = crate::backends::hf_loader::download_model_file(
+        repo,
+        &["pytorch_model.bin", "model.safetensors"],
+    )
+    .map_err(|_| {
+        Error::Retrieval(format!(
+            "Model '{}' has neither ONNX nor PyTorch weights -- cannot load or export",
+            model_name
+        ))
+    })?;
+
+    // Determine output directory (same as HF cache for this model)
+    let cache_dir = _pytorch_path
+        .parent()
+        .ok_or_else(|| Error::Retrieval("Invalid model path".into()))?;
+
+    let onnx_path = cache_dir.join("model.onnx");
+    let quantized_path = cache_dir.join("model_quantized.onnx");
+
+    // Check if already exported
+    if prefer_quantized && quantized_path.exists() {
+        log::info!(
+            "[GLiNER] Using cached ONNX export (quantized): {:?}",
+            quantized_path
+        );
+        return Ok((quantized_path, true));
+    }
+    if onnx_path.exists() {
+        log::info!("[GLiNER] Using cached ONNX export: {:?}", onnx_path);
+        return Ok((onnx_path, false));
+    }
+
+    log::info!(
+        "[GLiNER] Exporting '{}' to ONNX (this may take a few minutes on first run)...",
+        model_name
+    );
+
+    // Find the export script
+    let script_candidates = [
+        // Workspace root (when running from the anno repo)
+        std::env::var("CARGO_MANIFEST_DIR")
+            .map(|d| Path::new(&d).join("../scripts/export_gliner_poly_onnx.py"))
+            .unwrap_or_default(),
+        // Workspace scripts/ relative to CWD
+        Path::new("scripts/export_gliner_poly_onnx.py").to_path_buf(),
+    ];
+
+    let script_path = script_candidates
+        .iter()
+        .find(|p| p.exists())
+        .cloned()
+        .unwrap_or_else(|| Path::new("scripts/export_gliner_poly_onnx.py").to_path_buf());
+
+    // Build args
+    let mut args = vec![
+        "run".to_string(),
+        "--script".to_string(),
+        script_path.display().to_string(),
+        "--model".to_string(),
+        model_name.to_string(),
+        "--output".to_string(),
+        cache_dir.display().to_string(),
+    ];
+    if prefer_quantized {
+        args.push("--quantize".to_string());
+    }
+
+    // Try uv first, fall back to python3
+    let output = std::process::Command::new("uv")
+        .args(&args)
+        .output()
+        .or_else(|_| {
+            // python3 fallback: skip "run --script" prefix
+            std::process::Command::new("python3")
+                .arg(&script_path)
+                .arg("--model")
+                .arg(model_name)
+                .arg("--output")
+                .arg(cache_dir)
+                .args(if prefer_quantized {
+                    &["--quantize"][..]
+                } else {
+                    &[]
+                })
+                .output()
+        })
+        .map_err(|e| {
+            Error::Retrieval(format!(
+                "Failed to run ONNX export script (uv or python3 not found?): {e}"
+            ))
+        })?;
+
+    if output.status.success() {
+        // Check which output file exists
+        if prefer_quantized && quantized_path.exists() {
+            log::info!(
+                "[GLiNER] Auto-export succeeded (quantized): {:?}",
+                quantized_path
+            );
+            return Ok((quantized_path, true));
+        }
+        if onnx_path.exists() {
+            log::info!("[GLiNER] Auto-export succeeded: {:?}", onnx_path);
+            return Ok((onnx_path, false));
+        }
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Err(Error::Retrieval(format!(
+        "ONNX export of '{}' failed.\n\
+         Script: {}\n\
+         Stderr: {}\n\
+         Stdout: {}\n\n\
+         Manual export: uv run scripts/export_gliner_poly_onnx.py --model {} --output <dir>",
+        model_name,
+        script_path.display(),
+        stderr,
+        stdout,
+        model_name,
+    )))
+}
 
 /// Default entity types for zero-shot GLiNER when used via the Model trait.
 #[cfg(feature = "onnx")]
