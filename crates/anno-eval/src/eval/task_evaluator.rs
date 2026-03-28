@@ -899,9 +899,9 @@ impl TaskEvaluator {
                     .all(|t| supported.iter().any(|s| t == s || t.starts_with(s)))
             }
             // ML backends are zero-shot or trained, so compatible
-            "bert_onnx" | "candle_ner" | "nuner" | "nuner_4k" | "gliner_onnx"
-            | "gliner_candle" | "gliner2" | "w2ner" | "gliner_poly" | "deberta_v3" | "albert"
-            | "universal_ner" => true,
+            "bert_onnx" | "candle_ner" | "nuner" | "nuner_4k" | "b2ner" | "gliner_onnx"
+            | "gliner_candle" | "gliner2" | "gliner_pii" | "gliner_relex" | "w2ner"
+            | "gliner_poly" | "deberta_v3" | "albert" | "universal_ner" => true,
             // Pattern only does structured entities (not named entities)
             "pattern" => {
                 // RegexNER only extracts: Date, Time, Money, Percent, Email, URL, Phone

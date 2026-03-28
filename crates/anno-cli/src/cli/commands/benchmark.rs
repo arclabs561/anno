@@ -89,7 +89,10 @@ fn suffix_path(p: &str, suffix: &str) -> String {
 }
 
 fn is_heavy_backend(name: &str) -> bool {
-    matches!(name, "gliner_onnx" | "gliner2" | "gliner_poly")
+    matches!(
+        name,
+        "gliner_onnx" | "gliner2" | "gliner_poly" | "gliner_pii" | "gliner_relex"
+    )
 }
 
 fn profile_defaults(profile: BenchmarkProfile) -> (Vec<String>, Vec<String>, Vec<String>) {

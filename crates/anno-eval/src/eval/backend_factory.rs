@@ -136,6 +136,52 @@ impl BackendFactory {
                 "GLiNEROnnx requires 'onnx' feature".to_string(),
             )),
 
+            // B2NER (COLING 2025, unified NER training on 54 datasets)
+            // Note: only LLM-scale models (7B/20B) available on HuggingFace.
+            // Requires LLM backend, not ONNX. Pending encoder-scale release.
+            "b2ner" => Err(crate::Error::FeatureNotAvailable(
+                "B2NER only has LLM-scale models (7B/20B) on HuggingFace. \
+                 Encoder-scale ONNX weights pending release."
+                    .to_string(),
+            )),
+
+            // GLiNER PII Edge (60+ PII categories, zero-shot)
+            #[cfg(feature = "onnx")]
+            "gliner_pii" | "pii_ml" => {
+                use crate::backends::gliner_onnx::GLiNEROnnx;
+                GLiNEROnnx::new(anno::models::GLINER_PII)
+                    .map(|m| Box::new(m) as Box<dyn Model>)
+                    .map_err(|e| {
+                        crate::Error::FeatureNotAvailable(format!(
+                            "GLiNER PII Edge model unavailable: {}",
+                            e
+                        ))
+                    })
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner_pii" | "pii_ml" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER PII requires 'onnx' feature".to_string(),
+            )),
+
+            // GLiNER-RelEx (joint NER + relation extraction, zero-shot)
+            #[cfg(feature = "onnx")]
+            "gliner_relex" | "relex" => {
+                use crate::backends::gliner_onnx::GLiNEROnnx;
+                GLiNEROnnx::new(anno::models::GLINER_RELEX)
+                    .map(|m| Box::new(m) as Box<dyn Model>)
+                    .map_err(|e| {
+                        crate::Error::FeatureNotAvailable(format!(
+                            "GLiNER-RelEx model unavailable: {}\n\n\
+                             Export: uv run scripts/export_glirel_onnx.py",
+                            e
+                        ))
+                    })
+            }
+            #[cfg(not(feature = "onnx"))]
+            "gliner_relex" | "relex" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER-RelEx requires 'onnx' feature".to_string(),
+            )),
+
             #[cfg(feature = "onnx")]
             "nuner" | "nunerzero" => {
                 use crate::backends::nuner::NuNER;
@@ -403,8 +449,11 @@ impl BackendFactory {
                 "gliner_onnx",
                 "nuner",
                 "nuner_4k",
+                "b2ner",
                 "w2ner",
                 "gliner2",
+                "gliner_pii",
+                "gliner_relex",
                 "gliner_poly",
             ]);
 

@@ -417,6 +417,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
         "candle_ner" | "CandleNER" => &[Task::NER],
         "nuner" | "NuNER" | "nuner_4k" | "nunerzero4k" => &[Task::NER], // Also implements ZeroShotNER
+        "b2ner" | "B2NER" => &[Task::NER],
         "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
         "albert" | "ALBERTNER" => &[Task::NER],
 
@@ -424,6 +425,8 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner_onnx" | "GLiNEROnnx" => &[Task::NER],
         "gliner_candle" | "GLiNERCandle" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
+        "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
+        "gliner_relex" | "relex" => &[Task::NER, Task::RelationExtraction],
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
         // Multi-task backends (GLiNER2 implements multiple traits)
@@ -525,9 +528,12 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "candle_ner",
         "nuner",
         "nuner_4k",
+        "b2ner",
         "gliner_onnx",
         "gliner_candle",
         "gliner2",
+        "gliner_pii",
+        "gliner_relex",
         "w2ner",
         // New backends
         "tplinker",

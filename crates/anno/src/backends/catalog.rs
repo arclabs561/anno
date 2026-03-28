@@ -277,6 +277,24 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         description: "GLiNER Poly-encoder for zero-shot NER with inter-label attention fusion",
         recommended_models: &["knowledgator/modern-gliner-poly-large-v1.0"],
     },
+    BackendInfo {
+        name: "gliner_pii",
+        feature: Some("onnx"),
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: true,
+        description: "GLiNER PII Edge: 60+ PII categories, zero-shot detection",
+        recommended_models: &["knowledgator/gliner-pii-edge-v1.0"],
+    },
+    BackendInfo {
+        name: "gliner_relex",
+        feature: Some("onnx"),
+        status: BackendStatus::Beta,
+        zero_shot: true,
+        gpu_support: true,
+        description: "GLiNER-RelEx: joint NER + relation extraction, zero-shot",
+        recommended_models: &["knowledgator/gliner-relex-large-v1.0"],
+    },
 ];
 
 impl BackendInfo {

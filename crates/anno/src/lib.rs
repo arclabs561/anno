@@ -700,6 +700,14 @@ pub mod models {
     pub const GLINER_POLY: &str = "knowledgator/gliner-bi-large-v1.0";
     /// W2NER ONNX model (HuggingFace).
     pub const W2NER: &str = "ljynlp/w2ner-bert-base";
+    /// B2NER model (COLING 2025, trained on 54 unified NER datasets).
+    /// Note: only LLM-scale models (7B/20B LoRA) are on HuggingFace as of 2026-03.
+    /// Encoder-scale weights pending release.
+    pub const B2NER: &str = "Umean/B2NER-Internlm2.5-7B-LoRA";
+    /// GLiNER PII Edge (60+ PII categories, zero-shot).
+    pub const GLINER_PII: &str = "knowledgator/gliner-pii-edge-v1.0";
+    /// GLiNER-RelEx (joint NER + relation extraction, zero-shot).
+    pub const GLINER_RELEX: &str = "knowledgator/gliner-relex-large-v1.0";
     /// GLiNER bi-encoder base model (HuggingFace, Feb 2026).
     ///
     /// Bi-encoder architecture pre-computes label embeddings, giving ~130x
