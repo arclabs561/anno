@@ -11,14 +11,14 @@ pub use super::heuristic_crf::{HeuristicCrfConfig, HeuristicCrfNER};
 
 /// Backward-compatible alias for [`HeuristicCrfNER`].
 #[deprecated(
-    since = "0.5.0",
-    note = "renamed to HeuristicCrfNER in backends::heuristic_crf"
+    since = "0.4.0",
+    note = "renamed to HeuristicCrfNER in backends::heuristic_crf; will be removed in 0.5.0"
 )]
 pub type BiLstmCrfNER = HeuristicCrfNER;
 
 /// Backward-compatible alias for [`HeuristicCrfConfig`].
 #[deprecated(
-    since = "0.5.0",
-    note = "renamed to HeuristicCrfConfig in backends::heuristic_crf"
+    since = "0.4.0",
+    note = "renamed to HeuristicCrfConfig in backends::heuristic_crf; will be removed in 0.5.0"
 )]
 pub type BiLstmCrfConfig = HeuristicCrfConfig;

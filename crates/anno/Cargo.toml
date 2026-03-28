@@ -76,8 +76,8 @@ candle = [
   "dep:tokenizers",
   "dep:hf-hub",
 ]
-metal = ["candle"]
-cuda = ["candle"]
+metal = ["candle", "candle-core/metal"]
+cuda = ["candle", "candle-core/cuda"]
 llm = ["dep:ureq"]
 # Runtime-oriented infra toggles are intentionally collapsed to one feature to keep
 # the public feature surface smaller and avoid "splintered" combinatorics.

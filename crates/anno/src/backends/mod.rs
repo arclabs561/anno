@@ -145,7 +145,10 @@ pub mod coref;
 pub mod heuristic_crf;
 
 /// Backward-compatibility shim for the renamed `heuristic_crf` module.
-#[deprecated(since = "0.5.0", note = "renamed to heuristic_crf")]
+#[deprecated(
+    since = "0.4.0",
+    note = "renamed to heuristic_crf; will be removed in 0.5.0"
+)]
 pub mod bilstm_crf;
 pub mod catalog;
 pub mod crf;

@@ -543,8 +543,8 @@ pub struct ModelCapabilities {
 /// for new code. This trait exists for backward compatibility and will be
 /// removed in a future version.
 #[deprecated(
-    since = "0.5.0",
-    note = "use RelationExtractor::extract_relations_default instead"
+    since = "0.4.0",
+    note = "use RelationExtractor::extract_relations_default instead; will be removed in 0.5.0"
 )]
 pub trait RelationCapable: Model {
     /// Extract entities and their relations from text.
