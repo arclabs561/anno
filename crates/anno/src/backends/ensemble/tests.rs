@@ -392,7 +392,10 @@ fn test_weight_learner_empty() {
     let learner = WeightLearner::new();
     let weights = learner.learn_weights();
     // Empty learner returns empty weights (caller should use defaults)
-    assert!(weights.is_empty(), "empty learner should return empty weights");
+    assert!(
+        weights.is_empty(),
+        "empty learner should return empty weights"
+    );
 }
 
 #[test]
