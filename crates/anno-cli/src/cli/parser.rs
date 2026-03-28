@@ -424,7 +424,7 @@ Use `--model gliner` instead."
         }
     }
 
-    /// Create a `RelationCapable` model instance, if this backend supports joint entity+relation
+    /// Create a relation-capable model instance, if this backend supports joint entity+relation
     /// extraction.  Returns `None` for all other backends (callers should fall back to
     /// `create_model()` + co-occurrence edges).
     #[allow(deprecated)]

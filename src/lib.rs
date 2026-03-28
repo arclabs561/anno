@@ -1,7 +1,8 @@
 //! # anno
 //!
 //! Information extraction for unstructured text: named entity recognition (NER),
-//! within-document coreference resolution, and structured pattern extraction.
+//! coreference resolution, relation extraction, PII detection, and structured
+//! pattern extraction.
 //!
 //! This is the published facade crate for the `anno` workspace.  It re-exports
 //! the internal `anno-lib` library API.  The full CLI lives in `crates/anno-cli/`.

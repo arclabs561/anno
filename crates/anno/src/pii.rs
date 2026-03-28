@@ -224,13 +224,23 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     let mut result = text.to_string();
     let mut type_counts: HashMap<&str, usize> = HashMap::new();
 
+    // Deduplicate and remove overlapping spans before redacting.
+    // Sort by start ascending, longest span first for ties.
     let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
-
-    debug_assert!(
-        sorted.windows(2).all(|w| w[0].start >= w[1].end),
-        "pii::redact requires non-overlapping entities"
-    );
+    sorted.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
+    sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+    // Keep only non-overlapping spans (greedy, longest first at each position).
+    let mut max_end = 0;
+    sorted.retain(|e| {
+        if e.start < max_end {
+            false
+        } else {
+            max_end = e.end;
+            true
+        }
+    });
+    // Reverse for back-to-front replacement (so char offsets stay valid).
+    sorted.reverse();
 
     for entity in sorted {
         let count = type_counts.entry(&entity.pii_type).or_insert(0);
@@ -339,7 +349,31 @@ pub fn scan_and_redact(text: &str, model: &dyn crate::Model) -> crate::Result<St
     let entities = model.extract_entities(text, None)?;
     let mut pii_entities: Vec<PiiEntity> = entities.iter().filter_map(classify_entity).collect();
     pii_entities.extend(scan_patterns(text));
+    dedup_overlapping(&mut pii_entities);
     Ok(redact(text, &pii_entities))
+}
+
+/// Remove duplicate and overlapping PII entities, keeping the longest span.
+///
+/// After merging NER-based and regex-based detections, duplicates and overlaps
+/// are common (e.g., NER finds "John Smith" and regex finds "123-45-6789" within
+/// a span the NER also matched). This function sorts by start offset, then
+/// greedily keeps the longest non-overlapping spans.
+fn dedup_overlapping(entities: &mut Vec<PiiEntity>) {
+    // Sort by start, then longest span first for ties
+    entities.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
+    // Dedup exact duplicates
+    entities.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+    // Remove overlaps: keep the first (longest at each start position)
+    let mut max_end = 0;
+    entities.retain(|e| {
+        if e.start < max_end {
+            false // overlaps with a prior span
+        } else {
+            max_end = e.end;
+            true
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------

@@ -136,7 +136,7 @@ fn escape_literal(s: &str) -> String {
 /// - character offset and confidence typed literals
 /// - `prov:hadPrimarySource` provenance link to the document IRI
 ///
-/// When `relations` is non-empty (i.e. the model is `RelationCapable`), each triple becomes
+/// When `relations` is non-empty (i.e. the model supports relation extraction), each triple becomes
 /// a predicate arc: `<head_entity> <{base}/rel/{type}> <tail_entity>`.
 ///
 /// # Arguments
@@ -219,7 +219,7 @@ pub fn entities_to_knowledge_graph(
         ));
     }
 
-    // Build entity lookup by (text, start, end) for robust relation matching.
+    // Build entity lookup by (text, start, end) for reliable relation matching.
     let entity_lookup: std::collections::HashMap<(&str, usize, usize), usize> = entities
         .iter()
         .enumerate()

@@ -32,6 +32,7 @@ Filter results with `prelude` (re-exports common types including `Result`):
 ```rust
 use anno::prelude::*;
 
+# let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
 let people: Vec<_> = entities.of_type(&EntityType::Person).collect();
 let confident: Vec<_> = entities.above_confidence(0.8).collect();
 # Ok::<(), Error>(())
@@ -91,7 +92,7 @@ let ents = model.extract_entities("test", None)?;
 
 **Structured patterns.** Dates, monetary amounts, emails, URLs, phone numbers via deterministic regex grammars.
 
-**Relation extraction.** `(head, relation, tail)` triples via `RelationCapable` backends (`gliner2`, `tplinker`). Other backends produce co-occurrence edges for graph export.
+**Relation extraction.** `(head, relation, tail)` triples via `RelationExtractor` backends (`gliner2`, `tplinker`). Other backends produce co-occurrence edges for graph export.
 
 **PII detection.** Classify NER entities as PII and scan for structured patterns (SSN, credit card, IBAN, email, phone). Redact or pseudonymize in one call:
 
@@ -100,12 +101,8 @@ use anno::{pii, Model, StackedNER};
 
 let text = "John Smith's SSN is 123-45-6789.";
 let m = StackedNER::default();
-let ents = m.extract_entities(text, None)?;
-
-let mut pii_ents: Vec<_> = ents.iter().filter_map(pii::classify_entity).collect();
-pii_ents.extend(pii::scan_patterns(text));
-let redacted = pii::redact(text, &pii_ents);
-// "[REDACTED]'s SSN is [REDACTED]."
+let redacted = pii::scan_and_redact(text, &m)?;
+// "[PERSON_1]'s SSN is [ID_NUMBER_1]."
 # Ok::<(), anno::Error>(())
 ```
 
@@ -149,7 +146,7 @@ ML backends are feature-gated (`onnx` or `candle`). Weights download from Huggin
 | `analysis` | No | Coref metrics, cluster encoders |
 | `schema` | No | JSON Schema for output types |
 | `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
-| `production` | No | `parking_lot` locks + `tracing` instrumentation |
+| `production` | No | `tracing` instrumentation |
 | `bundled-crf-weights` | No | Embed trained CRF weights in binary |
 | `bundled-hmm-params` | No | Embed HMM parameters in binary |
 

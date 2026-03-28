@@ -3,10 +3,10 @@
 //!
 //! Supports multiple dataset formats:
 //! - CoNLL-2003 (classic BIO tagging format)
-//! - JSON/JSONL (modern format used by OpenNER, MultiNERD, Wikiann)
+//! - JSON/JSONL (format used by OpenNER, MultiNERD, Wikiann)
 //! - HuggingFace Datasets format
 //!
-//! Modern datasets (2024-2026):
+//! Recent datasets (2024-2026):
 //! - OpenNER 1.0: 52 languages, standardized JSON
 //! - MultiNERD: Multi-ontology, JSON format
 //! - Wikiann: 282 languages, JSONL format
@@ -187,7 +187,7 @@ pub struct JSONEntity {
 
 /// JSONL format (one JSON object per line).
 ///
-/// Used by Wikiann and many modern datasets.
+/// Used by Wikiann and many recent datasets.
 pub type JSONLNERExample = JSONNERExample;
 
 /// Load JSON format NER dataset.

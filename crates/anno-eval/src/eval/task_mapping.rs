@@ -469,7 +469,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
 /// For more accurate detection, use `detect_backend_capabilities_by_name` with the backend's name.
 ///
 /// Note: Full runtime detection with trait objects is limited by Rust's type system.
-/// A capability registry pattern would be more robust but requires backend registration.
+/// A capability registry pattern would be more reliable but requires backend registration.
 pub fn detect_backend_capabilities(backend: &dyn crate::Model) -> Vec<Task> {
     // Use the backend's name to determine capabilities
     // This is a pragmatic approach given Rust's trait object limitations

@@ -1,6 +1,6 @@
 //! BERT-based NER using ONNX Runtime.
 //!
-//! This module provides a reliable ONNX-based NER backend using standard
+//! ONNX-based NER backend using standard
 //! BERT models fine-tuned for token classification (BIO tags).
 //!
 //! Unlike GLiNER which has ONNX export issues, this uses properly exported

@@ -55,8 +55,7 @@ use std::sync::Arc;
 /// Best for closed-domain entities where the full list is known.
 ///
 /// This is a **library-only** backend with no CLI entry point (`--model lexicon`
-/// is not available). Use it programmatically via [`Pipeline`](crate::backends::middleware::Pipeline)
-/// or directly through the [`Model`](crate::Model) trait.
+/// is not available). Use it programmatically through the [`Model`](crate::Model) trait.
 pub struct LexiconNER {
     lexicon: Arc<dyn Lexicon + Send + Sync>,
     case_sensitive: bool,

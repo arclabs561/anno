@@ -2,7 +2,7 @@
 //!
 //! # Design Philosophy (Research-Aligned)
 //!
-//! This module implements entity types informed by modern NER research:
+//! This module implements entity types informed by NER research (GLiNER, TPLinker):
 //!
 //! - **GLiNER/Bi-Encoder**: Entity types are *labels to match against*, not fixed classes.
 //!   Relations ("CEO of") are entities too - they're just labels in the same latent space.
@@ -761,7 +761,7 @@ impl std::fmt::Display for ExtractionMethod {
 ///
 /// # Research Context
 ///
-/// Gazetteers (lists of known entities) are a classic NER technique. Modern research
+/// Gazetteers (lists of known entities) are a classic NER technique. Recent research
 /// suggests they are most valuable when:
 ///
 /// 1. **Domain is closed**: Stock tickers, medical codes, known product catalogs

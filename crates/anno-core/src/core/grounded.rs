@@ -40,7 +40,7 @@
 //!
 //! # Semiotic Gap: Icon vs Symbol
 //!
-//! A crucial nuance distinguishes text from vision:
+//! A key difference distinguishes text from vision:
 //!
 //! - **Iconic signs** (vision): The signifier physically resembles the signified.
 //!   A photo of a cat looks like a cat. Detection is about physics/geometry.

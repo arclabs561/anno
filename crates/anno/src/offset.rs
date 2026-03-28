@@ -106,7 +106,7 @@
 //! └────────────────────────────────────────────────────┘
 //! ```
 //!
-//! This module provides:
+//! Contents:
 //! - [`TextSpan`]: Stores both byte and char offsets together
 //! - [`TokenSpan`]: Stores subword token indices
 //! - [`OffsetMapping`]: Maps between token ↔ character positions

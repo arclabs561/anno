@@ -211,6 +211,7 @@ mod sealed {
 /// // Wrap in AnyModel to use with anno's infrastructure
 /// let model = AnyModel::new(
 ///     "my-ner",
+///     "Custom NER backend",
 ///     vec![EntityType::Person, EntityType::Organization],
 ///     move |text, _lang| Ok(my_ner.extract(text)),
 /// );
@@ -323,14 +324,14 @@ type AnyModelExtractor = dyn Fn(&str, Option<Language>) -> Result<Vec<Entity>> +
 /// Type alias for the `AnyModel` zero-shot extraction closure (`ZeroShotNER`).
 type AnyModelZeroShotExtractor = dyn Fn(&str, &[&str], f32) -> Result<Vec<Entity>> + Send + Sync;
 
-/// Type alias for the `AnyModel` relation-extraction closure (`RelationCapable`).
+/// Type alias for the `AnyModel` relation-extraction closure.
 type AnyModelRelationExtractor =
     dyn Fn(&str, Option<Language>) -> Result<(Vec<Entity>, Vec<Relation>)> + Send + Sync;
 
 /// A wrapper that turns an extractor closure into a `Model`.
 ///
 /// `AnyModel` supports [`ZeroShotNER`](backends::inference::ZeroShotNER) and
-/// [`RelationCapable`] via closures (see [`with_zero_shot`](Self::with_zero_shot)
+/// relation extraction via closures (see [`with_zero_shot`](Self::with_zero_shot)
 /// and [`with_relations`](Self::with_relations)).
 pub struct AnyModel {
     name: &'static str,
@@ -340,7 +341,7 @@ pub struct AnyModel {
     version: String,
     /// Optional closure backing [`ZeroShotNER::extract_with_types`](backends::inference::ZeroShotNER::extract_with_types).
     zero_shot_extractor: Option<Box<AnyModelZeroShotExtractor>>,
-    /// Optional closure backing [`RelationCapable::extract_with_relations`].
+    /// Optional closure backing relation extraction (deprecated [`RelationCapable`]).
     relation_extractor: Option<Box<AnyModelRelationExtractor>>,
 }
 
@@ -389,9 +390,9 @@ impl AnyModel {
         self
     }
 
-    /// Attach a `RelationCapable` implementation via closure.
+    /// Attach a relation extraction implementation via closure.
     ///
-    /// When set, `AnyModel` will implement [`RelationCapable`] by delegating to this
+    /// When set, `AnyModel` will support relation extraction by delegating to this
     /// closure, and [`Model::capabilities()`] will report `relation_capable = true`.
     #[must_use]
     pub fn with_relations(

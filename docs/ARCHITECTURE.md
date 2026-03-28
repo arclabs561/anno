@@ -6,7 +6,7 @@ This repo is **pre-1.0** and prioritizes long-term maintainability over API stab
 
 - `crates/anno-core` (**core invariants + data model + algorithms**)
   - Owns: entity/coref/grounded types, dataset/spec metadata, coalescing primitives,
-    span candidate generation, similarity/clustering algorithms (`innr`, `sketchir`, `clump`).
+    span candidate generation.
   - Must not depend on: CLI, evaluation harnesses, heavy ML backends (`ort`, `tokenizers`,
     `candle-*`, `hf-hub`), or OS-specific glue.
 
@@ -17,7 +17,7 @@ This repo is **pre-1.0** and prioritizes long-term maintainability over API stab
     (to avoid cycles).
 
 - `crates/anno` (**library + backends**)
-  - Owns: runtime backends (regex/heuristic/onnx/candle/llm), ingest/linking/joint pipeline, env/offset helpers.
+  - Owns: runtime backends (regex/heuristic/onnx/candle/llm), ingest pipeline, env/offset helpers.
   - Depends on: `anno-core`.
   - Notes: exposes a small `anno::eval` module behind `analysis` (alias: legacy `eval`) for
     analysis-oriented helpers; it re-exports shared primitives from `anno-metrics`.

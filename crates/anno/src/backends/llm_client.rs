@@ -1,6 +1,6 @@
 //! LLM client abstraction for NER and coreference tasks.
 //!
-//! This module provides a trait-based abstraction over LLM providers
+//! Trait-based abstraction over LLM providers
 //! (OpenAI, Anthropic, Ollama, etc.) for use in NER-related tasks like
 //! entity verification and mention disambiguation.
 //!

@@ -9,7 +9,7 @@
 //! - graph-ntriples (N-Triples via the lattix graph substrate; stable triple rendering)
 //! - Graph CSV (node + co-occurrence edge tables for graph DB import)
 //!
-//! When the selected backend is `RelationCapable` (e.g. `tplinker`), graph-oriented formats
+//! When the selected backend supports relation extraction (e.g. `tplinker`), graph-oriented formats
 //! (graph-ntriples, ntriples, jsonld, graph-csv) emit typed semantic triples instead of falling
 //! back to co-occurrence edges.
 
@@ -80,7 +80,7 @@ pub enum ExportFormat {
     #[value(name = "jsonld")]
     JsonLd,
     /// N-Triples via the lattix graph substrate (stable triple rendering; requires `--features graph`).
-    /// With a RelationCapable model (e.g. `--model tplinker`), emits real semantic triples.
+    /// With a relation-capable model (e.g. `--model tplinker`), emits real semantic triples.
     #[cfg(feature = "graph")]
     #[value(name = "graph-ntriples")]
     GraphNTriples,
@@ -95,7 +95,7 @@ pub enum ExportFormat {
 
 struct Extracted {
     entities: Vec<anno_core::Entity>,
-    /// Populated when the backend is RelationCapable; empty otherwise.
+    /// Populated when the backend supports relation extraction; empty otherwise.
     relations: Vec<anno_core::Relation>,
 }
 

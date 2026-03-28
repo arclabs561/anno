@@ -1,6 +1,6 @@
 //! Type-level programming patterns for compile-time safety.
 //!
-//! This module provides witness types and extension traits that encode
+//! Witness types and extension traits that encode
 //! invariants in the type system. Once data is parsed into these types,
 //! downstream code can rely on the invariant without re-checking.
 //!

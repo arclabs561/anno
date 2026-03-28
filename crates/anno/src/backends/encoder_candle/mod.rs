@@ -2,7 +2,7 @@
 //!
 //! # Design Philosophy
 //!
-//! This module provides pluggable encoder backends that share a common trait:
+//! Pluggable encoder backends sharing a common trait:
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────┐
