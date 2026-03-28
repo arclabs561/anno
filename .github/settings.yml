@@ -2,7 +2,7 @@
 # https://github.com/repository-settings/app
 
 repository:
-  description: "Text annotation and entity extraction in Rust"
+  description: "Text annotation and entity extraction"
   homepage: "https://docs.rs/anno"
   private: false
   has_issues: true
