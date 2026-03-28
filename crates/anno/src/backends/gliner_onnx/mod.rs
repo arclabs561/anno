@@ -71,6 +71,16 @@ pub struct GLiNEROnnx {
     /// Populated by `precompute_labels()`. In bi-encoder mode, if a label is not
     /// in this cache it will be encoded on-the-fly and cached for subsequent calls.
     label_cache: Mutex<HashMap<String, config::LabelEmbedding>>,
+    /// Separate ONNX session for the label encoder (bi-encoder models only).
+    ///
+    /// Loaded from `label_encoder.onnx` alongside the main `model.onnx`.
+    /// Takes `labels_input_ids` + `labels_attention_mask`, outputs `labels_embeddings`.
+    label_encoder_session: Option<Mutex<ort::session::Session>>,
+    /// Tokenizer for the label encoder (may differ from text tokenizer in bi-encoder models).
+    ///
+    /// BGE models use a different tokenizer than DeBERTa. Falls back to the main
+    /// tokenizer if no separate label tokenizer is found.
+    label_tokenizer: Option<std::sync::Arc<tokenizers::Tokenizer>>,
 }
 
 #[cfg(feature = "onnx")]

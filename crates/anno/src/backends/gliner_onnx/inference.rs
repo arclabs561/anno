@@ -72,9 +72,48 @@ impl GLiNEROnnx {
             None => detect_encoder_mode(&session),
         };
 
-        if encoder_mode == config::EncoderMode::Bi {
-            log::info!("[GLiNER] Bi-encoder model detected");
-        }
+        // For bi-encoder models, try to load the separate label encoder ONNX session.
+        // The export script produces `label_encoder.onnx` alongside `model.onnx`.
+        let (label_encoder_session, label_tokenizer) = if encoder_mode == config::EncoderMode::Bi {
+            log::info!("[GLiNER] Bi-encoder model detected, loading label encoder...");
+            let le_session = hf_loader::download_model_file(
+                &repo,
+                &["label_encoder.onnx", "label_encoder_quantized.onnx"],
+            )
+            .ok()
+            .and_then(|path| {
+                hf_loader::create_onnx_session(
+                    &path,
+                    hf_loader::OnnxSessionConfig {
+                        optimization_level: config.optimization_level,
+                        num_threads: config.num_threads,
+                        use_cpu_provider: true,
+                    },
+                )
+                .ok()
+            });
+
+            if le_session.is_some() {
+                log::info!("[GLiNER] Label encoder loaded");
+            } else {
+                log::warn!(
+                    "[GLiNER] Bi-encoder model detected but label_encoder.onnx not found. \
+                     Label embeddings must be pre-computed externally."
+                );
+            }
+
+            // Try loading a separate label tokenizer (BGE models use different tokenizer)
+            let le_tokenizer = hf_loader::download_model_file(&repo, &["label_tokenizer.json"])
+                .ok()
+                .and_then(|path| hf_loader::load_tokenizer(&path).ok());
+
+            (
+                le_session.map(Mutex::new),
+                le_tokenizer.map(std::sync::Arc::new),
+            )
+        } else {
+            (None, None)
+        };
 
         Ok(Self {
             session: Mutex::new(session),
@@ -84,6 +123,8 @@ impl GLiNEROnnx {
             prompt_cache,
             encoder_mode,
             label_cache: Mutex::new(HashMap::new()),
+            label_encoder_session,
+            label_tokenizer,
         })
     }
 
@@ -165,38 +206,113 @@ impl GLiNEROnnx {
             return Ok(());
         }
 
-        // TODO: When bi-encoder ONNX models are available, run the label encoder
-        // session here. The expected flow:
-        //
-        // 1. For each label, tokenize: [CLS] label_text [SEP]
-        // 2. Run the label encoder ONNX session (may be the same session with
-        //    different input names, or a separate label_encoder.onnx file)
-        // 3. Extract the [CLS] embedding (or pooled output)
-        // 4. Store in label_cache
-        //
-        // For now, log and return success so callers can wire up the API.
+        let le_session_mutex = self.label_encoder_session.as_ref().ok_or_else(|| {
+            Error::FeatureNotAvailable(
+                "Bi-encoder mode requires label_encoder.onnx (not found in model repo)".into(),
+            )
+        })?;
+
+        let tokenizer = self.label_tokenizer.as_ref().unwrap_or(&self.tokenizer);
+
         let mut cache = self
             .label_cache
             .lock()
             .map_err(|e| Error::Retrieval(format!("label cache lock poisoned: {e}")))?;
 
-        for &label in labels {
-            if cache.contains_key(label) {
-                continue;
-            }
-            log::debug!(
-                "[GLiNER] Bi-encoder label encoding not yet implemented for '{}'",
-                label
-            );
-            // Placeholder: insert empty embedding so the cache key exists.
-            // Real implementation will populate this with the encoder output.
-            cache.insert(
-                label.to_string(),
-                config::LabelEmbedding {
-                    embedding: Vec::new(),
-                },
-            );
+        // Collect labels that need encoding
+        let to_encode: Vec<&str> = labels
+            .iter()
+            .filter(|&&l| !cache.contains_key(l))
+            .copied()
+            .collect();
+
+        if to_encode.is_empty() {
+            return Ok(());
         }
+
+        // Tokenize all labels, padding to max length in the batch
+        let expanded: Vec<String> = to_encode
+            .iter()
+            .map(|l| expand_ner_label(l).to_string())
+            .collect();
+        let encodings: Vec<_> = expanded
+            .iter()
+            .map(|label| {
+                tokenizer
+                    .encode(label.as_str(), true)
+                    .map_err(|e| Error::Parse(format!("Label tokenizer error: {e}")))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let max_len = encodings
+            .iter()
+            .map(|e| e.get_ids().len())
+            .max()
+            .unwrap_or(0);
+        let num_labels = encodings.len();
+
+        // Build padded input tensors [num_labels, max_len]
+        let mut input_ids_flat = vec![0i64; num_labels * max_len];
+        let mut attention_mask_flat = vec![0i64; num_labels * max_len];
+
+        for (i, enc) in encodings.iter().enumerate() {
+            for (j, &id) in enc.get_ids().iter().enumerate() {
+                input_ids_flat[i * max_len + j] = id as i64;
+                attention_mask_flat[i * max_len + j] = 1;
+            }
+        }
+
+        // Run the label encoder session
+        use ndarray::Array2;
+        let ids_array = Array2::from_shape_vec((num_labels, max_len), input_ids_flat)
+            .map_err(|e| Error::Parse(format!("Array error: {e}")))?;
+        let mask_array = Array2::from_shape_vec((num_labels, max_len), attention_mask_flat)
+            .map_err(|e| Error::Parse(format!("Array error: {e}")))?;
+
+        let ids_tensor = crate::backends::ort_compat::tensor_from_ndarray(ids_array)
+            .map_err(|e| Error::Parse(format!("Tensor error: {e}")))?;
+        let mask_tensor = crate::backends::ort_compat::tensor_from_ndarray(mask_array)
+            .map_err(|e| Error::Parse(format!("Tensor error: {e}")))?;
+
+        let mut le_session = le_session_mutex.lock().unwrap_or_else(|e| e.into_inner());
+
+        let outputs = le_session
+            .run(ort::inputs![
+                "labels_input_ids" => ids_tensor.into_dyn(),
+                "labels_attention_mask" => mask_tensor.into_dyn(),
+            ])
+            .map_err(|e| Error::Parse(format!("Label encoder inference failed: {e}")))?;
+
+        // Extract embeddings: output shape [num_labels, hidden_dim]
+        let (_, data_slice) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| Error::Parse(format!("Failed to extract label embeddings: {e}")))?;
+        let data: Vec<f32> = data_slice.to_vec();
+
+        // Infer hidden_dim from total data length / num_labels
+        let hidden_dim = if num_labels > 0 {
+            data.len() / num_labels
+        } else {
+            0
+        };
+
+        for (i, &label) in to_encode.iter().enumerate() {
+            let start = i * hidden_dim;
+            let end = start + hidden_dim;
+            let embedding = if end <= data.len() {
+                data[start..end].to_vec()
+            } else {
+                vec![0.0; hidden_dim]
+            };
+
+            cache.insert(label.to_string(), config::LabelEmbedding { embedding });
+        }
+
+        log::info!(
+            "[GLiNER] Pre-computed {} label embeddings (dim={})",
+            to_encode.len(),
+            hidden_dim
+        );
 
         Ok(())
     }
@@ -206,6 +322,166 @@ impl GLiNEROnnx {
         if let Ok(mut cache) = self.label_cache.lock() {
             cache.clear();
         }
+    }
+
+    /// Bi-encoder extraction: encode text separately, use cached label embeddings.
+    ///
+    /// The main model takes `labels_embeddings` as a pre-computed input tensor
+    /// instead of embedding labels in the prompt. This allows label embeddings
+    /// to be computed once and reused across many texts.
+    fn extract_bi_encoder(
+        &self,
+        text: &str,
+        text_words: &[&str],
+        entity_types: &[&str],
+        threshold: f32,
+    ) -> Result<Vec<Entity>> {
+        use ndarray::{Array2, Array3};
+
+        let num_text_words = text_words.len();
+
+        // Ensure labels are pre-computed
+        self.precompute_labels(entity_types)?;
+
+        // Build label embeddings tensor from cache [num_labels, hidden_dim]
+        let cache = self
+            .label_cache
+            .lock()
+            .map_err(|e| Error::Retrieval(format!("label cache lock: {e}")))?;
+
+        let entity_count = entity_types.len();
+        let hidden_dim = entity_types
+            .iter()
+            .filter_map(|&l| cache.get(l))
+            .map(|e| e.embedding.len())
+            .next()
+            .unwrap_or(0);
+
+        if hidden_dim == 0 {
+            return Err(Error::InvalidInput(
+                "Label embeddings have zero dimension -- label encoder may have failed".into(),
+            ));
+        }
+
+        let mut labels_flat = Vec::with_capacity(entity_count * hidden_dim);
+        for &label in entity_types {
+            match cache.get(label) {
+                Some(emb) if emb.embedding.len() == hidden_dim => {
+                    labels_flat.extend_from_slice(&emb.embedding);
+                }
+                _ => {
+                    return Err(Error::InvalidInput(format!(
+                        "Missing or mismatched label embedding for '{label}'"
+                    )));
+                }
+            }
+        }
+        drop(cache);
+
+        // Encode text only (no entity type prefix)
+        let (input_ids, attention_mask, words_mask) = self.encode_text_only(text_words)?;
+
+        let (span_idx, span_mask) = self.make_span_tensors(num_text_words);
+
+        let batch_size = 1;
+        let seq_len = input_ids.len();
+        let num_spans = num_text_words.checked_mul(MAX_SPAN_WIDTH).ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Span count overflow: {} * {}",
+                num_text_words, MAX_SPAN_WIDTH
+            ))
+        })?;
+
+        let ids_arr = Array2::from_shape_vec((batch_size, seq_len), input_ids)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let mask_arr = Array2::from_shape_vec((batch_size, seq_len), attention_mask)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let wmask_arr = Array2::from_shape_vec((batch_size, seq_len), words_mask)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let tlen_arr = Array2::from_shape_vec((batch_size, 1), vec![num_text_words as i64])
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let span_arr = Array3::from_shape_vec((batch_size, num_spans, 2), span_idx)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let smask_arr = Array2::from_shape_vec((batch_size, num_spans), span_mask)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+        let labels_arr = Array2::from_shape_vec((entity_count, hidden_dim), labels_flat)
+            .map_err(|e| Error::Parse(format!("Array: {e}")))?;
+
+        let ids_t = crate::backends::ort_compat::tensor_from_ndarray(ids_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let mask_t = crate::backends::ort_compat::tensor_from_ndarray(mask_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let wmask_t = crate::backends::ort_compat::tensor_from_ndarray(wmask_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let tlen_t = crate::backends::ort_compat::tensor_from_ndarray(tlen_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let span_t = crate::backends::ort_compat::tensor_from_ndarray(span_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let smask_t = crate::backends::ort_compat::tensor_from_ndarray(smask_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+        let labels_t = crate::backends::ort_compat::tensor_from_ndarray(labels_arr)
+            .map_err(|e| Error::Parse(format!("Tensor: {e}")))?;
+
+        let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
+
+        let outputs = session
+            .run(ort::inputs![
+                "input_ids" => ids_t.into_dyn(),
+                "attention_mask" => mask_t.into_dyn(),
+                "words_mask" => wmask_t.into_dyn(),
+                "text_lengths" => tlen_t.into_dyn(),
+                "span_idx" => span_t.into_dyn(),
+                "span_mask" => smask_t.into_dyn(),
+                "labels_embeddings" => labels_t.into_dyn(),
+            ])
+            .map_err(|e| Error::Parse(format!("Bi-encoder ONNX inference failed: {e}")))?;
+
+        let entities = self.decode_output(
+            &outputs,
+            text,
+            text_words,
+            entity_types,
+            entity_count,
+            threshold,
+        )?;
+        drop(outputs);
+        drop(session);
+
+        Ok(entities)
+    }
+
+    /// Encode text words only (no entity type prefix). Used by bi-encoder path.
+    fn encode_text_only(&self, text_words: &[&str]) -> Result<(Vec<i64>, Vec<i64>, Vec<i64>)> {
+        let mut input_ids: Vec<i64> = Vec::new();
+        let mut word_mask: Vec<i64> = Vec::new();
+
+        // [START]
+        input_ids.push(TOKEN_START as i64);
+        word_mask.push(0);
+
+        // Text words with word IDs
+        let mut word_id: i64 = 0;
+        for word in text_words {
+            let encoding = self
+                .tokenizer
+                .encode(word.to_string(), false)
+                .map_err(|e| Error::Parse(format!("Tokenizer error: {e}")))?;
+
+            word_id += 1;
+            for (idx, &token_id) in encoding.get_ids().iter().enumerate() {
+                input_ids.push(token_id as i64);
+                word_mask.push(if idx == 0 { word_id } else { 0 });
+            }
+        }
+
+        // [END]
+        input_ids.push(TOKEN_END as i64);
+        word_mask.push(0);
+
+        let seq_len = input_ids.len();
+        let attention_mask = vec![1i64; seq_len];
+
+        Ok((input_ids, attention_mask, word_mask))
     }
 
     /// Extract entities from text using GLiNER zero-shot NER.
@@ -239,6 +515,14 @@ impl GLiNEROnnx {
             return Ok(vec![]);
         }
 
+        // Branch: bi-encoder uses pre-computed label embeddings + text-only prompt;
+        // uni-encoder concatenates labels and text into a single prompt.
+        if self.encoder_mode == config::EncoderMode::Bi && self.label_encoder_session.is_some() {
+            return self.extract_bi_encoder(text, &text_words, entity_types, threshold);
+        }
+
+        // --- Uni-encoder path (existing) ---
+
         // Encode input following the GLiNER prompt format: word-by-word encoding
         // Use cached version if cache is enabled
         let (input_ids, attention_mask, words_mask, text_lengths, entity_count) =
@@ -249,7 +533,6 @@ impl GLiNEROnnx {
 
         // Build ort tensors
         use ndarray::{Array2, Array3};
-        use ort::value::Tensor;
 
         let batch_size = 1;
         let seq_len = input_ids.len();
@@ -979,12 +1262,16 @@ fn extract_char_slice_with_len(
 /// encoder inputs, while the standard uni-encoder concatenates everything
 /// into a single `input_ids` tensor.
 fn detect_encoder_mode(session: &ort::session::Session) -> config::EncoderMode {
-    let has_label_input = session
-        .inputs()
-        .iter()
-        .any(|input| input.name() == "label_input_ids");
+    let input_names: Vec<&str> = session.inputs().iter().map(|i| i.name()).collect();
 
-    if has_label_input {
+    // Bi-encoder exports have either:
+    // - `labels_embeddings` input on the main model (pre-computed label vectors)
+    // - `label_input_ids` input (inline label encoding)
+    let is_bi = input_names
+        .iter()
+        .any(|&name| name == "labels_embeddings" || name == "label_input_ids");
+
+    if is_bi {
         config::EncoderMode::Bi
     } else {
         config::EncoderMode::Uni
