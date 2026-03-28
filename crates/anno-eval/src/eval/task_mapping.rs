@@ -451,6 +451,9 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // TPLinker is a relation extraction model. It is not a general NER backend.
         "tplinker" | "TPLinker" => &[Task::RelationExtraction],
 
+        // Neural coreference backends (implement CorefBackend -- text-based)
+        "fcoref" | "f-coref" => &[Task::IntraDocCoref],
+
         // Coreference backends (implement CoreferenceResolver trait)
         //
         // Note: the same resolver interface is used for both intra-doc and inter-doc eval in
@@ -544,6 +547,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         // Special backends
         "coref_resolver",
         "mention_ranking",
+        "fcoref",
     ] {
         if backend_tasks(backend).contains(&task) {
             backends.push(backend);

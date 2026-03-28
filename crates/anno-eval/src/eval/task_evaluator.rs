@@ -2106,7 +2106,61 @@ impl TaskEvaluator {
             // Collect gold chains from the document
             all_gold_chains.extend(offset_chains(doc.chains.clone(), doc_base));
 
-            let predicted_chains = if config.coref_use_gold_mentions {
+            // Check if this is a text-based coref backend (CorefBackend)
+            // rather than an entity-based resolver (CoreferenceResolver).
+            let is_text_based_coref = matches!(
+                backend_name,
+                "fcoref" | "f-coref" | "fastcoref"
+            );
+
+            let predicted_chains = if is_text_based_coref {
+                // Text-based coref: run directly on raw text, bypass NER extraction.
+                // This is the proper path for neural coref models (FCoref, etc.)
+                use crate::eval::backend_factory::create_coref_backend;
+                match create_coref_backend(backend_name) {
+                    Ok(coref_backend) => {
+                        match coref_backend.resolve(&doc.text) {
+                            Ok(clusters) => {
+                                // Convert CorefCluster -> CorefChain
+                                use crate::eval::coref::{CorefChain, Mention};
+                                clusters
+                                    .into_iter()
+                                    .map(|cluster| {
+                                        let mentions = cluster
+                                            .spans
+                                            .iter()
+                                            .zip(cluster.mentions.iter())
+                                            .map(|(&(start, end), text)| {
+                                                Mention::new(text, start, end)
+                                            })
+                                            .collect();
+                                        CorefChain {
+                                            mentions,
+                                            cluster_id: Some(anno_core::CanonicalId::new(
+                                                cluster.id as u64,
+                                            )),
+                                            entity_type: None,
+                                        }
+                                    })
+                                    .collect()
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "Warning: CorefBackend inference failed for document: {}",
+                                    e
+                                );
+                                Vec::new()
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        return Err(crate::Error::FeatureNotAvailable(format!(
+                            "Failed to create coref backend '{}': {}",
+                            backend_name, e
+                        )));
+                    }
+                }
+            } else if config.coref_use_gold_mentions {
                 // Gold-mention mode: evaluate clustering only.
                 //
                 // We deliberately exclude zero-length mentions (CorefUD empty nodes) from the

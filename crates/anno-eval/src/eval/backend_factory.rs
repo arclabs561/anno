@@ -522,6 +522,51 @@ pub fn create_coref_resolver(
     }
 }
 
+/// Create a text-based coreference backend (CorefBackend trait).
+///
+/// Unlike `create_coref_resolver` which takes pre-extracted entities,
+/// `CorefBackend` operates on raw text and returns mention clusters directly.
+/// This is the interface used by neural coref models (FCoref, MentionRanking).
+pub fn create_coref_backend(
+    name: &str,
+) -> Result<Box<dyn anno::CorefBackend>> {
+    match name.to_lowercase().as_str() {
+        "mention_ranking" | "mention-ranking" | "mentionranking" => {
+            use anno::backends::coref::mention_ranking::MentionRankingCoref;
+            Ok(Box::new(MentionRankingCoref::new()))
+        }
+        #[cfg(feature = "onnx")]
+        "fcoref" | "f-coref" | "fastcoref" => {
+            use anno::backends::coref::fcoref::FCoref;
+            let model_path = std::env::var("FCOREF_MODEL_PATH").ok();
+            let fcoref = if let Some(path) = model_path {
+                FCoref::from_path(&path)?
+            } else {
+                FCoref::from_pretrained("biu-nlp/f-coref")?
+            };
+            Ok(Box::new(fcoref))
+        }
+        #[cfg(not(feature = "onnx"))]
+        "fcoref" | "f-coref" | "fastcoref" => Err(crate::Error::FeatureNotAvailable(
+            "FCoref requires 'onnx' feature. Export: uv run scripts/export_fcoref.py".to_string(),
+        )),
+        _ => Err(crate::Error::InvalidInput(format!(
+            "Unknown coref backend: '{}'. Available: mention_ranking, fcoref",
+            name
+        ))),
+    }
+}
+
+/// List available coref backends (text-based CorefBackend).
+pub fn available_coref_backends() -> Vec<&'static str> {
+    let mut backends = vec!["mention_ranking"];
+    #[cfg(feature = "onnx")]
+    {
+        backends.push("fcoref");
+    }
+    backends
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
