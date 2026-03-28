@@ -75,6 +75,15 @@ pub mod pii;
 ///
 /// See [`rag::resolve_for_rag`] for the main entry point.
 pub mod rag;
+/// Discourse-level analysis: centering theory, abstract anaphora, dialogue acts.
+///
+/// Enable with the `discourse` feature.
+///
+/// See `discourse::centering` for salience-based pronoun resolution and
+/// `discourse::uncertain_reference` for handling ambiguous references.
+#[cfg(feature = "discourse")]
+#[cfg_attr(docsrs, doc(cfg(feature = "discourse")))]
+pub mod discourse;
 pub mod schema;
 pub mod similarity;
 pub mod types;

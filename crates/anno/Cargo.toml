@@ -66,6 +66,7 @@ criterion = { workspace = true }
 default = ["onnx"]
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 analysis = ["dep:anno-metrics"]
+discourse = []
 schema = ["dep:schemars", "anno-core/schema"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru", "dep:safetensors"]
 candle = [
