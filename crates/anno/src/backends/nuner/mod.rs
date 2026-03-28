@@ -99,6 +99,16 @@ const MAX_SPAN_WIDTH: usize = 1;
 /// Token-based variant of GLiNER that uses BIO tagging instead of span classification.
 /// This enables arbitrary-length entity extraction without the span window limitation.
 ///
+/// # Model Variants
+///
+/// - `NuNER::new()` / `NuNER::from_pretrained("numind/NuNER_Zero")` -- 512-token context,
+///   chunks at ~2000 chars.
+/// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero_4k")` -- 4096-token
+///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.
+///
+/// `from_pretrained` auto-detects the 4k variant from the model ID and sets the chunk
+/// threshold accordingly.
+///
 /// # Feature Requirements
 ///
 /// Requires the `onnx` feature for actual inference. Without it, configuration
@@ -126,6 +136,9 @@ pub struct NuNER {
     requires_span_tensors: std::sync::atomic::AtomicBool,
     /// Default entity labels for Model trait
     default_labels: Vec<String>,
+    /// Max input chars before chunking. 512-token models use ~2000,
+    /// 4096-token models use ~16000.
+    max_input_chars: usize,
     /// ONNX session (when feature enabled)
     #[cfg(feature = "onnx")]
     session: Option<std::sync::Mutex<ort::session::Session>>,
@@ -142,10 +155,11 @@ impl Default for NuNER {
     }
 }
 
-/// Approximate max input chars for NuNER before chunking kicks in.
-/// 512 tokens ~ 2000 chars for typical English text.
-#[cfg(feature = "onnx")]
-const MAX_INPUT_CHARS: usize = 2000;
+/// Default max input chars for 512-token NuNER models (~4 chars/token).
+const MAX_INPUT_CHARS_512: usize = 2000;
+
+/// Max input chars for 4096-token NuNER models (~4 chars/token).
+const MAX_INPUT_CHARS_4K: usize = 16000;
 
 impl Model for NuNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
@@ -159,10 +173,11 @@ impl Model for NuNER {
                 let labels: Vec<&str> = self.default_labels.iter().map(|s| s.as_str()).collect();
                 let threshold = self.threshold as f32;
 
-                if text.chars().count() > MAX_INPUT_CHARS {
+                let max_chars = self.max_input_chars;
+                if text.chars().count() > max_chars {
                     use crate::backends::chunking::{extract_chunked_parallel, ChunkConfig};
                     let config = ChunkConfig {
-                        chunk_size: MAX_INPUT_CHARS,
+                        chunk_size: max_chars,
                         overlap: 200,
                         respect_sentences: true,
                         buffer_size: 1000,

@@ -691,6 +691,17 @@ pub mod models {
     pub const GLINER_POLY: &str = "knowledgator/gliner-bi-large-v1.0";
     /// W2NER ONNX model (HuggingFace).
     pub const W2NER: &str = "ljynlp/w2ner-bert-base";
+    /// GLiNER bi-encoder base model (HuggingFace, Feb 2026).
+    ///
+    /// Bi-encoder architecture pre-computes label embeddings, giving ~130x
+    /// speedup at high label counts compared to cross-encoder GLiNER.
+    pub const GLINER_BI_BASE: &str = "knowledgator/gliner-bi-base-v2.0";
+    /// GLiNER bi-encoder large model (HuggingFace, Feb 2026).
+    pub const GLINER_BI_LARGE: &str = "knowledgator/gliner-bi-large-v2.0";
+    /// NuNER Zero 4k-context model (HuggingFace).
+    pub const NUNER_ZERO_4K: &str = "numind/NuNER_Zero-4k";
+    /// NuNER Zero span-level model (HuggingFace).
+    pub const NUNER_ZERO_SPAN: &str = "numind/NuNER_Zero-span";
 }
 
 // Backward-compat aliases (hidden from docs).

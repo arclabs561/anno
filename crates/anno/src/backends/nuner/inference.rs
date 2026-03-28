@@ -3,7 +3,7 @@
 use super::*;
 
 impl NuNER {
-    /// Create NuNER with default configuration.
+    /// Create NuNER with default configuration (512-token context).
     ///
     /// Uses standard NER labels. Call `from_pretrained` (requires `onnx` feature)
     /// to load actual model weights.
@@ -22,6 +22,37 @@ impl NuNER {
                 "product".to_string(),
                 "event".to_string(),
             ],
+            max_input_chars: super::MAX_INPUT_CHARS_512,
+            #[cfg(feature = "onnx")]
+            session: None,
+            #[cfg(feature = "onnx")]
+            tokenizer: None,
+        }
+    }
+
+    /// Create NuNER with 4096-token context configuration.
+    ///
+    /// Uses `numind/NuNER_Zero_4k` which handles up to 4096 tokens natively,
+    /// reducing chunking overhead for long documents. Chunks at ~16000 chars
+    /// instead of ~2000.
+    ///
+    /// Call `from_pretrained("numind/NuNER_Zero_4k")` to load model weights.
+    #[must_use]
+    pub fn new_4k() -> Self {
+        Self {
+            model_id: "numind/NuNER_Zero_4k".to_string(),
+            threshold: 0.5,
+            #[cfg(feature = "onnx")]
+            requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
+            default_labels: vec![
+                "person".to_string(),
+                "organization".to_string(),
+                "location".to_string(),
+                "date".to_string(),
+                "product".to_string(),
+                "event".to_string(),
+            ],
+            max_input_chars: super::MAX_INPUT_CHARS_4K,
             #[cfg(feature = "onnx")]
             session: None,
             #[cfg(feature = "onnx")]
@@ -31,14 +62,17 @@ impl NuNER {
 
     /// Load NuNER model from HuggingFace.
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present.
+    /// Automatically loads `.env` for HF_TOKEN if present. Auto-detects the 4k
+    /// variant from the model ID (looks for "4k" case-insensitively) and sets
+    /// the chunk threshold accordingly.
     ///
     /// # Arguments
-    /// * `model_id` - HuggingFace model ID (e.g., "deepanwa/NuNerZero_onnx")
+    /// * `model_id` - HuggingFace model ID (e.g., "deepanwa/NuNerZero_onnx",
+    ///   "numind/NuNER_Zero_4k")
     ///
     /// # Example
     /// ```rust,ignore
-    /// let ner = NuNER::from_pretrained("deepanwa/NuNerZero_onnx")?;
+    /// let ner = NuNER::from_pretrained("numind/NuNER_Zero_4k")?;
     /// ```
     #[cfg(feature = "onnx")]
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
@@ -54,6 +88,8 @@ impl NuNER {
             hf_loader::create_onnx_session(&model_path, hf_loader::OnnxSessionConfig::default())?;
         let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
 
+        let is_4k = model_id.to_lowercase().contains("4k");
+
         Ok(Self {
             model_id: model_id.to_string(),
             threshold: 0.5,
@@ -63,16 +99,26 @@ impl NuNER {
                 "organization".to_string(),
                 "location".to_string(),
             ],
+            max_input_chars: if is_4k {
+                super::MAX_INPUT_CHARS_4K
+            } else {
+                super::MAX_INPUT_CHARS_512
+            },
             session: Some(std::sync::Mutex::new(session)),
             tokenizer: Some(tokenizer),
         })
     }
 
     /// Create with custom model identifier (for configuration only).
+    ///
+    /// Auto-detects the 4k variant from the model ID and sets the chunk
+    /// threshold accordingly.
     #[must_use]
     pub fn with_model(model_id: impl Into<String>) -> Self {
-        let mut new = Self::new();
-        new.model_id = model_id.into();
+        let id = model_id.into();
+        let is_4k = id.to_lowercase().contains("4k");
+        let mut new = if is_4k { Self::new_4k() } else { Self::new() };
+        new.model_id = id;
         new
     }
 
@@ -100,6 +146,12 @@ impl NuNER {
     #[must_use]
     pub fn threshold(&self) -> f64 {
         self.threshold
+    }
+
+    /// Get the max input chars before chunking kicks in.
+    #[must_use]
+    pub fn max_input_chars(&self) -> usize {
+        self.max_input_chars
     }
 
     /// Extract entities with custom labels.

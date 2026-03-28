@@ -65,12 +65,25 @@ impl GLiNEROnnx {
             None
         };
 
+        // Detect encoder mode: check ONNX input names for bi-encoder signature
+        let encoder_mode = match config.bi_encoder {
+            Some(true) => config::EncoderMode::Bi,
+            Some(false) => config::EncoderMode::Uni,
+            None => detect_encoder_mode(&session),
+        };
+
+        if encoder_mode == config::EncoderMode::Bi {
+            log::info!("[GLiNER] Bi-encoder model detected");
+        }
+
         Ok(Self {
             session: Mutex::new(session),
             tokenizer: std::sync::Arc::new(tokenizer),
             model_name: model_name.to_string(),
             is_quantized,
             prompt_cache,
+            encoder_mode,
+            label_cache: Mutex::new(HashMap::new()),
         })
     }
 
@@ -89,6 +102,110 @@ impl GLiNEROnnx {
     /// Get model name.
     pub fn model_name(&self) -> &str {
         &self.model_name
+    }
+
+    /// Whether this model uses bi-encoder architecture.
+    #[must_use]
+    pub fn is_bi_encoder(&self) -> bool {
+        self.encoder_mode == config::EncoderMode::Bi
+    }
+
+    /// Create a GLiNER model that forces bi-encoder mode.
+    ///
+    /// If the ONNX model does not actually have bi-encoder inputs
+    /// (i.e., no `label_input_ids` input), this falls back to uni-encoder
+    /// mode and logs a warning.
+    pub fn new_bi_encoder(model_name: &str) -> Result<Self> {
+        let config = GLiNERConfig {
+            bi_encoder: Some(true),
+            ..GLiNERConfig::default()
+        };
+        let mut model = Self::with_config(model_name, config)?;
+
+        // Verify the ONNX model actually supports bi-encoder inputs.
+        // If not, fall back to uni-encoder rather than failing at inference time.
+        if model.encoder_mode == config::EncoderMode::Bi {
+            let session = model.session.lock().unwrap_or_else(|e| e.into_inner());
+            let has_label_input = session
+                .inputs()
+                .iter()
+                .any(|input| input.name() == "label_input_ids");
+            drop(session);
+
+            if !has_label_input {
+                log::warn!(
+                    "[GLiNER] Model '{}' was requested as bi-encoder but lacks \
+                     'label_input_ids' input -- falling back to uni-encoder",
+                    model_name
+                );
+                model.encoder_mode = config::EncoderMode::Uni;
+            }
+        }
+        Ok(model)
+    }
+
+    /// Pre-compute and cache label embeddings for bi-encoder mode.
+    ///
+    /// In bi-encoder architecture, label embeddings are independent of the input
+    /// text and can be computed once. This method encodes each label and stores the
+    /// result in an internal cache. Subsequent `extract` calls reuse cached embeddings
+    /// instead of re-encoding labels on every call.
+    ///
+    /// No-op in uni-encoder mode (labels are part of the concatenated prompt).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the ONNX session fails during label encoding.
+    /// Currently a no-op placeholder: actual label encoding requires a bi-encoder
+    /// ONNX model with a label encoder head. When such models become available on
+    /// HuggingFace, this method will run the label encoder session.
+    pub fn precompute_labels(&self, labels: &[&str]) -> Result<()> {
+        if self.encoder_mode != config::EncoderMode::Bi {
+            log::debug!("[GLiNER] precompute_labels is a no-op in uni-encoder mode");
+            return Ok(());
+        }
+
+        // TODO: When bi-encoder ONNX models are available, run the label encoder
+        // session here. The expected flow:
+        //
+        // 1. For each label, tokenize: [CLS] label_text [SEP]
+        // 2. Run the label encoder ONNX session (may be the same session with
+        //    different input names, or a separate label_encoder.onnx file)
+        // 3. Extract the [CLS] embedding (or pooled output)
+        // 4. Store in label_cache
+        //
+        // For now, log and return success so callers can wire up the API.
+        let mut cache = self
+            .label_cache
+            .lock()
+            .map_err(|e| Error::Retrieval(format!("label cache lock poisoned: {e}")))?;
+
+        for &label in labels {
+            if cache.contains_key(label) {
+                continue;
+            }
+            log::debug!(
+                "[GLiNER] Bi-encoder label encoding not yet implemented for '{}'",
+                label
+            );
+            // Placeholder: insert empty embedding so the cache key exists.
+            // Real implementation will populate this with the encoder output.
+            cache.insert(
+                label.to_string(),
+                config::LabelEmbedding {
+                    embedding: Vec::new(),
+                },
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Clear all cached label embeddings.
+    pub fn clear_label_cache(&self) {
+        if let Ok(mut cache) = self.label_cache.lock() {
+            cache.clear();
+        }
     }
 
     /// Extract entities from text using GLiNER zero-shot NER.
@@ -849,6 +966,29 @@ fn extract_char_slice_with_len(
         .skip(char_start)
         .take(char_end.saturating_sub(char_start))
         .collect()
+}
+
+// =============================================================================
+// Bi-encoder detection
+// =============================================================================
+
+/// Detect whether an ONNX session is a bi-encoder GLiNER model.
+///
+/// Checks for the presence of `label_input_ids` among the session inputs.
+/// Bi-encoder exports (Stepanov et al., 2026) have separate text and label
+/// encoder inputs, while the standard uni-encoder concatenates everything
+/// into a single `input_ids` tensor.
+fn detect_encoder_mode(session: &ort::session::Session) -> config::EncoderMode {
+    let has_label_input = session
+        .inputs()
+        .iter()
+        .any(|input| input.name() == "label_input_ids");
+
+    if has_label_input {
+        config::EncoderMode::Bi
+    } else {
+        config::EncoderMode::Uni
+    }
 }
 
 // =============================================================================

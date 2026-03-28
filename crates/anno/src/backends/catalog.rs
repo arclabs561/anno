@@ -157,6 +157,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: true,
         gpu_support: true,
+        // Note: knowledgator/gliner-bi-*-v2.0 models need ONNX export
+        // (not yet available as pre-converted ONNX).
         description: "GLiNER zero-shot NER (alias for gliner_onnx in this repo)",
         recommended_models: &[
             "onnx-community/gliner_small-v2.1",
@@ -169,6 +171,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
+        // Note: knowledgator/gliner-bi-*-v2.0 bi-encoder models need ONNX export
+        // (not yet available as pre-converted ONNX).
         description: "GLiNER via manual ONNX implementation",
         recommended_models: &["onnx-community/gliner_small-v2.1"],
     },
@@ -228,8 +232,9 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         gpu_support: true,
         description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
         recommended_models: &[
-            // Default factory model (kept small to reduce friction).
-            "NeuML/gliner-bert-tiny",
+            "urchade/gliner_small-v2.1",
+            "knowledgator/gliner-bi-base-v2.0",
+            "knowledgator/gliner-bi-large-v2.0",
         ],
     },
     BackendInfo {
@@ -239,7 +244,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        recommended_models: &["numind/NuNER_Zero", "numind/NuNER_Zero_4k"],
+        recommended_models: &[
+            "numind/NuNER_Zero",
+            "numind/NuNER_Zero-4k",
+            "numind/NuNER_Zero-span",
+        ],
     },
     BackendInfo {
         name: "candle_ner",

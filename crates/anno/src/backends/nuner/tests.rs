@@ -16,6 +16,26 @@ fn test_nuner_with_custom_model() {
     assert_eq!(ner.model_id(), "custom/model");
     assert!((ner.threshold() - 0.7).abs() < f64::EPSILON);
     assert_eq!(ner.default_labels.len(), 1);
+    assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_512);
+}
+
+#[test]
+fn test_nuner_4k_creation() {
+    let ner = NuNER::new_4k();
+    assert_eq!(ner.model_id(), "numind/NuNER_Zero_4k");
+    assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_4K);
+}
+
+#[test]
+fn test_nuner_with_model_auto_detects_4k() {
+    let ner = NuNER::with_model("numind/NuNER_Zero_4k");
+    assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_4K);
+
+    let ner = NuNER::with_model("some-user/custom-nuner-4k-onnx");
+    assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_4K);
+
+    let ner = NuNER::with_model("numind/NuNER_Zero");
+    assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_512);
 }
 
 #[test]

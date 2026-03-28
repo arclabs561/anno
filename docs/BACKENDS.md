@@ -10,7 +10,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 |---------|--------------|-----------|--------|---------------|
 | `gliner` | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner2` | Multi-task span classifier | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
-| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` |
+| `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
 | `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- |
@@ -24,7 +24,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `NeuML/gliner-bert-tiny` |
+| `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `urchade/gliner_small-v2.1` (also: `knowledgator/gliner-bi-base-v2.0`, `gliner-bi-large-v2.0`) |
 | `candle_ner` | BERT NER via Candle | No | beta | `dslim/bert-base-NER` |
 
 ### Neural -- LLM (feature `llm`)
@@ -75,13 +75,19 @@ Pointers (for “what good looks like” in classical NER):
 
 ## GLiNER entity type limit
 
-GLiNER and GLiNER2 use a bi-encoder architecture that encodes entity type labels
-into a fixed-size representation. Performance degrades beyond ~30 entity types
-per inference call. If you need more types, batch them into groups of 20-30 and
-merge results across calls.
+Cross-encoder GLiNER models (e.g. `gliner_small-v2.1`) encode entity type labels
+jointly with the input text. Performance degrades beyond ~30 entity types per
+inference call. If you need more types, batch them into groups of 20-30 and merge
+results across calls.
+
+The `knowledgator/gliner-bi-*-v2.0` bi-encoder models pre-compute label
+embeddings independently from the input text. This gives ~130x speedup at high
+label counts since label embeddings can be cached and reused across inputs. These
+models are available for the `gliner_candle` backend (safetensors). Pre-converted
+ONNX exports are not yet available for the `gliner`/`gliner_onnx` backends.
 
 Source: practitioner findings from the GLiNER community and "Illustrated GLiNER"
-(Shahrukh Khan).
+(Shahrukh Khan). Bi-encoder speedup figure from Knowledgator's model card.
 
 ## Choose by constraints
 

@@ -33,6 +33,8 @@
 use crate::{Entity, Error, Language, Result};
 use anno_core::{EntityCategory, EntityType};
 #[cfg(feature = "onnx")]
+use std::collections::HashMap;
+#[cfg(feature = "onnx")]
 use std::sync::Mutex;
 
 /// Special token IDs for GLiNER models
@@ -59,6 +61,16 @@ pub struct GLiNEROnnx {
     is_quantized: bool,
     /// LRU cache for prompt encodings (keyed by text + entity types).
     prompt_cache: Option<Mutex<lru::LruCache<PromptCacheKey, PromptCacheValue>>>,
+    /// Whether this model uses bi-encoder architecture (Stepanov et al., 2026).
+    ///
+    /// Bi-encoder models encode text and labels independently, enabling label
+    /// embedding caching for higher throughput when many label types are used.
+    encoder_mode: config::EncoderMode,
+    /// Cached label embeddings for bi-encoder mode. Key: label string, value: embedding.
+    ///
+    /// Populated by `precompute_labels()`. In bi-encoder mode, if a label is not
+    /// in this cache it will be encoded on-the-fly and cached for subsequent calls.
+    label_cache: Mutex<HashMap<String, config::LabelEmbedding>>,
 }
 
 #[cfg(feature = "onnx")]
@@ -127,12 +139,13 @@ impl crate::Model for GLiNEROnnx {
     }
 
     fn version(&self) -> String {
-        // Version depends on the model weights and quantization status
-        format!(
-            "gliner-onnx-{}-{}",
-            self.model_name,
-            if self.is_quantized { "q" } else { "fp32" }
-        )
+        // Version depends on the model weights, quantization, and encoder mode
+        let quant = if self.is_quantized { "q" } else { "fp32" };
+        let enc = match self.encoder_mode {
+            config::EncoderMode::Uni => "uni",
+            config::EncoderMode::Bi => "bi",
+        };
+        format!("gliner-onnx-{}-{}-{}", self.model_name, quant, enc)
     }
 }
 
