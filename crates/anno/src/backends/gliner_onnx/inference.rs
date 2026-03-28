@@ -488,15 +488,13 @@ impl GLiNEROnnx {
         input_ids.push(TOKEN_START as i64);
         word_mask.push(0);
 
-        // Text words with word IDs
-        let mut word_id: i64 = 0;
-        for word in text_words {
+        // Text words with word IDs (1-indexed, 0 = non-first subword)
+        for (word_id, word) in (1_i64..).zip(text_words.iter()) {
             let encoding = self
                 .tokenizer
                 .encode(word.to_string(), false)
                 .map_err(|e| Error::Parse(format!("Tokenizer error: {e}")))?;
 
-            word_id += 1;
             for (idx, &token_id) in encoding.get_ids().iter().enumerate() {
                 input_ids.push(token_id as i64);
                 word_mask.push(if idx == 0 { word_id } else { 0 });
