@@ -12,11 +12,11 @@ check:
     set -e
     just docs-audit
     cargo fmt --manifest-path Cargo.toml -p anno -- --check
-    cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval" -- -D warnings
+    cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval discourse" -- -D warnings
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval"
+        cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
     else
-        cargo test --manifest-path Cargo.toml --workspace --lib --features "eval"
+        cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
     fi
 
 # Run fast checks without features (minimal, for quick iteration)
@@ -61,18 +61,18 @@ fmt-check:
 test:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick --lib --features "eval"
+        cargo nextest run --profile quick --lib --features "eval discourse"
     else
-    cargo test --lib --features "eval"
+    cargo test --lib --features "eval discourse"
     fi
 
 # Run all tests including integration (prefers nextest)
 test-all:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick --workspace --features "eval"
+        cargo nextest run --profile quick --workspace --features "eval discourse"
     else
-    cargo test --features "eval"
+    cargo test --features "eval discourse"
     fi
 
 # Quick single-test run with filter (e.g., just t test_name)
@@ -89,9 +89,9 @@ t FILTER:
 tf FILTER:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features "eval"
+        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features "eval discourse"
     else
-        cargo test -p anno --features "eval" -- '{{FILTER}}'
+        cargo test -p anno --features "eval discourse" -- '{{FILTER}}'
     fi
 
 # === Test Profiling (Nextest + Rust Tooling) ===
@@ -122,7 +122,7 @@ profile-filter FILTER:
 
 # Quick timing report (no full run, just analyze existing)
 profile-timing:
-    @NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 cargo nextest run --profile quick --workspace --features "eval" --message-format libtest-json-plus --status-level all
+    @NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 cargo nextest run --profile quick --workspace --features "eval discourse" --message-format libtest-json-plus --status-level all
 
 # Show slowest tests from last profile run
 profile-slowest:
@@ -174,16 +174,16 @@ ci: fmt
     just docs-audit
     cargo fmt --all -- --check
     cargo check --workspace --all-targets
-    cargo clippy --workspace --all-targets --features "eval" -- -D warnings
+    cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
     cargo test --package anno --no-default-features --lib
     cargo test --package anno --lib
-    cargo build --workspace --features "eval"
-    cargo test --workspace --lib --features "eval"
-    cargo test --package anno --tests --features "eval"
+    cargo build --workspace --features "eval discourse"
+    cargo test --workspace --lib --features "eval discourse"
+    cargo test --package anno --tests --features "eval discourse"
     cargo build -p anno-cli --features "eval onnx pdf"
     cargo build --workspace --no-default-features
     cargo test --workspace --no-default-features --lib
-    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval"
+    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
     @echo "CI simulation passed"
 
 # Simulate CI with sanity evals (includes small random sample evals)
@@ -210,7 +210,7 @@ matrix strategy="random" seed="" perspective="ner":
     export ANNO_SAMPLE_STRATEGY={{strategy}}
     export ANNO_MATRIX_PERSPECTIVE={{perspective}}
     if [ -n "{{seed}}" ]; then export ANNO_CI_SEED={{seed}}; fi
-    cargo test -p anno-eval --lib --features "eval" test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval discourse" test_randomized_matrix_sample -- --nocapture
 
 # Run matrix test with ML backends (requires onnx/candle features)
 matrix-ml:
@@ -356,11 +356,11 @@ test-models:
 
 # Build docs
 docs:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval"
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
 
 # Open docs in browser
 docs-open:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval" --open
+    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse" --open
 
 # Check internal docs markdown links (fast, no network).
 docs-links:
@@ -426,24 +426,24 @@ msrv:
 
 # Run property tests with more cases
 proptest:
-    PROPTEST_CASES=1000 cargo test --lib --features "eval" -- proptest
+    PROPTEST_CASES=1000 cargo test --lib --features "eval discourse" -- proptest
 
 # Warm local dataset cache (and optionally S3 mirror).
 # Example:
-#   ANNO_WARM_PER_TASK=2 ANNO_WARM_TASKS=coref cargo run -p anno-eval --example cache_warm --features "eval"
+#   ANNO_WARM_PER_TASK=2 ANNO_WARM_TASKS=coref cargo run -p anno-eval --example cache_warm --features "eval discourse"
 cache-warm:
-    cargo run -p anno-eval --example cache_warm --features "eval"
+    cargo run -p anno-eval --example cache_warm --features "eval discourse"
 
 # Warm cache and upload to S3.
 cache-warm-s3:
-    ANNO_S3_CACHE=1 cargo run -p anno-eval --example cache_warm --features "eval"
+    ANNO_S3_CACHE=1 cargo run -p anno-eval --example cache_warm --features "eval discourse"
     ./scripts/sync_datasets_s3.sh upload
 
 # Run CDCR evaluation on cached coref datasets.
 # Example:
-#   ANNO_CDCR_DATASETS=ECBPlus cargo run -p anno-eval --example cdcr_eval --features "eval"
+#   ANNO_CDCR_DATASETS=ECBPlus cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
 cdcr-eval:
-    cargo run -p anno-eval --example cdcr_eval --features "eval"
+    cargo run -p anno-eval --example cdcr_eval --features "eval discourse"
 
 # === Release ===
 
@@ -483,7 +483,7 @@ example-muxer:
 
 # Run mutation tests on entity.rs (fast, targeted)
 mutants-fast:
-    cargo mutants --file "src/entity.rs" --timeout 120 --minimum-test-timeout 60 --features "eval"
+    cargo mutants --file "src/entity.rs" --timeout 120 --minimum-test-timeout 60 --features "eval discourse"
 
 # Run mutation tests on specific file
 mutants-file FILE:
@@ -616,12 +616,12 @@ static-analysis:
 # Run tests with cargo-nextest (better output)
 test-nextest:
     @which cargo-nextest > /dev/null || (echo "Install: cargo install cargo-nextest" && exit 1)
-    cargo nextest run --workspace --features "eval"
+    cargo nextest run --workspace --features "eval discourse"
 
 # Generate code coverage report
 coverage:
     @which cargo-llvm-cov > /dev/null || (echo "Install: cargo install cargo-llvm-cov" && exit 1)
-    cargo llvm-cov --features "eval" --workspace --lcov --output-path lcov.info
+    cargo llvm-cov --features "eval discourse" --workspace --lcov --output-path lcov.info
     @echo "Coverage report generated: lcov.info"
     @echo "View with: genhtml lcov.info -o coverage-html && open coverage-html/index.html"
 
@@ -768,7 +768,7 @@ validate-commit-msg COMMIT_MSG:
 pre-commit-check:
     @echo "Running pre-commit checks..."
     @cargo fmt --all -- --check
-    @cargo clippy --workspace --all-targets --features "eval" -- -D warnings
+    @cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
     @just machete || echo "warning:  cargo-machete not installed, skipping"
     @echo "ok: Pre-commit checks passed"
 
@@ -806,9 +806,9 @@ run-pre-commit-hook:
 run-pre-push-hook:
     @echo "Simulating pre-push hook..."
     @cargo fmt --all -- --check
-    @cargo clippy --workspace --all-targets --features "eval" -- -D warnings
-    @cargo test --workspace --lib --features "eval" --quiet
-    @cargo test --workspace --doc --features "eval" --quiet || echo "warning:  Doc test warnings"
+    @cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
+    @cargo test --workspace --lib --features "eval discourse" --quiet
+    @cargo test --workspace --doc --features "eval discourse" --quiet || echo "warning:  Doc test warnings"
 
 # Generate HTML dashboard (creative: visual analysis results)
 dashboard:
@@ -1024,7 +1024,7 @@ ci-matrix-local SEED="42" PERSPECTIVE="ner":
     ANNO_MATRIX_PERSPECTIVE="{{PERSPECTIVE}}" \
     ANNO_SAMPLE_STRATEGY=worst-first \
     ANNO_MUXER_PROFILE=fast \
-    cargo test -p anno-eval --lib --features "eval" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval discourse" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
 
 # Legacy: spot “badness history” export is not wired into the muxer JSON format by default.
 # Detect regressions in the quality matrix.

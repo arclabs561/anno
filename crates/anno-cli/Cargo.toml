@@ -47,6 +47,7 @@ default = ["onnx"]
 # Evaluation + muxer tooling.
 eval = ["dep:muxer", "anno/analysis", "anno-eval/eval"]
 eval-bias = ["eval", "anno-eval/eval-bias"]
+discourse = ["anno/discourse", "anno-eval/discourse"]
 instrument = []
 onnx = ["anno/onnx", "anno-eval/onnx"]
 candle = ["anno/candle"]
