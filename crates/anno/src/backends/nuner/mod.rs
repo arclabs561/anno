@@ -48,7 +48,7 @@
 //! | Model | Context | Notes |
 //! |-------|---------|-------|
 //! | `numind/NuNER_Zero` | 512 | General zero-shot |
-//! | `numind/NuNER_Zero_4k` | 4096 | Long context variant |
+//! | `numind/NuNER_Zero-4k` | 4096 | Long context variant |
 //! | `deepanwa/NuNerZero_onnx` | 512 | Pre-converted ONNX |
 //!
 //! # Usage
@@ -103,7 +103,7 @@ const MAX_SPAN_WIDTH: usize = 1;
 ///
 /// - `NuNER::new()` / `NuNER::from_pretrained("numind/NuNER_Zero")` -- 512-token context,
 ///   chunks at ~2000 chars.
-/// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero_4k")` -- 4096-token
+/// - `NuNER::new_4k()` / `NuNER::from_pretrained("numind/NuNER_Zero-4k")` -- 4096-token
 ///   context, chunks at ~16000 chars. Useful for long documents without heavy chunking.
 ///
 /// `from_pretrained` auto-detects the 4k variant from the model ID and sets the chunk

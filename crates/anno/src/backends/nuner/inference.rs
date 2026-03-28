@@ -32,15 +32,15 @@ impl NuNER {
 
     /// Create NuNER with 4096-token context configuration.
     ///
-    /// Uses `numind/NuNER_Zero_4k` which handles up to 4096 tokens natively,
+    /// Uses `numind/NuNER_Zero-4k` which handles up to 4096 tokens natively,
     /// reducing chunking overhead for long documents. Chunks at ~16000 chars
     /// instead of ~2000.
     ///
-    /// Call `from_pretrained("numind/NuNER_Zero_4k")` to load model weights.
+    /// Call `from_pretrained("numind/NuNER_Zero-4k")` to load model weights.
     #[must_use]
     pub fn new_4k() -> Self {
         Self {
-            model_id: "numind/NuNER_Zero_4k".to_string(),
+            model_id: "numind/NuNER_Zero-4k".to_string(),
             threshold: 0.5,
             #[cfg(feature = "onnx")]
             requires_span_tensors: std::sync::atomic::AtomicBool::new(false),
@@ -68,11 +68,11 @@ impl NuNER {
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "deepanwa/NuNerZero_onnx",
-    ///   "numind/NuNER_Zero_4k")
+    ///   "numind/NuNER_Zero-4k")
     ///
     /// # Example
     /// ```rust,ignore
-    /// let ner = NuNER::from_pretrained("numind/NuNER_Zero_4k")?;
+    /// let ner = NuNER::from_pretrained("numind/NuNER_Zero-4k")?;
     /// ```
     #[cfg(feature = "onnx")]
     pub fn from_pretrained(model_id: &str) -> Result<Self> {

@@ -22,13 +22,13 @@ fn test_nuner_with_custom_model() {
 #[test]
 fn test_nuner_4k_creation() {
     let ner = NuNER::new_4k();
-    assert_eq!(ner.model_id(), "numind/NuNER_Zero_4k");
+    assert_eq!(ner.model_id(), "numind/NuNER_Zero-4k");
     assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_4K);
 }
 
 #[test]
 fn test_nuner_with_model_auto_detects_4k() {
-    let ner = NuNER::with_model("numind/NuNER_Zero_4k");
+    let ner = NuNER::with_model("numind/NuNER_Zero-4k");
     assert_eq!(ner.max_input_chars(), super::MAX_INPUT_CHARS_4K);
 
     let ner = NuNER::with_model("some-user/custom-nuner-4k-onnx");
