@@ -84,17 +84,9 @@ let ents = model.extract_entities("test", None)?;
 # Ok::<(), anno::Error>(())
 ```
 
-## What it does
+## PII detection
 
-**Named entity recognition.** Spans `(start, end, type, confidence)` with character offsets (Unicode scalar values, not bytes). Fixed taxonomies (PER/ORG/LOC/MISC) or caller-defined labels for zero-shot extraction [1, 2].
-
-**Coreference resolution.** Group mentions into clusters tracking the same referent. Rule-based sieves (`SimpleCorefResolver`), neural (`FCoref`, 78.5 F1 on CoNLL-2012 [3]), and mention-ranking (`MentionRankingCoref`).
-
-**Structured patterns.** Dates, monetary amounts, emails, URLs, phone numbers via deterministic regex grammars.
-
-**Relation extraction.** `(head, relation, tail)` triples via `RelationExtractor` backends (`gliner2`, `tplinker`). Other backends produce co-occurrence edges for graph export.
-
-**PII detection.** Classify NER entities as PII and scan for structured patterns (SSN, credit card, IBAN, email, phone). Redact or pseudonymize in one call:
+Classify NER entities as PII and scan for structured patterns (SSN, credit card, IBAN, email, phone). Redact or pseudonymize in one call:
 
 ```rust
 use anno::{pii, Model, StackedNER};
@@ -106,49 +98,13 @@ let redacted = pii::scan_and_redact(text, &m)?;
 # Ok::<(), anno::Error>(())
 ```
 
-**Export.** Brat standoff, CoNLL BIO tags, JSONL, N-Triples, JSON-LD, and graph CSV via pure functions in `anno::export`.
-
 ## Backends
 
-| Backend | Feature | Zero-shot | Status | Reference |
-|---|---|---|---|---|
-| `stacked` (default) | -- | -- | stable | -- |
-| `gliner` | `onnx` | Yes | stable | Zaratiana et al. [5] |
-| `gliner2` | `onnx` | Yes | beta | [11] |
-| `nuner` | `onnx` | Yes | stable | Bogdanov et al. [6] |
-| `bert_onnx` | `onnx` | No | beta | Devlin et al. [8] |
-| `w2ner` | `onnx` | No | beta | Li et al. [7] |
-| `tplinker` | -- | No | beta | Wang et al. [10] |
-| `glirel` | `onnx` | Yes | beta | -- |
-| `gliner_poly` | `onnx` | Yes | beta | -- |
-| `gliner_candle` | `candle` | Yes | beta | -- |
-| `candle_ner` | `candle` | No | beta | -- |
-| `pattern` | -- | N/A | stable | -- |
-| `heuristic` | -- | No | stable | -- |
-| `crf` | -- | No | stable | Lafferty et al. [9] |
-| `hmm` | -- | No | stable | Rabiner [12] |
-| `ensemble` | -- | No | beta | -- |
-| `heuristic_crf` | -- | No | stable | -- |
-| `universal_ner` | `llm` | Yes | beta | -- |
-
-See [BACKENDS.md](docs/BACKENDS.md) for details, default models, and WIP backends.
-
-ML backends are feature-gated (`onnx` or `candle`). Weights download from HuggingFace on first use.
+17 backends spanning ML (GLiNER, NuNER, BERT, W2NER), statistical (CRF, HMM), rule-based (pattern, heuristic), and LLM-based extraction. ML backends are feature-gated (`onnx` or `candle`); weights download from HuggingFace on first use. See [BACKENDS.md](docs/BACKENDS.md) for the full list, default models, and status.
 
 ### Feature flags
 
-| Feature | Default | Description |
-|---------|---------|-------------|
-| `onnx` | Yes | ONNX Runtime backends via `ort` |
-| `candle` | No | Pure-Rust backends (no C++ runtime) |
-| `metal` | No | Metal GPU acceleration (enables `candle`) |
-| `cuda` | No | CUDA GPU acceleration (enables `candle`) |
-| `analysis` | No | Coref metrics, cluster encoders |
-| `schema` | No | JSON Schema for output types |
-| `llm` | No | LLM-based extraction (OpenRouter, Anthropic, Groq, Gemini, Ollama) |
-| `production` | No | `tracing` instrumentation |
-| `bundled-crf-weights` | No | Embed trained CRF weights in binary |
-| `bundled-hmm-params` | No | Embed HMM parameters in binary |
+`onnx` (default) -- ONNX Runtime backends. `candle` -- pure-Rust backends, no C++ runtime. `metal`/`cuda` -- GPU acceleration (enables `candle`). `llm` -- LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, or Ollama. `analysis` -- coref metrics and cluster encoders. `schema` -- JSON Schema for output types. `production` -- `tracing` instrumentation.
 
 ## CLI
 
@@ -174,13 +130,7 @@ JSON output with `--format json`. Batch processing with `anno batch`. Graph expo
 
 ## Coreference
 
-| Backend | Type | Quality | Speed |
-|---------|------|---------|-------|
-| `SimpleCorefResolver` | Rule-based (9 sieves) | Low | Fast |
-| `FCoref` | Neural (DistilRoBERTa) | 78.5 F1 [3] | Medium |
-| `MentionRankingCoref` | Mention-ranking | Medium | Medium |
-
-`FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
+Three resolvers: `SimpleCorefResolver` (rule-based, 9 sieves), `FCoref` (neural, 78.5 F1 on CoNLL-2012 [3]), and `MentionRankingCoref`. `FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
 
 RAG preprocessing (`rag::resolve_for_rag()`, `rag::preprocess()`): rewrites pronouns for self-contained chunks after splitting. Always available (no feature flag required).
 
@@ -195,14 +145,9 @@ Inference-time extraction. Training pipelines are out of scope -- use upstream f
 - **Feature errors**: most backends are gated behind `onnx` or `candle`.
 - **Offset mismatches**: all spans use character offsets, not byte offsets. See [CONTRACT.md](docs/CONTRACT.md).
 
-## Documentation
+## Examples
 
-- [QUICKSTART](docs/QUICKSTART.md) -- getting started
-- [CONTRACT](docs/CONTRACT.md) -- offset semantics, scope
-- [BACKENDS](docs/BACKENDS.md) -- backend details, feature flags
-- [ARCHITECTURE](docs/ARCHITECTURE.md) -- crate layout
-- [REFERENCES](docs/REFERENCES.md) -- full bibliography
-- [API docs](https://docs.rs/anno)
+`quickstart` -- basic extraction. `pii_redact` -- detect and redact PII. `zero_shot` -- custom entity types with GLiNER. See `crates/anno/examples/` for more.
 
 ## References
 
