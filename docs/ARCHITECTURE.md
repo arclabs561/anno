@@ -58,6 +58,9 @@ If you feel pressure to add a dependency “upwards” (e.g. `anno-core -> anno`
 - **Backends and execution live in `anno`**
   - Feature-gate heavyweight dependencies (onnx/candle/llm) in `anno`.
   - Keep “business logic” out of the CLI; the CLI should orchestrate calls into `anno`/`anno-eval`.
+  - Model loading should try the target format first (ONNX/safetensors), then auto-convert
+    from PyTorch via `uv run scripts/export_*.py` with local caching. See GLiNER ONNX
+    (`export_pytorch_to_onnx`) and Candle (`convert_pytorch_to_safetensors`) for the pattern.
 
 - **Evaluation lives in `anno-eval`**
   - Dataset downloading/parsing, metrics, aggregation, and muxer selection live here.
