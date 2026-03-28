@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Extract named entities, relations, coreference chains, and PII from unstructured text. Fixed entity types (PER/ORG/LOC/MISC) or zero-shot custom labels.
+Text annotation and entity extraction.
 
 Dual-licensed under MIT or Apache-2.0. MSRV: 1.85.
 
