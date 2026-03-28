@@ -527,9 +527,7 @@ pub fn create_coref_resolver(
 /// Unlike `create_coref_resolver` which takes pre-extracted entities,
 /// `CorefBackend` operates on raw text and returns mention clusters directly.
 /// This is the interface used by neural coref models (FCoref, MentionRanking).
-pub fn create_coref_backend(
-    name: &str,
-) -> Result<Box<dyn anno::CorefBackend>> {
+pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
     match name.to_lowercase().as_str() {
         "mention_ranking" | "mention-ranking" | "mentionranking" => {
             use anno::backends::coref::mention_ranking::MentionRankingCoref;

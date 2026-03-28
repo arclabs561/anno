@@ -2108,10 +2108,7 @@ impl TaskEvaluator {
 
             // Check if this is a text-based coref backend (CorefBackend)
             // rather than an entity-based resolver (CoreferenceResolver).
-            let is_text_based_coref = matches!(
-                backend_name,
-                "fcoref" | "f-coref" | "fastcoref"
-            );
+            let is_text_based_coref = matches!(backend_name, "fcoref" | "f-coref" | "fastcoref");
 
             let predicted_chains = if is_text_based_coref {
                 // Text-based coref: run directly on raw text, bypass NER extraction.
