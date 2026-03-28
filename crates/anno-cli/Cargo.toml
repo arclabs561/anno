@@ -30,7 +30,7 @@ glob = { workspace = true }
 itertools = { workspace = true }
 
 # Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval`).
-muxer = { version = "0.4", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
+muxer = { version = "0.3.12", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 
 # Optional: graph/KG export surface.
 # anno-graph is the graph/KG adapter crate; it brings in lattix transitively.

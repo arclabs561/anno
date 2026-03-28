@@ -60,7 +60,7 @@ clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { version = "0.4", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
+muxer = { version = "0.3.12", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 hf-hub = { workspace = true, optional = true }
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
