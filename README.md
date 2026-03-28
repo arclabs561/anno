@@ -48,7 +48,7 @@ let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)
 # Ok::<(), anno::Error>(())
 ```
 
-`StackedNER::default()` selects the best available backend at runtime: BERT or NuNER (if `onnx` enabled and models cached), then GLiNER, falling back to heuristic + pattern extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
+`StackedNER::default()` selects the best available backend at runtime: BERT ONNX and NuNER (both tried independently when `onnx` enabled and models cached), then GLiNER if neither loaded, falling back to pattern + heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
 
 Zero-shot custom types via GLiNER:
 
@@ -118,7 +118,7 @@ let redacted = pii::scan_and_redact(text, &m)?;
 | `nuner` | `onnx` | Yes | stable | Bogdanov et al. [6] |
 | `bert_onnx` | `onnx` | No | beta | Devlin et al. [8] |
 | `w2ner` | `onnx` | No | beta | Li et al. [7] |
-| `tplinker` | `onnx` | No | beta | Wang et al. [10] |
+| `tplinker` | -- | No | beta | Wang et al. [10] |
 | `glirel` | `onnx` | Yes | beta | -- |
 | `gliner_poly` | `onnx` | Yes | beta | -- |
 | `gliner_candle` | `candle` | Yes | beta | -- |
