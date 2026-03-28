@@ -416,7 +416,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],
         "candle_ner" | "CandleNER" => &[Task::NER],
-        "nuner" | "NuNER" => &[Task::NER], // Also implements ZeroShotNER
+        "nuner" | "NuNER" | "nuner_4k" | "nunerzero4k" => &[Task::NER], // Also implements ZeroShotNER
         "deberta_v3" | "DeBERTaV3NER" => &[Task::NER],
         "albert" | "ALBERTNER" => &[Task::NER],
 
@@ -524,6 +524,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "bert_onnx",
         "candle_ner",
         "nuner",
+        "nuner_4k",
         "gliner_onnx",
         "gliner_candle",
         "gliner2",

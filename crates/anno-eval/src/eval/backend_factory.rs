@@ -152,6 +152,23 @@ impl BackendFactory {
             )),
 
             #[cfg(feature = "onnx")]
+            "nuner_4k" | "nunerzero4k" => {
+                use crate::backends::nuner::NuNER;
+                NuNER::from_pretrained("numind/NuNER_Zero-4k")
+                    .map(|m| Box::new(m) as Box<dyn Model>)
+                    .map_err(|e| {
+                        crate::Error::FeatureNotAvailable(format!(
+                            "Failed to create NuNER 4k: {}",
+                            e
+                        ))
+                    })
+            }
+            #[cfg(not(feature = "onnx"))]
+            "nuner_4k" | "nunerzero4k" => Err(crate::Error::FeatureNotAvailable(
+                "NuNER 4k requires 'onnx' feature".to_string(),
+            )),
+
+            #[cfg(feature = "onnx")]
             "w2ner" => {
                 use crate::backends::w2ner::W2NER;
                 use crate::DEFAULT_W2NER_MODEL;
@@ -385,6 +402,7 @@ impl BackendFactory {
                 "gliner",
                 "gliner_onnx",
                 "nuner",
+                "nuner_4k",
                 "w2ner",
                 "gliner2",
                 "gliner_poly",
