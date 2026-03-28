@@ -133,6 +133,7 @@ Some models only distribute PyTorch weights. Export scripts in `scripts/` conver
 | `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |
 | `export_tplinker_onnx.py` | TPLinker | Joint entity-relation extraction |
 | `export_glirel_onnx.py` | GLiREL | Relation extraction; falls back to PyTorch weights if ONNX export fails |
+| `export_gliner_relex_onnx.py` | GLiNER-RelEx (joint NER+RE) | Dual output: entity_scores + relation_scores. Falls back to PyTorch |
 | `export_fcoref.py` | f-coref | Splits encoder (ONNX) from scorer heads (safetensors) |
 
 GLiNER ONNX backends (`gliner_onnx`) auto-export on first load if no ONNX file is cached. The auto-export calls `export_gliner_poly_onnx.py` via `uv run` or `python3`.
