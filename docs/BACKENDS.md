@@ -118,6 +118,23 @@ All ML models download from HuggingFace on first use. See the tables above for d
 
 Override with model-specific flags or environment variables.
 
+## ONNX export scripts
+
+Some models only distribute PyTorch weights. Export scripts in `scripts/` convert them to ONNX for use with anno's inference backends. All scripts use PEP 723 inline metadata and run with `uv run`.
+
+| Script | Target model | Notes |
+|--------|-------------|-------|
+| `export_gliner_poly_onnx.py` | GLiNER bi-encoder (v1/v2) | Dual strategy: library export, then manual fallback. Produces `model.onnx` + `label_encoder.onnx` |
+| `export_nuner_to_onnx.py` | NuNER Zero / Zero-4k | Auto-detects architecture (token classifier vs GLiNER). Delegates GLiNER variants to `export_gliner_poly_onnx.py` |
+| `export_deberta_ner_to_onnx.py` | DeBERTa-v3 NER | Standard token classifier export |
+| `export_biomedical_ner_to_onnx.py` | d4data/biomedical-ner-all | Uses Optimum; optional INT8 quantization |
+| `export_w2ner_to_onnx.py` | W2NER | Simplified architecture (fixed-length inputs for ONNX compat) |
+| `export_tplinker_onnx.py` | TPLinker | Joint entity-relation extraction |
+| `export_glirel_onnx.py` | GLiREL | Relation extraction; falls back to PyTorch weights if ONNX export fails |
+| `export_fcoref.py` | f-coref | Splits encoder (ONNX) from scorer heads (safetensors) |
+
+GLiNER ONNX backends (`gliner_onnx`) auto-export on first load if no ONNX file is cached. The auto-export calls `export_gliner_poly_onnx.py` via `uv run` or `python3`.
+
 ## Source of truth (generated at runtime)
 
 Use the CLI to see what's available in *your build*:
