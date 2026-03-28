@@ -17,6 +17,8 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | beta | `knowledgator/modern-gliner-poly-large-v1.0` |
 | `gliner_onnx` | GLiNER manual ONNX impl | Yes | beta | `onnx-community/gliner_small-v2.1` |
+| `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
+| `gliner_relex` | GLiNER-RelEx joint NER+RE | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
 
