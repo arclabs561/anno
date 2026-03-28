@@ -23,6 +23,10 @@ pub use anno::{BertNEROnnx, GLiNEROnnx};
 #[doc(hidden)]
 pub use anno::{CandleNER, DEFAULT_CANDLE_MODEL, DEFAULT_GLINER_CANDLE_MODEL};
 
+// Some eval modules use `crate::discourse::*` when the `discourse` feature is enabled.
+#[cfg(feature = "discourse")]
+pub use anno::discourse;
+
 /// Shared helpers for the muxer-backed matrix sampler harness.
 #[cfg(feature = "eval")]
 pub mod muxer_harness;
