@@ -33,6 +33,8 @@ Usage:
     uv run scripts/export_gliner_poly_onnx.py --quantize
 
 Compatible models (bi-encoder / poly-encoder with label encoder):
+    knowledgator/gliner-bi-large-v2.0       (v2, 61.5% CrossNER zero-shot SOTA)
+    knowledgator/gliner-bi-base-v2.0        (v2, smaller/faster variant)
     knowledgator/gliner-bi-large-v1.0       (DeBERTa-v3-large + BGE-small-en)
     knowledgator/gliner-bi-small-v1.0       (DeBERTa-v3-small + BGE-small-en)
     knowledgator/modern-gliner-bi-large-v1.0 (ModernBERT-large + BGE-base-en)
@@ -54,7 +56,7 @@ from pathlib import Path
 # so that `python script.py --help` works without them installed.
 # When run via `uv run`, the PEP 723 dependencies are installed first.
 
-DEFAULT_MODEL = "knowledgator/gliner-bi-large-v1.0"
+DEFAULT_MODEL = "knowledgator/gliner-bi-large-v2.0"
 
 DEFAULT_ENTITY_TYPES = [
     "person",
