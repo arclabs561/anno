@@ -396,7 +396,7 @@ fn all_backends_handle_empty_gracefully() {
 /// Ensemble confidence should be >= single-backend confidence when multiple
 /// backends agree (agreement bonus).
 #[test]
-fn ensemble_agreement_boosts_confidence() {
+fn ensemble_agreement_may_boost_confidence() {
     let text = "Tim Cook is the CEO of Apple Inc.";
 
     // Single heuristic backend
@@ -423,8 +423,8 @@ fn ensemble_agreement_boosts_confidence() {
         }
     }
 
-    // This is a soft check -- it's OK if no boost happened (regex may not find the same entities)
-    // The important thing is it doesn't crash and produces valid output
+    // Boosting is optional -- regex may not find the same entities as heuristic.
+    // The important thing is it doesn't crash and produces valid output.
     let _ = found_boost;
 }
 

@@ -392,8 +392,7 @@ fn test_weight_learner_empty() {
     let learner = WeightLearner::new();
     let weights = learner.learn_weights();
     // Empty learner returns empty weights (caller should use defaults)
-    // Just verify it doesn't panic and returns a valid HashMap
-    let _ = weights.len();
+    assert!(weights.is_empty(), "empty learner should return empty weights");
 }
 
 #[test]
