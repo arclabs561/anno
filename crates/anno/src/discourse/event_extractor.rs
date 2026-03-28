@@ -1049,14 +1049,14 @@ impl EventExtractor {
             // Find word index for polarity/tense detection
             let word_idx = words
                 .iter()
-                .position(|(_, start, end)| *start <= entity.start && *end >= entity.end)
+                .position(|(_, start, end)| *start <= entity.start() && *end >= entity.end())
                 .unwrap_or(0);
 
             let polarity = self.detect_polarity(&words, word_idx, None);
             let tense = self.detect_tense(&words, word_idx, &entity.text);
             let arguments = self.extract_arguments(text, &words, word_idx);
 
-            let mut event = EventMention::new(&entity.text, entity.start, entity.end)
+            let mut event = EventMention::new(&entity.text, entity.start(), entity.end())
                 .with_trigger_type(event_type)
                 .with_polarity(polarity)
                 .with_confidence(entity.confidence.into());
