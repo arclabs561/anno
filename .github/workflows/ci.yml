@@ -129,7 +129,7 @@ jobs:
       - name: Run library tests
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
-        run: cargo test --package anno --tests --features eval
+        run: cargo test --package anno --tests
       - name: Run doc tests
         run: cargo test --workspace --doc --features "eval discourse"
   # ==========================================================================

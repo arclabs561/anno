@@ -784,7 +784,6 @@ pub fn mab_config_from_env() -> MabConfig {
         max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
-        ..MabConfig::default()
     }
 }
 
@@ -809,7 +808,6 @@ pub fn monitored_mab_config_from_env() -> MonitoredMabConfig {
         cusum_min_recent: env_usize("ANNO_MUXER_CUSUM_MIN_RECENT", 20) as u64,
         cusum_alt_p: env_simplex4_opt("ANNO_MUXER_CUSUM_ALT_P"),
         cusum_weight: env_f64("ANNO_MUXER_CUSUM_WEIGHT", 0.0).max(0.0),
-        ..MonitoredMabConfig::default()
     }
 }
 
