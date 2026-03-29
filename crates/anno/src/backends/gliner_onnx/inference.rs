@@ -78,6 +78,40 @@ impl GLiNEROnnx {
             None => detect_encoder_mode(&session),
         };
 
+        // Read class_token_index from gliner_config.json (if present).
+        let (token_ent, token_sep) =
+            match hf_loader::download_model_file(&repo, &["gliner_config.json"]) {
+                Ok(config_path) => {
+                    let config_str = std::fs::read_to_string(&config_path).unwrap_or_default();
+                    let config_json: serde_json::Value =
+                        serde_json::from_str(&config_str).unwrap_or_default();
+                    let ent = config_json
+                        .get("class_token_index")
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u32)
+                        .unwrap_or(DEFAULT_TOKEN_ENT);
+                    // sep is typically class_token_index + 1
+                    let sep = ent.saturating_add(1);
+                    if ent != DEFAULT_TOKEN_ENT {
+                        log::info!(
+                        "[GLiNER] Using class_token_index={} from gliner_config.json (default={})",
+                        ent,
+                        DEFAULT_TOKEN_ENT
+                    );
+                    }
+                    (ent, sep)
+                }
+                Err(_) => (DEFAULT_TOKEN_ENT, DEFAULT_TOKEN_SEP),
+            };
+
+        // Detect whether the model expects span_idx/span_mask inputs.
+        // Token-level classifiers (e.g., gliner-pii-edge) don't have these.
+        let has_span_inputs = session.inputs().iter().any(|i| i.name() == "span_idx");
+
+        if !has_span_inputs {
+            log::info!("[GLiNER] Token-level model detected (no span_idx input)");
+        }
+
         // For bi-encoder models, try to load the separate label encoder ONNX session.
         // The export script produces `label_encoder.onnx` alongside `model.onnx`.
         let (label_encoder_session, label_tokenizer) = if encoder_mode == config::EncoderMode::Bi {
@@ -151,6 +185,9 @@ impl GLiNEROnnx {
             is_quantized,
             prompt_cache,
             encoder_mode,
+            token_ent,
+            token_sep,
+            has_span_inputs,
             label_cache: Mutex::new(HashMap::new()),
             label_encoder_session,
             label_tokenizer,
@@ -594,16 +631,15 @@ impl GLiNEROnnx {
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
         let text_lengths_t = crate::backends::ort_compat::tensor_from_ndarray(text_lengths_array)
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
-        let span_idx_t = crate::backends::ort_compat::tensor_from_ndarray(span_idx_array)
-            .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
-        let span_mask_t = crate::backends::ort_compat::tensor_from_ndarray(span_mask_array)
-            .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
-
         // Run inference with blocking lock for thread-safe parallel access
         let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
-        let outputs = session
-            .run(ort::inputs![
+        let outputs = if self.has_span_inputs {
+            let span_idx_t = crate::backends::ort_compat::tensor_from_ndarray(span_idx_array)
+                .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
+            let span_mask_t = crate::backends::ort_compat::tensor_from_ndarray(span_mask_array)
+                .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
+            session.run(ort::inputs![
                 "input_ids" => input_ids_t.into_dyn(),
                 "attention_mask" => attention_mask_t.into_dyn(),
                 "words_mask" => words_mask_t.into_dyn(),
@@ -611,7 +647,16 @@ impl GLiNEROnnx {
                 "span_idx" => span_idx_t.into_dyn(),
                 "span_mask" => span_mask_t.into_dyn(),
             ])
-            .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?;
+        } else {
+            // Token-level classifier (e.g., gliner-pii-edge): no span inputs
+            session.run(ort::inputs![
+                "input_ids" => input_ids_t.into_dyn(),
+                "attention_mask" => attention_mask_t.into_dyn(),
+                "words_mask" => words_mask_t.into_dyn(),
+                "text_lengths" => text_lengths_t.into_dyn(),
+            ])
+        }
+        .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?;
 
         // Decode output
         let entities = self.decode_output(
@@ -749,7 +794,7 @@ impl GLiNEROnnx {
         // Add entity types: <<ENT>> type1 <<ENT>> type2 ...
         for entity_type in entity_types {
             // Add <<ENT>> token
-            input_ids.push(TOKEN_ENT as i64);
+            input_ids.push(self.token_ent as i64);
             word_mask.push(0);
 
             // Expand common NER abbreviations to full words the model was trained on
@@ -768,7 +813,7 @@ impl GLiNEROnnx {
         }
 
         // Add <<SEP>> token
-        input_ids.push(TOKEN_SEP as i64);
+        input_ids.push(self.token_sep as i64);
         word_mask.push(0);
 
         // Add text words (this is where word_mask starts counting from 1)

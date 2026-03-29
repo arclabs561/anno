@@ -37,11 +37,11 @@ use std::collections::HashMap;
 #[cfg(feature = "onnx")]
 use std::sync::Mutex;
 
-/// Special token IDs for GLiNER models
+/// Special token IDs for GLiNER models (defaults, overridden from gliner_config.json).
 const TOKEN_START: u32 = 1;
 const TOKEN_END: u32 = 2;
-const TOKEN_ENT: u32 = 128002;
-const TOKEN_SEP: u32 = 128003;
+const DEFAULT_TOKEN_ENT: u32 = 128002;
+const DEFAULT_TOKEN_SEP: u32 = 128003;
 
 /// Default max span width from GLiNER config
 const MAX_SPAN_WIDTH: usize = 12;
@@ -71,6 +71,15 @@ pub struct GLiNEROnnx {
     /// Populated by `precompute_labels()`. In bi-encoder mode, if a label is not
     /// in this cache it will be encoded on-the-fly and cached for subsequent calls.
     label_cache: Mutex<HashMap<String, config::LabelEmbedding>>,
+    /// Entity class token ID (<<ENT>> marker). Loaded from gliner_config.json.
+    token_ent: u32,
+    /// Separator token ID (<<SEP>> marker). Loaded from gliner_config.json.
+    token_sep: u32,
+    /// Whether the ONNX model expects span_idx/span_mask inputs.
+    ///
+    /// Token-level classifiers (e.g., gliner-pii-edge) don't have span inputs.
+    /// Detected at load time from the ONNX session input names.
+    has_span_inputs: bool,
     /// Separate ONNX session for the label encoder (bi-encoder models only).
     ///
     /// Loaded from `label_encoder.onnx` alongside the main `model.onnx`.
