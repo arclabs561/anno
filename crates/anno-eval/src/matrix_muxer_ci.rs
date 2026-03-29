@@ -3931,18 +3931,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 
         let cost = r.num_examples as u64;
         let elapsed = dur_ms as u64;
-        let mut o = if hard_junk {
-            Outcome::failure(cost, elapsed)
-        } else if junk {
-            Outcome::degraded(cost, elapsed)
-        } else {
-            Outcome::success(cost, elapsed)
+        let o = match r.primary_f1() {
+            Some(f1) => Outcome::with_quality(ok, junk, hard_junk, cost, elapsed, f1),
+            None => Outcome::new(ok, junk, hard_junk, cost, elapsed),
         };
-        // Override ok flag if the computed value differs from constructor default
-        o.ok = ok;
-        o.junk = junk;
-        o.hard_junk = hard_junk;
-        o.quality_score = r.primary_f1().map(|f| f.clamp(0.0, 1.0));
         let fail_kind = if hard_junk {
             Some(
                 r.error
