@@ -284,7 +284,7 @@ fn select_mab_k_monitored_explain(
     summaries_for: impl Fn(&[String]) -> std::collections::BTreeMap<String, Summary>,
     monitored_for: impl Fn(&[String]) -> std::collections::BTreeMap<String, muxer::MonitoredWindow>,
     drift_cfg: muxer::DriftConfig,
-    cfg: MabConfig,
+    cfg: muxer::MonitoredMabConfig,
     _guardrail_cfg: mh::LatencyGuardrailConfig,
     k: usize,
 ) -> MultiPickMabResult {
@@ -751,9 +751,10 @@ fn test_exp3ix_can_outperform_mab_when_summaries_equal_but_reward_differs() {
     let mut summaries = BTreeMap::new();
     summaries.insert("a".to_string(), s);
     summaries.insert("b".to_string(), s);
-    let mab_choice = muxer::select_mab_explain(&arms, &summaries, mab_config_from_env())
-        .selection
-        .chosen;
+    let mab_choice =
+        muxer::select_mab_explain(&arms, &summaries, mh::monitored_mab_config_from_env().base)
+            .selection
+            .chosen;
 
     // Make the MAB-chosen arm worse so EXP3-IX has an opportunity to beat it.
     let r_a = if mab_choice == "a" { 0.6 } else { 0.9 };
@@ -843,7 +844,7 @@ fn exp3ix_config_from_env(seed: u64) -> Exp3IxConfig {
     }
 }
 
-fn monitoring_enabled(cfg: MabConfig) -> bool {
+fn monitoring_enabled(cfg: &muxer::MonitoredMabConfig) -> bool {
     cfg.max_drift.is_some()
         || cfg.drift_weight > 0.0
         || cfg.max_catkl.is_some()
@@ -856,7 +857,7 @@ fn monitoring_scores_for_backend(
     history: &BackendHistory,
     backend: &str,
     monitor_recent_cap: usize,
-    cfg: MabConfig,
+    cfg: &muxer::MonitoredMabConfig,
     drift_cfg: muxer::DriftConfig,
 ) -> (Option<f64>, Option<f64>, Option<f64>) {
     // Monitoring is defined on backend-global windows only.
@@ -891,7 +892,7 @@ fn monitoring_penalty(
     drift: Option<f64>,
     catkl: Option<f64>,
     cusum: Option<f64>,
-    cfg: MabConfig,
+    cfg: &muxer::MonitoredMabConfig,
     drift_metric: muxer::DriftMetric,
 ) -> f64 {
     // Normalize scores into [0,1] (best-effort), then take a weighted sum.
@@ -1116,17 +1117,17 @@ fn test_decision_log_schema_smoke() {
 
 #[test]
 fn test_monitoring_penalty_is_monotone_and_reward_adjustment_is_bounded() {
-    let cfg = MabConfig {
+    let cfg = muxer::MonitoredMabConfig {
         drift_weight: 1.0,
         catkl_weight: 2.0,
         cusum_weight: 3.0,
         drift_metric: muxer::DriftMetric::Hellinger,
-        ..MabConfig::default()
+        ..muxer::MonitoredMabConfig::default()
     };
 
-    let p0 = monitoring_penalty(Some(0.0), Some(0.0), Some(0.0), cfg, cfg.drift_metric);
-    let p1 = monitoring_penalty(Some(0.2), Some(0.5), Some(1.0), cfg, cfg.drift_metric);
-    let p2 = monitoring_penalty(Some(0.9), Some(2.0), Some(4.0), cfg, cfg.drift_metric);
+    let p0 = monitoring_penalty(Some(0.0), Some(0.0), Some(0.0), &cfg, cfg.drift_metric);
+    let p1 = monitoring_penalty(Some(0.2), Some(0.5), Some(1.0), &cfg, cfg.drift_metric);
+    let p2 = monitoring_penalty(Some(0.9), Some(2.0), Some(4.0), &cfg, cfg.drift_metric);
     assert!(p0 <= p1 + 1e-12);
     assert!(p1 <= p2 + 1e-12);
 
@@ -1441,8 +1442,8 @@ fn junk_f1_threshold(task: Task) -> f64 {
     }
 }
 
-fn mab_config_from_env() -> MabConfig {
-    mh::mab_config_from_env()
+fn monitored_config_from_env() -> muxer::MonitoredMabConfig {
+    mh::monitored_mab_config_from_env()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1487,14 +1488,9 @@ fn select_backends(
 
             // MAB selection (muxer): pick historically "best" arms (high ok_rate, low junk),
             // with exploration to avoid fixating too early.
-            let cfg = mab_config_from_env();
-            let drift_cfg = mh::drift_config_from_env(cfg.drift_metric);
-            let monitoring_enabled = cfg.max_drift.is_some()
-                || cfg.drift_weight > 0.0
-                || cfg.max_catkl.is_some()
-                || cfg.catkl_weight > 0.0
-                || cfg.max_cusum.is_some()
-                || cfg.cusum_weight > 0.0;
+            let mon_cfg = monitored_config_from_env();
+            let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
+            let is_monitored = monitoring_enabled(&mon_cfg);
             let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
             let decisions_path = decisions_path();
@@ -1527,7 +1523,7 @@ fn select_backends(
                         require_measured: false,
                         allow_fewer: guard.allow_fewer,
                     };
-                    let mk = if monitoring_enabled {
+                    let mk = if is_monitored {
                         select_mab_k_monitored_explain(
                             eligible,
                             summaries_for,
@@ -1535,7 +1531,7 @@ fn select_backends(
                                 history.monitored_for_backends(remaining, monitor_recent_cap)
                             },
                             drift_cfg,
-                            cfg,
+                            mon_cfg.clone(),
                             guardrail_cfg,
                             remaining_k,
                         )
@@ -1543,7 +1539,7 @@ fn select_backends(
                         select_mab_k_explain(
                             eligible,
                             summaries_for,
-                            cfg,
+                            mon_cfg.base.clone(),
                             guardrail_cfg,
                             remaining_k,
                         )
@@ -1607,13 +1603,13 @@ fn select_backends(
                             let catkl = c.catkl_score.unwrap_or(0.0);
                             let cusum = c.cusum_score.unwrap_or(0.0);
                             let score = c.objective_success
-                                - cfg.cost_weight * c.mean_cost_units
-                                - cfg.latency_weight * c.mean_elapsed_ms
-                                - cfg.hard_junk_weight * c.hard_junk_rate
-                                - cfg.junk_weight * c.soft_junk_rate
-                                - cfg.drift_weight * drift
-                                - cfg.catkl_weight * catkl
-                                - cfg.cusum_weight * cusum;
+                                - mon_cfg.base.cost_weight * c.mean_cost_units
+                                - mon_cfg.base.latency_weight * c.mean_elapsed_ms
+                                - mon_cfg.base.hard_junk_weight * c.hard_junk_rate
+                                - mon_cfg.base.junk_weight * c.soft_junk_rate
+                                - mon_cfg.drift_weight * drift
+                                - mon_cfg.catkl_weight * catkl
+                                - mon_cfg.cusum_weight * cusum;
                             rows.push((score, c));
                         }
                         rows.sort_by(|a, b| {
@@ -1679,12 +1675,12 @@ fn select_backends(
                             .iter()
                             .find(|c| c.name == d.selection.chosen);
                         if let Some(c) = c {
-                            let mon_cfg = mab_config_from_env();
+                            let mon_cfg = mh::monitored_mab_config_from_env();
                             let p = monitoring_penalty(
                                 c.drift_score,
                                 c.catkl_score,
                                 c.cusum_score,
-                                mon_cfg,
+                                &mon_cfg,
                                 mon_cfg.drift_metric,
                             );
                             (c.drift_score, c.catkl_score, c.cusum_score, Some(p))
@@ -1928,8 +1924,8 @@ fn select_backends(
                         .collect();
                     let profile = std::env::var("ANNO_MUXER_PROFILE").ok();
 
-                    let mon_cfg = mab_config_from_env();
-                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    let mon_cfg = mh::monitored_mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(&mon_cfg);
                     let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
                     let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
                     let (
@@ -1942,10 +1938,10 @@ fn select_backends(
                             history,
                             &pick,
                             monitor_recent_cap,
-                            mon_cfg,
+                            &mon_cfg,
                             drift_cfg,
                         );
-                        let p = monitoring_penalty(d, k, u, mon_cfg, mon_cfg.drift_metric);
+                        let p = monitoring_penalty(d, k, u, &mon_cfg, mon_cfg.drift_metric);
                         (d, k, u, Some(p))
                     } else {
                         (None, None, None, None)
@@ -3340,8 +3336,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 // EXP3-IX is stochastic and reward-driven; we apply monitoring as:
                 // - hard filters when `max_*` thresholds are set
                 // - soft penalties at update-time when `*_weight > 0` (see below)
-                let monitor_cfg = mab_config_from_env();
-                let mon_enabled = monitoring_enabled(monitor_cfg);
+                let monitor_cfg = mh::monitored_mab_config_from_env();
+                let mon_enabled = monitoring_enabled(&monitor_cfg);
                 let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
                 let drift_cfg = mh::drift_config_from_env(monitor_cfg.drift_metric);
                 let (eligible_after_monitor, monitor_fallback_used) = if mon_enabled
@@ -3512,8 +3508,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     chosen_cusum_score,
                     chosen_monitoring_penalty,
                 ) = if let Some(chosen_backend) = chosen.first() {
-                    let mon_cfg = mab_config_from_env();
-                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    let mon_cfg = mh::monitored_mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(&mon_cfg);
                     if mon_enabled {
                         let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
                         let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
@@ -3521,10 +3517,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                             &history,
                             chosen_backend,
                             monitor_recent_cap,
-                            mon_cfg,
+                            &mon_cfg,
                             drift_cfg,
                         );
-                        let p = monitoring_penalty(d, k, u, mon_cfg, mon_cfg.drift_metric);
+                        let p = monitoring_penalty(d, k, u, &mon_cfg, mon_cfg.drift_metric);
                         (d, k, u, Some(p))
                     } else {
                         (None, None, None, None)
@@ -3933,17 +3929,20 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             );
         }
 
-        let o = Outcome {
-            ok,
-            junk,
-            hard_junk,
-            // A crude “cost” proxy. Not currently weighted in the harness, but useful for future
-            // tuning and for offline inspection.
-            cost_units: r.num_examples as u64,
-            elapsed_ms: dur_ms as u64,
-            // primary_f1 is the natural quality signal; feed it as the continuous gradient.
-            quality_score: r.primary_f1().map(|f| f.clamp(0.0, 1.0)),
+        let cost = r.num_examples as u64;
+        let elapsed = dur_ms as u64;
+        let mut o = if hard_junk {
+            Outcome::failure(cost, elapsed)
+        } else if junk {
+            Outcome::degraded(cost, elapsed)
+        } else {
+            Outcome::success(cost, elapsed)
         };
+        // Override ok flag if the computed value differs from constructor default
+        o.ok = ok;
+        o.junk = junk;
+        o.hard_junk = hard_junk;
+        o.quality_score = r.primary_f1().map(|f| f.clamp(0.0, 1.0));
         let fail_kind = if hard_junk {
             Some(
                 r.error
@@ -3978,8 +3977,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             let f1 = r.primary_f1().unwrap_or(0.0);
             let thr = junk_f1_threshold(r.task);
 
-            let mon_cfg = mab_config_from_env();
-            let mon_enabled = monitoring_enabled(mon_cfg);
+            let mon_cfg = mh::monitored_mab_config_from_env();
+            let mon_enabled = monitoring_enabled(&mon_cfg);
             let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
             let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
             let (drift_score, catkl_score, cusum_score) = if mon_enabled {
@@ -3987,7 +3986,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     &history,
                     &r.backend,
                     monitor_recent_cap,
-                    mon_cfg,
+                    &mon_cfg,
                     drift_cfg,
                 )
             } else {
@@ -3998,7 +3997,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     drift_score,
                     catkl_score,
                     cusum_score,
-                    mon_cfg,
+                    &mon_cfg,
                     mon_cfg.drift_metric,
                 ))
             } else {
@@ -4072,8 +4071,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     //
                     // This is intentionally multiplicative: `r_adj = r01 * exp(-penalty)` keeps reward in [0,1]
                     // and preserves ranking when penalty=0.
-                    let mon_cfg = mab_config_from_env();
-                    let mon_enabled = monitoring_enabled(mon_cfg);
+                    let mon_cfg = mh::monitored_mab_config_from_env();
+                    let mon_enabled = monitoring_enabled(&mon_cfg);
                     let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
                     let drift_cfg = mh::drift_config_from_env(mon_cfg.drift_metric);
                     let (drift, catkl, cusum) = if mon_enabled {
@@ -4081,14 +4080,14 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                             &history,
                             chosen,
                             monitor_recent_cap,
-                            mon_cfg,
+                            &mon_cfg,
                             drift_cfg,
                         )
                     } else {
                         (None, None, None)
                     };
                     let penalty = if mon_enabled {
-                        monitoring_penalty(drift, catkl, cusum, mon_cfg, mon_cfg.drift_metric)
+                        monitoring_penalty(drift, catkl, cusum, &mon_cfg, mon_cfg.drift_metric)
                     } else {
                         0.0
                     };

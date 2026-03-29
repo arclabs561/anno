@@ -24,7 +24,7 @@
 //! monitors (CUSUM) become ill-defined. For that reason, `anno` computes monitoring windows at the
 //! backend-global level (keys are backend names only) even when base summaries are dataset-scoped.
 
-use muxer::{DriftConfig, DriftMetric, MabConfig};
+use muxer::{DriftConfig, DriftMetric, MabConfig, MonitoredMabConfig};
 
 // Prefer centralizing generic policy helpers in `muxer` itself so harnesses/CLIs don’t drift.
 pub use muxer::{
@@ -780,39 +780,36 @@ pub fn mab_config_from_env() -> MabConfig {
         latency_weight: env_f64("ANNO_MUXER_LATENCY_WEIGHT", 0.0).max(0.0),
         junk_weight: env_f64("ANNO_MUXER_JUNK_WEIGHT", 0.8).max(0.0),
         hard_junk_weight: env_f64("ANNO_MUXER_HARD_JUNK_WEIGHT", 1.6).max(0.0),
-        // Quality signal from continuous F1 scores (requires quality_score set on Outcome).
-        // Default 0.0 = disabled; set > 0 to blend into the MAB objective.
         quality_weight: env_f64("ANNO_MUXER_QUALITY_WEIGHT", 0.0).max(0.0),
-        // Hard constraints (BwK-ish gating).
         max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
+        ..MabConfig::default()
+    }
+}
 
-        // Drift monitoring (optional; monitored selection only).
+/// Resolve monitored muxer config from env (includes drift/catKL/CUSUM guards).
+pub fn monitored_mab_config_from_env() -> MonitoredMabConfig {
+    MonitoredMabConfig {
+        base: mab_config_from_env(),
+        // Drift monitoring.
         max_drift: env_f64_opt("ANNO_MUXER_MAX_DRIFT"),
         drift_metric: drift_metric_from_env("ANNO_MUXER_DRIFT_METRIC", DriftMetric::Hellinger),
         drift_weight: env_f64("ANNO_MUXER_DRIFT_WEIGHT", 0.0).max(0.0),
-
-        // Change monitoring (optional; monitored selection only).
-        //
-        // catKL uses: S = n_recent * KL(q_recent || p0_baseline)
+        // catKL: S = n_recent * KL(q_recent || p0_baseline)
         max_catkl: env_f64_opt("ANNO_MUXER_MAX_CATKL"),
         catkl_alpha: env_f64("ANNO_MUXER_CATKL_ALPHA", 1e-3).max(0.0),
         catkl_min_baseline: env_usize("ANNO_MUXER_CATKL_MIN_BASELINE", 40) as u64,
         catkl_min_recent: env_usize("ANNO_MUXER_CATKL_MIN_RECENT", 20) as u64,
         catkl_weight: env_f64("ANNO_MUXER_CATKL_WEIGHT", 0.0).max(0.0),
-
-        // CUSUM uses a categorical log-likelihood ratio stream over the recent window.
+        // CUSUM categorical log-likelihood ratio.
         max_cusum: env_f64_opt("ANNO_MUXER_MAX_CUSUM"),
         cusum_alpha: env_f64("ANNO_MUXER_CUSUM_ALPHA", 1e-3).max(0.0),
         cusum_min_baseline: env_usize("ANNO_MUXER_CUSUM_MIN_BASELINE", 40) as u64,
         cusum_min_recent: env_usize("ANNO_MUXER_CUSUM_MIN_RECENT", 20) as u64,
-        // 4-vector over muxer’s outcome categories:
-        // `[ok_clean, ok_soft_junk, ok_hard_junk, fail]` (will be normalized).
         cusum_alt_p: env_simplex4_opt("ANNO_MUXER_CUSUM_ALT_P"),
         cusum_weight: env_f64("ANNO_MUXER_CUSUM_WEIGHT", 0.0).max(0.0),
-
-        ..MabConfig::default()
+        ..MonitoredMabConfig::default()
     }
 }
 
