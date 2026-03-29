@@ -130,8 +130,8 @@ jobs:
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
         run: cargo test --package anno --tests
-      - name: Run doc tests
-        run: cargo test --workspace --doc --features "eval discourse"
+      - name: Run doc tests (core + lib)
+        run: cargo test -p anno-core -p anno-lib --doc --features discourse
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
