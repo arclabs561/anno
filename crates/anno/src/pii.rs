@@ -1,10 +1,10 @@
 //! PII (personally identifiable information) detection and redaction.
 //!
 //! Two detection paths:
-//! - [`classify_entity`]: classifies NER entities as PII (uses character offsets from `Entity`)
-//! - [`scan_patterns`]: regex-based pre-NER scan for structured PII (SSN, credit card, IBAN, email, phone, address)
+//! - [`classify_entity()`](crate::pii::classify_entity): classifies NER entities as PII (uses character offsets from `Entity`)
+//! - [`scan_patterns()`](crate::pii::scan_patterns): regex-based pre-NER scan for structured PII (SSN, credit card, IBAN, email, phone, address)
 //!
-//! After detection, use [`redact`] or [`pseudonymize`] to produce sanitized text.
+//! After detection, use [`redact()`](crate::pii::redact) or [`pseudonymize()`](crate::pii::pseudonymize) to produce sanitized text.
 //!
 //! # Example
 //!

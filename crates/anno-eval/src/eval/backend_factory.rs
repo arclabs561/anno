@@ -557,6 +557,7 @@ pub fn create_coref_backend(name: &str) -> Result<Box<dyn anno::CorefBackend>> {
 
 /// List available coref backends (text-based CorefBackend).
 pub fn available_coref_backends() -> Vec<&'static str> {
+    #[allow(unused_mut)]
     let mut backends = vec!["mention_ranking"];
     #[cfg(feature = "onnx")]
     {

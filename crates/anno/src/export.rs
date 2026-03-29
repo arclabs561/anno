@@ -7,12 +7,12 @@
 //!
 //! | Format | Function | Description |
 //! |--------|----------|-------------|
-//! | brat | [`to_brat`] | Standoff annotation (`.ann`) for brat |
-//! | CoNLL | [`to_conll`] | BIO-tagged tokens (one per line) |
-//! | JSONL | [`to_jsonl`] | One JSON object per entity |
-//! | N-Triples | [`to_ntriples`] | RDF triples |
-//! | JSON-LD | [`to_jsonld`] | Linked data with `@context` |
-//! | Graph CSV | [`to_graph_csv`] | Node + edge tables for graph DB import |
+//! | brat | [`to_brat()`](crate::export::to_brat) | Standoff annotation (`.ann`) for brat |
+//! | CoNLL | [`to_conll()`](crate::export::to_conll) | BIO-tagged tokens (one per line) |
+//! | JSONL | [`to_jsonl()`](crate::export::to_jsonl) | One JSON object per entity |
+//! | N-Triples | [`to_ntriples()`](crate::export::to_ntriples) | RDF triples |
+//! | JSON-LD | [`to_jsonld()`](crate::export::to_jsonld) | Linked data with `@context` |
+//! | Graph CSV | [`to_graph_csv()`](crate::export::to_graph_csv) | Node + edge tables for graph DB import |
 //!
 //! # Example
 //!

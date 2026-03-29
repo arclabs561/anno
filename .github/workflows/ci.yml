@@ -303,9 +303,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      # Document library crates only to avoid filename collisions between the
-      # `anno` library crate and the `anno` binary (package `anno-cli`).
+      # Document all library crates. anno-lib is checked separately because
+      # `cargo doc` can't build both `anno` (facade) and `anno-lib` (same lib name)
+      # in one invocation without filename collisions.
       - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features eval
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo doc -p anno-lib --no-deps --features eval
         env:
           RUSTDOCFLAGS: -D warnings
   # ==========================================================================

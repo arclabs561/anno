@@ -71,9 +71,9 @@ pub struct GLiNEROnnx {
     /// Populated by `precompute_labels()`. In bi-encoder mode, if a label is not
     /// in this cache it will be encoded on-the-fly and cached for subsequent calls.
     label_cache: Mutex<HashMap<String, config::LabelEmbedding>>,
-    /// Entity class token ID (<<ENT>> marker). Loaded from gliner_config.json.
+    /// Entity class token ID (`<<ENT>>` marker). Loaded from gliner_config.json.
     token_ent: u32,
-    /// Separator token ID (<<SEP>> marker). Loaded from gliner_config.json.
+    /// Separator token ID (`<<SEP>>` marker). Loaded from gliner_config.json.
     token_sep: u32,
     /// Whether the ONNX model expects span_idx/span_mask inputs.
     ///

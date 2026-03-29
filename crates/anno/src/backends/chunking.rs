@@ -6,11 +6,11 @@
 //!
 //! # Key components
 //!
-//! - [`ChunkConfig`] -- chunking parameters (size, overlap, sentence boundaries)
-//! - [`chunk_text`] -- split text into [`TextChunk`]s with character offsets
-//! - [`extract_chunked_parallel`] -- parallel chunked extraction with dedup
-//! - [`OverlapStrategy`] / [`deduplicate_overlapping`] -- overlap resolution
-//! - [`find_sentence_boundary`] / [`find_word_boundary`] -- boundary helpers
+//! - [`ChunkConfig`](crate::backends::chunking::ChunkConfig) -- chunking parameters (size, overlap, sentence boundaries)
+//! - [`chunk_text()`](crate::backends::chunking::chunk_text) -- split text into [`TextChunk`](crate::backends::chunking::TextChunk)s with character offsets
+//! - [`extract_chunked_parallel()`](crate::backends::chunking::extract_chunked_parallel) -- parallel chunked extraction with dedup
+//! - [`OverlapStrategy`](crate::backends::chunking::OverlapStrategy) / [`deduplicate_overlapping()`](crate::backends::chunking::deduplicate_overlapping) -- overlap resolution
+//! - [`find_sentence_boundary()`](crate::backends::chunking::find_sentence_boundary) / [`find_word_boundary()`](crate::backends::chunking::find_word_boundary) -- boundary helpers
 
 use crate::{Entity, Result};
 

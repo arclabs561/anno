@@ -1,11 +1,11 @@
 //! Coreference resolution backends.
 //!
 //! This module groups all within-document coreference resolvers:
-//! - [`resolve`] -- Unified `CorefBackend` trait
-//! - [`simple`] -- Rule-based resolvers
-//! - [`mention_ranking`] -- Mention-ranking coreference (Bourgois & Poibeau 2025)
-//! - [`fcoref`] -- Fast neural coreference (ONNX encoder + safetensors scorer)
-//! - [`t5`] -- T5-based seq2seq coreference
+//! - `resolve` -- Unified [`CorefBackend`] trait
+//! - `simple` -- Rule-based resolvers
+//! - `mention_ranking` -- Mention-ranking coreference (Bourgois & Poibeau 2025)
+//! - `fcoref` -- Fast neural coreference (ONNX encoder + safetensors scorer, requires `onnx`)
+//! - `t5` -- T5-based seq2seq coreference (requires `onnx`)
 
 /// Unified trait for coreference resolution backends.
 ///

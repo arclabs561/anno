@@ -9,9 +9,9 @@
 //!
 //! | Backend | Feature gate | Notes |
 //! |---------|-------------|-------|
-//! | [`FCoref`](super::fcoref::FCoref) | `onnx` | Neural, exact signature match |
-//! | [`T5Coref`](super::t5::T5Coref) | `onnx` | Seq2seq, exact signature match |
-//! | [`MentionRankingCoref`](super::mention_ranking::MentionRankingCoref) | - | Heuristic, adapter converts MentionCluster |
+//! | `FCoref` | `onnx` | Neural, exact signature match |
+//! | `T5Coref` | `onnx` | Seq2seq, exact signature match |
+//! | `MentionRankingCoref` | - | Heuristic, adapter converts MentionCluster |
 //! | `SimpleCorefResolver` | `analysis` | Takes `&[Entity]` not `&str`; incompatible (no impl) |
 
 use crate::Result;

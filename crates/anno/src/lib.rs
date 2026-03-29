@@ -339,7 +339,7 @@ type AnyModelRelationExtractor =
 
 /// A wrapper that turns an extractor closure into a `Model`.
 ///
-/// `AnyModel` supports [`ZeroShotNER`](backends::inference::ZeroShotNER) and
+/// `AnyModel` supports [`ZeroShotNER`] and
 /// relation extraction via closures (see [`with_zero_shot`](Self::with_zero_shot)
 /// and [`with_relations`](Self::with_relations)).
 pub struct AnyModel {
@@ -386,7 +386,7 @@ impl AnyModel {
         self
     }
 
-    /// Attach a [`ZeroShotNER`](backends::inference::ZeroShotNER) implementation via closure.
+    /// Attach a [`ZeroShotNER`] implementation via closure.
     ///
     /// When set, `AnyModel` will implement `ZeroShotNER` by delegating to this
     /// closure, and [`Model::capabilities()`] will report `zero_shot = true`.
@@ -539,7 +539,7 @@ pub struct ModelCapabilities {
     /// True if the model supports relation extraction.
     pub relation_capable: bool,
     /// True if the model supports zero-shot, caller-supplied entity types
-    /// via [`ZeroShotNER`](backends::inference::ZeroShotNER).
+    /// via [`ZeroShotNER`].
     pub zero_shot: bool,
     /// True if the model can extract discontinuous entities spanning non-adjacent spans.
     /// Only `W2NER` (when loaded with an ONNX session) sets this today.

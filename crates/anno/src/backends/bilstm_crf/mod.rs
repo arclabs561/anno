@@ -1,10 +1,10 @@
-//! Backward-compatibility re-exports from [`super::heuristic_crf`].
+//! Backward-compatibility re-exports from `heuristic_crf`.
 //!
 //! The `bilstm_crf` module was renamed to `heuristic_crf` to honestly reflect
 //! that the emission features are heuristic (gazetteers, word shape,
 //! capitalization), not a neural BiLSTM encoder. The CRF layer is real.
 //!
-//! Prefer importing from [`super::heuristic_crf`] directly.
+//! Prefer importing from `backends::heuristic_crf` directly.
 
 #[allow(deprecated)]
 pub use super::heuristic_crf::{HeuristicCrfConfig, HeuristicCrfNER};

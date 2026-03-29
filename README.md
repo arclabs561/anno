@@ -6,7 +6,7 @@
 
 Text annotation and entity extraction.
 
-Dual-licensed under MIT or Apache-2.0. MSRV: 1.85.
+Dual-licensed under MIT or Apache-2.0. MSRV: 1.88.
 
 ## Quickstart
 
