@@ -788,6 +788,7 @@ pub fn mab_config_from_env() -> MabConfig {
 }
 
 /// Resolve monitored muxer config from env (includes drift/catKL/CUSUM guards).
+#[allow(clippy::needless_update)]
 pub fn monitored_mab_config_from_env() -> MonitoredMabConfig {
     MonitoredMabConfig {
         base: mab_config_from_env(),
@@ -808,6 +809,7 @@ pub fn monitored_mab_config_from_env() -> MonitoredMabConfig {
         cusum_min_recent: env_usize("ANNO_MUXER_CUSUM_MIN_RECENT", 20) as u64,
         cusum_alt_p: env_simplex4_opt("ANNO_MUXER_CUSUM_ALT_P"),
         cusum_weight: env_f64("ANNO_MUXER_CUSUM_WEIGHT", 0.0).max(0.0),
+        ..MonitoredMabConfig::default()
     }
 }
 
