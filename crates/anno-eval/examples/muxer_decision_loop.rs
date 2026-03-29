@@ -19,14 +19,7 @@ fn simulated_outcome(backend: &str, round: usize) -> (Outcome, Option<&'static s
             let soft_junk = round.is_multiple_of(7);
             let quality = if soft_junk { 0.12 } else { 0.86 };
             (
-                Outcome {
-                    ok: !soft_junk,
-                    junk: soft_junk,
-                    hard_junk: false,
-                    cost_units: 20,
-                    elapsed_ms: 650,
-                    quality_score: Some(quality),
-                },
+                Outcome::with_quality(!soft_junk, soft_junk, false, 20, 650, quality),
                 if soft_junk { Some("low_signal") } else { None },
             )
         }
@@ -35,14 +28,7 @@ fn simulated_outcome(backend: &str, round: usize) -> (Outcome, Option<&'static s
             let soft_junk = round.is_multiple_of(2);
             let quality = if soft_junk { 0.18 } else { 0.55 };
             (
-                Outcome {
-                    ok: !soft_junk,
-                    junk: soft_junk,
-                    hard_junk: false,
-                    cost_units: 8,
-                    elapsed_ms: 180,
-                    quality_score: Some(quality),
-                },
+                Outcome::with_quality(!soft_junk, soft_junk, false, 8, 180, quality),
                 if soft_junk { Some("low_signal") } else { None },
             )
         }
@@ -50,14 +36,14 @@ fn simulated_outcome(backend: &str, round: usize) -> (Outcome, Option<&'static s
         _ => {
             let hard_fail = round.is_multiple_of(3);
             (
-                Outcome {
-                    ok: !hard_fail,
-                    junk: hard_fail,
-                    hard_junk: hard_fail,
-                    cost_units: 4,
-                    elapsed_ms: 90,
-                    quality_score: Some(if hard_fail { 0.0 } else { 0.35 }),
-                },
+                Outcome::with_quality(
+                    !hard_fail,
+                    hard_fail,
+                    hard_fail,
+                    4,
+                    90,
+                    if hard_fail { 0.0 } else { 0.35 },
+                ),
                 if hard_fail { Some("timeout") } else { None },
             )
         }
