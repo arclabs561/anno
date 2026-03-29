@@ -420,9 +420,9 @@ download-datasets:
 clean:
     cargo clean
 
-# Check MSRV 1.85 (matches workspace and CI). Requires locked Cargo.lock (ort pinned to rc.10).
+# Check MSRV 1.88 (matches workspace and CI). Requires locked Cargo.lock (ort pinned to rc.10).
 msrv:
-    cargo +1.85.0 check --workspace --locked
+    cargo +1.88.0 check --workspace --locked
 
 # Run property tests with more cases
 proptest:
