@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Sync model weights to/from S3 cache bucket
 #
 # Usage:
@@ -45,8 +45,15 @@ declare -A MODELS=(
     ["answerdotai--ModernBERT-base"]="encoders/modernbert-base"
     ["BAAI--bge-large-en-v1.5"]="encoders/bge-large-en"
 
+    # NER - PII
+    ["knowledgator--gliner-pii-edge-v1.0"]="ner/gliner/gliner-pii-edge"
+
+    # NER - DeBERTa
+    ["deberta-v3-ner"]="ner/deberta-v3-ner"
+
     # Relation Extraction
     ["jackboyla--glirel-large-v0"]="re/glirel-large"
+    ["knowledgator--gliner-relex-large-v1.0"]="re/gliner-relex-large"
 
     # Coreference Resolution
     ["shtoshni--longformer_coreference_ontonotes"]="coref/longformer-ontonotes"
@@ -54,6 +61,7 @@ declare -A MODELS=(
     ["shtoshni--spanbert_coreference_base"]="coref/spanbert-base"
     ["sapienzanlp--maverick-mes-ontonotes"]="coref/maverick-ontonotes"
     ["hsiehpinghan--Qwen2-0.5B-Instruct-Coreference-Resolution"]="coref/qwen2-0.5b-coref"
+    ["biu-nlp--f-coref"]="coref/f-coref"
 )
 
 # Detect S3 CLI
