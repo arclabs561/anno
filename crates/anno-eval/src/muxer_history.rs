@@ -572,30 +572,9 @@ mod tests {
     fn history_window_summary_aggregates_mean_quality_score() {
         let mut w = HistoryWindow::new(10);
         // Two outcomes with quality scores, one without.
-        w.push(muxer::Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 0,
-            elapsed_ms: 0,
-            quality_score: Some(0.8),
-        });
-        w.push(muxer::Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 0,
-            elapsed_ms: 0,
-            quality_score: Some(0.4),
-        });
-        w.push(muxer::Outcome {
-            ok: false,
-            junk: true,
-            hard_junk: false,
-            cost_units: 0,
-            elapsed_ms: 0,
-            quality_score: None, // no quality signal
-        });
+        w.push(muxer::Outcome::with_quality(true, false, false, 0, 0, 0.8));
+        w.push(muxer::Outcome::with_quality(true, false, false, 0, 0, 0.4));
+        w.push(muxer::Outcome::new(false, true, false, 0, 0));
         let s = w.summary();
         assert_eq!(s.calls, 3);
         let mean = s
@@ -611,14 +590,7 @@ mod tests {
     fn history_window_summary_no_quality_scores_gives_none() {
         let mut w = HistoryWindow::new(5);
         for _ in 0..3 {
-            w.push(muxer::Outcome {
-                ok: true,
-                junk: false,
-                hard_junk: false,
-                cost_units: 1,
-                elapsed_ms: 1,
-                quality_score: None,
-            });
+            w.push(muxer::Outcome::new(true, false, false, 1, 1));
         }
         let s = w.summary();
         assert!(
@@ -652,14 +624,7 @@ mod tests {
             linucb_state: None,
         };
         let mut w = HistoryWindow::new(5);
-        w.push(muxer::Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 7,
-            elapsed_ms: 42,
-            quality_score: Some(0.9),
-        });
+        w.push(muxer::Outcome::with_quality(true, false, false, 7, 42, 0.9));
         h.windows.insert("test_arm".to_string(), w);
 
         h.save(&path);

@@ -130,6 +130,8 @@ jobs:
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
         run: cargo test --package anno --tests --features eval
+      - name: Run doc tests
+        run: cargo test --workspace --doc --features "eval discourse"
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -276,16 +278,16 @@ jobs:
   # MSRV (Minimum Supported Rust Version)
   # ==========================================================================
   msrv:
-    name: MSRV (1.85)
+    name: MSRV (1.88)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@1.88.0
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Check MSRV
-        # --locked is omitted: the workspace rust-version = "1.85" provides
+        # --locked is omitted: the workspace rust-version = "1.88" provides
         # the MSRV guarantee without fighting a moving crates.io index.
         run: cargo check --workspace
   # ==========================================================================

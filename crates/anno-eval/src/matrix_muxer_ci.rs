@@ -4482,14 +4482,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
 
     let mut wnut = HistoryWindow::new(50);
     for _ in 0..10 {
-        wnut.push(Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1,
-            quality_score: None,
-        });
+        wnut.push(Outcome::new(true, false, false, 1, 1));
     }
     prior.windows.insert(
         BackendHistory::dataset_key("stacked", DatasetId::Wnut17),
@@ -4498,14 +4491,7 @@ fn test_muxer_prior_prefers_facet_matched_history() {
 
     let mut de = HistoryWindow::new(50);
     for _ in 0..10 {
-        de.push(Outcome {
-            ok: false,
-            junk: true,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1,
-            quality_score: None,
-        });
+        de.push(Outcome::new(false, true, false, 1, 1));
     }
     prior.windows.insert(
         BackendHistory::dataset_key("stacked", DatasetId::GermEvalDiscontinuous),
@@ -4555,14 +4541,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
     };
     let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
-        w.push(Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1,
-            quality_score: None,
-        });
+        w.push(Outcome::new(true, false, false, 1, 1));
     }
     prior.windows.insert("stacked".to_string(), w);
 
@@ -4642,14 +4621,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
     };
     let mut w_prior = HistoryWindow::new(50);
     for _ in 0..10 {
-        w_prior.push(Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1, // fast
-            quality_score: None,
-        });
+        w_prior.push(Outcome::success(1, 1));
     }
     prior.windows.insert("prior_only".to_string(), w_prior);
 
@@ -4664,14 +4636,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
     };
     let mut w_obs = HistoryWindow::new(50);
     for _ in 0..3 {
-        w_obs.push(Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1, // fast
-            quality_score: None,
-        });
+        w_obs.push(Outcome::success(1, 1));
     }
     current.windows.insert("measured_fast".to_string(), w_obs);
 
@@ -4785,14 +4750,7 @@ fn test_novelty_still_triggers_under_priors() {
     };
     let mut w = HistoryWindow::new(50);
     for _ in 0..10 {
-        w.push(Outcome {
-            ok: true,
-            junk: false,
-            hard_junk: false,
-            cost_units: 1,
-            elapsed_ms: 1,
-            quality_score: None,
-        });
+        w.push(Outcome::new(true, false, false, 1, 1));
     }
     prior.windows.insert("stacked".to_string(), w);
 
