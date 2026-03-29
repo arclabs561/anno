@@ -1531,7 +1531,7 @@ fn select_backends(
                                 history.monitored_for_backends(remaining, monitor_recent_cap)
                             },
                             drift_cfg,
-                            mon_cfg.clone(),
+                            mon_cfg,
                             guardrail_cfg,
                             remaining_k,
                         )
@@ -1539,7 +1539,7 @@ fn select_backends(
                         select_mab_k_explain(
                             eligible,
                             summaries_for,
-                            mon_cfg.base.clone(),
+                            mon_cfg.base,
                             guardrail_cfg,
                             remaining_k,
                         )

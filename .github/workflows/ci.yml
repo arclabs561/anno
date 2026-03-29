@@ -278,18 +278,18 @@ jobs:
   # MSRV (Minimum Supported Rust Version)
   # ==========================================================================
   msrv:
-    name: MSRV (1.88)
+    name: MSRV (stable)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Check MSRV (no-default-features)
-        # Check core library without onnx/candle (ort-sys uses avx512
-        # intrinsics that need a newer Rust on x86_64). ML features are
-        # tested by the dedicated ONNX/Candle jobs with stable toolchain.
+        # innr 0.2.0 uses avx512 intrinsics on x86_64 which require
+        # nightly or very recent stable. Use stable toolchain and verify
+        # that the core library compiles without ML features.
         run: cargo check --workspace --no-default-features
   # ==========================================================================
   # Documentation
