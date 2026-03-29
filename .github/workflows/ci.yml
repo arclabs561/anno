@@ -67,7 +67,7 @@ jobs:
         with:
           cache-all-crates: true
       # All targets (lib + tests + bins + examples) so test code is also linted.
-      - run: cargo clippy --workspace --all-targets --features eval -- -D warnings
+      - run: cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
@@ -127,7 +127,7 @@ jobs:
         run: cargo build --workspace --features eval
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
       - name: Run library tests
-        run: cargo test --workspace --lib --features eval -- --skip test_randomized_matrix_sample
+        run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
         run: cargo test --package anno --tests --features eval
   # ==========================================================================
@@ -215,9 +215,9 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
       - name: Build
-        run: cargo build --workspace --features "onnx,eval"
+        run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
-        run: cargo test --workspace --lib --features "onnx,eval"
+        run: cargo test --workspace --lib --features "onnx,eval,discourse"
   test-candle-eval:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest
@@ -233,9 +233,9 @@ jobs:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
       - name: Build
-        run: cargo build --workspace --features "candle,eval"
+        run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
-        run: cargo test --workspace --lib --features "candle,eval"
+        run: cargo test --workspace --lib --features "candle,eval,discourse"
   test-production:
     name: Test (production features)
     runs-on: ubuntu-latest
@@ -318,7 +318,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run property tests
-        run: cargo test --workspace --lib --features "eval" -- proptest
+        run: cargo test --workspace --lib --features "eval discourse" -- proptest
         env:
           PROPTEST_CASES: 100
   # ==========================================================================
@@ -380,9 +380,9 @@ jobs:
           restore-keys: |
             anno-muxer-${{ runner.os }}-v1-
       - name: Build matrix sampler harness (enable ML backends)
-        run: cargo build -p anno-eval --features "onnx,eval"
+        run: cargo build -p anno-eval --features "onnx,eval,discourse"
       - name: Run randomized matrix test (NER)
-        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: ner
           ANNO_SAMPLE_STRATEGY: random
@@ -394,7 +394,7 @@ jobs:
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (RE)
-        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: re
           ANNO_SAMPLE_STRATEGY: random
@@ -404,7 +404,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Coref)
-        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: coref
           ANNO_SAMPLE_STRATEGY: random
@@ -414,7 +414,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Temporal)
-        run: cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: temporal
           ANNO_SAMPLE_STRATEGY: random
@@ -425,7 +425,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run worst-first matrix test (+ regression detection)
         run: |
-          cargo test -p anno-eval --lib --features "onnx,eval" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
@@ -451,7 +451,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Run evaluator unit tests
-        run: cargo test -p anno-eval --lib --features eval test_comprehensive_eval_results_average_f1 -- --nocapture
+        run: cargo test -p anno-eval --lib --features "eval discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
