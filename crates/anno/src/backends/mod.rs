@@ -186,8 +186,8 @@ pub(crate) fn method_for_backend_name(name: &str) -> anno_core::ExtractionMethod
     match name {
         // Stable IDs used by built-in compositions.
         "regex" => anno_core::ExtractionMethod::Pattern,
-        "heuristic" => anno_core::ExtractionMethod::Heuristic,
-        // Everything else: treat as neural by default.
+        "heuristic" | "heuristic-crf" | "crf" | "lexicon" => anno_core::ExtractionMethod::Heuristic,
+        // Everything else: treat as neural by default (BERT, GLiNER, NuNER, etc.).
         _ => anno_core::ExtractionMethod::Neural,
     }
 }
@@ -228,10 +228,23 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
+    fn statistical_ids_map_to_heuristic() {
+        // Statistical/classical backends map to Heuristic (closest match --
+        // no separate Statistical variant exists).
+        let heuristic_names = ["crf", "heuristic-crf", "lexicon"];
+        for name in heuristic_names {
+            assert_eq!(
+                method_for_backend_name(name),
+                ExtractionMethod::Heuristic,
+                "\"{}\" should map to Heuristic (classical/statistical backend)",
+                name
+            );
+        }
+    }
+
+    #[test]
     fn unknown_ids_map_to_neural() {
-        // Any backend name that is not one of the three stable IDs must fall
-        // back to Neural.  This covers ML backends (gliner, bert, nuner, candle)
-        // as well as completely arbitrary strings.
+        // ML backends and unknown strings fall back to Neural.
         let neural_names = [
             "gliner",
             "gliner-candle",

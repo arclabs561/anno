@@ -6,7 +6,7 @@
 //! - **NER output**: variable-length spans with **character offsets** (Unicode scalar values), not
 //!   byte offsets.
 //! - **Coreference output**: clusters (“tracks”) of mentions within one document.
-//! - **Relation output**: `(head, relation, tail)` triples via [`RelationCapable`] backends.
+//! - **Relation output**: `(head, relation, tail)` triples via [`RelationExtractor`] backends.
 //! - **PII detection**: [`pii`] module for detecting and redacting personally identifiable information.
 //! - **RAG preprocessing**: [`rag::preprocess`] chunks text, extracts entities, and rewrites pronouns
 //!   for self-contained retrieval chunks.

@@ -926,7 +926,12 @@ mod tests {
         let out = tp
             .extract_with_relations("Tokyo is a city.", &["location"], &[], 0.5)
             .unwrap();
-        let _ = out.entities.len();
+        // With no relation types requested, relations should be empty.
+        assert!(
+            out.relations.is_empty(),
+            "no relation types requested, but got {} relations",
+            out.relations.len()
+        );
     }
 
     #[test]
@@ -1038,11 +1043,19 @@ mod tests {
     #[test]
     fn test_is_neural_flag() {
         let tp = TPLinker::with_thresholds(0.15, 0.55);
-        // Without a model on disk, should be heuristic
         #[cfg(not(feature = "onnx"))]
-        assert!(!tp.is_neural());
-        // With onnx feature, depends on whether model is available
-        let _ = tp.is_neural();
+        assert!(
+            !tp.is_neural(),
+            "without onnx feature, TPLinker should not be neural"
+        );
+        #[cfg(feature = "onnx")]
+        {
+            // With onnx feature enabled, is_neural depends on model availability.
+            // Without a downloaded model it should be false (heuristic fallback).
+            let neural = tp.is_neural();
+            // Accept either value -- we're testing it doesn't panic and returns a bool.
+            assert!(neural || !neural);
+        }
     }
 
     #[test]

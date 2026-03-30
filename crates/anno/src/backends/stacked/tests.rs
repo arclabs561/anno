@@ -1188,8 +1188,11 @@ mod proptests {
                 .strategy(ConflictStrategy::Union)
                 .build();
             let entities = ner.extract_entities(&text, None).unwrap();
-            // Union strategy intentionally allows overlaps, so we just verify it doesn't panic
-            let _ = entities;
+            // Union strategy intentionally allows overlaps -- verify output validity.
+            for e in &entities {
+                prop_assert!(e.start() <= e.end(), "inverted span: {}..{}", e.start(), e.end());
+                prop_assert!(e.confidence.value() >= 0.0 && e.confidence.value() <= 1.0);
+            }
         }
 
         /// Property: Multiple layers produce consistent results
@@ -1225,11 +1228,16 @@ mod proptests {
                             && e.start() <= entity.start()
                             && e.end() >= entity.end())
                 });
-                // Note: Some entities may be filtered out by conflict resolution in ner2
-                // This is expected behavior, so we're lenient here
-                if !found && e2.is_empty() {
-                    // If ner2 found nothing, that's suspicious but not necessarily wrong
-                    // (could be conflict resolution filtering everything)
+                // Conflict resolution may legitimately filter entities from ner2,
+                // but if ner2 is non-empty and doesn't contain ner1's entities,
+                // that indicates a resolution issue worth investigating.
+                if !found && !e2.is_empty() {
+                    // Soft check: log but don't fail -- conflict resolution is allowed
+                    // to drop entities when a higher-priority layer disagrees.
+                    eprintln!(
+                        "note: ner1 entity '{}' ({},{}) not found in ner2 ({} entities)",
+                        entity.text, entity.start(), entity.end(), e2.len()
+                    );
                 }
             }
         }

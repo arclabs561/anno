@@ -132,38 +132,45 @@ impl MultiRunResults {
     /// Format as a human-readable summary table.
     pub fn format_summary(&self) -> String {
         let mut s = String::new();
-        
+
         s.push_str(&format!("Multi-Run Evaluation (n={})\n", self.f1.n));
         s.push_str(&format!("{:=<50}\n", ""));
-        s.push_str(&format!("{:<12} {:<20} {:<15}\n", "Metric", "Mean ± CI95", "Range"));
+        s.push_str(&format!(
+            "{:<12} {:<20} {:<15}\n",
+            "Metric", "Mean ± CI95", "Range"
+        ));
         s.push_str(&format!("{:-<50}\n", ""));
-        
-        s.push_str(&format!("{:<12} {:<20} {:<15}\n",
+
+        s.push_str(&format!(
+            "{:<12} {:<20} {:<15}\n",
             "Precision",
             self.precision.format_with_ci(),
             self.precision.format_with_range()
         ));
-        s.push_str(&format!("{:<12} {:<20} {:<15}\n",
+        s.push_str(&format!(
+            "{:<12} {:<20} {:<15}\n",
             "Recall",
             self.recall.format_with_ci(),
             self.recall.format_with_range()
         ));
-        s.push_str(&format!("{:<12} {:<20} {:<15}\n",
+        s.push_str(&format!(
+            "{:<12} {:<20} {:<15}\n",
             "F1",
             self.f1.format_with_ci(),
             self.f1.format_with_range()
         ));
-        
+
         if let Some(ref macro_f1) = self.macro_f1 {
-            s.push_str(&format!("{:<12} {:<20} {:<15}\n",
+            s.push_str(&format!(
+                "{:<12} {:<20} {:<15}\n",
                 "Macro F1",
                 macro_f1.format_with_ci(),
                 macro_f1.format_with_range()
             ));
         }
-        
+
         s.push_str(&format!("{:-<50}\n", ""));
-        
+
         // Per-type breakdown
         if !self.per_type_f1.is_empty() {
             s.push_str("\nPer-Type F1:\n");
@@ -171,11 +178,15 @@ impl MultiRunResults {
             types.sort();
             for entity_type in types {
                 if let Some(metric) = self.per_type_f1.get(entity_type) {
-                    s.push_str(&format!("  {:<10} {}\n", entity_type, metric.format_with_ci()));
+                    s.push_str(&format!(
+                        "  {:<10} {}\n",
+                        entity_type,
+                        metric.format_with_ci()
+                    ));
                 }
             }
         }
-        
+
         // Stability analysis
         let cv = self.f1.coefficient_of_variation();
         s.push_str(&format!("\nStability: CV = {:.2}% ", cv * 100.0));
@@ -189,7 +200,7 @@ impl MultiRunResults {
             s.push_str("(high variance - investigate)");
         }
         s.push('\n');
-        
+
         s
     }
 
@@ -257,13 +268,11 @@ impl MultiRunEvaluator {
         let precision_samples: Vec<f64> = all_results.iter().map(|r| r.precision).collect();
         let recall_samples: Vec<f64> = all_results.iter().map(|r| r.recall).collect();
         let f1_samples: Vec<f64> = all_results.iter().map(|r| r.f1).collect();
-        let throughput_samples: Vec<f64> = all_results.iter().map(|r| r.tokens_per_second).collect();
+        let throughput_samples: Vec<f64> =
+            all_results.iter().map(|r| r.tokens_per_second).collect();
 
         // Macro F1
-        let macro_f1_samples: Vec<f64> = all_results
-            .iter()
-            .filter_map(|r| r.macro_f1)
-            .collect();
+        let macro_f1_samples: Vec<f64> = all_results.iter().filter_map(|r| r.macro_f1).collect();
         let macro_f1 = if macro_f1_samples.len() >= self.config.min_runs_for_ci {
             Some(MetricWithVariance::from_samples(&macro_f1_samples))
         } else {
@@ -325,16 +334,15 @@ impl MultiRunEvaluator {
 
 /// Shuffle data with a deterministic seed.
 fn shuffle_with_seed<T: Clone>(data: &[T], seed: u64) -> Vec<T> {
-    
-    
-
     let mut indices: Vec<usize> = (0..data.len()).collect();
-    
+
     // Fisher-Yates shuffle with seeded PRNG
     let mut rng_state = seed;
     for i in (1..indices.len()).rev() {
         // Simple LCG for deterministic shuffling
-        rng_state = rng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        rng_state = rng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let j = (rng_state % (i as u64 + 1)) as usize;
         indices.swap(i, j);
     }
@@ -350,14 +358,22 @@ pub fn compare_models_multi_run(
     config: MultiRunConfig,
 ) -> Result<ModelComparison> {
     let evaluator = MultiRunEvaluator::new(config);
-    
+
     let results_a = evaluator.evaluate(model_a.1, test_cases)?;
     let results_b = evaluator.evaluate(model_b.1, test_cases)?;
 
     // Paired t-test for significance
     let (t_stat, p_value) = paired_t_test(
-        &results_a.individual_runs.iter().map(|r| r.f1).collect::<Vec<_>>(),
-        &results_b.individual_runs.iter().map(|r| r.f1).collect::<Vec<_>>(),
+        &results_a
+            .individual_runs
+            .iter()
+            .map(|r| r.f1)
+            .collect::<Vec<_>>(),
+        &results_b
+            .individual_runs
+            .iter()
+            .map(|r| r.f1)
+            .collect::<Vec<_>>(),
     );
 
     let difference = results_a.f1.mean - results_b.f1.mean;
@@ -409,14 +425,32 @@ pub struct ModelComparison {
 
 impl std::fmt::Display for ModelComparison {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Model Comparison: {} vs {}", self.model_a_name, self.model_b_name)?;
+        writeln!(
+            f,
+            "Model Comparison: {} vs {}",
+            self.model_a_name, self.model_b_name
+        )?;
         writeln!(f, "{:-<50}", "")?;
-        writeln!(f, "{}: {}", self.model_a_name, self.model_a_f1.format_with_ci())?;
-        writeln!(f, "{}: {}", self.model_b_name, self.model_b_f1.format_with_ci())?;
+        writeln!(
+            f,
+            "{}: {}",
+            self.model_a_name,
+            self.model_a_f1.format_with_ci()
+        )?;
+        writeln!(
+            f,
+            "{}: {}",
+            self.model_b_name,
+            self.model_b_f1.format_with_ci()
+        )?;
         writeln!(f, "Difference: {:+.2}%", self.f1_difference * 100.0)?;
         writeln!(f, "p-value: {:.4}", self.p_value)?;
         if self.significant_at_05 {
-            writeln!(f, "Result: {} significantly better (p < 0.05)", self.winner.as_deref().unwrap_or("?"))?;
+            writeln!(
+                f,
+                "Result: {} significantly better (p < 0.05)",
+                self.winner.as_deref().unwrap_or("?")
+            )?;
         } else {
             writeln!(f, "Result: No significant difference")?;
         }
@@ -434,16 +468,16 @@ fn paired_t_test(a: &[f64], b: &[f64]) -> (f64, f64) {
 
     let n = a.len() as f64;
     let diffs: Vec<f64> = a.iter().zip(b.iter()).map(|(x, y)| x - y).collect();
-    
+
     let mean_diff: f64 = diffs.iter().sum::<f64>() / n;
     let var_diff: f64 = if a.len() > 1 {
         diffs.iter().map(|d| (d - mean_diff).powi(2)).sum::<f64>() / (n - 1.0)
     } else {
         0.0
     };
-    
+
     let std_err = (var_diff / n).sqrt();
-    
+
     let t_stat = if std_err > 1e-10 {
         mean_diff / std_err
     } else {
@@ -456,12 +490,12 @@ fn paired_t_test(a: &[f64], b: &[f64]) -> (f64, f64) {
             0.0
         }
     };
-    
+
     // Approximate two-tailed p-value using normal distribution
     // For small samples this is an approximation (t-distribution would be more accurate)
     // Normal CDF returns P(X < x), so P(|X| > |t|) = 2 * (1 - CDF(|t|))
     let p_value = 2.0 * (1.0 - normal_cdf(t_stat.abs()));
-    
+
     (t_stat, p_value)
 }
 
@@ -495,13 +529,19 @@ mod tests {
     #[test]
     fn test_shuffle_deterministic() {
         let data: Vec<i32> = (0..10).collect();
-        
+
         let shuffled1 = shuffle_with_seed(&data, 42);
         let shuffled2 = shuffle_with_seed(&data, 42);
         let shuffled3 = shuffle_with_seed(&data, 43);
 
-        assert_eq!(shuffled1, shuffled2, "Same seed should produce same shuffle");
-        assert_ne!(shuffled1, shuffled3, "Different seeds should produce different shuffles");
+        assert_eq!(
+            shuffled1, shuffled2,
+            "Same seed should produce same shuffle"
+        );
+        assert_ne!(
+            shuffled1, shuffled3,
+            "Different seeds should produce different shuffles"
+        );
         assert_ne!(shuffled1, data, "Shuffle should change order");
     }
 
@@ -509,7 +549,7 @@ mod tests {
     fn test_shuffle_preserves_elements() {
         let data: Vec<i32> = (0..20).collect();
         let shuffled = shuffle_with_seed(&data, 12345);
-        
+
         let mut sorted = shuffled.clone();
         sorted.sort();
         assert_eq!(sorted, data, "Shuffle should preserve all elements");
@@ -578,7 +618,11 @@ mod tests {
         // A is consistently better, so t_stat should be positive
         assert!(t_stat > 0.0, "t_stat should be positive: {}", t_stat);
         // The difference is clear, so p should be small
-        assert!(p_value < 0.05, "p-value should indicate significance: {}", p_value);
+        assert!(
+            p_value < 0.05,
+            "p-value should indicate significance: {}",
+            p_value
+        );
     }
 
     #[test]
@@ -597,10 +641,10 @@ mod tests {
     fn test_normal_cdf() {
         // Standard normal: P(X < 0) = 0.5
         assert!((normal_cdf(0.0) - 0.5).abs() < 0.01);
-        
+
         // P(X < 2) ≈ 0.977
         assert!((normal_cdf(2.0) - 0.977).abs() < 0.01);
-        
+
         // P(X < -2) ≈ 0.023
         assert!((normal_cdf(-2.0) - 0.023).abs() < 0.01);
     }
@@ -645,7 +689,7 @@ mod proptests {
             let data: Vec<usize> = (0..20).collect();
             let s1 = shuffle_with_seed(&data, seed1);
             let s2 = shuffle_with_seed(&data, seed2);
-            
+
             // If seeds are different, shuffles should likely differ
             // (but not guaranteed for small data - allow some collisions)
             if seed1 != seed2 {
@@ -735,7 +779,7 @@ mod proptests {
             let min_len = a.len().min(b.len());
             let a = &a[..min_len];
             let b = &b[..min_len];
-            
+
             let (_, p_value) = paired_t_test(a, b);
             prop_assert!(p_value >= 0.0 && p_value <= 1.0, "p-value {} out of [0,1]", p_value);
         }
@@ -780,7 +824,7 @@ mod proptests {
                 .with_runs(runs)
                 .with_seed_base(seed)
                 .with_shuffle(shuffle);
-            
+
             prop_assert_eq!(config.num_runs, runs);
             prop_assert_eq!(config.seed_base, seed);
             prop_assert_eq!(config.shuffle, shuffle);
@@ -794,4 +838,3 @@ mod proptests {
         }
     }
 }
-

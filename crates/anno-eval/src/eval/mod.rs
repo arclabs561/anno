@@ -359,17 +359,14 @@ pub mod threshold_analysis;
 #[cfg(feature = "eval")]
 pub mod annotator;
 #[cfg(feature = "eval")]
-pub mod attribution;
-#[cfg(feature = "eval")]
 pub mod bridging;
 #[cfg(feature = "eval")]
+pub mod multi_run;
+#[cfg(feature = "eval")]
 pub mod ranking;
-#[cfg(feature = "eval")]
-pub mod schema;
-#[cfg(feature = "eval")]
-pub mod similarity;
-#[cfg(feature = "eval")]
-pub mod viewpoint;
+
+#[cfg(all(feature = "eval", test))]
+mod property_tests;
 
 // Re-exports
 pub use datasets::GoldEntity;

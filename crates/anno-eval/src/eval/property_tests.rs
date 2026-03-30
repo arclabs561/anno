@@ -58,15 +58,21 @@ mod proptests {
     fn entity_rich_text() -> impl Strategy<Value = String> {
         prop_oneof![
             // Names
-            proptest::string::string_regex("[A-Z][a-z]{2,8} [A-Z][a-z]{2,8} is a person\\.").unwrap(),
+            proptest::string::string_regex("[A-Z][a-z]{2,8} [A-Z][a-z]{2,8} is a person\\.")
+                .unwrap(),
             // Money
             proptest::string::string_regex("The cost is \\$[1-9][0-9]{0,3}\\.").unwrap(),
             // Emails
-            proptest::string::string_regex("Contact [a-z]{3,8}@[a-z]{3,6}\\.com for info\\.").unwrap(),
+            proptest::string::string_regex("Contact [a-z]{3,8}@[a-z]{3,6}\\.com for info\\.")
+                .unwrap(),
             // Dates
-            proptest::string::string_regex("On 20[0-2][0-9]-[01][0-9]-[0-3][0-9] something happened\\.").unwrap(),
+            proptest::string::string_regex(
+                "On 20[0-2][0-9]-[01][0-9]-[0-3][0-9] something happened\\."
+            )
+            .unwrap(),
             // URLs
-            proptest::string::string_regex("Visit https://[a-z]{3,8}\\.com/[a-z]{2,6} today\\.").unwrap(),
+            proptest::string::string_regex("Visit https://[a-z]{3,8}\\.com/[a-z]{2,6} today\\.")
+                .unwrap(),
         ]
     }
 
@@ -100,7 +106,7 @@ mod proptests {
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 let char_count = text.chars().count();
                 for e in &entities {
-                    prop_assert!(e.start <= char_count, 
+                    prop_assert!(e.start <= char_count,
                         "Start {} exceeds text length {}", e.start, char_count);
                     prop_assert!(e.end <= char_count,
                         "End {} exceeds text length {}", e.end, char_count);
@@ -122,12 +128,12 @@ mod proptests {
                         "Start char offset {} invalid for {} chars", e.start, chars.len());
                     prop_assert!(e.end <= chars.len(),
                         "End char offset {} invalid for {} chars", e.end, chars.len());
-                    
+
                     // The span text should match what we extract
                     if e.start < e.end && e.end <= chars.len() {
                         let extracted: String = chars[e.start..e.end].iter().collect();
                         // Allow for normalization differences
-                        let match_ok = e.text == extracted || 
+                        let match_ok = e.text == extracted ||
                             e.text.trim() == extracted.trim() ||
                             e.text.to_lowercase() == extracted.to_lowercase();
                         prop_assert!(match_ok,
@@ -160,7 +166,7 @@ mod proptests {
                         let e2 = &entities[j];
                         let overlaps = e1.start < e2.end && e2.start < e1.end;
                         prop_assert!(!overlaps,
-                            "Overlap detected: [{}-{}) and [{}-{})", 
+                            "Overlap detected: [{}-{}) and [{}-{})",
                             e1.start, e1.end, e2.start, e2.end);
                     }
                 }
@@ -183,7 +189,7 @@ mod proptests {
     }
 
     // =========================================================================
-    // 2. Determinism Properties  
+    // 2. Determinism Properties
     // =========================================================================
 
     proptest! {
@@ -195,7 +201,7 @@ mod proptests {
             let ner = RegexNER::new();
             let result1 = ner.extract_entities(&text, None);
             let result2 = ner.extract_entities(&text, None);
-            
+
             match (result1, result2) {
                 (Ok(e1), Ok(e2)) => {
                     prop_assert_eq!(e1.len(), e2.len(), "Different entity counts");
@@ -235,14 +241,14 @@ mod proptests {
         #[test]
         fn trailing_whitespace_invariance(text in sentence_text()) {
             let ner = RegexNER::new();
-            
+
             let original = ner.extract_entities(&text, None);
             let with_space = ner.extract_entities(&format!("{}   ", text), None);
-            
+
             if let (Ok(e1), Ok(e2)) = (original, with_space) {
                 prop_assert_eq!(e1.len(), e2.len(),
                     "Trailing whitespace changed entity count: {} -> {}", e1.len(), e2.len());
-                
+
                 // Entities should have same spans (offsets unchanged)
                 for (a, b) in e1.iter().zip(e2.iter()) {
                     prop_assert_eq!(a.start, b.start);
@@ -258,14 +264,14 @@ mod proptests {
             let ner = RegexNER::new();
             let prefix = "   "; // 3 spaces
             let prefix_len = prefix.chars().count();
-            
+
             let original = ner.extract_entities(&text, None);
             let with_prefix = ner.extract_entities(&format!("{}{}", prefix, text), None);
-            
+
             if let (Ok(e1), Ok(e2)) = (original, with_prefix) {
                 prop_assert_eq!(e1.len(), e2.len(),
                     "Leading whitespace changed entity count: {} -> {}", e1.len(), e2.len());
-                
+
                 // Entities should have shifted offsets
                 for (a, b) in e1.iter().zip(e2.iter()) {
                     prop_assert_eq!(a.start + prefix_len, b.start,
@@ -281,19 +287,19 @@ mod proptests {
         #[test]
         fn newline_normalization_invariance(text in sentence_text()) {
             let ner = RegexNER::new();
-            
+
             // Insert \n in original, \r\n in modified
             let with_lf = format!("{}\n{}", text, text);
             let with_crlf = format!("{}\r\n{}", text, text);
-            
+
             let e_lf = ner.extract_entities(&with_lf, None);
             let e_crlf = ner.extract_entities(&with_crlf, None);
-            
+
             if let (Ok(entities_lf), Ok(entities_crlf)) = (e_lf, e_crlf) {
                 // Same entity count
                 prop_assert_eq!(entities_lf.len(), entities_crlf.len(),
                     "Newline type changed entity count");
-                
+
                 // Same entity types and texts
                 for (a, b) in entities_lf.iter().zip(entities_crlf.iter()) {
                     prop_assert!(a.entity_type == b.entity_type);
@@ -306,10 +312,10 @@ mod proptests {
         #[test]
         fn duplication_scales_entities(text in entity_rich_text()) {
             let ner = RegexNER::new();
-            
+
             let single = ner.extract_entities(&text, None);
             let doubled = ner.extract_entities(&format!("{} {}", text, text), None);
-            
+
             if let (Ok(e1), Ok(e2)) = (single, doubled) {
                 // Should have roughly 2x entities (allowing for boundary effects)
                 if e1.len() > 0 {
@@ -334,20 +340,20 @@ mod proptests {
             let text = format!("The price is ${}.00 for the item.", amount);
             let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
-            
+
             let money: Vec<_> = entities.iter()
                 .filter(|e| e.entity_type == EntityType::Money)
                 .collect();
-            
+
             prop_assert!(!money.is_empty(), "No money entity found in '{}'", text);
-            
+
             for e in money {
-                let has_currency = e.text.contains('$') || 
-                    e.text.contains('€') || 
+                let has_currency = e.text.contains('$') ||
+                    e.text.contains('€') ||
                     e.text.contains('£') ||
                     e.text.to_lowercase().contains("dollar") ||
                     e.text.to_lowercase().contains("usd");
-                prop_assert!(has_currency, 
+                prop_assert!(has_currency,
                     "Money entity '{}' has no currency indicator", e.text);
             }
         }
@@ -358,11 +364,11 @@ mod proptests {
             let text = format!("Send mail to {}@{}.com please.", user, domain);
             let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
-            
+
             let emails: Vec<_> = entities.iter()
                 .filter(|e| e.entity_type == EntityType::Email)
                 .collect();
-            
+
             for e in &emails {
                 prop_assert!(e.text.contains('@'),
                     "Email entity '{}' missing @ symbol", e.text);
@@ -375,11 +381,11 @@ mod proptests {
             let text = format!("Visit https://example.com/{} for details.", path);
             let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
-            
+
             let urls: Vec<_> = entities.iter()
                 .filter(|e| e.entity_type == EntityType::Url)
                 .collect();
-            
+
             for e in &urls {
                 let has_protocol = e.text.starts_with("http://") || e.text.starts_with("https://");
                 let has_domain = e.text.contains('.') && e.text.contains('/');
@@ -394,13 +400,13 @@ mod proptests {
             let text = format!("The rate is {}% this quarter.", pct);
             let ner = RegexNER::new();
             let entities = ner.extract_entities(&text, None).unwrap();
-            
+
             let percents: Vec<_> = entities.iter()
                 .filter(|e| e.entity_type == EntityType::Percent)
                 .collect();
-            
+
             for e in &percents {
-                let has_indicator = e.text.contains('%') || 
+                let has_indicator = e.text.contains('%') ||
                     e.text.to_lowercase().contains("percent");
                 prop_assert!(has_indicator,
                     "Percent entity '{}' missing indicator", e.text);
@@ -409,7 +415,7 @@ mod proptests {
     }
 
     // =========================================================================
-    // 5. Robustness Properties  
+    // 5. Robustness Properties
     // =========================================================================
 
     proptest! {
@@ -469,29 +475,30 @@ mod coref_proptests {
 
     /// Generate a valid coreference clustering
     fn arb_clustering() -> impl Strategy<Value = Vec<CorefChain>> {
-        (1usize..5).prop_flat_map(|num_chains| {
-            proptest::collection::vec(
-                proptest::collection::vec(1usize..10, 1..4),
-                num_chains..=num_chains,
-            )
-        })
-        .prop_map(|chain_lens| {
-            let mut offset = 0usize;
-            chain_lens
-                .into_iter()
-                .map(|lens| {
-                    let mentions: Vec<_> = lens
-                        .iter()
-                        .map(|&len| {
-                            let m = Mention::new(format!("m{}", offset), offset, offset + len);
-                            offset += len + 10;
-                            m
-                        })
-                        .collect();
-                    CorefChain::new(mentions)
-                })
-                .collect()
-        })
+        (1usize..5)
+            .prop_flat_map(|num_chains| {
+                proptest::collection::vec(
+                    proptest::collection::vec(1usize..10, 1..4),
+                    num_chains..=num_chains,
+                )
+            })
+            .prop_map(|chain_lens| {
+                let mut offset = 0usize;
+                chain_lens
+                    .into_iter()
+                    .map(|lens| {
+                        let mentions: Vec<_> = lens
+                            .iter()
+                            .map(|&len| {
+                                let m = Mention::new(format!("m{}", offset), offset, offset + len);
+                                offset += len + 10;
+                                m
+                            })
+                            .collect();
+                        CorefChain::new(mentions)
+                    })
+                    .collect()
+            })
     }
 
     proptest! {
@@ -503,7 +510,7 @@ mod coref_proptests {
         fn coref_reflexivity(chains in arb_clustering()) {
             // Build mention -> chain index mapping
             let mut mention_to_chain: HashMap<String, usize> = HashMap::new();
-            
+
             for (idx, chain) in chains.iter().enumerate() {
                 for mention in &chain.mentions {
                     let prev = mention_to_chain.insert(mention.text.clone(), idx);
@@ -512,7 +519,7 @@ mod coref_proptests {
                         "Mention '{}' appears in multiple chains", mention.text);
                 }
             }
-            
+
             // Every mention is in some chain (reflexivity with self)
             for chain in &chains {
                 for mention in &chain.mentions {
@@ -529,7 +536,7 @@ mod coref_proptests {
                 let mentions: HashSet<_> = chain.mentions.iter()
                     .map(|m| &m.text)
                     .collect();
-                
+
                 // For any two mentions in the same chain, both directions hold
                 for m1 in &chain.mentions {
                     for m2 in &chain.mentions {
@@ -554,17 +561,17 @@ mod coref_proptests {
                     mention_to_chain.insert(mention.text.clone(), idx);
                 }
             }
-            
+
             // For any chain with 3+ mentions, transitivity must hold
             for chain in &chains {
                 if chain.mentions.len() >= 3 {
                     let m0 = &chain.mentions[0].text;
                     let m1 = &chain.mentions[1].text;
                     let m2 = &chain.mentions[2].text;
-                    
+
                     // m0 corefs with m1 (same chain)
                     prop_assert_eq!(mention_to_chain[m0], mention_to_chain[m1]);
-                    // m1 corefs with m2 (same chain)  
+                    // m1 corefs with m2 (same chain)
                     prop_assert_eq!(mention_to_chain[m1], mention_to_chain[m2]);
                     // Therefore m0 must coref with m2 (transitivity)
                     prop_assert_eq!(mention_to_chain[m0], mention_to_chain[m2]);
@@ -588,7 +595,7 @@ mod coref_proptests {
         #[test]
         fn no_duplicate_mentions(chains in arb_clustering()) {
             let mut seen: HashSet<(usize, usize)> = HashSet::new();
-            
+
             for chain in &chains {
                 for mention in &chain.mentions {
                     let span = (mention.start, mention.end);
@@ -613,21 +620,22 @@ mod discontinuous_proptests {
 
     /// Generate valid discontinuous entity spans
     fn arb_discontinuous_spans() -> impl Strategy<Value = Vec<(usize, usize)>> {
-        (1usize..5).prop_flat_map(|num_spans| {
-            proptest::collection::vec((0usize..50, 1usize..10), num_spans..=num_spans)
-        })
-        .prop_map(|raw_spans| {
-            let mut offset = 0;
-            raw_spans
-                .into_iter()
-                .map(|(gap, len)| {
-                    let start = offset + gap;
-                    let end = start + len;
-                    offset = end + 1; // Ensure non-overlapping
-                    (start, end)
-                })
-                .collect()
-        })
+        (1usize..5)
+            .prop_flat_map(|num_spans| {
+                proptest::collection::vec((0usize..50, 1usize..10), num_spans..=num_spans)
+            })
+            .prop_map(|raw_spans| {
+                let mut offset = 0;
+                raw_spans
+                    .into_iter()
+                    .map(|(gap, len)| {
+                        let start = offset + gap;
+                        let end = start + len;
+                        offset = end + 1; // Ensure non-overlapping
+                        (start, end)
+                    })
+                    .collect()
+            })
     }
 
     proptest! {
@@ -641,7 +649,7 @@ mod discontinuous_proptests {
                 prop_assert!(window[0].1 <= window[1].0,
                     "Spans overlap or unsorted: {:?} and {:?}", window[0], window[1]);
             }
-            
+
             // Verify each span is valid
             for (start, end) in &spans {
                 prop_assert!(start < end, "Invalid span: {} >= {}", start, end);
@@ -658,7 +666,7 @@ mod discontinuous_proptests {
                     // This is a conceptual property - actual implementation may vary
                     let gap = second.0.saturating_sub(first.1);
                     // Gap should be non-negative (spans are sorted)
-                    prop_assert!(gap > 0 || second.0 >= first.1, 
+                    prop_assert!(gap > 0 || second.0 >= first.1,
                         "Expected non-overlapping spans");
                 }
             }
@@ -761,14 +769,15 @@ mod entity_consistency_proptests {
     /// Generate valid entity using Entity::new
     fn arb_entity() -> impl Strategy<Value = Entity> {
         (
-            "[A-Za-z]{1,5}( [A-Za-z]{1,10})?",   // text: at least one non-space char
-            arb_entity_type(),                   // type
-            0usize..100,                         // start
-            0.5f64..1.0,                         // confidence (f64!)
-        ).prop_map(|(text, entity_type, start, conf)| {
-            let len = text.len();
-            Entity::new(text, entity_type, start, start + len, conf)
-        })
+            "[A-Za-z]{1,5}( [A-Za-z]{1,10})?", // text: at least one non-space char
+            arb_entity_type(),                 // type
+            0usize..100,                       // start
+            0.5f64..1.0,                       // confidence (f64!)
+        )
+            .prop_map(|(text, entity_type, start, conf)| {
+                let len = text.len();
+                Entity::new(text, entity_type, start, start + len, conf)
+            })
     }
 
     proptest! {
@@ -794,7 +803,7 @@ mod entity_consistency_proptests {
         #[test]
         fn entity_text_non_empty(entity in arb_entity()) {
             prop_assert!(!entity.text.is_empty(), "Entity text should not be empty");
-            prop_assert!(!entity.text.trim().is_empty(), 
+            prop_assert!(!entity.text.trim().is_empty(),
                 "Entity text should not be whitespace-only");
         }
 
@@ -838,7 +847,9 @@ mod union_find_proptests {
 
     impl UnionFind {
         fn new(n: usize) -> Self {
-            Self { parent: (0..n).collect() }
+            Self {
+                parent: (0..n).collect(),
+            }
         }
 
         fn find(&mut self, i: usize) -> usize {
@@ -872,7 +883,7 @@ mod union_find_proptests {
 
     /// Generate union operations: pairs of indices to union
     fn arb_unions(n: usize) -> impl Strategy<Value = Vec<(usize, usize)>> {
-        proptest::collection::vec((0usize..n, 0usize..n), 0..n*2)
+        proptest::collection::vec((0usize..n, 0usize..n), 0..n * 2)
     }
 
     proptest! {
@@ -918,7 +929,7 @@ mod union_find_proptests {
                 for j in 0..n {
                     for k in 0..n {
                         if uf.same_set(i, j) && uf.same_set(j, k) {
-                            prop_assert!(uf.same_set(i, k), 
+                            prop_assert!(uf.same_set(i, k),
                                 "Transitivity violated: {}~{} and {}~{} but not {}~{}", i, j, j, k, i, k);
                         }
                     }
@@ -945,7 +956,7 @@ mod union_find_proptests {
                 }
             }
             let clusters = uf.clusters();
-            
+
             // Every element appears exactly once
             let mut seen = vec![false; n];
             for members in clusters.values() {
@@ -978,10 +989,10 @@ mod union_find_proptests {
             let mut uf = UnionFind::new(n);
             let initial_count = uf.clusters().len();
             prop_assert_eq!(initial_count, n, "Initially should have n clusters");
-            
+
             uf.union(0, 1);
             let new_count = uf.clusters().len();
-            prop_assert!(new_count <= initial_count, 
+            prop_assert!(new_count <= initial_count,
                 "Union should not increase cluster count: {} -> {}", initial_count, new_count);
         }
     }
@@ -1018,7 +1029,7 @@ mod hash_determinism_proptests {
                 let hash2 = xxh3_64(&data2);
                 // With 64-bit hash, collision probability is ~1/2^64
                 // Over 200 test cases, collision is astronomically unlikely
-                prop_assert_ne!(hash1, hash2, 
+                prop_assert_ne!(hash1, hash2,
                     "Different inputs should have different hashes (collision detected)");
             }
         }
@@ -1041,7 +1052,7 @@ mod hash_determinism_proptests {
             end in 0usize..1000
         ) {
             let end = start.max(end); // Ensure valid span
-            
+
             // Compute entity ID the same way as extract.rs
             let compute_id = || {
                 let mut data = Vec::new();
@@ -1051,7 +1062,7 @@ mod hash_determinism_proptests {
                 data.extend_from_slice(&end.to_le_bytes());
                 format!("e:{:016x}", xxh3_64(&data))
             };
-            
+
             let id1 = compute_id();
             let id2 = compute_id();
             prop_assert_eq!(id1, id2, "Entity ID should be deterministic");
@@ -1071,7 +1082,7 @@ mod context_extraction_proptests {
     fn get_context(text: &str, start: usize, end: usize, window: usize) -> (String, String) {
         let chars: Vec<char> = text.chars().collect();
         let char_count = chars.len();
-        
+
         // Build byte offset to char offset mapping
         let mut byte_to_char: Vec<usize> = Vec::with_capacity(text.len() + 1);
         for (i, c) in chars.iter().enumerate() {
@@ -1080,18 +1091,26 @@ mod context_extraction_proptests {
             }
         }
         byte_to_char.push(chars.len()); // for end-of-string
-        
+
         // Convert byte offsets to char offsets
-        let start_char = if start < byte_to_char.len() { byte_to_char[start] } else { char_count };
-        let end_char = if end < byte_to_char.len() { byte_to_char[end] } else { char_count };
-        
+        let start_char = if start < byte_to_char.len() {
+            byte_to_char[start]
+        } else {
+            char_count
+        };
+        let end_char = if end < byte_to_char.len() {
+            byte_to_char[end]
+        } else {
+            char_count
+        };
+
         // Extract context
         let ctx_start = start_char.saturating_sub(window);
         let ctx_end = (end_char + window).min(char_count);
-        
+
         let before: String = chars[ctx_start..start_char].iter().collect();
         let after: String = chars[end_char..ctx_end].iter().collect();
-        
+
         (before, after)
     }
 
@@ -1109,9 +1128,9 @@ mod context_extraction_proptests {
             let text_len = text.len();
             let entity_start = entity_start.min(text_len.saturating_sub(entity_len + 1));
             let entity_end = (entity_start + entity_len).min(text_len);
-            
+
             let (before, after) = get_context(&text, entity_start, entity_end, window);
-            
+
             // Context should not exceed requested window
             prop_assert!(before.chars().count() <= window,
                 "Before context {} chars exceeds window {}", before.chars().count(), window);
@@ -1128,10 +1147,10 @@ mod context_extraction_proptests {
                 ("Price: €50 now", 7, 8),    // € is 3 bytes
                 ("Tokyo 東京 City", 6, 12),  // 東京 is 2 chars
             ];
-            
+
             for (text, start, end) in test_cases {
                 let (before, after) = get_context(text, start, end, window);
-                
+
                 // Should not panic or produce invalid UTF-8
                 prop_assert!(before.is_empty() || before.chars().count() > 0,
                     "Before context should be valid UTF-8");
@@ -1144,11 +1163,11 @@ mod context_extraction_proptests {
         #[test]
         fn context_edge_cases(text in "[A-Za-z]{10,50}", window in 1usize..10) {
             let text_len = text.len();
-            
+
             // Start of text
             let (before, _) = get_context(&text, 0, 5.min(text_len), window);
             prop_assert!(before.is_empty() || before.chars().count() <= window);
-            
+
             // End of text
             let start = text_len.saturating_sub(5);
             let (_, after) = get_context(&text, start, text_len, window);
@@ -1187,23 +1206,24 @@ mod result_hash_proptests {
     fn compute_result_hash(text: &str, entities: &[TestEntity]) -> String {
         let mut data = Vec::new();
         data.extend_from_slice(text.as_bytes());
-        
+
         // Sort entities for determinism
         let mut sorted = entities.to_vec();
         sorted.sort_by(|a, b| {
-            a.start.cmp(&b.start)
+            a.start
+                .cmp(&b.start)
                 .then_with(|| a.end.cmp(&b.end))
                 .then_with(|| a.entity_type.cmp(&b.entity_type))
                 .then_with(|| a.text.cmp(&b.text))
         });
-        
+
         for e in &sorted {
             data.extend_from_slice(e.text.as_bytes());
             data.extend_from_slice(e.entity_type.as_bytes());
             data.extend_from_slice(&e.start.to_le_bytes());
             data.extend_from_slice(&e.end.to_le_bytes());
         }
-        
+
         format!("xxh3:{:016x}", xxh3_64(&data))
     }
 
@@ -1211,21 +1231,22 @@ mod result_hash_proptests {
     fn arb_entities() -> impl Strategy<Value = Vec<TestEntity>> {
         proptest::collection::vec(
             (
-                "[A-Z][a-z]{2,8}",   // text
+                "[A-Z][a-z]{2,8}",                        // text
                 prop_oneof!["PER", "ORG", "LOC", "MISC"], // type
-                0usize..100,         // start
-                1usize..20,          // length
+                0usize..100,                              // start
+                1usize..20,                               // length
             ),
-            0..5
-        ).prop_map(|raw| {
-            raw.into_iter().map(|(text, entity_type, start, len)| {
-                TestEntity {
+            0..5,
+        )
+        .prop_map(|raw| {
+            raw.into_iter()
+                .map(|(text, entity_type, start, len)| TestEntity {
                     text,
                     entity_type,
                     start,
                     end: start + len,
-                }
-            }).collect()
+                })
+                .collect()
         })
     }
 
@@ -1252,10 +1273,10 @@ mod result_hash_proptests {
             if entities.len() >= 2 {
                 let mut reversed = entities.clone();
                 reversed.reverse();
-                
+
                 let hash_original = compute_result_hash(&text, &entities);
                 let hash_reversed = compute_result_hash(&text, &reversed);
-                
+
                 prop_assert_eq!(hash_original, hash_reversed,
                     "Result hash should be independent of input entity order");
             }
@@ -1291,7 +1312,7 @@ mod result_hash_proptests {
             entities in arb_entities()
         ) {
             let hash = compute_result_hash(&text, &entities);
-            
+
             prop_assert!(hash.starts_with("xxh3:"), "Hash should start with xxh3:");
             let hex_part = &hash[5..];
             prop_assert_eq!(hex_part.len(), 16, "Hex part should be 16 characters");
@@ -1300,4 +1321,3 @@ mod result_hash_proptests {
         }
     }
 }
-

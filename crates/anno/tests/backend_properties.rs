@@ -423,9 +423,29 @@ fn ensemble_agreement_may_boost_confidence() {
         }
     }
 
-    // Boosting is optional -- regex may not find the same entities as heuristic.
-    // The important thing is it doesn't crash and produces valid output.
-    let _ = found_boost;
+    // Verify that ensemble output is valid: all confidences in [0,1] and non-empty.
+    assert!(
+        !full_entities.is_empty(),
+        "ensemble should produce entities for '{text}'"
+    );
+    for fe in &full_entities {
+        assert!(
+            fe.confidence.value() >= 0.0 && fe.confidence.value() <= 1.0,
+            "ensemble entity '{}' has invalid confidence: {}",
+            fe.text,
+            fe.confidence
+        );
+    }
+    // When we find agreement, ensemble confidence should be >= single-backend.
+    // If no boost found, that's acceptable (regex may not overlap heuristic),
+    // but we log it for visibility.
+    if !found_boost && !single_entities.is_empty() {
+        eprintln!(
+            "note: no agreement boost observed (single={}, ensemble={})",
+            single_entities.len(),
+            full_entities.len()
+        );
+    }
 }
 
 // =============================================================================

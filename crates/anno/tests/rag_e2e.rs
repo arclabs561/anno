@@ -177,16 +177,20 @@ fn resolver_produces_chains_with_canonical_ids() {
 
     // "John Smith", "He", and "John" should share the same canonical_id (Person cluster).
     let john_id = resolved[0].canonical_id.unwrap();
+    let company_id = resolved[1].canonical_id.unwrap();
     let he_id = resolved[2].canonical_id.unwrap();
     let john2_id = resolved[3].canonical_id.unwrap();
 
     assert_eq!(john_id, john2_id, "'John Smith' and 'John' should corefer");
-    // "He" may or may not resolve to John depending on resolver config, but let's check
-    // it has *some* canonical_id.
-    assert!(he_id.get() > 0 || he_id.get() == 0, "He has a valid id");
+
+    // "He" has a canonical_id (confirmed by unwrap above). It should be in
+    // the Person cluster (john_id), not the Org cluster (company_id).
+    assert_ne!(
+        he_id, company_id,
+        "'He' (Person) should not be in the company cluster"
+    );
 
     // "the company" should be in a different cluster from the Person entities.
-    let company_id = resolved[1].canonical_id.unwrap();
     assert_ne!(
         company_id, john_id,
         "'the company' (Org) should not corefer with 'John Smith' (Person)"

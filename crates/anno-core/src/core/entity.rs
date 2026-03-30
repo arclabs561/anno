@@ -1843,14 +1843,32 @@ impl Entity {
     }
 
     /// Set the start offset. For use in post-processing pipelines.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// Debug-asserts that `start <= self.end` to prevent inverted spans.
     #[inline]
     pub fn set_start(&mut self, start: usize) {
+        debug_assert!(
+            start <= self.end,
+            "set_start({start}) would invert span (end={})",
+            self.end
+        );
         self.start = start;
     }
 
     /// Set the end offset. For use in post-processing pipelines.
+    ///
+    /// # Panics (debug only)
+    ///
+    /// Debug-asserts that `end >= self.start` to prevent inverted spans.
     #[inline]
     pub fn set_end(&mut self, end: usize) {
+        debug_assert!(
+            end >= self.start,
+            "set_end({end}) would invert span (start={})",
+            self.start
+        );
         self.end = end;
     }
 
