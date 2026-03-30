@@ -332,27 +332,25 @@ impl BackendFactory {
                 "GLiNERPoly requires 'onnx' feature".to_string(),
             )),
 
-            // DeBERTa-v3 NER (requires onnx)
+            // DeBERTa-v3 NER (requires onnx) -- uses BertNEROnnx (same ONNX interface)
             #[cfg(feature = "onnx")]
             "deberta_v3" | "deberta-v3" | "deberta" => {
-                use crate::backends::deberta_v3::DeBERTaV3NER;
-                // Require an explicit local/exported ONNX model path.
+                use anno::backends::onnx::BertNEROnnx;
                 let Ok(model_path) = std::env::var("DEBERTA_MODEL_PATH") else {
                     return Err(crate::Error::FeatureNotAvailable(
                         "DeBERTa-v3 backend requires a local ONNX export. Set DEBERTA_MODEL_PATH (e.g. after running `uv run scripts/export_deberta_ner_to_onnx.py`)."
                             .to_string(),
                     ));
                 };
-                DeBERTaV3NER::new(&model_path)
+                BertNEROnnx::new(&model_path)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         crate::Error::Retrieval(format!(
-                            "DeBERTa-v3 model unavailable: {}\n\n\
+                            "DeBERTa-v3 model unavailable: {e}\n\n\
                              Options:\n\
                              1. Export your own: uv run scripts/export_deberta_ner_to_onnx.py\n\
                              2. Set DEBERTA_MODEL_PATH to a local model directory\n\
                              3. Use --model bert-onnx or --model candle-ner instead",
-                            e
                         ))
                     })
             }
@@ -361,27 +359,25 @@ impl BackendFactory {
                 "DeBERTa-v3 NER requires 'onnx' feature".to_string(),
             )),
 
-            // ALBERT NER (requires onnx)
+            // ALBERT NER (requires onnx) -- uses BertNEROnnx (same ONNX interface)
             #[cfg(feature = "onnx")]
             "albert" | "albert_ner" => {
-                use crate::backends::albert::ALBERTNER;
-                // Require an explicit local/exported ONNX model path.
+                use anno::backends::onnx::BertNEROnnx;
                 let Ok(model_path) = std::env::var("ALBERT_MODEL_PATH") else {
                     return Err(crate::Error::FeatureNotAvailable(
                         "ALBERT backend requires a local ONNX export. Set ALBERT_MODEL_PATH to a local model directory containing ONNX weights."
                             .to_string(),
                     ));
                 };
-                ALBERTNER::new(&model_path)
+                BertNEROnnx::new(&model_path)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         crate::Error::Retrieval(format!(
-                            "ALBERT model unavailable: {}\n\n\
+                            "ALBERT model unavailable: {e}\n\n\
                              Options:\n\
                              1. Export your own ONNX model\n\
                              2. Set ALBERT_MODEL_PATH to a local model directory\n\
                              3. Use --model bert-onnx or --model candle-ner instead",
-                            e
                         ))
                     })
             }

@@ -100,19 +100,15 @@ pub use error::{Error, Result};
 
 // Re-export core types at the crate root (the `anno` public API surface).
 pub use anno_core::{
-    generate_span_candidates, CanonicalId, Confidence, CorefChain, CorefDocument,
-    CoreferenceResolver, Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory,
-    EntityType, ExtractionMethod, Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence,
-    Identity, IdentityId, IdentitySource, Lexicon, Location, Mention, MentionType, Modality,
-    Number, Person, Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef,
-    Span, SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper,
-    ValidationIssue,
+    CanonicalId, Confidence, CorefChain, CorefDocument, CoreferenceResolver, Corpus,
+    DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod, Gender,
+    GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity, IdentityId, IdentitySource,
+    Lexicon, Location, Mention, MentionType, Modality, Number, Person, PhiFeatures, Provenance,
+    Quantifier, Relation, Signal, SignalId, SignalRef, Span, Track, TrackId, TrackRef, TrackStats,
+    TypeLabel, TypeMapper, ValidationIssue,
 };
 
-/// `anno-core`’s stable types under a namespaced module.
-///
-/// This exists for readability in downstream codebases (e.g. `anno::core::Entity`)
-/// and mirrors the structure of the internal `anno-core` crate.
+/// `anno-core`'s stable types under a namespaced module.
 pub mod core {
     pub use anno_core::core::{coref, grounded};
 }
@@ -122,10 +118,7 @@ pub use lang::{detect_language, Language};
 pub use offset::{
     bytes_to_chars, chars_to_bytes, is_ascii, OffsetMapping, SpanConverter, TextSpan, TokenSpan,
 };
-pub use schema::{
-    map_to_canonical, CanonicalType, CoarseType, DatasetSchema, InformationLoss, SchemaMapper,
-};
-pub use similarity::{jaccard_word_similarity, jaccard_word_similarity_f32, string_similarity};
+pub use similarity::string_similarity;
 pub use types::EntitySliceExt;
 
 // =============================================================================
@@ -156,12 +149,6 @@ mod sealed {
 
     #[cfg(feature = "onnx")]
     impl Sealed for super::GLiNEROnnx {}
-
-    #[cfg(feature = "onnx")]
-    impl Sealed for super::backends::albert::ALBERTNER {}
-
-    #[cfg(feature = "onnx")]
-    impl Sealed for super::backends::deberta_v3::DeBERTaV3NER {}
 
     impl Sealed for super::backends::gliner_poly::GLiNERPoly {}
 

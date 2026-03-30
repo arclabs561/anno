@@ -370,9 +370,8 @@ Use `--model gliner` instead."
                     .map_err(|e| format!("Failed to load BERT ONNX: {}\n  Tip: Use 'anno models info bert-onnx' to check model status.", e)),
                 #[cfg(feature = "onnx")]
                 Self::DebertaV3 => {
-                    // Support custom export via environment variable
                     if let Ok(model_path) = std::env::var("DEBERTA_MODEL_PATH") {
-                        anno::backends::deberta_v3::DeBERTaV3NER::new(&model_path)
+                        anno::BertNEROnnx::new(&model_path)
                             .map(|m| Box::new(m) as Box<dyn anno::Model>)
                             .map_err(|e| format!("DeBERTa-v3 failed to load from {}: {}", model_path, e))
                     } else {
@@ -384,9 +383,8 @@ Use `--model gliner` instead."
                 }
                 #[cfg(feature = "onnx")]
                 Self::Albert => {
-                    // Support custom export via environment variable
                     if let Ok(model_path) = std::env::var("ALBERT_MODEL_PATH") {
-                        anno::backends::albert::ALBERTNER::new(&model_path)
+                        anno::BertNEROnnx::new(&model_path)
                             .map(|m| Box::new(m) as Box<dyn anno::Model>)
                             .map_err(|e| format!("ALBERT failed to load from {}: {}", model_path, e))
                     } else {

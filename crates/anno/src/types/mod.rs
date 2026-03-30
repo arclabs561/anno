@@ -50,7 +50,7 @@ pub mod static_checks {
     const _: () = assert!(std::mem::size_of::<anno_core::Entity>() <= 512);
 
     // SpanCandidate is small and copyable (used in hot loops)
-    const _: () = assert!(std::mem::size_of::<crate::SpanCandidate>() <= 16);
+    const _: () = assert!(std::mem::size_of::<anno_core::SpanCandidate>() <= 16);
 
     // HierarchicalConfidence is compact (3 x Confidence/f64 = 24 bytes)
     const _: () = assert!(std::mem::size_of::<crate::HierarchicalConfidence>() <= 24);

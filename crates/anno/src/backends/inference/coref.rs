@@ -118,7 +118,14 @@ pub fn resolve_coreferences(
                 let emb_i = &embeddings[i * hidden_dim..(i + 1) * hidden_dim];
                 let emb_j = &embeddings[j * hidden_dim..(j + 1) * hidden_dim];
 
-                let similarity = innr::cosine(emb_i, emb_j);
+                let dot: f32 = emb_i.iter().zip(emb_j).map(|(a, b)| a * b).sum();
+                let norm_i: f32 = emb_i.iter().map(|x| x * x).sum::<f32>().sqrt();
+                let norm_j: f32 = emb_j.iter().map(|x| x * x).sum::<f32>().sqrt();
+                let similarity = if norm_i > 0.0 && norm_j > 0.0 {
+                    dot / (norm_i * norm_j)
+                } else {
+                    0.0
+                };
 
                 if similarity >= config.similarity_threshold.value() as f32 {
                     // Same entity type required

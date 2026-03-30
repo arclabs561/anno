@@ -315,10 +315,6 @@ mod tests {
 }
 
 // Advanced backends
-#[cfg(feature = "onnx")]
-pub mod albert;
-#[cfg(feature = "onnx")]
-pub mod deberta_v3;
 pub mod gliner_poly;
 /// GLiREL: Zero-shot relation extraction via ONNX.
 ///
@@ -370,10 +366,6 @@ pub use tplinker::TPLinker;
 pub use w2ner::{W2NERConfig, W2NERRelation, W2NER};
 
 // Advanced backends
-#[cfg(feature = "onnx")]
-pub use albert::ALBERTNER;
-#[cfg(feature = "onnx")]
-pub use deberta_v3::DeBERTaV3NER;
 pub use gliner_poly::GLiNERPoly;
 pub use glirel::GLiREL;
 pub use universal_ner::UniversalNER;
