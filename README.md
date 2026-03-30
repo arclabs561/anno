@@ -48,7 +48,7 @@ let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)
 # Ok::<(), anno::Error>(())
 ```
 
-`StackedNER::default()` selects the best available backend at runtime: BERT ONNX and NuNER (both tried independently when `onnx` enabled and models cached), then GLiNER if neither loaded, falling back to pattern + heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` or `HF_HUB_OFFLINE=1` to force cached-only behavior.
+`StackedNER::default()` selects the best available backend at runtime: BERT ONNX and NuNER (both tried independently when `onnx` enabled and models cached), then GLiNER if neither loaded, falling back to pattern + heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` to force cached-only behavior.
 
 Zero-shot custom types via GLiNER:
 
@@ -104,7 +104,7 @@ let redacted = pii::scan_and_redact(text, &m)?;
 
 ### Feature flags
 
-`onnx` (default) -- ONNX Runtime backends. `candle` -- pure-Rust backends, no C++ runtime. `metal`/`cuda` -- GPU acceleration (enables `candle`). `llm` -- LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, or Ollama. `analysis` -- coref metrics and cluster encoders. `schema` -- JSON Schema for output types. `production` -- `tracing` instrumentation.
+`onnx` (default) -- ONNX Runtime backends. `candle` -- pure-Rust backends, no C++ runtime. `metal`/`cuda` -- GPU acceleration (enables `candle`). `llm` -- LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, or Ollama. `discourse` -- centering theory, abstract anaphora, dialogue acts. `analysis` -- coref metrics and cluster encoders. `schema` -- JSON Schema for output types. `production` -- `tracing` instrumentation.
 
 ## CLI
 
@@ -130,7 +130,7 @@ JSON output with `--format json`. Batch processing with `anno batch`. Graph expo
 
 ## Coreference
 
-Three resolvers: `SimpleCorefResolver` (rule-based, 9 sieves), `FCoref` (neural, 78.5 F1 on CoNLL-2012 [3]), and `MentionRankingCoref`. `FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
+Three resolvers: `SimpleCorefResolver` (rule-based, 9 sieves; requires `analysis` feature), `FCoref` (neural, 78.5 F1 on CoNLL-2012 [3]; requires `onnx`), and `MentionRankingCoref`. `FCoref` requires a one-time model export: `uv run scripts/export_fcoref.py` (from a repo clone).
 
 RAG preprocessing (`rag::resolve_for_rag()`, `rag::preprocess()`): rewrites pronouns for self-contained chunks after splitting. Always available (no feature flag required).
 
@@ -141,7 +141,7 @@ Inference-time extraction. Training pipelines are out of scope -- use upstream f
 ## Troubleshooting
 
 - **ONNX linking errors**: use `default-features = false` for builds without C++, or check `ORT_DYLIB_PATH`.
-- **Model downloads**: set `HF_HUB_OFFLINE=1` for cached-only mode behind firewalls.
+- **Model downloads**: set `ANNO_NO_DOWNLOADS=1` for cached-only mode behind firewalls.
 - **Feature errors**: most backends are gated behind `onnx` or `candle`.
 - **Offset mismatches**: all spans use character offsets, not byte offsets. See [CONTRACT.md](docs/CONTRACT.md).
 

@@ -209,7 +209,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::WIP,
         zero_shot: false,
         gpu_support: true,
-        description: "DeBERTa-v3 NER (requires local ONNX export via DEBERTA_MODEL_PATH)",
+        description: "DeBERTa-v3 NER via BertNEROnnx (set DEBERTA_MODEL_PATH to local ONNX export)",
         recommended_models: &[],
     },
     BackendInfo {
@@ -218,7 +218,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::WIP,
         zero_shot: false,
         gpu_support: true,
-        description: "ALBERT NER (requires local ONNX export via ALBERT_MODEL_PATH)",
+        description: "ALBERT NER via BertNEROnnx (set ALBERT_MODEL_PATH to local ONNX export)",
         recommended_models: &[],
     },
     // =========================================================================
