@@ -844,6 +844,15 @@ impl crate::RelationCapable for TPLinker {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::LazyLock;
+
+    /// Cached TPLinker with standard thresholds (0.15/0.55).
+    /// Avoids repeated ONNX model probe + disk scan per test (~10s each).
+    static TP_STANDARD: LazyLock<TPLinker> =
+        LazyLock::new(|| TPLinker::with_thresholds(0.15, 0.55));
+
+    /// Cached TPLinker with zero thresholds (accepts everything).
+    static TP_ZERO: LazyLock<TPLinker> = LazyLock::new(|| TPLinker::with_thresholds(0.0, 0.0));
 
     #[test]
     fn test_tplinker_creation() {
@@ -853,8 +862,7 @@ mod tests {
 
     #[test]
     fn test_tplinker_entity_extraction() {
-        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
-        let entities = tplinker
+        let entities = TP_STANDARD
             .extract_entities("Steve Jobs founded Apple.", None)
             .unwrap();
         assert!(!entities.is_empty());
@@ -862,7 +870,7 @@ mod tests {
 
     #[test]
     fn test_tplinker_relation_extraction() {
-        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
+        let tplinker = &*TP_STANDARD;
         let out = tplinker
             .extract_with_relations(
                 "Steve Jobs founded Apple in 1976.",
@@ -909,11 +917,10 @@ mod tests {
 
     #[test]
     fn test_tplinker_empty_text() {
-        let tp = TPLinker::with_thresholds(0.15, 0.55);
-        let entities = tp.extract_entities("", None).unwrap();
+        let entities = TP_STANDARD.extract_entities("", None).unwrap();
         assert!(entities.is_empty(), "empty text should produce no entities");
 
-        let out = tp
+        let out = TP_STANDARD
             .extract_with_relations("", &["person"], &["founded"], 0.5)
             .unwrap();
         assert!(out.entities.is_empty());
@@ -922,8 +929,7 @@ mod tests {
 
     #[test]
     fn test_tplinker_entities_only_no_relations() {
-        let tp = TPLinker::with_thresholds(0.15, 0.55);
-        let out = tp
+        let out = TP_STANDARD
             .extract_with_relations("Tokyo is a city.", &["location"], &[], 0.5)
             .unwrap();
         // With no relation types requested, relations should be empty.
@@ -936,8 +942,7 @@ mod tests {
 
     #[test]
     fn test_tplinker_provenance_metadata() {
-        let tp = TPLinker::with_thresholds(0.0, 0.0);
-        let out = tp
+        let out = TP_ZERO
             .extract_with_relations(
                 "Steve Jobs founded Apple in 1976.",
                 &["person", "organization"],
@@ -960,9 +965,8 @@ mod tests {
 
     #[test]
     fn test_tplinker_multiple_relations_same_entity_types() {
-        let tp = TPLinker::with_thresholds(0.0, 0.0);
         let text = "Tim Cook leads Apple. Satya Nadella leads Microsoft.";
-        let out = tp
+        let out = TP_ZERO
             .extract_with_relations(
                 text,
                 &["person", "organization"],
@@ -990,12 +994,12 @@ mod tests {
 
     #[test]
     fn test_tplinker_custom_thresholds() {
+        // Strict thresholds need a fresh instance (0.99/0.99 differs from cached)
         let tp_strict = TPLinker::with_thresholds(0.99, 0.99);
         let entities = tp_strict
             .extract_entities("Steve Jobs founded Apple.", None)
             .unwrap();
-        let tp_lenient = TPLinker::with_thresholds(0.0, 0.0);
-        let entities_lenient = tp_lenient
+        let entities_lenient = TP_ZERO
             .extract_entities("Steve Jobs founded Apple.", None)
             .unwrap();
         assert!(
@@ -1006,9 +1010,8 @@ mod tests {
 
     #[test]
     fn test_tplinker_unicode_offsets_invariants() {
-        let tplinker = TPLinker::with_thresholds(0.15, 0.55);
         let text = "Dr. 田中 met François Müller in 東京. \u{1f389}";
-        let out = tplinker
+        let out = TP_STANDARD
             .extract_with_relations(
                 text,
                 &["person", "location", "organization"],
@@ -1042,17 +1045,16 @@ mod tests {
 
     #[test]
     fn test_is_neural_flag() {
-        let tp = TPLinker::with_thresholds(0.15, 0.55);
         #[cfg(not(feature = "onnx"))]
         assert!(
-            !tp.is_neural(),
+            !TP_STANDARD.is_neural(),
             "without onnx feature, TPLinker should not be neural"
         );
         #[cfg(feature = "onnx")]
         {
             // With onnx feature enabled, is_neural depends on model availability.
             // Without a downloaded model it should be false (heuristic fallback).
-            let neural = tp.is_neural();
+            let neural = TP_STANDARD.is_neural();
             // Accept either value -- we're testing it doesn't panic and returns a bool.
             assert!(neural || !neural);
         }
