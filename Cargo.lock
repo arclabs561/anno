@@ -183,7 +183,6 @@ dependencies = [
  "deformat",
  "dirs 5.0.1",
  "hf-hub",
- "innr",
  "itertools 0.14.0",
  "log",
  "lru",
@@ -967,6 +966,8 @@ dependencies = [
 [[package]]
 name = "deformat"
 version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f16dd3c6ffa177b278a6054019a73e44df18bb2b787badacafe274d04b7ee7b4"
 dependencies = [
  "dom_smoothie",
  "memchr",
@@ -2243,10 +2244,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "innr"
-version = "0.2.0"
-
-[[package]]
 name = "inout"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2435,7 +2432,9 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "logp"
-version = "0.2.0"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52fe4e14c3733cc805691a244c5af0a3fdf65883cced7c2fb4fcfd53fd78da9d"
 dependencies = [
  "thiserror 2.0.18",
 ]
@@ -2643,6 +2642,8 @@ dependencies = [
 [[package]]
 name = "muxer"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20d023fea5079ebc75729dc0ab2bb5dd54e121c04844fd2e5ff00cbe3d49c0dc"
 dependencies = [
  "logp",
  "pare",
@@ -3043,7 +3044,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3056,7 +3057,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 2.0.18",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5619,8 +5620,20 @@ dependencies = [
 ]
 
 [[patch.unused]]
+name = "deformat"
+version = "0.6.0"
+
+[[patch.unused]]
+name = "innr"
+version = "0.2.0"
+
+[[patch.unused]]
 name = "lattix"
 version = "0.6.0"
+
+[[patch.unused]]
+name = "logp"
+version = "0.2.0"
 
 [[patch.unused]]
 name = "pare"
