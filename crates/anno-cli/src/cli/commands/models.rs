@@ -82,7 +82,11 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         #[cfg(feature = "onnx")]
         "deberta-v3" | "deberta_v3" | "deberta" => Some(ModelBackend::DebertaV3),
         #[cfg(feature = "onnx")]
-        "albert" | "albert_ner" => Some(ModelBackend::Albert),
+        "biomedical" | "biomedical-ner" | "biomedical_ner" => Some(ModelBackend::Biomedical),
+        #[cfg(feature = "onnx")]
+        "gliner-pii" | "gliner_pii" | "pii" => Some(ModelBackend::GlinerPii),
+        #[cfg(feature = "onnx")]
+        "gliner-relex" | "gliner_relex" | "relex" => Some(ModelBackend::GlinerRelex),
         #[cfg(feature = "onnx")]
         "gliner-poly" | "gliner_poly" => Some(ModelBackend::GlinerPoly),
         #[cfg(feature = "candle")]

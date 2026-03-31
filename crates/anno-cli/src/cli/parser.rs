@@ -234,13 +234,22 @@ pub enum ModelBackend {
     #[cfg(feature = "onnx")]
     #[value(alias = "bert")]
     BertOnnx,
-    /// DeBERTa-v3 NER
+    /// DeBERTa-v3 NER (export: uv run scripts/export_deberta_ner_to_onnx.py)
     #[cfg(feature = "onnx")]
     #[value(alias = "deberta")]
     DebertaV3,
-    /// ALBERT NER
+    /// Biomedical NER (Disease/Chemical/Drug/Gene; requires export: uv run scripts/export_biomedical_ner_to_onnx.py)
     #[cfg(feature = "onnx")]
-    Albert,
+    #[value(alias = "biomedical-ner")]
+    Biomedical,
+    /// GLiNER PII Edge (60+ PII categories, zero-shot)
+    #[cfg(feature = "onnx")]
+    #[value(alias = "gliner-pii", alias = "pii")]
+    GlinerPii,
+    /// GLiNER-RelEx: joint NER + relation extraction, zero-shot
+    #[cfg(feature = "onnx")]
+    #[value(alias = "gliner-relex", alias = "relex")]
+    GlinerRelex,
     /// GLiNER Poly-Encoder
     #[cfg(feature = "onnx")]
     #[value(alias = "gliner-poly")]
@@ -300,7 +309,11 @@ Use `--model gliner` instead."
                 #[cfg(feature = "onnx")]
                 Self::DebertaV3 => "deberta_v3",
                 #[cfg(feature = "onnx")]
-                Self::Albert => "albert",
+                Self::Biomedical => "biomedical",
+                #[cfg(feature = "onnx")]
+                Self::GlinerPii => "gliner_pii",
+                #[cfg(feature = "onnx")]
+                Self::GlinerRelex => "gliner_relex",
                 #[cfg(feature = "onnx")]
                 Self::GlinerPoly => "gliner_poly", // rejected above; kept for exhaustiveness
                 // Candle
@@ -370,28 +383,62 @@ Use `--model gliner` instead."
                     .map_err(|e| format!("Failed to load BERT ONNX: {}\n  Tip: Use 'anno models info bert-onnx' to check model status.", e)),
                 #[cfg(feature = "onnx")]
                 Self::DebertaV3 => {
-                    if let Ok(model_path) = std::env::var("DEBERTA_MODEL_PATH") {
+                    // Check env var first, then default cache locations
+                    let candidates: Vec<String> = std::iter::once(std::env::var("DEBERTA_MODEL_PATH").ok())
+                        .chain(std::iter::once(
+                            dirs::home_dir().map(|h| {
+                                h.join(".cache/huggingface/hub/models--deberta-v3-ner/onnx")
+                                    .to_string_lossy().into_owned()
+                            })
+                        ))
+                        .chain(std::iter::once(
+                            dirs::cache_dir().map(|d| {
+                                d.join("anno/models/deberta-ner")
+                                    .to_string_lossy().into_owned()
+                            })
+                        ))
+                        .flatten()
+                        .collect();
+
+                    for path in &candidates {
+                        if std::path::Path::new(path).join("model.onnx").exists() {
+                            return anno::BertNEROnnx::new(path)
+                                .map(|m| Box::new(m) as Box<dyn anno::Model>)
+                                .map_err(|e| format!("DeBERTa-v3 failed to load from {path}: {e}"));
+                        }
+                    }
+                    Err("DeBERTa-v3 requires ONNX export.\n\
+                         Export: uv run scripts/export_deberta_ner_to_onnx.py\n\
+                         Or set: DEBERTA_MODEL_PATH=/path/to/model\n\n\
+                         Ready alternatives: --model bert-onnx, --model gliner".to_string())
+                }
+                #[cfg(feature = "onnx")]
+                Self::Biomedical => {
+                    let model_path = std::env::var("BIOMEDICAL_MODEL_PATH")
+                        .unwrap_or_else(|_| {
+                            dirs::home_dir()
+                                .map(|h| h.join(".cache/anno/models/biomedical-ner").to_string_lossy().into_owned())
+                                .unwrap_or_default()
+                        });
+                    if !model_path.is_empty() && std::path::Path::new(&model_path).join("model.onnx").exists() {
                         anno::BertNEROnnx::new(&model_path)
                             .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                            .map_err(|e| format!("DeBERTa-v3 failed to load from {}: {}", model_path, e))
+                            .map_err(|e| format!("Biomedical NER failed: {e}"))
                     } else {
-                        Err("DeBERTa-v3 requires custom ONNX export.\n\
-                             Export: uv run scripts/export_deberta_ner_to_onnx.py\n\
-                             Then: DEBERTA_MODEL_PATH=/path/to/model anno extract --model deberta-v3\n\n\
-                             Ready alternatives: --model candle-ner, --model bert-onnx".to_string())
+                        Err("Biomedical NER requires ONNX export.\n\
+                             Export: uv run scripts/export_biomedical_ner_to_onnx.py\n\
+                             Or set: BIOMEDICAL_MODEL_PATH=/path/to/model\n\n\
+                             Alternative: --model gliner (zero-shot, can detect biomedical entities)".to_string())
                     }
                 }
                 #[cfg(feature = "onnx")]
-                Self::Albert => {
-                    if let Ok(model_path) = std::env::var("ALBERT_MODEL_PATH") {
-                        anno::BertNEROnnx::new(&model_path)
-                            .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                            .map_err(|e| format!("ALBERT failed to load from {}: {}", model_path, e))
-                    } else {
-                        Err("ALBERT requires custom ONNX export.\n\
-                             Ready alternatives: --model candle-ner, --model bert-onnx".to_string())
-                    }
-                }
+                Self::GlinerPii => anno::GLiNEROnnx::new(anno::models::GLINER_PII)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
+                    .map_err(|e| format!("GLiNER PII failed: {e}\n  Tip: Use --model gliner for general NER.")),
+                #[cfg(feature = "onnx")]
+                Self::GlinerRelex => anno::GLiNEROnnx::new(anno::models::GLINER_RELEX)
+                    .map(|m| Box::new(m) as Box<dyn anno::Model>)
+                    .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Use --model gliner2 for multi-task NER+RE.")),
                 #[cfg(feature = "onnx")]
                 Self::GlinerPoly => unreachable!("rejected above"),
                 // Candle
@@ -480,7 +527,11 @@ Use `--model gliner` instead."
             #[cfg(feature = "onnx")]
             Self::DebertaV3 => "deberta-v3",
             #[cfg(feature = "onnx")]
-            Self::Albert => "albert",
+            Self::Biomedical => "biomedical",
+            #[cfg(feature = "onnx")]
+            Self::GlinerPii => "gliner-pii",
+            #[cfg(feature = "onnx")]
+            Self::GlinerRelex => "gliner-relex",
             #[cfg(feature = "onnx")]
             Self::GlinerPoly => "gliner-poly",
             // Candle

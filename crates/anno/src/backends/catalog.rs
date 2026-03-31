@@ -206,20 +206,20 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
     BackendInfo {
         name: "deberta_v3",
         feature: Some("onnx"),
-        status: BackendStatus::WIP,
+        status: BackendStatus::Beta,
         zero_shot: false,
         gpu_support: true,
-        description: "DeBERTa-v3 NER via BertNEROnnx (set DEBERTA_MODEL_PATH to local ONNX export)",
-        recommended_models: &[],
+        description: "DeBERTa-v3 NER via BertNEROnnx (export: uv run scripts/export_deberta_ner_to_onnx.py)",
+        recommended_models: &["ficsort/deberta-v3-base-conll2003-ner"],
     },
     BackendInfo {
-        name: "albert",
+        name: "biomedical",
         feature: Some("onnx"),
-        status: BackendStatus::WIP,
+        status: BackendStatus::Beta,
         zero_shot: false,
         gpu_support: true,
-        description: "ALBERT NER via BertNEROnnx (set ALBERT_MODEL_PATH to local ONNX export)",
-        recommended_models: &[],
+        description: "Biomedical NER via BertNEROnnx (Disease, Chemical, Drug, Gene, Species)",
+        recommended_models: &["d4data/biomedical-ner-all"],
     },
     // =========================================================================
     // Implemented Backends (Beta)

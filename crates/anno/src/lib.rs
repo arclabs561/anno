@@ -691,6 +691,10 @@ pub mod models {
     /// Note: only LLM-scale models (7B/20B LoRA) are on HuggingFace as of 2026-03.
     /// Encoder-scale weights pending release.
     pub const B2NER: &str = "Umean/B2NER-Internlm2.5-7B-LoRA";
+    /// DeBERTa-v3 NER (CoNLL-03 fine-tuned, requires local ONNX export).
+    pub const DEBERTA_V3: &str = "ficsort/deberta-v3-base-conll2003-ner";
+    /// Biomedical NER (Disease, Chemical, Drug, Gene, Species; requires local ONNX export).
+    pub const BIOMEDICAL: &str = "d4data/biomedical-ner-all";
     /// GLiNER PII Edge (60+ PII categories, zero-shot).
     pub const GLINER_PII: &str = "knowledgator/gliner-pii-edge-v1.0";
     /// GLiNER-RelEx (joint NER + relation extraction, zero-shot).
