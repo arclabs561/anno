@@ -334,4 +334,132 @@ mod tests {
         assert!(entity.start() < entity.end());
         assert!(entity.end() <= text.chars().count());
     }
+
+    #[test]
+    fn test_lexicon_ner_empty_input() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("Apple", EntityType::Organization, 0.99);
+
+        let ner = LexiconNER::new(lexicon);
+        let entities = ner.extract_entities("", None).unwrap();
+        assert!(entities.is_empty());
+    }
+
+    #[test]
+    fn test_lexicon_ner_no_matches() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("Apple", EntityType::Organization, 0.99);
+
+        let ner = LexiconNER::new(lexicon);
+        let entities = ner.extract_entities("The quick brown fox.", None).unwrap();
+        assert!(entities.is_empty());
+    }
+
+    #[test]
+    fn test_lexicon_ner_multiple_occurrences() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert(
+            "the",
+            EntityType::custom("DET", anno_core::EntityCategory::Misc),
+            0.5,
+        );
+
+        let ner = LexiconNER::new(lexicon).with_word_boundary(false);
+        let entities = ner.extract_entities("the cat in the hat", None).unwrap();
+        // Should find both occurrences of "the"
+        assert!(
+            entities.len() >= 2,
+            "expected >= 2 matches, got {}",
+            entities.len()
+        );
+    }
+
+    #[test]
+    fn test_lexicon_ner_overlapping_entries() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("New York", EntityType::Location, 0.9);
+        lexicon.insert("New York City", EntityType::Location, 0.95);
+
+        let ner = LexiconNER::new(lexicon);
+        let entities = ner
+            .extract_entities("Visit New York City today.", None)
+            .unwrap();
+
+        // Dedup keeps higher-confidence match when spans overlap
+        assert!(!entities.is_empty(), "should find at least one entity");
+        assert!(
+            entities
+                .iter()
+                .any(|e| e.text == "New York" || e.text == "New York City"),
+            "should find New York or New York City, got: {:?}",
+            entities.iter().map(|e| &e.text).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_lexicon_ner_case_sensitive() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("Apple", EntityType::Organization, 0.99);
+
+        let ner = LexiconNER::new(lexicon).with_case_sensitive(true);
+        let entities = ner.extract_entities("apple stock rose.", None).unwrap();
+        assert!(
+            entities.is_empty(),
+            "case-sensitive should not match 'apple'"
+        );
+
+        let entities = ner.extract_entities("Apple stock rose.", None).unwrap();
+        assert_eq!(entities.len(), 1);
+    }
+
+    #[test]
+    fn test_lexicon_ner_entity_offsets_correct() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("Bob", EntityType::Person, 0.99);
+
+        let ner = LexiconNER::new(lexicon);
+        let text = "Hello Bob, welcome!";
+        let entities = ner.extract_entities(text, None).unwrap();
+
+        assert_eq!(entities.len(), 1);
+        let e = &entities[0];
+        assert_eq!(e.start(), 6);
+        assert_eq!(e.end(), 9);
+        let extracted: String = text
+            .chars()
+            .skip(e.start())
+            .take(e.end() - e.start())
+            .collect();
+        assert_eq!(extracted, "Bob");
+    }
+
+    #[test]
+    fn test_lexicon_ner_metadata() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("test", EntityType::Person, 0.9);
+        let ner = LexiconNER::new(lexicon);
+        assert_eq!(ner.name(), "lexicon");
+        assert!(!ner.description().is_empty());
+    }
+
+    #[test]
+    fn test_lexicon_ner_mixed_script_offsets() {
+        let mut lexicon = HashMapLexicon::new("test");
+        lexicon.insert("Paris", EntityType::Location, 0.99);
+
+        let ner = LexiconNER::new(lexicon);
+        let text = "我住在 Paris 很久了";
+        let entities = ner.extract_entities(text, None).unwrap();
+
+        assert_eq!(entities.len(), 1);
+        let e = &entities[0];
+        assert_eq!(e.text, "Paris");
+        // Verify char offsets are correct for mixed CJK + Latin text
+        let extracted: String = text
+            .chars()
+            .skip(e.start())
+            .take(e.end() - e.start())
+            .collect();
+        assert_eq!(extracted, "Paris");
+    }
 }

@@ -15,7 +15,7 @@ const TOKEN_ENT: u32 = 128002;
 const TOKEN_SEP: u32 = 128003;
 
 /// Default max span width from GLiNER config.
-const MAX_SPAN_WIDTH: usize = 12;
+pub(super) const MAX_SPAN_WIDTH: usize = 12;
 
 #[cfg(feature = "onnx")]
 impl GLiNERPoly {
@@ -347,7 +347,7 @@ impl GLiNERPoly {
     /// Returns `(span_idx, span_mask)` where:
     /// - `span_idx`: `[num_words * max_width, 2]` flattened — start/end word indices per span
     /// - `span_mask`: `[num_words * max_width]` — which spans are valid
-    fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
+    pub(super) fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
         let num_spans = num_words * MAX_SPAN_WIDTH;
         let mut span_idx: Vec<i64> = vec![0; num_spans * 2];
         let mut span_mask: Vec<bool> = vec![false; num_spans];
@@ -719,7 +719,7 @@ impl GLiNERPoly {
     ///
     /// Correctly handles Unicode text by converting byte offsets to character
     /// offsets using the offset module.
-    fn word_span_to_char_offsets(
+    pub(super) fn word_span_to_char_offsets(
         text: &str,
         words: &[&str],
         start_word: usize,

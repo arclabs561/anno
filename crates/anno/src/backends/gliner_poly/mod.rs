@@ -364,4 +364,148 @@ mod tests {
         assert!(DEFAULT_POLY_LABELS.contains(&"person"));
         assert!(DEFAULT_POLY_LABELS.contains(&"organization"));
     }
+
+    // ---- Pure logic tests (work regardless of feature flags) ----
+
+    #[test]
+    fn test_default_poly_labels_complete() {
+        assert!(DEFAULT_POLY_LABELS.contains(&"person"));
+        assert!(DEFAULT_POLY_LABELS.contains(&"organization"));
+        assert!(DEFAULT_POLY_LABELS.contains(&"location"));
+        assert!(DEFAULT_POLY_LABELS.contains(&"date"));
+        // Should have a reasonable number of default labels
+        assert!(
+            DEFAULT_POLY_LABELS.len() >= 8,
+            "expected >= 8 labels, got {}",
+            DEFAULT_POLY_LABELS.len()
+        );
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_make_span_tensors_empty() {
+        let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(0);
+        assert!(span_idx.is_empty());
+        assert!(span_mask.is_empty());
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_make_span_tensors_single_word() {
+        let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(1);
+        // 1 word -> 1 span: (0, 0), padded to MAX_SPAN_WIDTH slots
+        let max_w = inference::MAX_SPAN_WIDTH;
+        assert_eq!(span_mask.len(), max_w);
+        assert!(span_mask[0]); // first span is valid
+                               // Remaining should be false
+        for m in &span_mask[1..] {
+            assert!(!m, "extra span slots should be masked");
+        }
+        // First span: start=0, end=0
+        assert_eq!(span_idx[0], 0);
+        assert_eq!(span_idx[1], 0);
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_make_span_tensors_three_words() {
+        let (span_idx, span_mask) = GLiNERPoly::make_span_tensors(3);
+        let max_w = inference::MAX_SPAN_WIDTH;
+        let num_spans = 3 * max_w;
+        assert_eq!(span_mask.len(), num_spans);
+        assert_eq!(span_idx.len(), num_spans * 2);
+
+        // First word (start=0): spans (0,0), (0,1), (0,2) -> 3 valid
+        assert!(span_mask[0]); // (0,0)
+        assert!(span_mask[1]); // (0,1)
+        assert!(span_mask[2]); // (0,2)
+
+        // Verify span values for first word
+        assert_eq!((span_idx[0], span_idx[1]), (0, 0));
+        assert_eq!((span_idx[2], span_idx[3]), (0, 1));
+        assert_eq!((span_idx[4], span_idx[5]), (0, 2));
+
+        // Second word (start=1): spans (1,1), (1,2) -> 2 valid
+        let base = max_w;
+        assert!(span_mask[base]); // (1,1)
+        assert!(span_mask[base + 1]); // (1,2)
+        if max_w > 2 {
+            assert!(!span_mask[base + 2]); // no (1,3)
+        }
+
+        // Third word (start=2): only (2,2) -> 1 valid
+        let base = 2 * max_w;
+        assert!(span_mask[base]); // (2,2)
+        if max_w > 1 {
+            assert!(!span_mask[base + 1]);
+        }
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_ascii() {
+        let text = "New York City is great";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 0, 2);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "New York City");
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_unicode() {
+        let text = "Visit 北京 for tourism";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 1, 1);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "北京");
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_empty_words() {
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets("hello", &[], 0, 0);
+        assert_eq!((start, end), (0, 0));
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_out_of_bounds() {
+        let text = "hello world";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 5, 10);
+        assert_eq!((start, end), (0, 0));
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_inverted() {
+        let text = "hello world";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 1, 0);
+        assert_eq!((start, end), (0, 0));
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_word_span_to_char_offsets_single_word() {
+        let text = "Steve Jobs founded Apple in California";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let (start, end) = GLiNERPoly::word_span_to_char_offsets(text, &words, 3, 3);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "Apple");
+    }
+
+    #[test]
+    fn test_local_model_cache_candidates() {
+        let paths = local_model_cache_candidates();
+        assert!(paths.len() >= 2, "should have at least 2 candidate paths");
+        for p in &paths {
+            assert!(
+                p.to_string_lossy().contains("gliner-poly") || p.to_string_lossy().contains("anno"),
+                "cache path should reference gliner-poly or anno: {:?}",
+                p
+            );
+        }
+    }
 }

@@ -1511,3 +1511,99 @@ pub(super) const DEFAULT_GLINER_LABELS: &[&str] = &[
     "law",
     "language",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_char_slice_with_len_basic() {
+        assert_eq!(
+            extract_char_slice_with_len("hello world", 0, 5, 11),
+            "hello"
+        );
+        assert_eq!(
+            extract_char_slice_with_len("hello world", 6, 11, 11),
+            "world"
+        );
+        assert_eq!(extract_char_slice_with_len("abc", 0, 3, 3), "abc");
+    }
+
+    #[test]
+    fn test_extract_char_slice_with_len_unicode() {
+        let text = "北京 Beijing";
+        let len = text.chars().count();
+        assert_eq!(extract_char_slice_with_len(text, 0, 2, len), "北京");
+        assert_eq!(extract_char_slice_with_len(text, 3, len, len), "Beijing");
+    }
+
+    #[test]
+    fn test_extract_char_slice_with_len_bounds() {
+        assert_eq!(extract_char_slice_with_len("hello", 10, 15, 5), "");
+        assert_eq!(extract_char_slice_with_len("hello", 3, 1, 5), "");
+        assert_eq!(extract_char_slice_with_len("hello", 2, 2, 5), "");
+        assert_eq!(extract_char_slice_with_len("hello", 5, 6, 5), "");
+        assert_eq!(extract_char_slice_with_len("", 0, 0, 0), "");
+    }
+
+    #[test]
+    fn test_span_tensor_math() {
+        // Verify the span generation algorithm used by make_span_tensors.
+        // We replicate the algorithm here since make_span_tensors requires &self.
+        let num_words: usize = 5;
+        let max_width: usize = MAX_SPAN_WIDTH;
+        let num_spans = num_words.checked_mul(max_width).unwrap();
+
+        assert_eq!(num_spans, 5 * max_width);
+
+        // Count valid spans: sum(min(max_width, num_words - start)) for start 0..num_words
+        // = min(12,5) + min(12,4) + min(12,3) + min(12,2) + min(12,1) = 5+4+3+2+1 = 15
+        let mut valid = 0;
+        for start in 0..num_words {
+            valid += max_width.min(num_words - start);
+        }
+        assert_eq!(valid, 15);
+    }
+
+    #[test]
+    fn test_span_tensor_math_zero_words() {
+        let num_words = 0;
+        let num_spans = num_words * MAX_SPAN_WIDTH;
+        assert_eq!(num_spans, 0);
+    }
+
+    #[test]
+    fn test_span_tensor_math_single_word() {
+        let num_words = 1;
+        let max_width = MAX_SPAN_WIDTH;
+        // Only one valid span: (0, 0)
+        let valid = max_width.min(num_words); // min(12, 1) = 1
+        assert_eq!(valid, 1);
+    }
+
+    #[test]
+    fn test_bytes_to_chars_ascii() {
+        let text = "New York City is great";
+        let (start, end) = crate::offset::bytes_to_chars(text, 0, 13);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "New York City");
+    }
+
+    #[test]
+    fn test_bytes_to_chars_unicode() {
+        let text = "Visit 北京 for tourism";
+        // "北京" starts at byte 6, ends at byte 12
+        let (start, end) = crate::offset::bytes_to_chars(text, 6, 12);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "北京");
+    }
+
+    #[test]
+    fn test_bytes_to_chars_emoji() {
+        let text = "Hello 🌍 world";
+        // "🌍" is 4 bytes at byte offset 6
+        let (start, end) = crate::offset::bytes_to_chars(text, 6, 10);
+        let extracted: String = text.chars().skip(start).take(end - start).collect();
+        assert_eq!(extracted, "🌍");
+    }
+}

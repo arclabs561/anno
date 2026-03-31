@@ -540,4 +540,69 @@ mod tests {
         assert_eq!(CONLL_LABELS[0], "O");
         assert!(CONLL_LABELS.contains(&"B-PER"));
     }
+
+    #[test]
+    fn test_conll_labels_complete() {
+        // Verify all expected BIO tags are present
+        assert!(CONLL_LABELS.contains(&"O"));
+        assert!(CONLL_LABELS.contains(&"B-PER"));
+        assert!(CONLL_LABELS.contains(&"I-PER"));
+        assert!(CONLL_LABELS.contains(&"B-ORG"));
+        assert!(CONLL_LABELS.contains(&"I-ORG"));
+        assert!(CONLL_LABELS.contains(&"B-LOC"));
+        assert!(CONLL_LABELS.contains(&"I-LOC"));
+        assert!(CONLL_LABELS.contains(&"B-MISC"));
+        assert!(CONLL_LABELS.contains(&"I-MISC"));
+    }
+
+    #[test]
+    fn test_conll_labels_bio_pairing() {
+        // Every B- tag should have a matching I- tag
+        for label in CONLL_LABELS {
+            if label.starts_with("B-") {
+                let i_tag = label.replacen("B-", "I-", 1);
+                assert!(
+                    CONLL_LABELS.contains(&i_tag.as_str()),
+                    "B-tag {} has no matching I-tag",
+                    label
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "candle")]
+    #[test]
+    fn test_parse_labels_with_config() {
+        let config: serde_json::Value =
+            serde_json::from_str(r#"{"id2label": {"0": "O", "1": "B-PER", "2": "I-PER"}}"#)
+                .unwrap();
+        let labels = CandleNER::parse_labels(&config).unwrap();
+        assert_eq!(labels.len(), 3);
+        assert_eq!(labels[0], "O");
+        assert_eq!(labels[1], "B-PER");
+        assert_eq!(labels[2], "I-PER");
+    }
+
+    #[cfg(feature = "candle")]
+    #[test]
+    fn test_parse_labels_fallback() {
+        let config: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        let labels = CandleNER::parse_labels(&config).unwrap();
+        assert_eq!(labels.len(), CONLL_LABELS.len());
+        assert_eq!(labels[0], "O");
+    }
+
+    #[cfg(feature = "candle")]
+    #[test]
+    fn test_parse_labels_sparse_ids() {
+        // Non-contiguous IDs should still produce correct vec with "O" fill
+        let config: serde_json::Value =
+            serde_json::from_str(r#"{"id2label": {"0": "O", "5": "B-PER"}}"#).unwrap();
+        let labels = CandleNER::parse_labels(&config).unwrap();
+        assert_eq!(labels.len(), 6); // max_id=5, so 6 entries
+        assert_eq!(labels[0], "O");
+        assert_eq!(labels[5], "B-PER");
+        // Gaps filled with "O"
+        assert_eq!(labels[3], "O");
+    }
 }

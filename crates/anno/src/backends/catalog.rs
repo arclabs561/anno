@@ -332,4 +332,93 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_backend_status_display() {
+        assert_eq!(BackendStatus::Stable.to_string(), "stable");
+        assert_eq!(BackendStatus::Beta.to_string(), "beta");
+        assert_eq!(BackendStatus::WIP.to_string(), "wip");
+    }
+
+    #[test]
+    fn test_catalog_no_duplicate_names() {
+        let mut names: Vec<&str> = BACKEND_CATALOG.iter().map(|b| b.name).collect();
+        let original_len = names.len();
+        names.sort();
+        names.dedup();
+        assert_eq!(
+            names.len(),
+            original_len,
+            "catalog has duplicate backend names"
+        );
+    }
+
+    #[test]
+    fn test_catalog_all_have_descriptions() {
+        for info in BACKEND_CATALOG {
+            assert!(
+                !info.description.is_empty(),
+                "{} has empty description",
+                info.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_catalog_feature_gated_backends() {
+        // ML backends should require a feature
+        let ml_names = ["bert_onnx", "gliner", "nuner", "gliner2", "w2ner", "candle"];
+        for name in ml_names {
+            if let Some(info) = BackendInfo::by_name(name) {
+                assert!(info.feature.is_some(), "{} should be feature-gated", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_catalog_always_available_backends() {
+        // Statistical/heuristic backends should not require features
+        let always_names = ["pattern", "heuristic", "crf", "hmm"];
+        for name in always_names {
+            if let Some(info) = BackendInfo::by_name(name) {
+                assert!(
+                    info.feature.is_none(),
+                    "{} should be always available (no feature gate)",
+                    name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_catalog_zero_shot_backends() {
+        // Known zero-shot backends
+        let zs_names = ["gliner", "nuner", "gliner2", "gliner_poly", "gliner_pii"];
+        for name in zs_names {
+            if let Some(info) = BackendInfo::by_name(name) {
+                assert!(info.zero_shot, "{} should be zero-shot", name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_catalog_recommended_models_not_empty_for_ml() {
+        for info in BACKEND_CATALOG {
+            if info.feature.is_some() && info.status != BackendStatus::WIP {
+                assert!(
+                    !info.recommended_models.is_empty(),
+                    "{} (status={}) should have recommended models",
+                    info.name,
+                    info.status
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_by_name_returns_correct_entry() {
+        let gliner = BackendInfo::by_name("gliner").unwrap();
+        assert!(gliner.zero_shot);
+        assert_eq!(gliner.feature, Some("onnx"));
+    }
 }

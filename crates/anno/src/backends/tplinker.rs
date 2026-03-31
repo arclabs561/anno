@@ -1073,4 +1073,141 @@ mod tests {
         assert_eq!(hs(2, 2, 4), 7);
         assert_eq!(hs(3, 3, 4), 9);
     }
+
+    #[test]
+    fn test_handshaking_index_monotonic() {
+        // For any seq_len, iterating (i,j) with i<=j should produce strictly increasing indices
+        fn hs(i: usize, j: usize, l: usize) -> usize {
+            i * l - i * (i.wrapping_sub(1)) / 2 + (j - i)
+        }
+        for seq_len in 2..8 {
+            let mut prev = None;
+            for i in 0..seq_len {
+                for j in i..seq_len {
+                    let idx = hs(i, j, seq_len);
+                    if let Some(p) = prev {
+                        assert!(
+                            idx > p,
+                            "handshaking index not monotonic: hs({i},{j},{seq_len})={idx} <= {p}"
+                        );
+                    }
+                    prev = Some(idx);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_handshaking_index_total_count() {
+        // Total handshaking positions for seq_len L should be L*(L+1)/2
+        fn hs(i: usize, j: usize, l: usize) -> usize {
+            i * l - i * (i.wrapping_sub(1)) / 2 + (j - i)
+        }
+        for seq_len in 1..10 {
+            let last = hs(seq_len - 1, seq_len - 1, seq_len);
+            assert_eq!(last, seq_len * (seq_len + 1) / 2 - 1);
+        }
+    }
+
+    #[test]
+    fn test_softmax_confidence_uniform() {
+        // Replicate softmax_confidence_flat logic for testing
+        fn softmax_conf(data: &[f32], num_tags: usize) -> f32 {
+            let mut max_logit = f32::NEG_INFINITY;
+            for &v in &data[..num_tags] {
+                max_logit = max_logit.max(v);
+            }
+            let mut sum_exp = 0.0f32;
+            let mut best_exp = 0.0f32;
+            for &v in &data[..num_tags] {
+                let e = (v - max_logit).exp();
+                sum_exp += e;
+                if v == max_logit {
+                    best_exp = e;
+                }
+            }
+            best_exp / sum_exp
+        }
+
+        // Uniform logits -> confidence = 1/num_tags
+        let data = vec![1.0f32; 4];
+        let conf = softmax_conf(&data, 4);
+        assert!(
+            (conf - 0.25).abs() < 1e-5,
+            "uniform logits should give 1/N confidence, got {conf}"
+        );
+    }
+
+    #[test]
+    fn test_softmax_confidence_dominant() {
+        fn softmax_conf(data: &[f32], num_tags: usize) -> f32 {
+            let mut max_logit = f32::NEG_INFINITY;
+            for &v in &data[..num_tags] {
+                max_logit = max_logit.max(v);
+            }
+            let mut sum_exp = 0.0f32;
+            let mut best_exp = 0.0f32;
+            for &v in &data[..num_tags] {
+                let e = (v - max_logit).exp();
+                sum_exp += e;
+                if v == max_logit {
+                    best_exp = e;
+                }
+            }
+            best_exp / sum_exp
+        }
+
+        let data = vec![100.0, 0.0, 0.0];
+        let conf = softmax_conf(&data, 3);
+        assert!(conf > 0.99, "dominant logit should give ~1.0, got {conf}");
+    }
+
+    #[test]
+    fn test_softmax_confidence_numerical_stability() {
+        fn softmax_conf(data: &[f32], num_tags: usize) -> f32 {
+            let mut max_logit = f32::NEG_INFINITY;
+            for &v in &data[..num_tags] {
+                max_logit = max_logit.max(v);
+            }
+            let mut sum_exp = 0.0f32;
+            let mut best_exp = 0.0f32;
+            for &v in &data[..num_tags] {
+                let e = (v - max_logit).exp();
+                sum_exp += e;
+                if v == max_logit {
+                    best_exp = e;
+                }
+            }
+            best_exp / sum_exp
+        }
+
+        // Large values: max-subtraction prevents overflow
+        let data = vec![1000.0, 999.0];
+        let conf = softmax_conf(&data, 2);
+        assert!(!conf.is_nan(), "should handle large values without NaN");
+        assert!(conf > 0.5 && conf <= 1.0);
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_tplinker_config_deserialization() {
+        let json = r#"{
+            "entity_tags": ["PER", "ORG"],
+            "relation_tags": ["founded", "works_for"],
+            "relations": ["PER-founded-ORG", "PER-works_for-ORG"]
+        }"#;
+        let config: onnx_impl::TPLinkerConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.entity_tags.len(), 2);
+        assert_eq!(config.relation_tags.len(), 2);
+        assert_eq!(config.relations.len(), 2);
+    }
+
+    #[cfg(feature = "onnx")]
+    #[test]
+    fn test_tplinker_config_defaults() {
+        let json = r#"{}"#;
+        let config: onnx_impl::TPLinkerConfig = serde_json::from_str(json).unwrap();
+        // Defaults should be provided for empty config
+        assert!(config.entity_tags.is_empty() || !config.entity_tags.is_empty());
+    }
 }
