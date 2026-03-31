@@ -43,13 +43,13 @@
     MitMovie {
         name: "MIT Movie",
         description: "Movie domain slot filling NER. Created at MIT SLS for spoken language understanding research.",
-        url: "https://groups.csail.mit.edu/sls/downloads/movie/engtest.bio",
+        url: "https://sls.csail.mit.edu/downloads/movie/engtest.bio",
         entity_types: ["Actor", "Director", "Genre", "Title", "Year", "Song", "Character", "Plot", "Rating"],
         language: "en",
         domain: "entertainment",
         license: "Research",
         citation: "Liu et al. (2013)",
-        paper_url: "https://groups.csail.mit.edu/sls/publications/2013/Liu_ASRU_2013.pdf",
+        paper_url: "https://sls.csail.mit.edu/publications/2013/Liu_ASRU_2013.pdf",
         year: 2013,
         format: "BIO",
         annotation_scheme: "BIO",
@@ -61,13 +61,13 @@
     MitRestaurant {
         name: "MIT Restaurant",
         description: "Restaurant domain slot filling NER. Part of MIT SLS spoken dialogue systems research.",
-        url: "https://groups.csail.mit.edu/sls/downloads/restaurant/restauranttest.bio",
+        url: "https://sls.csail.mit.edu/downloads/restaurant/restauranttest.bio",
         entity_types: ["Amenity", "Cuisine", "Dish", "Hours", "Location", "Price", "Rating", "Restaurant_Name"],
         language: "en",
         domain: "restaurant",
         license: "Research",
         citation: "Liu et al. (2013)",
-        paper_url: "https://groups.csail.mit.edu/sls/publications/2013/Liu_ASRU_2013.pdf",
+        paper_url: "https://sls.csail.mit.edu/publications/2013/Liu_ASRU_2013.pdf",
         year: 2013,
         format: "BIO",
         annotation_scheme: "BIO",
@@ -395,5 +395,75 @@
         hf_id: "MultiCoNER/multiconer_v2",
         access_status: Public,
         categories: [ner, multilingual],
+    },
+
+    // =========================================================================
+    // PII / Privacy NER
+    // =========================================================================
+    NemotronPII {
+        name: "Nemotron-PII",
+        description: "Synthetic PII dataset with 55+ categories spanning personal, financial, healthcare, and demographic data.",
+        url: "https://huggingface.co/datasets/nvidia/Nemotron-PII",
+        entity_types: ["first_name", "last_name", "ssn", "email", "phone_number", "credit_debit_card", "street_address", "date_of_birth", "medical_record_number"],
+        language: "en",
+        domain: "multi-industry",
+        license: "CC-BY-4.0",
+        citation: "NVIDIA (2025)",
+        paper_url: "https://huggingface.co/datasets/nvidia/Nemotron-PII",
+        year: 2025,
+        format: "JSON",
+        size_hint: "200k records (100k train / 100k test), 55+ PII categories",
+        notes: "Character-offset span annotations. Covers HIPAA and GDPR entity classes. Synthetic, multi-industry.",
+        tasks: ["ner"],
+        hf_id: "nvidia/Nemotron-PII",
+        access_status: HuggingFace,
+        categories: [ner],
+    },
+
+    // =========================================================================
+    // Temporal NER
+    // =========================================================================
+    NamedTimexes {
+        name: "Named Temporal Expressions",
+        description: "Temporal NER for culturally-named time expressions (Michaelmas, Vasant Panchami) that standard TIMEX3 tools miss.",
+        url: "https://huggingface.co/datasets/strombergnlp/named_timexes",
+        entity_types: ["T"],
+        language: "en",
+        domain: "social_media",
+        license: "CC-BY-4.0",
+        citation: "Stromberg Derczynski (2023)",
+        paper_url: "https://huggingface.co/datasets/strombergnlp/named_timexes",
+        year: 2023,
+        format: "IOB2",
+        annotation_scheme: "IOB2",
+        size_hint: "~117k tokens (87k train / 30k test)",
+        notes: "Binary O/T labels. Targets named temporal expressions, not numeric dates. HuggingFace native.",
+        tasks: ["ner", "temporal"],
+        hf_id: "strombergnlp/named_timexes",
+        access_status: HuggingFace,
+        categories: [ner],
+    },
+
+    // =========================================================================
+    // Cyber Threat Intelligence NER
+    // =========================================================================
+    CyberThreatIntelligence {
+        name: "Cyber Threat Intelligence NER",
+        description: "NER on Palo Alto Networks threat reports. Malware, attack patterns, threat actors, and software entities.",
+        url: "https://huggingface.co/datasets/mrmoor/cyber-threat-intelligence",
+        entity_types: ["malware", "attack-pattern", "threat-actor", "identity", "SOFTWARE", "location", "TIME"],
+        language: "en",
+        domain: "cybersecurity",
+        license: "CC-BY-4.0",
+        citation: "Moor (2024)",
+        paper_url: "https://huggingface.co/datasets/mrmoor/cyber-threat-intelligence",
+        year: 2024,
+        format: "JSON",
+        size_hint: "9,732 records from real threat reports",
+        notes: "Character-offset span annotations with relations. Derived from real threat intelligence, not synthetic.",
+        tasks: ["ner", "re"],
+        hf_id: "mrmoor/cyber-threat-intelligence",
+        access_status: HuggingFace,
+        categories: [ner, relation_extraction],
     },
 
