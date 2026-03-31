@@ -97,6 +97,9 @@ url_validation_report.json
 .cargo/config.toml
 mutants.out*/
 
+# Script-generated data artifacts (reports, enrichment, audits)
+scripts/*.json
+
 # Spot evaluation ephemeral state
 scripts/spot/config.env
 scripts/spot/fleet_id.txt
