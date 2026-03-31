@@ -294,12 +294,95 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
 
 /// Resolve coreference by grouping signals into tracks.
 ///
-/// The CLI delegates to the library implementation to keep semantics centralized.
+/// Tries neural f-coref (ONNX) first, falls back to heuristic mention-ranking.
 pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: &[SignalId]) {
+    // Try f-coref (neural) if ONNX model is available
+    #[cfg(feature = "onnx")]
+    {
+        use anno::backends::coref::fcoref::FCoref;
+
+        // Check standard locations for f-coref model
+        let fcoref_paths = [
+            std::env::var("FCOREF_MODEL_PATH").ok(),
+            // XDG cache (~/.cache on Linux, also common on macOS)
+            std::env::var("HOME")
+                .ok()
+                .map(|h| format!("{h}/.cache/anno/models/fcoref")),
+            // macOS native cache (~/Library/Caches)
+            dirs::cache_dir().map(|d| d.join("anno/models/fcoref").to_string_lossy().into_owned()),
+        ];
+
+        for path in fcoref_paths.iter().flatten() {
+            if std::path::Path::new(path).join("encoder.onnx").exists() {
+                match FCoref::from_path(path) {
+                    Ok(model) => match model.resolve(text) {
+                        Ok(clusters) => {
+                            fcoref_clusters_to_tracks(doc, &clusters, text);
+                            return;
+                        }
+                        Err(e) => {
+                            log::debug!("f-coref inference failed: {e}");
+                        }
+                    },
+                    Err(e) => {
+                        log::debug!("f-coref load failed from {path}: {e}");
+                    }
+                }
+            }
+        }
+
+        // Also try HuggingFace cache
+        match FCoref::from_pretrained("biu-nlp/f-coref") {
+            Ok(model) => match model.resolve(text) {
+                Ok(clusters) => {
+                    fcoref_clusters_to_tracks(doc, &clusters, text);
+                    return;
+                }
+                Err(e) => {
+                    log::debug!("f-coref inference failed: {e}");
+                }
+            },
+            Err(e) => {
+                log::debug!("f-coref not available: {e}");
+            }
+        }
+    }
+
+    // Fallback: heuristic mention-ranking
     let coref = anno::backends::coref::mention_ranking::MentionRankingCoref::new();
     if let Err(e) = coref.resolve_into_document(text, doc) {
         use super::output::color;
         eprintln!("{} coref failed: {}", color("33", "warning:"), e);
+    }
+}
+
+/// Convert f-coref clusters into GroundedDocument tracks.
+#[cfg(feature = "onnx")]
+fn fcoref_clusters_to_tracks(
+    doc: &mut GroundedDocument,
+    clusters: &[anno::backends::coref::resolve::CorefCluster],
+    _text: &str,
+) {
+    for cluster in clusters {
+        if cluster.mentions.len() < 2 || cluster.spans.len() != cluster.mentions.len() {
+            continue;
+        }
+
+        // add_signal auto-assigns IDs via next_signal_id
+        let signals = cluster.mentions.iter().zip(cluster.spans.iter()).map(
+            |(mention, &(char_start, char_end))| {
+                anno_core::Signal::new(
+                    0u64, // placeholder; overwritten by add_signal
+                    anno_core::Location::text(char_start, char_end),
+                    mention.clone(),
+                    anno_core::TypeLabel::from("COREF_mention"),
+                    1.0,
+                )
+            },
+        );
+
+        let new_ids = doc.add_signals(signals);
+        doc.create_track_from_signals(cluster.canonical.clone(), &new_ids);
     }
 }
 
