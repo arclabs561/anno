@@ -39,8 +39,8 @@ def main():
     parser = argparse.ArgumentParser(description="Export DeBERTa-v3 NER to ONNX")
     parser.add_argument(
         "--model",
-        default="microsoft/deberta-v3-base",
-        help="HuggingFace model ID (default: microsoft/deberta-v3-base)",
+        default="ficsort/deberta-v3-base-conll2003-ner",
+        help="HuggingFace model ID (default: ficsort/deberta-v3-base-conll2003-ner, fine-tuned for CoNLL-03 NER)",
     )
     parser.add_argument(
         "--output",
@@ -53,7 +53,15 @@ def main():
     from huggingface_hub import hf_hub_download
 
     model_id = args.model
-    out = Path(args.output) if args.output else Path("/tmp/deberta-ner-onnx")
+    default_cache = (
+        Path.home()
+        / ".cache"
+        / "huggingface"
+        / "hub"
+        / "models--deberta-v3-ner"
+        / "onnx"
+    )
+    out = Path(args.output) if args.output else default_cache
     out.mkdir(parents=True, exist_ok=True)
 
     # Step 1: Export ONNX model via optimum
@@ -65,16 +73,36 @@ def main():
     if onnx_path.exists():
         print(f"ONNX model: {onnx_path} ({onnx_path.stat().st_size / 1e6:.1f} MB)")
 
-    # Step 2: Copy tokenizer files from HF cache
-    # DeBERTa-v2's fast tokenizer conversion is broken in transformers.
-    # We copy the raw SentencePiece model and config directly.
-    print("Fetching tokenizer files from HF cache...")
-    for fname in ["spm.model", "tokenizer_config.json", "special_tokens_map.json",
-                   "tokenizer.json", "added_tokens.json"]:
+    # Step 2: Generate tokenizer.json (required by the Rust tokenizers crate).
+    # DeBERTa-v3 ships only spm.model (SentencePiece), not tokenizer.json.
+    # We load the slow tokenizer and convert to fast format.
+    print("Generating tokenizer.json...")
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer.save_pretrained(str(out))
+
+    # Verify tokenizer.json was produced
+    tok_json = out / "tokenizer.json"
+    if tok_json.exists():
+        print(f"  tokenizer.json ({tok_json.stat().st_size / 1e3:.1f} KB)")
+    else:
+        print(
+            "  WARNING: tokenizer.json not generated -- Rust backend will fail to load"
+        )
+
+    # Also copy spm.model as backup (some tools need it)
+    for fname in [
+        "spm.model",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "added_tokens.json",
+    ]:
         try:
             src = hf_hub_download(model_id, fname)
-            shutil.copy(src, out / fname)
-            print(f"  {fname}")
+            if not (out / fname).exists():
+                shutil.copy(src, out / fname)
+                print(f"  {fname}")
         except Exception:
             pass  # Not all files exist for all models
 
