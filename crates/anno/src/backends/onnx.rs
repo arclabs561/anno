@@ -79,7 +79,7 @@ impl BertNEROnnx {
     /// Create a new BERT NER ONNX model with custom configuration.
     ///
     /// # Arguments
-    /// * `model_name` - HuggingFace model identifier
+    /// * `model_name` - HuggingFace model identifier or local directory path
     /// * `config` - Configuration for model loading
     ///
     /// # Example
@@ -93,6 +93,12 @@ impl BertNEROnnx {
     /// let model = BertNEROnnx::with_config("protectai/bert-base-NER-onnx", config)?;
     /// ```
     pub fn with_config(model_name: &str, config: BertNERConfig) -> Result<Self> {
+        // If model_name is a local directory, load directly from it.
+        let local_path = std::path::Path::new(model_name);
+        if local_path.is_dir() {
+            return Self::from_local(local_path, config);
+        }
+
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
@@ -132,6 +138,79 @@ impl BertNEROnnx {
             id_to_label,
             label_to_entity_type,
             model_name: model_name.to_string(),
+            is_quantized,
+        })
+    }
+
+    /// Load from a local directory containing `model.onnx`, `tokenizer.json`, and `config.json`.
+    fn from_local(dir: &std::path::Path, config: BertNERConfig) -> Result<Self> {
+        use crate::backends::hf_loader;
+
+        let model_path = if config.prefer_quantized && dir.join("model_quantized.onnx").exists() {
+            dir.join("model_quantized.onnx")
+        } else {
+            dir.join("model.onnx")
+        };
+        if !model_path.exists() {
+            return Err(Error::Retrieval(format!(
+                "model.onnx not found in {}",
+                dir.display()
+            )));
+        }
+
+        let is_quantized = model_path
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().contains("quantized"));
+
+        let tokenizer_path = dir.join("tokenizer.json");
+        if !tokenizer_path.exists() {
+            return Err(Error::Retrieval(format!(
+                "tokenizer.json not found in {}",
+                dir.display()
+            )));
+        }
+        let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
+
+        let config_path = dir.join("config.json");
+        let (id_to_label, label_to_entity_type) = if config_path.exists() {
+            let config_str = std::fs::read_to_string(&config_path)
+                .map_err(|e| Error::Retrieval(format!("Failed to read config.json: {}", e)))?;
+            let config_json: serde_json::Value = serde_json::from_str(&config_str)
+                .map_err(|e| Error::Parse(format!("Failed to parse config.json: {}", e)))?;
+            (
+                Self::build_id_to_label(&config_json),
+                Self::build_label_to_entity_type(),
+            )
+        } else {
+            // Fallback: CoNLL-03 defaults
+            let mut map = HashMap::new();
+            map.insert(0, "O".to_string());
+            map.insert(1, "B-MISC".to_string());
+            map.insert(2, "I-MISC".to_string());
+            map.insert(3, "B-PER".to_string());
+            map.insert(4, "I-PER".to_string());
+            map.insert(5, "B-ORG".to_string());
+            map.insert(6, "I-ORG".to_string());
+            map.insert(7, "B-LOC".to_string());
+            map.insert(8, "I-LOC".to_string());
+            (map, Self::build_label_to_entity_type())
+        };
+
+        let session = hf_loader::create_onnx_session(
+            &model_path,
+            hf_loader::OnnxSessionConfig {
+                optimization_level: config.optimization_level,
+                num_threads: config.num_threads,
+                use_cpu_provider: false,
+            },
+        )?;
+
+        Ok(Self {
+            session: std::sync::Mutex::new(session),
+            tokenizer: std::sync::Arc::new(tokenizer),
+            id_to_label,
+            label_to_entity_type,
+            model_name: dir.display().to_string(),
             is_quantized,
         })
     }
@@ -361,10 +440,6 @@ impl BertNEROnnx {
             .iter()
             .map(|&mask| mask as i64)
             .collect();
-        // Performance: Pre-allocate token_type_ids with known size
-        // token_type_ids: all zeros for single-sequence NER
-        let token_type_ids: Vec<i64> = vec![0i64; input_ids.len()];
-
         let batch_size = 1;
         let seq_len = input_ids.len();
 
@@ -378,30 +453,43 @@ impl BertNEROnnx {
                 Error::Parse(format!("Failed to create attention_mask array: {}", e))
             })?;
 
-        let token_type_ids_array: Array2<i64> =
-            Array2::from_shape_vec((batch_size, seq_len), token_type_ids).map_err(|e| {
-                Error::Parse(format!("Failed to create token_type_ids array: {}", e))
-            })?;
-
         let input_ids_tensor = super::ort_compat::tensor_from_ndarray(input_ids_array)
             .map_err(|e| Error::Parse(format!("Failed to create input_ids tensor: {}", e)))?;
 
         let attention_mask_tensor = super::ort_compat::tensor_from_ndarray(attention_mask_array)
             .map_err(|e| Error::Parse(format!("Failed to create attention_mask tensor: {}", e)))?;
 
-        let token_type_ids_tensor = super::ort_compat::tensor_from_ndarray(token_type_ids_array)
-            .map_err(|e| Error::Parse(format!("Failed to create token_type_ids tensor: {}", e)))?;
-
         // Run inference with blocking lock for thread-safe parallel access
         let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
 
-        let outputs = session
-            .run(ort::inputs![
+        // Check if the model expects token_type_ids (BERT does, DeBERTa-v3 does not).
+        let has_token_type_ids = session
+            .inputs()
+            .iter()
+            .any(|input| input.name() == "token_type_ids");
+
+        let outputs = if has_token_type_ids {
+            let token_type_ids: Vec<i64> = vec![0i64; seq_len];
+            let token_type_ids_array: Array2<i64> =
+                Array2::from_shape_vec((batch_size, seq_len), token_type_ids).map_err(|e| {
+                    Error::Parse(format!("Failed to create token_type_ids array: {}", e))
+                })?;
+            let token_type_ids_tensor =
+                super::ort_compat::tensor_from_ndarray(token_type_ids_array).map_err(|e| {
+                    Error::Parse(format!("Failed to create token_type_ids tensor: {}", e))
+                })?;
+            session.run(ort::inputs![
                 "input_ids" => input_ids_tensor.into_dyn(),
                 "attention_mask" => attention_mask_tensor.into_dyn(),
                 "token_type_ids" => token_type_ids_tensor.into_dyn(),
             ])
-            .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?;
+        } else {
+            session.run(ort::inputs![
+                "input_ids" => input_ids_tensor.into_dyn(),
+                "attention_mask" => attention_mask_tensor.into_dyn(),
+            ])
+        }
+        .map_err(|e| Error::Parse(format!("ONNX inference failed: {}", e)))?;
 
         // Get logits output - BERT NER models have "logits" as output
         let logits = outputs.get("logits").ok_or_else(|| {
@@ -792,5 +880,159 @@ crate::backends::macros::define_feature_stub! {
         pub fn model_name(&self) -> &str {
             "onnx-not-enabled"
         }
+    }
+}
+
+#[cfg(test)]
+#[cfg(feature = "onnx")]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_local_rejects_nonexistent_dir() {
+        let result = BertNEROnnx::new("/nonexistent/path/to/model");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn from_local_rejects_dir_without_model_onnx() {
+        let dir = std::env::temp_dir().join("anno_test_bert_no_model");
+        let _ = std::fs::create_dir_all(&dir);
+        let result = BertNEROnnx::new(dir.to_str().unwrap());
+        match result {
+            Ok(_) => panic!("expected error for empty dir"),
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("model.onnx not found"),
+                    "expected 'model.onnx not found', got: {msg}"
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn from_local_rejects_dir_without_tokenizer() {
+        let dir = std::env::temp_dir().join("anno_test_bert_no_tok");
+        let _ = std::fs::create_dir_all(&dir);
+        std::fs::write(dir.join("model.onnx"), b"not a real model").unwrap();
+        let result = BertNEROnnx::new(dir.to_str().unwrap());
+        match result {
+            Ok(_) => panic!("expected error for dir without tokenizer"),
+            Err(e) => {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("tokenizer.json not found"),
+                    "expected 'tokenizer.json not found', got: {msg}"
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Regression test: local directory paths are detected and loaded directly,
+    /// not treated as HuggingFace model IDs.
+    #[test]
+    fn local_dir_path_accepted_as_directory() {
+        let dir = std::env::temp_dir().join("anno_test_local_path");
+        let _ = std::fs::create_dir_all(&dir);
+        std::fs::write(dir.join("model.onnx"), b"dummy").unwrap();
+        let result = BertNEROnnx::new(dir.to_str().unwrap());
+        match result {
+            Ok(_) => panic!("expected error for dummy model"),
+            Err(e) => {
+                let msg = e.to_string();
+                // Should fail at tokenizer loading, not at HF download
+                assert!(
+                    msg.contains("tokenizer.json"),
+                    "local dir should fail at tokenizer, not HF download. Got: {msg}"
+                );
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn build_id_to_label_parses_conll03() {
+        let config: serde_json::Value = serde_json::from_str(
+            r#"{"id2label": {"0": "O", "1": "B-PER", "2": "I-PER", "3": "B-ORG", "4": "I-ORG"}}"#,
+        )
+        .unwrap();
+        let map = BertNEROnnx::build_id_to_label(&config);
+        assert_eq!(map.get(&1), Some(&"B-PER".to_string()));
+        assert_eq!(map.get(&3), Some(&"B-ORG".to_string()));
+    }
+
+    #[test]
+    fn build_id_to_label_fallback_when_missing() {
+        let config: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        let map = BertNEROnnx::build_id_to_label(&config);
+        // Should produce CoNLL-03 fallback
+        assert!(map.contains_key(&0), "fallback should have key 0 (O label)");
+        assert!(
+            map.contains_key(&3),
+            "fallback should have key 3 (B-PER label)"
+        );
+    }
+
+    #[test]
+    fn build_id_to_label_conll03_fallback_complete() {
+        let config: serde_json::Value = serde_json::from_str(r#"{}"#).unwrap();
+        let map = BertNEROnnx::build_id_to_label(&config);
+        assert_eq!(map.len(), 9);
+        assert_eq!(map[&0], "O");
+        assert_eq!(map[&1], "B-MISC");
+        assert_eq!(map[&2], "I-MISC");
+        assert_eq!(map[&3], "B-PER");
+        assert_eq!(map[&4], "I-PER");
+        assert_eq!(map[&5], "B-ORG");
+        assert_eq!(map[&6], "I-ORG");
+        assert_eq!(map[&7], "B-LOC");
+        assert_eq!(map[&8], "I-LOC");
+    }
+
+    #[test]
+    fn build_id_to_label_custom_format() {
+        let config: serde_json::Value = serde_json::from_str(
+            r#"{"id2label": {"0": "O", "1": "B-DISEASE", "2": "I-DISEASE", "3": "B-DRUG", "4": "I-DRUG"}}"#,
+        )
+        .unwrap();
+        let map = BertNEROnnx::build_id_to_label(&config);
+        assert_eq!(map.len(), 5);
+        assert_eq!(map[&1], "B-DISEASE");
+        assert_eq!(map[&3], "B-DRUG");
+    }
+
+    #[test]
+    fn build_label_to_entity_type_standard() {
+        let map = BertNEROnnx::build_label_to_entity_type();
+        assert_eq!(map["B-PER"], EntityType::Person);
+        assert_eq!(map["I-PER"], EntityType::Person);
+        assert_eq!(map["B-ORG"], EntityType::Organization);
+        assert_eq!(map["I-ORG"], EntityType::Organization);
+        assert_eq!(map["B-LOC"], EntityType::Location);
+        assert_eq!(map["I-LOC"], EntityType::Location);
+        // Alternative format
+        assert_eq!(map["PER"], EntityType::Person);
+        assert_eq!(map["ORG"], EntityType::Organization);
+        assert_eq!(map["LOC"], EntityType::Location);
+    }
+
+    #[test]
+    fn build_label_to_entity_type_bio_consistency() {
+        let map = BertNEROnnx::build_label_to_entity_type();
+        // B- and I- tags for the same entity should map to the same type
+        assert_eq!(map["B-PER"], map["I-PER"]);
+        assert_eq!(map["B-ORG"], map["I-ORG"]);
+        assert_eq!(map["B-LOC"], map["I-LOC"]);
+        assert_eq!(map["B-MISC"], map["I-MISC"]);
+    }
+
+    #[test]
+    fn config_defaults() {
+        let config = BertNERConfig::default();
+        // Verify defaults are sensible (not checking specific values -- they may change)
+        assert!(config.num_threads > 0, "num_threads should be positive");
     }
 }
