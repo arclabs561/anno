@@ -2424,7 +2424,7 @@ define_datasets! {
     FantasyCoref {
         name: "FantasyCoref",
         description: "Fantasy fiction coreference. Handles entity transformations. 211 Grimms' stories.",
-        url: "https://github.com/emorynlp/FantasyCoref/archive/refs/heads/main.zip",
+        url: "https://github.com/emorynlp/FantasyCoref/archive/refs/heads/master.zip",
         entity_types: ["PER", "LOC", "ORG"],
         language: "en",
         domain: "literature",
