@@ -35,7 +35,9 @@ path = "examples/cdcr_eval.rs"
 required-features = ["eval"]
 
 [dependencies]
-anno = { path = "../anno", package = "anno-lib", version = "0.4.0", default-features = false, features = ["analysis"] }
+anno = { path = "../anno", package = "anno-lib", version = "0.4.0", default-features = false, features = [
+  "analysis",
+] }
 anno-core = { path = "../anno-core", version = "0.4.0" }
 anno-metrics = { path = "../anno-metrics", version = "0.4.0" }
 
@@ -60,7 +62,11 @@ clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { version = "0.4", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
+muxer = { version = "0.4", default-features = false, features = [
+  "serde",
+  "stochastic",
+  "contextual",
+], optional = true }
 hf-hub = { workspace = true, optional = true }
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
@@ -68,6 +74,7 @@ candle-nn = { workspace = true, optional = true }
 [dev-dependencies]
 proptest = { workspace = true }
 tempfile = "3"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [features]
 default = []

@@ -106,12 +106,12 @@ mod proptests {
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 let char_count = text.chars().count();
                 for e in &entities {
-                    prop_assert!(e.start <= char_count,
-                        "Start {} exceeds text length {}", e.start, char_count);
-                    prop_assert!(e.end <= char_count,
-                        "End {} exceeds text length {}", e.end, char_count);
-                    prop_assert!(e.start <= e.end,
-                        "Invalid span: start {} > end {}", e.start, e.end);
+                    prop_assert!(e.start() <= char_count,
+                        "Start {} exceeds text length {}", e.start(), char_count);
+                    prop_assert!(e.end() <= char_count,
+                        "End {} exceeds text length {}", e.end(), char_count);
+                    prop_assert!(e.start() <= e.end(),
+                        "Invalid span: start {} > end {}", e.start(), e.end());
                 }
             }
         }
@@ -124,14 +124,14 @@ mod proptests {
                 let chars: Vec<char> = text.chars().collect();
                 for e in &entities {
                     // Character offset must be valid
-                    prop_assert!(e.start <= chars.len(),
-                        "Start char offset {} invalid for {} chars", e.start, chars.len());
-                    prop_assert!(e.end <= chars.len(),
-                        "End char offset {} invalid for {} chars", e.end, chars.len());
+                    prop_assert!(e.start() <= chars.len(),
+                        "Start char offset {} invalid for {} chars", e.start(), chars.len());
+                    prop_assert!(e.end() <= chars.len(),
+                        "End char offset {} invalid for {} chars", e.end(), chars.len());
 
                     // The span text should match what we extract
-                    if e.start < e.end && e.end <= chars.len() {
-                        let extracted: String = chars[e.start..e.end].iter().collect();
+                    if e.start() < e.end() && e.end() <= chars.len() {
+                        let extracted: String = chars[e.start()..e.end()].iter().collect();
                         // Allow for normalization differences
                         let match_ok = e.text == extracted ||
                             e.text.trim() == extracted.trim() ||
@@ -164,10 +164,10 @@ mod proptests {
                     for j in (i + 1)..entities.len() {
                         let e1 = &entities[i];
                         let e2 = &entities[j];
-                        let overlaps = e1.start < e2.end && e2.start < e1.end;
+                        let overlaps = e1.start() < e2.end() && e2.start() < e1.end();
                         prop_assert!(!overlaps,
                             "Overlap detected: [{}-{}) and [{}-{})",
-                            e1.start, e1.end, e2.start, e2.end);
+                            e1.start(), e1.end(), e2.start(), e2.end());
                     }
                 }
             }
@@ -206,8 +206,8 @@ mod proptests {
                 (Ok(e1), Ok(e2)) => {
                     prop_assert_eq!(e1.len(), e2.len(), "Different entity counts");
                     for (a, b) in e1.iter().zip(e2.iter()) {
-                        prop_assert_eq!(a.start, b.start);
-                        prop_assert_eq!(a.end, b.end);
+                        prop_assert_eq!(a.start(), b.start());
+                        prop_assert_eq!(a.end(), b.end());
                         prop_assert_eq!(&a.text, &b.text);
                         prop_assert_eq!(&a.entity_type, &b.entity_type);
                     }
@@ -223,8 +223,8 @@ mod proptests {
             let ner = RegexNER::new();
             if let Ok(entities) = ner.extract_entities(&text, None) {
                 for window in entities.windows(2) {
-                    prop_assert!(window[0].start <= window[1].start,
-                        "Entities not sorted: {} > {}", window[0].start, window[1].start);
+                    prop_assert!(window[0].start() <= window[1].start(),
+                        "Entities not sorted: {} > {}", window[0].start(), window[1].start());
                 }
             }
         }
@@ -251,8 +251,8 @@ mod proptests {
 
                 // Entities should have same spans (offsets unchanged)
                 for (a, b) in e1.iter().zip(e2.iter()) {
-                    prop_assert_eq!(a.start, b.start);
-                    prop_assert_eq!(a.end, b.end);
+                    prop_assert_eq!(a.start(), b.start());
+                    prop_assert_eq!(a.end(), b.end());
                     prop_assert!(a.entity_type == b.entity_type);
                 }
             }
@@ -274,10 +274,10 @@ mod proptests {
 
                 // Entities should have shifted offsets
                 for (a, b) in e1.iter().zip(e2.iter()) {
-                    prop_assert_eq!(a.start + prefix_len, b.start,
-                        "Start not shifted correctly: {} + {} != {}", a.start, prefix_len, b.start);
-                    prop_assert_eq!(a.end + prefix_len, b.end,
-                        "End not shifted correctly: {} + {} != {}", a.end, prefix_len, b.end);
+                    prop_assert_eq!(a.start() + prefix_len, b.start(),
+                        "Start not shifted correctly: {} + {} != {}", a.start(), prefix_len, b.start());
+                    prop_assert_eq!(a.end() + prefix_len, b.end(),
+                        "End not shifted correctly: {} + {} != {}", a.end(), prefix_len, b.end());
                     prop_assert!(a.entity_type == b.entity_type);
                 }
             }
@@ -318,9 +318,9 @@ mod proptests {
 
             if let (Ok(e1), Ok(e2)) = (single, doubled) {
                 // Should have roughly 2x entities (allowing for boundary effects)
-                if e1.len() > 0 {
+                if !e1.is_empty() {
                     let ratio = e2.len() as f64 / e1.len() as f64;
-                    prop_assert!(ratio >= 1.5 && ratio <= 2.5,
+                    prop_assert!((1.5..=2.5).contains(&ratio),
                         "Duplication ratio unexpected: {} (expected ~2.0)", ratio);
                 }
             }
@@ -661,7 +661,7 @@ mod discontinuous_proptests {
         fn merging_reduces_spans(spans in arb_discontinuous_spans()) {
             if spans.len() >= 2 {
                 // Check gaps between spans
-                if let (Some(first), Some(second)) = (spans.get(0), spans.get(1)) {
+                if let (Some(first), Some(second)) = (spans.first(), spans.get(1)) {
                     // If we merge [0].end with [1].start, we'd have one fewer span
                     // This is a conceptual property - actual implementation may vary
                     let gap = second.0.saturating_sub(first.1);
@@ -680,7 +680,7 @@ mod discontinuous_proptests {
 
 #[cfg(test)]
 mod hierarchy_proptests {
-    use anno_core::grounded::Track;
+    use anno_core::Track;
     use proptest::prelude::*;
 
     proptest! {
@@ -707,7 +707,7 @@ mod hierarchy_proptests {
         #[test]
         fn track_confidence_settable(conf in 0.0f32..=1.0) {
             let mut track = Track::new(0u64, "test");
-            track.cluster_confidence = conf;
+            track.cluster_confidence = conf.into();
             prop_assert!(track.cluster_confidence >= 0.0 && track.cluster_confidence <= 1.0);
         }
 
@@ -729,15 +729,15 @@ mod hierarchy_proptests {
         /// Property: Track with_identity links correctly
         #[test]
         fn track_identity_linking(identity_id in 0u64..1000) {
-            let track = Track::new(0u64, "test").with_identity(identity_id);
-            prop_assert_eq!(track.identity_id, Some(identity_id));
+            let track = Track::new(0u64, "test").with_identity(identity_id.into());
+            prop_assert_eq!(track.identity_id, Some(identity_id.into()));
         }
 
         /// Property: Track with_type sets type correctly
         #[test]
         fn track_type_setting(entity_type in "[A-Z][a-z]+") {
             let track = Track::new(0u64, "test").with_type(entity_type.clone());
-            prop_assert_eq!(track.entity_type, Some(entity_type));
+            prop_assert_eq!(track.entity_type, Some(entity_type.into()));
         }
     }
 }
@@ -786,7 +786,7 @@ mod entity_consistency_proptests {
         /// Property: Entity span length equals text length
         #[test]
         fn entity_span_matches_text(entity in arb_entity()) {
-            let span_len = entity.end - entity.start;
+            let span_len = entity.end() - entity.start();
             let text_len = entity.text.len();
             prop_assert_eq!(span_len, text_len,
                 "Span length {} != text length {}", span_len, text_len);
@@ -810,8 +810,8 @@ mod entity_consistency_proptests {
         /// Property: Entity span valid
         #[test]
         fn entity_span_valid(entity in arb_entity()) {
-            prop_assert!(entity.start <= entity.end,
-                "Invalid span: {} > {}", entity.start, entity.end);
+            prop_assert!(entity.start() <= entity.end(),
+                "Invalid span: {} > {}", entity.start(), entity.end());
         }
 
         /// Property: Entity type round-trips through display

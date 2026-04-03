@@ -781,7 +781,7 @@ mod proptests {
             let b = &b[..min_len];
 
             let (_, p_value) = paired_t_test(a, b);
-            prop_assert!(p_value >= 0.0 && p_value <= 1.0, "p-value {} out of [0,1]", p_value);
+            prop_assert!((0.0..=1.0).contains(&p_value), "p-value {} out of [0,1]", p_value);
         }
     }
 
@@ -802,7 +802,7 @@ mod proptests {
         #[test]
         fn prop_cdf_bounds(x in -10.0f64..10.0) {
             let cdf = normal_cdf(x);
-            prop_assert!(cdf >= 0.0 && cdf <= 1.0, "CDF {} out of bounds for x={}", cdf, x);
+            prop_assert!((0.0..=1.0).contains(&cdf), "CDF {} out of bounds for x={}", cdf, x);
         }
 
         /// CDF(0) ≈ 0.5 for standard normal

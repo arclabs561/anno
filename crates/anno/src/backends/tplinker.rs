@@ -1056,7 +1056,7 @@ mod tests {
             // Without a downloaded model it should be false (heuristic fallback).
             let neural = TP_STANDARD.is_neural();
             // Accept either value -- we're testing it doesn't panic and returns a bool.
-            assert!(neural || !neural);
+            let _ = neural;
         }
     }
 
