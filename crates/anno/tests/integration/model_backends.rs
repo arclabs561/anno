@@ -3,8 +3,6 @@
 //! These tests download real models and run inference.
 //! Run with: `cargo test -p anno-lib --features onnx --test model_backends -- --ignored`
 
-#![cfg(feature = "onnx")]
-
 use anno::{EntityType, HeuristicNER, Model, StackedNER};
 
 // =============================================================================

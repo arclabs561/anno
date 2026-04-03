@@ -7,8 +7,6 @@
 //! Run with:
 //!   cargo test -p anno-lib --features llm --test llm_integration -- --ignored --nocapture
 
-#![cfg(feature = "llm")]
-
 use anno::backends::llm_client::LlmConfig;
 use anno::backends::universal_ner::{PromptStrategy, UniversalNER};
 use anno::{Entity, EntityType, Model};

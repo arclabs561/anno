@@ -9,11 +9,12 @@ dir = "target/nextest"
 # =============================================================================
 
 [profile.default]
-# Retry failed tests once
+# Retry flaky tests once (not timeouts -- those are real failures)
 retries = 1
 
-# Mark tests as slow after 30s, terminate after 60s
-slow-timeout = { period = "30s", terminate-after = 2 }
+# Mark tests as slow after 60s, terminate after 120s.
+# Integration tests share one binary now (no per-file link overhead).
+slow-timeout = { period = "60s", terminate-after = 2 }
 
 # Fail fast on first failure in CI
 fail-fast = false
