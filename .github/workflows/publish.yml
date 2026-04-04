@@ -26,6 +26,7 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: crates-io
     steps:
       - name: Guard (manual trigger)
         if: github.event_name == 'workflow_dispatch'
