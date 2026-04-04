@@ -56,4 +56,4 @@ jobs:
       - name: cargo publish (${{ steps.crate.outputs.name }})
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p ${{ steps.crate.outputs.name }}
+        run: cargo publish -p ${{ steps.crate.outputs.name }} --allow-dirty
