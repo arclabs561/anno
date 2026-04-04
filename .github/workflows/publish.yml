@@ -1,6 +1,8 @@
 name: publish
 
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       crate:
@@ -25,7 +27,8 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Guard
+      - name: Guard (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           if [ "${{ inputs.confirm }}" != "publish" ]; then
             echo "Refusing to publish: set workflow input confirm=publish"
@@ -36,11 +39,20 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: Determine crate
+        id: crate
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "name=anno" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ inputs.crate }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Authenticate (Trusted Publishing)
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: cargo publish (${{ inputs.crate }})
+      - name: cargo publish (${{ steps.crate.outputs.name }})
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p ${{ inputs.crate }}
+        run: cargo publish -p ${{ steps.crate.outputs.name }}
