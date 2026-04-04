@@ -129,7 +129,7 @@ jobs:
       - name: Run library tests
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
-        run: cargo test --package anno-lib --tests --features discourse
+        run: cargo test --package anno-lib --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests (core + lib)
         run: cargo test -p anno-core -p anno-lib --doc --features discourse
   # ==========================================================================

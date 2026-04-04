@@ -61,6 +61,10 @@ fn entity_texts_of_type(entities: &[Entity], ty: EntityType) -> Vec<String> {
 /// Non-ONNX stacked backend: check minimum entity counts, must-not-contain
 /// (HTML stripping), and that at least some entities of each expected type
 /// are found. Full PER/ORG recall requires ONNX (see ignored test below).
+///
+/// Requires bundled CRF weights -- without them, StackedNER falls back to
+/// pure heuristic which finds fewer entities than the thresholds expect.
+#[cfg(feature = "bundled-crf-weights")]
 #[test]
 fn fixture_documents_structure_and_min_counts() {
     let expected = load_expected();
