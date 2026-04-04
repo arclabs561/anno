@@ -309,7 +309,7 @@ jobs:
       - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features eval
         env:
           RUSTDOCFLAGS: -D warnings
-      - run: cargo doc -p anno-lib --no-deps --features eval
+      - run: cargo doc -p anno-lib --no-deps --features discourse
         env:
           RUSTDOCFLAGS: -D warnings
   # ==========================================================================
