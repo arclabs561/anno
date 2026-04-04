@@ -32,6 +32,7 @@ tool-comparison.md
 .unsafe-code-trends/
 *.html
 !docs/**/*.html
+!crates/anno-cli/tests/fixtures/*.html
 
 # Export outputs (the CLI `anno export` writes here by convention)
 exports/
