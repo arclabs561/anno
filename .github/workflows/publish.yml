@@ -5,12 +5,6 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
-      crate:
-        description: "Crate to publish"
-        required: true
-        type: choice
-        options:
-          - anno
       confirm:
         description: "Type 'publish' to publish to crates.io"
         required: true
@@ -40,20 +34,36 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - name: Determine crate
-        id: crate
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "name=anno" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=${{ inputs.crate }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Authenticate (Trusted Publishing)
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
 
-      - name: cargo publish (${{ steps.crate.outputs.name }})
+      # Publish bottom-up: anno-core -> anno-metrics -> anno-lib -> anno
+      - name: cargo publish (anno-core)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p ${{ steps.crate.outputs.name }} --allow-dirty
+        run: cargo publish -p anno-core --allow-dirty
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: cargo publish (anno-metrics)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p anno-metrics --allow-dirty
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: cargo publish (anno-lib)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p anno-lib --allow-dirty
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: cargo publish (anno)
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish -p anno --allow-dirty
