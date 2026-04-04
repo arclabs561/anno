@@ -1,6 +1,6 @@
 [package]
 name = "anno-metrics"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
@@ -9,7 +9,7 @@ keywords = ["coreference", "evaluation", "metrics", "nlp"]
 categories = ["text-processing", "science"]
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.4.0" }
+anno-core = { path = "../anno-core", version = "0.5.0" }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
