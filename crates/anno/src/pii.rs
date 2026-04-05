@@ -437,10 +437,14 @@ pub fn looks_like_id_number(text: &str) -> bool {
             return true;
         }
     }
+    // Alphanumeric catch-all for short ID-like tokens (e.g. MRNs, short codes).
+    // Require that digits make up at least half the characters to avoid
+    // false-positives on version strings like "Python3", "iPhone6", "Cent0S".
+    let digit_count = text.chars().filter(|c| c.is_ascii_digit()).count();
     if text.len() >= 6
         && text.len() <= 10
         && text.chars().all(|c| c.is_alphanumeric())
-        && text.chars().any(|c| c.is_ascii_digit())
+        && digit_count * 2 >= text.len()
     {
         return true;
     }
@@ -477,6 +481,14 @@ mod tests {
     #[test]
     fn common_word_not_id() {
         assert!(!looks_like_id_number("Chemistry"));
+    }
+
+    #[test]
+    fn version_strings_not_id() {
+        assert!(!looks_like_id_number("Python3"));
+        assert!(!looks_like_id_number("Win10"));
+        assert!(!looks_like_id_number("iPhone6"));
+        assert!(!looks_like_id_number("Cent0S"));
     }
 
     #[test]
@@ -552,6 +564,66 @@ mod tests {
         assert!(mapping.get("bob@example.com").unwrap().contains('@'));
         assert!(mapping.get("555-867-5309").unwrap().starts_with("555-000-"));
         assert!(!result.contains("bob@example.com"));
+    }
+
+    #[test]
+    fn pseudonymize_same_entity_gets_same_pseudonym() {
+        // The same entity text appearing twice should produce the same pseudonym.
+        let entities = vec![
+            PiiEntity {
+                text: "John Smith".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 0,
+                end: 10,
+                risk_level: "MEDIUM".to_string(),
+            },
+            PiiEntity {
+                text: "John Smith".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 15,
+                end: 25,
+                risk_level: "MEDIUM".to_string(),
+            },
+        ];
+        let text = "John Smith met John Smith again.";
+        let (result, mapping) = pseudonymize(text, &entities);
+        let fake = mapping.get("John Smith").expect("mapping should contain John Smith");
+        // Both occurrences should be replaced with the same pseudonym
+        assert_eq!(
+            result.matches(fake.as_str()).count(),
+            2,
+            "Both occurrences of 'John Smith' should map to the same pseudonym '{}', got: {}",
+            fake,
+            result
+        );
+    }
+
+    #[test]
+    fn redact_overlapping_spans_no_panic() {
+        // Overlapping spans should be resolved gracefully (no panic, no garbled output).
+        // The implementation drops the inner span, keeping the outer one.
+        let entities = vec![
+            PiiEntity {
+                text: "John Smith".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 0,
+                end: 10,
+                risk_level: "MEDIUM".to_string(),
+            },
+            PiiEntity {
+                // Overlaps with "John Smith"
+                text: "John".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 0,
+                end: 4,
+                risk_level: "LOW".to_string(),
+            },
+        ];
+        let text = "John Smith called.";
+        // Should not panic and should produce valid UTF-8 output
+        let result = redact(text, &entities);
+        assert!(!result.contains("John Smith"), "original text should be redacted");
+        assert!(result.contains("called"), "non-PII text should be preserved");
     }
 
     #[test]

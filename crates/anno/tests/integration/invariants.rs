@@ -181,7 +181,7 @@ fn create_track(id: u64, surface: &str, entity_type: &str) -> Track {
 
 #[test]
 fn test_resolution_idempotency() {
-    // Running resolution twice should produce consistent results
+    // Running resolution on two identical corpora should produce the same identity assignments.
     let resolver = Resolver::new().with_threshold(0.7);
 
     let mut corpus1 = Corpus::new();
@@ -195,7 +195,25 @@ fn test_resolution_idempotency() {
     let ids1 = resolver.resolve_inter_doc_coref(&mut corpus1, None, None);
     let ids2 = resolver.resolve_inter_doc_coref(&mut corpus2, None, None);
 
-    assert_eq!(ids1.len(), ids2.len(), "Resolution should be idempotent");
+    assert_eq!(ids1.len(), ids2.len(), "Identity count should be identical");
+
+    // Compare canonical names of each created identity, sorted for order-independence.
+    let mut names1: Vec<String> = ids1
+        .iter()
+        .filter_map(|id| corpus1.get_identity(*id))
+        .map(|i| i.canonical_name().to_owned())
+        .collect();
+    let mut names2: Vec<String> = ids2
+        .iter()
+        .filter_map(|id| corpus2.get_identity(*id))
+        .map(|i| i.canonical_name().to_owned())
+        .collect();
+    names1.sort();
+    names2.sort();
+    assert_eq!(
+        names1, names2,
+        "Identity canonical names should be identical across equivalent corpora"
+    );
 }
 
 #[test]
@@ -221,13 +239,12 @@ fn test_resolution_determinism() {
 }
 
 #[test]
-fn test_clustering_transitivity() {
-    // If A clusters with B, and B clusters with C, then A should be in same cluster as C
-    let resolver = Resolver::new().with_threshold(0.5); // Low threshold to encourage clustering
+fn test_clustering_identical_strings() {
+    // Three identical surface forms across three documents should collapse to one identity.
+    let resolver = Resolver::new().with_threshold(0.5);
 
     let mut corpus = Corpus::new();
 
-    // Three very similar mentions in different docs
     let mut doc1 = GroundedDocument::new("doc1", "John Smith");
     doc1.add_track(create_track(1, "John Smith", "PERSON"));
     corpus.add_document(doc1);
@@ -242,7 +259,6 @@ fn test_clustering_transitivity() {
 
     let ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
-    // All three identical mentions should be in the same cluster
     assert_eq!(
         ids.len(),
         1,

@@ -2050,10 +2050,10 @@ mod tests {
     #[test]
     fn coref_evaluation_compute_populates_all_metrics() {
         let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3), ("C", 4, 5)]]);
+        // pred splits the gold chain: A+B in one chain, C alone -- partial match
         let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)], vec![("C", 4, 5)]]);
         let eval = CorefEvaluation::compute(&pred, &gold);
         // All metrics should be populated (may not be perfect)
-        // Just verify they are finite numbers
         assert!(eval.muc.f1.is_finite());
         assert!(eval.b_cubed.f1.is_finite());
         assert!(eval.ceaf_e.f1.is_finite());
@@ -2061,6 +2061,13 @@ mod tests {
         assert!(eval.lea.f1.is_finite());
         assert!(eval.blanc.f1.is_finite());
         assert!(eval.conll_f1.is_finite());
+        // The partial prediction should produce non-zero recall for B³:
+        // A and B are correctly co-referred, so recall > 0.
+        assert!(
+            eval.b_cubed.recall > 0.0,
+            "B³ recall should be > 0 for partial prediction, got {}",
+            eval.b_cubed.recall
+        );
     }
 
     // =========================================================================

@@ -8,9 +8,18 @@ fn test_basic_extraction() {
         .unwrap();
 
     // HMM with heuristics should find some entities
+    assert!(!entities.is_empty(), "HMM should find at least one entity");
     for entity in &entities {
         assert!(entity.confidence > 0.0 && entity.confidence <= 1.0);
     }
+
+    // All expected entities should be found
+    let texts: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
+    assert!(
+        texts.contains(&"John") || texts.contains(&"Google") || texts.contains(&"California"),
+        "Expected at least one of John, Google, or California in results; got {:?}",
+        texts
+    );
 }
 
 #[test]
@@ -56,7 +65,14 @@ fn test_emission_heuristics() {
     let cap_prob = ner.emission_prob(b_per_idx, "John");
     let lower_prob = ner.emission_prob(b_per_idx, "john");
 
-    assert!(cap_prob >= lower_prob);
+    assert!(cap_prob > lower_prob, "capitalized prob {} should exceed lower prob {}", cap_prob, lower_prob);
+    // Signal should be meaningful, not just a rounding difference
+    assert!(
+        cap_prob > 0.5 * lower_prob || lower_prob == 0.0,
+        "cap_prob {} should be materially larger than lower_prob {}",
+        cap_prob,
+        lower_prob
+    );
 }
 
 #[test]
