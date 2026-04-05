@@ -587,7 +587,9 @@ mod tests {
         ];
         let text = "John Smith met John Smith again.";
         let (result, mapping) = pseudonymize(text, &entities);
-        let fake = mapping.get("John Smith").expect("mapping should contain John Smith");
+        let fake = mapping
+            .get("John Smith")
+            .expect("mapping should contain John Smith");
         // Both occurrences should be replaced with the same pseudonym
         assert_eq!(
             result.matches(fake.as_str()).count(),
@@ -622,8 +624,14 @@ mod tests {
         let text = "John Smith called.";
         // Should not panic and should produce valid UTF-8 output
         let result = redact(text, &entities);
-        assert!(!result.contains("John Smith"), "original text should be redacted");
-        assert!(result.contains("called"), "non-PII text should be preserved");
+        assert!(
+            !result.contains("John Smith"),
+            "original text should be redacted"
+        );
+        assert!(
+            result.contains("called"),
+            "non-PII text should be preserved"
+        );
     }
 
     #[test]

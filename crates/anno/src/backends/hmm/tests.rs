@@ -59,9 +59,22 @@ fn test_emission_heuristics() {
     // Both values should be valid probabilities; when the heuristic path runs,
     // capitalization increases the score. In bundled-params mode the gazetteer
     // fires for both and returns equal values -- either way neither should be zero.
-    assert!(cap_prob > 0.0, "cap_prob should be positive, got {}", cap_prob);
-    assert!(lower_prob >= 0.0, "lower_prob should be non-negative, got {}", lower_prob);
-    assert!(cap_prob >= lower_prob, "capitalized prob {} should be >= lower prob {}", cap_prob, lower_prob);
+    assert!(
+        cap_prob > 0.0,
+        "cap_prob should be positive, got {}",
+        cap_prob
+    );
+    assert!(
+        lower_prob >= 0.0,
+        "lower_prob should be non-negative, got {}",
+        lower_prob
+    );
+    assert!(
+        cap_prob >= lower_prob,
+        "capitalized prob {} should be >= lower prob {}",
+        cap_prob,
+        lower_prob
+    );
 }
 
 #[test]
