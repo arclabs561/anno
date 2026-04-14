@@ -72,7 +72,7 @@ candle-transformers = "0.9"
 safetensors = "0.4"
 
 # Document-to-text extraction
-deformat = "0.5"
+deformat = "0.6"
 
 # Performance
 rayon = "1"
