@@ -24,7 +24,7 @@
 //! monitors (CUSUM) become ill-defined. For that reason, `anno` computes monitoring windows at the
 //! backend-global level (keys are backend names only) even when base summaries are dataset-scoped.
 
-use muxer::{DriftConfig, DriftMetric, MabConfig, MonitoredMabConfig};
+use muxer::{DriftConfig, DriftMetric, Extract, MabConfig, MonitoredMabConfig};
 
 // Prefer centralizing generic policy helpers in `muxer` itself so harnesses/CLIs don’t drift.
 pub use muxer::{
@@ -774,17 +774,34 @@ pub fn latency_guardrail_from_env() -> LatencyGuardrailConfig {
 
 /// Resolve muxer `MabConfig` from env (shared defaults across harness + CLI).
 pub fn mab_config_from_env() -> MabConfig {
-    MabConfig {
+    let mut cfg = MabConfig {
         exploration_c: env_f64("ANNO_MUXER_EXPLORATION_C", 0.8),
-        cost_weight: env_f64("ANNO_MUXER_COST_WEIGHT", 0.0).max(0.0),
-        latency_weight: env_f64("ANNO_MUXER_LATENCY_WEIGHT", 0.0).max(0.0),
-        junk_weight: env_f64("ANNO_MUXER_JUNK_WEIGHT", 0.8).max(0.0),
-        hard_junk_weight: env_f64("ANNO_MUXER_HARD_JUNK_WEIGHT", 1.6).max(0.0),
-        quality_weight: env_f64("ANNO_MUXER_QUALITY_WEIGHT", 0.0).max(0.0),
         max_junk_rate: env_f64_opt("ANNO_MUXER_MAX_JUNK_RATE"),
         max_hard_junk_rate: env_f64_opt("ANNO_MUXER_MAX_HARD_JUNK_RATE"),
         max_mean_cost_units: env_f64_opt("ANNO_MUXER_MAX_MEAN_COST_UNITS"),
-    }
+        ..MabConfig::default()
+    };
+    cfg.set_weight(
+        Extract::MeanCost,
+        env_f64("ANNO_MUXER_COST_WEIGHT", 0.0).max(0.0),
+    );
+    cfg.set_weight(
+        Extract::MeanLatency,
+        env_f64("ANNO_MUXER_LATENCY_WEIGHT", 0.0).max(0.0),
+    );
+    cfg.set_weight(
+        Extract::SoftJunkRate,
+        env_f64("ANNO_MUXER_JUNK_WEIGHT", 0.8).max(0.0),
+    );
+    cfg.set_weight(
+        Extract::HardJunkRate,
+        env_f64("ANNO_MUXER_HARD_JUNK_WEIGHT", 1.6).max(0.0),
+    );
+    cfg.set_weight(
+        Extract::MeanQuality,
+        env_f64("ANNO_MUXER_QUALITY_WEIGHT", 0.0).max(0.0),
+    );
+    cfg
 }
 
 /// Resolve monitored muxer config from env (includes drift/catKL/CUSUM guards).

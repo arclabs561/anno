@@ -67,12 +67,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         linucb_state: None,
     };
 
-    let cfg = MabConfig {
+    let mut cfg = MabConfig {
         exploration_c: 0.7,
-        junk_weight: 0.8,
-        hard_junk_weight: 1.6,
         ..MabConfig::default()
     };
+    cfg.set_weight(muxer::Extract::SoftJunkRate, 0.8);
+    cfg.set_weight(muxer::Extract::HardJunkRate, 1.6);
 
     let out_dir = std::env::temp_dir().join(format!("anno-muxer-example-{}", std::process::id()));
     std::fs::create_dir_all(&out_dir)?;
@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut jsonl = String::new();
     for round in 0..12usize {
         let summaries = history.summaries_for(None, &arms, Some(&[dataset]), true, 0);
-        let decision = muxer::select_mab_explain(&arms, &summaries, cfg);
+        let decision = muxer::select_mab_explain(&arms, &summaries, cfg.clone());
         let chosen = decision.selection.chosen.clone();
 
         let (outcome, fail_kind_raw) = simulated_outcome(&chosen, round);

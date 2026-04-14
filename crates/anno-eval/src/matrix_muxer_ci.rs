@@ -258,7 +258,7 @@ fn select_mab_k_explain(
             break;
         }
         let sums = summaries_for(&remaining);
-        let d = muxer::select_mab_explain(&remaining, &sums, cfg);
+        let d = muxer::select_mab_explain(&remaining, &sums, cfg.clone());
         let pick = d.selection.chosen.clone();
         rounds.push(MultiPickMabRound {
             mab: d,
@@ -299,7 +299,11 @@ fn select_mab_k_monitored_explain(
         let sums = summaries_for(&remaining);
         let mon = monitored_for(&remaining);
         let d = muxer::select_mab_monitored_explain_with_summaries(
-            &remaining, &sums, &mon, drift_cfg, cfg,
+            &remaining,
+            &sums,
+            &mon,
+            drift_cfg,
+            cfg.clone(),
         );
         let pick = d.selection.chosen.clone();
         rounds.push(MultiPickMabRound {
@@ -419,17 +423,14 @@ fn log_mab_k_rounds_typed(mk: &MultiPickMabResult, top_n: usize) -> Vec<MabKRoun
             .selection
             .candidates
             .iter()
-            .map(|c| {
-                let score = c.objective_success;
-                LogTopCandidate {
-                    arm: c.name.clone(),
-                    score,
-                    calls: Some(c.calls),
-                    ok_rate: Some(c.ok_rate),
-                    junk_rate: Some(c.junk_rate),
-                    hard_junk_rate: Some(c.hard_junk_rate),
-                    mean_quality_score: c.mean_quality_score,
-                }
+            .map(|c| LogTopCandidate {
+                arm: c.name.clone(),
+                score: c.score,
+                calls: Some(c.summary.calls),
+                ok_rate: Some(c.summary.ok_rate()),
+                junk_rate: Some(c.summary.junk_rate()),
+                hard_junk_rate: Some(c.summary.hard_junk_rate()),
+                mean_quality_score: c.summary.mean_quality_score,
             })
             .collect();
         rows.sort_by(|a, b| b.score.total_cmp(&a.score));
@@ -1531,7 +1532,7 @@ fn select_backends(
                                 history.monitored_for_backends(remaining, monitor_recent_cap)
                             },
                             drift_cfg,
-                            mon_cfg,
+                            mon_cfg.clone(),
                             guardrail_cfg,
                             remaining_k,
                         )
@@ -1539,7 +1540,7 @@ fn select_backends(
                         select_mab_k_explain(
                             eligible,
                             summaries_for,
-                            mon_cfg.base,
+                            mon_cfg.base.clone(),
                             guardrail_cfg,
                             remaining_k,
                         )
@@ -1602,11 +1603,7 @@ fn select_backends(
                             let drift = c.drift_score.unwrap_or(0.0);
                             let catkl = c.catkl_score.unwrap_or(0.0);
                             let cusum = c.cusum_score.unwrap_or(0.0);
-                            let score = c.objective_success
-                                - mon_cfg.base.cost_weight * c.mean_cost_units
-                                - mon_cfg.base.latency_weight * c.mean_elapsed_ms
-                                - mon_cfg.base.hard_junk_weight * c.hard_junk_rate
-                                - mon_cfg.base.junk_weight * c.soft_junk_rate
+                            let score = c.score
                                 - mon_cfg.drift_weight * drift
                                 - mon_cfg.catkl_weight * catkl
                                 - mon_cfg.cusum_weight * cusum;
@@ -1617,15 +1614,14 @@ fn select_backends(
                         });
                         for (score, c) in rows.into_iter().take(5) {
                             eprintln!(
-                                "matrix-muxer: mab cand arm={} calls={} ok={:.2} junk={:.2} hard={:.2} mean_ms={:.0} ucb={:.2} obj_ok={:.2} score={:.2}",
+                                "matrix-muxer: mab cand arm={} calls={} ok={:.2} junk={:.2} hard={:.2} mean_ms={:.0} ucb={:.2} score={:.2}",
                                 c.name,
-                                c.calls,
-                                c.ok_rate,
-                                c.junk_rate,
-                                c.hard_junk_rate,
-                                c.mean_elapsed_ms,
+                                c.summary.calls,
+                                c.summary.ok_rate(),
+                                c.summary.junk_rate(),
+                                c.summary.hard_junk_rate(),
+                                c.summary.mean_elapsed_ms(),
                                 c.ucb,
-                                c.objective_success,
                                 score
                             );
                         }

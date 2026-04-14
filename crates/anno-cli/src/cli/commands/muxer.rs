@@ -2262,13 +2262,19 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
             }
             println!("Per-dataset windows: {}", per_dataset);
             println!("Candidate arms: {}", candidates.len());
+            let obj_weight = |ext: muxer::Extract| {
+                cfg.objectives
+                    .iter()
+                    .find(|o| o.extract == ext)
+                    .map_or(0.0, |o| o.weight)
+            };
             println!(
                 "Config: explore_c={:.2} w_cost={:.2} w_lat={:.2} w_junk={:.2} w_hard={:.2} max_junk={:?} max_hard={:?} max_cost={:?}",
                 cfg.exploration_c,
-                cfg.cost_weight,
-                cfg.latency_weight,
-                cfg.junk_weight,
-                cfg.hard_junk_weight,
+                obj_weight(muxer::Extract::MeanCost),
+                obj_weight(muxer::Extract::MeanLatency),
+                obj_weight(muxer::Extract::SoftJunkRate),
+                obj_weight(muxer::Extract::HardJunkRate),
                 cfg.max_junk_rate,
                 cfg.max_hard_junk_rate,
                 cfg.max_mean_cost_units
@@ -2344,7 +2350,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                                     );
                                 }
 
-                                let d = muxer::select_mab_explain(eligible, &m, cfg);
+                                let d = muxer::select_mab_explain(eligible, &m, cfg.clone());
                                 let pick = d.selection.chosen.clone();
                                 d_opt = Some(d);
                                 vec![pick]
@@ -2393,12 +2399,7 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                         if show_candidates {
                             let mut rows: Vec<(f64, &muxer::CandidateDebug)> = Vec::new();
                             for c in &d.selection.candidates {
-                                let score = c.objective_success
-                                    - cfg.cost_weight * c.mean_cost_units
-                                    - cfg.latency_weight * c.mean_elapsed_ms
-                                    - cfg.hard_junk_weight * c.hard_junk_rate
-                                    - cfg.junk_weight * c.soft_junk_rate;
-                                rows.push((score, c));
+                                rows.push((c.score, c));
                             }
                             rows.sort_by(|a, b| {
                                 b.0.total_cmp(&a.0).then_with(|| a.1.name.cmp(&b.1.name))
@@ -2406,28 +2407,19 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 
                             println!("  candidates (top {}):", top_candidates.max(1));
                             println!(
-                                "  {:<16} {:>5} {:>6} {:>6} {:>6} {:>8} {:>6} {:>8} {:>8}",
-                                "arm",
-                                "calls",
-                                "ok",
-                                "junk",
-                                "hard",
-                                "mean_ms",
-                                "ucb",
-                                "obj_ok",
-                                "score"
+                                "  {:<16} {:>5} {:>6} {:>6} {:>6} {:>8} {:>6} {:>8}",
+                                "arm", "calls", "ok", "junk", "hard", "mean_ms", "ucb", "score"
                             );
                             for (score, c) in rows.into_iter().take(top_candidates.max(1)) {
                                 println!(
-                                    "  {:<16} {:>5} {:>6.2} {:>6.2} {:>6.2} {:>8.0} {:>6.2} {:>8.2} {:>8.2}",
+                                    "  {:<16} {:>5} {:>6.2} {:>6.2} {:>6.2} {:>8.0} {:>6.2} {:>8.2}",
                                     c.name,
-                                    c.calls,
-                                    c.ok_rate,
-                                    c.junk_rate,
-                                    c.hard_junk_rate,
-                                    c.mean_elapsed_ms,
+                                    c.summary.calls,
+                                    c.summary.ok_rate(),
+                                    c.summary.junk_rate(),
+                                    c.summary.hard_junk_rate(),
+                                    c.summary.mean_elapsed_ms(),
                                     c.ucb,
-                                    c.objective_success,
                                     score
                                 );
                             }
