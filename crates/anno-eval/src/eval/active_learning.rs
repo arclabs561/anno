@@ -624,6 +624,24 @@ pub fn rank_for_annotation(entities: &[anno_core::Entity], k: usize) -> Vec<(usi
 ///
 /// Each line is a JSON object with `text`, `entity_type`, `confidence`,
 /// `uncertainty`, and `rank` fields, sorted by descending uncertainty.
+/// Run the full active learning pipeline on extracted entities.
+///
+/// Converts entities to candidates, applies the given sampling strategy,
+/// and returns a [`SelectionResult`] with scores, warnings, and statistics.
+pub fn select_for_annotation(
+    entities: &[anno_core::Entity],
+    strategy: SamplingStrategy,
+    k: usize,
+) -> SelectionResult {
+    let candidates = entities_to_candidates(entities);
+    let learner = ActiveLearner::new(strategy);
+    learner.select_with_scores(&candidates, k)
+}
+
+/// Export uncertainty-ranked entities as JSONL for annotation tools.
+///
+/// Each line is a JSON object with `text`, `entity_type`, `confidence`,
+/// `uncertainty`, and `rank` fields, sorted by descending uncertainty.
 pub fn export_annotation_priority(entities: &[anno_core::Entity], k: usize) -> Vec<String> {
     let ranked = rank_for_annotation(entities, k);
     ranked

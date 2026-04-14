@@ -555,7 +555,7 @@ pub use drift::{
 #[cfg(feature = "eval")]
 pub use active_learning::{
     entities_to_candidates, estimate_budget, export_annotation_priority, rank_for_annotation,
-    ActiveLearner, Candidate, SamplingStrategy, ScoreStats, SelectionResult,
+    select_for_annotation, ActiveLearner, Candidate, SamplingStrategy, ScoreStats, SelectionResult,
 };
 
 #[cfg(feature = "eval")]
