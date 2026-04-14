@@ -609,10 +609,7 @@ pub fn entities_to_candidates(entities: &[anno_core::Entity]) -> Vec<Candidate> 
 ///
 /// Returns `(entity_index, uncertainty_score)` pairs sorted by
 /// descending uncertainty (most uncertain first), limited to `k`.
-pub fn rank_for_annotation(
-    entities: &[anno_core::Entity],
-    k: usize,
-) -> Vec<(usize, f64)> {
+pub fn rank_for_annotation(entities: &[anno_core::Entity], k: usize) -> Vec<(usize, f64)> {
     let mut scored: Vec<(usize, f64)> = entities
         .iter()
         .enumerate()
@@ -627,10 +624,7 @@ pub fn rank_for_annotation(
 ///
 /// Each line is a JSON object with `text`, `entity_type`, `confidence`,
 /// `uncertainty`, and `rank` fields, sorted by descending uncertainty.
-pub fn export_annotation_priority(
-    entities: &[anno_core::Entity],
-    k: usize,
-) -> Vec<String> {
+pub fn export_annotation_priority(entities: &[anno_core::Entity], k: usize) -> Vec<String> {
     let ranked = rank_for_annotation(entities, k);
     ranked
         .iter()
