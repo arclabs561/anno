@@ -845,4 +845,26 @@ mod tests {
         assert_eq!(first["entity_type"], EntityType::Organization.to_string());
         assert!((first["uncertainty"].as_f64().unwrap() - 0.7).abs() < 1e-10);
     }
+
+    #[test]
+    fn test_select_for_annotation() {
+        use anno_core::EntityType;
+
+        let entities = vec![
+            anno_core::Entity::new("Certain", EntityType::Person, 0, 7, 0.98),
+            anno_core::Entity::new("Uncertain", EntityType::Organization, 8, 17, 0.15),
+            anno_core::Entity::new("Medium", EntityType::Location, 18, 24, 0.55),
+        ];
+
+        let result = select_for_annotation(&entities, SamplingStrategy::Uncertainty, 2);
+
+        assert_eq!(result.selected.len(), 2);
+        assert_eq!(result.total_candidates, 3);
+        assert_eq!(result.strategy, SamplingStrategy::Uncertainty);
+        assert_eq!(result.actual_strategy, SamplingStrategy::Uncertainty);
+        // Most uncertain first.
+        assert_eq!(result.selected[0].0, "Uncertain");
+        assert_eq!(result.selected[1].0, "Medium");
+        assert!(result.warnings.is_empty());
+    }
 }
