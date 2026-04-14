@@ -767,4 +767,64 @@ mod tests {
         let selected = learner.select(&[], 5);
         assert!(selected.is_empty());
     }
+
+    #[test]
+    fn test_entities_to_candidates() {
+        use anno_core::EntityType;
+
+        let entities = vec![
+            anno_core::Entity::new("Alice", EntityType::Person, 0, 5, 0.9),
+            anno_core::Entity::new("Acme Corp", EntityType::Organization, 10, 19, 0.4),
+        ];
+
+        let candidates = entities_to_candidates(&entities);
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0].text, "Alice");
+        assert!((candidates[0].confidence - 0.9).abs() < 1e-10);
+        assert_eq!(
+            candidates[0].predicted_types,
+            vec![EntityType::Person.to_string()]
+        );
+        assert_eq!(candidates[1].text, "Acme Corp");
+        assert_eq!(
+            candidates[1].predicted_types,
+            vec![EntityType::Organization.to_string()]
+        );
+    }
+
+    #[test]
+    fn test_rank_for_annotation() {
+        use anno_core::EntityType;
+
+        let entities = vec![
+            anno_core::Entity::new("High", EntityType::Person, 0, 4, 0.95),
+            anno_core::Entity::new("Low", EntityType::Person, 5, 8, 0.2),
+            anno_core::Entity::new("Mid", EntityType::Person, 9, 12, 0.6),
+        ];
+
+        let ranked = rank_for_annotation(&entities, 2);
+        assert_eq!(ranked.len(), 2);
+        assert_eq!(ranked[0].0, 1); // "Low" at index 1
+        assert!((ranked[0].1 - 0.8).abs() < 1e-10);
+        assert_eq!(ranked[1].0, 2); // "Mid" at index 2
+    }
+
+    #[test]
+    fn test_export_annotation_priority() {
+        use anno_core::EntityType;
+
+        let entities = vec![
+            anno_core::Entity::new("Sure", EntityType::Person, 0, 4, 0.99),
+            anno_core::Entity::new("Unsure", EntityType::Organization, 5, 11, 0.3),
+        ];
+
+        let lines = export_annotation_priority(&entities, 2);
+        assert_eq!(lines.len(), 2);
+
+        let first: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
+        assert_eq!(first["rank"], 1);
+        assert_eq!(first["text"], "Unsure");
+        assert_eq!(first["entity_type"], EntityType::Organization.to_string());
+        assert!((first["uncertainty"].as_f64().unwrap() - 0.7).abs() < 1e-10);
+    }
 }
