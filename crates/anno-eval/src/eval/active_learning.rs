@@ -588,6 +588,70 @@ pub fn estimate_budget(
 }
 
 // =============================================================================
+// Entity bridge
+// =============================================================================
+
+/// Convert extracted entities into active learning candidates.
+///
+/// Each entity's text and confidence score become a [`Candidate`].
+/// The entity type is recorded in `predicted_types`.
+pub fn entities_to_candidates(entities: &[anno_core::Entity]) -> Vec<Candidate> {
+    entities
+        .iter()
+        .map(|e| {
+            Candidate::new(e.text.clone(), e.confidence.value())
+                .with_types(vec![e.entity_type.to_string()])
+        })
+        .collect()
+}
+
+/// Rank entities by annotation priority (lowest confidence first).
+///
+/// Returns `(entity_index, uncertainty_score)` pairs sorted by
+/// descending uncertainty (most uncertain first), limited to `k`.
+pub fn rank_for_annotation(
+    entities: &[anno_core::Entity],
+    k: usize,
+) -> Vec<(usize, f64)> {
+    let mut scored: Vec<(usize, f64)> = entities
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (i, 1.0 - e.confidence.value()))
+        .collect();
+    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.truncate(k);
+    scored
+}
+
+/// Export uncertainty-ranked entities as JSONL for annotation tools.
+///
+/// Each line is a JSON object with `text`, `entity_type`, `confidence`,
+/// `uncertainty`, and `rank` fields, sorted by descending uncertainty.
+pub fn export_annotation_priority(
+    entities: &[anno_core::Entity],
+    k: usize,
+) -> Vec<String> {
+    let ranked = rank_for_annotation(entities, k);
+    ranked
+        .iter()
+        .enumerate()
+        .map(|(rank, &(idx, uncertainty))| {
+            let e = &entities[idx];
+            serde_json::json!({
+                "rank": rank + 1,
+                "text": e.text,
+                "entity_type": e.entity_type.to_string(),
+                "confidence": e.confidence.value(),
+                "uncertainty": uncertainty,
+                "start": e.start(),
+                "end": e.end(),
+            })
+            .to_string()
+        })
+        .collect()
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
