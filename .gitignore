@@ -185,3 +185,4 @@ build/
 
 # Generated docs (rebuild with scripts)
 docs/generated/
+Cargo.lock
