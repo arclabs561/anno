@@ -4,7 +4,13 @@
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Text annotation and entity extraction.
+Extract named entities, resolve coreferences, detect PII, and export
+annotations -- from a single function call or a full pipeline.
+
+anno runs 17 backends (GLiNER zero-shot, BERT, NuNER, CRF, HMM, heuristic,
+LLM-based) and picks the best available at runtime. ML models download from
+HuggingFace on first use; the library works without them using statistical
+and rule-based fallbacks.
 
 Dual-licensed under MIT or Apache-2.0. MSRV: 1.88.
 
@@ -108,8 +114,10 @@ let redacted = pii::scan_and_redact(text, &m)?;
 
 ## CLI
 
+Not yet on crates.io; install from the repo:
+
 ```sh
-cargo install --git https://github.com/arclabs561/anno --package anno-cli --bin anno --features "onnx"
+cargo install --git https://github.com/arclabs561/anno anno-cli --features onnx
 ```
 
 ```sh
@@ -147,7 +155,18 @@ Inference-time extraction. Training pipelines are out of scope -- use upstream f
 
 ## Examples
 
-`quickstart` -- basic extraction. `pii_redact` -- detect and redact PII. `zero_shot` -- custom entity types with GLiNER. See `crates/anno/examples/` for more.
+All examples live in `crates/anno/examples/`. Run with `cargo run --example <name>`.
+
+| Example | Feature | What it shows |
+|---------|---------|---------------|
+| `quickstart` | -- | One-line extraction, filtering with `EntitySliceExt` |
+| `pii_redact` | -- | Detect names, SSNs, emails; redact or pseudonymize |
+| `zero_shot` | `onnx` | Custom entity types ("drug", "symptom") via GLiNER |
+| `relations` | -- | Entity-pair relation extraction with TPLinker |
+| `coref` | `analysis` | Coreference chains linking "Marie Curie" and "Curie" |
+| `export_formats` | -- | brat standoff, CoNLL BIO, JSONL, graph CSV |
+| `rag_preprocess` | -- | Chunking + pronoun rewriting for self-contained RAG chunks |
+| `batch` | -- | Parallel extraction over multiple documents |
 
 ## References
 
