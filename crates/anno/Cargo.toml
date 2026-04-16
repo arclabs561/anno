@@ -48,6 +48,9 @@ candle-nn = { workspace = true, optional = true }
 candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 
+# Text chunking (optional slabs integration)
+slabs = { version = "0.1", optional = true, default-features = false }
+
 # Utilities
 itertools = { workspace = true }
 
@@ -92,6 +95,9 @@ production = [
 # redistribution of large artifacts.
 bundled-crf-weights = []
 bundled-hmm-params = []
+
+# Optional slabs integration for text chunking.
+slabs = ["dep:slabs"]
 
 [[bench]]
 name = "backends"

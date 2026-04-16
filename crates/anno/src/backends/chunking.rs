@@ -14,6 +14,9 @@
 
 use crate::{Entity, Result};
 
+#[cfg(feature = "slabs")]
+use ::slabs::Chunker as SlabsChunker;
+
 /// Configuration for chunked text processing.
 #[derive(Debug, Clone)]
 pub struct ChunkConfig {
@@ -380,6 +383,49 @@ where
     deduplicate_overlapping(&mut all_entities, OverlapStrategy::KeepLongerSameType);
 
     Ok(all_entities)
+}
+
+/// Split text using a [`slabs::Chunker`] and return [`TextChunk`]s with character offsets.
+///
+/// This is an alternative to [`chunk_text`] that delegates boundary detection to the
+/// `slabs` crate (sentence-based, recursive, or fixed). Slabs works with byte offsets
+/// internally; this function converts them to character offsets using a single O(n) pass.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use anno::backends::chunking::chunk_text_with_slabs;
+/// use slabs::SentenceChunker;
+///
+/// let chunker = SentenceChunker::new(3);
+/// let chunks = chunk_text_with_slabs(text, &chunker);
+/// ```
+#[cfg(feature = "slabs")]
+#[cfg_attr(docsrs, doc(cfg(feature = "slabs")))]
+pub fn chunk_text_with_slabs(text: &str, chunker: &dyn SlabsChunker) -> Vec<TextChunk> {
+    let slabs = chunker.chunk(text);
+
+    if slabs.is_empty() {
+        return Vec::new();
+    }
+
+    // Build a byte->char index in one O(n) pass (same approach as slabs::compute_char_offsets).
+    let mut byte_to_char = vec![0usize; text.len() + 1];
+    for (char_idx, (byte_idx, _)) in text.char_indices().enumerate() {
+        byte_to_char[byte_idx] = char_idx;
+    }
+    byte_to_char[text.len()] = text.chars().count();
+
+    slabs
+        .into_iter()
+        .map(|slab| {
+            let char_offset = byte_to_char[slab.start.min(text.len())];
+            TextChunk {
+                text: slab.text,
+                char_offset,
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

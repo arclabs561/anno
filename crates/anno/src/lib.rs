@@ -49,6 +49,11 @@
 extern crate self as anno;
 
 // Module declarations (standard Cargo layout under `src/`)
+/// Active learning utilities for annotation prioritization.
+///
+/// Score and rank texts by model uncertainty to identify the most valuable
+/// candidates for human annotation.
+pub mod active;
 mod annotated;
 pub mod backends;
 /// Discourse-level analysis: centering theory, abstract anaphora, dialogue acts.
