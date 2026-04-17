@@ -114,10 +114,8 @@ let redacted = pii::scan_and_redact(text, &m)?;
 
 ## CLI
 
-Not yet on crates.io; install from the repo:
-
 ```sh
-cargo install --git https://github.com/arclabs561/anno anno-cli --features onnx
+cargo install anno-cli --features onnx
 ```
 
 ```sh

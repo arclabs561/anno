@@ -5,7 +5,8 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"
 description = "Graph/KG export adapters for anno: converts extraction output to lattix::KnowledgeGraph and N-Triples"
-publish = false
+keywords = ["ner", "knowledge-graph", "nlp"]
+categories = ["text-processing"]
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.6.0" }
