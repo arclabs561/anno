@@ -4,13 +4,11 @@
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Extract named entities, resolve coreferences, detect PII, and export
-annotations -- from a single function call or a full pipeline.
+Text annotation and entity extraction. Covers NER, coreference resolution,
+PII detection, relation extraction, and export to standard formats.
 
-anno runs 17 backends (GLiNER zero-shot, BERT, NuNER, CRF, HMM, heuristic,
-LLM-based) and picks the best available at runtime. ML models download from
-HuggingFace on first use; the library works without them using statistical
-and rule-based fallbacks.
+Multiple backends (ML, statistical, rule-based) are tried at runtime;
+works without model downloads via built-in fallbacks.
 
 Dual-licensed under MIT or Apache-2.0. MSRV: 1.88.
 
