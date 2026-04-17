@@ -65,10 +65,7 @@ pub fn rank_for_annotation<S: AsRef<str>>(texts: &[(S, Vec<Entity>)]) -> Vec<(us
         .enumerate()
         .map(|(i, (_, entities))| (i, annotation_priority(entities)))
         .collect();
-    ranked.sort_by(|a, b| {
-        b.1.partial_cmp(&a.1)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     ranked
 }
 
@@ -81,8 +78,7 @@ pub fn span_uncertainties(entities: &[Entity]) -> Vec<(&Entity, SpanUncertainty)
     entities
         .iter()
         .map(|e| {
-            let (boundary, type_score) =
-                decompose_uncertainty(e.hierarchical_confidence.as_ref());
+            let (boundary, type_score) = decompose_uncertainty(e.hierarchical_confidence.as_ref());
             (
                 e,
                 SpanUncertainty {
@@ -143,9 +139,18 @@ mod tests {
     #[test]
     fn rank_for_annotation_orders_highest_uncertainty_first() {
         let batch = vec![
-            ("high confidence text", vec![Entity::new("A", EntityType::Person, 0, 1, 0.95)]),
-            ("low confidence text", vec![Entity::new("B", EntityType::Person, 0, 1, 0.4)]),
-            ("medium confidence text", vec![Entity::new("C", EntityType::Person, 0, 1, 0.7)]),
+            (
+                "high confidence text",
+                vec![Entity::new("A", EntityType::Person, 0, 1, 0.95)],
+            ),
+            (
+                "low confidence text",
+                vec![Entity::new("B", EntityType::Person, 0, 1, 0.4)],
+            ),
+            (
+                "medium confidence text",
+                vec![Entity::new("C", EntityType::Person, 0, 1, 0.7)],
+            ),
         ];
         let ranked = rank_for_annotation(&batch);
         // highest uncertainty (lowest confidence) should be first
@@ -189,10 +194,18 @@ mod tests {
         // set_hierarchical_confidence updates e.confidence to the geometric mean of (0.9, 0.8, 0.6)
         let expected_combined = (0.9_f64 * 0.8 * 0.6).powf(1.0 / 3.0);
         let expected_overall = 1.0 - expected_combined;
-        assert!((u.overall - expected_overall).abs() < 1e-9, "overall = {}", u.overall);
+        assert!(
+            (u.overall - expected_overall).abs() < 1e-9,
+            "overall = {}",
+            u.overall
+        );
         // boundary = 1 - 0.6 = 0.4
         assert!((u.boundary - 0.4).abs() < 1e-9, "boundary = {}", u.boundary);
         // type_score = 1 - 0.8 = 0.2
-        assert!((u.type_score - 0.2).abs() < 1e-9, "type_score = {}", u.type_score);
+        assert!(
+            (u.type_score - 0.2).abs() < 1e-9,
+            "type_score = {}",
+            u.type_score
+        );
     }
 }

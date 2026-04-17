@@ -30,10 +30,19 @@ fn main() -> anno::Result<()> {
     let chunks = rag::preprocess(text, &m, None)?;
 
     for (i, chunk) in chunks.iter().enumerate() {
-        println!("--- Chunk {} (chars {}..{}) ---", i + 1, chunk.char_start, chunk.char_end);
+        println!(
+            "--- Chunk {} (chars {}..{}) ---",
+            i + 1,
+            chunk.char_start,
+            chunk.char_end
+        );
         println!("Original: {}", chunk.original_text);
         println!("Resolved: {}", chunk.text);
-        println!("  {} rewrite(s), {} entities\n", chunk.rewrites, chunk.entities.len());
+        println!(
+            "  {} rewrite(s), {} entities\n",
+            chunk.rewrites,
+            chunk.entities.len()
+        );
     }
 
     Ok(())

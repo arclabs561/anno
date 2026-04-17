@@ -284,7 +284,7 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
     ];
 
     let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     for entity in sorted {
         let fake = if let Some(existing) = mapping.get(&entity.text) {

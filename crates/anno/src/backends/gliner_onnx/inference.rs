@@ -356,11 +356,7 @@ impl GLiNEROnnx {
         let data: Vec<f32> = data_slice.to_vec();
 
         // Infer hidden_dim from total data length / num_labels
-        let hidden_dim = if num_labels > 0 {
-            data.len() / num_labels
-        } else {
-            0
-        };
+        let hidden_dim = data.len().checked_div(num_labels).unwrap_or(0);
 
         for (i, &label) in to_encode.iter().enumerate() {
             let start = i * hidden_dim;

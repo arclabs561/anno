@@ -1925,11 +1925,11 @@ impl MentionRankingCoref {
             (MentionType::Pronominal, MentionType::Proper) => {
                 score += self.config.type_compat_weight * 0.5;
             }
-            (MentionType::Pronominal, MentionType::Pronominal) => {
+            (MentionType::Pronominal, MentionType::Pronominal)
+                if mention.text.to_lowercase() == antecedent.text.to_lowercase() =>
+            {
                 // Same pronoun
-                if mention.text.to_lowercase() == antecedent.text.to_lowercase() {
-                    score += self.config.type_compat_weight * 0.3;
-                }
+                score += self.config.type_compat_weight * 0.3;
             }
             (MentionType::Proper, MentionType::Proper) => {
                 score += self.config.type_compat_weight * 0.4;

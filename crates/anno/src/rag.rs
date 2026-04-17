@@ -301,7 +301,7 @@ pub fn resolve_for_rag(
     {
         // Sort by span length descending to prefer longer rewrites.
         let mut by_length = rewrites.clone();
-        by_length.sort_by(|a, b| (b.end - b.start).cmp(&(a.end - a.start)));
+        by_length.sort_by_key(|b| std::cmp::Reverse(b.end - b.start));
         let mut accepted: Vec<PronounRewrite> = Vec::with_capacity(by_length.len());
         for rw in by_length {
             let overlaps = accepted
@@ -438,7 +438,7 @@ pub fn resolve_for_rag_neural(
     // Overlap rejection: keep longer spans
     {
         let mut by_length = rewrites.clone();
-        by_length.sort_by(|a, b| (b.end - b.start).cmp(&(a.end - a.start)));
+        by_length.sort_by_key(|b| std::cmp::Reverse(b.end - b.start));
         let mut accepted: Vec<PronounRewrite> = Vec::with_capacity(by_length.len());
         for rw in by_length {
             let overlaps = accepted
