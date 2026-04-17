@@ -817,7 +817,7 @@ impl EvalReport {
         if !self.per_type.is_empty() {
             out.push_str("## Per-Type Breakdown\n");
             let mut types: Vec<_> = self.per_type.iter().collect();
-            types.sort_by(|a, b| b.1.support.cmp(&a.1.support));
+            types.sort_by_key(|b| std::cmp::Reverse(b.1.support));
             for (type_name, metrics) in types {
                 out.push_str(&format!(
                     "  {:12} P={:.0}% R={:.0}% F1={:.0}% (n={})\n",

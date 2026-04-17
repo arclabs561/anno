@@ -518,25 +518,23 @@ pub fn validate_bio_sequence<S: AsRef<str>>(tags: &[S], scheme: BioScheme) -> Ve
         let tag = ParsedTag::parse(tag_str.as_ref());
 
         match scheme {
-            BioScheme::IOB2 => {
-                // I must follow B or I of same type
-                if tag.is_inside() {
-                    if prev_tag.is_outside() {
-                        errors.push(format!(
-                            "Position {}: I-{} follows O (should be B-{})",
-                            i,
-                            tag.entity_type.as_deref().unwrap_or("?"),
-                            tag.entity_type.as_deref().unwrap_or("?")
-                        ));
-                    } else if tag.entity_type != prev_tag.entity_type {
-                        errors.push(format!(
-                            "Position {}: I-{} follows {}-{} (type mismatch)",
-                            i,
-                            tag.entity_type.as_deref().unwrap_or("?"),
-                            prev_tag.prefix,
-                            prev_tag.entity_type.as_deref().unwrap_or("?")
-                        ));
-                    }
+            // I must follow B or I of same type
+            BioScheme::IOB2 if tag.is_inside() => {
+                if prev_tag.is_outside() {
+                    errors.push(format!(
+                        "Position {}: I-{} follows O (should be B-{})",
+                        i,
+                        tag.entity_type.as_deref().unwrap_or("?"),
+                        tag.entity_type.as_deref().unwrap_or("?")
+                    ));
+                } else if tag.entity_type != prev_tag.entity_type {
+                    errors.push(format!(
+                        "Position {}: I-{} follows {}-{} (type mismatch)",
+                        i,
+                        tag.entity_type.as_deref().unwrap_or("?"),
+                        prev_tag.prefix,
+                        prev_tag.entity_type.as_deref().unwrap_or("?")
+                    ));
                 }
             }
             BioScheme::IOBES => {
@@ -618,36 +616,14 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
         let mut repaired = tag_str.as_ref().to_string();
 
         match scheme {
-            BioScheme::IOB2 => {
-                if tag.is_inside() {
-                    let needs_repair =
-                        prev_tag.is_outside() || tag.entity_type != prev_tag.entity_type;
+            BioScheme::IOB2 if tag.is_inside() => {
+                let needs_repair = prev_tag.is_outside() || tag.entity_type != prev_tag.entity_type;
 
-                    if needs_repair {
-                        match strategy {
-                            RepairStrategy::PromoteToBegin => {
-                                if let Some(ref t) = tag.entity_type {
-                                    repaired = format!("B-{}", t);
-                                }
-                            }
-                            RepairStrategy::Discard => {
-                                repaired = "O".to_string();
-                            }
-                            RepairStrategy::Lenient => {}
-                        }
-                    }
-                }
-            }
-            BioScheme::IOBES => {
-                if (tag.is_inside() || tag.is_end())
-                    && !prev_tag.is_begin()
-                    && !prev_tag.is_inside()
-                {
+                if needs_repair {
                     match strategy {
                         RepairStrategy::PromoteToBegin => {
                             if let Some(ref t) = tag.entity_type {
-                                // If single invalid I or E, make it S (single)
-                                repaired = format!("S-{}", t);
+                                repaired = format!("B-{}", t);
                             }
                         }
                         RepairStrategy::Discard => {
@@ -655,6 +631,24 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
                         }
                         RepairStrategy::Lenient => {}
                     }
+                }
+            }
+            BioScheme::IOBES
+                if (tag.is_inside() || tag.is_end())
+                    && !prev_tag.is_begin()
+                    && !prev_tag.is_inside() =>
+            {
+                match strategy {
+                    RepairStrategy::PromoteToBegin => {
+                        if let Some(ref t) = tag.entity_type {
+                            // If single invalid I or E, make it S (single)
+                            repaired = format!("S-{}", t);
+                        }
+                    }
+                    RepairStrategy::Discard => {
+                        repaired = "O".to_string();
+                    }
+                    RepairStrategy::Lenient => {}
                 }
             }
             _ => {} // Other schemes more lenient

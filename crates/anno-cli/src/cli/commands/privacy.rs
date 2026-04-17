@@ -462,7 +462,7 @@ fn redact_text(text: &str, entities: &[PIIEntity]) -> String {
 
     // Sort by start position descending to preserve offsets
     let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     for entity in sorted {
         let count = type_counts.entry(&entity.pii_type).or_insert(0);
@@ -497,7 +497,7 @@ fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<Str
 
     // Sort by start position descending
     let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| b.start.cmp(&a.start));
+    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
 
     for entity in sorted {
         let fake = if let Some(existing) = mapping.get(&entity.text) {

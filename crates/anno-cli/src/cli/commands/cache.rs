@@ -300,7 +300,7 @@ pub fn run(args: CacheArgs) -> Result<(), String> {
             }
 
             if let Some(lim) = limit {
-                entries.truncate(lim.max(0));
+                entries.truncate(lim);
             }
 
             if entries.is_empty() {

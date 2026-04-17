@@ -109,7 +109,7 @@ impl ConfusionMatrix {
             }
         }
 
-        confusions.sort_by(|a, b| b.2.cmp(&a.2));
+        confusions.sort_by_key(|b| std::cmp::Reverse(b.2));
         confusions.truncate(top_n);
         confusions
     }

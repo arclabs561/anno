@@ -561,7 +561,7 @@ pub fn render_relation_eval_html(metrics: &RelationMetrics) -> String {
         html.push_str("<table>");
         html.push_str("<tr><th>Relation Type</th><th>Boundary F1</th><th>Strict F1</th><th>Gold</th><th>Pred</th><th>Boundary Matches</th><th>Strict Matches</th></tr>");
         let mut rels: Vec<_> = metrics.per_relation.iter().collect();
-        rels.sort_by(|a, b| b.1.gold_count.cmp(&a.1.gold_count));
+        rels.sort_by_key(|b| std::cmp::Reverse(b.1.gold_count));
         for (rel_type, rel_metrics) in rels {
             html.push_str(&format!(
                 "<tr><td>{}</td><td>{:.3}</td><td>{:.3}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
@@ -606,7 +606,7 @@ impl RelationMetrics {
         if verbose && !self.per_relation.is_empty() {
             out.push_str("\nPer-Relation Breakdown:\n");
             let mut rels: Vec<_> = self.per_relation.iter().collect();
-            rels.sort_by(|a, b| b.1.gold_count.cmp(&a.1.gold_count));
+            rels.sort_by_key(|b| std::cmp::Reverse(b.1.gold_count));
 
             for (rel_type, metrics) in rels {
                 if metrics.gold_count > 0 || metrics.pred_count > 0 {

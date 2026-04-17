@@ -1534,10 +1534,8 @@ fn parse_ecb_plus_xml(xml: &str, topic: &str, doc_name: &str) -> Result<CorefDoc
                 }
                 // Empty source/target already handled above
             }
-            Ok(Event::Text(ref e)) => {
-                if in_token {
-                    current_token_text.push_str(&e.unescape().unwrap_or_default());
-                }
+            Ok(Event::Text(ref e)) if in_token => {
+                current_token_text.push_str(&e.unescape().unwrap_or_default());
             }
             Ok(Event::End(ref e)) => {
                 let name = e.name();

@@ -169,7 +169,7 @@ impl LongTailAnalyzer {
 
         // Sort by count descending
         let mut sorted: Vec<_> = frequencies.to_vec();
-        sorted.sort_by(|a, b| b.count.cmp(&a.count));
+        sorted.sort_by_key(|b| std::cmp::Reverse(b.count));
 
         let total: usize = sorted.iter().map(|f| f.count).sum();
         let n = sorted.len();

@@ -570,7 +570,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                         // Per-entity-type breakdown (sorted by gold count descending)
                         let mut type_entries: Vec<_> = per_type_stats.iter().collect();
-                        type_entries.sort_by(|a, b| b.1 .0.cmp(&a.1 .0));
+                        type_entries.sort_by_key(|b| std::cmp::Reverse(b.1 .0));
 
                         if !type_entries.is_empty() {
                             println!();
