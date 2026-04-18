@@ -410,8 +410,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "crf" | "CrfNER" => &[Task::NER],
         "hmm" | "HmmNER" => &[Task::NER],
         "ensemble" | "EnsembleNER" => &[Task::NER],
-        "heuristic_crf" | "heuristic-crf" | "HeuristicCrfNER" | "bilstm_crf" | "bilstm-crf"
-        | "BiLstmCrfNER" => &[Task::NER],
+        "heuristic_crf" | "heuristic-crf" | "HeuristicCrfNER" => &[Task::NER],
 
         // ML-based NER backends (all implement Model)
         "bert_onnx" | "BertNEROnnx" => &[Task::NER],

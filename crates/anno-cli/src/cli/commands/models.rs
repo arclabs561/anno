@@ -64,9 +64,7 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         "crf" => Some(ModelBackend::Crf),
         "hmm" => Some(ModelBackend::Hmm),
         "ensemble" => Some(ModelBackend::Ensemble),
-        "heuristic-crf" | "heuristic_crf" | "bilstm-crf" | "bilstm_crf" => {
-            Some(ModelBackend::HeuristicCrf)
-        }
+        "heuristic-crf" | "heuristic_crf" => Some(ModelBackend::HeuristicCrf),
         "tplinker" | "tplink" => Some(ModelBackend::Tplinker),
         "universal-ner" | "universal_ner" | "universalner" => Some(ModelBackend::UniversalNer),
         #[cfg(feature = "onnx")]

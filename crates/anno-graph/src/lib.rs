@@ -226,7 +226,7 @@ pub fn entities_to_knowledge_graph(
         .map(|(i, e)| ((e.text.as_str(), e.start(), e.end()), i))
         .collect();
 
-    // Semantic relation triples from RelationCapable backends.
+    // Semantic relation triples from RelationExtractor backends.
     for rel in relations {
         let head_iri = entity_lookup
             .get(&(rel.head.text.as_str(), rel.head.start(), rel.head.end()))

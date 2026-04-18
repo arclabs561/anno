@@ -208,7 +208,7 @@ pub enum ModelBackend {
     /// Ensemble: weighted voting across multiple backends
     Ensemble,
     /// CRF with heuristic emission features (gazetteer, word shape)
-    #[value(alias = "heuristic-crf", alias = "bilstm-crf", alias = "bilstm_crf")]
+    #[value(alias = "heuristic-crf")]
     HeuristicCrf,
     /// TPLinker: joint entity-relation extraction
     #[value(alias = "tplink")]
@@ -470,22 +470,21 @@ Use `--model gliner` instead."
     }
 
     /// Create a relation-capable model instance, if this backend supports joint entity+relation
-    /// extraction.  Returns `None` for all other backends (callers should fall back to
+    /// extraction. Returns `None` for all other backends (callers should fall back to
     /// `create_model()` + co-occurrence edges).
-    #[allow(deprecated)]
     pub fn try_create_relation_model(
         self,
-    ) -> Option<Result<Box<dyn anno::RelationCapable>, String>> {
+    ) -> Option<Result<Box<dyn anno::RelationExtractor>, String>> {
         match self {
             Self::Tplinker => Some(
                 anno::backends::tplinker::TPLinker::new()
-                    .map(|m| Box::new(m) as Box<dyn anno::RelationCapable>)
+                    .map(|m| Box::new(m) as Box<dyn anno::RelationExtractor>)
                     .map_err(|e| format!("Failed to create TPLinker: {}", e)),
             ),
             #[cfg(feature = "onnx")]
             Self::Gliner2 => Some(
                 anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn anno::RelationCapable>)
+                    .map(|m| Box::new(m) as Box<dyn anno::RelationExtractor>)
                     .map_err(|e| {
                         format!(
                             "Failed to load GLiNER2 for relation extraction: {}\n  \

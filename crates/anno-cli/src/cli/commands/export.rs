@@ -195,9 +195,8 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
         } else if let Some(ref rm) = relation_model {
             let content =
                 fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
-            #[allow(deprecated)]
             let (entities, relations) = rm
-                .extract_with_relations(&content, None)
+                .extract_relations_default(&content)
                 .map_err(|e| format!("Extraction failed: {}", e))?;
             Ok((
                 content,

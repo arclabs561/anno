@@ -60,8 +60,7 @@ impl BackendFactory {
                 use anno::backends::ensemble::EnsembleNER;
                 Ok(Box::new(EnsembleNER::default()) as Box<dyn Model>)
             }
-            "heuristic_crf" | "heuristic-crf" | "heuristiccrfner"
-            | "bilstm_crf" | "bilstm-crf" | "bilstmcrf" | "bilstmcrfner" => {
+            "heuristic_crf" | "heuristic-crf" | "heuristiccrfner" => {
                 use anno::backends::heuristic_crf::HeuristicCrfNER;
                 Ok(Box::new(HeuristicCrfNER::new()) as Box<dyn Model>)
             }
@@ -567,21 +566,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pattern_backend() {
-        let backend = BackendFactory::create("pattern");
-        assert!(backend.is_ok());
-    }
-
-    #[test]
-    fn test_heuristic_backend() {
-        let backend = BackendFactory::create("heuristic");
-        assert!(backend.is_ok());
-    }
-
-    #[test]
-    fn test_stacked_backend() {
-        let backend = BackendFactory::create("stacked");
-        assert!(backend.is_ok());
+    fn known_backends_construct_with_expected_names() {
+        let cases = [
+            ("pattern", "regex"),
+            ("heuristic", "heuristic"),
+            ("stacked", "stacked"),
+        ];
+        for (alias, expected_name) in cases {
+            let model = BackendFactory::create(alias).unwrap();
+            assert_eq!(model.name(), expected_name, "for alias {alias:?}");
+        }
     }
 
     #[test]
