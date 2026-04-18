@@ -184,7 +184,21 @@ mod tests {
         assert!(doc.metadata.contains_key("original_length"));
         assert!(doc.metadata.contains_key("processed_length"));
         assert!(doc.metadata.contains_key("whitespace_cleaned"));
-        assert!(doc.metadata.contains_key("unicode_normalized"));
+        assert_eq!(
+            doc.metadata.get("unicode_normalized").map(String::as_str),
+            Some("nfc"),
+        );
+    }
+
+    #[test]
+    fn test_nfc_normalization_precomposed_eq_decomposed() {
+        let prep = DocumentPreprocessor::new();
+        let precomposed = "caf\u{00e9}"; // "café" single codepoint
+        let decomposed = "cafe\u{0301}"; // "cafe" + combining acute
+        assert_ne!(precomposed, decomposed);
+        let a = prep.prepare(precomposed).text;
+        let b = prep.prepare(decomposed).text;
+        assert_eq!(a, b);
     }
 
     #[test]

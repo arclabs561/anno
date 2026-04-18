@@ -326,8 +326,7 @@ type AnyModelExtractor = dyn Fn(&str, Option<Language>) -> Result<Vec<Entity>> +
 type AnyModelZeroShotExtractor = dyn Fn(&str, &[&str], f32) -> Result<Vec<Entity>> + Send + Sync;
 
 /// Type alias for the `AnyModel` relation-extraction closure.
-type AnyModelRelationExtractor =
-    dyn Fn(&str, Option<Language>) -> Result<(Vec<Entity>, Vec<Relation>)> + Send + Sync;
+type AnyModelRelationExtractor = dyn Fn(&str) -> Result<(Vec<Entity>, Vec<Relation>)> + Send + Sync;
 
 /// A wrapper that turns an extractor closure into a `Model`.
 ///
@@ -342,7 +341,7 @@ pub struct AnyModel {
     version: String,
     /// Optional closure backing [`ZeroShotNER::extract_with_types`](backends::inference::ZeroShotNER::extract_with_types).
     zero_shot_extractor: Option<Box<AnyModelZeroShotExtractor>>,
-    /// Optional closure backing relation extraction (deprecated [`RelationCapable`]).
+    /// Optional closure backing relation extraction via [`RelationExtractor`].
     relation_extractor: Option<Box<AnyModelRelationExtractor>>,
 }
 
@@ -393,15 +392,13 @@ impl AnyModel {
 
     /// Attach a relation extraction implementation via closure.
     ///
-    /// When set, `AnyModel` will support relation extraction by delegating to this
-    /// closure, and [`Model::capabilities()`] will report `relation_capable = true`.
+    /// When set, `AnyModel` implements [`RelationExtractor`] by delegating to this
+    /// closure from [`RelationExtractor::extract_relations_default`], and
+    /// [`Model::capabilities()`] will report `relation_capable = true`.
     #[must_use]
     pub fn with_relations(
         mut self,
-        f: impl Fn(&str, Option<Language>) -> Result<(Vec<Entity>, Vec<Relation>)>
-            + Send
-            + Sync
-            + 'static,
+        f: impl Fn(&str) -> Result<(Vec<Entity>, Vec<Relation>)> + Send + Sync + 'static,
     ) -> Self {
         self.relation_extractor = Some(Box::new(f));
         self
@@ -485,17 +482,26 @@ impl backends::inference::ZeroShotNER for AnyModel {
     }
 }
 
-#[allow(deprecated)]
-impl RelationCapable for AnyModel {
+impl backends::inference::RelationExtractor for AnyModel {
     fn extract_with_relations(
         &self,
-        text: &str,
-        language: Option<Language>,
-    ) -> Result<(Vec<Entity>, Vec<Relation>)> {
+        _text: &str,
+        _entity_types: &[&str],
+        _relation_types: &[&str],
+        _threshold: f32,
+    ) -> Result<backends::inference::ExtractionWithRelations> {
+        Err(Error::FeatureNotAvailable(
+            "AnyModel does not support custom entity/relation types; call \
+             RelationExtractor::extract_relations_default instead."
+                .into(),
+        ))
+    }
+
+    fn extract_relations_default(&self, text: &str) -> Result<(Vec<Entity>, Vec<Relation>)> {
         match &self.relation_extractor {
-            Some(f) => f(text, language),
+            Some(f) => f(text),
             None => Err(Error::FeatureNotAvailable(
-                "AnyModel: RelationCapable closure not configured (use .with_relations())".into(),
+                "AnyModel: relation closure not configured (use .with_relations())".into(),
             )),
         }
     }
@@ -536,33 +542,6 @@ pub struct ModelCapabilities {
     /// True if the model can extract discontinuous entities spanning non-adjacent spans.
     /// Only `W2NER` (when loaded with an ONNX session) sets this today.
     pub discontinuous_capable: bool,
-}
-
-/// Convenience trait for models that extract relations with default types.
-///
-/// Prefer [`RelationExtractor::extract_relations_default`]
-/// for new code. This trait exists for backward compatibility and will be
-/// removed in a future version.
-#[deprecated(
-    since = "0.4.0",
-    note = "use RelationExtractor::extract_relations_default instead; will be removed in 0.5.0"
-)]
-pub trait RelationCapable: Model {
-    /// Extract entities and their relations from text.
-    ///
-    /// # Arguments
-    ///
-    /// * `text` - Input text to extract from
-    /// * `language` - Optional language hint (e.g., "en", "es")
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (entities, relations) where relations link entities together.
-    fn extract_with_relations(
-        &self,
-        text: &str,
-        language: Option<Language>,
-    ) -> Result<(Vec<Entity>, Vec<Relation>)>;
 }
 
 // Re-export backends
@@ -975,9 +954,9 @@ mod any_model_tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn any_model_relations_returns_entities_and_relations() {
-        let m = base_any_model().with_relations(|_text, _lang| {
+        use crate::backends::inference::RelationExtractor;
+        let m = base_any_model().with_relations(|_text| {
             let head = Entity::new("Alice", EntityType::Person, 0, 5, 0.9);
             let tail = Entity::new("Acme", EntityType::Organization, 15, 19, 0.85);
             let rel = Relation::new(head.clone(), tail.clone(), "WORKS_AT", 0.8);
@@ -985,7 +964,7 @@ mod any_model_tests {
         });
         assert!(m.capabilities().relation_capable);
         let (ents, rels) = m
-            .extract_with_relations("Alice works at Acme Corp", None)
+            .extract_relations_default("Alice works at Acme Corp")
             .unwrap();
         assert_eq!(ents.len(), 2);
         assert_eq!(rels.len(), 1);
@@ -993,10 +972,10 @@ mod any_model_tests {
     }
 
     #[test]
-    #[allow(deprecated)]
     fn any_model_relations_missing_returns_feature_not_available() {
+        use crate::backends::inference::RelationExtractor;
         let m = base_any_model();
-        let err = m.extract_with_relations("hello", None).unwrap_err();
+        let err = m.extract_relations_default("hello").unwrap_err();
         assert!(
             matches!(err, Error::FeatureNotAvailable(_)),
             "expected FeatureNotAvailable, got: {err:?}"

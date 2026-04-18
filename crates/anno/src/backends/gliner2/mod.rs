@@ -451,50 +451,6 @@ impl RelationExtractor for GLiNER2Candle {
 }
 
 // =============================================================================
-// RelationCapable Trait Implementation (high-level public interface)
-// =============================================================================
-
-#[cfg(feature = "onnx")]
-#[allow(deprecated)]
-impl crate::RelationCapable for GLiNER2Onnx {
-    fn extract_with_relations(
-        &self,
-        text: &str,
-        _language: Option<Language>,
-    ) -> Result<(Vec<Entity>, Vec<crate::Relation>)> {
-        use crate::backends::inference::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
-        let result = <Self as RelationExtractor>::extract_with_relations(
-            self,
-            text,
-            DEFAULT_ENTITY_TYPES,
-            DEFAULT_RELATION_TYPES,
-            0.3,
-        )?;
-        Ok(result.into_anno_relations())
-    }
-}
-
-#[cfg(feature = "candle")]
-#[allow(deprecated)]
-impl crate::RelationCapable for GLiNER2Candle {
-    fn extract_with_relations(
-        &self,
-        text: &str,
-        _language: Option<Language>,
-    ) -> Result<(Vec<Entity>, Vec<crate::Relation>)> {
-        use crate::backends::inference::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
-        let result = <Self as RelationExtractor>::extract_with_relations(
-            self,
-            text,
-            DEFAULT_ENTITY_TYPES,
-            DEFAULT_RELATION_TYPES,
-            0.3,
-        )?;
-        Ok(result.into_anno_relations())
-    }
-}
-
-// =============================================================================
 // Tests
 // =============================================================================
 

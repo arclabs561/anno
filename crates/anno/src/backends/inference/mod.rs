@@ -26,7 +26,6 @@ pub use traits::{
     DiscontinuousEntity, DiscontinuousNER, ExtractionWithRelations, RelationExtractor,
     RelationTriple, ZeroShotNER,
 };
-pub(crate) use traits::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
 
 pub(crate) mod span;
 pub(crate) use span::{HandshakingCell, HandshakingMatrix};

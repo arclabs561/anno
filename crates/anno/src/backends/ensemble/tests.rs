@@ -96,6 +96,42 @@ impl crate::Model for AlwaysErrBackend {
     }
 }
 
+/// A backend that panics during extraction. Used to verify that the ensemble
+/// converts thread panics into `Error::Inference` instead of aborting the caller.
+struct PanicBackend {
+    name: &'static str,
+}
+
+impl PanicBackend {
+    fn new(name: &'static str) -> Self {
+        Self { name }
+    }
+}
+
+impl crate::sealed::Sealed for PanicBackend {}
+
+impl crate::Model for PanicBackend {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn extract_entities(
+        &self,
+        _text: &str,
+        _language: Option<Language>,
+    ) -> crate::Result<Vec<Entity>> {
+        panic!("PanicBackend '{}' intentionally panicked", self.name);
+    }
+
+    fn supported_types(&self) -> Vec<EntityType> {
+        vec![]
+    }
+
+    fn is_available(&self) -> bool {
+        false
+    }
+}
+
 #[test]
 fn test_new_backend_ids_have_weights() {
     let ner = EnsembleNER::new();
@@ -760,4 +796,23 @@ fn test_error_backend_does_not_affect_confidence_of_good_results() {
         solo_result[0].confidence,
         err_result[0].confidence
     );
+}
+
+#[test]
+fn test_panicking_backend_returns_inference_error() {
+    // A backend that panics during extract must not propagate the panic to the
+    // caller. The ensemble converts `std::thread::scope` join failures into
+    // Error::Inference so that callers can handle them like any other Err.
+    let ner = EnsembleNER::with_backends(vec![Box::new(PanicBackend::new("boom"))]);
+    let result = ner.extract_entities("any text", None);
+    match result {
+        Err(crate::Error::Inference(msg)) => {
+            assert!(
+                msg.contains("panicked"),
+                "expected panic-related message, got: {msg}"
+            );
+        }
+        Ok(v) => panic!("expected Err(Error::Inference), got Ok({v:?})"),
+        Err(other) => panic!("expected Err(Error::Inference), got {other:?}"),
+    }
 }

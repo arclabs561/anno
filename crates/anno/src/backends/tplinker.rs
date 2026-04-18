@@ -822,25 +822,6 @@ impl RelationExtractor for TPLinker {
     }
 }
 
-#[allow(deprecated)]
-impl crate::RelationCapable for TPLinker {
-    fn extract_with_relations(
-        &self,
-        text: &str,
-        _language: Option<Language>,
-    ) -> Result<(Vec<Entity>, Vec<crate::Relation>)> {
-        use crate::backends::inference::{DEFAULT_ENTITY_TYPES, DEFAULT_RELATION_TYPES};
-        let result = <Self as RelationExtractor>::extract_with_relations(
-            self,
-            text,
-            DEFAULT_ENTITY_TYPES,
-            DEFAULT_RELATION_TYPES,
-            0.5,
-        )?;
-        Ok(result.into_anno_relations())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
