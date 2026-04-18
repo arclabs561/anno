@@ -10,6 +10,7 @@
 //! | brat | [`to_brat()`](crate::export::to_brat) | Standoff annotation (`.ann`) for brat |
 //! | CoNLL | [`to_conll()`](crate::export::to_conll) | BIO-tagged tokens (one per line) |
 //! | JSONL | [`to_jsonl()`](crate::export::to_jsonl) | One JSON object per entity |
+//! | HTML | [`to_html()`](crate::export::to_html) | Inline-annotated `<mark>` elements |
 //! | N-Triples | [`to_ntriples()`](crate::export::to_ntriples) | RDF triples |
 //! | JSON-LD | [`to_jsonld()`](crate::export::to_jsonld) | Linked data with `@context` |
 //! | Graph CSV | [`to_graph_csv()`](crate::export::to_graph_csv) | Node + edge tables for graph DB import |
@@ -70,6 +71,87 @@ pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> Str
         }
     }
     lines.join("\n")
+}
+
+/// Export entities as an inline-annotated HTML fragment.
+///
+/// Renders the source text with each entity wrapped in a
+/// `<mark class="entity entity-<type>">...</mark>` element, plus a trailing
+/// superscript label. The output is a self-contained HTML block — paste into
+/// a page, a notebook, or a server-rendered view.
+///
+/// No CSS is emitted. Style with rules like:
+///
+/// ```css
+/// .entity       { padding: 0.15em 0.25em; border-radius: 0.25em; }
+/// .entity-PER   { background: #fde68a; }
+/// .entity-ORG   { background: #bfdbfe; }
+/// .entity-LOC   { background: #bbf7d0; }
+/// ```
+///
+/// Entity text and labels are HTML-escaped. Overlapping entities are resolved
+/// by keeping the earliest-starting entity and dropping later overlaps (same
+/// greedy policy as `pii::redact`).
+///
+/// # Example
+///
+/// ```
+/// use anno::export;
+/// use anno_core::{Entity, EntityType};
+///
+/// let text = "Alice met Bob.";
+/// let entities = vec![
+///     Entity::new("Alice", EntityType::Person, 0, 5, 0.9),
+///     Entity::new("Bob", EntityType::Person, 10, 13, 0.9),
+/// ];
+/// let html = export::to_html(text, &entities);
+/// assert!(html.contains("<mark"));
+/// ```
+pub fn to_html(text: &str, entities: &[Entity]) -> String {
+    // Dedup + keep earliest-starting non-overlapping entities.
+    let mut sorted: Vec<&Entity> = entities.iter().collect();
+    sorted.sort_by(|a, b| a.start().cmp(&b.start()).then(b.end().cmp(&a.end())));
+    let mut max_end = 0;
+    sorted.retain(|e| {
+        if e.start() < max_end {
+            false
+        } else {
+            max_end = e.end();
+            true
+        }
+    });
+
+    fn escape(s: &str) -> String {
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len() + 64 * sorted.len());
+    let mut cursor = 0;
+
+    for e in sorted {
+        if e.start() > cursor {
+            let between: String = chars[cursor..e.start()].iter().collect();
+            out.push_str(&escape(&between));
+        }
+        let ent_text: String = chars[e.start()..e.end()].iter().collect();
+        let label = e.entity_type.as_label();
+        out.push_str(&format!(
+            "<mark class=\"entity entity-{}\">{}<sup>{}</sup></mark>",
+            escape(label),
+            escape(&ent_text),
+            escape(label),
+        ));
+        cursor = e.end();
+    }
+    if cursor < chars.len() {
+        let tail: String = chars[cursor..].iter().collect();
+        out.push_str(&escape(&tail));
+    }
+    out
 }
 
 /// Export entities in CoNLL BIO-tagged format.

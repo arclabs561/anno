@@ -259,6 +259,28 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     result
 }
 
+/// Redact structured PII (SSN, credit card, IBAN, email, phone, address) from
+/// a string without loading an NER model.
+///
+/// Runs [`scan_patterns`] followed by [`redact`]. Suitable for log pipelines
+/// and other hot paths where model load time is unacceptable; catches all
+/// pattern-detectable PII but misses names (those require NER). For the full
+/// pipeline including name detection, use [`scan_and_redact`].
+///
+/// # Example
+///
+/// ```
+/// use anno::pii;
+///
+/// let scrubbed = pii::redact_patterns("SSN 123-45-6789 and email a@b.com");
+/// assert!(scrubbed.contains("[ID_NUMBER_1]"));
+/// assert!(scrubbed.contains("[CONTACT_1]"));
+/// ```
+pub fn redact_patterns(text: &str) -> String {
+    let entities = scan_patterns(text);
+    redact(text, &entities)
+}
+
 /// Replace each PII span with a fixed character (e.g. `'*'`), preserving length.
 ///
 /// Useful for log display where position matters but content must be hidden.
