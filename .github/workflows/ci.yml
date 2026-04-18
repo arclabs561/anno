@@ -275,10 +275,16 @@ jobs:
       - name: Test Metal (unit)
         run: cargo test --workspace --lib --features "metal"
   # ==========================================================================
-  # MSRV (Minimum Supported Rust Version)
+  # Minimal build (no-default-features)
   # ==========================================================================
-  msrv:
-    name: MSRV (stable)
+  # The declared `rust-version = "1.88"` cannot be tested on x86_64 because
+  # the `innr` 0.2.x transitive dep uses avx512 intrinsics that require a
+  # newer stable compiler. This job approximates the declared MSRV by
+  # verifying the workspace compiles without default features on current
+  # stable -- it catches feature-gate regressions without resolving the
+  # avx512 incompatibility.
+  minimal-build:
+    name: Minimal build (no-default-features)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -286,11 +292,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - name: Check MSRV (no-default-features)
-        # innr 0.2.0 uses avx512 intrinsics on x86_64 which require
-        # nightly or very recent stable. Use stable toolchain and verify
-        # that the core library compiles without ML features.
-        run: cargo check --workspace --no-default-features
+      - run: cargo check --workspace --no-default-features
   # ==========================================================================
   # Documentation
   # ==========================================================================
