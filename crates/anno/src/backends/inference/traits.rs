@@ -232,9 +232,9 @@ pub trait RelationExtractor: Send + Sync {
 
     /// Convenience: extract with broad default entity/relation types and threshold 0.5.
     ///
-    /// Returns `(entities, relations)` matching the [`RelationCapable`](crate::RelationCapable)
-    /// signature. Prefer this over constructing a `RelationCapable` when you already have
-    /// a `RelationExtractor`.
+    /// Returns `(entities, relations)` flattened from [`ExtractionWithRelations`].
+    /// Useful when the caller already has a `RelationExtractor` and does not need
+    /// to control the entity/relation schemas.
     fn extract_relations_default(
         &self,
         text: &str,
