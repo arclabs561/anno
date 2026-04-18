@@ -566,15 +566,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn known_backends_construct_with_expected_names() {
+    fn known_backends_construct_with_expected_name_prefix() {
+        // Stacked reports a composite name like "stacked(regex+heuristic)", so
+        // match against a prefix per backend rather than exact-equality.
         let cases = [
             ("pattern", "regex"),
             ("heuristic", "heuristic"),
             ("stacked", "stacked"),
         ];
-        for (alias, expected_name) in cases {
+        for (alias, expected_prefix) in cases {
             let model = BackendFactory::create(alias).unwrap();
-            assert_eq!(model.name(), expected_name, "for alias {alias:?}");
+            let name = model.name();
+            assert!(
+                name.starts_with(expected_prefix),
+                "for alias {alias:?}: expected prefix {expected_prefix:?}, got {name:?}"
+            );
         }
     }
 
