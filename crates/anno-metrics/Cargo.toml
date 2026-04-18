@@ -1,12 +1,17 @@
 [package]
 name = "anno-metrics"
-version = "0.6.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/arclabs561/anno"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = "https://docs.rs/anno-metrics"
 description = "Shared evaluation/analysis primitives for anno (metrics + cluster encoders)"
 keywords = ["coreference", "evaluation", "metrics", "nlp"]
 categories = ["text-processing", "science"]
+readme = "README.md"
 
 [dependencies]
 anno-core = { path = "../anno-core", version = "0.6.0" }
@@ -15,3 +20,6 @@ serde = { workspace = true, features = ["derive"] }
 [dev-dependencies]
 proptest = { workspace = true }
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

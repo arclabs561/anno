@@ -12,7 +12,7 @@ Depends only on `anno-core` and `serde`, so it can be used by both `anno` (libra
 
 ```toml
 [dependencies]
-anno-metrics = "0.3"
+anno-metrics = "0.6"
 ```
 
 ## Coreference metrics
@@ -32,7 +32,7 @@ Implements the standard coreference scoring metrics used in CoNLL-2011/2012 and 
 ## Usage
 
 ```rust
-use anno_core::core::coref::{CorefChain, Mention};
+use anno_core::{CorefChain, Mention};
 use anno_metrics::coref_metrics::conll_f1;
 
 let gold = vec![CorefChain::new(vec![
