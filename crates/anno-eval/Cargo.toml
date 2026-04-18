@@ -1,9 +1,13 @@
 [package]
 name = "anno-eval"
 version = { workspace = true }
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/arclabs561/anno"
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = "https://docs.rs/anno-eval"
 description = "Evaluation harnesses, datasets, and muxer-backed sampling for anno"
 keywords = ["ner", "evaluation", "nlp"]
 categories = ["text-processing"]
@@ -49,17 +53,13 @@ bitflags = { workspace = true }
 textprep = { workspace = true }
 chrono = { workspace = true }
 log = { workspace = true }
-rand = { workspace = true }
 regex = { workspace = true }
 dirs = { workspace = true }
-toml = { workspace = true }
 ureq = { workspace = true, features = ["json"] }
 rusqlite = { workspace = true }
 sha2 = { workspace = true }
-glob = { workspace = true }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 quick-xml = "0.37"
-clump = { workspace = true }
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
@@ -95,3 +95,7 @@ hf-hub = ["dep:hf-hub"]
 # Pass-through feature gates for bundled classical assets.
 bundled-crf-weights = ["anno/bundled-crf-weights"]
 bundled-hmm-params = ["anno/bundled-hmm-params"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
