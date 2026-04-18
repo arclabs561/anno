@@ -289,6 +289,30 @@ pub trait Model: sealed::Sealed + Send + Sync {
     fn version(&self) -> String {
         "1".to_string()
     }
+
+    /// Runtime-discoverable upcast to [`ZeroShotNER`](backends::inference::ZeroShotNER).
+    ///
+    /// Default returns `None`. Backends that implement zero-shot extraction
+    /// should override this to return `Some(self)` so callers holding a
+    /// `&dyn Model` can opt into zero-shot types without downcasting.
+    ///
+    /// ```rust,ignore
+    /// if let Some(zs) = model.as_zero_shot() {
+    ///     let ents = zs.extract_with_types(text, &["drug", "symptom"], 0.5)?;
+    /// }
+    /// ```
+    fn as_zero_shot(&self) -> Option<&dyn backends::inference::ZeroShotNER> {
+        None
+    }
+
+    /// Runtime-discoverable upcast to [`RelationExtractor`](backends::inference::RelationExtractor).
+    ///
+    /// Default returns `None`. Backends that extract relations should override
+    /// this so callers holding a `&dyn Model` can opt into relation extraction
+    /// without downcasting.
+    fn as_relation_extractor(&self) -> Option<&dyn backends::inference::RelationExtractor> {
+        None
+    }
 }
 
 // =============================================================================
@@ -459,6 +483,22 @@ impl Model for AnyModel {
 
     fn version(&self) -> String {
         self.version.clone()
+    }
+
+    fn as_zero_shot(&self) -> Option<&dyn backends::inference::ZeroShotNER> {
+        if self.zero_shot_extractor.is_some() {
+            Some(self)
+        } else {
+            None
+        }
+    }
+
+    fn as_relation_extractor(&self) -> Option<&dyn backends::inference::RelationExtractor> {
+        if self.relation_extractor.is_some() {
+            Some(self)
+        } else {
+            None
+        }
     }
 }
 

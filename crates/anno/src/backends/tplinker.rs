@@ -802,6 +802,10 @@ impl Model for TPLinker {
             ..Default::default()
         }
     }
+
+    fn as_relation_extractor(&self) -> Option<&dyn crate::backends::inference::RelationExtractor> {
+        Some(self)
+    }
 }
 
 impl RelationExtractor for TPLinker {

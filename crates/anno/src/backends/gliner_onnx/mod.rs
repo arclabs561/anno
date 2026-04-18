@@ -166,6 +166,10 @@ impl crate::Model for GLiNEROnnx {
         };
         format!("gliner-onnx-{}-{}-{}", self.model_name, quant, enc)
     }
+
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
+    }
 }
 
 #[cfg(feature = "onnx")]

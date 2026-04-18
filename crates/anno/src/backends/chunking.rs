@@ -14,8 +14,8 @@
 
 use crate::{Entity, Result};
 
-#[cfg(feature = "slabs")]
-use ::slabs::Chunker as SlabsChunker;
+#[cfg(feature = "chunking")]
+use text_splitter::TextSplitter;
 
 /// Configuration for chunked text processing.
 #[derive(Debug, Clone)]
@@ -385,45 +385,38 @@ where
     Ok(all_entities)
 }
 
-/// Split text using a [`slabs::Chunker`] and return [`TextChunk`]s with character offsets.
+/// Split text using `text-splitter` and return [`TextChunk`]s with character offsets.
 ///
-/// This is an alternative to [`chunk_text`] that delegates boundary detection to the
-/// `slabs` crate (sentence-based, recursive, or fixed). Slabs works with byte offsets
-/// internally; this function converts them to character offsets using a single O(n) pass.
+/// Delegates boundary detection to the [`text-splitter`](https://crates.io/crates/text-splitter)
+/// crate, which cascades through Unicode sentence, word, and grapheme boundaries before
+/// falling back to characters. `chunk_capacity` is the upper-bound chunk size in characters.
+///
+/// Returns [`TextChunk`]s whose `char_offset` is the chunk's character position in the
+/// original `text` (not byte position), matching the rest of anno's char-offset contract.
 ///
 /// # Example
 ///
 /// ```rust,ignore
-/// use anno::backends::chunking::chunk_text_with_slabs;
-/// use slabs::SentenceChunker;
+/// use anno::backends::chunking::chunk_text_semantic;
 ///
-/// let chunker = SentenceChunker::new(3);
-/// let chunks = chunk_text_with_slabs(text, &chunker);
+/// let chunks = chunk_text_semantic(text, 1000);
 /// ```
-#[cfg(feature = "slabs")]
-#[cfg_attr(docsrs, doc(cfg(feature = "slabs")))]
-pub fn chunk_text_with_slabs(text: &str, chunker: &dyn SlabsChunker) -> Vec<TextChunk> {
-    let slabs = chunker.chunk(text);
-
-    if slabs.is_empty() {
+#[cfg(feature = "chunking")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chunking")))]
+pub fn chunk_text_semantic(text: &str, chunk_capacity: usize) -> Vec<TextChunk> {
+    if text.is_empty() || chunk_capacity == 0 {
         return Vec::new();
     }
+    let splitter = TextSplitter::new(chunk_capacity);
 
-    // Build a byte->char index in one O(n) pass (same approach as slabs::compute_char_offsets).
-    let mut byte_to_char = vec![0usize; text.len() + 1];
-    for (char_idx, (byte_idx, _)) in text.char_indices().enumerate() {
-        byte_to_char[byte_idx] = char_idx;
-    }
-    byte_to_char[text.len()] = text.chars().count();
-
-    slabs
-        .into_iter()
-        .map(|slab| {
-            let char_offset = byte_to_char[slab.start.min(text.len())];
-            TextChunk {
-                text: slab.text,
-                char_offset,
-            }
+    // text-splitter's chunk_char_indices yields (char_offset, &str) directly —
+    // no byte-to-char conversion needed, no allocation per chunk beyond the
+    // owned TextChunk.text.
+    splitter
+        .chunk_char_indices(text)
+        .map(|idx| TextChunk {
+            text: idx.chunk.to_string(),
+            char_offset: idx.char_offset,
         })
         .collect()
 }

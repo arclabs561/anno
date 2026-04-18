@@ -245,6 +245,10 @@ impl Model for NuNER {
             ..Default::default()
         }
     }
+
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
+    }
 }
 
 #[cfg(feature = "onnx")]

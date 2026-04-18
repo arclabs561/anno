@@ -287,6 +287,14 @@ impl crate::Model for GLiNER2Onnx {
             ..Default::default()
         }
     }
+
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
+    }
+
+    fn as_relation_extractor(&self) -> Option<&dyn crate::backends::inference::RelationExtractor> {
+        Some(self)
+    }
 }
 
 // =============================================================================
@@ -344,6 +352,14 @@ impl crate::Model for GLiNER2Candle {
             zero_shot: true,
             ..Default::default()
         }
+    }
+
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
+    }
+
+    fn as_relation_extractor(&self) -> Option<&dyn crate::backends::inference::RelationExtractor> {
+        Some(self)
     }
 }
 

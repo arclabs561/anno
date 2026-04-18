@@ -259,6 +259,97 @@ pub fn redact(text: &str, entities: &[PiiEntity]) -> String {
     result
 }
 
+/// Replace each PII span with a fixed character (e.g. `'*'`), preserving length.
+///
+/// Useful for log display where position matters but content must be hidden.
+/// Counts are character-level, not byte-level — `mask("héllo", ..., '*')` on the
+/// entire span returns `"*****"` (5 chars), not `"******"`.
+///
+/// Entity offsets are character offsets. Overlapping spans are deduped the same
+/// way [`redact`] deduplicates them.
+pub fn mask(text: &str, entities: &[PiiEntity], fill: char) -> String {
+    apply_per_entity(text, entities, |entity| {
+        let width = entity.end.saturating_sub(entity.start);
+        std::iter::repeat_n(fill, width).collect::<String>()
+    })
+}
+
+/// Replace each PII span with a short fingerprint derived from the entity text.
+///
+/// The fingerprint is a 64-bit FxHash, hex-encoded. Same input always yields the
+/// same fingerprint in the same process, which lets downstream systems correlate
+/// occurrences of the same PII value without knowing its content. This is not
+/// cryptographically secure — use it for log-scrub and analytics, not secrets.
+///
+/// Format: `[<TYPE>_<8-hex>]`, e.g. `"[PERSON_a1b2c3d4]"`.
+pub fn fingerprint(text: &str, entities: &[PiiEntity]) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    apply_per_entity(text, entities, |entity| {
+        let mut h = DefaultHasher::new();
+        entity.text.hash(&mut h);
+        format!(
+            "[{}_{:08x}]",
+            entity.pii_type,
+            (h.finish() & 0xFFFF_FFFF) as u32
+        )
+    })
+}
+
+/// Apply a caller-supplied replacement function to each PII span.
+///
+/// Generic version of [`redact`] / [`mask`] / [`fingerprint`] — use this when
+/// the built-in operators don't fit. `replacement_fn` is called once per
+/// entity after dedup+sort; the return value replaces that span.
+///
+/// Entity offsets are character offsets; internal byte-offset conversion is
+/// handled here.
+pub fn replace<F>(text: &str, entities: &[PiiEntity], mut replacement_fn: F) -> String
+where
+    F: FnMut(&PiiEntity) -> String,
+{
+    apply_per_entity(text, entities, |e| replacement_fn(e))
+}
+
+/// Shared core for `redact` / `mask` / `fingerprint` / `replace`.
+///
+/// Deduplicates overlapping spans greedily (keeps longest-at-start), then
+/// walks them back-to-front so earlier char offsets remain valid during
+/// `replace_range` calls.
+fn apply_per_entity<F>(text: &str, entities: &[PiiEntity], mut replacement_fn: F) -> String
+where
+    F: FnMut(&PiiEntity) -> String,
+{
+    let mut result = text.to_string();
+
+    let mut sorted: Vec<_> = entities.iter().collect();
+    sorted.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
+    sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
+    let mut max_end = 0;
+    sorted.retain(|e| {
+        if e.start < max_end {
+            false
+        } else {
+            max_end = e.end;
+            true
+        }
+    });
+    sorted.reverse();
+
+    for entity in sorted {
+        let byte_start: usize = result
+            .chars()
+            .take(entity.start)
+            .map(|c| c.len_utf8())
+            .sum();
+        let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
+        let replacement = replacement_fn(entity);
+        result.replace_range(byte_start..byte_end, &replacement);
+    }
+
+    result
+}
+
 /// Pseudonymize PII with consistent fake values.
 ///
 /// Returns `(pseudonymized_text, mapping)` where mapping maps original -> fake
@@ -656,5 +747,94 @@ mod tests {
         assert_eq!(r.person_count, 1);
         assert_eq!(r.id_number_count, 1);
         assert!(r.k_anonymity_risk.starts_with("CRITICAL"));
+    }
+
+    #[test]
+    fn mask_preserves_length_and_position() {
+        let text = "John met Alice.";
+        let entities = vec![
+            PiiEntity {
+                text: "John".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 0,
+                end: 4,
+                risk_level: "LOW".to_string(),
+            },
+            PiiEntity {
+                text: "Alice".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 9,
+                end: 14,
+                risk_level: "LOW".to_string(),
+            },
+        ];
+        let masked = mask(text, &entities, '*');
+        assert_eq!(masked, "**** met *****.");
+    }
+
+    #[test]
+    fn mask_handles_multibyte_unicode() {
+        // "café" is 4 chars (4 code points) but 5 bytes in UTF-8.
+        // mask works in character-space, so the result has 4 fill chars.
+        let text = "café alice";
+        let entities = vec![PiiEntity {
+            text: "café".to_string(),
+            pii_type: "PERSON".to_string(),
+            start: 0,
+            end: 4,
+            risk_level: "LOW".to_string(),
+        }];
+        let masked = mask(text, &entities, '#');
+        assert_eq!(masked, "#### alice");
+    }
+
+    #[test]
+    fn fingerprint_is_deterministic_same_input() {
+        let text = "John met John.";
+        let entities = vec![
+            PiiEntity {
+                text: "John".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 0,
+                end: 4,
+                risk_level: "LOW".to_string(),
+            },
+            PiiEntity {
+                text: "John".to_string(),
+                pii_type: "PERSON".to_string(),
+                start: 9,
+                end: 13,
+                risk_level: "LOW".to_string(),
+            },
+        ];
+        let fp = fingerprint(text, &entities);
+        // Both occurrences of "John" should receive the same fingerprint.
+        let tokens: Vec<&str> = fp
+            .split(|c: char| !c.is_alphanumeric() && c != '_' && c != '[' && c != ']')
+            .filter(|s| s.starts_with("[PERSON_") && s.ends_with(']'))
+            .collect();
+        assert_eq!(
+            tokens.len(),
+            2,
+            "expected two fingerprint tokens, got {fp:?}"
+        );
+        assert_eq!(
+            tokens[0], tokens[1],
+            "identical entity text must produce identical fingerprint"
+        );
+    }
+
+    #[test]
+    fn replace_applies_caller_fn() {
+        let text = "SSN 123-45-6789 recorded.";
+        let entities = vec![PiiEntity {
+            text: "123-45-6789".to_string(),
+            pii_type: "ID_NUMBER".to_string(),
+            start: 4,
+            end: 15,
+            risk_level: "CRITICAL".to_string(),
+        }];
+        let replaced = replace(text, &entities, |e| format!("<{}>", e.pii_type));
+        assert_eq!(replaced, "SSN <ID_NUMBER> recorded.");
     }
 }

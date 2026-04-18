@@ -950,6 +950,10 @@ impl Model for UniversalNER {
             ..Default::default()
         }
     }
+
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
+    }
 }
 
 impl ZeroShotNER for UniversalNER {
