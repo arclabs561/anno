@@ -4470,12 +4470,6 @@ mod tests {
     }
 
     #[test]
-    fn test_task_evaluator_creation() {
-        let evaluator = TaskEvaluator::new();
-        assert!(evaluator.is_ok());
-    }
-
-    #[test]
     fn test_classical_backend_dataset_compatibility_gate() {
         // CRF/HMM in this repo are CoNLL-style: they should be compatible with PER/LOC/ORG/MISC
         // datasets, but excluded from datasets with different type inventories (e.g. WNUT-17).

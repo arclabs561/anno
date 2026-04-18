@@ -1334,12 +1334,6 @@ mod tests {
     }
 
     #[test]
-    fn test_harness_creation() {
-        let harness = EvalHarness::with_defaults();
-        assert!(harness.is_ok());
-    }
-
-    #[test]
     fn test_synthetic_eval() {
         // Keep this test fast and deterministic: avoid `with_defaults()` which may
         // initialize optional ML backends depending on feature flags.

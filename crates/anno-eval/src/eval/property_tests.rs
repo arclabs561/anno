@@ -421,14 +421,13 @@ mod proptests {
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
 
-        /// Property: NER should never panic on arbitrary input
+        /// Property: NER should never panic on arbitrary input.
+        /// proptest catches panics itself and reports them; wrapping in
+        /// `catch_unwind` would swallow the panic message silently.
         #[test]
         fn never_panics(text in ".*") {
             let ner = RegexNER::new();
-            let _ = std::panic::catch_unwind(|| {
-                let _ = ner.extract_entities(&text, None);
-            });
-            // If we get here without panic, test passes
+            let _ = ner.extract_entities(&text, None);
         }
 
         /// Property: Empty input should return empty entities

@@ -7243,12 +7243,6 @@ mod tests {
     }
 
     #[test]
-    fn test_loader_creation() {
-        let loader = DatasetLoader::new();
-        assert!(loader.is_ok());
-    }
-
-    #[test]
     fn test_parse_conll_format() {
         let content = r#"
 John B-PER
@@ -9742,17 +9736,25 @@ CEO,O
 
     #[test]
     fn test_conll_with_unicode_normalization() {
-        // Test that different Unicode normalizations are handled
-        // é can be U+00E9 (precomposed) or U+0065 U+0301 (decomposed)
-        let composed = "Café\tB-LOC\n";
-        let decomposed = "Café\tB-LOC\n"; // Note: this might look same but could be different bytes
+        // Test that precomposed (U+00E9) and decomposed (U+0065 U+0301) forms
+        // both parse and produce equivalent tokens.
+        let composed = "Caf\u{00e9}\tB-LOC\n";
+        let decomposed = "Cafe\u{0301}\tB-LOC\n";
+        assert_ne!(
+            composed, decomposed,
+            "test inputs must actually differ in bytes"
+        );
 
         let loader = DatasetLoader::new().unwrap();
-        let result1 = loader.parse_conll(composed, DatasetId::WikiGold);
-        let result2 = loader.parse_conll(decomposed, DatasetId::WikiGold);
+        let d1 = loader.parse_conll(composed, DatasetId::WikiGold).unwrap();
+        let d2 = loader.parse_conll(decomposed, DatasetId::WikiGold).unwrap();
 
-        assert!(result1.is_ok());
-        assert!(result2.is_ok());
+        assert_eq!(d1.sentences.len(), d2.sentences.len());
+        assert_eq!(d1.sentences[0].tokens.len(), d2.sentences[0].tokens.len());
+        assert_eq!(
+            d1.sentences[0].tokens[0].ner_tag,
+            d2.sentences[0].tokens[0].ner_tag
+        );
     }
 
     #[test]
