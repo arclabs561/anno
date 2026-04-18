@@ -68,6 +68,32 @@ jobs:
           cache-all-crates: true
       # All targets (lib + tests + bins + examples) so test code is also linted.
       - run: cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
+  # ------------------------------------------------------------
+  # Clippy runs across feature combos that the default CI step
+  # doesn't exercise. Each combo is a separate job so a failure
+  # names the feature set directly.
+  # ------------------------------------------------------------
+  # Clippy on feature combos the primary (eval discourse) job doesn't cover.
+  # Scoped to lib + unit tests; integration tests live under the main job.
+  clippy-extra:
+    name: Clippy (${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - "analysis"
+          - "schema"
+          - "candle"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      - run: cargo clippy -p anno-lib --lib --features "${{ matrix.features }}" -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
