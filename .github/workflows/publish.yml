@@ -40,55 +40,41 @@ jobs:
 
       # Publish bottom-up by dep order:
       # anno-core -> anno-metrics -> anno-graph -> anno-lib -> anno -> anno-eval -> anno-cli
+      #
+      # Each step is idempotent: if a crate is already published at the current
+      # version, cargo's "crate version X is already uploaded" response is treated
+      # as success and the step moves on. Any other failure aborts the workflow.
       - name: cargo publish (anno-core)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-core --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno-core
 
       - name: cargo publish (anno-metrics)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-metrics --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno-metrics
 
       - name: cargo publish (anno-graph)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-graph --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno-graph
 
       - name: cargo publish (anno-lib)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-lib --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno-lib
 
       - name: cargo publish (anno)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno
 
       - name: cargo publish (anno-eval)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-eval --allow-dirty
-
-      - name: Wait for crates.io index
-        run: sleep 30
+        run: ./.github/workflows/publish-crate.sh anno-eval
 
       - name: cargo publish (anno-cli)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: cargo publish -p anno-cli --allow-dirty
+        run: ./.github/workflows/publish-crate.sh anno-cli
