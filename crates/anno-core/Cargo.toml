@@ -1,12 +1,17 @@
 [package]
 name = "anno-core"
-version = "0.6.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/arclabs561/anno"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = "https://docs.rs/anno-core"
 description = "Core types and invariants for anno: entities, spans, confidence scores, coreference chains"
 keywords = ["ner", "nlp", "coreference", "types"]
 categories = ["text-processing"]
+readme = "README.md"
 
 
 [dependencies]
@@ -14,7 +19,6 @@ textprep = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-regex = { workspace = true }
 log = { workspace = true }
 schemars = { version = "0.8", features = ["derive"], optional = true }
 
@@ -24,3 +28,7 @@ proptest = { workspace = true }
 [features]
 default = []
 schema = ["dep:schemars"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

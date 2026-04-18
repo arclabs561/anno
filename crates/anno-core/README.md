@@ -12,7 +12,7 @@ This crate intentionally avoids CLI and evaluation dependencies so it can serve 
 
 ```toml
 [dependencies]
-anno-core = "0.3"
+anno-core = "0.6"
 ```
 
 ## Key types

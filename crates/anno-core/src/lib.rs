@@ -20,3 +20,5 @@ pub use crate::core::{
 pub use crate::core::types::{ByteOffset, CharOffset};
 
 pub use crate::core::types::CanonicalId;
+
+pub use crate::core::grounded::SignalValidationError;
