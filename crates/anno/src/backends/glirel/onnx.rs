@@ -27,13 +27,11 @@ fn default_model_dir() -> PathBuf {
 pub struct GLiREL {
     session: Mutex<ort::session::Session>,
     tokenizer: tokenizers::Tokenizer,
-    #[allow(dead_code)]
     config: GLiRELConfig,
 }
 
 /// Configuration loaded from `glirel_config.json`.
 #[derive(Debug, Clone, serde::Deserialize)]
-#[allow(dead_code)]
 pub struct GLiRELConfig {
     /// HuggingFace model name.
     #[serde(default)]
@@ -108,9 +106,11 @@ impl GLiREL {
             hf_loader::create_onnx_session(&model_path, hf_loader::OnnxSessionConfig::default())?;
 
         log::info!(
-            "[GLiREL] Loaded {} (hidden={})",
+            "[GLiREL] Loaded {} (config.model_name={}, hidden={}, max_width={})",
             model_id,
-            config.hidden_size
+            config.model_name,
+            config.hidden_size,
+            config.max_width
         );
 
         Ok(Self {
@@ -403,7 +403,10 @@ impl GLiREL {
 
         let _ = chars; // suppress unused warning
 
-        // Map each entity to (start_word, end_word)
+        // Map each entity to (start_word, end_word). Entities whose word-span
+        // exceeds `config.max_width` (the trained span cap) collapse to the
+        // first max_width words so the model still receives a valid span.
+        let max_width = self.config.max_width.max(1);
         entities
             .iter()
             .map(|ent| {
@@ -422,6 +425,12 @@ impl GLiREL {
                     }
                 }
 
+                if found {
+                    let width = (best_end - best_start + 1) as usize;
+                    if width > max_width {
+                        best_end = best_start + (max_width as i64) - 1;
+                    }
+                }
                 (best_start, best_end)
             })
             .collect()
