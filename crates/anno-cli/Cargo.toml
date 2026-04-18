@@ -1,9 +1,13 @@
 [package]
 name = "anno-cli"
 version = { workspace = true }
-edition = "2021"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/arclabs561/anno"
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = "https://docs.rs/anno-cli"
 description = "CLI for anno: extract entities, coreference chains, relations, and PII from text, HTML, and URLs"
 keywords = ["ner", "nlp", "extraction", "cli"]
 categories = ["command-line-utilities", "text-processing"]
@@ -16,7 +20,6 @@ anno-core = { path = "../anno-core", version = "0.6.0" }
 clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 clap_complete = { workspace = true }
 indicatif = { workspace = true }
-is-terminal = { workspace = true }
 toml = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -64,4 +67,8 @@ tempfile = "3"
 [[bin]]
 name = "anno"
 path = "src/main.rs"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
