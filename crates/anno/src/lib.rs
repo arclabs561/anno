@@ -38,8 +38,18 @@
 //!
 //! ## Offline / downloads
 //!
-//! By default, ML weights may download on first use. To force cached-only behavior, set
-//! `ANNO_NO_DOWNLOADS=1` (after prefetching models).
+//! By default, ML weights may download on first use. Set `ANNO_NO_DOWNLOADS=1`
+//! to block new HuggingFace fetches; cached models and backends loaded from
+//! local paths (via `from_local` or the ONNX export scripts) still work.
+//! The flag is checked at the HF-download boundary, not at backend construction,
+//! so local-only pipelines are unaffected.
+//!
+//! ## Threading
+//!
+//! Extraction is CPU-bound and synchronous. Backends are `Send + Sync` and
+//! thread-safe for concurrent `extract_entities` calls on a shared reference.
+//! In async services, wrap per-document extraction in `tokio::task::spawn_blocking`
+//! (or use rayon's `par_iter` for batch work on a single model).
 
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]

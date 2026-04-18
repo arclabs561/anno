@@ -24,10 +24,12 @@ let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
 for e in &entities {
     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
 }
-// Sophie Wilson [PER] (0,13) 1.00
-// ARM [misc] (27,30) 0.99
-// Output varies by backend. With `onnx` feature and models cached,
-// the ML backends produce more specific types (e.g. ARM -> ORG).
+// Offline (heuristic only):
+//   Sophie Wilson [PER] (0,13) 0.60
+//   ARM [ORG] (27,30) 0.55
+// With `onnx` enabled and default models cached, the ML backends raise
+// confidences and add entities. `ANNO_NO_DOWNLOADS=1` blocks new
+// HuggingFace fetches but still loads cached or locally-exported models.
 # Ok::<(), anno::Error>(())
 ```
 
@@ -52,7 +54,7 @@ let ents = m.extract_entities("Sophie Wilson designed the ARM processor.", None)
 # Ok::<(), anno::Error>(())
 ```
 
-`StackedNER::default()` selects the best available backend at runtime: BERT ONNX and NuNER (both tried independently when `onnx` enabled and models cached), then GLiNER if neither loaded, falling back to pattern + heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` to force cached-only behavior.
+`StackedNER::default()` selects the best available backend at runtime: BERT ONNX and NuNER (both tried independently when `onnx` enabled and models cached), then GLiNER if neither loaded, falling back to pattern + heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` to disable new HuggingFace downloads; cached models and any backend loaded from a local path (`from_local` / ONNX export scripts) continue to work.
 
 Zero-shot custom types via GLiNER:
 

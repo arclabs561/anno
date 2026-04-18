@@ -19,6 +19,21 @@
 
 use crate::{Error, Result};
 
+/// Returns `true` when `ANNO_NO_DOWNLOADS` is set to a truthy value.
+///
+/// The flag blocks *new* network fetches; cached models still load via
+/// [`download_model_file`]. Backends constructed from local paths bypass
+/// this layer entirely.
+pub fn no_downloads() -> bool {
+    match std::env::var("ANNO_NO_DOWNLOADS") {
+        Ok(v) => matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "y" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
 /// Initialize the HuggingFace API client, loading `.env` and using `HF_TOKEN` if available.
 ///
 /// This replaces the duplicated pattern:
@@ -68,6 +83,23 @@ pub fn download_model_file(
         ));
     }
 
+    if no_downloads() {
+        for candidate in candidates {
+            if let Some(path) = hf_hub::Cache::default()
+                .repo(hf_hub::Repo::model(repo_id_of(repo)))
+                .get(candidate)
+            {
+                return Ok(path);
+            }
+        }
+        return Err(Error::Retrieval(format!(
+            "ANNO_NO_DOWNLOADS is set and none of [{}] are present in the \
+             HuggingFace cache. Pre-fetch the model (unset ANNO_NO_DOWNLOADS \
+             and re-run once), or skip this backend.",
+            candidates.join(", "),
+        )));
+    }
+
     let mut last_err = None;
     for candidate in candidates {
         match repo.get(candidate) {
@@ -83,6 +115,24 @@ pub fn download_model_file(
             .map(|e| e.to_string())
             .unwrap_or_else(|| "unknown".to_string())
     )))
+}
+
+/// Best-effort repo-id extraction from an `ApiRepo` handle.
+///
+/// `hf_hub::api::sync::ApiRepo` doesn't expose its repo id directly, so we
+/// re-derive it from its Debug output. Used only by the no-downloads path
+/// to query the cache for the same repo.
+fn repo_id_of(repo: &hf_hub::api::sync::ApiRepo) -> String {
+    // Debug looks like: `ApiRepo { api: ..., repo: Repo { repo_id: "owner/name", ... } }`
+    let dbg = format!("{:?}", repo);
+    if let Some(start) = dbg.find("repo_id: \"") {
+        let rest = &dbg[start + "repo_id: \"".len()..];
+        if let Some(end) = rest.find('"') {
+            return rest[..end].to_string();
+        }
+    }
+    // Fallback: return empty so cache lookup misses, download_model_file errors.
+    String::new()
 }
 
 /// Try to download a quantized ONNX model, falling back to FP32.

@@ -418,41 +418,22 @@ impl Default for StackedNER {
     /// Tries to include ML backends (GLiNER, BERT) when available, falling back to
     /// Pattern + Heuristic for zero-dependency operation.
     ///
-    /// Downloads are allowed by default; opt out by setting `ANNO_NO_DOWNLOADS=1`
-    /// (or `HF_HUB_OFFLINE=1` to force HuggingFace offline mode).
+    /// `ANNO_NO_DOWNLOADS=1` blocks *new* HuggingFace downloads but still
+    /// loads models that are already cached. Backends constructed from local
+    /// paths (via `from_local`) or from ONNX export scripts bypass the HF
+    /// layer and are unaffected.
     ///
     /// Priority:
-    /// 1. BERT ONNX (if `onnx` feature and model available) - strong default for standard NER
-    /// 2. GLiNER (if `onnx` feature and model available) - zero-shot, broader label set
-    /// 3. Pattern + Heuristic (always available) - zero dependencies
+    /// 1. BERT ONNX (if `onnx` feature and model cached/downloadable) — strong default for standard NER
+    /// 2. NuNER (if `onnx` feature and model cached/downloadable) — handles lowercase/informal text
+    /// 3. Pattern + Heuristic (always available) — zero dependencies
     fn default() -> Self {
-        // Try BERT first for standard NER (usually best on PER/ORG/LOC/MISC).
         #[cfg(feature = "onnx")]
         {
-            fn no_downloads() -> bool {
-                match std::env::var("ANNO_NO_DOWNLOADS") {
-                    Ok(v) => matches!(
-                        v.trim().to_ascii_lowercase().as_str(),
-                        "1" | "true" | "yes" | "y" | "on"
-                    ),
-                    Err(_) => false,
-                }
-            }
-
-            // When downloads are disabled, skip ML backends entirely and fall
-            // through to regex + heuristic. The Rust `hf_hub` crate (unlike
-            // Python `huggingface_hub`) does not read HF_HUB_OFFLINE, so the
-            // only reliable way to prevent downloads is to not attempt loading.
-            if no_downloads() {
-                return Self::builder()
-                    .layer(crate::RegexNER::new())
-                    .layer(crate::HeuristicNER::new())
-                    .build();
-            }
-
             // Try ML backends independently: each is useful on its own.
-            // BERT handles standard NER; NuNER handles lowercase/informal text;
-            // GLiNER provides zero-shot coverage. Any combination works.
+            // Construction errors (including "cached-only mode, file missing")
+            // surface as `Err`, which `.ok()` drops so the stacked builder
+            // falls through to heuristic backends.
             use crate::backends::onnx::BertNEROnnx;
             use crate::DEFAULT_BERT_ONNX_MODEL;
             let bert = BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL).ok();
