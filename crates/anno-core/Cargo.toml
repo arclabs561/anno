@@ -20,7 +20,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
-schemars = { version = "0.8", features = ["derive"], optional = true }
+schemars = { version = "1", features = ["derive"], optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
