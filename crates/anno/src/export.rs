@@ -36,6 +36,10 @@ use anno_core::{Entity, Relation};
 ///
 /// Brat requires UTF-8 byte offsets. Entity start/end are character offsets, so
 /// `text` is needed to convert them.
+///
+/// **Do not** assemble brat output by reading `entity.start()` / `entity.end()`
+/// directly — those are character offsets and will produce wrong positions for
+/// any non-ASCII input. Use this function; it handles the conversion.
 pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
     for (idx, entity) in entities.iter().enumerate() {

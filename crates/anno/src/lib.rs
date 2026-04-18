@@ -593,6 +593,12 @@ pub use backends::CandleNER;
 /// }
 /// # Ok::<(), anno::Error>(())
 /// ```
+///
+/// # Performance
+///
+/// Each call constructs a fresh [`StackedNER`]. For repeated calls, build the
+/// model once (`let m = StackedNER::default();`) and reuse it via
+/// [`Model::extract_entities`] to avoid per-call initialization overhead.
 pub fn extract(text: &str) -> Result<Vec<Entity>> {
     let model = StackedNER::default();
     model.extract_entities(text, None)
@@ -611,6 +617,12 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
 /// assert_eq!(results.len(), 2);
 /// # Ok::<(), anno::Error>(())
 /// ```
+///
+/// # Performance
+///
+/// Runs sequentially on a single [`StackedNER`] instance constructed per call.
+/// For parallel execution across cores, wrap the input in rayon's `par_iter()`
+/// and call [`Model::extract_entities`] on a shared model.
 pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
     let model = StackedNER::default();
     model.extract_batch(texts, None)

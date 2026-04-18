@@ -61,11 +61,11 @@ impl DocumentPreprocessor {
         let mut processed = text.to_string();
         let mut metadata = HashMap::new();
 
-        // Unicode normalization (NFC) + zero-width removal.
+        // Unicode normalization (NFC) + zero-width removal. Done via textprep so
+        // all anno crates share one normalization path.
         if self.normalize_unicode {
-            use unicode_normalization::UnicodeNormalization;
             processed = textprep::unicode::remove_zero_width(&processed);
-            processed = processed.nfc().collect::<String>();
+            processed = textprep::unicode::nfc(&processed);
             metadata.insert("unicode_normalized".to_string(), "nfc".to_string());
         }
 
