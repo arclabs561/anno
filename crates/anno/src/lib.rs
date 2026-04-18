@@ -283,6 +283,28 @@ pub trait Model: sealed::Sealed + Send + Sync {
             .collect()
     }
 
+    /// Extract entities from multiple texts in parallel via rayon.
+    ///
+    /// Dispatches each `extract_entities` call to rayon's global thread pool.
+    /// `Model: Send + Sync` so a shared `&self` is safe across threads. Output
+    /// order matches input order. Per-element errors are preserved like
+    /// [`extract_batch`](Self::extract_batch).
+    ///
+    /// Only available under the `parallel` feature.
+    #[cfg(feature = "parallel")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
+    fn par_extract_batch(
+        &self,
+        texts: &[&str],
+        language: Option<Language>,
+    ) -> Vec<Result<Vec<Entity>>> {
+        use rayon::prelude::*;
+        texts
+            .par_iter()
+            .map(|t| self.extract_entities(t, language))
+            .collect()
+    }
+
     /// Get a version identifier for the model configuration/weights.
     ///
     /// Used for cache invalidation. Default implementation returns "1".
@@ -671,8 +693,8 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
 /// # Performance
 ///
 /// Runs sequentially on a single [`StackedNER`] instance constructed per call.
-/// For parallel execution across cores, wrap the input in rayon's `par_iter()`
-/// and call [`Model::extract_entities`] on a shared model.
+/// For parallel execution, enable the `parallel` feature and use
+/// [`Model::par_extract_batch`] on a shared model instance.
 pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
     let model = StackedNER::default();
     model.extract_batch(texts, None)
@@ -1114,5 +1136,32 @@ mod batch_tests {
         let texts = ["Alice", "Bob", "Carol"];
         let results = m.extract_batch(&texts, None);
         assert_eq!(results.len(), 3);
+    }
+
+    #[cfg(feature = "parallel")]
+    #[test]
+    fn par_extract_batch_preserves_order_and_count() {
+        let m = StackedNER::default();
+        let texts = [
+            "Marie Curie won the Nobel Prize.",
+            "Alan Turing worked at Bletchley Park.",
+            "Grace Hopper helped develop COBOL.",
+            "Ada Lovelace wrote the first program.",
+        ];
+        let seq = m.extract_batch(&texts, None);
+        let par = m.par_extract_batch(&texts, None);
+        assert_eq!(par.len(), seq.len());
+        for (a, b) in par.iter().zip(seq.iter()) {
+            assert_eq!(a.is_ok(), b.is_ok());
+            if let (Ok(av), Ok(bv)) = (a, b) {
+                // Same backend → same entities in same order.
+                assert_eq!(av.len(), bv.len());
+                for (x, y) in av.iter().zip(bv.iter()) {
+                    assert_eq!(x.text, y.text);
+                    assert_eq!(x.start(), y.start());
+                    assert_eq!(x.end(), y.end());
+                }
+            }
+        }
     }
 }

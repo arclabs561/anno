@@ -60,6 +60,8 @@ bundled-crf-weights = ["anno/bundled-crf-weights"]
 bundled-hmm-params = ["anno/bundled-hmm-params"]
 graph = ["dep:anno-graph", "dep:lattix"]
 pdf = ["deformat/pdf"]
+parallel = ["anno/parallel"]
+chunking = ["anno/chunking"]
 
 [dev-dependencies]
 tempfile = "3"

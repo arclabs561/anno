@@ -2,11 +2,12 @@
 ///
 /// `anno::extract_batch` processes documents sequentially using a single
 /// `StackedNER` instance and returns one result per document. For parallel
-/// extraction across cores, wrap the input slice in rayon's `par_iter()`
-/// and call `extract_entities` on a shared model reference.
+/// extraction across cores, enable the `parallel` feature and call
+/// `Model::par_extract_batch` on a shared model reference.
 ///
 /// ```sh
 /// cargo run --example batch
+/// cargo run --example batch --features parallel   # uses rayon
 /// ```
 ///
 /// Example output:

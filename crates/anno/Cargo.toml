@@ -51,6 +51,7 @@ text-splitter = { version = "0.28", optional = true }
 
 # Utilities
 itertools = { workspace = true }
+rayon = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, optional = true }
@@ -95,6 +96,10 @@ bundled-hmm-params = []
 
 # Optional integration with `text-splitter` for sentence/grapheme-aware chunking.
 chunking = ["dep:text-splitter"]
+
+# Optional data-parallel batch extraction via rayon. When enabled,
+# `Model::par_extract_batch` runs backend calls on rayon's thread pool.
+parallel = ["dep:rayon"]
 
 [[bench]]
 name = "backends"
