@@ -66,9 +66,9 @@ tokenizers = "0.22"
 hf-hub = "0.4"
 ndarray = "0.16"
 lru = "0.16"
-candle-core = "0.9"
-candle-nn = "0.9"
-candle-transformers = "0.9"
+candle-core = "0.10"
+candle-nn = "0.10"
+candle-transformers = "0.10"
 safetensors = "0.4"
 
 # Document-to-text extraction
