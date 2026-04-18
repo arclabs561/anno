@@ -61,13 +61,12 @@ impl DocumentPreprocessor {
         let mut processed = text.to_string();
         let mut metadata = HashMap::new();
 
-        // Unicode normalization (NFC)
-        // Note: For now, we do basic normalization without external crate
-        // Full NFC normalization would require unicode-normalization crate
+        // Unicode normalization (NFC) + zero-width removal.
         if self.normalize_unicode {
-            // Remove zero-width characters (ZWSP, ZWNJ, ZWJ, BOM, Word Joiner).
+            use unicode_normalization::UnicodeNormalization;
             processed = textprep::unicode::remove_zero_width(&processed);
-            metadata.insert("unicode_normalized".to_string(), "basic".to_string());
+            processed = processed.nfc().collect::<String>();
+            metadata.insert("unicode_normalized".to_string(), "nfc".to_string());
         }
 
         // Whitespace cleaning

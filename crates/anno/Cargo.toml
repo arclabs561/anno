@@ -31,8 +31,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
 log = { workspace = true }
-schemars = { version = "0.8", features = ["derive"], optional = true }
-
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
 
@@ -45,7 +43,6 @@ ndarray = { workspace = true, optional = true }
 lru = { workspace = true, optional = true }
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
-candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 
 # Text chunking (optional slabs integration)
@@ -53,6 +50,7 @@ slabs = { version = "0.1", optional = true, default-features = false }
 
 # Utilities
 itertools = { workspace = true }
+unicode-normalization = { workspace = true }
 
 # Observability
 tracing = { workspace = true, optional = true }
@@ -69,12 +67,11 @@ default = ["onnx"]
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 analysis = ["dep:anno-metrics"]
 discourse = []
-schema = ["dep:schemars", "anno-core/schema"]
+schema = ["anno-core/schema"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru", "dep:safetensors"]
 candle = [
   "dep:candle-core",
   "dep:candle-nn",
-  "dep:candle-transformers",
   "dep:safetensors",
   "dep:tokenizers",
   "dep:hf-hub",

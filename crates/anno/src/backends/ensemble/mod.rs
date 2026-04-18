@@ -115,7 +115,7 @@ use std::sync::Arc;
 use crate::Language;
 
 use crate::backends::method_for_backend_name;
-use crate::{Confidence, Entity, EntityType, Model, Result};
+use crate::{Confidence, Entity, EntityType, Error, Model, Result};
 
 pub mod weights;
 pub use weights::*;
@@ -441,30 +441,32 @@ impl Model for EnsembleNER {
         }
 
         // Phase 1: Collect candidates from all backends (parallel)
-        let backend_results: Vec<(String, std::result::Result<Vec<Entity>, _>)> =
-            std::thread::scope(|s| {
-                let handles: Vec<_> = self
-                    .backends
-                    .iter()
-                    .enumerate()
-                    .map(|(i, backend)| {
-                        let backend_id = self
-                            .backend_ids
-                            .get(i)
-                            .cloned()
-                            .unwrap_or_else(|| backend.name().to_string());
-                        s.spawn(move || {
-                            let result = backend.extract_entities(text, language);
-                            (backend_id, result)
-                        })
+        let backend_results: Vec<(String, Result<Vec<Entity>>)> = std::thread::scope(|s| {
+            let handles: Vec<_> = self
+                .backends
+                .iter()
+                .enumerate()
+                .map(|(i, backend)| {
+                    let backend_id = self
+                        .backend_ids
+                        .get(i)
+                        .cloned()
+                        .unwrap_or_else(|| backend.name().to_string());
+                    s.spawn(move || {
+                        let result = backend.extract_entities(text, language);
+                        (backend_id, result)
                     })
-                    .collect();
+                })
+                .collect();
 
-                handles
-                    .into_iter()
-                    .map(|h| h.join().expect("backend thread panicked"))
-                    .collect()
-            });
+            handles
+                .into_iter()
+                .map(|h| match h.join() {
+                    Ok(pair) => Ok(pair),
+                    Err(_) => Err(Error::inference("ensemble backend thread panicked")),
+                })
+                .collect::<Result<Vec<_>>>()
+        })?;
 
         let mut all_candidates: Vec<Candidate> = Vec::new();
         for (backend_id, result) in backend_results {
