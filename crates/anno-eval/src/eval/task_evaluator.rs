@@ -1797,7 +1797,7 @@ impl TaskEvaluator {
                         if std::env::var("ANNO_DEBUG_NUNER").is_ok() {
                             eprintln!(
                                 "DEBUG nuner: text={:?} labels={:?} result={:?}",
-                                &text[..text.len().min(30)],
+                                text.chars().take(30).collect::<String>(),
                                 label_strs,
                                 result.as_ref().map(|v| v.len())
                             );

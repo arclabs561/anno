@@ -104,7 +104,7 @@ let redacted = pii::scan_and_redact(text, &m)?;
 
 ## Backends
 
-17 backends spanning ML (GLiNER, NuNER, BERT, W2NER), statistical (CRF, HMM), rule-based (pattern, heuristic), and LLM-based extraction. ML backends are feature-gated (`onnx` or `candle`); weights download from HuggingFace on first use. See [BACKENDS.md](docs/BACKENDS.md) for the full list, default models, and status.
+Multiple backends spanning ML (GLiNER, NuNER, BERT, W2NER, TPLinker, GLiRel), statistical (CRF, HMM), rule-based (pattern, heuristic), and LLM-based extraction. ML backends are feature-gated (`onnx` or `candle`); weights download from HuggingFace on first use. See [BACKENDS.md](docs/BACKENDS.md) for the full list, default models, and status.
 
 ### Feature flags
 
