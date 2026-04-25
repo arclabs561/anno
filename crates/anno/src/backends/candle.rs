@@ -91,21 +91,21 @@ impl CandleNER {
     /// This function will try the provided model, and if it fails due to missing tokenizer.json,
     /// it will automatically try alternative models that have tokenizer.json.
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
+        use crate::backends::hf_loader;
+
         let device = super::encoder_candle::best_device()?;
 
-        let api = crate::backends::hf_loader::hf_api()?;
+        let api = hf_loader::hf_api()?;
         let repo = api.model(model_id.to_string());
 
-        // Download config, weights, tokenizer
-        let config_path = repo
-            .get("config.json")
-            .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
-        // Candle requires safetensors format - try to convert pytorch_model.bin if needed
-        let weights_path = repo
-            .get("model.safetensors")
+        // Route every repo fetch through `download_model_file` so the
+        // `ANNO_NO_DOWNLOADS` offline-mode contract is honored. Calling
+        // `repo.get(...)` directly bypasses that guard.
+        let config_path = hf_loader::download_model_file(&repo, &["config.json"])?;
+        // Candle requires safetensors format - try to convert pytorch_model.bin if needed.
+        let weights_path = hf_loader::download_model_file(&repo, &["model.safetensors"])
             .or_else(|_| {
-                // Try to convert pytorch_model.bin to safetensors
-                let pytorch_path = repo.get("pytorch_model.bin")?;
+                let pytorch_path = hf_loader::download_model_file(&repo, &["pytorch_model.bin"])?;
                 crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
             })
             .map_err(|e| Error::Retrieval(format!(
@@ -115,18 +115,9 @@ impl CandleNER {
                  Original error: {}",
                 e
             )))?;
-        // Try tokenizer.json first, fall back to vocab.txt for older models
-        let tokenizer_path = repo.get("tokenizer.json").or_else(|_| {
-            // For older BERT models without tokenizer.json, we can't easily create
-            // a tokenizer from vocab.txt alone. Skip tokenizer validation for now.
-            // The encoder will handle tokenization.
-            repo.get("vocab.txt").map_err(|e| {
-                Error::Retrieval(format!(
-                    "tokenizer: neither tokenizer.json nor vocab.txt found: {}",
-                    e
-                ))
-            })
-        })?;
+        // Try tokenizer.json first, fall back to vocab.txt for older models.
+        let tokenizer_path =
+            hf_loader::download_model_file(&repo, &["tokenizer.json", "vocab.txt"])?;
 
         // Parse config
         let config_str = std::fs::read_to_string(&config_path)
