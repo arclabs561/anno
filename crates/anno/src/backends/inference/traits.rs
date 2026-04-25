@@ -112,6 +112,56 @@ pub trait ZeroShotNER: Send + Sync {
         threshold: f32,
     ) -> crate::Result<Vec<Entity>>;
 
+    /// Extract entities with paired short label + free-text description per type.
+    ///
+    /// # Arguments
+    /// * `text` - Input text
+    /// * `types_with_descriptions` - `(label, description)` pairs. The label is the
+    ///   short form returned on the resulting `Entity` (e.g. `"person"`); the
+    ///   description is a natural-language hint that GLiNER-style models can use
+    ///   to disambiguate (e.g. `"a named human individual, not a pronoun"`). An
+    ///   empty description string disables the hint for that label.
+    /// * `threshold` - Confidence threshold (0.0 - 1.0)
+    ///
+    /// # Behavior
+    ///
+    /// The default implementation IGNORES descriptions and falls back to
+    /// [`extract_with_types`] using just the labels. Backends that natively
+    /// support description-augmented prompting (e.g. GLiNER's documented
+    /// quality-boosting form, paper arXiv:2311.08526 §4.3) should override
+    /// this method.
+    ///
+    /// Returned entities are labeled with the short form (the `label` element
+    /// of each pair), regardless of how the underlying model handles the
+    /// description.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use anno::backends::inference::ZeroShotNER;
+    ///
+    /// let ner: &dyn ZeroShotNER = ...;
+    /// let entities = ner.extract_with_described_types(
+    ///     "Marie Curie discovered radium.",
+    ///     &[
+    ///         ("person", "a named human individual"),
+    ///         ("substance", "a chemical element or compound"),
+    ///     ],
+    ///     0.5,
+    /// )?;
+    /// ```
+    fn extract_with_described_types(
+        &self,
+        text: &str,
+        types_with_descriptions: &[(&str, &str)],
+        threshold: f32,
+    ) -> crate::Result<Vec<Entity>> {
+        let labels: Vec<&str> = types_with_descriptions
+            .iter()
+            .map(|(label, _)| *label)
+            .collect();
+        self.extract_with_types(text, &labels, threshold)
+    }
+
     /// Get default entity types for this model.
     ///
     /// Returns the entity types used by `extract_entities()` (via `Model` trait).
@@ -499,6 +549,80 @@ mod tests {
         for rel in DEFAULT_RELATION_TYPES {
             assert!(seen.insert(*rel), "duplicate relation type: {}", rel);
         }
+    }
+
+    // =========================================================================
+    // ZeroShotNER::extract_with_described_types default impl
+    // =========================================================================
+
+    /// Stub that only implements `ZeroShotNER` (not `Model`) to verify the
+    /// default impl of `extract_with_described_types` strips descriptions
+    /// and forwards just the labels to `extract_with_types`.
+    #[derive(Debug, Default)]
+    struct CapturingNer {
+        last_labels: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl ZeroShotNER for CapturingNer {
+        fn extract_with_types(
+            &self,
+            _text: &str,
+            entity_types: &[&str],
+            _threshold: f32,
+        ) -> crate::Result<Vec<Entity>> {
+            let mut last = self.last_labels.lock().unwrap_or_else(|e| e.into_inner());
+            *last = entity_types.iter().map(|s| (*s).to_string()).collect();
+            Ok(Vec::new())
+        }
+
+        fn extract_with_descriptions(
+            &self,
+            _text: &str,
+            _descriptions: &[&str],
+            _threshold: f32,
+        ) -> crate::Result<Vec<Entity>> {
+            Ok(Vec::new())
+        }
+
+        fn default_types(&self) -> &'static [&'static str] {
+            DEFAULT_ENTITY_TYPES
+        }
+    }
+
+    #[test]
+    fn extract_with_described_types_default_passes_only_labels() {
+        // Default impl forwards the short label, ignoring descriptions, so existing
+        // backends that don't override it stay behaviorally identical.
+        let ner = CapturingNer::default();
+        let pairs = &[
+            ("person", "a named human individual"),
+            ("organization", "a company or institution"),
+        ];
+        let _ = ZeroShotNER::extract_with_described_types(&ner, "any text", pairs, 0.5);
+        let last = ner.last_labels.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(
+            *last,
+            vec!["person".to_string(), "organization".to_string()]
+        );
+    }
+
+    #[test]
+    fn extract_with_described_types_handles_empty_descriptions() {
+        // Empty description is a sentinel for "no hint" -- still passes the label.
+        let ner = CapturingNer::default();
+        let pairs = &[("date", ""), ("amount", "money mentioned in the text")];
+        let _ = ZeroShotNER::extract_with_described_types(&ner, "any text", pairs, 0.5);
+        let last = ner.last_labels.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(*last, vec!["date".to_string(), "amount".to_string()]);
+    }
+
+    #[test]
+    fn extract_with_described_types_empty_input_returns_no_entities() {
+        let ner = CapturingNer::default();
+        let pairs: &[(&str, &str)] = &[];
+        let result =
+            ZeroShotNER::extract_with_described_types(&ner, "any text", pairs, 0.5).unwrap();
+        assert!(result.is_empty());
     }
 
     // =========================================================================
