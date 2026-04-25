@@ -126,7 +126,7 @@ pub trait ZeroShotNER: Send + Sync {
     /// # Behavior
     ///
     /// The default implementation IGNORES descriptions and falls back to
-    /// [`extract_with_types`] using just the labels. Backends that natively
+    /// [`Self::extract_with_types`] using just the labels. Backends that natively
     /// support description-augmented prompting (e.g. GLiNER's documented
     /// quality-boosting form, paper arXiv:2311.08526 §4.3) should override
     /// this method.
