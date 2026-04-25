@@ -110,7 +110,7 @@ Multiple backends spanning ML (GLiNER, NuNER, BERT, W2NER, TPLinker, GLiRel), st
 
 ### Feature flags
 
-`onnx` (default) -- ONNX Runtime backends. `candle` -- pure-Rust backends, no C++ runtime. `metal`/`cuda` -- GPU acceleration (enables `candle`). `llm` -- LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, or Ollama. `discourse` -- centering theory, abstract anaphora, dialogue acts. `analysis` -- coref metrics and cluster encoders. `schema` -- JSON Schema for output types. `production` -- `tracing` instrumentation.
+`onnx` (default): ONNX Runtime backends. `candle`: pure-Rust backends, no C++ runtime. `metal` / `cuda`: GPU acceleration (enables `candle`). `llm`: LLM-based extraction via OpenRouter, Anthropic, Groq, Gemini, or Ollama. `discourse`: centering theory, abstract anaphora, dialogue acts. `analysis`: coref metrics and cluster encoders. `schema`: JSON Schema for output types. `production`: `tracing` instrumentation.
 
 ## CLI
 
@@ -142,7 +142,7 @@ RAG preprocessing (`rag::resolve_for_rag()`, `rag::preprocess()`): rewrites pron
 
 ## Scope
 
-Inference-time extraction. Training pipelines are out of scope -- use upstream frameworks and export ONNX weights.
+Inference-time extraction. Training pipelines are out of scope. Use upstream frameworks and export ONNX weights.
 
 ## Troubleshooting
 

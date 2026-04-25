@@ -4,7 +4,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 ## Model Families
 
-### Neural -- ONNX (feature `onnx`)
+### Neural: ONNX (feature `onnx`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
@@ -26,14 +26,14 @@ Note: `gliner` and `gliner_onnx` resolve to the same backend type
 recommended in the CLI, `gliner_onnx` is the explicit / lower-level form
 used in code and the eval harness.
 
-### Neural -- Candle (feature `candle`)
+### Neural: Candle (feature `candle`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
 | `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `urchade/gliner_small-v2.1` (also: `knowledgator/gliner-bi-base-v2.0`, `gliner-bi-large-v2.0`) |
 | `candle_ner` | BERT NER via Candle | No | beta | `dslim/bert-base-NER` |
 
-### Neural -- LLM (feature `llm`)
+### Neural: LLM (feature `llm`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
@@ -110,7 +110,7 @@ an `.onnx` file on disk. Some HuggingFace repos already ship a
 pre-converted ONNX (`gliner`, `gliner_multitask`, `bert_onnx`, etc.) and
 the runtime just downloads them. The rest ship only PyTorch
 (`pytorch_model.bin` / `model.safetensors`), which anno can't consume
-directly -- those are the ones that need a one-time Python script to
+directly. Those are the ones that need a one-time Python script to
 convert.
 
 Why not link PyTorch in anno itself? It would push the binary from ~50
@@ -135,7 +135,7 @@ A few backends need more than a stock `optimum-cli export onnx`:
   load via `transformers` directly; exports the DistilRoBERTa encoder
   as ONNX and the mention-ranking scorer as safetensors.
 - **W2NER**: the simplified export removes the LSTM head and substitutes
-  attention pooling -- the runtime expects this simplified form.
+  attention pooling. The runtime expects this simplified form.
 - **TPLinker**: no public HF distribution of trained weights; the
   script requires a `--checkpoint` argument and otherwise exports with
   random weights (heuristic-mode fallback covers users who don't have
@@ -156,7 +156,7 @@ manually for that one backend.
 ### Nuances
 
 - Each script is annotated with PEP 723 inline metadata, so `uv run
-  scripts/export_*.py` resolves Python deps in a hermetic env -- no
+  scripts/export_*.py` resolves Python deps in a hermetic env. No
   `pip install` polluting the global Python.
 - Opset target varies: gliner_poly uses 17, the others mostly target 14.
   ort handles both; the difference is invisible at runtime.
@@ -204,7 +204,7 @@ in its error message when the artifact is missing.
 Notes:
 
 - `gliner_poly` uses bi-encoder model weights (`gliner-bi-large-v1.0` family)
-  even though the backend name says "poly" — the `gliner-poly-*-v1.0` HF repos
+  even though the backend name says "poly". The `gliner-poly-*-v1.0` HF repos
   are model cards only with no weights, per the export script's docstring.
 - `tplinker` exports with random weights if no `--checkpoint` is provided;
   the runtime falls back to a heuristic mode when no ONNX is present.
@@ -281,7 +281,7 @@ Output goes to `reports/`. Treat generated files as the source of truth.
 
 ## See also
 
-- [Quickstart](QUICKSTART.md) — getting started + common flags
-- [Contract](CONTRACT.md) — scope + guarantees
-- [Architecture](ARCHITECTURE.md) — how the pieces fit together
-- [Publish status](PUBLISH_STATUS.md) — what’s stable vs experimental
+- [Quickstart](QUICKSTART.md): getting started + common flags
+- [Contract](CONTRACT.md): scope + guarantees
+- [Architecture](ARCHITECTURE.md): how the pieces fit together
+- [Publish status](PUBLISH_STATUS.md): what’s stable vs experimental

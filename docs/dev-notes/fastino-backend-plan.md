@@ -1,4 +1,4 @@
-# Fastino GLiNER2 backend — design plan
+# Fastino GLiNER2 backend (design plan)
 
 Work-in-progress design notes for a future `gliner2_fastino` backend in
 `crates/anno/src/backends/`. See issue arclabs561/anno#17 for surface context.
@@ -34,11 +34,11 @@ vocabulary. fastino models will not load through the existing backend.
 | `fastino-ai/GLiNER2` | Apache-2.0 | n/a (Python) | reference impl; DeBERTa-v2 SentencePiece tokenizer; single-pass schema concatenation |
 | `lmoe/gliner2-onnx` | (TBD) | n/a | community ONNX export script; covers `gliner2-large-v1` and `gliner2-multi-v1` only (NOT `gliner2-base-v1`); no structured-extraction support |
 
-Port — don't depend.
+Port. Do not depend.
 
 ## Implementation plan
 
-### Phase 1 — NER + classification heads (~2 weeks)
+### Phase 1: NER + classification heads (~2 weeks)
 
 1. New module `crates/anno/src/backends/gliner2_fastino/`.
 2. ONNX export route: either ship a script mirroring `lmoe/gliner2-onnx`,
@@ -53,17 +53,17 @@ Port — don't depend.
    GLiNER2 paper). Implement `ZeroShotNER`.
 6. Classification head: MLP over `[L]` token embeddings. New
    `TextClassifier` trait or internal-only for now.
-7. Tests against `fastino/gliner2-multi-v1` — load + extract on fixture
+7. Tests against `fastino/gliner2-multi-v1`: load + extract on fixture
    text. Mark `#[ignore]` if model download is required.
 
-### Phase 2 — Structure extraction (~2 weeks)
+### Phase 2: Structure extraction (~2 weeks)
 
 8. Count-predictor head from `[P]` embedding (20-class MLP for 0-19
    instances).
 9. Occurrence ID embeddings plus per-instance-attribute span scoring.
 10. JSON output schema mapping. Surface as `extract_structure(text, schema)`.
 
-### Phase 3 — V2 IOBinding pipeline (~1 week, perf only)
+### Phase 3: V2 IOBinding pipeline (~1 week, perf only)
 
 11. Port the 8-session IOBinding chain from gliner2-rs `lib_v2.rs` for
     zero-copy inference between sessions.

@@ -21,16 +21,16 @@ just check-minimal  # without ML feature flags
 
 ## Workspace layout
 
-- `crates/anno-core` — types, traits, errors. No ML dependencies.
-- `crates/anno` (publishes as `anno-lib`) — backends and orchestration. The main library.
-- `crates/anno-eval` — evaluation harness, dataset registry, task wiring.
-- `crates/anno-cli` — `anno` binary. CLI parsing and command implementations.
-- `crates/anno-graph` — graph/KG export.
-- `crates/anno-metrics` — metrics-only analysis helpers.
+- `crates/anno-core`: types, traits, errors. No ML dependencies.
+- `crates/anno` (publishes as `anno-lib`): backends and orchestration. The main library.
+- `crates/anno-eval`: evaluation harness, dataset registry, task wiring.
+- `crates/anno-cli`: `anno` binary. CLI parsing and command implementations.
+- `crates/anno-graph`: graph/KG export.
+- `crates/anno-metrics`: metrics-only analysis helpers.
 
 ## Where backends live
 
-`crates/anno/src/backends/<name>/` — one module per backend. Each implements the `Model` trait (and `ZeroShotNER` / `RelationExtractor` where applicable). Existing backends are the reference: `gliner_onnx`, `gliner_candle`, `gliner_multitask`, `nuner`, `bert_onnx`, `tplinker`, `crf`, `heuristic`.
+`crates/anno/src/backends/<name>/`: one module per backend. Each implements the `Model` trait (and `ZeroShotNER` / `RelationExtractor` where applicable). Existing backends are the reference: `gliner_onnx`, `gliner_candle`, `gliner_multitask`, `nuner`, `bert_onnx`, `tplinker`, `crf`, `heuristic`.
 
 To add a backend:
 
@@ -46,12 +46,12 @@ To add a backend:
 
 `crates/anno/Cargo.toml` defines the feature set. Common combos:
 
-- `--no-default-features` — pattern + heuristic only, no ML.
-- `--features onnx` (default) — ONNX runtime backends.
-- `--features candle` — pure-Rust Candle backends.
-- `--features "onnx candle"` — both.
-- `--features "eval discourse"` — full eval harness + discourse module (used by CI).
-- `--features analysis` — metrics-only diagnostics via `anno-metrics`.
+- `--no-default-features`: pattern + heuristic only, no ML.
+- `--features onnx` (default): ONNX runtime backends.
+- `--features candle`: pure-Rust Candle backends.
+- `--features "onnx candle"`: both.
+- `--features "eval discourse"`: full eval harness + discourse module (used by CI).
+- `--features analysis`: metrics-only diagnostics via `anno-metrics`.
 
 The `just check-feature-matrix` recipe sweeps the gating combinations that have regressed before.
 
@@ -66,9 +66,9 @@ The `just check-feature-matrix` recipe sweeps the gating combinations that have 
 
 ## Testing
 
-- `just check` — fmt + clippy + quick tests.
-- `just test` — unit tests with `eval discourse` features.
-- `just test-all` — full workspace including integration.
+- `just check`: fmt + clippy + quick tests.
+- `just test`: unit tests with `eval discourse` features.
+- `just test-all`: full workspace including integration.
 - Integration tests live in `crates/anno/tests/integration/main.rs` (single-binary consolidation; new tests go in `tests/integration/`, not new test crates).
 
 ## Models
