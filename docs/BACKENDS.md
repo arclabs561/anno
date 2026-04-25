@@ -91,6 +91,51 @@ ONNX exports are not yet available for the `gliner`/`gliner_onnx` backends.
 Source: practitioner findings from the GLiNER community and "Illustrated GLiNER"
 (Shahrukh Khan). Bi-encoder speedup figure from Knowledgator's model card.
 
+## Backend setup (export scripts and weights)
+
+Most backends auto-download their default model from HuggingFace on first
+load. A few require a one-time local ONNX export via a Python script
+(those models either lack a ready-to-use ONNX repo on HF, or use an
+architecture that needs a specific export tweak). After the export, the
+runtime loader picks the artifact up from the documented path or env var.
+
+| Backend | Auto-download | Script | Default output | Path override |
+|---------|---------------|--------|----------------|---------------|
+| `gliner` / `gliner_onnx` | yes | (auto-export on first load if no ONNX cached) | hf-hub cache | `--` |
+| `gliner_multitask` | yes | `--` | hf-hub cache | `--` |
+| `bert_onnx` | yes | `--` | hf-hub cache | `--` |
+| `gliner_candle` / `candle_ner` | yes | `--` | hf-hub cache | `--` |
+| `gliner_pii` | yes | `--` | hf-hub cache | `--` |
+| `gliner_relex` | yes (script needed only for re-export) | `export_gliner_relex_onnx.py` | hf-hub cache | `--` |
+| `nuner` | yes (script needed only for unsupported variants) | `export_nuner_to_onnx.py` (delegates to `export_gliner_poly_onnx.py` for GLiNER-based variants) | hf-hub cache | `--` |
+| `gliner_poly` | no | `export_gliner_poly_onnx.py` | `~/.cache/anno/models/gliner-poly/` | (cache probe) |
+| `glirel` | no | `export_glirel_onnx.py` | `~/.cache/anno/models/glirel/` | (cache probe) |
+| `deberta_v3` | no | `export_deberta_ner_to_onnx.py` | `~/.cache/huggingface/hub/models--deberta-v3-ner/onnx/` | `DEBERTA_MODEL_PATH` |
+| `biomedical` | no | `export_biomedical_ner_to_onnx.py` | `~/.cache/anno/models/biomedical-ner/` | `BIOMEDICAL_MODEL_PATH` |
+| `w2ner` | no | `export_w2ner_to_onnx.py` | path argument | `W2NER_MODEL_PATH` |
+| `tplinker` | no (heuristic-mode fallback always works) | `export_tplinker_onnx.py` | `~/.cache/anno/models/tplinker/` | (cache probe) |
+| `fcoref` (coref) | no | `export_fcoref.py` | `./fcoref_onnx/` (relative) or pass `--output-dir` | `FCOREF_MODEL_PATH` |
+
+Run any script via `uv run`:
+
+```sh
+uv run scripts/export_<backend>_onnx.py [--model <hf-id>] [--output <dir>]
+```
+
+The scripts are PEP 723-annotated so `uv` resolves their Python deps in an
+isolated environment. The runtime loader prints the exact script command
+in its error message when the artifact is missing.
+
+Notes:
+
+- `gliner_poly` uses bi-encoder model weights (`gliner-bi-large-v1.0` family)
+  even though the backend name says "poly" — the `gliner-poly-*-v1.0` HF repos
+  are model cards only with no weights, per the export script's docstring.
+- `tplinker` exports with random weights if no `--checkpoint` is provided;
+  the runtime falls back to a heuristic mode when no ONNX is present.
+- `gliner_onnx` runs `export_gliner_poly_onnx.py` automatically on first
+  load if no ONNX file is in the cache (no manual step required).
+
 ## Choose by constraints
 
 - **No ML deps**: `--model pattern`, `heuristic`, or `stacked` with `default-features = false`
