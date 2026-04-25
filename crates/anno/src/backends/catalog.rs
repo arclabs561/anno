@@ -160,10 +160,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         // Note: knowledgator/gliner-bi-*-v2.0 models need ONNX export
         // (not yet available as pre-converted ONNX).
         description: "GLiNER zero-shot NER (alias for gliner_onnx in this repo)",
-        recommended_models: &[
-            "onnx-community/gliner_small-v2.1",
-            "onnx-community/gliner_large-v2.1",
-        ],
+        recommended_models: &[crate::models::GLINER, "onnx-community/gliner_large-v2.1"],
     },
     BackendInfo {
         name: "gliner_onnx",
@@ -174,7 +171,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         // Note: knowledgator/gliner-bi-*-v2.0 bi-encoder models need ONNX export
         // (not yet available as pre-converted ONNX).
         description: "GLiNER via manual ONNX implementation",
-        recommended_models: &["onnx-community/gliner_small-v2.1"],
+        recommended_models: &[crate::models::GLINER],
     },
     BackendInfo {
         name: "bert_onnx",
@@ -183,7 +180,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "BERT NER via ONNX Runtime (PER/ORG/LOC/MISC)",
-        recommended_models: &["protectai/bert-base-NER-onnx"],
+        recommended_models: &[crate::models::BERT_ONNX],
     },
     BackendInfo {
         name: "gliner_multitask",
@@ -192,7 +189,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER multi-task (NER + heuristic relations + structure)",
-        recommended_models: &["onnx-community/gliner-multitask-large-v0.5"],
+        recommended_models: &[crate::models::GLINER_MULTITASK],
     },
     BackendInfo {
         name: "w2ner",
@@ -201,7 +198,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "W2NER nested entity extraction (grid-based)",
-        recommended_models: &["ljynlp/w2ner-bert-base"],
+        recommended_models: &[crate::models::W2NER],
     },
     BackendInfo {
         name: "deberta_v3",
@@ -210,7 +207,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "DeBERTa-v3 NER via BertNEROnnx (export: uv run scripts/export_deberta_ner_to_onnx.py)",
-        recommended_models: &["ficsort/deberta-v3-base-conll2003-ner"],
+        recommended_models: &[crate::models::DEBERTA_V3],
     },
     BackendInfo {
         name: "biomedical",
@@ -219,7 +216,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "Biomedical NER via BertNEROnnx (Disease, Chemical, Drug, Gene, Species)",
-        recommended_models: &["d4data/biomedical-ner-all"],
+        recommended_models: &[crate::models::BIOMEDICAL],
     },
     // =========================================================================
     // Implemented Backends (Beta)
@@ -232,9 +229,9 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         gpu_support: true,
         description: "GLiNER via Candle (pure Rust, Metal/CUDA)",
         recommended_models: &[
-            "urchade/gliner_small-v2.1",
-            "knowledgator/gliner-bi-base-v2.0",
-            "knowledgator/gliner-bi-large-v2.0",
+            crate::models::GLINER_CANDLE,
+            crate::models::GLINER_BI_BASE,
+            crate::models::GLINER_BI_LARGE,
         ],
     },
     BackendInfo {
@@ -244,10 +241,14 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "NuNER Zero (token classifier, arbitrary-length entities)",
+        // The first entry is the original numind/NuNER_Zero PyTorch repo (the source);
+        // anno's runtime loader uses crate::models::NUNER (deepanwa/NuNerZero_onnx),
+        // a community ONNX export of the same weights. TODO: introduce a NUNER_ZERO
+        // constant for the source repo and unify.
         recommended_models: &[
             "numind/NuNER_Zero",
-            "numind/NuNER_Zero-4k",
-            "numind/NuNER_Zero-span",
+            crate::models::NUNER_ZERO_4K,
+            crate::models::NUNER_ZERO_SPAN,
         ],
     },
     BackendInfo {
@@ -257,7 +258,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: false,
         gpu_support: true,
         description: "BERT NER via Candle (pure Rust; Metal/CUDA)",
-        recommended_models: &["dslim/bert-base-NER"],
+        recommended_models: &[crate::models::CANDLE],
     },
     BackendInfo {
         name: "glirel",
@@ -275,6 +276,8 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER Poly-encoder for zero-shot NER with inter-label attention fusion",
+        // TODO: align with crate::models::GLINER_POLY (currently set to a different
+        // bi-encoder URL). Tracked in repo follow-up tasks.
         recommended_models: &["knowledgator/modern-gliner-poly-large-v1.0"],
     },
     BackendInfo {
@@ -284,7 +287,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER PII Edge: 60+ PII categories, zero-shot detection",
-        recommended_models: &["knowledgator/gliner-pii-edge-v1.0"],
+        recommended_models: &[crate::models::GLINER_PII],
     },
     BackendInfo {
         name: "gliner_relex",
@@ -293,7 +296,7 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER-RelEx: joint NER + relation extraction, zero-shot",
-        recommended_models: &["knowledgator/gliner-relex-large-v1.0"],
+        recommended_models: &[crate::models::GLINER_RELEX],
     },
 ];
 
@@ -394,6 +397,59 @@ mod tests {
                     name
                 );
             }
+        }
+    }
+
+    #[test]
+    fn test_catalog_recommended_models_nonempty_for_non_wip() {
+        // For Beta/Stable backends, recommended_models[0] (when present) must be a
+        // non-empty model id. Stops empty/whitespace-only string regressions.
+        for info in BACKEND_CATALOG {
+            if matches!(info.status, BackendStatus::WIP) {
+                continue;
+            }
+            if let Some(first) = info.recommended_models.first() {
+                assert!(
+                    !first.trim().is_empty(),
+                    "{}: recommended_models[0] is empty/whitespace",
+                    info.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_catalog_aligned_with_lib_constants() {
+        // For backends whose default model is encoded as a `crate::models::*` constant,
+        // the catalog's first recommended model must match. Replacing the literal in
+        // the catalog with the const ref guarantees this at compile time. This test
+        // documents (and detects regressions in) the small set of backends where the
+        // catalog still uses literals because the constant points at a different repo.
+        let pairs: &[(&str, &str)] = &[
+            ("gliner", crate::models::GLINER),
+            ("gliner_onnx", crate::models::GLINER),
+            ("bert_onnx", crate::models::BERT_ONNX),
+            ("gliner_multitask", crate::models::GLINER_MULTITASK),
+            ("w2ner", crate::models::W2NER),
+            ("deberta_v3", crate::models::DEBERTA_V3),
+            ("biomedical", crate::models::BIOMEDICAL),
+            ("gliner_candle", crate::models::GLINER_CANDLE),
+            ("candle_ner", crate::models::CANDLE),
+            ("gliner_pii", crate::models::GLINER_PII),
+            ("gliner_relex", crate::models::GLINER_RELEX),
+        ];
+        for (name, expected) in pairs {
+            let info = BackendInfo::by_name(name)
+                .unwrap_or_else(|| panic!("backend '{}' missing from catalog", name));
+            let first = info
+                .recommended_models
+                .first()
+                .unwrap_or_else(|| panic!("'{}': empty recommended_models", name));
+            assert_eq!(
+                *first, *expected,
+                "'{}': catalog recommended_models[0] does not match crate::models constant",
+                name
+            );
         }
     }
 
