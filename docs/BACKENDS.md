@@ -9,7 +9,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
 | `gliner` | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
-| `gliner_multitask` | Multi-task span classifier | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
+| `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
