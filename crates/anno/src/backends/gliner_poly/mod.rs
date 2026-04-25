@@ -498,6 +498,7 @@ mod tests {
         assert_eq!(extracted, "Apple");
     }
 
+    #[cfg(feature = "onnx")]
     #[test]
     fn test_local_model_cache_candidates() {
         let paths = local_model_cache_candidates();

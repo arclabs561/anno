@@ -312,7 +312,7 @@ pub trait Model: sealed::Sealed + Send + Sync {
         "1".to_string()
     }
 
-    /// Runtime-discoverable upcast to [`ZeroShotNER`](backends::inference::ZeroShotNER).
+    /// Runtime-discoverable upcast to [`ZeroShotNER`].
     ///
     /// Default returns `None`. Backends that implement zero-shot extraction
     /// should override this to return `Some(self)` so callers holding a
@@ -327,7 +327,7 @@ pub trait Model: sealed::Sealed + Send + Sync {
         None
     }
 
-    /// Runtime-discoverable upcast to [`RelationExtractor`](backends::inference::RelationExtractor).
+    /// Runtime-discoverable upcast to [`RelationExtractor`].
     ///
     /// Default returns `None`. Backends that extract relations should override
     /// this so callers holding a `&dyn Model` can opt into relation extraction
@@ -694,7 +694,7 @@ pub fn extract(text: &str) -> Result<Vec<Entity>> {
 ///
 /// Runs sequentially on a single [`StackedNER`] instance constructed per call.
 /// For parallel execution, enable the `parallel` feature and use
-/// [`Model::par_extract_batch`] on a shared model instance.
+/// `Model::par_extract_batch` on a shared model instance.
 pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
     let model = StackedNER::default();
     model.extract_batch(texts, None)
