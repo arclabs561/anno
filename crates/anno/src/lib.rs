@@ -290,6 +290,13 @@ pub trait Model: sealed::Sealed + Send + Sync {
     /// order matches input order. Per-element errors are preserved like
     /// [`extract_batch`](Self::extract_batch).
     ///
+    /// # Thread count
+    ///
+    /// Rayon's pool defaults to one thread per logical CPU. Override with
+    /// `RAYON_NUM_THREADS=N` (env var, set before any rayon work) or by
+    /// constructing a `rayon::ThreadPoolBuilder::new().num_threads(N).build()`
+    /// and calling this method via `pool.install(|| model.par_extract_batch(...))`.
+    ///
     /// Only available under the `parallel` feature.
     #[cfg(feature = "parallel")]
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
