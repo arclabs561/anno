@@ -241,12 +241,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "NuNER Zero (token classifier, arbitrary-length entities)",
-        // The first entry is the original numind/NuNER_Zero PyTorch repo (the source);
-        // anno's runtime loader uses crate::models::NUNER (deepanwa/NuNerZero_onnx),
-        // a community ONNX export of the same weights. TODO: introduce a NUNER_ZERO
-        // constant for the source repo and unify.
+        // First entry is the source PyTorch repo; the runtime loader uses
+        // crate::models::NUNER (deepanwa/NuNerZero_onnx), a community ONNX
+        // export of the same weights.
         recommended_models: &[
-            "numind/NuNER_Zero",
+            crate::models::NUNER_ZERO,
             crate::models::NUNER_ZERO_4K,
             crate::models::NUNER_ZERO_SPAN,
         ],
@@ -434,6 +433,7 @@ mod tests {
             ("deberta_v3", crate::models::DEBERTA_V3),
             ("biomedical", crate::models::BIOMEDICAL),
             ("gliner_candle", crate::models::GLINER_CANDLE),
+            ("nuner", crate::models::NUNER_ZERO),
             ("candle_ner", crate::models::CANDLE),
             ("gliner_pii", crate::models::GLINER_PII),
             ("gliner_relex", crate::models::GLINER_RELEX),

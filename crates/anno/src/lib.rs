@@ -749,8 +749,12 @@ pub mod models {
     /// First load may require Python (torch + safetensors) for format conversion
     /// if HuggingFace hasn't auto-generated safetensors for this repo.
     pub const GLINER_CANDLE: &str = "urchade/gliner_small-v2.1";
-    /// NuNER ONNX model (HuggingFace).
+    /// NuNER ONNX model (HuggingFace). Community ONNX export of [`NUNER_ZERO`].
     pub const NUNER: &str = "deepanwa/NuNerZero_onnx";
+    /// NuNER Zero source repo (HuggingFace). Original PyTorch weights from
+    /// numind; see [`NUNER`] for the ONNX-converted variant anno's runtime
+    /// loader actually uses.
+    pub const NUNER_ZERO: &str = "numind/NuNER_Zero";
     /// GLiNER Poly-Encoder ONNX model (HuggingFace).
     pub const GLINER_POLY: &str = "knowledgator/gliner-bi-large-v1.0";
     /// W2NER ONNX model (HuggingFace).
