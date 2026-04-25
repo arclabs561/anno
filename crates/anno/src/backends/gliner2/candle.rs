@@ -234,10 +234,14 @@ impl GLiNER2Candle {
         let api = crate::backends::hf_loader::hf_api()?;
         let repo = api.model(model_id.to_string());
 
-        // Load config
+        // Load config -- try config.json first, fall back to gliner_config.json
+        // (GLiNER models like urchade/gliner_multi-v2.1 only have gliner_config.json)
         let config_path = repo
             .get("config.json")
-            .map_err(|e| Error::Retrieval(format!("config.json: {}", e)))?;
+            .or_else(|_| repo.get("gliner_config.json"))
+            .map_err(|e| Error::Retrieval(format!(
+                "config (tried config.json and gliner_config.json): {}", e
+            )))?;
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| Error::Retrieval(format!("read config: {}", e)))?;
         let config: serde_json::Value = serde_json::from_str(&config_str)
@@ -269,7 +273,13 @@ impl GLiNER2Candle {
         };
 
         // Build components
-        let encoder = CandleEncoder::from_pretrained(model_id)?;
+        // Resolve encoder model: GLiNER configs specify the underlying encoder in
+        // "model_name" (e.g. "microsoft/mdeberta-v3-base"). Use that for the encoder
+        // so the tokenizer is loaded from the correct repo.
+        let encoder_id = config["model_name"]
+            .as_str()
+            .unwrap_or(model_id);
+        let encoder = CandleEncoder::from_pretrained(encoder_id)?;
         let span_rep = SpanRepLayer::new(hidden_size, MAX_SPAN_WIDTH, vb.pp("span_rep"))?;
         let label_proj = candle_nn::linear(hidden_size, hidden_size, vb.pp("label_projection"))
             .map_err(|e| Error::Retrieval(format!("label_projection: {}", e)))?;
