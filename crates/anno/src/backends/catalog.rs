@@ -275,9 +275,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         zero_shot: true,
         gpu_support: true,
         description: "GLiNER Poly-encoder for zero-shot NER with inter-label attention fusion",
-        // TODO: align with crate::models::GLINER_POLY (currently set to a different
-        // bi-encoder URL). Tracked in repo follow-up tasks.
-        recommended_models: &["knowledgator/modern-gliner-poly-large-v1.0"],
+        // The `knowledgator/gliner-poly-*-v1.0` model cards on HuggingFace exist
+        // but ship no weights (per the export script's docstring). The actual
+        // loadable models for this backend are the `gliner-bi-*-v1.0` /
+        // `modern-gliner-bi-*-v1.0` family.
+        recommended_models: &[crate::models::GLINER_POLY],
     },
     BackendInfo {
         name: "gliner_pii",
@@ -435,6 +437,7 @@ mod tests {
             ("gliner_candle", crate::models::GLINER_CANDLE),
             ("nuner", crate::models::NUNER_ZERO),
             ("candle_ner", crate::models::CANDLE),
+            ("gliner_poly", crate::models::GLINER_POLY),
             ("gliner_pii", crate::models::GLINER_PII),
             ("gliner_relex", crate::models::GLINER_RELEX),
         ];
