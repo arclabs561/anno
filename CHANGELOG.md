@@ -13,10 +13,23 @@
 
 ### Fixed
 - `NuNER::as_zero_shot` no longer fails to compile under `--no-default-features` (cfg-gating mismatch with the `onnx`-gated `ZeroShotNER` impl).
+- `CandleNER::from_pretrained` now honors `ANNO_NO_DOWNLOADS` (was bypassing the offline-mode guard by calling `repo.get(...)` directly).
+- `gliner_poly` default-model URL drift between `models::GLINER_POLY` and the catalog/docs resolved (catalog and docs aligned with the constant; the `gliner-poly-*-v1.0` HF repos are model cards only with no weights, per the export script's docstring).
 - Cleaned up several pre-existing warnings: unused `EntityCategory` import in `tplinker.rs` (now `cfg`-gated), unused-macro warning on `define_feature_stub`, missing-docs on stub `GLiREL`/`GLiNERPoly` structs, dead-code on `local_model_cache_candidates` (now `cfg`-gated).
+- Doc-link warnings under `RUSTDOCFLAGS="-D warnings"` (intra-doc resolution and redundant explicit link targets in `Model` trait).
 
 ### Added
 - `CONTRIBUTING.md`: dev setup, workspace layout, where backends live, feature flag map, style and PR guidance.
+- `ZeroShotNER::extract_with_described_types((label, description) pairs)` trait method with conservative default impl (forwards labels to `extract_with_types`). Reflects the per-label-description quality boost documented in the GLiNER paper (arXiv:2311.08526 §4.3).
+- Fail-fast guard in `gliner_multitask::{Onnx,Candle}::from_pretrained` rejecting `fastino/*` model IDs with a clear `Error::FeatureNotAvailable` linking to issue #17.
+- `models::NUNER_ZERO` constant for the source `numind/NuNER_Zero` repo (the existing `models::NUNER` constant points at the community ONNX export `deepanwa/NuNerZero_onnx`).
+- `BACKEND_CATALOG` entries now reference `crate::models::*` constants directly instead of duplicating string literals; compile-time alignment for 13 backends with a regression test.
+- `onnx-coreml` Cargo feature: opt-in Apple CoreML / Apple Neural Engine acceleration for ONNX backends. Set `OnnxSessionConfig::prefer_coreml = true` to attach the CoreML execution provider; CPU is registered as a fallback.
+- `crates/anno/examples/gliner_multitask.rs`: end-to-end example showing `TaskSchema`-based multi-task extraction (NER + classification) via the `gliner_multitask` backend.
+- Parity test scaffold (`gliner_onnx_candle_parity_basic`, `#[ignore]`) asserting `GLiNEROnnx` and `GLiNERCandle` agree on at least one entity span for the same input.
+- `RAYON_NUM_THREADS` documented in `Model::par_extract_batch` rustdoc as the canonical way to control thread count.
+- `docs/dev-notes/fastino-backend-plan.md`: design plan for a future `gliner2_fastino` backend (deferred, tracked at issue #18).
+- Backend setup matrix in `docs/BACKENDS.md` mapping each export script to its target backend, default output path, and env-var override; explains why anno needs the export scripts (ort runtime can't consume PyTorch weights directly).
 
 ## [0.6.0] - 2026-04-16
 
