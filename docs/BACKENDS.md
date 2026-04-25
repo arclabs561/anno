@@ -105,47 +105,53 @@ runtime loader picks the artifact up from the documented path or env var.
 
 ### Why we need the scripts
 
-anno's ML inference goes through `ort` (ONNX Runtime). It does not link
-PyTorch, transformers, or any Python at runtime -- a fresh `cargo install
-anno-cli` is a ~50 MB binary, not a multi-GB conda environment. That
-means anno needs an `.onnx` file (plus `tokenizer.json`, sometimes
-`config.json`) sitting on disk for each backend it wants to run. For the
-simple cases (`gliner`, `gliner_multitask`, `bert_onnx`, etc.) the
-HuggingFace repo already publishes a pre-converted ONNX so anno just
-downloads it. For the rest, a one-time Python export bridges the gap.
+anno runs models through `ort` (ONNX Runtime), so every backend needs
+an `.onnx` file on disk. Some HuggingFace repos already ship a
+pre-converted ONNX (`gliner`, `gliner_multitask`, `bert_onnx`, etc.) and
+the runtime just downloads them. The rest ship only PyTorch
+(`pytorch_model.bin` / `model.safetensors`), which anno can't consume
+directly -- those are the ones that need a one-time Python script to
+convert.
 
-Concretely, a script is needed when one of these is true:
+Why not link PyTorch in anno itself? It would push the binary from ~50
+MB to multi-GB, pull in CUDA-toolkit deps even on CPU-only hosts, and
+slow startup. Pre-converting once means the production runtime ships
+only `ort` plus the model artifact.
 
-- **No pre-converted ONNX on HF**: the upstream repo ships only PyTorch
-  weights (`pytorch_model.bin` / `model.safetensors`). anno cannot
-  consume those directly. Examples: `deberta_v3`, `biomedical`, `w2ner`.
-- **Architecture-specific export tweaks**:
-  - DeBERTa-v3: pin `transformers==4.47.0` to avoid a fast-tokenizer
-    bug; copy SentencePiece artifacts from the HF cache because the
-    fast-tokenizer conversion is broken in newer versions.
-  - GLiNER-RelEx: uses scatter-based subword pooling, so `torch.onnx.
-    export` needs a real tokenized input (random dummy inputs cause
-    index-out-of-bounds during JIT tracing).
-  - GLiNER bi-encoder (`gliner_poly`): produces **two** ONNX graphs --
-    a text encoder and a separate label encoder for the BGE
-    sentence-transformer label embeddings.
-  - F-coref: must bypass `fastcoref`'s spaCy-dependent high-level API
-    and load via `transformers` directly; exports the DistilRoBERTa
-    encoder as ONNX and the mention-ranking scorer as safetensors.
-  - W2NER: the simplified export removes the LSTM head and substitutes
-    attention pooling -- the runtime expects this simplified form.
-  - TPLinker: no public HF distribution of trained weights; the script
-    requires a `--checkpoint` argument and otherwise exports with
-    random weights (heuristic-mode fallback covers users who don't have
-    a checkpoint).
-- **Model-card-only repos**: some HF repos exist as documentation but
-  ship no weights. Example: `knowledgator/gliner-poly-{base,small}-v1.0`.
-  The actual loadable weights live under different repo names
-  (`gliner-bi-*-v1.0`).
-- **GLiNER auto-export shortcut**: `gliner_onnx` runs
-  `export_gliner_poly_onnx.py` automatically on first load if no ONNX is
-  cached, so end users don't need to invoke the script manually for that
-  one backend.
+#### Architecture-specific gotchas
+
+A few backends need more than a stock `optimum-cli export onnx`:
+
+- **DeBERTa-v3**: pin `transformers==4.47.0` to avoid a fast-tokenizer
+  bug; copy SentencePiece artifacts from the HF cache because the
+  fast-tokenizer conversion is broken in newer versions.
+- **GLiNER-RelEx**: scatter-based subword pooling, so `torch.onnx.
+  export` needs a real tokenized input (random dummy inputs cause
+  index-out-of-bounds during JIT tracing).
+- **GLiNER bi-encoder** (`gliner_poly`): produces **two** ONNX graphs --
+  a text encoder and a separate label encoder for the BGE
+  sentence-transformer label embeddings.
+- **F-coref**: bypass `fastcoref`'s spaCy-dependent high-level API and
+  load via `transformers` directly; exports the DistilRoBERTa encoder
+  as ONNX and the mention-ranking scorer as safetensors.
+- **W2NER**: the simplified export removes the LSTM head and substitutes
+  attention pooling -- the runtime expects this simplified form.
+- **TPLinker**: no public HF distribution of trained weights; the
+  script requires a `--checkpoint` argument and otherwise exports with
+  random weights (heuristic-mode fallback covers users who don't have
+  a checkpoint).
+
+#### Model-card-only repos
+
+Some HF repos exist as documentation but ship no weights. Example:
+`knowledgator/gliner-poly-{base,small}-v1.0`. The actual loadable
+weights live under different repo names (`gliner-bi-*-v1.0`).
+
+#### GLiNER auto-export shortcut
+
+`gliner_onnx` runs `export_gliner_poly_onnx.py` automatically on first
+load if no ONNX is cached, so end users don't need to invoke the script
+manually for that one backend.
 
 ### Nuances
 
