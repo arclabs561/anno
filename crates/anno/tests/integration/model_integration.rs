@@ -434,3 +434,58 @@ fn stacked_ner_deterministic() {
         );
     }
 }
+
+// =============================================================================
+// gliner_onnx vs gliner_candle parity
+// =============================================================================
+
+/// Same input through `GLiNEROnnx` and `GLiNERCandle` must agree on at least
+/// one entity span. Loose criterion (at-least-one-common-span) avoids false
+/// fails on float-precision drift between runtimes while still catching gross
+/// divergence (model load, tokenizer, label resolution).
+///
+/// Run: `cargo test --features "onnx candle analysis" --test integration --
+///       --ignored gliner_onnx_candle_parity_basic`
+#[test]
+#[ignore]
+#[cfg(all(feature = "onnx", feature = "candle"))]
+fn gliner_onnx_candle_parity_basic() {
+    use anno::backends::gliner_candle::GLiNERCandle;
+    use anno::{GLiNEROnnx, Model};
+    use std::collections::HashSet;
+
+    let text = "Marie Curie discovered radium in Paris.";
+    let types = ["person", "place", "substance"];
+
+    let onnx = GLiNEROnnx::new(anno::DEFAULT_GLINER_MODEL).expect("onnx load");
+    let candle =
+        GLiNERCandle::from_pretrained(anno::DEFAULT_GLINER_CANDLE_MODEL).expect("candle load");
+
+    use anno::backends::inference::ZeroShotNER;
+    let onnx_entities =
+        ZeroShotNER::extract_with_types(&onnx, text, &types, 0.5).expect("onnx extract");
+    let candle_entities =
+        ZeroShotNER::extract_with_types(&candle, text, &types, 0.5).expect("candle extract");
+
+    assert!(
+        !onnx_entities.is_empty(),
+        "onnx found no entities: {onnx_entities:?}"
+    );
+    assert!(
+        !candle_entities.is_empty(),
+        "candle found no entities: {candle_entities:?}"
+    );
+
+    let onnx_spans: HashSet<(usize, usize)> =
+        onnx_entities.iter().map(|e| (e.start(), e.end())).collect();
+    let candle_spans: HashSet<(usize, usize)> = candle_entities
+        .iter()
+        .map(|e| (e.start(), e.end()))
+        .collect();
+
+    let common: Vec<_> = onnx_spans.intersection(&candle_spans).collect();
+    assert!(
+        !common.is_empty(),
+        "no common spans between onnx ({onnx_entities:?}) and candle ({candle_entities:?})"
+    );
+}
