@@ -186,6 +186,10 @@ pub struct OnnxSessionConfig {
     /// Effective only when the `onnx-coreml` feature is enabled at build
     /// time AND the host is macOS. CPU is added as a fallback so the
     /// session still loads if CoreML cannot handle the graph.
+    ///
+    /// Without the feature flag the field exists for API stability but
+    /// the value is ignored, hence the `#[allow(dead_code)]`.
+    #[cfg_attr(not(feature = "onnx-coreml"), allow(dead_code))]
     pub prefer_coreml: bool,
 }
 
