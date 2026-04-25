@@ -2727,7 +2727,7 @@ fn test_matrix_coverage_report() {
                             | "nuner"
                             | "gliner_onnx"
                             | "gliner_candle"
-                            | "gliner2"
+                            | "gliner_multitask"
                             | "w2ner"
                             | "deberta_v3"
                             | "albert"

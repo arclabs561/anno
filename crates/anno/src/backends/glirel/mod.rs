@@ -52,6 +52,7 @@ pub use onnx::GLiREL;
 // Stub when ONNX feature is not enabled.
 #[cfg(not(feature = "onnx"))]
 #[derive(Debug)]
+/// GLiREL stub (requires `onnx` feature).
 pub struct GLiREL {
     _private: (),
 }

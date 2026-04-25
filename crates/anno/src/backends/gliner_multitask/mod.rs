@@ -1,18 +1,21 @@
-//! GLiNER2: Multi-task Information Extraction.
+//! GLiNER multi-task: zero-shot NER, classification, and structure extraction.
 //!
-//! GLiNER2 extends GLiNER to support:
+//! Loads `knowledgator/gliner-multitask-large-v0.5` (Stepanov & Shtopko 2024,
+//! arXiv:2406.12925), which extends GLiNER v1 to multiple tasks via task-conditioned
+//! label prompts. The backend supports:
 //! - Named Entity Recognition (with label descriptions)
 //! - Text Classification (single/multi-label)
 //! - Hierarchical Structure Extraction
 //! - Task Composition (multiple tasks in one pass)
 //!
-//! This backend is based on the GLiNER2 paper (arXiv:2507.18546). The details of
-//! prompt formatting and the full task schema are paper-defined; this module
-//! focuses on the inference integration and trait wiring used by `anno`.
+//! Note: this is NOT the fastino-ai GLiNER2 architecture (Zaratiana et al. 2025,
+//! arXiv:2507.18546). `fastino/gliner2-*` models will not load here; they use a
+//! different special-token vocabulary (`[P]/[E]/[C]/[L]/[SEP]`) and a different
+//! head structure (count-predictor + occurrence ID embeddings).
 //!
 //! # Trait Integration
 //!
-//! GLiNER2 implements the standard `anno` traits:
+//! `GLiNERMultitask` implements the standard `anno` traits:
 //! - `Model` - Core entity extraction interface
 //! - `ZeroShotNER` - Open-domain entity types
 //! - `RelationExtractor` - Joint entity-relation extraction (via GLiREL)
@@ -20,12 +23,10 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::{Model, ZeroShotNER, DEFAULT_GLINER2_MODEL};
-//! use anno::backends::gliner2::{GLiNER2, TaskSchema};
+//! use anno::{Model, ZeroShotNER, DEFAULT_GLINER_MULTITASK_MODEL};
+//! use anno::backends::gliner_multitask::{GLiNERMultitask, TaskSchema};
 //!
-//! // Use the official Fastino Labs GLiNER2 model
-//! let model = GLiNER2::from_pretrained(DEFAULT_GLINER2_MODEL)?;
-//! // Or: GLiNER2::from_pretrained("fastino/gliner2-base-v1")?;
+//! let model = GLiNERMultitask::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)?;
 //!
 //! // Standard Model trait
 //! let entities = model.extract_entities("Apple announced iPhone 15", None)?;
@@ -79,12 +80,12 @@ fn extract_relations_neural_or_heuristic(
 
         match crate::backends::glirel::GLiREL::from_local(&default_dir) {
             Ok(model) => {
-                log::info!("[GLiNER2] GLiREL model loaded for relation extraction");
+                log::info!("[GLiNERMultitask] GLiREL model loaded for relation extraction");
                 Some(model)
             }
             Err(e) => {
                 log::debug!(
-                    "[GLiNER2] GLiREL not available ({}), using heuristic relations",
+                    "[GLiNERMultitask] GLiREL not available ({}), using heuristic relations",
                     e
                 );
                 None
@@ -97,7 +98,7 @@ fn extract_relations_neural_or_heuristic(
             Ok(rels) => return rels,
             Err(e) => {
                 log::warn!(
-                    "[GLiNER2] GLiREL inference failed ({}), falling back to heuristic",
+                    "[GLiNERMultitask] GLiREL inference failed ({}), falling back to heuristic",
                     e
                 );
             }
@@ -114,9 +115,9 @@ pub mod candle;
 pub mod onnx;
 pub mod schema;
 #[cfg(feature = "candle")]
-pub use candle::GLiNER2Candle;
+pub use candle::GLiNERMultitaskCandle;
 #[cfg(feature = "onnx")]
-pub use onnx::GLiNER2Onnx;
+pub use onnx::GLiNERMultitaskOnnx;
 pub use schema::{
     ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
     FieldType, LabelCache, StructureTask, StructureValue, TaskSchema,
@@ -125,19 +126,19 @@ pub use schema::{
 // Stub implementations (no feature)
 // =============================================================================
 
-/// GLiNER2 stub (requires onnx or candle feature).
+/// GLiNER multi-task stub (requires onnx or candle feature).
 #[cfg(not(any(feature = "onnx", feature = "candle")))]
 #[derive(Debug)]
-pub struct GLiNER2 {
+pub struct GLiNERMultitask {
     _private: (),
 }
 
 #[cfg(not(any(feature = "onnx", feature = "candle")))]
-impl GLiNER2 {
+impl GLiNERMultitask {
     /// Load model (requires feature).
     pub fn from_pretrained(_model_id: &str) -> Result<Self> {
         Err(Error::FeatureNotAvailable(
-            "GLiNER2 requires 'onnx' or 'candle' feature. \
+            "GLiNER multi-task requires 'onnx' or 'candle' feature. \
              Build with: cargo build --features candle"
                 .to_string(),
         ))
@@ -146,22 +147,22 @@ impl GLiNER2 {
     /// Extract (requires feature).
     pub fn extract(&self, _text: &str, _schema: &TaskSchema) -> Result<ExtractionResult> {
         Err(Error::FeatureNotAvailable(
-            "GLiNER2 requires features".to_string(),
+            "GLiNER multi-task requires features".to_string(),
         ))
     }
 }
 
 // =============================================================================
-// Unified GLiNER2 type
+// Unified GLiNER multi-task type
 // =============================================================================
 
-/// GLiNER2 model - automatically selects best available backend.
+/// GLiNER multi-task model - automatically selects best available backend.
 #[cfg(feature = "candle")]
-pub type GLiNER2 = GLiNER2Candle;
+pub type GLiNERMultitask = GLiNERMultitaskCandle;
 
-/// GLiNER2 model - ONNX backend (when candle not enabled).
+/// GLiNER multi-task model - ONNX backend (when candle not enabled).
 #[cfg(all(feature = "onnx", not(feature = "candle")))]
-pub type GLiNER2 = GLiNER2Onnx;
+pub type GLiNERMultitask = GLiNERMultitaskOnnx;
 
 // =============================================================================
 // Helper functions
@@ -236,7 +237,7 @@ pub(super) fn map_entity_type(type_str: &str) -> EntityType {
 // =============================================================================
 
 #[cfg(feature = "onnx")]
-impl crate::Model for GLiNER2Onnx {
+impl crate::Model for GLiNERMultitaskOnnx {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         let schema = TaskSchema::new().with_entities(&[
             "person",
@@ -273,11 +274,11 @@ impl crate::Model for GLiNER2Onnx {
     }
 
     fn name(&self) -> &'static str {
-        "GLiNER2-ONNX"
+        "GLiNERMultitask-ONNX"
     }
 
     fn description(&self) -> &'static str {
-        "Multi-task information extraction via GLiNER2 (ONNX backend)"
+        "Multi-task information extraction via GLiNER multi-task (ONNX backend)"
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
@@ -302,7 +303,7 @@ impl crate::Model for GLiNER2Onnx {
 // =============================================================================
 
 #[cfg(feature = "candle")]
-impl crate::Model for GLiNER2Candle {
+impl crate::Model for GLiNERMultitaskCandle {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         let schema = TaskSchema::new().with_entities(&[
             "person",
@@ -339,11 +340,11 @@ impl crate::Model for GLiNER2Candle {
     }
 
     fn name(&self) -> &'static str {
-        "GLiNER2-Candle"
+        "GLiNERMultitask-Candle"
     }
 
     fn description(&self) -> &'static str {
-        "Multi-task information extraction via GLiNER2 (native Rust/Candle)"
+        "Multi-task information extraction via GLiNER multi-task (native Rust/Candle)"
     }
 
     fn capabilities(&self) -> crate::ModelCapabilities {
@@ -368,7 +369,7 @@ impl crate::Model for GLiNER2Candle {
 // =============================================================================
 
 #[cfg(feature = "onnx")]
-impl ZeroShotNER for GLiNER2Onnx {
+impl ZeroShotNER for GLiNERMultitaskOnnx {
     fn default_types(&self) -> &[&'static str] {
         &["person", "organization", "location", "date", "event"]
     }
@@ -388,13 +389,13 @@ impl ZeroShotNER for GLiNER2Onnx {
         descriptions: &[&str],
         threshold: f32,
     ) -> Result<Vec<Entity>> {
-        // Use descriptions as entity types directly (GLiNER2 supports this)
+        // Use descriptions as entity types directly (GLiNER multi-task supports this)
         self.extract_ner(text, descriptions, threshold)
     }
 }
 
 #[cfg(feature = "candle")]
-impl ZeroShotNER for GLiNER2Candle {
+impl ZeroShotNER for GLiNERMultitaskCandle {
     fn default_types(&self) -> &[&'static str] {
         &["person", "organization", "location", "date", "event"]
     }
@@ -415,14 +416,14 @@ impl ZeroShotNER for GLiNER2Candle {
         descriptions: &[&str],
         threshold: f32,
     ) -> Result<Vec<Entity>> {
-        // Use descriptions as entity types directly (GLiNER2 supports this)
+        // Use descriptions as entity types directly (GLiNER multi-task supports this)
         let type_strings: Vec<String> = descriptions.iter().map(|s| s.to_string()).collect();
         self.extract_entities(text, &type_strings, threshold)
     }
 }
 
 #[cfg(feature = "onnx")]
-impl RelationExtractor for GLiNER2Onnx {
+impl RelationExtractor for GLiNERMultitaskOnnx {
     fn extract_with_relations(
         &self,
         text: &str,
@@ -444,7 +445,7 @@ impl RelationExtractor for GLiNER2Onnx {
 }
 
 #[cfg(feature = "candle")]
-impl RelationExtractor for GLiNER2Candle {
+impl RelationExtractor for GLiNERMultitaskCandle {
     fn extract_with_relations(
         &self,
         text: &str,

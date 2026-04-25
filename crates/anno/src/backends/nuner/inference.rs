@@ -268,7 +268,7 @@ impl NuNER {
                 let (input_ids_t, attention_mask_t, words_mask_t, text_lengths_t) =
                     make_token_tensors()?;
                 // Generate span tensors similar to GLiNER
-                // Use checked_mul to prevent overflow (same as gliner2.rs:2388)
+                // Use checked_mul to prevent overflow (same as gliner_multitask/onnx.rs)
                 let num_spans = match text_words.len().checked_mul(MAX_SPAN_WIDTH) {
                     Some(v) => v,
                     None => {
@@ -378,7 +378,7 @@ impl NuNER {
     /// - span_mask: [num_spans] - boolean mask indicating valid spans
     #[cfg(feature = "onnx")]
     pub(crate) fn make_span_tensors(num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        // Use checked_mul to prevent overflow (same as gliner2.rs:2388)
+        // Use checked_mul to prevent overflow (same as gliner_multitask/onnx.rs)
         let num_spans = match num_words.checked_mul(MAX_SPAN_WIDTH) {
             Some(v) => v,
             None => {

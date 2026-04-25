@@ -16,9 +16,13 @@ Academic papers, datasets, and software cited across the anno codebase.
   [[arXiv:2311.08526]](https://arxiv.org/abs/2311.08526)
   — Architecture basis for the `gliner` and `gliner-candle` backends.
 
-- U. Zaratiana, N. Tomeh, P. Holat, and T. Charnois. "GLiNER2: Multi-task Information Extraction with Generalist Models." 2025.
+- I. Stepanov and M. Shtopko. "GLiNER multi-task: Generalist Lightweight Model for Various Information Extraction Tasks." 2024.
+  [[arXiv:2406.12925]](https://arxiv.org/abs/2406.12925)
+  — Basis for the `gliner_multitask` backend (NER + classification + structure extraction). Loads `onnx-community/gliner-multitask-large-v0.5`.
+
+- U. Zaratiana, G. Pasternak, O. Boyd, G. Hurn-Maloney, and A. Lewis. "GLiNER2: An Efficient Multi-Task Information Extraction System with Schema-Driven Interface." *EMNLP* (System Demonstrations), 2025.
   [[arXiv:2507.18546]](https://arxiv.org/abs/2507.18546)
-  — Basis for the `gliner2` multi-task backend (NER + classification + structure extraction).
+  — Distinct architecture (fastino-ai). Different special tokens (`[P]/[E]/[C]/[L]/[SEP]`) and head structure (count-predictor + occurrence ID embeddings). Not yet wired as a backend; see issue #17.
 
 - D. Bogdanov, A. Mokhov, et al. "NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data." 2024.
   [[arXiv:2402.15343]](https://arxiv.org/abs/2402.15343)

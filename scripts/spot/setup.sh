@@ -279,7 +279,7 @@ export ANNO_SOURCE_DIR="$HOME/anno"
 mkdir -p "$CARGO_TARGET_DIR" "$SCCACHE_DIR"
 
 # Build anno with ONNX support (can be slow on fresh instances)
-# ONNX enables ML backends: gliner, gliner2, nuner, w2ner
+# ONNX enables ML backends: gliner, gliner_multitask, nuner, w2ner
 echo "Building anno with ONNX support..."
 cargo build --release -p anno-cli --bin anno --features "eval onnx" 2>&1 | tail -20
 

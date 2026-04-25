@@ -993,7 +993,7 @@ eval-local-quick:
 # ML-focused spot eval (ONNX/Candle backends only)
 spot-eval-ml:
     @uv run scripts/spot/orchestrate.py full \
-        --backends "gliner,nuner,w2ner,gliner2,bert_onnx,gliner_candle" \
+        --backends "gliner,nuner,w2ner,gliner_multitask,bert_onnx,gliner_candle" \
         --fleet-size 4
 
 # Sync local dataset/model cache to S3 (for spot instances)

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+- Renamed `gliner2` backend to `gliner_multitask` to match what it actually loads (`onnx-community/gliner-multitask-large-v0.5`, the GLiNER v1 multi-task model from Stepanov & Shtopko 2024). The `gliner2` name was a misnomer that conflated this backend with the unrelated fastino-ai GLiNER2 architecture (Zaratiana et al. 2025), which is not yet supported. Affects:
+  - Constants: `models::GLINER2` → `models::GLINER_MULTITASK`; `DEFAULT_GLINER2_MODEL` → `DEFAULT_GLINER_MULTITASK_MODEL`.
+  - Types: `GLiNER2Onnx` → `GLiNERMultitaskOnnx`; `GLiNER2Candle` → `GLiNERMultitaskCandle`; `GLiNER2` → `GLiNERMultitask`.
+  - Module: `anno::backends::gliner2` → `anno::backends::gliner_multitask`.
+  - CLI: `--model gliner2` → `--model gliner_multitask`; `--model gliner2_candle` → `--model gliner_multitask_candle`. Backend strings in eval harness, scripts, and docs updated similarly.
+  - Eval harness: `register_gliner2(_default)` → `register_gliner_multitask(_default)`. `register_gliner_multitask_default` now correctly defaults to `DEFAULT_GLINER_MULTITASK_MODEL` (was previously calling itself with `fastino/gliner2-base-v1`, which never loaded).
+  - References: README.md and `docs/REFERENCES.md` re-attributed to Stepanov & Shtopko 2024 (arXiv:2406.12925); fastino-ai GLiNER2 (Zaratiana et al. 2025, arXiv:2507.18546) listed as distinct architecture not yet wired.
+
+### Fixed
+- `NuNER::as_zero_shot` no longer fails to compile under `--no-default-features` (cfg-gating mismatch with the `onnx`-gated `ZeroShotNER` impl).
+- Cleaned up several pre-existing warnings: unused `EntityCategory` import in `tplinker.rs` (now `cfg`-gated), unused-macro warning on `define_feature_stub`, missing-docs on stub `GLiREL`/`GLiNERPoly` structs, dead-code on `local_model_cache_candidates` (now `cfg`-gated).
+
+### Added
+- `CONTRIBUTING.md`: dev setup, workspace layout, where backends live, feature flag map, style and PR guidance.
+
 ## [0.6.0] - 2026-04-16
 
 ### Added

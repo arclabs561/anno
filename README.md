@@ -178,7 +178,7 @@ All examples live in `crates/anno/examples/`. Run with `cargo run --example <nam
 [8] Devlin et al., *NAACL* 2019 (BERT).
 [9] Lafferty et al., *ICML* 2001 (CRF).
 [10] Wang et al., *COLING* 2020 (TPLinker).
-[11] Zaratiana et al., 2025 (GLiNER2).
+[11] Stepanov & Shtopko, 2024 (GLiNER multi-task).
 [12] Rabiner, *Proc. IEEE* 1989 (HMM).
 
 Full list: [docs/REFERENCES.md](docs/REFERENCES.md). Citeable via [CITATION.cff](CITATION.cff).

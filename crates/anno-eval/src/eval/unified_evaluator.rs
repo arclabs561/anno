@@ -21,7 +21,7 @@
 //! let results = EvalSystem::new()
 //!     .with_tasks(vec![Task::NER])
 //!     .with_datasets(vec![])  // All suitable datasets
-//!     .with_backends(vec!["gliner2".to_string()])
+//!     .with_backends(vec!["gliner_multitask".to_string()])
 //!     .run()?;
 //!
 //! println!("Standard F1: {:.1}%", results.standard.as_ref().map(|s| s.f1 * 100.0).unwrap_or(0.0));

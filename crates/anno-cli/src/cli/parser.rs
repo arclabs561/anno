@@ -221,9 +221,9 @@ pub enum ModelBackend {
     /// GLiNER via ONNX (enabled by default; disable with --no-default-features)
     #[cfg(feature = "onnx")]
     Gliner,
-    /// GLiNER2 multi-task (NER + classification + structure)
+    /// GLiNER multi-task (NER + classification + structure)
     #[cfg(feature = "onnx")]
-    Gliner2,
+    GlinerMultitask,
     /// NuNER
     #[cfg(feature = "onnx")]
     Nuner,
@@ -299,7 +299,7 @@ Use `--model gliner` instead."
                 #[cfg(feature = "onnx")]
                 Self::Gliner => "gliner_onnx",
                 #[cfg(feature = "onnx")]
-                Self::Gliner2 => "gliner2",
+                Self::GlinerMultitask => "gliner_multitask",
                 #[cfg(feature = "onnx")]
                 Self::Nuner => "nuner",
                 #[cfg(feature = "onnx")]
@@ -351,9 +351,9 @@ Use `--model gliner` instead."
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to load GLiNER: {}\n  Tip: Use 'anno models info gliner' to check model status.", e)),
                 #[cfg(feature = "onnx")]
-                Self::Gliner2 => anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
+                Self::GlinerMultitask => anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                    .map_err(|e| format!("Failed to load GLiNER2: {}\n  Tip: Use 'anno models info gliner2' to check model status.", e)),
+                    .map_err(|e| format!("Failed to load GLiNER multi-task: {}\n  Tip: Use 'anno models info gliner_multitask' to check model status.", e)),
                 #[cfg(feature = "onnx")]
                 Self::Nuner => anno::backends::nuner::NuNER::from_pretrained(anno::DEFAULT_NUNER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
@@ -373,7 +373,7 @@ Use `--model gliner` instead."
                              3. For HuggingFace models, set HF_TOKEN and request model access\n\n\
                              Alternatives:\n\
                              - Use --model gliner for zero-shot NER\n\
-                             - Use --model gliner2 for nested entity support",
+                             - Use --model gliner_multitask for nested entity support",
                             e
                         ))
                 }
@@ -438,7 +438,7 @@ Use `--model gliner` instead."
                 #[cfg(feature = "onnx")]
                 Self::GlinerRelex => anno::GLiNEROnnx::new(anno::models::GLINER_RELEX)
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
-                    .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Use --model gliner2 for multi-task NER+RE.")),
+                    .map_err(|e| format!("GLiNER-RelEx failed: {e}\n  Tip: Use --model gliner_multitask for multi-task NER+RE.")),
                 #[cfg(feature = "onnx")]
                 Self::GlinerPoly => unreachable!("rejected above"),
                 // Candle
@@ -482,16 +482,18 @@ Use `--model gliner` instead."
                     .map_err(|e| format!("Failed to create TPLinker: {}", e)),
             ),
             #[cfg(feature = "onnx")]
-            Self::Gliner2 => Some(
-                anno::backends::gliner2::GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
-                    .map(|m| Box::new(m) as Box<dyn anno::RelationExtractor>)
-                    .map_err(|e| {
-                        format!(
-                            "Failed to load GLiNER2 for relation extraction: {}\n  \
-                             Tip: Use 'anno models info gliner2' to check model status.",
-                            e
-                        )
-                    }),
+            Self::GlinerMultitask => Some(
+                anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
+                    anno::DEFAULT_GLINER_MULTITASK_MODEL,
+                )
+                .map(|m| Box::new(m) as Box<dyn anno::RelationExtractor>)
+                .map_err(|e| {
+                    format!(
+                        "Failed to load GLiNER multi-task for relation extraction: {}\n  \
+                             Tip: Use 'anno models info gliner_multitask' to check model status.",
+                        e
+                    )
+                }),
             ),
             _ => None,
         }
@@ -516,7 +518,7 @@ Use `--model gliner` instead."
             #[cfg(feature = "onnx")]
             Self::Gliner => "gliner",
             #[cfg(feature = "onnx")]
-            Self::Gliner2 => "gliner2",
+            Self::GlinerMultitask => "gliner_multitask",
             #[cfg(feature = "onnx")]
             Self::Nuner => "nuner",
             #[cfg(feature = "onnx")]
@@ -630,7 +632,7 @@ mod tests {
         let gliner_name = ModelBackend::Gliner.name();
         assert_eq!(gliner_name, "gliner");
 
-        let gliner2_name = ModelBackend::Gliner2.name();
-        assert_eq!(gliner2_name, "gliner2");
+        let gliner_multitask_name = ModelBackend::GlinerMultitask.name();
+        assert_eq!(gliner_multitask_name, "gliner_multitask");
     }
 }

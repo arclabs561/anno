@@ -58,8 +58,8 @@ Extract typed `(head, relation, tail)` triples with a `RelationCapable` backend:
 anno extract --extract-relations --model tplinker \
   --text "Steve Jobs founded Apple in 1976."
 
-# gliner2: zero-shot entity types + heuristic relations (requires onnx)
-anno extract --extract-relations --model gliner2 \
+# gliner_multitask: zero-shot entity types + heuristic relations (requires onnx)
+anno extract --extract-relations --model gliner_multitask \
   --relation-types "FOUNDED,WORKS_FOR" \
   --text "Steve Jobs founded Apple in 1976."
 ```

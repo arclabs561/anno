@@ -45,6 +45,7 @@
 /// - `impl $Name { pub fn new(...) -> Result<Self> { Err(...) } }`
 /// - `impl Model for $Name { ... }` (extract_entities returns error, is_available = false)
 /// - Optional: `impl ZeroShotNER`
+#[allow(unused_macros)]
 macro_rules! define_feature_stub {
     (
         $(#[$meta:meta])*
@@ -177,5 +178,7 @@ macro_rules! _impl_stub_methods {
 // Re-export macros so they can be used as `crate::backends::macros::define_feature_stub!`
 #[allow(unused_imports)]
 pub(crate) use _impl_stub_methods;
+#[allow(unused_imports)]
 pub(crate) use _impl_stub_traits;
+#[allow(unused_imports)]
 pub(crate) use define_feature_stub;

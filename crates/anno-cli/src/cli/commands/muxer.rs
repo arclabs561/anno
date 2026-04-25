@@ -1462,7 +1462,7 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
                 "gliner"
                     | "gliner_onnx"
                     | "gliner_candle"
-                    | "gliner2"
+                    | "gliner_multitask"
                     | "gliner_poly"
                     | "bert_onnx"
                     | "deberta_v3"

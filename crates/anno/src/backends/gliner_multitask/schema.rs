@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-//! GLiNER2 shared schema types: task definition, extraction results, caches.
+//! GLiNER multi-task shared schema types: task definition, extraction results, caches.
 //!
 //! These are feature-agnostic — imported by both the ONNX and Candle backends.
 

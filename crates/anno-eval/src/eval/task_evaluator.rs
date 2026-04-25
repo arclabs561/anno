@@ -105,7 +105,7 @@ enum CachedBackend {
     #[cfg(feature = "onnx")]
     GLiNEROnnx(anno::backends::gliner_onnx::GLiNEROnnx),
     #[cfg(feature = "onnx")]
-    GLiNER2Onnx(anno::backends::gliner2::GLiNER2Onnx),
+    GLiNERMultitaskOnnx(anno::backends::gliner_multitask::GLiNERMultitaskOnnx),
     #[cfg(feature = "candle")]
     GLiNERCandle(anno::backends::gliner_candle::GLiNERCandle),
     #[cfg(feature = "onnx")]
@@ -900,7 +900,7 @@ impl TaskEvaluator {
             }
             // ML backends are zero-shot or trained, so compatible
             "bert_onnx" | "candle_ner" | "nuner" | "nuner_4k" | "b2ner" | "gliner_onnx"
-            | "gliner_candle" | "gliner2" | "gliner_pii" | "gliner_relex" | "w2ner"
+            | "gliner_candle" | "gliner_multitask" | "gliner_pii" | "gliner_relex" | "w2ner"
             | "gliner_poly" | "deberta_v3" | "albert" | "universal_ner" => true,
             // Pattern only does structured entities (not named entities)
             "pattern" => {
@@ -1090,7 +1090,12 @@ impl TaskEvaluator {
         // Check if this is a zero-shot backend that needs custom labels
         let is_zero_shot = matches!(
             backend_name.to_lowercase().as_str(),
-            "nuner" | "gliner_onnx" | "gliner_candle" | "gliner2" | "gliner_poly" | "universal_ner"
+            "nuner"
+                | "gliner_onnx"
+                | "gliner_candle"
+                | "gliner_multitask"
+                | "gliner_poly"
+                | "universal_ner"
         );
 
         // Process sentences (parallel if rayon is available, sequential otherwise)
@@ -1546,7 +1551,7 @@ impl TaskEvaluator {
                         backend_lower.as_str(),
                         "gliner_onnx"
                             | "gliner_candle"
-                            | "gliner2"
+                            | "gliner_multitask"
                             | "gliner_poly"
                             | "universal_ner"
                     ) =>
@@ -1597,15 +1602,16 @@ impl TaskEvaluator {
                 "GLiNER requires the 'onnx' feature".to_string(),
             )),
             #[cfg(feature = "onnx")]
-            "gliner2" => {
-                use crate::DEFAULT_GLINER2_MODEL;
-                use anno::backends::gliner2::GLiNER2Onnx;
-                let gliner2 = GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?;
-                Ok(CachedBackend::GLiNER2Onnx(gliner2))
+            "gliner_multitask" => {
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                let gliner_multitask =
+                    GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)?;
+                Ok(CachedBackend::GLiNERMultitaskOnnx(gliner_multitask))
             }
             #[cfg(not(feature = "onnx"))]
-            "gliner2" => Err(crate::Error::FeatureNotAvailable(
-                "GLiNER2 requires the 'onnx' feature".to_string(),
+            "gliner_multitask" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER multi-task requires the 'onnx' feature".to_string(),
             )),
             #[cfg(feature = "candle")]
             "gliner_candle" => {
@@ -1675,18 +1681,19 @@ impl TaskEvaluator {
                     ))
                 }
             }
-            "gliner2" => {
+            "gliner_multitask" => {
                 #[cfg(feature = "onnx")]
                 {
-                    use crate::DEFAULT_GLINER2_MODEL;
-                    use anno::backends::gliner2::GLiNER2Onnx;
-                    let gliner2 = GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?;
-                    Ok(Box::new(gliner2))
+                    use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                    use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                    let gliner_multitask =
+                        GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)?;
+                    Ok(Box::new(gliner_multitask))
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
-                        "GLiNER2 requires the 'onnx' feature".to_string(),
+                        "GLiNER multi-task requires the 'onnx' feature".to_string(),
                     ))
                 }
             }
@@ -1758,10 +1765,10 @@ impl TaskEvaluator {
                 result
             }
             #[cfg(feature = "onnx")]
-            CachedBackend::GLiNER2Onnx(gliner2) => {
-                use anno::backends::gliner2::TaskSchema;
+            CachedBackend::GLiNERMultitaskOnnx(gliner_multitask) => {
+                use anno::backends::gliner_multitask::TaskSchema;
                 let schema = TaskSchema::new().with_entities(&label_strs);
-                let result = gliner2.extract(text, &schema)?;
+                let result = gliner_multitask.extract(text, &schema)?;
                 Ok(result.entities)
             }
             #[cfg(feature = "candle")]
@@ -1836,18 +1843,19 @@ impl TaskEvaluator {
                     ))
                 }
             }
-            "gliner2" => {
+            "gliner_multitask" => {
                 #[cfg(feature = "onnx")]
                 {
-                    use anno::backends::gliner2::TaskSchema;
-                    if let Some(gliner2) =
-                        cached.downcast_ref::<anno::backends::gliner2::GLiNER2Onnx>()
+                    use anno::backends::gliner_multitask::TaskSchema;
+                    if let Some(gliner_multitask) =
+                        cached
+                            .downcast_ref::<anno::backends::gliner_multitask::GLiNERMultitaskOnnx>()
                     {
                         let schema = TaskSchema::new().with_entities(&label_strs);
-                        let result = gliner2.extract(text, &schema);
-                        if std::env::var("ANNO_DEBUG_GLINER2").is_ok() {
+                        let result = gliner_multitask.extract(text, &schema);
+                        if std::env::var("ANNO_DEBUG_GLINER_MULTITASK").is_ok() {
                             eprintln!(
-                                "DEBUG gliner2: text={:?} labels={:?} result={:?}",
+                                "DEBUG gliner_multitask: text={:?} labels={:?} result={:?}",
                                 &text[..text.len().min(50)],
                                 label_strs,
                                 result.as_ref().map(|r| r.entities.len())
@@ -1855,18 +1863,18 @@ impl TaskEvaluator {
                         }
                         Ok(result?.entities)
                     } else {
-                        if std::env::var("ANNO_DEBUG_GLINER2").is_ok() {
-                            eprintln!("DEBUG gliner2: downcast FAILED");
+                        if std::env::var("ANNO_DEBUG_GLINER_MULTITASK").is_ok() {
+                            eprintln!("DEBUG gliner_multitask: downcast FAILED");
                         }
                         Err(crate::Error::InvalidInput(
-                            "Failed to downcast cached GLiNER2 backend".to_string(),
+                            "Failed to downcast cached GLiNER multi-task backend".to_string(),
                         ))
                     }
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
                     Err(crate::Error::FeatureNotAvailable(
-                        "GLiNER2 requires the 'onnx' feature".to_string(),
+                        "GLiNER multi-task requires the 'onnx' feature".to_string(),
                     ))
                 }
             }
@@ -2555,20 +2563,20 @@ impl TaskEvaluator {
         let mut all_predicted_relations: Vec<RelationPrediction> = Vec::new();
 
         // Extract relations using RelationExtractor if backend supports it
-        // GLiNER2 backends implement RelationExtractor
+        // GLiNER multi-task backends implement RelationExtractor
         use anno::backends::inference::RelationExtractor;
 
         // Try to create RelationExtractor instance for relation extraction backends
         let relation_extractor: Option<Box<dyn RelationExtractor>> = match backend_name {
             #[cfg(feature = "onnx")]
-            "gliner2" | "gliner2onnx" => {
-                use crate::DEFAULT_GLINER2_MODEL;
-                use anno::backends::gliner2::GLiNER2Onnx;
-                match GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL) {
+            "gliner_multitask" | "gliner_multitask_onnx" => {
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                match GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL) {
                     Ok(extractor) => Some(Box::new(extractor) as Box<dyn RelationExtractor>),
                     Err(e) => {
                         eprintln!(
-                            "Warning: Failed to create GLiNER2Onnx for relation extraction: {}",
+                            "Warning: Failed to create GLiNER multi-task (ONNX) for relation extraction: {}",
                             e
                         );
                         None
@@ -2576,14 +2584,14 @@ impl TaskEvaluator {
                 }
             }
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            "gliner2_candle" | "gliner2candle" => {
-                use crate::DEFAULT_GLINER2_MODEL;
-                use anno::backends::gliner2::GLiNER2Candle;
-                match GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL) {
+            "gliner_multitask_candle" => {
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
+                match GLiNERMultitaskCandle::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL) {
                     Ok(extractor) => Some(Box::new(extractor) as Box<dyn RelationExtractor>),
                     Err(e) => {
                         eprintln!(
-                            "Warning: Failed to create GLiNER2Candle for relation extraction: {}",
+                            "Warning: Failed to create GLiNER multi-task (Candle) for relation extraction: {}",
                             e
                         );
                         None
@@ -2733,7 +2741,7 @@ impl TaskEvaluator {
                         }
 
                         // If the backend's NER produces no entities (common for cross-lingual
-                        // datasets like CHisIEC when using an English GLiNER2 model), fall back to
+                        // datasets like CHisIEC when using an English GLiNER multi-task model), fall back to
                         // an “oracle entities” baseline: use the gold entity spans/types as the
                         // candidate entity set, then run our lightweight relation heuristics.
                         //
@@ -2741,12 +2749,12 @@ impl TaskEvaluator {
                         // matrix/muxer signal usable, without pretending the NER step worked.
                         // Scope this fallback narrowly:
                         // - only for CHisIEC (cross-lingual classical Chinese)
-                        // - only for GLiNER2 (English NER tends to produce zero entities there)
+                        // - only for GLiNER multi-task (English NER tends to produce zero entities there)
                         //
                         // This keeps the eval non-degenerate *without* collapsing backend
                         // differences for other arms (e.g. `tplinker`).
                         if dataset_data.id == DatasetId::CHisIEC
-                            && backend_name.starts_with("gliner2")
+                            && backend_name.starts_with("gliner_multitask")
                             && allow_oracle_entities
                             && extraction.entities.is_empty()
                             && !doc.relations.is_empty()
@@ -2929,15 +2937,14 @@ impl TaskEvaluator {
         dataset_data: &LoadedDataset,
         _config: &TaskEvalConfig,
     ) -> Result<HashMap<String, f64>> {
-        // For now, only GLiNER2 is wired for classification in this repo.
+        // For now, only GLiNER multi-task is wired for classification in this repo.
         let backend_name_norm = backend_name.to_lowercase();
-        if backend_name_norm != "gliner2"
-            && backend_name_norm != "gliner2onnx"
-            && backend_name_norm != "gliner2_candle"
-            && backend_name_norm != "gliner2candle"
+        if backend_name_norm != "gliner_multitask"
+            && backend_name_norm != "gliner_multitask_onnx"
+            && backend_name_norm != "gliner_multitask_candle"
         {
             return Err(crate::Error::InvalidInput(format!(
-                "Text classification currently only supports gliner2 backends (got {})",
+                "Text classification currently only supports gliner_multitask backends (got {})",
                 backend_name
             )));
         }
@@ -2970,7 +2977,7 @@ impl TaskEvaluator {
                 dataset
             )));
         }
-        // If we don't have any compiled gliner2 backend (neither onnx nor candle),
+        // If we don't have any compiled gliner_multitask backend (neither onnx nor candle),
         // classification is not available even if `eval` is enabled.
         #[cfg(any(feature = "onnx", feature = "candle"))]
         {
@@ -2980,11 +2987,14 @@ impl TaskEvaluator {
 
             // Create backend instance for classification.
             #[cfg(feature = "onnx")]
-            let extractor = if backend_name_norm == "gliner2" || backend_name_norm == "gliner2onnx"
+            let extractor = if backend_name_norm == "gliner_multitask"
+                || backend_name_norm == "gliner_multitask_onnx"
             {
-                use crate::DEFAULT_GLINER2_MODEL;
-                use anno::backends::gliner2::GLiNER2Onnx;
-                Some(GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)?)
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                Some(GLiNERMultitaskOnnx::from_pretrained(
+                    DEFAULT_GLINER_MULTITASK_MODEL,
+                )?)
             } else {
                 None
             };
@@ -2992,26 +3002,29 @@ impl TaskEvaluator {
             let extractor: Option<()> = None;
 
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            let extractor_candle =
-                if backend_name_norm == "gliner2_candle" || backend_name_norm == "gliner2candle" {
-                    use crate::DEFAULT_GLINER2_MODEL;
-                    use anno::backends::gliner2::GLiNER2Candle;
-                    Some(GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL)?)
-                } else {
-                    None
-                };
+            let extractor_candle = if backend_name_norm == "gliner_multitask_candle"
+                || backend_name_norm == "gliner_multitask_candle"
+            {
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
+                Some(GLiNERMultitaskCandle::from_pretrained(
+                    DEFAULT_GLINER_MULTITASK_MODEL,
+                )?)
+            } else {
+                None
+            };
             #[cfg(not(all(feature = "candle", feature = "onnx")))]
             let extractor_candle: Option<()> = None;
 
             if extractor.is_none() && extractor_candle.is_none() {
                 return Err(crate::Error::FeatureNotAvailable(
-                    "Text classification requires a gliner2 backend with 'onnx' (and optionally 'candle') enabled"
+                    "Text classification requires a gliner_multitask backend with 'onnx' (and optionally 'candle') enabled"
                         .to_string(),
                 ));
             }
 
             #[cfg(feature = "onnx")]
-            let schema = anno::backends::gliner2::TaskSchema::new().with_classification(
+            let schema = anno::backends::gliner_multitask::TaskSchema::new().with_classification(
                 "topic",
                 &label_refs,
                 false,
@@ -3038,8 +3051,8 @@ impl TaskEvaluator {
                 }
 
                 #[cfg(feature = "onnx")]
-                let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor {
-                    let r = gliner2.extract(&text, &schema)?;
+                let pred_labels: Vec<String> = if let Some(ref gliner_multitask) = extractor {
+                    let r = gliner_multitask.extract(&text, &schema)?;
                     r.classifications
                         .get("topic")
                         .map(|c| c.labels.clone())
@@ -3048,8 +3061,9 @@ impl TaskEvaluator {
                     Vec::new()
                 };
                 #[cfg(all(feature = "candle", feature = "onnx"))]
-                let pred_labels: Vec<String> = if let Some(ref gliner2) = extractor_candle {
-                    let r = gliner2.extract(&text, &schema)?;
+                let pred_labels: Vec<String> = if let Some(ref gliner_multitask) = extractor_candle
+                {
+                    let r = gliner_multitask.extract(&text, &schema)?;
                     r.classifications
                         .get("topic")
                         .map(|c| c.labels.clone())
@@ -3079,7 +3093,7 @@ impl TaskEvaluator {
         #[cfg(not(any(feature = "onnx", feature = "candle")))]
         {
             Err(crate::Error::FeatureNotAvailable(
-                "Text classification requires a gliner2 backend with 'onnx' or 'candle' enabled"
+                "Text classification requires a gliner_multitask backend with 'onnx' or 'candle' enabled"
                     .to_string(),
             ))
         }
@@ -3700,7 +3714,12 @@ impl TaskEvaluator {
         // Check if this is a zero-shot backend
         let is_zero_shot = matches!(
             backend_name.to_lowercase().as_str(),
-            "nuner" | "gliner_onnx" | "gliner_candle" | "gliner2" | "gliner_poly" | "universal_ner"
+            "nuner"
+                | "gliner_onnx"
+                | "gliner_candle"
+                | "gliner_multitask"
+                | "gliner_poly"
+                | "universal_ner"
         );
 
         if !is_zero_shot {
@@ -3834,7 +3853,12 @@ impl TaskEvaluator {
         let mapped_labels = Self::map_dataset_labels_to_model(dataset_labels, backend_name);
         let is_zero_shot = matches!(
             backend_name.to_lowercase().as_str(),
-            "nuner" | "gliner_onnx" | "gliner_candle" | "gliner2" | "gliner_poly" | "universal_ner"
+            "nuner"
+                | "gliner_onnx"
+                | "gliner_candle"
+                | "gliner_multitask"
+                | "gliner_poly"
+                | "universal_ner"
         );
 
         for sentence in sample {
@@ -4493,8 +4517,8 @@ mod tests {
     }
 
     #[test]
-    fn test_gliner2_capabilities() {
-        let tasks = crate::eval::task_mapping::backend_tasks("gliner2");
+    fn test_gliner_multitask_capabilities() {
+        let tasks = crate::eval::task_mapping::backend_tasks("gliner_multitask");
         assert!(tasks.contains(&Task::NER));
         assert!(tasks.contains(&Task::RelationExtraction));
         assert!(tasks.contains(&Task::TextClassification));

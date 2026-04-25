@@ -43,7 +43,7 @@ pub enum BackendName {
     W2NER,
     /// GLiNER v2 zero-shot NER via ONNX runtime.
     #[cfg(feature = "onnx")]
-    GLiNER2,
+    GLiNERMultitask,
     /// GLiNER with polynomial attention via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERPoly,
@@ -66,7 +66,7 @@ pub enum BackendName {
     GLiNERCandle,
     /// GLiNER v2 via Candle (pure Rust inference).
     #[cfg(feature = "candle")]
-    GLiNER2Candle,
+    GLiNERMultitaskCandle,
 
     // Coreference
     /// Coreference resolution backend.
@@ -96,7 +96,7 @@ impl BackendName {
             #[cfg(feature = "onnx")]
             BackendName::W2NER => "w2ner",
             #[cfg(feature = "onnx")]
-            BackendName::GLiNER2 => "gliner2",
+            BackendName::GLiNERMultitask => "gliner_multitask",
             #[cfg(feature = "onnx")]
             BackendName::GLiNERPoly => "gliner_poly",
             #[cfg(feature = "onnx")]
@@ -110,7 +110,7 @@ impl BackendName {
             #[cfg(feature = "candle")]
             BackendName::GLiNERCandle => "gliner_candle",
             #[cfg(feature = "candle")]
-            BackendName::GLiNER2Candle => "gliner2_candle",
+            BackendName::GLiNERMultitaskCandle => "gliner_multitask_candle",
             BackendName::CorefResolver => "coref_resolver",
             BackendName::UniversalNER => "universal_ner",
         }
@@ -136,7 +136,7 @@ impl BackendName {
             #[cfg(feature = "onnx")]
             "w2ner" => Some(BackendName::W2NER),
             #[cfg(feature = "onnx")]
-            "gliner2" | "gliner2onnx" => Some(BackendName::GLiNER2),
+            "gliner_multitask" | "gliner_multitask_onnx" => Some(BackendName::GLiNERMultitask),
             #[cfg(feature = "onnx")]
             "gliner_poly" | "glinerpoly" => Some(BackendName::GLiNERPoly),
             #[cfg(feature = "onnx")]
@@ -150,7 +150,7 @@ impl BackendName {
             #[cfg(feature = "candle")]
             "gliner_candle" | "glinercandle" => Some(BackendName::GLiNERCandle),
             #[cfg(feature = "candle")]
-            "gliner2_candle" | "gliner2candle" => Some(BackendName::GLiNER2Candle),
+            "gliner_multitask_candle" => Some(BackendName::GLiNERMultitaskCandle),
             "coref_resolver" | "corefresolver" | "simplecorefresolver" => {
                 Some(BackendName::CorefResolver)
             }
@@ -181,7 +181,7 @@ impl BackendName {
                 BackendName::GLiNEROnnx,
                 BackendName::NuNER,
                 BackendName::W2NER,
-                BackendName::GLiNER2,
+                BackendName::GLiNERMultitask,
                 BackendName::GLiNERPoly,
                 BackendName::DeBERTaV3,
                 BackendName::ALBERT,
@@ -196,7 +196,7 @@ impl BackendName {
 
         #[cfg(all(feature = "candle", feature = "onnx"))]
         {
-            backends.push(BackendName::GLiNER2Candle);
+            backends.push(BackendName::GLiNERMultitaskCandle);
         }
 
         backends

@@ -82,7 +82,7 @@ BACKENDS_ZERO_DEP = [
 BACKENDS_ONNX = [
     # Require ONNX runtime + models (feature: onnx)
     "gliner",      # GLiNER multi-v2.1
-    "gliner2",     # GLiNER v2 variant
+    "gliner_multitask",     # GLiNER multi-task variant
     "nuner",       # NuNER model
     # "w2ner",     # W2NER (if model available)
     # "bert_onnx", # BERT-based NER (if model available)

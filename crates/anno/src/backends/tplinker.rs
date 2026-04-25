@@ -54,7 +54,9 @@
 //! ```
 
 use crate::backends::inference::{ExtractionWithRelations, RelationExtractor};
-use crate::{Confidence, Entity, EntityCategory, EntityType, Language, Model, Result};
+#[cfg(feature = "onnx")]
+use crate::EntityCategory;
+use crate::{Confidence, Entity, EntityType, Language, Model, Result};
 use std::borrow::Cow;
 
 // =============================================================================

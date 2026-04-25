@@ -186,12 +186,12 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &["protectai/bert-base-NER-onnx"],
     },
     BackendInfo {
-        name: "gliner2",
+        name: "gliner_multitask",
         feature: Some("onnx"),
         status: BackendStatus::Beta,
         zero_shot: true,
         gpu_support: true,
-        description: "GLiNER2 multi-task (NER + heuristic relations + structure)",
+        description: "GLiNER multi-task (NER + heuristic relations + structure)",
         recommended_models: &["onnx-community/gliner-multitask-large-v0.5"],
     },
     BackendInfo {
@@ -367,7 +367,14 @@ mod tests {
     #[test]
     fn test_catalog_feature_gated_backends() {
         // ML backends should require a feature
-        let ml_names = ["bert_onnx", "gliner", "nuner", "gliner2", "w2ner", "candle"];
+        let ml_names = [
+            "bert_onnx",
+            "gliner",
+            "nuner",
+            "gliner_multitask",
+            "w2ner",
+            "candle",
+        ];
         for name in ml_names {
             if let Some(info) = BackendInfo::by_name(name) {
                 assert!(info.feature.is_some(), "{} should be feature-gated", name);
@@ -393,7 +400,13 @@ mod tests {
     #[test]
     fn test_catalog_zero_shot_backends() {
         // Known zero-shot backends
-        let zs_names = ["gliner", "nuner", "gliner2", "gliner_poly", "gliner_pii"];
+        let zs_names = [
+            "gliner",
+            "nuner",
+            "gliner_multitask",
+            "gliner_poly",
+            "gliner_pii",
+        ];
         for name in zs_names {
             if let Some(info) = BackendInfo::by_name(name) {
                 assert!(info.zero_shot, "{} should be zero-shot", name);

@@ -870,7 +870,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             println!("  Documents: {}", gold_docs.len());
                             println!();
 
-                            // Try to use RelationExtractor if available (e.g., GLiNER2)
+                            // Try to use RelationExtractor if available (e.g., GLiNERMultitask)
                             // Otherwise fall back to entity-pair heuristic
 
                             // Collect entity types and relation types from gold data
@@ -903,14 +903,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 Box<dyn RelationExtractor>,
                             )> = match model {
                                 #[cfg(feature = "onnx")]
-                                ModelBackend::Gliner2 => {
-                                    anno::backends::gliner2::GLiNER2Onnx::from_pretrained(
+                                ModelBackend::GlinerMultitask => {
+                                    anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
                                         "onnx-community/gliner-multitask-large-v0.5",
                                     )
                                     .ok()
                                     .map(|m| {
                                         (
-                                            "gliner2".to_string(),
+                                            "gliner_multitask".to_string(),
                                             Box::new(m) as Box<dyn RelationExtractor>,
                                         )
                                     })
@@ -973,10 +973,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                     })
                                                     .unwrap_or(true);
 
-                                            let is_gliner2 = {
+                                            let is_gliner_multitask = {
                                                 #[cfg(feature = "onnx")]
                                                 {
-                                                    matches!(model, ModelBackend::Gliner2)
+                                                    matches!(model, ModelBackend::GlinerMultitask)
                                                 }
                                                 #[cfg(not(feature = "onnx"))]
                                                 {
@@ -984,7 +984,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                                 }
                                             };
                                             if dataset_id == DatasetId::CHisIEC
-                                                && is_gliner2
+                                                && is_gliner_multitask
                                                 && allow_oracle_entities
                                                 && result.entities.is_empty()
                                                 && !doc.relations.is_empty()

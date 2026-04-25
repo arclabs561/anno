@@ -283,10 +283,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 (out.entities, out.relations)
             }
             #[cfg(feature = "onnx")]
-            ModelBackend::Gliner2 => {
-                use anno::backends::gliner2::GLiNER2Onnx;
-                let re = GLiNER2Onnx::from_pretrained(anno::DEFAULT_GLINER2_MODEL)
-                    .map_err(|e| CliError::from(format!("Failed to init gliner2: {}", e)))?;
+            ModelBackend::GlinerMultitask => {
+                use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                let re = GLiNERMultitaskOnnx::from_pretrained(anno::DEFAULT_GLINER_MULTITASK_MODEL)
+                    .map_err(|e| {
+                        CliError::from(format!("Failed to init gliner_multitask: {}", e))
+                    })?;
                 let out = re
                     .extract_with_relations(&text, &entity_schema, &rel_schema, relation_threshold)
                     .map_err(|e| CliError::from(format!("Relation extraction failed: {}", e)))?;
@@ -386,7 +388,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     #[cfg(feature = "onnx")]
     if entities.is_empty()
         && extract_types.is_none()
-        && matches!(args.model, ModelBackend::Gliner | ModelBackend::Gliner2)
+        && matches!(
+            args.model,
+            ModelBackend::Gliner | ModelBackend::GlinerMultitask
+        )
         && !args.quiet
     {
         eprintln!(
@@ -913,11 +918,13 @@ fn extract_with_custom_types(
                     .extract_with_types(text, &type_refs, threshold)
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
             }
-            ModelBackend::Gliner2 => {
-                let model = anno::backends::gliner2::GLiNER2Onnx::from_pretrained(
-                    anno::DEFAULT_GLINER2_MODEL,
+            ModelBackend::GlinerMultitask => {
+                let model = anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
+                    anno::DEFAULT_GLINER_MULTITASK_MODEL,
                 )
-                .map_err(|e| CliError::from(format!("Failed to create GLiNER2 model: {}", e)))?;
+                .map_err(|e| {
+                    CliError::from(format!("Failed to create GLiNER multi-task model: {}", e))
+                })?;
                 return model
                     .extract_with_types(text, &type_refs, threshold)
                     .map_err(|e| CliError::from(format!("Zero-shot extraction failed: {}", e)));
@@ -940,7 +947,7 @@ fn extract_with_custom_types(
     // Fallback: warn and use standard extraction
     if !quiet {
         eprintln!(
-            "{} --extract-types requires --model gliner, --model gliner2, or --model nuner. Ignoring custom types.",
+            "{} --extract-types requires --model gliner, --model gliner_multitask, or --model nuner. Ignoring custom types.",
             color("33", "warning:")
         );
     }

@@ -367,7 +367,7 @@ impl W2NER {
                              - Or export manually and set W2NER_MODEL_PATH to the export directory\n\
                              \n\
                              If you have HF_TOKEN set, ensure you've requested and received access to this model.\n\
-                             Alternative: Use nuner, gliner2, or other available NER backends.\n\
+                             Alternative: Use nuner, gliner_multitask, or other available NER backends.\n\
                              \n\
                              Original error: {e}",
                             model_path, model_path

@@ -287,43 +287,43 @@ impl BackendRegistry {
         }
     }
 
-    /// Register GLiNER2 multi-task model.
+    /// Register GLiNER multi-task model.
     ///
-    /// GLiNER2 supports:
+    /// Loads `knowledgator/gliner-multitask-large-v0.5` (Stepanov & Shtopko 2024,
+    /// arXiv:2406.12925), which extends GLiNER v1 to multiple tasks via task-conditioned
+    /// label prompts:
     /// - Zero-shot NER with arbitrary entity types
     /// - Text classification (single/multi-label)
     /// - Hierarchical structure extraction
     ///
+    /// Note: this is NOT the fastino-ai GLiNER2 architecture (Zaratiana et al. 2025,
+    /// arXiv:2507.18546). `fastino/gliner2-*` models will not load through this backend
+    /// (different special tokens, different head structure). See issue #17.
+    ///
     /// Requires either `onnx` or `candle` feature.
     #[cfg(any(feature = "onnx", feature = "candle"))]
-    pub fn register_gliner2(&mut self, model_id: &str) {
-        use crate::backends::gliner2::GLiNER2;
+    pub fn register_gliner_multitask(&mut self, model_id: &str) {
+        use crate::backends::gliner_multitask::GLiNERMultitask;
 
-        match GLiNER2::from_pretrained(model_id) {
+        match GLiNERMultitask::from_pretrained(model_id) {
             Ok(model) => {
                 self.register(
-                    "GLiNER2",
+                    "GLiNERMultitask",
                     "Multi-task zero-shot NER, classification, structure",
                     Box::new(model),
                 );
             }
             Err(e) => {
-                log::warn!("Failed to load GLiNER2 from {}: {}", model_id, e);
+                log::warn!("Failed to load GLiNER multi-task from {}: {}", model_id, e);
             }
         }
     }
 
-    /// Register GLiNER2 with default model.
-    ///
-    /// Uses the official Fastino Labs GLiNER2 model (EMNLP 2025).
-    /// See: <https://github.com/fastino-ai/GLiNER2>
-    ///
-    /// Alternative models:
-    /// - `fastino/gliner2-large-v1` (340M) for higher accuracy
-    /// - `knowledgator/gliner-multitask-large-v0.5` (older community model)
+    /// Register GLiNER multi-task with the default model
+    /// (`onnx-community/gliner-multitask-large-v0.5`).
     #[cfg(any(feature = "onnx", feature = "candle"))]
-    pub fn register_gliner2_default(&mut self) {
-        self.register_gliner2("fastino/gliner2-base-v1");
+    pub fn register_gliner_multitask_default(&mut self) {
+        self.register_gliner_multitask(anno::DEFAULT_GLINER_MULTITASK_MODEL);
     }
 
     /// Register a custom stacked combination of backends.

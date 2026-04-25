@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-//! GLiNER2 ONNX backend — inference engine and struct definition.
+//! GLiNER multi-task ONNX backend — inference engine and struct definition.
 //!
 //! Requires `--features onnx`. Trait implementations live in `super` (mod.rs).
 
@@ -19,11 +19,11 @@ use std::sync::Mutex;
 // ONNX Backend
 // =============================================================================
 
-/// GLiNER2 ONNX implementation.
-/// GLiNER2 ONNX implementation.
+/// GLiNER multi-task ONNX implementation.
+/// GLiNER multi-task ONNX implementation.
 #[cfg(feature = "onnx")]
 #[derive(Debug)]
-pub struct GLiNER2Onnx {
+pub struct GLiNERMultitaskOnnx {
     pub(super) session: Mutex<ort::session::Session>,
     tokenizer: tokenizers::Tokenizer,
     #[allow(dead_code)]
@@ -33,7 +33,7 @@ pub struct GLiNER2Onnx {
 }
 
 #[cfg(feature = "onnx")]
-impl GLiNER2Onnx {
+impl GLiNERMultitaskOnnx {
     /// Load model from HuggingFace Hub.
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;
@@ -58,11 +58,11 @@ impl GLiNER2Onnx {
             hf_loader::create_onnx_session(&model_path, hf_loader::OnnxSessionConfig::default())?;
 
         log::info!(
-            "[GLiNER2-ONNX] Loaded {} (hidden={})",
+            "[GLiNERMultitask-ONNX] Loaded {} (hidden={})",
             model_id,
             hidden_size
         );
-        log::debug!("[GLiNER2-ONNX] Model loaded");
+        log::debug!("[GLiNERMultitask-ONNX] Model loaded");
 
         Ok(Self {
             session: Mutex::new(session),
@@ -101,7 +101,7 @@ impl GLiNER2Onnx {
         Ok(result)
     }
 
-    /// Extract named entities using GLiNER2 NER format.
+    /// Extract named entities using GLiNER multi-task NER format.
     pub(super) fn extract_ner(
         &self,
         text: &str,
@@ -118,11 +118,11 @@ impl GLiNER2Onnx {
             return Ok(Vec::new());
         }
 
-        // Encode following GLiNER2 format: [P] entities ([E]type1 [E]type2 ...) [SEP] text
+        // Encode following GLiNER multi-task format: [P] entities ([E]type1 [E]type2 ...) [SEP] text
         let (input_ids, attention_mask, words_mask) =
             self.encode_ner_prompt(&text_words, entity_types)?;
 
-        // Build tensors - GLiNER2 ONNX model only needs 4 inputs:
+        // Build tensors - GLiNER multi-task ONNX model only needs 4 inputs:
         // input_ids, attention_mask, words_mask, text_lengths
         // (NOT span_idx/span_mask - those were for older model variants)
         use ndarray::Array2;
@@ -250,7 +250,7 @@ impl GLiNER2Onnx {
 
         if output_data.is_empty() || shape.contains(&0) {
             return Err(Error::Inference(
-                "GLiNER2 ONNX returned empty/degenerate output tensor. This usually indicates an incompatible ONNX export (shape mismatch or missing dynamic axes).".to_string(),
+                "GLiNER multi-task ONNX returned empty/degenerate output tensor. This usually indicates an incompatible ONNX export (shape mismatch or missing dynamic axes).".to_string(),
             ));
         }
 

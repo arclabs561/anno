@@ -43,11 +43,11 @@ pub enum ModelsAction {
     ///   via env vars (`DEBERTA_MODEL_PATH`, `ALBERT_MODEL_PATH`).
     #[command(visible_alias = "dl")]
     Download {
-        /// One or more model backends to download (e.g., gliner, gliner2, bert-onnx).
+        /// One or more model backends to download (e.g., gliner, gliner_multitask, bert-onnx).
         #[arg(value_name = "MODEL", required = true)]
         models: Vec<String>,
 
-        /// Also prefetch the GLiNER2 relation-extraction multitask model (when `gliner2` is included).
+        /// Also prefetch the GLiNER multi-task relation-extraction model (when `gliner_multitask` is included).
         #[arg(long, default_value_t = false)]
         include_relation: bool,
     },
@@ -70,7 +70,7 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
         #[cfg(feature = "onnx")]
         "gliner" | "gliner_onnx" => Some(ModelBackend::Gliner),
         #[cfg(feature = "onnx")]
-        "gliner2" => Some(ModelBackend::Gliner2),
+        "gliner_multitask" => Some(ModelBackend::GlinerMultitask),
         #[cfg(feature = "onnx")]
         "nuner" => Some(ModelBackend::Nuner),
         #[cfg(feature = "onnx")]
@@ -187,7 +187,7 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
                 #[cfg(feature = "onnx")]
                 "gliner" => ModelBackend::Gliner,
                 #[cfg(feature = "onnx")]
-                "gliner2" => ModelBackend::Gliner2,
+                "gliner_multitask" => ModelBackend::GlinerMultitask,
                 _ => {
                     println!("  Note: Detailed information not available for this model.");
                     return Ok(());
@@ -301,16 +301,18 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
                     }
                 }
 
-                // Optional: prefetch relation-capable GLiNER2 weights as well.
+                // Optional: prefetch relation-capable GLiNER multi-task weights as well.
                 #[cfg(feature = "onnx")]
                 {
                     use super::super::parser::ModelBackend;
 
-                    if _include_relation && matches!(backend, ModelBackend::Gliner2) {
+                    if _include_relation && matches!(backend, ModelBackend::GlinerMultitask) {
                         // Match the dataset CLI’s default relation model id.
                         let rel_id = "onnx-community/gliner-multitask-large-v0.5";
-                        print!("  {} gliner2(relation) ... ", color("36", "→"));
-                        match anno::backends::gliner2::GLiNER2Onnx::from_pretrained(rel_id) {
+                        print!("  {} gliner_multitask(relation) ... ", color("36", "→"));
+                        match anno::backends::gliner_multitask::GLiNERMultitaskOnnx::from_pretrained(
+                            rel_id,
+                        ) {
                             Ok(_m) => println!("{}", color("32", "ok")),
                             Err(e) => {
                                 any_err = true;

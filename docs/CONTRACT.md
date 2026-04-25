@@ -7,7 +7,7 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 `anno` turns **UTF-8 text** into **structured extractions**:
 
 - **NER**: span detection + entity typing (fixed or zero-shot custom types)
-- **Relation extraction**: typed `(head, relation, tail)` triples; available on `RelationCapable` backends (`tplinker`, `gliner2`)
+- **Relation extraction**: typed `(head, relation, tail)` triples; available on `RelationCapable` backends (`tplinker`, `gliner_multitask`)
 - **Within-document coreference**: cluster mentions into tracks
 - **Cross-document coalescing**: cluster tracks across documents into identities
 
@@ -37,8 +37,8 @@ exact string you pass in.
 
 **In scope**
 - Inference-time extraction (regex/heuristics/ML backends).
-- Zero-shot extraction with custom entity types (`ZeroShotNER` backends: GLiNER, GLiNER2, NuNER -- use `extract_with_types`; CLI `--extract-types`).
-- Relation extraction (`RelationCapable` backends: `tplinker`, `gliner2`).
+- Zero-shot extraction with custom entity types (`ZeroShotNER` backends: GLiNER, GLiNER multi-task, NuNER -- use `extract_with_types`; CLI `--extract-types`).
+- Relation extraction (`RelationCapable` backends: `tplinker`, `gliner_multitask`).
 - Graph/KG export: the `graph` feature exposes `GraphDocument` and N-Triples export.
 - Evaluation + dataset loading behind feature flags (for benchmarking, not required for usage).
 
@@ -95,7 +95,7 @@ The default CLI model (`--model stacked`) prefers the **best available** ML back
 
 - By default, model downloads are allowed (so first run may be slower).
 - To force cached-only / offline behavior: set `ANNO_NO_DOWNLOADS=1` (or `HF_HUB_OFFLINE=1`).
-- To prefetch explicitly: use the **full CLI** (`anno-cli`): `anno models download gliner gliner2 bert-onnx` (then `stacked` will pick it up).
+- To prefetch explicitly: use the **full CLI** (`anno-cli`): `anno models download gliner gliner_multitask bert-onnx` (then `stacked` will pick it up).
 
 ## Evaluation (two layers)
 

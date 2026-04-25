@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-//! GLiNER2 Candle backend — inference engine and struct definition.
+//! GLiNER multi-task Candle backend — inference engine and struct definition.
 //!
 //! Requires `--features candle`. Trait implementations live in `super` (mod.rs).
 
@@ -27,10 +27,10 @@ use candle_core::{DType, Device, IndexOp, Module, Tensor, D};
 #[cfg(feature = "candle")]
 use candle_nn::{Linear, VarBuilder};
 
-/// GLiNER2 Candle implementation.
+/// GLiNER multi-task Candle implementation.
 #[cfg(feature = "candle")]
 #[derive(Debug)]
-pub struct GLiNER2Candle {
+pub struct GLiNERMultitaskCandle {
     /// Text encoder
     encoder: crate::backends::encoder_candle::CandleEncoder,
     /// Span representation layer
@@ -226,7 +226,7 @@ impl CountPredictor {
 }
 
 #[cfg(feature = "candle")]
-impl GLiNER2Candle {
+impl GLiNERMultitaskCandle {
     /// Load model from HuggingFace Hub.
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::encoder_candle::CandleEncoder;
@@ -239,9 +239,12 @@ impl GLiNER2Candle {
         let config_path = repo
             .get("config.json")
             .or_else(|_| repo.get("gliner_config.json"))
-            .map_err(|e| Error::Retrieval(format!(
-                "config (tried config.json and gliner_config.json): {}", e
-            )))?;
+            .map_err(|e| {
+                Error::Retrieval(format!(
+                    "config (tried config.json and gliner_config.json): {}",
+                    e
+                ))
+            })?;
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| Error::Retrieval(format!("read config: {}", e)))?;
         let config: serde_json::Value = serde_json::from_str(&config_str)
@@ -276,9 +279,7 @@ impl GLiNER2Candle {
         // Resolve encoder model: GLiNER configs specify the underlying encoder in
         // "model_name" (e.g. "microsoft/mdeberta-v3-base"). Use that for the encoder
         // so the tokenizer is loaded from the correct repo.
-        let encoder_id = config["model_name"]
-            .as_str()
-            .unwrap_or(model_id);
+        let encoder_id = config["model_name"].as_str().unwrap_or(model_id);
         let encoder = CandleEncoder::from_pretrained(encoder_id)?;
         let span_rep = SpanRepLayer::new(hidden_size, MAX_SPAN_WIDTH, vb.pp("span_rep"))?;
         let label_proj = candle_nn::linear(hidden_size, hidden_size, vb.pp("label_projection"))
@@ -288,7 +289,7 @@ impl GLiNER2Candle {
             CountPredictor::new(hidden_size, MAX_COUNT, vb.pp("count_predictor"))?;
 
         log::info!(
-            "[GLiNER2-Candle] Loaded {} (hidden={}) on {:?}",
+            "[GLiNERMultitask-Candle] Loaded {} (hidden={}) on {:?}",
             model_id,
             hidden_size,
             device
@@ -508,7 +509,7 @@ impl GLiNER2Candle {
         let num_instances = self.count_predictor.forward(&prompt_emb)?;
 
         log::debug!(
-            "[GLiNER2] Count predictor: {} instances for {}",
+            "[GLiNERMultitask] Count predictor: {} instances for {}",
             num_instances,
             task.name
         );

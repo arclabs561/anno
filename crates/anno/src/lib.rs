@@ -168,7 +168,7 @@ mod sealed {
     impl Sealed for super::backends::gliner_poly::GLiNERPoly {}
 
     #[cfg(feature = "onnx")]
-    impl Sealed for super::backends::gliner2::GLiNER2Onnx {}
+    impl Sealed for super::backends::gliner_multitask::GLiNERMultitaskOnnx {}
 
     #[cfg(feature = "candle")]
     impl Sealed for super::CandleNER {}
@@ -177,7 +177,7 @@ mod sealed {
     impl Sealed for super::backends::gliner_candle::GLiNERCandle {}
 
     #[cfg(feature = "candle")]
-    impl Sealed for super::backends::gliner2::GLiNER2Candle {}
+    impl Sealed for super::backends::gliner_multitask::GLiNERMultitaskCandle {}
 
     impl Sealed for super::backends::tplinker::TPLinker {}
     impl Sealed for super::backends::universal_ner::UniversalNER {}
@@ -739,8 +739,8 @@ pub mod models {
     pub const BERT_ONNX: &str = "protectai/bert-base-NER-onnx";
     /// GLiNER ONNX model (HuggingFace).
     pub const GLINER: &str = "onnx-community/gliner_small-v2.1";
-    /// GLiNER2 ONNX model (HuggingFace).
-    pub const GLINER2: &str = "onnx-community/gliner-multitask-large-v0.5";
+    /// GLiNER multi-task ONNX model (HuggingFace).
+    pub const GLINER_MULTITASK: &str = "onnx-community/gliner-multitask-large-v0.5";
     /// BERT Candle model (HuggingFace).
     pub const CANDLE: &str = "dslim/bert-base-NER";
     /// GLiNER Candle model (HuggingFace, BERT-based).
@@ -786,7 +786,7 @@ pub const DEFAULT_BERT_ONNX_MODEL: &str = models::BERT_ONNX;
 #[doc(hidden)]
 pub const DEFAULT_GLINER_MODEL: &str = models::GLINER;
 #[doc(hidden)]
-pub const DEFAULT_GLINER2_MODEL: &str = models::GLINER2;
+pub const DEFAULT_GLINER_MULTITASK_MODEL: &str = models::GLINER_MULTITASK;
 #[doc(hidden)]
 pub const DEFAULT_CANDLE_MODEL: &str = models::CANDLE;
 #[doc(hidden)]

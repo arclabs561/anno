@@ -38,7 +38,7 @@
 //! | `HmmNER` | - | No | No | HMM statistical baseline |
 //! | `LexiconNER` | - | No | No | Dictionary lookup |
 //! | `GLiNEROnnx` | `onnx` | Yes | No | Span-based zero-shot |
-//! | `GLiNER2Onnx` | `onnx` | Yes | Yes | Multi-task (NER + RE) |
+//! | `GLiNERMultitaskOnnx` | `onnx` | Yes | Yes | Multi-task (NER + RE) |
 //! | `NuNER` | `onnx` | Yes | No | Token-based zero-shot |
 //! | `W2NER` | `onnx` | No | No | Grid-based, nested entities |
 //! | `BertNEROnnx` | `onnx` | No | No | Traditional fixed-label NER |
@@ -342,9 +342,9 @@ pub mod encoder_candle;
 #[cfg(feature = "candle")]
 pub mod gliner_candle;
 
-// GLiNER2 multi-task extraction (ONNX or Candle)
+// GLiNER multi-task extraction (ONNX or Candle)
 #[cfg(any(feature = "onnx", feature = "candle"))]
-pub mod gliner2;
+pub mod gliner_multitask;
 
 // Re-exports (always available)
 pub use crf::CrfNER;
@@ -380,18 +380,18 @@ pub use encoder_candle::{EncoderArchitecture, EncoderConfig};
 #[cfg(feature = "candle")]
 pub use gliner_candle::GLiNERCandle;
 
-// GLiNER2 multi-task model
+// GLiNER multi-task model
 #[cfg(any(feature = "onnx", feature = "candle"))]
-pub use gliner2::{
+pub use gliner_multitask::{
     ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
-    FieldType, GLiNER2, StructureTask, StructureValue, TaskSchema,
+    FieldType, GLiNERMultitask, StructureTask, StructureValue, TaskSchema,
 };
 
 #[cfg(feature = "onnx")]
-pub use gliner2::GLiNER2Onnx;
+pub use gliner_multitask::GLiNERMultitaskOnnx;
 
 #[cfg(feature = "candle")]
-pub use gliner2::GLiNER2Candle;
+pub use gliner_multitask::GLiNERMultitaskCandle;
 
 // CorefCluster is always available (lives in coref::resolve, not feature-gated).
 pub use coref::CorefCluster;

@@ -37,7 +37,7 @@ case "$PROFILE" in
         SEEDS="42"
         ;;
     ml)
-        BACKENDS="gliner,nuner,w2ner,gliner2,bert_onnx,gliner_candle"
+        BACKENDS="gliner,nuner,w2ner,gliner_multitask,bert_onnx,gliner_candle"
         DATASETS="WikiGold,Wnut17,MitMovie,CoNLL2003Sample"
         SEEDS="42,123"
         ;;

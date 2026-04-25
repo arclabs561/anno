@@ -1,4 +1,4 @@
-//! GLiNER2 relation extraction heuristics.
+//! GLiNER multi-task relation extraction heuristics.
 //!
 //! Delegates to the shared backend-agnostic heuristic in
 //! [`crate::backends::inference::relation_extraction::extract_relation_triples_simple`].

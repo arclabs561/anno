@@ -34,7 +34,7 @@ BACKENDS = [
     # ONNX backends (require models)
     "nuner",
     "gliner_onnx",
-    "gliner2",
+    "gliner_multitask",
     "bert_onnx",
 ]
 
@@ -78,7 +78,7 @@ DEFAULT_DATASETS = NER_DATASETS + ["FewNERD"]
 ALL_DATASETS = DEFAULT_DATASETS + BIO_DATASETS
 
 # Backends that can handle arbitrary labels (zero-shot)
-ZERO_SHOT_BACKENDS = ["nuner", "gliner_onnx", "gliner2"]
+ZERO_SHOT_BACKENDS = ["nuner", "gliner_onnx", "gliner_multitask"]
 
 RESULTS_FILE = Path("reports/eval-comprehensive.jsonl")
 SUMMARY_FILE = Path("reports/eval-summary.json")

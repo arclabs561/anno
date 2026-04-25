@@ -380,7 +380,7 @@ pub fn task_datasets(task: Task) -> &'static [DatasetId] {
         Task::LanguageModeling => &[],
         Task::Temporal => &[DatasetId::TimexRecognitionSentenceOriginal],
         Task::HierarchicalExtraction => {
-            // GLiNER2 can do hierarchical extraction, but we don't have dedicated datasets yet
+            // GLiNER multi-task can do hierarchical extraction, but we don't have dedicated datasets yet
             &[]
         }
         Task::DiscourseRelations => &[
@@ -428,8 +428,11 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         "gliner_relex" | "relex" => &[Task::NER, Task::RelationExtraction],
         "universal_ner" | "UniversalNER" => &[Task::NER],
 
-        // Multi-task backends (GLiNER2 implements multiple traits)
-        "gliner2" | "GLiNER2" | "GLiNER2Onnx" | "GLiNER2Candle" => &[
+        // Multi-task backends (GLiNER multi-task implements multiple traits)
+        "gliner_multitask"
+        | "GLiNERMultitask"
+        | "GLiNERMultitaskOnnx"
+        | "GLiNERMultitaskCandle" => &[
             Task::NER,
             Task::TextClassification,
             Task::SpeechActClassification,
@@ -533,7 +536,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "b2ner",
         "gliner_onnx",
         "gliner_candle",
-        "gliner2",
+        "gliner_multitask",
         "gliner_pii",
         "gliner_relex",
         "w2ner",
@@ -611,7 +614,7 @@ impl TaskMapping {
             "gliner_onnx",
             "gliner_candle",
             "gliner_poly",
-            "gliner2",
+            "gliner_multitask",
             "universal_ner",
             "w2ner",
             "tplinker",
@@ -672,13 +675,13 @@ mod tests {
         let mapping = TaskMapping::build();
         assert!(mapping.datasets_for_task("ner").is_some());
         assert!(mapping.tasks_for_dataset("WikiGold").is_some());
-        assert!(mapping.tasks_for_backend("gliner2").is_some());
+        assert!(mapping.tasks_for_backend("gliner_multitask").is_some());
         assert!(mapping.backends_for_task("ner").is_some());
     }
 
     #[test]
-    fn test_gliner2_capabilities() {
-        let tasks = backend_tasks("gliner2");
+    fn test_gliner_multitask_capabilities() {
+        let tasks = backend_tasks("gliner_multitask");
         assert!(tasks.contains(&Task::NER));
         assert!(tasks.contains(&Task::TextClassification));
         assert!(tasks.contains(&Task::HierarchicalExtraction));

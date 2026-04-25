@@ -64,6 +64,7 @@ const DEFAULT_POLY_LABELS: &[&str] = &[
 /// The export script writes to `~/.cache/anno/models/gliner-poly/` by default;
 /// `cache_dir()` may resolve to a platform-specific location (e.g. `~/Library/Caches/anno`
 /// on macOS).
+#[cfg(feature = "onnx")]
 fn local_model_cache_candidates() -> [std::path::PathBuf; 2] {
     [
         crate::env::cache_dir().join("models/gliner-poly"),
@@ -193,6 +194,7 @@ impl ZeroShotNER for GLiNERPoly {
 
 #[cfg(not(feature = "onnx"))]
 #[derive(Debug)]
+/// GLiNERPoly stub (requires `onnx` feature).
 pub struct GLiNERPoly {
     _private: (),
 }

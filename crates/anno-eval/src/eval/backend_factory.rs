@@ -30,12 +30,12 @@ impl BackendFactory {
     /// - `gliner_onnx` / `GLiNEROnnx` - GLiNER ONNX (zero-shot)
     /// - `nuner` / `NuNER` - NuNER (zero-shot, token-based)
     /// - `w2ner` / `W2NER` - W2NER (discontinuous NER)
-    /// - `gliner2` / `GLiNER2Onnx` - GLiNER2 multi-task
+    /// - `gliner_multitask` / `GLiNERMultitaskOnnx` - GLiNERMultitask multi-task
     ///
     /// ## Candle Feature Required
     /// - `candle_ner` / `CandleNER` - Candle BERT NER
     /// - `gliner_candle` / `GLiNERCandle` - GLiNER Candle (zero-shot)
-    /// - `gliner2_candle` / `GLiNER2Candle` - GLiNER2 Candle
+    /// - `gliner_multitask_candle` / `GLiNERMultitaskCandle` - GLiNERMultitask Candle
     ///
     /// ## Coreference
     /// - `coref_resolver` / `SimpleCorefResolver` - Simple coreference resolver
@@ -239,21 +239,21 @@ impl BackendFactory {
             )),
 
             #[cfg(feature = "onnx")]
-            "gliner2" | "gliner2onnx" => {
-                use crate::backends::gliner2::GLiNER2Onnx;
-                use crate::DEFAULT_GLINER2_MODEL;
-                GLiNER2Onnx::from_pretrained(DEFAULT_GLINER2_MODEL)
+            "gliner_multitask" | "gliner_multitask_onnx" => {
+                use crate::backends::gliner_multitask::GLiNERMultitaskOnnx;
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         crate::Error::FeatureNotAvailable(format!(
-                            "Failed to create GLiNER2Onnx: {}",
+                            "Failed to create GLiNER multi-task (ONNX): {}",
                             e
                         ))
                     })
             }
             #[cfg(not(feature = "onnx"))]
-            "gliner2" | "gliner2onnx" => Err(crate::Error::FeatureNotAvailable(
-                "GLiNER2Onnx requires 'onnx' feature".to_string(),
+            "gliner_multitask" | "gliner_multitask_onnx" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER multi-task (ONNX) requires 'onnx' feature".to_string(),
             )),
 
             // Candle backends
@@ -294,21 +294,21 @@ impl BackendFactory {
             )),
 
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            "gliner2_candle" | "gliner2candle" => {
-                use crate::backends::gliner2::GLiNER2Candle;
-                use crate::DEFAULT_GLINER2_MODEL;
-                GLiNER2Candle::from_pretrained(DEFAULT_GLINER2_MODEL)
+            "gliner_multitask_candle" => {
+                use crate::backends::gliner_multitask::GLiNERMultitaskCandle;
+                use crate::DEFAULT_GLINER_MULTITASK_MODEL;
+                GLiNERMultitaskCandle::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
                         crate::Error::FeatureNotAvailable(format!(
-                            "Failed to create GLiNER2Candle: {}",
+                            "Failed to create GLiNER multi-task (Candle): {}",
                             e
                         ))
                     })
             }
             #[cfg(not(all(feature = "candle", feature = "onnx")))]
-            "gliner2_candle" | "gliner2candle" => Err(crate::Error::FeatureNotAvailable(
-                "GLiNER2Candle requires both 'candle' and 'onnx' features".to_string(),
+            "gliner_multitask_candle" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER multi-task (Candle) requires both 'candle' and 'onnx' features".to_string(),
             )),
 
             // TPLinker (ONNX neural with `onnx` feature, heuristic fallback otherwise)
@@ -403,7 +403,7 @@ impl BackendFactory {
                 "Unknown backend: '{}'. Available: pattern, heuristic, stacked, crf, hmm, ensemble, heuristic_crf, tplinker{}",
                 backend_name,
                 if cfg!(feature = "onnx") {
-                    ", bert_onnx, gliner_onnx, nuner, w2ner, gliner2"
+                    ", bert_onnx, gliner_onnx, nuner, w2ner, gliner_multitask"
                 } else {
                     ""
                 }
@@ -446,7 +446,7 @@ impl BackendFactory {
                 "nuner_4k",
                 "b2ner",
                 "w2ner",
-                "gliner2",
+                "gliner_multitask",
                 "gliner_pii",
                 "gliner_relex",
                 "gliner_poly",
@@ -473,7 +473,7 @@ impl BackendFactory {
 
         #[cfg(all(feature = "candle", feature = "onnx"))]
         {
-            backends.push("gliner2_candle");
+            backends.push("gliner_multitask_candle");
         }
 
         backends

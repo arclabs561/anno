@@ -966,9 +966,9 @@
         categories: [multilingual, low_resource, news, african_language],
     },
     // =========================================================================
-    // Text Classification (for GLiNER2 classification capability)
+    // Text Classification (for GLiNER multi-task classification capability)
     // =========================================================================
-    // Note: GLiNER2 supports zero-shot classification via entity_types as class labels
+    // Note: GLiNER multi-task supports zero-shot classification via entity_types as class labels
 
     AGNews {
         name: "AG News",

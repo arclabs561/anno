@@ -596,7 +596,7 @@ impl GLiNEROnnx {
 
         let batch_size = 1;
         let seq_len = input_ids.len();
-        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        // Use checked_mul to prevent overflow (same pattern as gliner_multitask/onnx.rs)
         let num_spans = num_text_words.checked_mul(MAX_SPAN_WIDTH).ok_or_else(|| {
             Error::InvalidInput(format!(
                 "Span count overflow: {} words * {} MAX_SPAN_WIDTH",
@@ -858,7 +858,7 @@ impl GLiNEROnnx {
     /// Shape: [num_words * max_width, 2] for span_idx
     /// Shape: [num_words * max_width] for span_mask
     fn make_span_tensors(&self, num_words: usize) -> (Vec<i64>, Vec<bool>) {
-        // Use checked_mul to prevent overflow (same pattern as gliner2.rs:2388)
+        // Use checked_mul to prevent overflow (same pattern as gliner_multitask/onnx.rs)
         let num_spans = num_words.checked_mul(MAX_SPAN_WIDTH).unwrap_or_else(|| {
             log::warn!(
                 "Span count overflow: {} words * {} MAX_SPAN_WIDTH, using max",
