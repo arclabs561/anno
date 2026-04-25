@@ -38,6 +38,8 @@ impl GLiNERMultitaskOnnx {
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         use crate::backends::hf_loader;
 
+        super::check_model_id_is_supported(model_id)?;
+
         let api = hf_loader::hf_api()?;
         let repo = api.model(model_id.to_string());
 
