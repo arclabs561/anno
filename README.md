@@ -161,6 +161,7 @@ All examples live in `crates/anno/examples/`. Run with `cargo run --example <nam
 | `pii_redact` | -- | Detect names, SSNs, emails; redact or pseudonymize |
 | `zero_shot` | `onnx` | Custom entity types ("drug", "symptom") via GLiNER |
 | `relations` | -- | Entity-pair relation extraction with TPLinker |
+| `gliner_multitask` | `onnx` | Multi-task extraction (NER + classification) via TaskSchema |
 | `coref` | `analysis` | Coreference chains linking "Marie Curie" and "Curie" |
 | `export_formats` | -- | brat standoff, CoNLL BIO, JSONL, graph CSV |
 | `rag_preprocess` | -- | Chunking + pronoun rewriting for self-contained RAG chunks |
