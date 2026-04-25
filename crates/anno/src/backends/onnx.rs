@@ -129,6 +129,7 @@ impl BertNEROnnx {
                 optimization_level: config.optimization_level,
                 num_threads: config.num_threads,
                 use_cpu_provider: false,
+                prefer_coreml: false,
             },
         )?;
 
@@ -202,6 +203,7 @@ impl BertNEROnnx {
                 optimization_level: config.optimization_level,
                 num_threads: config.num_threads,
                 use_cpu_provider: false,
+                prefer_coreml: false,
             },
         )?;
 

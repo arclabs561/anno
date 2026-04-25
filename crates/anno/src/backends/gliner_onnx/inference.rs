@@ -53,6 +53,7 @@ impl GLiNEROnnx {
                 optimization_level: config.optimization_level,
                 num_threads: config.num_threads,
                 use_cpu_provider: true,
+                prefer_coreml: false,
             },
         )?;
 
@@ -141,6 +142,7 @@ impl GLiNEROnnx {
                         optimization_level: config.optimization_level,
                         num_threads: config.num_threads,
                         use_cpu_provider: true,
+                        prefer_coreml: false,
                     },
                 )
                 .ok()

@@ -182,6 +182,11 @@ pub struct OnnxSessionConfig {
     pub num_threads: usize,
     /// Whether to use CPU execution provider explicitly.
     pub use_cpu_provider: bool,
+    /// Prefer Apple CoreML (Apple Neural Engine + GPU) when available.
+    /// Effective only when the `onnx-coreml` feature is enabled at build
+    /// time AND the host is macOS. CPU is added as a fallback so the
+    /// session still loads if CoreML cannot handle the graph.
+    pub prefer_coreml: bool,
 }
 
 #[cfg(feature = "onnx")]
@@ -191,6 +196,7 @@ impl Default for OnnxSessionConfig {
             optimization_level: 3,
             num_threads: 0,
             use_cpu_provider: true,
+            prefer_coreml: false,
         }
     }
 }
@@ -223,10 +229,23 @@ pub fn create_onnx_session(
         .with_optimization_level(opt_level)
         .map_err(|e| Error::Retrieval(format!("ONNX optimization level: {}", e)))?;
 
+    // Build execution-provider list in priority order. ort tries each in
+    // turn and falls back to the next if one can't load the graph. CPU is
+    // always last so a session never fails to start because of an
+    // accelerator-specific quirk.
+    let mut providers: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
+    #[cfg(feature = "onnx-coreml")]
+    if config.prefer_coreml {
+        use ort::execution_providers::CoreMLExecutionProvider;
+        providers.push(CoreMLExecutionProvider::default().build());
+    }
     if config.use_cpu_provider {
         use ort::execution_providers::CPUExecutionProvider;
+        providers.push(CPUExecutionProvider::default().build());
+    }
+    if !providers.is_empty() {
         builder = builder
-            .with_execution_providers([CPUExecutionProvider::default().build()])
+            .with_execution_providers(providers)
             .map_err(|e| Error::Retrieval(format!("ONNX execution providers: {}", e)))?;
     }
 

@@ -170,6 +170,7 @@ impl T5Coref {
             optimization_level: config.optimization_level,
             num_threads: config.num_threads,
             use_cpu_provider: true,
+            prefer_coreml: false,
         };
 
         let encoder = hf_loader::create_onnx_session(
@@ -223,6 +224,7 @@ impl T5Coref {
             optimization_level: config.optimization_level,
             num_threads: config.num_threads,
             use_cpu_provider: true,
+            prefer_coreml: false,
         };
 
         let encoder = hf_loader::create_onnx_session(&encoder_path, sess_config.clone())?;
