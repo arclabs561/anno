@@ -8,7 +8,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `gliner` | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
+| `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
 | `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
@@ -16,11 +16,15 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- |
 | `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | WIP | `knowledgator/gliner-bi-large-v1.0` (also: `gliner-bi-small-v1.0`, `modern-gliner-bi-large-v1.0`, `modern-gliner-bi-base-v1.0`; the `gliner-poly-*-v1.0` repos are model cards only with no weights) |
-| `gliner_onnx` | GLiNER manual ONNX impl | Yes | beta | `onnx-community/gliner_small-v2.1` |
 | `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
 | `gliner_relex` | GLiNER-RelEx joint NER+RE | Yes | beta | `knowledgator/gliner-relex-large-v1.0` |
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
+
+Note: `gliner` and `gliner_onnx` resolve to the same backend type
+(`anno::GLiNEROnnx`); the `gliner` name is the user-facing alias
+recommended in the CLI, `gliner_onnx` is the explicit / lower-level form
+used in code and the eval harness.
 
 ### Neural -- Candle (feature `candle`)
 
@@ -98,6 +102,71 @@ load. A few require a one-time local ONNX export via a Python script
 (those models either lack a ready-to-use ONNX repo on HF, or use an
 architecture that needs a specific export tweak). After the export, the
 runtime loader picks the artifact up from the documented path or env var.
+
+### Why we need the scripts
+
+anno's ML inference goes through `ort` (ONNX Runtime). It does not link
+PyTorch, transformers, or any Python at runtime -- a fresh `cargo install
+anno-cli` is a ~50 MB binary, not a multi-GB conda environment. That
+means anno needs an `.onnx` file (plus `tokenizer.json`, sometimes
+`config.json`) sitting on disk for each backend it wants to run. For the
+simple cases (`gliner`, `gliner_multitask`, `bert_onnx`, etc.) the
+HuggingFace repo already publishes a pre-converted ONNX so anno just
+downloads it. For the rest, a one-time Python export bridges the gap.
+
+Concretely, a script is needed when one of these is true:
+
+- **No pre-converted ONNX on HF**: the upstream repo ships only PyTorch
+  weights (`pytorch_model.bin` / `model.safetensors`). anno cannot
+  consume those directly. Examples: `deberta_v3`, `biomedical`, `w2ner`.
+- **Architecture-specific export tweaks**:
+  - DeBERTa-v3: pin `transformers==4.47.0` to avoid a fast-tokenizer
+    bug; copy SentencePiece artifacts from the HF cache because the
+    fast-tokenizer conversion is broken in newer versions.
+  - GLiNER-RelEx: uses scatter-based subword pooling, so `torch.onnx.
+    export` needs a real tokenized input (random dummy inputs cause
+    index-out-of-bounds during JIT tracing).
+  - GLiNER bi-encoder (`gliner_poly`): produces **two** ONNX graphs --
+    a text encoder and a separate label encoder for the BGE
+    sentence-transformer label embeddings.
+  - F-coref: must bypass `fastcoref`'s spaCy-dependent high-level API
+    and load via `transformers` directly; exports the DistilRoBERTa
+    encoder as ONNX and the mention-ranking scorer as safetensors.
+  - W2NER: the simplified export removes the LSTM head and substitutes
+    attention pooling -- the runtime expects this simplified form.
+  - TPLinker: no public HF distribution of trained weights; the script
+    requires a `--checkpoint` argument and otherwise exports with
+    random weights (heuristic-mode fallback covers users who don't have
+    a checkpoint).
+- **Model-card-only repos**: some HF repos exist as documentation but
+  ship no weights. Example: `knowledgator/gliner-poly-{base,small}-v1.0`.
+  The actual loadable weights live under different repo names
+  (`gliner-bi-*-v1.0`).
+- **GLiNER auto-export shortcut**: `gliner_onnx` runs
+  `export_gliner_poly_onnx.py` automatically on first load if no ONNX is
+  cached, so end users don't need to invoke the script manually for that
+  one backend.
+
+### Nuances
+
+- Each script is annotated with PEP 723 inline metadata, so `uv run
+  scripts/export_*.py` resolves Python deps in a hermetic env -- no
+  `pip install` polluting the global Python.
+- Opset target varies: gliner_poly uses 17, the others mostly target 14.
+  ort handles both; the difference is invisible at runtime.
+- Output layout varies: some scripts write `model.onnx` flat, some
+  write `onnx/model.onnx`. The runtime loader's
+  `hf_loader::download_onnx_model` tries both candidates.
+- Tokenizer fallback: `tokenizer.json` is preferred. A few older BERT
+  models (`dslim/bert-base-NER`) only ship `vocab.txt`; CandleNER's
+  loader handles both.
+- The default load path for some scripts (`gliner_poly`, `glirel`,
+  `tplinker`) is anno's own cache (`~/.cache/anno/models/<name>/`),
+  which is separate from the hf-hub cache (`~/.cache/huggingface/hub/`).
+  Both are honored; just different conventions.
+- Quantization: most scripts accept `--quantize` to emit an int8 or
+  fp16 ONNX variant. The runtime loader prefers
+  `model_quantized.onnx` / `model_int8.onnx` when present.
 
 | Backend | Auto-download | Script | Default output | Path override |
 |---------|---------------|--------|----------------|---------------|
