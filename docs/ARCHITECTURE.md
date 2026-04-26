@@ -4,76 +4,58 @@ This repo is **pre-1.0** and prioritizes long-term maintainability over API stab
 
 ## Crate layout (dependency boundaries)
 
-- `crates/anno-core` (**core invariants + data model + algorithms**)
-  - Owns: entity/coref/grounded types, dataset/spec metadata, coalescing primitives,
-    span candidate generation.
-  - Must not depend on: CLI, evaluation harnesses, heavy ML backends (`ort`, `tokenizers`,
-    `candle-*`, `hf-hub`), or OS-specific glue.
+After the 2026-04-26 Phase B consolidation, the workspace ships **three** crates. The earlier `anno-core`, `anno-metrics`, and `anno-graph` packages were folded back into `anno` (their content lives at `anno::core::*`, `anno::metrics::*`, and `anno::graph::*`, the latter behind `feature = "graph"`).
 
-- `crates/anno-metrics` (**shared analysis primitives**)
-  - Owns: dependency-light metrics + cross-context clustering primitives shared by `anno` and
-    `anno-eval` (e.g. coref metrics, cluster encoders).
-  - Depends on: `anno-core` (and serde), but **must not** depend on `anno` or `anno-eval`
-    (to avoid cycles).
-
-- `crates/anno` (**library + backends**)
-  - Owns: runtime backends (regex/heuristic/onnx/candle/llm), ingest pipeline, env/offset helpers.
-  - Depends on: `anno-core`.
-  - Notes: exposes a small `anno::eval` module behind `analysis` (alias: legacy `eval`) for
-    analysis-oriented helpers; it re-exports shared primitives from `anno-metrics`.
+- `crates/anno` (**library + type foundation + backends + metrics + graph export**)
+  - Owns: extraction types (entity/coref/grounded), runtime backends (regex/heuristic/onnx/candle/llm), ingest pipeline, env/offset helpers, coreference scoring metrics, KG export adapters.
+  - Internal layout:
+    - `anno::core::*` — types, traits, errors, dataset/spec metadata, coalescing, span candidate generation. Dependency-light, no ML.
+    - `anno::metrics::*` — coref scoring (MUC, B^3, CEAF, LEA, BLANC) and cluster encoders, behind `feature = "analysis"`.
+    - `anno::graph::*` — `lattix`-backed adapters from extraction output to `KnowledgeGraph` / `GraphDocument` / N-Triples, behind `feature = "graph"`.
+  - The `anno::core` module surface must not depend on heavy ML deps or OS-specific glue.
 
 - `crates/anno-eval` (**evaluation + datasets + muxer integration**)
-  - Owns: dataset loaders/registries, metrics, evaluation orchestration, muxer-backed sampling.
-  - Depends on: `anno`, `anno-core`, and `anno-metrics`.
-
-- `crates/anno-graph` (**graph/KG export adapters**)
-  - Owns: conversion from extraction output to N-Triples, JSON-LD, and CSV via `lattix`.
-  - Depends on: `anno-core`, `lattix`.
+  - Owns: dataset loaders/registries, evaluation orchestration, muxer-backed sampling.
+  - Depends on: `anno`.
 
 - `crates/anno-cli` (**the `anno` binary**)
   - Owns: CLI UX, command wiring, output formatting, file I/O.
-  - Depends on: `anno`, `anno-core`, `anno-eval`, and optionally `anno-graph` behind features.
+  - Depends on: `anno`, `anno-eval`. `anno/graph` is forwarded behind the `graph` feature.
 
 ### Intended direction of dependencies
 
 ```
-anno-cli  ─┬─> anno-eval ─┬─> anno
-           │              ├─> anno-metrics ──> anno-core
-           │              └─> anno-core
-           ├─> anno-graph ──> anno-core
-           └──────────────── anno-core
-
-anno ───────────────┬──────> anno-core
-                    └──────> anno-metrics ──> anno-core
+anno-cli  ──> anno-eval ──> anno
+       └─────────────────> anno
 ```
 
-If you feel pressure to add a dependency “upwards” (e.g. `anno-core -> anno`), that’s a design smell.
+If you feel pressure to add a dependency "upwards" (e.g. anno -> anno-eval), that's a design smell.
 
 ## Design rules (what goes where)
 
-- **Types and invariants live in `anno-core`**
-  - If a concept is reused across modules/crates (IDs, slugs, spans, confidence/coverage concepts), prefer encoding it as a type in `anno-core`.
+- **Types and invariants live in `anno::core`**
+  - If a concept is reused across modules (IDs, slugs, spans, confidence/coverage concepts), prefer encoding it as a type in `anno::core`.
   - Offsets/spans are **character offsets** (Unicode scalar values / Rust `char` count), not bytes.
+  - The `core` module must stay dependency-light: no heavy ML deps, no OS-specific glue.
 
-- **Backends and execution live in `anno`**
-  - Feature-gate heavyweight dependencies (onnx/candle/llm) in `anno`.
-  - Keep “business logic” out of the CLI; the CLI should orchestrate calls into `anno`/`anno-eval`.
+- **Backends and execution live in `anno::backends`**
+  - Feature-gate heavyweight dependencies (onnx/candle/llm) at the `anno` feature surface.
+  - Keep "business logic" out of the CLI; the CLI should orchestrate calls into `anno`/`anno-eval`.
   - Model loading should try the target format first (ONNX/safetensors), then auto-convert
     from PyTorch via `uv run scripts/export_*.py` with local caching. See GLiNER ONNX
     (`export_pytorch_to_onnx`) and Candle (`convert_pytorch_to_safetensors`) for the pattern.
 
 - **Evaluation lives in `anno-eval`**
-  - Dataset downloading/parsing, metrics, aggregation, and muxer selection live here.
+  - Dataset downloading/parsing, metrics aggregation, and muxer selection live here.
   - The eval code should call into `anno` backends via the `anno` API surface.
 
 - **UX and I/O live in `anno-cli`**
   - Reading/writing files, rendering tables/HTML, progress bars, and argument parsing live here.
-  - Do not leak CLI-specific dependencies into `anno`/`anno-core`.
+  - Do not leak CLI-specific dependencies into `anno`.
 
 ## Notes on doctests
 
-- `anno-core` doctests are kept enabled.
-- `anno-eval` doctests are currently **disabled** (`[lib] doctest = false`) while the split is still settling.
-  - The full evaluation harness lives in `anno-eval::eval` (crate name `anno_eval`), while
-    `anno::eval` is a small analysis-primitives module behind `analysis`.
+- `anno` doctests are kept enabled.
+- `anno-eval` doctests are currently **disabled** (`[lib] doctest = false`).
+  - The full evaluation harness lives in `anno_eval::eval`, while `anno::metrics` (behind the `analysis` feature) provides the dependency-light coref scoring primitives.
 

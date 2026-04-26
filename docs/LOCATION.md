@@ -3,7 +3,7 @@
 `anno`’s extraction contract is **text-first**: most backends produce **character-offset spans**
 over a UTF-8 string.
 
-`anno-core` also includes a broader `Location` enum (text spans, bboxes, temporal intervals, etc.)
+`anno::core` also includes a broader `Location` enum (text spans, bboxes, temporal intervals, etc.)
 to support future multi-modal pipelines. Today:
 
 - The **stable, widely-used** localization unit is `Span::Text { start, end }` (character offsets).

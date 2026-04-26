@@ -71,11 +71,11 @@ The full CLI lives in `anno-cli` (`crates/anno-cli/`). Install with `cargo insta
 
 ## Integration posture
 
-- **Upstream**: `textprep` handles text cleaning and normalization; `anno` consumes the resulting text. (Internally, `anno-core` uses `sketchir` for similarity sketching during coalescing — this is not a user-facing dependency.)
+- **Upstream**: `textprep` handles text cleaning and normalization; `anno` consumes the resulting text. (Internally, `anno::core` uses `sketchir` for similarity sketching during coalescing. This is not a user-facing dependency.)
 - **Downstream**: other code can safely:
   - index/store entities/tracks/identities (using the stable `anno` shapes),
   - join with other signals (audio/vision/etc.) using the shared offset discipline,
-  - export graphs via `anno-graph::entities_to_knowledge_graph` (which owns the triple construction) or `GraphDocument`, then run algorithms on the exported data.
+  - export graphs via `anno::graph::entities_to_knowledge_graph` (which owns the triple construction) or `GraphDocument`, then run algorithms on the exported data. Requires `anno = { features = ["graph"] }`.
 
 ## Minimal usage obligations
 

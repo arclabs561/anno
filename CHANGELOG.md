@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- **Workspace consolidation, Phase B: anno-core, anno-metrics, anno-graph folded into `anno`.** The published surface is now three crates (`anno`, `anno-eval`, `anno-cli`) instead of six. Source moves are net-zero LOC. The legacy `anno-core 0.8.0`, `anno-metrics 0.8.0`, and `anno-graph 0.8.0` remain frozen on crates.io; users on those crates keep working until they upgrade.
+  - `anno_core::*` -> `anno::core::*` (all paths). `anno-core` removed from the workspace.
+  - `anno::eval::*` -> `anno::metrics::*`. The legacy module name was a misnomer per its own doc comment; the module is measurement primitives (CorefScores, MUC, B^3, CEAF, LEA, BLANC, cluster encoders), distinct from anno-eval's full harness. `anno-metrics` removed from the workspace.
+  - `anno_graph::*` -> `anno::graph::*` behind the new `graph` feature (4 functions: `grounded_to_graph_document`, `entities_to_graph_document`, `uri_safe`, `entities_to_knowledge_graph`). `lattix`'s `GraphDocument`, `GraphExportFormat`, and `KnowledgeGraph` are re-exported from `anno::graph`. `anno-graph` removed from the workspace.
+
 ## [0.8.0] - 2026-04-26
 
 ### Changed (breaking)

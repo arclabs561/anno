@@ -21,12 +21,11 @@ just check-minimal  # without ML feature flags
 
 ## Workspace layout
 
-- `crates/anno-core`: types, traits, errors. No ML dependencies.
-- `crates/anno`: the main library. Backends and orchestration. Published as `anno`.
+- `crates/anno`: the main library. Type foundation, backends, metrics, graph export, orchestration. Published as `anno`.
 - `crates/anno-eval`: evaluation harness, dataset registry, task wiring.
 - `crates/anno-cli`: `anno` binary. CLI parsing and command implementations.
-- `crates/anno-graph`: graph/KG export.
-- `crates/anno-metrics`: metrics-only analysis helpers.
+
+The earlier split into `anno-core`, `anno-metrics`, and `anno-graph` was folded back into `anno` in Phase B of the 2026-04-26 consolidation. Their public surfaces now live at `anno::core::*`, `anno::metrics::*`, and `anno::graph::*` respectively. The legacy `anno-core` / `anno-metrics` / `anno-graph` crates remain frozen on crates.io at 0.8.0.
 
 ## Where backends live
 
@@ -51,7 +50,8 @@ To add a backend:
 - `--features candle`: pure-Rust Candle backends.
 - `--features "onnx candle"`: both.
 - `--features "eval discourse"`: full eval harness + discourse module (used by CI).
-- `--features analysis`: metrics-only diagnostics via `anno-metrics`.
+- `--features analysis`: metrics-only diagnostics via `anno::metrics`.
+- `--features graph`: graph/KG export via `anno::graph` (pulls in `lattix`).
 
 The `just check-feature-matrix` recipe sweeps the gating combinations that have regressed before.
 

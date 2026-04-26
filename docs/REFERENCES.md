@@ -116,6 +116,6 @@ Academic papers, datasets, and software cited across the anno codebase.
 - HuggingFace Hub. <https://huggingface.co/> — model weight distribution and download.
 - ONNX Runtime. <https://onnxruntime.ai/> — ML inference runtime used by the `onnx` feature.
 - Candle (HuggingFace). <https://github.com/huggingface/candle> — pure-Rust ML framework used by the `candle` feature.
-- lattix. <https://github.com/arclabs561/lattix> — graph/KG substrate used by `anno-graph`.
+- lattix. <https://github.com/arclabs561/lattix>. graph/KG substrate used by `anno::graph` (behind the `graph` feature).
 - muxer. <https://github.com/arclabs561/muxer> — randomised matrix sampler used by `anno-eval`.
 - Oxigraph. <https://github.com/oxigraph/oxigraph> — recommended downstream RDF store for N-Triples export.
