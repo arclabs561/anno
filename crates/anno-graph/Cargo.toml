@@ -13,7 +13,7 @@ keywords = ["ner", "knowledge-graph", "nlp"]
 categories = ["text-processing"]
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.6.0" }
+anno-core = { path = "../anno-core", version = "0.7.0" }
 # crates.io `lattix` currently requires its default feature set enabled.
 lattix = { version = "0.6" }
 serde_json.workspace = true

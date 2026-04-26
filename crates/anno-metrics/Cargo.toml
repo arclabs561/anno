@@ -14,7 +14,7 @@ categories = ["text-processing", "science"]
 readme = "README.md"
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.6.0" }
+anno-core = { path = "../anno-core", version = "0.7.0" }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

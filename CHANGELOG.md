@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-25
+
 ### Changed (breaking)
 - Renamed `gliner2` backend to `gliner_multitask` to match what it actually loads (`onnx-community/gliner-multitask-large-v0.5`, the GLiNER v1 multi-task model from Stepanov & Shtopko 2024). The `gliner2` name was a misnomer that conflated this backend with the unrelated fastino-ai GLiNER2 architecture (Zaratiana et al. 2025), which is not yet supported. Affects:
   - Constants: `models::GLINER2` → `models::GLINER_MULTITASK`; `DEFAULT_GLINER2_MODEL` → `DEFAULT_GLINER_MULTITASK_MODEL`.

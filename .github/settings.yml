@@ -20,7 +20,8 @@ repository:
     - coreference-resolution
     - ner
     - nlp
-    - rust
+    - pii-detection
+    - relation-extraction
 
 branches:
   - name: main

@@ -14,8 +14,8 @@ authors:
 repository-code: "https://github.com/arclabs561/anno"
 url: "https://docs.rs/anno"
 license: MIT OR Apache-2.0
-version: "0.6.0"
-date-released: "2026-04-16"
+version: "0.7.0"
+date-released: "2026-04-25"
 keywords:
   - rust
   - nlp
