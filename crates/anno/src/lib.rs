@@ -81,6 +81,12 @@ pub mod env;
 pub mod error;
 /// Export entity results to annotation and interchange formats (brat, CoNLL, JSONL, RDF, JSON-LD, CSV).
 pub mod export;
+/// Graph / knowledge-graph export adapters (lattix-backed).
+///
+/// Available when the `graph` feature is enabled.
+#[cfg(feature = "graph")]
+#[cfg_attr(docsrs, doc(cfg(feature = "graph")))]
+pub mod graph;
 /// Small, dependency-light heuristics (negation, quantifiers, etc.).
 pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).

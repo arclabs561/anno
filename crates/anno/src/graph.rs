@@ -1,16 +1,22 @@
-//! Adapters between `anno-core` and `lattix`.
+//! Adapters between `anno` and `lattix` (graph/KG export).
 //!
-//! This crate exists to avoid introducing a dependency edge from `anno-core` → `lattix` while
-//! still letting downstream tooling treat `lattix` as the graph/KG substrate.
+//! Available when the `graph` feature is enabled.
 //!
 //! ## Functions
 //!
-//! - [`entities_to_knowledge_graph`] — the preferred export path: takes raw extraction output
-//!   (`Entity` + `Relation` slices) and emits a fully-annotated `KnowledgeGraph` including
-//!   character-offset, confidence, and provenance triples. Used by `anno export --format
-//!   graph-ntriples`.
+//! - [`crate::graph::entities_to_knowledge_graph`] -- the preferred export path: takes raw
+//!   extraction output (`Entity` + `Relation` slices) and emits a fully-annotated
+//!   `KnowledgeGraph` including character-offset, confidence, and provenance triples.
+//!   Used by `anno export --format graph-ntriples`.
 
-use lattix::{GraphDocument, GraphEdge, GraphNode, KnowledgeGraph, Triple};
+use lattix::{GraphEdge, GraphNode, Triple};
+
+// Re-export the lattix types that `anno::graph`'s public API surface returns,
+// so callers don't need a separate `lattix` dep just to type-name what
+// `anno::graph` produces. A breaking change in `lattix` then becomes a
+// breaking change in `anno`'s `graph` feature, which is correct (and caught
+// by `cargo-semver-checks`).
+pub use lattix::{GraphDocument, GraphExportFormat, KnowledgeGraph};
 
 /// Convert a `GroundedDocument` into a `lattix::exchange::GraphDocument`.
 ///

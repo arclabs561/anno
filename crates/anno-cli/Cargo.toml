@@ -36,10 +36,8 @@ itertools = { workspace = true }
 # Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval`).
 muxer = { version = "0.5", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
 
-# Optional: graph/KG export surface.
-# anno-graph is the graph/KG adapter crate; it brings in lattix transitively.
-anno-graph = { path = "../anno-graph", version = "0.8.0", optional = true }
-lattix = { version = "0.6", optional = true }
+# Graph/KG export surface lives in `anno` behind its `graph` feature
+# (which pulls in lattix transitively). No separate dep needed here.
 
 # Document-to-text extraction (HTML stripping, readability, PDF).
 deformat = { workspace = true, features = ["readability"] }
@@ -58,7 +56,7 @@ candle = ["anno/candle"]
 llm = ["anno/llm"]
 bundled-crf-weights = ["anno/bundled-crf-weights"]
 bundled-hmm-params = ["anno/bundled-hmm-params"]
-graph = ["dep:anno-graph", "dep:lattix"]
+graph = ["anno/graph"]
 pdf = ["deformat/pdf"]
 parallel = ["anno/parallel"]
 chunking = ["anno/chunking"]

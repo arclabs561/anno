@@ -10,9 +10,9 @@ use super::super::utils::{get_input_text, link_tracks_to_kb, resolve_coreference
 #[cfg(feature = "eval")]
 use crate::cli::ingest::{CompositeResolver, UrlResolver};
 use anno::core::grounded::{render_document_html, GroundedDocument, Location, Signal, SignalId};
-use anno::ingest::DocumentPreprocessor;
 #[cfg(feature = "graph")]
-use lattix::{GraphDocument, GraphExportFormat};
+use anno::graph::{GraphDocument, GraphExportFormat};
+use anno::ingest::DocumentPreprocessor;
 
 /// Generate HTML debug visualization
 #[derive(Parser, Debug)]
@@ -306,7 +306,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
                 }
             };
 
-            let graph = anno_graph::grounded_to_graph_document(&doc);
+            let graph = anno::graph::grounded_to_graph_document(&doc);
             let graph_output = graph.export(graph_format);
 
             if !args.quiet {

@@ -18,9 +18,9 @@ use anno::backends::inference::{
 use anno::core::grounded::{
     GroundedDocument, Location, Modality, Quantifier, Signal, SignalId, SignalValidationError,
 };
-use anno::ingest::DocumentPreprocessor;
 #[cfg(feature = "graph")]
-use lattix::{GraphDocument, GraphExportFormat};
+use anno::graph::{GraphDocument, GraphExportFormat};
+use anno::ingest::DocumentPreprocessor;
 
 use crate::cli::CliError;
 
@@ -863,9 +863,9 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                         ));
                     }
                 }
-                anno_graph::entities_to_graph_document(&entities, &rels)
+                anno::graph::entities_to_graph_document(&entities, &rels)
             } else {
-                anno_graph::grounded_to_graph_document(&doc)
+                anno::graph::grounded_to_graph_document(&doc)
             };
             let graph_output = graph.export(graph_format);
 

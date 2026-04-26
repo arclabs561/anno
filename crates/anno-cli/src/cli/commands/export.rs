@@ -421,10 +421,10 @@ fn export_graph_ntriples(
     base_uri: &str,
 ) -> String {
     let base = base_uri.trim_end_matches('/');
-    let stem = anno_graph::uri_safe(&source.file_stem().unwrap_or_default().to_string_lossy());
+    let stem = anno::graph::uri_safe(&source.file_stem().unwrap_or_default().to_string_lossy());
     let doc_iri = format!("{}/doc/{}", base, stem);
 
-    let kg = anno_graph::entities_to_knowledge_graph(entities, relations, &doc_iri, base_uri);
+    let kg = anno::graph::entities_to_knowledge_graph(entities, relations, &doc_iri, base_uri);
     kg.triples()
         .map(|t| t.to_ntriples())
         .collect::<Vec<_>>()

@@ -48,6 +48,9 @@ safetensors = { workspace = true, optional = true }
 # is the de-facto standard Rust chunker (>1M downloads vs the local `slabs`).
 text-splitter = { version = "0.28", optional = true }
 
+# Graph/KG export (optional). Adapters from extraction output to `lattix::KnowledgeGraph`.
+lattix = { version = "0.6", optional = true }
+
 # Utilities
 itertools = { workspace = true }
 rayon = { workspace = true, optional = true }
@@ -65,11 +68,13 @@ criterion = { workspace = true }
 [features]
 default = ["onnx"]
 # Metrics-only analysis helpers (preferred for research / diagnostics).
-# `anno::eval::*` is always compiled in; this feature is kept for API
-# compatibility and may be removed in a future release.
+# Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
 analysis = []
 discourse = []
 schema = ["anno-core/schema"]
+# Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed
+# adapters from extraction output to KnowledgeGraph and N-Triples).
+graph = ["dep:lattix"]
 onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru", "dep:safetensors"]
 # Apple CoreML / Apple Neural Engine acceleration for ONNX backends.
 # macOS only (the underlying ort/coreml feature requires macOS at link time).

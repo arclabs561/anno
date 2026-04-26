@@ -7,9 +7,9 @@ use std::io::{self, Read};
 use super::super::output::{color, print_signals};
 use super::super::parser::OutputFormat;
 use super::super::utils::{link_tracks_to_kb, log_success, resolve_coreference};
-use anno::{GroundedDocument, SignalId};
 #[cfg(feature = "graph")]
-use lattix::{GraphDocument, GraphExportFormat};
+use anno::graph::{GraphDocument, GraphExportFormat};
+use anno::{GroundedDocument, SignalId};
 
 /// Enhance existing GroundedDocument with additional processing
 #[derive(Parser, Debug)]
@@ -195,7 +195,7 @@ pub fn run(args: EnhanceArgs) -> Result<(), String> {
                 }
             };
 
-            let graph = anno_graph::grounded_to_graph_document(&doc);
+            let graph = anno::graph::grounded_to_graph_document(&doc);
             let graph_output = graph.export(graph_format);
 
             // Output graph to stdout (always print to stdout for graph export)
