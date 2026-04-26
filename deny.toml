@@ -21,12 +21,14 @@ allow = [
     "0BSD",
     "CC0-1.0",
     "Unicode-3.0",
+    # File-level copyleft, OSI-approved. Used unmodified as a library dep
+    # (cssparser / selectors / dtoa-short via dom_query for HTML ingest;
+    # option-ext via dirs). Library consumption is not modification, so
+    # the file-level copyleft never bites downstream.
+    "MPL-2.0",
 ]
 confidence-threshold = 0.8
 exceptions = [
-    # Transitive OSI/copyleft via `dirs` (used for cache/config directories).
-    { crate = "option-ext", allow = ["MPL-2.0"] },
-
     # Root certificate bundles use data licensing.
     { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
     { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
