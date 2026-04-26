@@ -21,14 +21,27 @@ allow = [
     "0BSD",
     "CC0-1.0",
     "Unicode-3.0",
-    # File-level copyleft, OSI-approved. Used unmodified as a library dep
-    # (cssparser / selectors / dtoa-short via dom_query for HTML ingest;
-    # option-ext via dirs). Library consumption is not modification, so
-    # the file-level copyleft never bites downstream.
-    "MPL-2.0",
 ]
 confidence-threshold = 0.8
+# Per-crate license exceptions are scoped narrowly so a future MPL-2.0 dep
+# in an unrelated part of the workspace fails CI rather than silently
+# inheriting the policy carve-out. MPL-2.0 is OSI-approved file-level
+# copyleft: library consumption is not modification, so these crates do
+# not impose copyleft on anno or its consumers.
 exceptions = [
+    # MPL-2.0 via the HTML-ingest chain in anno-cli:
+    # anno-cli -> deformat[readability] -> dom_smoothie -> dom_query
+    # -> cssparser, cssparser-macros, dtoa-short, selectors.
+    # Switching anno-cli's deformat features from `readability` to `html2text`
+    # would remove all four; tracked as a future option in CHANGELOG.
+    { crate = "cssparser", allow = ["MPL-2.0"] },
+    { crate = "cssparser-macros", allow = ["MPL-2.0"] },
+    { crate = "dtoa-short", allow = ["MPL-2.0"] },
+    { crate = "selectors", allow = ["MPL-2.0"] },
+
+    # MPL-2.0 via `dirs` (cache/config directory resolution).
+    { crate = "option-ext", allow = ["MPL-2.0"] },
+
     # Root certificate bundles use data licensing.
     { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
     { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
@@ -56,6 +69,10 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 
+# `arclabs561` is the maintainer's GitHub org. Crates pulled from there
+# (e.g. local development overrides via `[patch.crates-io]`) bypass the
+# `unknown-git = deny` rule. This is a deliberate supply-chain exception
+# scoped to crates we own; do not extend without an explicit audit.
 [sources.allow-org]
 github = ["arclabs561"]
 gitlab = []
