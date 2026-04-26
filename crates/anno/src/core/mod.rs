@@ -46,12 +46,14 @@
 //!
 //! | Module | Purpose |
 //! |--------|---------|
-//! | [`entity`] | `Entity`, `Span`, `Relation`, `EntityType` |
-//! | [`grounded`] | `GroundedDocument`, `Identity`, `Signal`, `Track` |
-//! | [`coref`] | `Mention`, `CorefChain`, `CorefDocument` |
-//! | `graph` | Export to Neo4j, GraphML, JSON-LD |
-//! | [`provenance`] | Document origin tracking |
-//! | [`types`] | `Gender`, `MentionType`, `TypeLabel` |
+//! | `entity` | `Entity`, `Span`, `Relation`, `EntityType` |
+//! | `grounded` | `GroundedDocument`, `Identity`, `Signal`, `Track` |
+//! | `coref` | `Mention`, `CorefChain`, `CorefDocument` |
+//! | `provenance` | Document origin tracking |
+//! | `types` | `Gender`, `MentionType`, `TypeLabel` |
+//!
+//! Graph export lives in `anno::graph` (behind the `graph` feature), not in
+//! this `core` module.
 //!
 //! ## Design Philosophy
 //!
