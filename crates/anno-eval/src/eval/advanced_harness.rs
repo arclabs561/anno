@@ -8,7 +8,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::eval::advanced_harness::{AdvancedEvalHarness, AdvancedTaskResults};
+//! use anno_eval::eval::advanced_harness::{AdvancedEvalHarness, AdvancedTaskResults};
 //! use anno::W2NER;
 //!
 //! let mut harness = AdvancedEvalHarness::new();

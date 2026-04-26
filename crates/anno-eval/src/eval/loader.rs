@@ -6,7 +6,7 @@
 //! # Quick Start
 //!
 //! ```rust,ignore
-//! use anno::eval::{DatasetLoader, LoadableDatasetId};
+//! use anno_eval::eval::{DatasetLoader, LoadableDatasetId};
 //!
 //! let loader = DatasetLoader::new()?;
 //! let dataset = loader.load(LoadableDatasetId::WikiGold)?;
@@ -46,7 +46,7 @@
 //! # Extended Example
 //!
 //! ```rust,ignore
-//! use anno::eval::{DatasetLoader, LoadableDatasetId};
+//! use anno_eval::eval::{DatasetLoader, LoadableDatasetId};
 //!
 //! let loader = DatasetLoader::new()?;
 //!
@@ -91,7 +91,7 @@ use std::path::PathBuf;
 /// # Usage
 ///
 /// ```rust,ignore
-/// use anno::eval::{DatasetLoader, LoadableDatasetId};
+/// use anno_eval::eval::{DatasetLoader, LoadableDatasetId};
 ///
 /// let loader = DatasetLoader::new()?;
 /// let dataset = loader.load(LoadableDatasetId::WikiGold)?;

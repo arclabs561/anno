@@ -10,7 +10,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::eval::harness::{EvalHarness, EvalConfig, BackendRegistry};
+//! use anno_eval::eval::harness::{EvalHarness, EvalConfig, BackendRegistry};
 //! use anno::{RegexNER, HeuristicNER, StackedNER};
 //!
 //! // Create harness with default config
@@ -331,7 +331,7 @@ impl BackendRegistry {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use anno::eval::harness::BackendRegistry;
+    /// use anno_eval::eval::harness::BackendRegistry;
     /// use anno::backends::stacked::ConflictStrategy;
     ///
     /// let mut registry = BackendRegistry::new();

@@ -15,8 +15,8 @@
 //! ```rust,ignore
 //! #[cfg(feature = "eval")]
 //! {
-//! use anno::eval::unified_evaluator::EvalSystem;
-//! use anno::eval::task_mapping::Task;
+//! use anno_eval::eval::unified_evaluator::EvalSystem;
+//! use anno_eval::eval::task_mapping::Task;
 //!
 //! let results = EvalSystem::new()
 //!     .with_tasks(vec![Task::NER])
@@ -455,8 +455,8 @@ impl EvalSystem {
     ///
     /// ```rust,ignore
     /// use matryoshka_box_inference::trained_resolver::TrainedBoxCorefResolver;
-    /// use anno::eval::unified_evaluator::EvalSystem;
-    /// use anno::eval::task_mapping::Task;
+    /// use anno_eval::eval::unified_evaluator::EvalSystem;
+    /// use anno_eval::eval::task_mapping::Task;
     ///
     /// let resolver = TrainedBoxCorefResolver::new(trained_boxes, config);
     /// let results = EvalSystem::new()

@@ -38,7 +38,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::calibration::{CalibrationEvaluator, CalibrationResults};
+//! use anno_eval::eval::calibration::{CalibrationEvaluator, CalibrationResults};
 //!
 //! // Only use with probabilistic confidence scores (e.g., from neural models)
 //! let predictions = vec![
@@ -528,7 +528,7 @@ mod tests {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::calibration::confidence_entropy;
+/// use anno_eval::eval::calibration::confidence_entropy;
 ///
 /// // Sources agree (low disagreement)
 /// let scores = vec![0.9, 0.88, 0.92];
@@ -586,7 +586,7 @@ pub fn confidence_variance(scores: &[f64]) -> f64 {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::calibration::EntropyFilter;
+/// use anno_eval::eval::calibration::EntropyFilter;
 ///
 /// let filter = EntropyFilter::new(0.6);  // Reject if entropy > 0.6
 ///

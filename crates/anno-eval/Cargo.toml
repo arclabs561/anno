@@ -44,7 +44,6 @@ anno = { path = "../anno", version = "0.8.0", default-features = false, features
   "analysis",
 ] }
 anno-core = { path = "../anno-core", version = "0.8.0" }
-anno-metrics = { path = "../anno-metrics", version = "0.8.0" }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

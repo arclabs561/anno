@@ -73,7 +73,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::incremental_coref::{IncrementalCorefResolver, IncrementalConfig, MemoryPolicy};
+//! use anno_eval::eval::incremental_coref::{IncrementalCorefResolver, IncrementalConfig, MemoryPolicy};
 //! use anno::Entity;
 //!
 //! let config = IncrementalConfig {

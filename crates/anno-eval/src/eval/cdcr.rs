@@ -40,7 +40,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::cdcr::{CDCRResolver, Document, CrossDocCluster};
+//! use anno_eval::eval::cdcr::{CDCRResolver, Document, CrossDocCluster};
 //!
 //! let docs = vec![
 //!     Document::new("doc1", "Jensen Huang announced Nvidia's new chips."),

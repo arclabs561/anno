@@ -79,12 +79,6 @@ pub mod discourse;
 pub mod edit_distance;
 pub mod env;
 pub mod error;
-/// Evaluation/analysis primitives (coref metrics, cluster encoders, etc.).
-///
-/// This module is only available when the `analysis` feature is enabled.
-#[cfg(feature = "analysis")]
-#[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
-pub mod eval;
 /// Export entity results to annotation and interchange formats (brat, CoNLL, JSONL, RDF, JSON-LD, CSV).
 pub mod export;
 /// Small, dependency-light heuristics (negation, quantifiers, etc.).
@@ -92,6 +86,12 @@ pub mod heuristics;
 /// Lightweight URL/file ingestion helpers (not a crawling/pipeline product).
 pub mod ingest;
 pub mod lang;
+/// Coreference scoring metrics (MUC, B³, CEAF, LEA, BLANC, CoNLL F1) and cluster-encoding primitives.
+///
+/// Available when the `analysis` feature is enabled.
+#[cfg(feature = "analysis")]
+#[cfg_attr(docsrs, doc(cfg(feature = "analysis")))]
+pub mod metrics;
 pub mod offset;
 /// PII detection and redaction (library-level privacy functions).
 pub mod pii;

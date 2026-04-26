@@ -43,7 +43,7 @@ impl BackendFactory {
     /// # Example
     ///
     /// ```rust,ignore
-    /// use anno::eval::backend_factory::BackendFactory;
+    /// use anno_eval::eval::backend_factory::BackendFactory;
     ///
     /// let backend = BackendFactory::create("pattern")?;
     /// let entities = backend.extract_entities("Meeting on Jan 15", None)?;

@@ -17,8 +17,8 @@
 //! This module is shared by both `anno` (analysis features) and `anno-eval` (evaluation harness).
 //! It is intentionally dependency-light: it relies only on `anno-core`, `serde`, and `std`.
 
-use crate::coref::CorefChain;
-use crate::types::CorefChainStats;
+use super::coref::CorefChain;
+use super::types::CorefChainStats;
 use anno_core::MentionType;
 use std::collections::{HashMap, HashSet};
 
@@ -38,7 +38,7 @@ pub enum SpanMode {
     Head,
 }
 
-fn span_for(mention: &crate::coref::Mention, mode: SpanMode) -> SpanId {
+fn span_for(mention: &super::coref::Mention, mode: SpanMode) -> SpanId {
     match mode {
         SpanMode::Full => mention.span_id(),
         SpanMode::Head => mention.span_id_head(),
@@ -115,7 +115,7 @@ impl CorefScores {
     /// Create a new score triple (F1 computed automatically).
     ///
     /// ```
-    /// use anno_metrics::coref_metrics::CorefScores;
+    /// use anno::metrics::coref_metrics::CorefScores;
     ///
     /// let s = CorefScores::new(0.8, 0.6);
     /// assert!((s.f1 - 2.0 * 0.8 * 0.6 / (0.8 + 0.6)).abs() < 1e-9);
@@ -169,7 +169,7 @@ impl CorefEvaluation {
     ///
     /// ```
     /// use anno_core::core::coref::{CorefChain, Mention};
-    /// use anno_metrics::coref_metrics::CorefEvaluation;
+    /// use anno::metrics::coref_metrics::CorefEvaluation;
     ///
     /// let gold = vec![CorefChain::new(vec![
     ///     Mention::new("John", 0, 4),
@@ -216,7 +216,7 @@ impl CorefEvaluation {
     ///
     /// ```
     /// use anno_core::core::coref::{CorefChain, Mention};
-    /// use anno_metrics::coref_metrics::CorefEvaluation;
+    /// use anno::metrics::coref_metrics::CorefEvaluation;
     ///
     /// let gold = vec![
     ///     CorefChain::new(vec![
@@ -350,7 +350,7 @@ impl std::fmt::Display for CorefEvaluation {
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::muc_score;
+/// use anno::metrics::coref_metrics::muc_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -452,7 +452,7 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::b_cubed_score;
+/// use anno::metrics::coref_metrics::b_cubed_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -542,7 +542,7 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::b_cubed_score_head;
+/// use anno::metrics::coref_metrics::b_cubed_score_head;
 ///
 /// // Two mentions with different full spans but the same head.
 /// let gold = vec![CorefChain::new(vec![
@@ -717,7 +717,7 @@ fn greedy_assignment(
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::ceaf_e_score;
+/// use anno::metrics::coref_metrics::ceaf_e_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -757,7 +757,7 @@ pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::ceaf_m_score;
+/// use anno::metrics::coref_metrics::ceaf_m_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -812,7 +812,7 @@ pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::lea_score;
+/// use anno::metrics::coref_metrics::lea_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -978,7 +978,7 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::blanc_score;
+/// use anno::metrics::coref_metrics::blanc_score;
 ///
 /// // Two chains: coreferent and non-coreferent pairs both exist.
 /// let gold = vec![
@@ -1093,7 +1093,7 @@ pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, 
 ///
 /// ```
 /// use anno_core::core::coref::{CorefChain, Mention};
-/// use anno_metrics::coref_metrics::conll_f1;
+/// use anno::metrics::coref_metrics::conll_f1;
 ///
 /// let gold = vec![CorefChain::new(vec![
 ///     Mention::new("John", 0, 4),
@@ -1682,7 +1682,7 @@ impl WindowFragmentationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::coref::{CorefChain, Mention};
+    use crate::metrics::coref::{CorefChain, Mention};
 
     // ---- helpers ----
 

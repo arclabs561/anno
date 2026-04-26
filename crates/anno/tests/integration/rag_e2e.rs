@@ -6,7 +6,7 @@
 //! Feature-gated: `#[cfg(feature = "analysis")]`
 
 use anno::core::coref::entities_to_chains;
-use anno::eval::coref_resolver::SimpleCorefResolver;
+use anno::metrics::coref_resolver::SimpleCorefResolver;
 use anno::rag::{resolve_for_rag, RagCorefConfig};
 use anno::{Entity, EntityType, MentionType};
 

@@ -22,7 +22,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::annotator::{MultiAnnotatorCorpus, AnnotatorAnalyzer};
+//! use anno_eval::eval::annotator::{MultiAnnotatorCorpus, AnnotatorAnalyzer};
 //!
 //! let mut corpus = MultiAnnotatorCorpus::new();
 //!

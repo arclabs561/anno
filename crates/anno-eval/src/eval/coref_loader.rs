@@ -14,7 +14,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::coref_loader::{CorefLoader, synthetic_coref_dataset};
+//! use anno_eval::eval::coref_loader::{CorefLoader, synthetic_coref_dataset};
 //!
 //! // Load GAP development set (requires eval feature for download)
 //! let loader = CorefLoader::new().unwrap();

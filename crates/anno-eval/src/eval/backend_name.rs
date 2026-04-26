@@ -5,7 +5,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::backend_name::BackendName;
+//! use anno_eval::eval::backend_name::BackendName;
 //!
 //! let backend = BackendName::Stacked;
 //! let name: &str = backend.as_str();

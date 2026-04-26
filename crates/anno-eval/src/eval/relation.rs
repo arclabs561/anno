@@ -291,7 +291,7 @@ impl Default for RelationEvalConfig {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::relation::{evaluate_relations, RelationGold, RelationPrediction, RelationEvalConfig};
+/// use anno_eval::eval::relation::{evaluate_relations, RelationGold, RelationPrediction, RelationEvalConfig};
 ///
 /// let gold = vec![
 ///     RelationGold::new(

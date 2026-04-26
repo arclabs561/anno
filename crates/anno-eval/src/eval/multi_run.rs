@@ -19,7 +19,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::{MultiRunConfig, MultiRunEvaluator, MetricWithVariance};
+//! use anno_eval::eval::{MultiRunConfig, MultiRunEvaluator, MetricWithVariance};
 //!
 //! let config = MultiRunConfig::new()
 //!     .with_runs(5)

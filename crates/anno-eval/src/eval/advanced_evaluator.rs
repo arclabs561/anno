@@ -23,7 +23,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::eval::{AdvancedEvaluator, EvalTask};
+//! use anno_eval::eval::{AdvancedEvaluator, EvalTask};
 //!
 //! let evaluator = AdvancedEvaluator::for_task(&EvalTask::DiscontinuousNER {
 //!     labels: vec!["LOC".into(), "PER".into()],

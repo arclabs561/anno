@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::ensemble::{EnsembleAnalyzer, ModelPrediction};
+//! use anno_eval::eval::ensemble::{EnsembleAnalyzer, ModelPrediction};
 //!
 //! let predictions = vec![
 //!     ModelPrediction {

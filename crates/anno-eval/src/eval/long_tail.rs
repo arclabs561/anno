@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::long_tail::{LongTailAnalyzer, EntityFrequency};
+//! use anno_eval::eval::long_tail::{LongTailAnalyzer, EntityFrequency};
 //!
 //! let frequencies = vec![
 //!     EntityFrequency::new("PER", 1000),   // Head: very common

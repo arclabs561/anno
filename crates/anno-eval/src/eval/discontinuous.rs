@@ -165,7 +165,7 @@ impl Default for DiscontinuousEvalConfig {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::discontinuous::{evaluate_discontinuous_ner, DiscontinuousGold, DiscontinuousEvalConfig};
+/// use anno_eval::eval::discontinuous::{evaluate_discontinuous_ner, DiscontinuousGold, DiscontinuousEvalConfig};
 /// use anno::DiscontinuousEntity;
 ///
 /// let gold = vec![

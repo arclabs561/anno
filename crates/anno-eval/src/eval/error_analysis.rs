@@ -12,8 +12,8 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::error_analysis::{ErrorAnalyzer, PredictedEntity};
-//! use anno::eval::datasets::GoldEntity;
+//! use anno_eval::eval::error_analysis::{ErrorAnalyzer, PredictedEntity};
+//! use anno_eval::eval::datasets::GoldEntity;
 //! use anno::EntityType;
 //!
 //! let analyzer = ErrorAnalyzer::default();

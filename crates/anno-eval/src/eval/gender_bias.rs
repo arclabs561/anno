@@ -21,7 +21,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::gender_bias::{WinoBiasExample, GenderBiasEvaluator, create_winobias_templates};
+//! use anno_eval::eval::gender_bias::{WinoBiasExample, GenderBiasEvaluator, create_winobias_templates};
 //!
 //! let templates = create_winobias_templates();
 //! println!("Loaded {} WinoBias-style templates", templates.len());

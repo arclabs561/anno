@@ -22,7 +22,7 @@ pub struct MetricValue(f64);
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::MetricWithVariance;
+/// use anno_eval::eval::MetricWithVariance;
 ///
 /// let metric = MetricWithVariance::from_samples(&[0.85, 0.87, 0.82, 0.88, 0.84]);
 /// println!("F1: {:.1}% ± {:.1}% (95% CI)", metric.mean * 100.0, metric.ci_95 * 100.0);
@@ -152,7 +152,7 @@ impl MetricValue {
     ///
     /// # Example
     /// ```
-    /// use anno::eval::MetricValue;
+    /// use anno_eval::eval::MetricValue;
     /// let v = MetricValue::new(0.95);
     /// assert!((v.get() - 0.95).abs() < 1e-6);
     /// ```
@@ -357,7 +357,7 @@ impl GoalCheck {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::LabelShift;
+/// use anno_eval::eval::LabelShift;
 ///
 /// let shift = LabelShift {
 ///     overlap_ratio: 0.85,    // 85% of eval types in train
@@ -565,7 +565,7 @@ impl std::fmt::Display for LabelShift {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::CorefChainStats;
+/// use anno_eval::eval::CorefChainStats;
 ///
 /// let stats = CorefChainStats {
 ///     long_chain_count: 3,      // Main characters
@@ -579,7 +579,7 @@ impl std::fmt::Display for LabelShift {
 /// // Report metrics separately, not averaged
 /// println!("Main characters: {:.1}% F1", stats.long_chain_f1 * 100.0);
 /// ```
-pub use anno_metrics::types::CorefChainStats;
+pub use anno::metrics::types::CorefChainStats;
 
 // =============================================================================
 // Document Scale Classification (Bourgois & Poibeau 2025)
@@ -604,7 +604,7 @@ pub use anno_metrics::types::CorefChainStats;
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::DocumentScale;
+/// use anno_eval::eval::DocumentScale;
 ///
 /// let scale = DocumentScale::from_tokens(95_000);
 /// assert!(scale.is_book_scale());
@@ -690,7 +690,7 @@ impl std::fmt::Display for DocumentScale {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::MetricDivergence;
+/// use anno_eval::eval::MetricDivergence;
 ///
 /// let divergence = MetricDivergence::from_scores(0.90, 0.65, 0.45);
 /// assert!(divergence.has_high_divergence());
@@ -781,7 +781,7 @@ impl MetricDivergence {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::{CorefDocStats, coref::CorefChain};
+/// use anno_eval::eval::{CorefDocStats, coref::CorefChain};
 ///
 /// // Create from chains (would use actual chains in practice)
 /// let stats = CorefDocStats {

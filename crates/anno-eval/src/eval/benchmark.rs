@@ -12,7 +12,7 @@
 //! # Usage
 //!
 //! ```rust,no_run
-//! use anno::eval::benchmark::{generate_large_dataset, EdgeCaseType};
+//! use anno_eval::eval::benchmark::{generate_large_dataset, EdgeCaseType};
 //!
 //! // Generate 1000 hard examples
 //! let dataset = generate_large_dataset(1000, EdgeCaseType::All);

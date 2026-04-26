@@ -24,7 +24,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::active_learning::{ActiveLearner, SamplingStrategy, Candidate};
+//! use anno_eval::eval::active_learning::{ActiveLearner, SamplingStrategy, Candidate};
 //!
 //! let learner = ActiveLearner::new(SamplingStrategy::Uncertainty);
 //!

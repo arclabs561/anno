@@ -17,7 +17,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::low_resource::{LowResourceEvaluator, MorphemeConfig};
+//! use anno_eval::eval::low_resource::{LowResourceEvaluator, MorphemeConfig};
 //!
 //! let evaluator = LowResourceEvaluator::new()
 //!     .with_morpheme_boundaries(true)

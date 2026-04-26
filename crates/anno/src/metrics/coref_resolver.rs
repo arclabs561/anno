@@ -330,8 +330,8 @@ impl CoreferenceResolver for DiscourseAwareResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::coref::{entities_to_chains, CorefChain, Mention};
-    use crate::eval::coref_metrics::{
+    use crate::metrics::coref::{entities_to_chains, CorefChain, Mention};
+    use crate::metrics::coref_metrics::{
         b_cubed_score, ceaf_e_score, conll_f1, lea_score, muc_score, CorefEvaluation, CorefScores,
     };
     use crate::{Entity, EntityType};

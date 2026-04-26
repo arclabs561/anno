@@ -34,7 +34,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::demographic_bias::{DemographicBiasEvaluator, create_diverse_name_dataset};
+//! use anno_eval::eval::demographic_bias::{DemographicBiasEvaluator, create_diverse_name_dataset};
 //! use anno::RegexNER;
 //!
 //! let names = create_diverse_name_dataset();

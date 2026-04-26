@@ -30,7 +30,7 @@
 //! # Usage
 //!
 //! ```rust
-//! use anno::eval::synthetic::{all_datasets, datasets_by_domain, datasets_by_difficulty, Domain, Difficulty};
+//! use anno_eval::eval::synthetic::{all_datasets, datasets_by_domain, datasets_by_difficulty, Domain, Difficulty};
 //!
 //! // Get all datasets
 //! let all = all_datasets();
@@ -101,7 +101,7 @@ pub fn conll_style_dataset() -> Vec<AnnotatedExample> {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::synthetic::{datasets_by_domain, Domain};
+/// use anno_eval::eval::synthetic::{datasets_by_domain, Domain};
 ///
 /// let news = datasets_by_domain(Domain::News);
 /// for ex in &news {
@@ -117,7 +117,7 @@ pub fn datasets_by_domain(domain: Domain) -> Vec<AnnotatedExample> {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::synthetic::{datasets_by_difficulty, Difficulty};
+/// use anno_eval::eval::synthetic::{datasets_by_difficulty, Difficulty};
 ///
 /// let hard = datasets_by_difficulty(Difficulty::Hard);
 /// for ex in &hard {

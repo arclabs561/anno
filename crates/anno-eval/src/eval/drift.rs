@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::drift::{DriftDetector, DriftWindow, DriftConfig};
+//! use anno_eval::eval::drift::{DriftDetector, DriftWindow, DriftConfig};
 //!
 //! let mut detector = DriftDetector::new(DriftConfig::default());
 //!

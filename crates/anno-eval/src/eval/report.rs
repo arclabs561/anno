@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::report::{EvalReport, ReportBuilder};
+//! use anno_eval::eval::report::{EvalReport, ReportBuilder};
 //! use anno::RegexNER;
 //!
 //! let model = RegexNER::new();

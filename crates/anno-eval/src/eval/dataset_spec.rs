@@ -34,7 +34,7 @@
 //! ## Example
 //!
 //! ```rust,ignore
-//! use anno::eval::{DatasetId, load_dataset};
+//! use anno_eval::eval::{DatasetId, load_dataset};
 //!
 //! let conll = load_dataset(DatasetId::CoNLL2003, "test")?;
 //! println!("Entity types: {:?}", DatasetId::CoNLL2003.entity_types());

@@ -14,7 +14,7 @@
 //! # Quick Start
 //!
 //! ```rust
-//! use anno::eval::dataset::{NERDataset, Domain, Difficulty};
+//! use anno_eval::eval::dataset::{NERDataset, Domain, Difficulty};
 //!
 //! // Create from synthetic data
 //! let dataset = NERDataset::synthetic();
@@ -64,7 +64,7 @@ use std::path::Path;
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::dataset::{NERDataset, Domain};
+/// use anno_eval::eval::dataset::{NERDataset, Domain};
 ///
 /// // Load synthetic data
 /// let mut dataset = NERDataset::synthetic();
@@ -126,7 +126,7 @@ impl NERDataset {
     /// # Example
     ///
     /// ```rust
-    /// use anno::eval::dataset::NERDataset;
+    /// use anno_eval::eval::dataset::NERDataset;
     ///
     /// let dataset = NERDataset::synthetic();
     /// assert!(!dataset.is_empty());
@@ -135,7 +135,7 @@ impl NERDataset {
         Self {
             examples: synthetic::all_datasets(),
             name: "synthetic".to_string(),
-            source: Some("anno::eval::dataset::synthetic".to_string()),
+            source: Some("anno_eval::eval::dataset::synthetic".to_string()),
         }
     }
 
@@ -144,7 +144,7 @@ impl NERDataset {
         Self {
             examples: synthetic::by_domain(domain),
             name: format!("synthetic_{:?}", domain).to_lowercase(),
-            source: Some("anno::eval::dataset::synthetic".to_string()),
+            source: Some("anno_eval::eval::dataset::synthetic".to_string()),
         }
     }
 

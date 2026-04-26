@@ -24,8 +24,8 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::sampling::stratified_sample;
-//! use anno::eval::datasets::GoldEntity;
+//! use anno_eval::eval::sampling::stratified_sample;
+//! use anno_eval::eval::datasets::GoldEntity;
 //! use anno::EntityType;
 //!
 //! let cases: Vec<(String, Vec<GoldEntity>)> = vec![
@@ -103,8 +103,8 @@ pub fn stratified_sample(
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::sampling::stratified_sample_ner;
-/// use anno::eval::datasets::GoldEntity;
+/// use anno_eval::eval::sampling::stratified_sample_ner;
+/// use anno_eval::eval::datasets::GoldEntity;
 /// use anno::EntityType;
 ///
 /// let cases = vec![

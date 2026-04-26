@@ -12,7 +12,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::learning_curve::{LearningCurveAnalyzer, DataPoint};
+//! use anno_eval::eval::learning_curve::{LearningCurveAnalyzer, DataPoint};
 //!
 //! let points = vec![
 //!     DataPoint { train_size: 100, f1: 0.65, precision: 0.70, recall: 0.60 },

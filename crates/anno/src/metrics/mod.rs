@@ -1,18 +1,16 @@
-//! Shared evaluation/analysis primitives for `anno`.
+//! Evaluation/analysis primitives for `anno`.
 //!
-//! This crate exists to avoid duplicating low-level analysis code across:
-//! - `anno` (library backends + analysis features)
-//! - `anno-eval` (evaluation harness, datasets, reporting)
+//! This module exists to support analysis-oriented features inside the `anno` crate (e.g.
+//! cross-context cluster merging and coreference metric computation) without pulling in the full
+//! dataset/harness machinery from `anno-eval`.
 //!
-//! It depends only on `anno-core` (plus serde for serialization), so it can be used by both
-//! without creating dependency cycles.
-
-#![warn(missing_docs)]
+//! Notes:
+//! - This is intentionally **not** the full evaluation framework. The full harness, datasets, and
+//!   reports live in the `anno-eval` crate.
+//! - The legacy feature name is `eval`; prefer enabling `analysis` (an alias).
 
 /// Coreference types (re-exported from `anno-core`).
-pub mod coref {
-    pub use anno_core::core::coref::*;
-}
+pub mod coref;
 
 /// Small shared analysis structs.
 pub mod types {
@@ -60,8 +58,23 @@ pub mod types {
     }
 }
 
-/// Coreference evaluation metrics.
+/// Coreference evaluation metrics (MUC, B³, CEAF, LEA, BLANC, CoNLL F1).
 pub mod coref_metrics;
 
-/// Cluster encoding and merge scoring primitives for cross-context coreference.
+/// Cross-context cluster encoding and merge scoring primitives.
 pub mod cluster_encoder;
+
+/// Simple coreference resolvers used by analysis/evaluation paths.
+pub mod coref_resolver;
+
+pub use cluster_encoder::{
+    ClusterEmbedding, ClusterEncoder, ClusterMention, CosineMergeScorer, CrossContextConfig,
+    HeuristicClusterEncoder, LocalCluster, MergeScorer, MergedCluster,
+};
+
+pub use coref_metrics::{
+    b_cubed_score, blanc_score, ceaf_e_score, ceaf_m_score, conll_f1, lea_score, muc_score,
+    CorefEvaluation, CorefScores, ZeroAnaphorEvaluation,
+};
+
+pub use coref_resolver::{CorefConfig, SimpleCorefResolver};

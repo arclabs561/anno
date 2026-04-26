@@ -3,7 +3,7 @@
 //! # Usage
 //!
 //! ```rust
-//! use anno::eval::prelude::*;
+//! use anno_eval::eval::prelude::*;
 //! ```
 //!
 //! This provides the minimal set of types needed for most evaluation tasks:
@@ -12,8 +12,8 @@
 //! - Core metrics types
 //!
 //! For specialized analysis, import from specific modules:
-//! - `anno::eval::gender_bias` (requires `eval-bias` feature)
-//! - `anno::eval::calibration` (requires `eval` feature)
+//! - `anno_eval::eval::gender_bias` (requires `eval-bias` feature)
+//! - `anno_eval::eval::calibration` (requires `eval` feature)
 
 // =============================================================================
 // CORE (always available)

@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::few_shot::{FewShotEvaluator, FewShotTask, SupportExample};
+//! use anno_eval::eval::few_shot::{FewShotEvaluator, FewShotTask, SupportExample};
 //!
 //! // Create support set (few examples per entity type)
 //! let task = FewShotTask {

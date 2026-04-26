@@ -19,7 +19,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::length_bias::{EntityLengthEvaluator, create_length_varied_dataset};
+//! use anno_eval::eval::length_bias::{EntityLengthEvaluator, create_length_varied_dataset};
 //!
 //! let examples = create_length_varied_dataset();
 //! let evaluator = EntityLengthEvaluator::default();

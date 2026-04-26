@@ -28,8 +28,8 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::book_scale::{BookScaleAnalyzer, BookScaleConfig};
-//! use anno::eval::coref::CorefChain;
+//! use anno_eval::eval::book_scale::{BookScaleAnalyzer, BookScaleConfig};
+//! use anno::metrics::coref::CorefChain;
 //!
 //! let analyzer = BookScaleAnalyzer::new(BookScaleConfig::default());
 //!

@@ -6,7 +6,7 @@
 //! Run with:
 //!   cargo test -p anno --features "onnx analysis" --test model_integration -- --ignored
 
-use anno::eval::coref_resolver::SimpleCorefResolver;
+use anno::metrics::coref_resolver::SimpleCorefResolver;
 use anno::{EntityType, Model, StackedNER};
 
 // =============================================================================

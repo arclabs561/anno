@@ -14,7 +14,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::bio_adapter::{BioScheme, bio_to_entities, entities_to_bio};
+//! use anno_eval::eval::bio_adapter::{BioScheme, bio_to_entities, entities_to_bio};
 //! use anno::{Entity, EntityType};
 //!
 //! // Convert BIO tags to entities
@@ -127,7 +127,7 @@ impl ParsedTag {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::bio_adapter::{BioScheme, bio_to_entities};
+/// use anno_eval::eval::bio_adapter::{BioScheme, bio_to_entities};
 ///
 /// let tokens = ["The", "United", "Nations", "met", "today"];
 /// let tags = ["O", "B-ORG", "I-ORG", "O", "O"];
@@ -590,7 +590,7 @@ pub enum RepairStrategy {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::bio_adapter::{repair_bio_sequence, RepairStrategy, BioScheme};
+/// use anno_eval::eval::bio_adapter::{repair_bio_sequence, RepairStrategy, BioScheme};
 ///
 /// let invalid = vec!["O", "I-PER", "I-PER", "O"];  // Invalid: O->I
 /// let repaired = repair_bio_sequence(&invalid, BioScheme::IOB2, RepairStrategy::PromoteToBegin);

@@ -27,7 +27,7 @@ use std::path::Path;
 ///
 /// # Example
 /// ```rust
-/// use anno::eval::GoldEntity;
+/// use anno_eval::eval::GoldEntity;
 /// use anno::EntityType;
 ///
 /// let entity = GoldEntity::new("John Doe", EntityType::Person, 0);

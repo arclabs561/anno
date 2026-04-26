@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::dataset::Domain;
+/// use anno_eval::eval::dataset::Domain;
 ///
 /// let domain = Domain::News;
 /// assert_eq!(format!("{:?}", domain), "News");
@@ -138,7 +138,7 @@ impl Domain {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::dataset::Difficulty;
+/// use anno_eval::eval::dataset::Difficulty;
 ///
 /// let difficulty = Difficulty::Hard;
 /// assert!(difficulty.is_challenging());
@@ -195,8 +195,8 @@ impl Difficulty {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::dataset::{AnnotatedExample, Domain, Difficulty};
-/// use anno::eval::GoldEntity;
+/// use anno_eval::eval::dataset::{AnnotatedExample, Domain, Difficulty};
+/// use anno_eval::eval::GoldEntity;
 /// use anno::EntityType;
 ///
 /// let example = AnnotatedExample::new(
@@ -264,7 +264,7 @@ impl AnnotatedExample {
     /// # Example
     ///
     /// ```rust
-    /// use anno::eval::dataset::AnnotatedExample;
+    /// use anno_eval::eval::dataset::AnnotatedExample;
     ///
     /// let example = AnnotatedExample::from_tuples(
     ///     "John works at Google.",

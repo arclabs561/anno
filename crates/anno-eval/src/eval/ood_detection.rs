@@ -18,7 +18,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::ood_detection::{OODDetector, OODConfig};
+//! use anno_eval::eval::ood_detection::{OODDetector, OODConfig};
 //!
 //! let detector = OODDetector::new(OODConfig::default());
 //!

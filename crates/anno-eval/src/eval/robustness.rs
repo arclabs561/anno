@@ -20,7 +20,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::robustness::{RobustnessEvaluator, Perturbation};
+//! use anno_eval::eval::robustness::{RobustnessEvaluator, Perturbation};
 //!
 //! let perturber = RobustnessEvaluator::default();
 //! let original = "John Smith works at Google.";

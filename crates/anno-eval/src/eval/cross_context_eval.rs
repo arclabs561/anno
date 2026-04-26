@@ -11,8 +11,8 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::eval::cross_context_eval::{CrossContextBenchmark, evaluate_benchmark};
-//! use anno::eval::cluster_encoder::{HeuristicClusterEncoder, CosineMergeScorer};
+//! use anno_eval::eval::cross_context_eval::{CrossContextBenchmark, evaluate_benchmark};
+//! use anno::metrics::cluster_encoder::{HeuristicClusterEncoder, CosineMergeScorer};
 //!
 //! let encoder = HeuristicClusterEncoder::new(64);
 //! let scorer = CosineMergeScorer::new();

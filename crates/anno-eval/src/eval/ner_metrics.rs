@@ -340,7 +340,7 @@ pub struct NerEvalSummary {
 /// # Example
 ///
 /// ```
-/// use anno::eval::ner_metrics::{evaluate_ner, EvalSpan};
+/// use anno_eval::eval::ner_metrics::{evaluate_ner, EvalSpan};
 /// use anno::EntityType;
 ///
 /// let gold = vec![

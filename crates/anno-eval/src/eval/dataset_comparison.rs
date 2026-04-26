@@ -14,8 +14,8 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::dataset_comparison::{DatasetStats, compare_datasets};
-//! use anno::eval::synthetic::AnnotatedExample;
+//! use anno_eval::eval::dataset_comparison::{DatasetStats, compare_datasets};
+//! use anno_eval::eval::synthetic::AnnotatedExample;
 //!
 //! let dataset_a = vec![
 //!     AnnotatedExample::from_tuples("John works at Google.", vec![("John", "PER"), ("Google", "ORG")]),

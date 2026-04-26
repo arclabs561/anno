@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```rust,ignore
-//! use anno::eval::ranking::{NedMetrics, CandidateRanking};
+//! use anno_eval::eval::ranking::{NedMetrics, CandidateRanking};
 //!
 //! // Gold entity for a mention
 //! let gold_kb_id = "Q76";  // Barack Obama in Wikidata

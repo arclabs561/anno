@@ -239,9 +239,9 @@ impl SimpleCorefResolver {
     /// Requires the `analysis` feature.
     #[cfg(feature = "analysis")]
     #[must_use]
-    pub fn resolve_to_chains(&self, entities: &[Entity]) -> Vec<crate::eval::coref::CorefChain> {
+    pub fn resolve_to_chains(&self, entities: &[Entity]) -> Vec<crate::metrics::coref::CorefChain> {
         let resolved = self.resolve_entities(entities);
-        crate::eval::coref::entities_to_chains(&resolved)
+        crate::metrics::coref::entities_to_chains(&resolved)
     }
 
     fn find_matching_cluster(

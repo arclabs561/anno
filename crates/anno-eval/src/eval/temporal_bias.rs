@@ -19,7 +19,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::temporal_bias::{TemporalBiasEvaluator, create_temporal_name_dataset};
+//! use anno_eval::eval::temporal_bias::{TemporalBiasEvaluator, create_temporal_name_dataset};
 //!
 //! let names = create_temporal_name_dataset();
 //! let evaluator = TemporalBiasEvaluator::default();

@@ -15,7 +15,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::dataset_quality::{DatasetQualityAnalyzer, QualityReport};
+//! use anno_eval::eval::dataset_quality::{DatasetQualityAnalyzer, QualityReport};
 //!
 //! let analyzer = DatasetQualityAnalyzer::default();
 //!

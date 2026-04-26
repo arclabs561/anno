@@ -49,7 +49,7 @@
 //! # NER Evaluation
 //!
 //! ```rust,ignore
-//! use anno::eval::{evaluate_ner_model, GoldEntity, ErrorAnalysis};
+//! use anno_eval::eval::{evaluate_ner_model, GoldEntity, ErrorAnalysis};
 //! use anno::RegexNER;
 //!
 //! let model = RegexNER::new();
@@ -66,7 +66,7 @@
 //! # Coreference Evaluation
 //!
 //! ```rust,ignore
-//! use anno::eval::{CorefChain, Mention, conll_f1, muc_score, b_cubed_score};
+//! use anno_eval::eval::{CorefChain, Mention, conll_f1, muc_score, b_cubed_score};
 //!
 //! let gold = vec![
 //!     CorefChain::new(0, vec![Mention::new("John", 0, 4), Mention::new("he", 20, 22)]),
@@ -127,7 +127,7 @@ use std::path::Path;
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::{EvalTask, EvalMode};
+/// use anno_eval::eval::{EvalTask, EvalMode};
 ///
 /// let task = EvalTask::NER {
 ///     labels: vec!["PER", "ORG", "LOC"].into_iter().map(String::from).collect(),
@@ -243,12 +243,12 @@ pub use modes::EvalMode;
 
 /// Cross-context clustering primitives (shared via `anno-metrics`).
 pub mod cluster_encoder {
-    pub use anno_metrics::cluster_encoder::*;
+    pub use anno::metrics::cluster_encoder::*;
 }
 
 /// Coreference metrics (shared via `anno-metrics`).
 pub mod coref_metrics {
-    pub use anno_metrics::coref_metrics::*;
+    pub use anno::metrics::coref_metrics::*;
 }
 
 // =============================================================================
@@ -269,9 +269,9 @@ pub mod coref;
 pub mod coref_loader;
 pub mod cross_context_eval;
 
-/// Coreference resolvers (shared via `anno::eval`).
+/// Coreference resolvers (shared via `anno::metrics`).
 pub mod coref_resolver {
-    pub use anno::eval::coref_resolver::*;
+    pub use anno::metrics::coref_resolver::*;
 }
 pub mod dataset;
 pub mod dataset_metadata;
@@ -875,7 +875,7 @@ pub fn evaluate_ner_model(
 ///
 /// ```rust,ignore
 /// use anno::{TypeMapper, RegexNER, Model};
-/// use anno::eval::{evaluate_ner_model_with_mapper, GoldEntity};
+/// use anno_eval::eval::{evaluate_ner_model_with_mapper, GoldEntity};
 ///
 /// // MIT Movie dataset - normalize ACTOR/DIRECTOR to Person
 /// let mapper = TypeMapper::mit_movie();

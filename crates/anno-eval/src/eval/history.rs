@@ -13,7 +13,7 @@
 //! # Usage
 //!
 //! ```rust,ignore
-//! use anno::eval::history::EvalHistory;
+//! use anno_eval::eval::history::EvalHistory;
 //!
 //! let history = EvalHistory::new("reports/eval-results.jsonl")?;
 //!

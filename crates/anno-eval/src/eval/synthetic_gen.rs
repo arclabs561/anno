@@ -6,7 +6,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::synthetic_gen::{Template, generate_test_cases};
+//! use anno_eval::eval::synthetic_gen::{Template, generate_test_cases};
 //!
 //! let templates = vec![
 //!     Template::new("Meeting on {DATE} at {TIME}"),

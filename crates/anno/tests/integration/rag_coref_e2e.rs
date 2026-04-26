@@ -4,7 +4,7 @@
 //! verifying pronoun rewriting, offset validity, cataphora support,
 //! and the coref chain evaluation path.
 
-use anno::eval::coref_resolver::{CorefConfig, SimpleCorefResolver};
+use anno::metrics::coref_resolver::{CorefConfig, SimpleCorefResolver};
 use anno::rag::{resolve_for_rag, RagCorefConfig};
 use anno::{CorefChain, Entity, EntityType, Mention, MentionType};
 

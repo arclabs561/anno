@@ -128,8 +128,8 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::modes::{EvalMode, evaluate_with_mode, MultiModeResults};
-//! use anno::eval::GoldEntity;
+//! use anno_eval::eval::modes::{EvalMode, evaluate_with_mode, MultiModeResults};
+//! use anno_eval::eval::GoldEntity;
 //! use anno::{Entity, EntityType};
 //!
 //! let predicted = vec![
@@ -170,7 +170,7 @@ use serde::{Deserialize, Serialize};
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::modes::EvalConfig;
+/// use anno_eval::eval::modes::EvalConfig;
 ///
 /// // Require at least 50% overlap for partial matches
 /// let config = EvalConfig::new().with_min_overlap(0.5);
@@ -539,8 +539,8 @@ pub fn evaluate_with_mode(
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::modes::{EvalMode, EvalConfig, evaluate_with_config};
-/// use anno::eval::GoldEntity;
+/// use anno_eval::eval::modes::{EvalMode, EvalConfig, evaluate_with_config};
+/// use anno_eval::eval::GoldEntity;
 /// use anno::{Entity, EntityType};
 ///
 /// let predicted = vec![Entity::new("New York", EntityType::Location, 0, 8, 0.9)];

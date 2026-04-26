@@ -9,7 +9,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno::eval::threshold_analysis::{ThresholdAnalyzer, PredictionWithConfidence};
+//! use anno_eval::eval::threshold_analysis::{ThresholdAnalyzer, PredictionWithConfidence};
 //!
 //! let predictions = vec![
 //!     PredictionWithConfidence::new("John", "PER", 0.95, true),

@@ -223,7 +223,7 @@ impl Default for TypeMetricGoals {
 /// # Example
 ///
 /// ```rust
-/// use anno::eval::{GoldEntity, StandardNEREvaluator, NEREvaluator};
+/// use anno_eval::eval::{GoldEntity, StandardNEREvaluator, NEREvaluator};
 /// use anno::{RegexNER, Model, EntityType};
 ///
 /// let evaluator = StandardNEREvaluator::new();
