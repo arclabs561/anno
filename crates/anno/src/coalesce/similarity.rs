@@ -52,7 +52,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno_core::coalesce::similarity::{multilingual_similarity, Script, Similarity};
+//! use crate::coalesce::similarity::{multilingual_similarity, Script, Similarity};
 //!
 //! let sim = Similarity::new();
 //!
@@ -401,7 +401,7 @@ pub fn jaro_winkler_similarity(a: &str, b: &str) -> f32 {
 /// # Example
 ///
 /// ```rust
-/// use anno_core::coalesce::similarity::multilingual_similarity;
+/// use crate::coalesce::similarity::multilingual_similarity;
 ///
 /// // English
 /// let sim = multilingual_similarity("Marie Curie", "Curie");
@@ -719,7 +719,7 @@ pub fn cross_lingual_similarity(a: &str, b: &str) -> f32 {
 /// # Examples
 ///
 /// ```rust
-/// use anno_core::coalesce::similarity::is_acronym_match;
+/// use crate::coalesce::similarity::is_acronym_match;
 ///
 /// assert!(is_acronym_match("WHO", "World Health Organization"));
 /// assert!(is_acronym_match("MRSA", "Methicillin-resistant Staphylococcus aureus"));
@@ -794,7 +794,7 @@ pub fn is_acronym_match(a: &str, b: &str) -> bool {
 /// # Example
 ///
 /// ```rust,ignore
-/// use anno_core::coalesce::similarity::{SynonymMatch, SynonymSource};
+/// use crate::coalesce::similarity::{SynonymMatch, SynonymSource};
 ///
 /// struct UmlsSynonyms { /* UMLS connection */ }
 ///

@@ -48,9 +48,9 @@
 //! - **ONNX** (recommended): `cargo build --features onnx`
 //! - **Candle** (native): `cargo build --features candle`
 
+use crate::EntityCategory;
 use crate::Error;
 use crate::{Entity, EntityType, Language, Result};
-use anno_core::EntityCategory;
 pub(crate) mod relations;
 
 /// Reject model IDs that are known to use a different architecture from the one

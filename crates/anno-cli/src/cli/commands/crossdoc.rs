@@ -10,14 +10,14 @@ use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "eval")]
+use anno::coalesce::Resolver;
+#[cfg(feature = "eval")]
 use anno::offset::TextSpan;
 #[cfg(feature = "eval")]
 use anno::{
     Corpus, Entity, EntityCategory, EntityType, GroundedDocument, Identity, IdentitySource,
     Location, Signal, SignalId,
 };
-#[cfg(feature = "eval")]
-use anno_core::coalesce::Resolver;
 #[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 

@@ -388,12 +388,12 @@ fn string_to_entity_type(s: &str) -> EntityType {
         "PER" | "PERSON" => EntityType::Person,
         "ORG" | "ORGANIZATION" => EntityType::Organization,
         "LOC" | "LOCATION" | "GPE" => EntityType::Location,
-        "MISC" | "MISCELLANEOUS" => EntityType::custom("MISC", anno_core::EntityCategory::Misc),
+        "MISC" | "MISCELLANEOUS" => EntityType::custom("MISC", anno::EntityCategory::Misc),
         "DATE" => EntityType::Date,
         "TIME" => EntityType::Time,
         "MONEY" | "CURRENCY" => EntityType::Money,
         "PERCENT" | "PERCENTAGE" => EntityType::Percent,
-        other => EntityType::custom(other, anno_core::EntityCategory::Misc),
+        other => EntityType::custom(other, anno::EntityCategory::Misc),
     }
 }
 

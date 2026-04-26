@@ -6,7 +6,7 @@
 //! - Statistical significance testing between systems
 
 use super::datasets::GoldEntity;
-use anno_core::Entity;
+use anno::Entity;
 use std::collections::HashMap;
 
 // =============================================================================
@@ -594,7 +594,7 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use anno::EntityType;
 
     #[test]
     fn test_confusion_matrix() {

@@ -58,11 +58,11 @@ pub enum Error {
     #[error("Track reference error: {0}")]
     TrackRef(String),
 
-    /// Error from `anno-core` (stable data-model layer).
+    /// Error from `anno::core` (stable data-model layer).
     ///
-    /// Enables `?` propagation from functions returning `anno_core::Result`.
+    /// Enables `?` propagation from functions returning `crate::Result`.
     #[error(transparent)]
-    Core(anno_core::core::error::Error),
+    Core(crate::core::error::Error),
 }
 
 impl Error {
@@ -117,10 +117,10 @@ impl Error {
     }
 }
 
-/// Convert `anno-core` errors into `anno` errors, enabling `?` propagation
-/// across the crate boundary.
-impl From<anno_core::core::error::Error> for Error {
-    fn from(err: anno_core::core::error::Error) -> Self {
+/// Convert `anno::core` errors into `anno::Error`, enabling `?` propagation
+/// across the module boundary.
+impl From<crate::core::error::Error> for Error {
+    fn from(err: crate::core::error::Error) -> Self {
         Error::Core(err)
     }
 }
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_core_error_conversion() {
-        let core_err = anno_core::core::error::Error::parse("bad token");
+        let core_err = crate::core::error::Error::parse("bad token");
         let err: Error = core_err.into();
         assert!(matches!(err, Error::Core(_)));
         assert!(err.to_string().contains("Parse error"));
@@ -201,11 +201,11 @@ mod tests {
 
     #[test]
     fn test_core_error_question_mark_propagation() {
-        fn inner() -> anno_core::core::error::Result<()> {
-            Err(anno_core::core::error::Error::corpus("missing doc"))
+        fn inner() -> crate::core::error::Result<()> {
+            Err(crate::core::error::Error::corpus("missing doc"))
         }
         fn outer() -> Result<()> {
-            inner()?; // exercises From<anno_core::Error>
+            inner()?; // exercises From<crate::Error>
             Ok(())
         }
         let err = outer().unwrap_err();

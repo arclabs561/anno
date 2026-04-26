@@ -25,7 +25,7 @@ pub use lattix::{GraphDocument, GraphExportFormat, KnowledgeGraph};
 /// extraction-time relations, use [`entities_to_graph_document`] directly with
 /// the `Relation` slice from the extraction backend.
 #[must_use]
-pub fn grounded_to_graph_document(doc: &anno_core::GroundedDocument) -> GraphDocument {
+pub fn grounded_to_graph_document(doc: &crate::GroundedDocument) -> GraphDocument {
     let entities = doc.to_entities();
     entities_to_graph_document(&entities, &[])
 }
@@ -33,15 +33,15 @@ pub fn grounded_to_graph_document(doc: &anno_core::GroundedDocument) -> GraphDoc
 /// Convert entities and relations into a `lattix::exchange::GraphDocument`.
 #[must_use]
 pub fn entities_to_graph_document(
-    entities: &[anno_core::Entity],
-    relations: &[anno_core::Relation],
+    entities: &[crate::Entity],
+    relations: &[crate::Relation],
 ) -> GraphDocument {
     let mut doc = GraphDocument::new();
     let mut seen_nodes: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
     let mut entity_to_node: std::collections::HashMap<usize, String> =
         std::collections::HashMap::new();
 
-    let get_node_id = |e: &anno_core::Entity| -> String {
+    let get_node_id = |e: &crate::Entity| -> String {
         if let Some(ref kb_id) = e.kb_id {
             return kb_id.clone();
         }
@@ -158,8 +158,8 @@ fn escape_literal(s: &str) -> String {
 /// `kg.triples().map(|t| t.to_ntriples()).collect::<Vec<_>>().join("\n")`.
 #[must_use]
 pub fn entities_to_knowledge_graph(
-    entities: &[anno_core::Entity],
-    relations: &[anno_core::Relation],
+    entities: &[crate::Entity],
+    relations: &[crate::Relation],
     doc_iri: &str,
     base_uri: &str,
 ) -> KnowledgeGraph {
@@ -256,7 +256,7 @@ pub fn entities_to_knowledge_graph(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::{Entity, EntityType, Relation};
+    use crate::{Entity, EntityType, Relation};
 
     fn ent(text: &str, start: usize, end: usize, ty: EntityType) -> Entity {
         Entity::new(text, ty, start, end, 0.9)

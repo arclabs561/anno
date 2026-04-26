@@ -71,9 +71,9 @@
 //!
 //! [`dataset_registry::DatasetId`]: super::dataset_registry::DatasetId
 
-use anno::{Error, Result};
 #[cfg(test)]
-use anno_core::EntityType;
+use anno::EntityType;
+use anno::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -1094,7 +1094,7 @@ impl AnnotatedSentence {
                 entities.push(super::datasets::GoldEntity {
                     text: entity_text,
                     original_label: entity_type.to_string(),
-                    entity_type: anno_core::EntityType::from_label(entity_type),
+                    entity_type: anno::EntityType::from_label(entity_type),
                     start,
                     end: end_char,
                 });
@@ -1127,7 +1127,7 @@ impl AnnotatedSentence {
                 entities.push(super::datasets::GoldEntity {
                     text: entity_text,
                     original_label: entity_type.to_string(),
-                    entity_type: anno_core::EntityType::from_label(entity_type),
+                    entity_type: anno::EntityType::from_label(entity_type),
                     start,
                     end: end_char,
                 });

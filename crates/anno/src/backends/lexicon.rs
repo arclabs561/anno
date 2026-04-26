@@ -45,8 +45,8 @@
 //!     .build();
 //! ```
 
+use crate::Lexicon;
 use crate::{Entity, EntityType, Language, Model, Result};
-use anno_core::Lexicon;
 use std::sync::Arc;
 
 /// NER backend that uses exact-match lexicon lookup.
@@ -190,9 +190,9 @@ impl Model for LexiconNER {
                     // Extract actual text span (preserving original case)
                     let actual_span: String = text.chars().skip(start).take(end - start).collect();
 
-                    let provenance = anno_core::Provenance {
+                    let provenance = crate::Provenance {
                         source: std::borrow::Cow::Borrowed("lexicon"),
-                        method: anno_core::ExtractionMethod::Heuristic,
+                        method: crate::ExtractionMethod::Heuristic,
                         pattern: Some(std::borrow::Cow::Owned(format!(
                             "lexicon:{}",
                             self.lexicon.source()
@@ -258,7 +258,7 @@ impl Model for LexiconNER {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::HashMapLexicon;
+    use crate::HashMapLexicon;
 
     #[test]
     fn test_lexicon_ner_basic() {
@@ -360,7 +360,7 @@ mod tests {
         let mut lexicon = HashMapLexicon::new("test");
         lexicon.insert(
             "the",
-            EntityType::custom("DET", anno_core::EntityCategory::Misc),
+            EntityType::custom("DET", crate::EntityCategory::Misc),
             0.5,
         );
 

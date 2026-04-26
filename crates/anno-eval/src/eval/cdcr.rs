@@ -237,21 +237,21 @@ impl CrossDocCluster {
 /// This is intentional: identities created from evaluation data don't have
 /// the same provenance tracking as identities created through the normal
 /// corpus resolution pipeline.
-impl From<&CrossDocCluster> for anno_core::Identity {
+impl From<&CrossDocCluster> for anno::Identity {
     fn from(cluster: &CrossDocCluster) -> Self {
         Self {
-            id: anno_core::IdentityId::new(cluster.id),
+            id: anno::IdentityId::new(cluster.id),
             canonical_name: cluster.canonical_name.clone(),
             entity_type: cluster
                 .entity_type
                 .as_ref()
-                .map(|t| anno_core::TypeLabel::from(t.as_label())),
+                .map(|t| anno::TypeLabel::from(t.as_label())),
             kb_id: cluster.kb_id.clone(),
             kb_name: None,
             description: None,
             embedding: None,
             aliases: Vec::new(),
-            confidence: anno_core::Confidence::new(cluster.confidence),
+            confidence: anno::Confidence::new(cluster.confidence),
             source: None, // Cannot determine source from CDCR format (no track_ids)
         }
     }

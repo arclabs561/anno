@@ -1,5 +1,5 @@
 use super::*;
-use anno_core::{Confidence, ExtractionMethod};
+use crate::{Confidence, ExtractionMethod};
 
 fn fast_ensemble() -> EnsembleNER {
     // Keep unit tests deterministic and fast: do not initialize model-loading backends here.

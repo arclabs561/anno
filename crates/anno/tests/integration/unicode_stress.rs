@@ -3,8 +3,7 @@
 //! Tests ensure correct handling of various Unicode scripts, edge cases,
 //! and multilingual entity resolution scenarios.
 
-use anno_core::coalesce as anno_coalesce;
-
+use anno::coalesce as anno_coalesce;
 use anno_coalesce::similarity::{
     jaro_similarity, jaro_winkler_similarity, levenshtein_distance, normalize, Script, Similarity,
 };

@@ -83,7 +83,7 @@ impl PredictedEntity {
     }
 
     /// Create from an anno Entity.
-    pub fn from_entity(entity: &anno_core::Entity) -> Self {
+    pub fn from_entity(entity: &anno::Entity) -> Self {
         Self {
             text: entity.text.clone(),
             entity_type: entity.entity_type.as_label().to_string(),
@@ -655,7 +655,7 @@ impl ErrorAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use anno::EntityType;
 
     #[test]
     fn test_type_error_detection() {
@@ -725,7 +725,7 @@ mod tests {
 
     #[test]
     fn test_from_entity() {
-        let entity = anno_core::Entity::new("Test", EntityType::Person, 0, 4, 0.95);
+        let entity = anno::Entity::new("Test", EntityType::Person, 0, 4, 0.95);
         let pred = PredictedEntity::from_entity(&entity);
         assert_eq!(pred.text, "Test");
         assert_eq!(pred.entity_type, "PER");

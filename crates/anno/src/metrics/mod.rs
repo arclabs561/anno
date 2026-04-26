@@ -9,7 +9,7 @@
 //!   reports live in the `anno-eval` crate.
 //! - The legacy feature name is `eval`; prefer enabling `analysis` (an alias).
 
-/// Coreference types (re-exported from `anno-core`).
+/// Coreference types (re-exported from `crate::core`).
 pub mod coref;
 
 /// Small shared analysis structs.

@@ -82,7 +82,7 @@
 //! assert!(referent.referent_type.is_abstract());
 //! ```
 
-use anno_core::{Confidence, Entity};
+use crate::{Confidence, Entity};
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -387,7 +387,7 @@ pub struct DiscourseReferent {
     /// If this is an event, the event mention details
     pub event: Option<EventMention>,
     /// Coreference cluster ID (shared with entities that refer to this)
-    pub canonical_id: Option<anno_core::CanonicalId>,
+    pub canonical_id: Option<crate::CanonicalId>,
     /// Confidence that this is a valid discourse referent
     pub confidence: Confidence,
     /// Discourse depth (how nested this referent is)
@@ -451,7 +451,7 @@ impl DiscourseReferent {
 
     /// Set the canonical ID.
     #[must_use]
-    pub fn with_canonical_id(mut self, id: impl Into<anno_core::CanonicalId>) -> Self {
+    pub fn with_canonical_id(mut self, id: impl Into<crate::CanonicalId>) -> Self {
         self.canonical_id = Some(id.into());
         self
     }
@@ -1319,7 +1319,7 @@ impl EventCorefResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use crate::EntityType;
 
     #[test]
     fn test_referent_types() {

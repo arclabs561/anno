@@ -595,7 +595,7 @@ pub fn estimate_budget(
 ///
 /// Each entity's text and confidence score become a [`Candidate`].
 /// The entity type is recorded in `predicted_types`.
-pub fn entities_to_candidates(entities: &[anno_core::Entity]) -> Vec<Candidate> {
+pub fn entities_to_candidates(entities: &[anno::Entity]) -> Vec<Candidate> {
     entities
         .iter()
         .map(|e| {
@@ -609,7 +609,7 @@ pub fn entities_to_candidates(entities: &[anno_core::Entity]) -> Vec<Candidate> 
 ///
 /// Returns `(entity_index, uncertainty_score)` pairs sorted by
 /// descending uncertainty (most uncertain first), limited to `k`.
-pub fn rank_for_annotation(entities: &[anno_core::Entity], k: usize) -> Vec<(usize, f64)> {
+pub fn rank_for_annotation(entities: &[anno::Entity], k: usize) -> Vec<(usize, f64)> {
     let mut scored: Vec<(usize, f64)> = entities
         .iter()
         .enumerate()
@@ -629,7 +629,7 @@ pub fn rank_for_annotation(entities: &[anno_core::Entity], k: usize) -> Vec<(usi
 /// Converts entities to candidates, applies the given sampling strategy,
 /// and returns a [`SelectionResult`] with scores, warnings, and statistics.
 pub fn select_for_annotation(
-    entities: &[anno_core::Entity],
+    entities: &[anno::Entity],
     strategy: SamplingStrategy,
     k: usize,
 ) -> SelectionResult {
@@ -642,7 +642,7 @@ pub fn select_for_annotation(
 ///
 /// Each line is a JSON object with `text`, `entity_type`, `confidence`,
 /// `uncertainty`, and `rank` fields, sorted by descending uncertainty.
-pub fn export_annotation_priority(entities: &[anno_core::Entity], k: usize) -> Vec<String> {
+pub fn export_annotation_priority(entities: &[anno::Entity], k: usize) -> Vec<String> {
     let ranked = rank_for_annotation(entities, k);
     ranked
         .iter()
@@ -788,11 +788,11 @@ mod tests {
 
     #[test]
     fn test_entities_to_candidates() {
-        use anno_core::EntityType;
+        use anno::EntityType;
 
         let entities = vec![
-            anno_core::Entity::new("Alice", EntityType::Person, 0, 5, 0.9),
-            anno_core::Entity::new("Acme Corp", EntityType::Organization, 10, 19, 0.4),
+            anno::Entity::new("Alice", EntityType::Person, 0, 5, 0.9),
+            anno::Entity::new("Acme Corp", EntityType::Organization, 10, 19, 0.4),
         ];
 
         let candidates = entities_to_candidates(&entities);
@@ -812,12 +812,12 @@ mod tests {
 
     #[test]
     fn test_rank_for_annotation() {
-        use anno_core::EntityType;
+        use anno::EntityType;
 
         let entities = vec![
-            anno_core::Entity::new("High", EntityType::Person, 0, 4, 0.95),
-            anno_core::Entity::new("Low", EntityType::Person, 5, 8, 0.2),
-            anno_core::Entity::new("Mid", EntityType::Person, 9, 12, 0.6),
+            anno::Entity::new("High", EntityType::Person, 0, 4, 0.95),
+            anno::Entity::new("Low", EntityType::Person, 5, 8, 0.2),
+            anno::Entity::new("Mid", EntityType::Person, 9, 12, 0.6),
         ];
 
         let ranked = rank_for_annotation(&entities, 2);
@@ -829,11 +829,11 @@ mod tests {
 
     #[test]
     fn test_export_annotation_priority() {
-        use anno_core::EntityType;
+        use anno::EntityType;
 
         let entities = vec![
-            anno_core::Entity::new("Sure", EntityType::Person, 0, 4, 0.99),
-            anno_core::Entity::new("Unsure", EntityType::Organization, 5, 11, 0.3),
+            anno::Entity::new("Sure", EntityType::Person, 0, 4, 0.99),
+            anno::Entity::new("Unsure", EntityType::Organization, 5, 11, 0.3),
         ];
 
         let lines = export_annotation_priority(&entities, 2);
@@ -848,12 +848,12 @@ mod tests {
 
     #[test]
     fn test_select_for_annotation() {
-        use anno_core::EntityType;
+        use anno::EntityType;
 
         let entities = vec![
-            anno_core::Entity::new("Certain", EntityType::Person, 0, 7, 0.98),
-            anno_core::Entity::new("Uncertain", EntityType::Organization, 8, 17, 0.15),
-            anno_core::Entity::new("Medium", EntityType::Location, 18, 24, 0.55),
+            anno::Entity::new("Certain", EntityType::Person, 0, 7, 0.98),
+            anno::Entity::new("Uncertain", EntityType::Organization, 8, 17, 0.15),
+            anno::Entity::new("Medium", EntityType::Location, 18, 24, 0.55),
         ];
 
         let result = select_for_annotation(&entities, SamplingStrategy::Uncertainty, 2);

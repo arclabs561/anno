@@ -41,7 +41,7 @@
 //! ```
 
 use crate::eval::datasets::GoldEntity;
-use anno_core::TypeMapper;
+use anno::TypeMapper;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -242,7 +242,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use anno::EntityType;
 
     fn make_test_cases() -> Vec<(String, Vec<GoldEntity>)> {
         vec![

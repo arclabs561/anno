@@ -46,7 +46,7 @@
 //! ```
 
 use super::{DiscourseReferent, EventMention, EventPolarity, EventTense, ReferentType};
-use anno_core::Entity;
+use crate::Entity;
 use std::collections::HashMap;
 
 #[cfg(feature = "candle")]
@@ -1657,7 +1657,7 @@ mod tests {
 
         let entities = vec![Entity::new(
             "Apple Inc.",
-            anno_core::EntityType::Organization,
+            crate::EntityType::Organization,
             0,
             10,
             0.9,

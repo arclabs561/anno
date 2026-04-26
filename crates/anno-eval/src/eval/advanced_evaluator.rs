@@ -538,7 +538,7 @@ mod tests {
             spans: vec![(0, 8), (25, 33)],
             text: "New York airports".to_string(),
             entity_type: "LOC".to_string(),
-            confidence: anno_core::Confidence::new(0.9),
+            confidence: anno::Confidence::new(0.9),
         }];
 
         let metrics = evaluator.evaluate(&gold, &pred);

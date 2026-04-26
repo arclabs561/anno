@@ -2,7 +2,7 @@
 
 use super::super::types::helpers::entity;
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 /// Entertainment domain dataset (movies, music, celebrities).
 pub fn dataset() -> Vec<AnnotatedExample> {

@@ -877,7 +877,7 @@ fn classify_minimal(
     ];
     if span.len() == 1 && skip_pronouns.contains(&first_word.as_str()) {
         return (
-            EntityType::custom("skip", anno_core::EntityCategory::Misc),
+            EntityType::custom("skip", crate::EntityCategory::Misc),
             0.0,
             "skip_pronoun",
         );
@@ -892,7 +892,7 @@ fn classify_minimal(
                 // Single "Q3" or multi-word "Q3 FY2025", "Q3 2024"
                 if span.len() == 1 {
                     return (
-                        EntityType::custom("skip", anno_core::EntityCategory::Misc),
+                        EntityType::custom("skip", crate::EntityCategory::Misc),
                         0.0,
                         "skip_fiscal_quarter",
                     );
@@ -907,7 +907,7 @@ fn classify_minimal(
                 });
                 if rest_is_fiscal {
                     return (
-                        EntityType::custom("skip", anno_core::EntityCategory::Misc),
+                        EntityType::custom("skip", crate::EntityCategory::Misc),
                         0.0,
                         "skip_fiscal_quarter",
                     );
@@ -922,7 +922,7 @@ fn classify_minimal(
         .to_lowercase();
     if span.len() == 1 && SKIP_WORDS.contains(&first_clean_lc.as_str()) {
         return (
-            EntityType::custom("skip", anno_core::EntityCategory::Misc),
+            EntityType::custom("skip", crate::EntityCategory::Misc),
             0.0,
             "skip_word",
         );
@@ -931,7 +931,7 @@ fn classify_minimal(
     // absorbed into the next span via the prefix-inclusion logic.
     if span.len() == 1 && PERSON_PREFIX.contains(&first_clean_lc.as_str()) {
         return (
-            EntityType::custom("skip", anno_core::EntityCategory::Misc),
+            EntityType::custom("skip", crate::EntityCategory::Misc),
             0.0,
             "skip_prefix",
         );
@@ -1027,7 +1027,7 @@ fn classify_minimal(
         let word = span[0].trim_matches(|c: char| !c.is_alphanumeric());
         if word.len() == 1 {
             return (
-                EntityType::custom("skip", anno_core::EntityCategory::Misc),
+                EntityType::custom("skip", crate::EntityCategory::Misc),
                 0.0,
                 "single_letter",
             );
@@ -1036,7 +1036,7 @@ fn classify_minimal(
             let lc = word.to_lowercase();
             if SKIP_WORDS.contains(&lc.as_str()) || COMMON_ACRONYMS.contains(&lc.as_str()) {
                 return (
-                    EntityType::custom("skip", anno_core::EntityCategory::Misc),
+                    EntityType::custom("skip", crate::EntityCategory::Misc),
                     0.0,
                     "skip_acronym",
                 );
@@ -1052,7 +1052,7 @@ fn classify_minimal(
             let prefix_lc = prefix.to_lowercase();
             if COMMON_ACRONYMS.contains(&prefix_lc.as_str()) {
                 return (
-                    EntityType::custom("skip", anno_core::EntityCategory::Misc),
+                    EntityType::custom("skip", crate::EntityCategory::Misc),
                     0.0,
                     "skip_hyphenated_acronym",
                 );

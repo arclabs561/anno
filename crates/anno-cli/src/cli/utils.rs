@@ -371,11 +371,11 @@ fn fcoref_clusters_to_tracks(
         // add_signal auto-assigns IDs via next_signal_id
         let signals = cluster.mentions.iter().zip(cluster.spans.iter()).map(
             |(mention, &(char_start, char_end))| {
-                anno_core::Signal::new(
+                anno::Signal::new(
                     0u64, // placeholder; overwritten by add_signal
-                    anno_core::Location::text(char_start, char_end),
+                    anno::Location::text(char_start, char_end),
                     mention.clone(),
-                    anno_core::TypeLabel::from("COREF_mention"),
+                    anno::TypeLabel::from("COREF_mention"),
                     1.0,
                 )
             },

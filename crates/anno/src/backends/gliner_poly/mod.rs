@@ -42,8 +42,8 @@
 mod inference;
 
 use crate::backends::inference::ZeroShotNER;
+use crate::EntityCategory;
 use crate::{Entity, EntityType, Error, Language, Result};
-use anno_core::EntityCategory;
 
 /// Default entity types for zero-shot GLiNERPoly when used via the Model trait.
 const DEFAULT_POLY_LABELS: &[&str] = &[

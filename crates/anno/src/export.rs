@@ -28,7 +28,7 @@
 //! # Ok::<(), anno::Error>(())
 //! ```
 
-use anno_core::{Entity, Relation};
+use crate::{Entity, Relation};
 
 /// Export entities in brat standoff format (`.ann`).
 ///
@@ -97,7 +97,7 @@ pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> Str
 ///
 /// ```
 /// use anno::export;
-/// use anno_core::{Entity, EntityType};
+/// use crate::{Entity, EntityType};
 ///
 /// let text = "Alice met Bob.";
 /// let entities = vec![
@@ -547,7 +547,7 @@ pub fn to_graph_csv(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use crate::EntityType;
 
     #[test]
     fn brat_basic() {

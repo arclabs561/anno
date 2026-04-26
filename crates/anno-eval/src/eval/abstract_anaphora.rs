@@ -2439,9 +2439,9 @@ impl AbstractAnaphoraEvaluator {
         // For abstract cases, check if we can find the event antecedent
         if case.anaphora_type.is_abstract() {
             // Create an Entity from the anaphor span for the resolver
-            let anaphor_entity = anno_core::Entity::new(
+            let anaphor_entity = anno::Entity::new(
                 &case.anaphor.text,
-                anno_core::EntityType::custom("Anaphor", anno_core::EntityCategory::Misc),
+                anno::EntityType::custom("Anaphor", anno::EntityCategory::Misc),
                 case.anaphor.start,
                 case.anaphor.end,
                 1.0,

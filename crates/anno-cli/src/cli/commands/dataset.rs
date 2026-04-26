@@ -482,7 +482,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
 
                             for gold_entity in gold {
                                 let gold_type =
-                                    anno_core::EntityType::from_label(&gold_entity.original_label);
+                                    anno::EntityType::from_label(&gold_entity.original_label);
 
                                 // Canonicalize once via `EntityType::from_label` + `as_label()`.
                                 let gold_type_key = gold_type.as_label().to_string();

@@ -15,11 +15,11 @@
 //! | CoNLL   | Avg of MUC, B3, CEAF-e F1 scores | Pradhan et al., 2012 |
 //!
 //! This module is shared by both `anno` (analysis features) and `anno-eval` (evaluation harness).
-//! It is intentionally dependency-light: it relies only on `anno-core`, `serde`, and `std`.
+//! It is intentionally dependency-light: it relies only on `crate::core`, `serde`, and `std`.
 
 use super::coref::CorefChain;
 use super::types::CorefChainStats;
-use anno_core::MentionType;
+use crate::MentionType;
 use std::collections::{HashMap, HashSet};
 
 type SpanId = (usize, usize);
@@ -168,7 +168,7 @@ impl CorefEvaluation {
     /// Compute the full metric bundle.
     ///
     /// ```
-    /// use anno_core::core::coref::{CorefChain, Mention};
+    /// use crate::core::coref::{CorefChain, Mention};
     /// use anno::metrics::coref_metrics::CorefEvaluation;
     ///
     /// let gold = vec![CorefChain::new(vec![
@@ -215,7 +215,7 @@ impl CorefEvaluation {
     /// contribute no signal to MUC (which already ignores them).
     ///
     /// ```
-    /// use anno_core::core::coref::{CorefChain, Mention};
+    /// use crate::core::coref::{CorefChain, Mention};
     /// use anno::metrics::coref_metrics::CorefEvaluation;
     ///
     /// let gold = vec![
@@ -349,7 +349,7 @@ impl std::fmt::Display for CorefEvaluation {
 /// Returns `(precision, recall, f1)`. Perfect prediction yields `(1.0, 1.0, 1.0)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::muc_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
@@ -451,7 +451,7 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::b_cubed_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
@@ -541,7 +541,7 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
 /// are available.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::b_cubed_score_head;
 ///
 /// // Two mentions with different full spans but the same head.
@@ -716,7 +716,7 @@ fn greedy_assignment(
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::ceaf_e_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
@@ -756,7 +756,7 @@ pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::ceaf_m_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
@@ -811,7 +811,7 @@ pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::lea_score;
 ///
 /// let gold = vec![CorefChain::new(vec![
@@ -977,7 +977,7 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::blanc_score;
 ///
 /// // Two chains: coreferent and non-coreferent pairs both exist.
@@ -1092,7 +1092,7 @@ pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, 
 /// (B3), and entity-based (CEAF-e) perspectives.
 ///
 /// ```
-/// use anno_core::core::coref::{CorefChain, Mention};
+/// use crate::core::coref::{CorefChain, Mention};
 /// use anno::metrics::coref_metrics::conll_f1;
 ///
 /// let gold = vec![CorefChain::new(vec![

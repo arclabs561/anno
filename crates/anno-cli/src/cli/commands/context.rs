@@ -153,7 +153,7 @@ pub fn run(args: ContextArgs) -> Result<(), String> {
 }
 
 fn build_context(
-    entity: &anno_core::Entity,
+    entity: &anno::Entity,
     text: &str,
     window: usize,
     full_sentence: bool,

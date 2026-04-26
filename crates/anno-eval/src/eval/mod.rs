@@ -109,8 +109,8 @@
 //! - Error categorization (type, boundary, spurious, missed)
 //! - Statistical significance testing (paired t-test)
 
+use anno::{EntityCategory, EntityType};
 use anno::{Error, Model, Result};
-use anno_core::{EntityCategory, EntityType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -891,7 +891,7 @@ pub fn evaluate_ner_model(
 pub fn evaluate_ner_model_with_mapper(
     model: &dyn Model,
     test_cases: &[(String, Vec<GoldEntity>)],
-    type_mapper: Option<&anno_core::TypeMapper>,
+    type_mapper: Option<&anno::TypeMapper>,
 ) -> Result<NEREvaluationResults> {
     let evaluator = evaluator::StandardNEREvaluator::new();
 

@@ -12,7 +12,7 @@
 //! - the generic entrypoints accept caller-provided cue lexicons
 //! - language-specific defaults live under `heuristics::lexicons`
 
-use anno_core::Quantifier;
+use crate::Quantifier;
 
 use crate::lang::{detect_language, Language};
 

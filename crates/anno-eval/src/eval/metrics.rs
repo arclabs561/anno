@@ -7,7 +7,7 @@
 //! - Cross-dataset comparison utilities
 
 use super::datasets::GoldEntity;
-use anno_core::Entity;
+use anno::Entity;
 use std::collections::HashSet;
 
 /// Partial match metrics (overlap-based).
@@ -487,7 +487,7 @@ impl ClassificationMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use anno::EntityType;
 
     #[test]
     fn test_classification_metrics() {

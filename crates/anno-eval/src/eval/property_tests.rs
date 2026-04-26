@@ -36,8 +36,8 @@
 
 #[cfg(test)]
 mod proptests {
+    use anno::EntityType;
     use anno::{Model, RegexNER};
-    use anno_core::EntityType;
     use proptest::prelude::*;
 
     // =========================================================================
@@ -674,12 +674,12 @@ mod discontinuous_proptests {
 }
 
 // =========================================================================
-// Signal/Track/Identity Hierarchy Properties (anno-core)
+// Signal/Track/Identity Hierarchy Properties (`anno::core`)
 // =========================================================================
 
 #[cfg(test)]
 mod hierarchy_proptests {
-    use anno_core::Track;
+    use anno::Track;
     use proptest::prelude::*;
 
     proptest! {
@@ -747,7 +747,7 @@ mod hierarchy_proptests {
 
 #[cfg(test)]
 mod entity_consistency_proptests {
-    use anno_core::{Entity, EntityType};
+    use anno::{Entity, EntityType};
     use proptest::prelude::*;
 
     /// Generate valid entity type

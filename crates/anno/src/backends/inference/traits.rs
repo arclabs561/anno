@@ -348,7 +348,7 @@ pub(crate) const DEFAULT_RELATION_TYPES: &[&str] = &[
 ];
 
 impl ExtractionWithRelations {
-    /// Convert index-based `RelationTriple`s into owned `anno_core::Relation` values.
+    /// Convert index-based `RelationTriple`s into owned `crate::Relation` values.
     ///
     /// Indices that are out-of-bounds (should not happen but can in malformed output) are
     /// silently dropped.

@@ -4,8 +4,8 @@
 
 use super::registry::{LabelDefinition, SemanticRegistry};
 use super::RelationTriple;
+use crate::Relation;
 use crate::{Confidence, Entity, EntityType};
-use anno_core::Relation;
 
 /// Configuration for relation extraction.
 #[derive(Debug, Clone)]

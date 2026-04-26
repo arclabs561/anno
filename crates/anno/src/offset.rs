@@ -155,10 +155,10 @@ use std::ops::Range;
 // Newtype Wrappers for Type Safety
 // =============================================================================
 
-// Re-export the canonical offset newtypes from anno-core.
+// Re-export the canonical offset newtypes from `crate::core`.
 // These have private inner fields, enforcing construction via `new()` / `From`
 // and access via `get()` / `Into<usize>`.
-pub use anno_core::{ByteOffset, CharOffset};
+pub use crate::{ByteOffset, CharOffset};
 
 /// A character range (start and end as character offsets).
 ///

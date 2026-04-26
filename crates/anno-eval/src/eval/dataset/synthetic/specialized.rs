@@ -5,7 +5,7 @@
 
 use super::super::types::helpers::{entity, entity_email, entity_phone, entity_url};
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 fn entity_at(text: &str, needle: &str, entity_type: EntityType) -> crate::eval::GoldEntity {
     let byte_start = text

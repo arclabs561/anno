@@ -4,7 +4,7 @@
 use super::types::*;
 #[allow(unused_imports)]
 use super::*;
-use anno_core::Animacy;
+use crate::Animacy;
 
 /// Non-person indicator words. If one mention contains one of these and the
 /// other does not, they are semantically incompatible for coreference.
@@ -70,8 +70,8 @@ fn animacy_from_pronoun(text_lower: &str) -> Animacy {
 }
 
 /// Infer animacy from NER entity type.
-fn animacy_from_entity_type(entity_type: &anno_core::EntityType) -> Animacy {
-    use anno_core::EntityType;
+fn animacy_from_entity_type(entity_type: &crate::EntityType) -> Animacy {
+    use crate::EntityType;
     match entity_type {
         EntityType::Person => Animacy::Animate,
         EntityType::Organization => Animacy::Animate,
@@ -259,7 +259,7 @@ impl MentionRankingCoref {
     /// - "WHO" ↔ "World Health Organization" → true
     /// - "IBM" ↔ "Apple" → false
     fn is_acronym_match(&self, m1: &RankedMention, m2: &RankedMention) -> bool {
-        anno_core::coalesce::similarity::is_acronym_match(&m1.text, &m2.text)
+        crate::coalesce::similarity::is_acronym_match(&m1.text, &m2.text)
     }
 
     /// Check if "it" at the given position is pleonastic (non-referential).
@@ -579,7 +579,7 @@ impl MentionRankingCoref {
         // Use multilingual string similarity from coalesce as a proxy.
         // High similarity (>0.8) suggests related terms.
         // This works across languages without hardcoded tables.
-        let similarity = anno_core::coalesce::similarity::multilingual_similarity(&t1, &t2);
+        let similarity = crate::coalesce::similarity::multilingual_similarity(&t1, &t2);
         similarity > 0.8
     }
 
@@ -1951,7 +1951,7 @@ impl MentionRankingCoref {
         // =========================================================================
         // Number agreement
         //
-        // Uses Number::is_compatible() from anno_core which handles:
+        // Uses Number::is_compatible() from `crate::core` which handles:
         // - Unknown is compatible with anything (singular they, "you")
         // - Dual is compatible with Plural (Arabic/Hebrew/Sanskrit dual numbers)
         // - Exact matches are preferred
@@ -2022,15 +2022,15 @@ impl MentionRankingCoref {
                 let is_it_pronoun = matches!(m_lower.as_str(), "it" | "its" | "itself");
 
                 if is_person_pronoun {
-                    if matches!(ant_type, anno_core::EntityType::Person) {
+                    if matches!(ant_type, crate::EntityType::Person) {
                         score += self.config.type_compat_weight * 0.4;
                     } else {
                         score -= self.config.type_compat_weight * 0.3;
                     }
                 } else if is_it_pronoun {
-                    if matches!(ant_type, anno_core::EntityType::Organization) {
+                    if matches!(ant_type, crate::EntityType::Organization) {
                         score += self.config.type_compat_weight * 0.3;
-                    } else if matches!(ant_type, anno_core::EntityType::Person) {
+                    } else if matches!(ant_type, crate::EntityType::Person) {
                         score -= self.config.type_compat_weight * 0.3;
                     }
                 }
@@ -2074,7 +2074,7 @@ impl MentionRankingCoref {
     /// Resolve coreferences and produce Signals and Tracks for a GroundedDocument.
     ///
     /// This is the bridge between mention-ranking output and the canonical
-    /// `Signal → Track → Identity` hierarchy in `anno-core::grounded`.
+    /// `Signal -> Track -> Identity` hierarchy in `crate::core::grounded`.
     ///
     /// # Returns
     ///
@@ -2086,7 +2086,7 @@ impl MentionRankingCoref {
     ///
     /// ```rust,ignore
     /// use anno::backends::coref::mention_ranking::MentionRankingCoref;
-    /// use anno_core::GroundedDocument;
+    /// use crate::GroundedDocument;
     ///
     /// let coref = MentionRankingCoref::new();
     /// let (signals, tracks) = coref.resolve_to_grounded("John saw Mary. He waved.")?;
@@ -2102,15 +2102,12 @@ impl MentionRankingCoref {
     pub fn resolve_to_grounded(
         &self,
         text: &str,
-    ) -> Result<(
-        Vec<anno_core::Signal<anno_core::Location>>,
-        Vec<anno_core::Track>,
-    )> {
+    ) -> Result<(Vec<crate::Signal<crate::Location>>, Vec<crate::Track>)> {
         let clusters = self.resolve(text)?;
 
         let mut all_signals = Vec::new();
         let mut all_tracks = Vec::new();
-        let mut signal_id_offset = anno_core::SignalId::ZERO;
+        let mut signal_id_offset = crate::SignalId::ZERO;
 
         for cluster in clusters {
             let (track, signals) = cluster.to_track(signal_id_offset);
@@ -2133,8 +2130,8 @@ impl MentionRankingCoref {
     pub fn resolve_into_document(
         &self,
         text: &str,
-        doc: &mut anno_core::GroundedDocument,
-    ) -> Result<Vec<anno_core::TrackId>> {
+        doc: &mut crate::GroundedDocument,
+    ) -> Result<Vec<crate::TrackId>> {
         let (mut signals, tracks) = self.resolve_to_grounded(text)?;
         let mut track_ids = Vec::new();
 
@@ -2166,14 +2163,14 @@ impl MentionRankingCoref {
             // Mentions with no NER overlap: prefix with COREF_ for clarity
             if !found {
                 let prefixed = format!("COREF_{}", coref_sig.label.as_str());
-                coref_sig.label = anno_core::TypeLabel::from(prefixed.as_str());
+                coref_sig.label = crate::TypeLabel::from(prefixed.as_str());
             }
         }
 
         // Build old->new signal ID map (add_signal reassigns IDs)
-        let old_ids: Vec<anno_core::SignalId> = signals.iter().map(|s| s.id).collect();
+        let old_ids: Vec<crate::SignalId> = signals.iter().map(|s| s.id).collect();
         let new_ids = doc.add_signals(signals);
-        let id_map: std::collections::HashMap<anno_core::SignalId, anno_core::SignalId> =
+        let id_map: std::collections::HashMap<crate::SignalId, crate::SignalId> =
             old_ids.into_iter().zip(new_ids).collect();
 
         // Remap signal refs in tracks, then add via add_track
@@ -2192,14 +2189,14 @@ impl MentionRankingCoref {
 }
 
 /// Check if two Location::Text spans overlap.
-fn spans_overlap(a: &anno_core::Location, b: &anno_core::Location) -> bool {
+fn spans_overlap(a: &crate::Location, b: &crate::Location) -> bool {
     match (a, b) {
         (
-            anno_core::Location::Text {
+            crate::Location::Text {
                 start: a_s,
                 end: a_e,
             },
-            anno_core::Location::Text {
+            crate::Location::Text {
                 start: b_s,
                 end: b_e,
             },
@@ -2212,8 +2209,8 @@ fn spans_overlap(a: &anno_core::Location, b: &anno_core::Location) -> bool {
 // CoreferenceResolver trait implementation
 // =============================================================================
 
+use crate::CoreferenceResolver;
 use crate::Entity;
-use anno_core::CoreferenceResolver;
 
 impl CoreferenceResolver for MentionRankingCoref {
     fn resolve(&self, entities: &[Entity]) -> Vec<Entity> {
@@ -2290,11 +2287,10 @@ impl CoreferenceResolver for MentionRankingCoref {
             .map(|e| {
                 let mut entity = e.clone();
                 if let Some(&cluster_id) = canonical_map.get(&(e.start(), e.end())) {
-                    entity.canonical_id = Some(anno_core::CanonicalId::new(cluster_id as u64));
+                    entity.canonical_id = Some(crate::CanonicalId::new(cluster_id as u64));
                 } else {
                     // Assign unique ID to singleton
-                    entity.canonical_id =
-                        Some(anno_core::CanonicalId::new(next_singleton_id as u64));
+                    entity.canonical_id = Some(crate::CanonicalId::new(next_singleton_id as u64));
                     next_singleton_id += 1;
                 }
                 entity
@@ -2917,16 +2913,16 @@ mod tests {
             ],
         };
 
-        let signals = cluster.to_signals(anno_core::SignalId::new(100));
+        let signals = cluster.to_signals(crate::SignalId::new(100));
 
         assert_eq!(signals.len(), 2);
-        assert_eq!(signals[0].id, anno_core::SignalId::new(100));
-        assert_eq!(signals[1].id, anno_core::SignalId::new(101));
+        assert_eq!(signals[0].id, crate::SignalId::new(100));
+        assert_eq!(signals[1].id, crate::SignalId::new(101));
         assert_eq!(signals[0].surface, "John");
         assert_eq!(signals[1].surface, "He");
 
         // Check location is correct
-        if let anno_core::Location::Text { start, end } = &signals[0].location {
+        if let crate::Location::Text { start, end } = &signals[0].location {
             assert_eq!(*start, 0);
             assert_eq!(*end, 4);
         } else {
@@ -2964,10 +2960,10 @@ mod tests {
             ],
         };
 
-        let (track, signals) = cluster.to_track(anno_core::SignalId::new(0));
+        let (track, signals) = cluster.to_track(crate::SignalId::new(0));
 
         // Track should have correct structure
-        assert_eq!(track.id, anno_core::TrackId::new(42));
+        assert_eq!(track.id, crate::TrackId::new(42));
         assert_eq!(track.canonical_surface, "John"); // Proper noun preferred
         assert_eq!(track.signals.len(), 2);
 
@@ -3026,7 +3022,7 @@ mod tests {
 
         // All signals should have valid locations
         for signal in &signals {
-            if let anno_core::Location::Text { start, end } = &signal.location {
+            if let crate::Location::Text { start, end } = &signal.location {
                 assert!(start <= end);
             } else {
                 panic!("Expected Text location");
@@ -3044,7 +3040,7 @@ mod tests {
     fn test_resolve_into_document() {
         let coref = MentionRankingCoref::new();
         let text = "John saw Mary. He waved to her.";
-        let mut doc = anno_core::GroundedDocument::new("test_doc", text);
+        let mut doc = crate::GroundedDocument::new("test_doc", text);
 
         let track_ids = coref.resolve_into_document(text, &mut doc).unwrap();
 
@@ -3072,14 +3068,14 @@ mod tests {
             entity_type: None,
         };
 
-        let signal = mention.to_signal(anno_core::SignalId::new(999));
+        let signal = mention.to_signal(crate::SignalId::new(999));
 
-        assert_eq!(signal.id, anno_core::SignalId::new(999));
+        assert_eq!(signal.id, crate::SignalId::new(999));
         assert_eq!(signal.surface, "the company");
         assert_eq!(signal.label, "nominal".into());
-        assert_eq!(signal.modality, anno_core::Modality::Symbolic);
+        assert_eq!(signal.modality, crate::Modality::Symbolic);
 
-        if let anno_core::Location::Text { start, end } = signal.location {
+        if let crate::Location::Text { start, end } = signal.location {
             assert_eq!(start, 10);
             assert_eq!(end, 20);
         } else {
@@ -3097,7 +3093,7 @@ mod tests {
 
         // All signal locations should be within text bounds (character offsets)
         for signal in &signals {
-            if let anno_core::Location::Text { start, end } = &signal.location {
+            if let crate::Location::Text { start, end } = &signal.location {
                 assert!(*start <= *end);
                 assert!(
                     *end <= char_count,
@@ -3889,7 +3885,7 @@ mod tests {
             entity_type: None,
         };
 
-        let coref_mention: anno_core::Mention = (&mention).into();
+        let coref_mention: crate::Mention = (&mention).into();
 
         assert_eq!(coref_mention.start, 10);
         assert_eq!(coref_mention.end, 20);
@@ -4903,36 +4899,36 @@ mod tests {
 
     #[test]
     fn spans_overlap_exact_match() {
-        let a = anno_core::Location::Text { start: 10, end: 20 };
-        let b = anno_core::Location::Text { start: 10, end: 20 };
+        let a = crate::Location::Text { start: 10, end: 20 };
+        let b = crate::Location::Text { start: 10, end: 20 };
         assert!(super::spans_overlap(&a, &b));
     }
 
     #[test]
     fn spans_overlap_partial() {
-        let a = anno_core::Location::Text { start: 10, end: 20 };
-        let b = anno_core::Location::Text { start: 15, end: 25 };
+        let a = crate::Location::Text { start: 10, end: 20 };
+        let b = crate::Location::Text { start: 15, end: 25 };
         assert!(super::spans_overlap(&a, &b));
     }
 
     #[test]
     fn spans_overlap_containment() {
-        let a = anno_core::Location::Text { start: 10, end: 30 };
-        let b = anno_core::Location::Text { start: 15, end: 20 };
+        let a = crate::Location::Text { start: 10, end: 30 };
+        let b = crate::Location::Text { start: 15, end: 20 };
         assert!(super::spans_overlap(&a, &b));
     }
 
     #[test]
     fn spans_no_overlap_adjacent() {
-        let a = anno_core::Location::Text { start: 10, end: 20 };
-        let b = anno_core::Location::Text { start: 20, end: 30 };
+        let a = crate::Location::Text { start: 10, end: 20 };
+        let b = crate::Location::Text { start: 20, end: 30 };
         assert!(!super::spans_overlap(&a, &b));
     }
 
     #[test]
     fn spans_no_overlap_disjoint() {
-        let a = anno_core::Location::Text { start: 10, end: 20 };
-        let b = anno_core::Location::Text { start: 30, end: 40 };
+        let a = crate::Location::Text { start: 10, end: 20 };
+        let b = crate::Location::Text { start: 30, end: 40 };
         assert!(!super::spans_overlap(&a, &b));
     }
 }

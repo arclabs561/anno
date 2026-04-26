@@ -3,8 +3,8 @@
 //!
 //! These are feature-agnostic — imported by both the ONNX and Candle backends.
 
+use crate::EntityCategory;
 use crate::{Entity, EntityType, Error, Result};
-use anno_core::EntityCategory;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 #[cfg(feature = "candle")]

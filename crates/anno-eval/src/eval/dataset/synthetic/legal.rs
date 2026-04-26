@@ -2,7 +2,7 @@
 
 use super::super::types::helpers::{entity, entity_email, entity_phone};
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 /// Legal/regulatory domain dataset.
 pub fn dataset() -> Vec<AnnotatedExample> {

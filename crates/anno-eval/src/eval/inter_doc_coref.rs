@@ -3,7 +3,7 @@
 //! Provides metrics specific to cross-document entity clustering,
 //! complementing the standard coreference metrics in `coref_metrics.rs`.
 
-use anno_core::{Identity, IdentityId, TrackRef};
+use anno::{Identity, IdentityId, TrackRef};
 use std::collections::{HashMap, HashSet};
 
 /// Metrics for inter-document coreference resolution quality.
@@ -43,8 +43,7 @@ impl InterDocCorefMetrics {
         // Build track_ref -> identity_id mapping for predicted
         let mut pred_map: HashMap<TrackRef, IdentityId> = HashMap::new();
         for identity in predicted {
-            if let Some(anno_core::IdentitySource::CrossDocCoref { track_refs }) = &identity.source
-            {
+            if let Some(anno::IdentitySource::CrossDocCoref { track_refs }) = &identity.source {
                 for track_ref in track_refs {
                     pred_map.insert(track_ref.clone(), identity.id);
                 }
@@ -74,8 +73,7 @@ impl InterDocCorefMetrics {
 
         // For each predicted identity, compute purity
         for identity in predicted {
-            if let Some(anno_core::IdentitySource::CrossDocCoref { track_refs }) = &identity.source
-            {
+            if let Some(anno::IdentitySource::CrossDocCoref { track_refs }) = &identity.source {
                 if track_refs.is_empty() {
                     continue;
                 }
@@ -176,10 +174,10 @@ impl Default for InterDocCorefMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::{GroundedDocument, Location, Signal, Track, TrackId};
+    use anno::{GroundedDocument, Location, Signal, Track, TrackId};
 
-    fn create_test_corpus() -> (anno_core::Corpus, Vec<Vec<TrackRef>>) {
-        let mut corpus = anno_core::Corpus::new();
+    fn create_test_corpus() -> (anno::Corpus, Vec<Vec<TrackRef>>) {
+        let mut corpus = anno::Corpus::new();
 
         // Document 1: "Apple" and "Microsoft"
         let mut doc1 = GroundedDocument::new("doc1", "Apple and Microsoft");
@@ -228,7 +226,7 @@ mod tests {
         corpus.add_document(doc3);
 
         // Resolve inter-doc coref
-        use anno_core::coalesce::Resolver;
+        use anno::coalesce::Resolver;
         let resolver = Resolver::new().with_threshold(0.3).require_type_match(true);
         let _identity_ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 
@@ -266,12 +264,7 @@ mod tests {
         let identity_ids: Vec<_> = corpus
             .identities()
             .values()
-            .filter(|id| {
-                matches!(
-                    id.source,
-                    Some(anno_core::IdentitySource::CrossDocCoref { .. })
-                )
-            })
+            .filter(|id| matches!(id.source, Some(anno::IdentitySource::CrossDocCoref { .. })))
             .map(|id| id.id)
             .collect();
         let predicted: Vec<_> = identity_ids

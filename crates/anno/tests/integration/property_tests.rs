@@ -1,15 +1,13 @@
-//! Property-based tests for anno-core types.
+//! Property-based tests for `anno::core` types.
 //!
 //! These tests verify fundamental invariants of the Signal → Track → Identity hierarchy
 //! and the Location type's geometric operations.
 
-use anno_core::core as anno_core;
-
-use anno_core::grounded::{
+use anno::core::grounded::{
     Identity, IdentitySource, Location, Modality, Signal, SignalRef, Track, TrackRef,
 };
-use anno_core::TypeLabel;
-use anno_core::{Confidence, IdentityId, SignalId};
+use anno::TypeLabel;
+use anno::{Confidence, IdentityId, SignalId};
 use proptest::prelude::*;
 
 // =============================================================================
@@ -528,7 +526,7 @@ fn test_identity_source_variants_all() {
 // These property tests encode fundamental constraints from linguistic theory.
 // They verify that our phi-feature system respects cross-linguistic universals.
 
-use anno_core::types::{Gender, MentionType, Number, Person, PhiFeatures};
+use anno::core::types::{Gender, MentionType, Number, Person, PhiFeatures};
 
 /// Generate an arbitrary Person
 fn arb_person() -> impl Strategy<Value = Person> {

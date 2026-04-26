@@ -31,7 +31,7 @@
 #![allow(unused_imports)] // EntityType used conditionally
 
 use crate::{Entity, Error, Language, Result};
-use anno_core::{EntityCategory, EntityType};
+use crate::{EntityCategory, EntityType};
 #[cfg(feature = "onnx")]
 use std::collections::HashMap;
 #[cfg(feature = "onnx")]
@@ -134,11 +134,11 @@ impl crate::Model for GLiNEROnnx {
         self.extract(text, DEFAULT_GLINER_LABELS, 0.5)
     }
 
-    fn supported_types(&self) -> Vec<anno_core::EntityType> {
+    fn supported_types(&self) -> Vec<crate::EntityType> {
         // GLiNER supports any type via zero-shot - return the defaults
         DEFAULT_GLINER_LABELS
             .iter()
-            .map(|label| anno_core::EntityType::Custom {
+            .map(|label| crate::EntityType::Custom {
                 name: (*label).to_string(),
                 category: EntityCategory::Misc,
             })

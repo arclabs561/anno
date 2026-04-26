@@ -37,7 +37,7 @@ use std::collections::HashMap;
 /// - Offsets are treated as **character** offsets.
 #[must_use]
 pub fn create_entity_pair_relations(
-    entities: &[anno_core::Entity],
+    entities: &[anno::Entity],
     text: &str,
     relation_types: &[&str],
 ) -> Vec<RelationPrediction> {
@@ -49,7 +49,7 @@ pub fn create_entity_pair_relations(
     let mut pred_relations = Vec::new();
 
     // Validate entities first to avoid panics.
-    let valid_entities: Vec<&anno_core::Entity> = entities
+    let valid_entities: Vec<&anno::Entity> = entities
         .iter()
         .filter(|e| e.start() < e.end() && e.end() <= text_char_len && e.start() < text_char_len)
         .collect();
@@ -197,7 +197,7 @@ impl RelationPrediction {
     /// Create from a RelationTriple and entity list.
     pub fn from_triple_with_entities(
         triple: &RelationTriple,
-        entities: &[anno_core::Entity],
+        entities: &[anno::Entity],
     ) -> Option<Self> {
         let head = entities.get(triple.head_idx)?;
         let tail = entities.get(triple.tail_idx)?;

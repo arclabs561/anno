@@ -94,12 +94,12 @@ fn result_cache_path(
         .join(format!("{}.json", hash))
 }
 
-fn try_load_cached(path: &Path) -> Option<anno_core::GroundedDocument> {
+fn try_load_cached(path: &Path) -> Option<anno::GroundedDocument> {
     let bytes = std::fs::read(path).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
 
-fn store_cached(path: &Path, doc: &anno_core::GroundedDocument) {
+fn store_cached(path: &Path, doc: &anno::GroundedDocument) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
@@ -303,7 +303,7 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
         .collect();
 
     // Process documents — parallel when --parallel > 1, sequential otherwise.
-    let documents: Vec<anno_core::GroundedDocument> = if args.parallel > 1 {
+    let documents: Vec<anno::GroundedDocument> = if args.parallel > 1 {
         use rayon::prelude::*;
 
         // Cap the rayon pool to the requested worker count.
@@ -314,7 +314,7 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
 
         let model_ref: Arc<Box<dyn anno::Model>> = Arc::clone(&model);
         let pb_ref = pb.clone();
-        let results: Vec<Result<anno_core::GroundedDocument, String>> = pool.install(|| {
+        let results: Vec<Result<anno::GroundedDocument, String>> = pool.install(|| {
             inputs
                 .par_iter()
                 .zip(cache_paths.par_iter())
@@ -389,7 +389,7 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
 ///
 /// Schema: `{id, entities: [{text, type, start, end, confidence, negated, quantifier}], tracks}`
 /// This matches the extract command's output so consumers get a consistent schema.
-fn doc_to_clean_json(doc: &anno_core::GroundedDocument, model_name: &str) -> serde_json::Value {
+fn doc_to_clean_json(doc: &anno::GroundedDocument, model_name: &str) -> serde_json::Value {
     let entities: Vec<serde_json::Value> = doc
         .signals()
         .iter()
@@ -444,10 +444,7 @@ fn doc_to_clean_json(doc: &anno_core::GroundedDocument, model_name: &str) -> ser
     obj
 }
 
-fn write_outputs(
-    documents: &[anno_core::GroundedDocument],
-    args: &BatchArgs,
-) -> Result<(), String> {
+fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Result<(), String> {
     use super::super::output::{color, print_signals};
 
     let model_name = args.model.name();
@@ -658,12 +655,12 @@ mod tests {
     /// doc_to_clean_json produces the expected schema with correct field names
     #[test]
     fn clean_json_schema() {
-        let mut doc = anno_core::GroundedDocument::new("test_doc", "Alice met Bob in Paris.");
-        let signal = anno_core::Signal::new(
-            anno_core::SignalId::ZERO,
-            anno_core::Location::Text { start: 0, end: 5 },
+        let mut doc = anno::GroundedDocument::new("test_doc", "Alice met Bob in Paris.");
+        let signal = anno::Signal::new(
+            anno::SignalId::ZERO,
+            anno::Location::Text { start: 0, end: 5 },
             "Alice".to_string(),
-            anno_core::TypeLabel::from("PER"),
+            anno::TypeLabel::from("PER"),
             0.95,
         );
         doc.add_signal(signal);

@@ -2,7 +2,7 @@
 
 use super::super::types::helpers::entity;
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 /// News domain dataset (CoNLL-2003 style).
 pub fn dataset() -> Vec<AnnotatedExample> {

@@ -880,7 +880,7 @@ mod tests {
     #[test]
     fn test_incremental_adapter_single_window() {
         use crate::eval::coref::{CorefChain, Mention};
-        use anno_core::MentionType;
+        use anno::MentionType;
 
         fn new_mention(text: &str, start: usize, end: usize, mt: MentionType) -> Mention {
             Mention {
@@ -910,7 +910,7 @@ mod tests {
     #[test]
     fn test_incremental_adapter_multi_window() {
         use crate::eval::coref::{CorefChain, Mention};
-        use anno_core::MentionType;
+        use anno::MentionType;
 
         fn new_mention(text: &str, start: usize, end: usize, mt: MentionType) -> Mention {
             Mention {
@@ -958,7 +958,7 @@ mod tests {
     #[test]
     fn test_long_document_resolution() {
         use crate::eval::coref::{CorefChain, Mention};
-        use anno_core::MentionType;
+        use anno::MentionType;
 
         fn new_mention(text: &str, start: usize, end: usize, mt: MentionType) -> Mention {
             Mention {

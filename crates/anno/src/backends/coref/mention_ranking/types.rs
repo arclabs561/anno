@@ -3,9 +3,9 @@
 #[allow(unused_imports)]
 use super::*;
 
+use crate::{Animacy, Gender, MentionType};
 #[allow(unused_imports)]
 use crate::{Model, Result};
-use anno_core::{Animacy, Gender, MentionType};
 #[allow(unused_imports)]
 use std::collections::{HashMap, HashSet};
 
@@ -411,7 +411,7 @@ impl MentionRankingConfig {
     }
 }
 
-// MentionType imported from anno_core
+// MentionType imported from `crate::core`
 
 /// A detected mention with phi-features for coreference resolution.
 ///
@@ -505,7 +505,7 @@ pub struct RankedMention {
     /// - `they/them/their` are neutral (compatible with any type)
     ///
     /// `None` when entity type is unknown or mention was detected heuristically.
-    pub entity_type: Option<anno_core::EntityType>,
+    pub entity_type: Option<crate::EntityType>,
 }
 
 impl RankedMention {
@@ -519,7 +519,7 @@ impl RankedMention {
 /// Convert RankedMention to eval::coref::Mention for evaluation.
 ///
 /// This enables using mention-ranking output directly in coreference evaluation.
-impl From<&RankedMention> for anno_core::Mention {
+impl From<&RankedMention> for crate::Mention {
     fn from(mention: &RankedMention) -> Self {
         Self {
             text: mention.text.clone(),
@@ -533,7 +533,7 @@ impl From<&RankedMention> for anno_core::Mention {
     }
 }
 
-impl From<RankedMention> for anno_core::Mention {
+impl From<RankedMention> for crate::Mention {
     fn from(mention: RankedMention) -> Self {
         Self::from(&mention)
     }
@@ -569,9 +569,9 @@ fn extract_head(text: &str) -> String {
     text.split_whitespace().last().unwrap_or(text).to_string()
 }
 
-// Gender and Number imported from anno_core
+// Gender and Number imported from `crate::core`
 // Number includes Dual for Arabic, Hebrew, Sanskrit, etc.
-pub use anno_core::Number;
+pub use crate::Number;
 
 /// Coreference cluster from mention ranking.
 #[derive(Debug, Clone)]
@@ -593,19 +593,19 @@ impl MentionCluster {
     #[must_use]
     pub fn to_signals(
         &self,
-        signal_id_base: anno_core::SignalId,
-    ) -> Vec<anno_core::Signal<anno_core::Location>> {
+        signal_id_base: crate::SignalId,
+    ) -> Vec<crate::Signal<crate::Location>> {
         self.mentions
             .iter()
             .enumerate()
             .map(|(idx, mention)| {
                 let label = match &mention.entity_type {
-                    Some(et) => anno_core::TypeLabel::from(et.as_label()),
-                    None => anno_core::TypeLabel::from(mention.mention_type.as_label()),
+                    Some(et) => crate::TypeLabel::from(et.as_label()),
+                    None => crate::TypeLabel::from(mention.mention_type.as_label()),
                 };
-                anno_core::Signal::new(
+                crate::Signal::new(
                     signal_id_base + idx as u64,
-                    anno_core::Location::Text {
+                    crate::Location::Text {
                         start: mention.start,
                         end: mention.end,
                     },
@@ -630,11 +630,8 @@ impl MentionCluster {
     #[must_use]
     pub fn to_track(
         &self,
-        signal_id_base: anno_core::SignalId,
-    ) -> (
-        anno_core::Track,
-        Vec<anno_core::Signal<anno_core::Location>>,
-    ) {
+        signal_id_base: crate::SignalId,
+    ) -> (crate::Track, Vec<crate::Signal<crate::Location>>) {
         let signals = self.to_signals(signal_id_base);
 
         // Find the canonical surface: prefer proper nouns, else first mention
@@ -647,8 +644,7 @@ impl MentionCluster {
             .unwrap_or_default();
 
         // Build track with signal references
-        let mut track =
-            anno_core::Track::new(anno_core::TrackId::new(self.id as u64), canonical_surface);
+        let mut track = crate::Track::new(crate::TrackId::new(self.id as u64), canonical_surface);
         // Mention-ranking coref does not infer entity type; leave unset.
         track.entity_type = None;
 
@@ -675,17 +671,14 @@ impl RankedMention {
     /// Uses the NER entity type label when available (e.g. "PER", "ORG"),
     /// falling back to the mention type label ("proper", "pronominal").
     #[must_use]
-    pub fn to_signal(
-        &self,
-        signal_id: anno_core::SignalId,
-    ) -> anno_core::Signal<anno_core::Location> {
+    pub fn to_signal(&self, signal_id: crate::SignalId) -> crate::Signal<crate::Location> {
         let label = match &self.entity_type {
-            Some(et) => anno_core::TypeLabel::from(et.as_label()),
-            None => anno_core::TypeLabel::from(self.mention_type.as_label()),
+            Some(et) => crate::TypeLabel::from(et.as_label()),
+            None => crate::TypeLabel::from(self.mention_type.as_label()),
         };
-        anno_core::Signal::new(
+        crate::Signal::new(
             signal_id,
-            anno_core::Location::Text {
+            crate::Location::Text {
                 start: self.start,
                 end: self.end,
             },
@@ -920,8 +913,8 @@ mod tests {
     #[test]
     fn to_signal_uses_entity_type_when_set() {
         let mut mention = make_mention("Jensen Huang", 0, 12, MentionType::Proper);
-        mention.entity_type = Some(anno_core::EntityType::Person);
-        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        mention.entity_type = Some(crate::EntityType::Person);
+        let signal = mention.to_signal(crate::SignalId::ZERO);
         assert_eq!(signal.label.as_str(), "PER");
     }
 
@@ -929,29 +922,29 @@ mod tests {
     fn to_signal_falls_back_to_mention_type() {
         let mention = make_mention("Jensen Huang", 0, 12, MentionType::Proper);
         // entity_type is None
-        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        let signal = mention.to_signal(crate::SignalId::ZERO);
         assert_eq!(signal.label.as_str(), "proper");
     }
 
     #[test]
     fn to_signal_pronominal_with_entity_type() {
         let mut mention = make_mention("he", 50, 52, MentionType::Pronominal);
-        mention.entity_type = Some(anno_core::EntityType::Person);
-        let signal = mention.to_signal(anno_core::SignalId::ZERO);
+        mention.entity_type = Some(crate::EntityType::Person);
+        let signal = mention.to_signal(crate::SignalId::ZERO);
         assert_eq!(signal.label.as_str(), "PER");
     }
 
     #[test]
     fn to_signals_cluster_propagates_entity_types() {
         let mut m1 = make_mention("NVIDIA", 0, 6, MentionType::Proper);
-        m1.entity_type = Some(anno_core::EntityType::Organization);
+        m1.entity_type = Some(crate::EntityType::Organization);
         let m2 = make_mention("the company", 20, 31, MentionType::Nominal);
         // m2 has no entity_type
         let cluster = MentionCluster {
             id: 0,
             mentions: vec![m1, m2],
         };
-        let signals = cluster.to_signals(anno_core::SignalId::ZERO);
+        let signals = cluster.to_signals(crate::SignalId::ZERO);
         assert_eq!(signals[0].label.as_str(), "ORG");
         // m2 has no entity_type, falls back to mention type label
         assert_eq!(signals[1].label.as_str(), "nominal");

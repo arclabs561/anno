@@ -850,12 +850,12 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             };
 
             let graph = if args.extract_relations && !relation_triples.is_empty() {
-                let mut rels: Vec<anno_core::Relation> = Vec::new();
+                let mut rels: Vec<anno::Relation> = Vec::new();
                 for r in &relation_triples {
                     if let (Some(head), Some(tail)) =
                         (entities.get(r.head_idx), entities.get(r.tail_idx))
                     {
-                        rels.push(anno_core::Relation::new(
+                        rels.push(anno::Relation::new(
                             head.clone(),
                             tail.clone(),
                             r.relation_type.clone(),
@@ -1362,10 +1362,10 @@ mod tests {
         use anno::core::grounded::{Location, Signal};
 
         let signal = Signal::new(
-            anno_core::SignalId::ZERO,
+            anno::SignalId::ZERO,
             Location::Text { start: 0, end: 5 },
             "Alice".to_string(),
-            anno_core::TypeLabel::from("PER"),
+            anno::TypeLabel::from("PER"),
             0.95,
         );
 

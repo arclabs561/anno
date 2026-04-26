@@ -36,7 +36,7 @@
 //!
 //! - CodeNER: Code Prompting for Named Entity Recognition (arXiv:2507.20423)
 
-use anno_core::EntityType;
+use crate::EntityType;
 use std::collections::HashMap;
 
 /// BIO tagging schema for NER.
@@ -57,6 +57,13 @@ impl BIOSchema {
         let mut descriptions = HashMap::new();
 
         for et in entity_types {
+            // `EntityType` carries `#[non_exhaustive]`. Within the defining crate
+            // (`anno`) the attribute has no effect on match exhaustiveness, so the
+            // wildcard arm is unreachable here -- but it preserves resilience for
+            // any future variant added in a single edit, and external callers
+            // (other crates matching on `anno::EntityType`) still need the
+            // wildcard pattern.
+            #[allow(unreachable_patterns)]
             let desc = match et {
                 EntityType::Person => "Person names (individuals, fictional characters)",
                 EntityType::Organization => "Organizations (companies, institutions, groups)",
@@ -72,7 +79,6 @@ impl BIOSchema {
                 EntityType::Cardinal => "Cardinal numbers",
                 EntityType::Ordinal => "Ordinal numbers (1st, 2nd, etc.)",
                 EntityType::Custom { name, .. } => name.as_str(),
-                // `EntityType` is non-exhaustive; keep prompts resilient to future variants.
                 _ => "Named entities",
             };
             descriptions.insert(et.clone(), desc.to_string());

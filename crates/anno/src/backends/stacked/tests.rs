@@ -1,5 +1,5 @@
 use super::*;
-use anno_core::Confidence;
+use crate::Confidence;
 use std::sync::LazyLock;
 
 /// Cached default StackedNER shared across unit tests to avoid
@@ -522,15 +522,15 @@ fn test_layer_error_handling() {
             &self,
             _text: &str,
             _language: Option<Language>,
-        ) -> crate::Result<Vec<anno_core::Entity>> {
+        ) -> crate::Result<Vec<crate::Entity>> {
             Err(crate::Error::Inference(format!(
                 "intentional failure from {}",
                 self.name
             )))
         }
 
-        fn supported_types(&self) -> Vec<anno_core::EntityType> {
-            vec![anno_core::EntityType::Person]
+        fn supported_types(&self) -> Vec<crate::EntityType> {
+            vec![crate::EntityType::Person]
         }
 
         fn is_available(&self) -> bool {
@@ -707,7 +707,7 @@ fn test_longest_span_with_ties() {
 
 #[test]
 fn test_method_for_backend_name_all_branches() {
-    use anno_core::ExtractionMethod;
+    use crate::ExtractionMethod;
     assert_eq!(method_for_backend_name("regex"), ExtractionMethod::Pattern);
     assert_eq!(
         method_for_backend_name("heuristic"),
@@ -849,7 +849,7 @@ fn test_invalid_span_start_ge_end_skipped() {
 
 #[test]
 fn test_provenance_not_overwritten_when_already_set() {
-    use anno_core::{ExtractionMethod, Provenance};
+    use crate::{ExtractionMethod, Provenance};
     let mut entity = mock_entity("Apple", 0, EntityType::Organization, 0.9);
     entity.provenance = Some(Provenance {
         source: Cow::Borrowed("custom-source"),

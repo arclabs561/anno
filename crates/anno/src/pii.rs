@@ -26,7 +26,7 @@
 //! # Ok::<(), anno::Error>(())
 //! ```
 
-use anno_core::Entity;
+use crate::Entity;
 use regex::Regex;
 use std::collections::HashMap;
 

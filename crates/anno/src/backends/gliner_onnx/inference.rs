@@ -1164,13 +1164,13 @@ impl GLiNEROnnx {
             "person" | "per" => EntityType::Person,
             "organization" | "org" | "company" => EntityType::Organization,
             "location" | "loc" | "gpe" | "geo-loc" => EntityType::Location,
-            "facility" | "fac" => EntityType::custom("FACILITY", anno_core::EntityCategory::Place),
-            "product" | "prod" => EntityType::custom("PRODUCT", anno_core::EntityCategory::Misc),
-            "misc" | "other" => EntityType::custom("MISC", anno_core::EntityCategory::Misc),
+            "facility" | "fac" => EntityType::custom("FACILITY", crate::EntityCategory::Place),
+            "product" | "prod" => EntityType::custom("PRODUCT", crate::EntityCategory::Misc),
+            "misc" | "other" => EntityType::custom("MISC", crate::EntityCategory::Misc),
             "date" | "time" => EntityType::Date,
             "money" | "currency" => EntityType::Money,
             "percent" | "percentage" => EntityType::Percent,
-            other => EntityType::custom(other, anno_core::EntityCategory::Misc),
+            other => EntityType::custom(other, crate::EntityCategory::Misc),
         }
     }
 

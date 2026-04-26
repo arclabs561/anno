@@ -173,16 +173,16 @@ pub mod hmm;
 pub mod chunking;
 
 /// Map a backend name (stable ID used in stacked/ensemble compositions) to an
-/// [`ExtractionMethod`](anno_core::ExtractionMethod).
+/// [`ExtractionMethod`](crate::ExtractionMethod).
 ///
 /// Shared by `StackedNER` and `EnsembleNER` so the mapping stays consistent.
-pub(crate) fn method_for_backend_name(name: &str) -> anno_core::ExtractionMethod {
+pub(crate) fn method_for_backend_name(name: &str) -> crate::ExtractionMethod {
     match name {
         // Stable IDs used by built-in compositions.
-        "regex" => anno_core::ExtractionMethod::Pattern,
-        "heuristic" | "heuristic-crf" | "crf" | "lexicon" => anno_core::ExtractionMethod::Heuristic,
+        "regex" => crate::ExtractionMethod::Pattern,
+        "heuristic" | "heuristic-crf" | "crf" | "lexicon" => crate::ExtractionMethod::Heuristic,
         // Everything else: treat as neural by default (BERT, GLiNER, NuNER, etc.).
-        _ => anno_core::ExtractionMethod::Neural,
+        _ => crate::ExtractionMethod::Neural,
     }
 }
 
@@ -193,7 +193,7 @@ pub(crate) fn method_for_backend_name(name: &str) -> anno_core::ExtractionMethod
 #[cfg(test)]
 mod tests {
     use super::method_for_backend_name;
-    use anno_core::ExtractionMethod;
+    use crate::ExtractionMethod;
 
     // -------------------------------------------------------------------------
     // method_for_backend_name: exact stable IDs
@@ -411,8 +411,8 @@ pub use gliner_onnx::GLiNERConfig;
 #[cfg(feature = "onnx")]
 pub use onnx::BertNERConfig;
 
-// Coreference resolution trait (from anno-core, always available)
-pub use anno_core::CoreferenceResolver;
+// Coreference resolution trait (from `crate::core`, always available)
+pub use crate::CoreferenceResolver;
 
 // Unified coref backend trait
 pub use coref::resolve::CorefBackend;

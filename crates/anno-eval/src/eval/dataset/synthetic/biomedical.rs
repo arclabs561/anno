@@ -2,7 +2,7 @@
 
 use super::super::types::helpers::{chemical, disease, drug, entity, gene};
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 /// Biomedical/healthcare domain dataset.
 pub fn dataset() -> Vec<AnnotatedExample> {

@@ -185,9 +185,9 @@
 //! ```
 
 #[allow(unused_imports)]
-use crate::{Entity, Model, Result};
+use crate::{CoreferenceResolver, Gender, MentionType};
 #[allow(unused_imports)]
-use anno_core::{CoreferenceResolver, Gender, MentionType};
+use crate::{Entity, Model, Result};
 #[allow(unused_imports)]
 use std::collections::{HashMap, HashSet};
 

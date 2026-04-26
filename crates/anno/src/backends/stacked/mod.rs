@@ -552,7 +552,7 @@ impl Model for StackedNER {
 
                 // Add provenance tracking if not already set
                 if candidate.provenance.is_none() {
-                    candidate.provenance = Some(anno_core::Provenance {
+                    candidate.provenance = Some(crate::Provenance {
                         source: Cow::Borrowed(layer_name),
                         method: method_for_backend_name(layer_name),
                         pattern: None,

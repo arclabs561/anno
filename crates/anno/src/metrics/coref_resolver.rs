@@ -6,15 +6,15 @@
 //! This module additionally defines the discourse-aware resolver (feature-gated on `discourse`).
 
 #[cfg(feature = "discourse")]
-use crate::Entity;
+use crate::CanonicalId;
 #[cfg(feature = "discourse")]
-use anno_core::CanonicalId;
+use crate::Entity;
 
 // Re-export canonical definitions from backends/.
 pub use crate::backends::coref::simple::{CorefConfig, SimpleCorefResolver};
 
-// Re-export the canonical trait from `anno-core`.
-pub use anno_core::CoreferenceResolver;
+// Re-export the canonical trait from `crate::core`.
+pub use crate::CoreferenceResolver;
 
 // =============================================================================
 // Discourse-aware coreference (optional)
@@ -334,8 +334,8 @@ mod tests {
     use crate::metrics::coref_metrics::{
         b_cubed_score, ceaf_e_score, conll_f1, lea_score, muc_score, CorefEvaluation, CorefScores,
     };
+    use crate::CanonicalId;
     use crate::{Entity, EntityType};
-    use anno_core::CanonicalId;
 
     // ---- helpers ----
 

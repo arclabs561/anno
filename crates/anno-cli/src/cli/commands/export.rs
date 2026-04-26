@@ -94,13 +94,13 @@ pub enum ExportFormat {
 // =============================================================================
 
 struct Extracted {
-    entities: Vec<anno_core::Entity>,
+    entities: Vec<anno::Entity>,
     /// Populated when the backend supports relation extraction; empty otherwise.
-    relations: Vec<anno_core::Relation>,
+    relations: Vec<anno::Relation>,
 }
 
 impl Extracted {
-    fn entities_only(entities: Vec<anno_core::Entity>) -> Self {
+    fn entities_only(entities: Vec<anno::Entity>) -> Self {
         Self {
             entities,
             relations: Vec::new(),
@@ -177,12 +177,12 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
             let json_content =
                 fs::read_to_string(file).map_err(|e| format!("Failed to read file: {}", e))?;
             let doc = parse_grounded_document(&json_content)?;
-            let entities: Vec<anno_core::Entity> = doc
+            let entities: Vec<anno::Entity> = doc
                 .signals()
                 .iter()
                 .filter_map(|s| {
                     let (start, end) = s.text_offsets()?;
-                    Some(anno_core::Entity::new(
+                    Some(anno::Entity::new(
                         s.surface(),
                         s.label.to_entity_type(),
                         start,
@@ -415,8 +415,8 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
 
 #[cfg(feature = "graph")]
 fn export_graph_ntriples(
-    entities: &[anno_core::Entity],
-    relations: &[anno_core::Relation],
+    entities: &[anno::Entity],
+    relations: &[anno::Relation],
     source: &Path,
     base_uri: &str,
 ) -> String {
@@ -439,8 +439,8 @@ mod tests {
     fn conll_splits_trailing_period_from_entity() {
         let text = "Apple CEO Tim Cook.";
         let entities = vec![
-            anno_core::Entity::new("Apple", anno_core::EntityType::Organization, 0, 5, 0.9),
-            anno_core::Entity::new("Tim Cook", anno_core::EntityType::Person, 10, 18, 0.9),
+            anno::Entity::new("Apple", anno::EntityType::Organization, 0, 5, 0.9),
+            anno::Entity::new("Tim Cook", anno::EntityType::Person, 10, 18, 0.9),
         ];
         let output = anno::export::to_conll(text, &entities);
         let lines: Vec<&str> = output.lines().collect();
@@ -461,9 +461,9 @@ mod tests {
     #[test]
     fn conll_no_trailing_punct_unchanged() {
         let text = "Tim Cook spoke";
-        let entities = vec![anno_core::Entity::new(
+        let entities = vec![anno::Entity::new(
             "Tim Cook",
-            anno_core::EntityType::Person,
+            anno::EntityType::Person,
             0,
             8,
             0.9,
@@ -480,7 +480,7 @@ mod tests {
     #[test]
     fn conll_multiple_punct_chars() {
         let text = "Really?!";
-        let entities: Vec<anno_core::Entity> = vec![];
+        let entities: Vec<anno::Entity> = vec![];
         let output = anno::export::to_conll(text, &entities);
         let lines: Vec<&str> = output.lines().collect();
 

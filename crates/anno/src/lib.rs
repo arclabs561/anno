@@ -116,23 +116,28 @@ pub mod types;
 pub use error::{Error, Result};
 
 // =============================================================================
-// Core types live in `anno-core`
+// Core data model: entities, spans, tracks, coref chains, corpus, etc.
 // =============================================================================
 
-// Re-export core types at the crate root (the `anno` public API surface).
-pub use anno_core::{
-    CanonicalId, Confidence, CorefChain, CorefDocument, CoreferenceResolver, Corpus,
-    DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod, Gender,
-    GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity, IdentityId, IdentitySource,
-    Lexicon, Location, Mention, MentionType, Modality, Number, Person, PhiFeatures, Provenance,
-    Quantifier, Relation, Signal, SignalId, SignalRef, Span, Track, TrackId, TrackRef, TrackStats,
-    TypeLabel, TypeMapper, ValidationIssue,
+/// Coalescing primitives shared across coreference and cross-doc identity resolution.
+pub mod coalesce;
+/// Core types (`Entity`, `Span`, `Track`, `Confidence`, ...) and their submodules.
+pub mod core;
+/// Lite re-export facade for crates that only need data types (no algorithms).
+pub mod minimal;
+
+// Re-export the stable type surface at the crate root.
+pub use crate::core::{
+    generate_span_candidates, Animacy, Confidence, CorefChain, CorefDocument, CoreferenceResolver,
+    Corpus, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType, ExtractionMethod,
+    Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity, IdentityId,
+    IdentitySource, Lexicon, Location, Mention, MentionType, Modality, Number, Person, PhiFeatures,
+    Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef, Span,
+    SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
 };
 
-/// `anno-core`'s stable types under a namespaced module.
-pub mod core {
-    pub use anno_core::core::{coref, grounded};
-}
+pub use crate::core::grounded::SignalValidationError;
+pub use crate::core::types::{ByteOffset, CanonicalId, CharOffset};
 
 // Re-export commonly used types
 pub use lang::{detect_language, Language};

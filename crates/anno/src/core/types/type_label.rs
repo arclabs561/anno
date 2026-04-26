@@ -20,7 +20,7 @@
 //! `TypeLabel` unifies these by supporting both core and custom types:
 //!
 //! ```rust
-//! use anno_core::{TypeLabel, EntityType};
+//! use crate::{TypeLabel, EntityType};
 //!
 //! // From a known type
 //! let person = TypeLabel::Core(EntityType::Person);

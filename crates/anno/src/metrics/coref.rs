@@ -1,7 +1,7 @@
 //! Coreference resolution data structures.
 //!
-//! This module re-exports the canonical coref types from `anno-core`.
-//! See [`anno_core::core::coref`] for the full documentation.
+//! This module re-exports the canonical coref types from `crate::core`.
+//! See [`crate::core::coref`] for the full documentation.
 
-// Re-export all coref types from anno_core.
-pub use anno_core::core::coref::*;
+// Re-export all coref types from `crate::core::coref`.
+pub use crate::core::coref::*;

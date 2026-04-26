@@ -11,20 +11,20 @@ readme = "../../README.md"
 keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
-    "/src/**/*.rs",
-    "/Cargo.toml",
-    "/Cargo.lock",
-    "/LICENSE",
-    "/LICENSE-*",
-    "/README.md",
+  "/src/**/*.rs",
+  "/Cargo.toml",
+  "/Cargo.lock",
+  "/LICENSE",
+  "/LICENSE-*",
+  "/README.md",
 ]
 
 [lib]
 name = "anno"
 
 [dependencies]
-anno-core = { path = "../anno-core", version = "0.8.0" }
 textprep = { workspace = true }
+schemars = { version = "1", features = ["derive"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -71,11 +71,18 @@ default = ["onnx"]
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
 analysis = []
 discourse = []
-schema = ["anno-core/schema"]
+schema = ["dep:schemars"]
 # Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed
 # adapters from extraction output to KnowledgeGraph and N-Triples).
 graph = ["dep:lattix"]
-onnx = ["dep:ort", "dep:ndarray", "dep:tokenizers", "dep:hf-hub", "dep:lru", "dep:safetensors"]
+onnx = [
+  "dep:ort",
+  "dep:ndarray",
+  "dep:tokenizers",
+  "dep:hf-hub",
+  "dep:lru",
+  "dep:safetensors",
+]
 # Apple CoreML / Apple Neural Engine acceleration for ONNX backends.
 # macOS only (the underlying ort/coreml feature requires macOS at link time).
 # Set `OnnxSessionConfig::prefer_coreml = true` at session construction to
@@ -94,9 +101,7 @@ cuda = ["candle", "candle-core/cuda"]
 llm = ["dep:ureq"]
 # Runtime-oriented infra toggles are intentionally collapsed to one feature to keep
 # the public feature surface smaller and avoid "splintered" combinatorics.
-production = [
-  "dep:tracing",
-]
+production = ["dep:tracing"]
 
 # Bundled classical assets (opt-in).
 #

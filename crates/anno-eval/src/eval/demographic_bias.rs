@@ -147,9 +147,9 @@ pub struct NameExample {
     pub frequency: NameFrequency,
 }
 
-// Re-export the canonical Gender from anno_core.
+// Re-export the canonical Gender from `anno::core`.
 // This unifies the type system across the anno ecosystem.
-pub use anno_core::Gender;
+pub use anno::Gender;
 
 /// Name frequency category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

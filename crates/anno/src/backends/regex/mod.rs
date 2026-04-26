@@ -247,7 +247,7 @@ static HASHTAG: LazyLock<Regex> = LazyLock::new(|| {
 impl Model for RegexNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         use crate::offset::SpanConverter;
-        use anno_core::Provenance;
+        use crate::Provenance;
         let mut entities = Vec::new();
 
         // Performance optimization: Build SpanConverter once for all byte-to-char conversions
@@ -391,7 +391,7 @@ impl Model for RegexNER {
                 // We use EntityType::custom for now, but specific string "Mention"
                 entities.push(Entity::with_provenance(
                     m.as_str(),
-                    EntityType::custom("Mention", anno_core::EntityCategory::Misc),
+                    EntityType::custom("Mention", crate::EntityCategory::Misc),
                     char_start,
                     char_end,
                     0.95,
@@ -411,7 +411,7 @@ impl Model for RegexNER {
             if !overlaps(&entities, char_start, char_end) {
                 entities.push(Entity::with_provenance(
                     m.as_str(),
-                    EntityType::custom("Hashtag", anno_core::EntityCategory::Misc),
+                    EntityType::custom("Hashtag", crate::EntityCategory::Misc),
                     char_start,
                     char_end,
                     0.95,
@@ -857,7 +857,7 @@ mod tests {
 
     #[test]
     fn provenance_attached() {
-        use anno_core::ExtractionMethod;
+        use crate::ExtractionMethod;
 
         let text = "Contact: test@email.com on 2024-01-15";
         let e = extract(text);
@@ -1260,9 +1260,7 @@ mod tests {
         let e = extract(text);
         let hashtags: Vec<_> = e
             .iter()
-            .filter(|e| {
-                e.entity_type == EntityType::custom("Hashtag", anno_core::EntityCategory::Misc)
-            })
+            .filter(|e| e.entity_type == EntityType::custom("Hashtag", crate::EntityCategory::Misc))
             .collect();
         assert!(
             hashtags.is_empty(),
@@ -1278,7 +1276,7 @@ mod tests {
         assert!(
             has_type(
                 &e,
-                &EntityType::custom("Hashtag", anno_core::EntityCategory::Misc)
+                &EntityType::custom("Hashtag", crate::EntityCategory::Misc)
             ),
             "Normal hashtag '#rust' should still match, got: {:?}",
             e

@@ -15,7 +15,6 @@ categories = ["command-line-utilities", "text-processing"]
 [dependencies]
 anno = { path = "../anno", version = "0.8.0", default-features = false }
 anno-eval = { path = "../anno-eval", version = "0.8.0" }
-anno-core = { path = "../anno-core", version = "0.8.0" }
 
 clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 clap_complete = { workspace = true }
@@ -34,7 +33,11 @@ glob = { workspace = true }
 itertools = { workspace = true }
 
 # Optional: only used by the `anno sampler` / `anno muxer` DX tooling (behind `eval`).
-muxer = { version = "0.5", default-features = false, features = ["serde", "stochastic", "contextual"], optional = true }
+muxer = { version = "0.5", default-features = false, features = [
+  "serde",
+  "stochastic",
+  "contextual",
+], optional = true }
 
 # Graph/KG export surface lives in `anno` behind its `graph` feature
 # (which pulls in lattix transitively). No separate dep needed here.
@@ -71,4 +74,3 @@ path = "src/main.rs"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-

@@ -641,7 +641,7 @@ mod tests {
     fn make_example(text: &str, entities: Vec<(&str, &str)>) -> AnnotatedExample {
         use crate::eval::datasets::GoldEntity;
         use crate::eval::synthetic::{Difficulty, Domain};
-        use anno_core::{EntityCategory, EntityType};
+        use anno::{EntityCategory, EntityType};
 
         let mut gold_entities = Vec::new();
 

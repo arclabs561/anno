@@ -280,7 +280,7 @@ impl EnsembleNER {
             // Slight penalty for single-source
             entity.confidence *= 0.95;
             // Set provenance for single-source entities
-            entity.provenance = Some(anno_core::Provenance {
+            entity.provenance = Some(crate::Provenance {
                 source: std::borrow::Cow::Owned(format!("ensemble({})", candidate.source)),
                 // Preserve underlying method/pattern when possible (important for nested ensembles).
                 method: original_prov
@@ -418,12 +418,12 @@ impl EnsembleNER {
 
         let mut entity = best_candidate.entity.clone();
         entity.confidence = Confidence::new(final_confidence);
-        entity.hierarchical_confidence = Some(anno_core::HierarchicalConfidence::new(
+        entity.hierarchical_confidence = Some(crate::HierarchicalConfidence::new(
             linkage, type_score, boundary,
         ));
-        entity.provenance = Some(anno_core::Provenance {
+        entity.provenance = Some(crate::Provenance {
             source: Cow::Owned(format!("ensemble({})", sources.join("+"))),
-            method: anno_core::ExtractionMethod::Consensus,
+            method: crate::ExtractionMethod::Consensus,
             pattern: None,
             raw_confidence: Some(Confidence::new(base_confidence)),
             model_version: None,

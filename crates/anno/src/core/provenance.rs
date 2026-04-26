@@ -17,7 +17,7 @@
 //! # Example
 //!
 //! ```rust
-//! use anno_core::core::provenance::{DocumentProvenance, SourceInfo, IngestInfo};
+//! use crate::core::provenance::{DocumentProvenance, SourceInfo, IngestInfo};
 //!
 //! let provenance = DocumentProvenance::builder()
 //!     .source(SourceInfo::url("https://example.com/doc.pdf"))

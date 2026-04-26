@@ -12,7 +12,7 @@ use std::fmt;
 /// # Construction
 ///
 /// ```rust
-/// use anno_core::Confidence;
+/// use crate::Confidence;
 ///
 /// let c = Confidence::new(0.95);
 /// assert_eq!(c.value(), 0.95);
@@ -286,7 +286,7 @@ impl Confidence {
     /// Common for NER models whose final layer outputs logits.
     ///
     /// ```rust
-    /// use anno_core::Confidence;
+    /// use crate::Confidence;
     ///
     /// let c = Confidence::from_logit(0.0);
     /// assert!((c.value() - 0.5).abs() < 0.001);

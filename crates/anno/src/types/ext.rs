@@ -1,6 +1,6 @@
 //! Extension traits for entity collections.
 
-use anno_core::Entity;
+use crate::Entity;
 use std::collections::HashMap;
 
 /// Extension methods for slices of entities.
@@ -32,7 +32,7 @@ pub trait EntitySliceExt {
     fn above_confidence(&self, min: f64) -> impl Iterator<Item = &Entity>;
 
     /// Filter entities by type.
-    fn of_type(&self, ty: &anno_core::EntityType) -> impl Iterator<Item = &Entity>;
+    fn of_type(&self, ty: &crate::EntityType) -> impl Iterator<Item = &Entity>;
 
     /// Check if any entities overlap with each other.
     fn has_overlaps(&self) -> bool;
@@ -73,7 +73,7 @@ impl EntitySliceExt for [Entity] {
         self.iter().filter(move |e| e.confidence >= min)
     }
 
-    fn of_type(&self, ty: &anno_core::EntityType) -> impl Iterator<Item = &Entity> {
+    fn of_type(&self, ty: &crate::EntityType) -> impl Iterator<Item = &Entity> {
         let ty = ty.clone();
         self.iter().filter(move |e| e.entity_type == ty)
     }
@@ -164,7 +164,7 @@ impl EntitySliceExt for [Entity] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anno_core::EntityType;
+    use crate::EntityType;
 
     fn sample_entities() -> Vec<Entity> {
         vec![

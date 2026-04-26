@@ -4,7 +4,7 @@
 //! representation for annotated NER examples regardless of source.
 
 use crate::eval::GoldEntity;
-use anno_core::EntityType;
+use anno::EntityType;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -356,7 +356,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "DISEASE".to_string(),
-                category: anno_core::EntityCategory::Misc,
+                category: anno::EntityCategory::Misc,
             },
             start,
         )
@@ -368,7 +368,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "DRUG".to_string(),
-                category: anno_core::EntityCategory::Misc,
+                category: anno::EntityCategory::Misc,
             },
             start,
         )
@@ -380,7 +380,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "GENE".to_string(),
-                category: anno_core::EntityCategory::Misc,
+                category: anno::EntityCategory::Misc,
             },
             start,
         )
@@ -392,7 +392,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "CHEMICAL".to_string(),
-                category: anno_core::EntityCategory::Misc,
+                category: anno::EntityCategory::Misc,
             },
             start,
         )
@@ -404,7 +404,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "EMAIL".to_string(),
-                category: anno_core::EntityCategory::Contact,
+                category: anno::EntityCategory::Contact,
             },
             start,
         )
@@ -416,7 +416,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "URL".to_string(),
-                category: anno_core::EntityCategory::Misc,
+                category: anno::EntityCategory::Misc,
             },
             start,
         )
@@ -428,7 +428,7 @@ pub(crate) mod helpers {
             text,
             EntityType::Custom {
                 name: "PHONE".to_string(),
-                category: anno_core::EntityCategory::Contact,
+                category: anno::EntityCategory::Contact,
             },
             start,
         )

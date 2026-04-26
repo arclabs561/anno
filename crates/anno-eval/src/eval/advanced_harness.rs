@@ -135,7 +135,7 @@ pub fn evaluate_discontinuous_gold_vs_gold() -> DiscontinuousNERMetrics {
             spans: g.spans.clone(),
             text: g.text.clone(),
             entity_type: g.entity_type.clone(),
-            confidence: anno_core::Confidence::ONE,
+            confidence: anno::Confidence::ONE,
         })
         .collect();
 

@@ -127,7 +127,7 @@ pub fn run(args: SingletonArgs) -> Result<(), String> {
     Ok(())
 }
 
-fn analyze_singletons(entities: &[anno_core::Entity], text: &str) -> SingletonReport {
+fn analyze_singletons(entities: &[anno::Entity], text: &str) -> SingletonReport {
     let mut singletons_by_type: HashMap<String, Vec<SingletonEntity>> = HashMap::new();
     let mut likely_missed = Vec::new();
     let mut likely_genuine = Vec::new();
@@ -186,8 +186,8 @@ fn analyze_singletons(entities: &[anno_core::Entity], text: &str) -> SingletonRe
 }
 
 fn classify_singleton(
-    entity: &anno_core::Entity,
-    all_entities: &[anno_core::Entity],
+    entity: &anno::Entity,
+    all_entities: &[anno::Entity],
     text: &str,
 ) -> SingletonReason {
     let entity_text = entity.text.to_lowercase();

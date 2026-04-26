@@ -2,7 +2,7 @@
 
 use super::super::types::helpers::{entity, entity_url};
 use super::super::types::{AnnotatedExample, Difficulty, Domain};
-use anno_core::EntityType;
+use anno::EntityType;
 
 /// Social media dataset (WNUT style - noisy text).
 pub fn dataset() -> Vec<AnnotatedExample> {

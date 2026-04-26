@@ -21,7 +21,7 @@
 
 use super::datasets::GoldEntity;
 use super::synthetic::{AnnotatedExample, Difficulty, Domain};
-use anno_core::{EntityCategory, EntityType};
+use anno::{EntityCategory, EntityType};
 
 /// Types of edge cases to generate
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

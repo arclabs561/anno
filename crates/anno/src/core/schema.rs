@@ -9,13 +9,13 @@
 //!
 //! ```toml
 //! [dependencies]
-//! anno-core = { version = "0.2", features = ["schema"] }
+//! anno = { version = "0.9", features = ["schema"] }
 //! ```
 //!
 //! Then generate schemas:
 //!
 //! ```rust,ignore
-//! use anno_core::core::schema::generate_entity_schema;
+//! use crate::core::schema::generate_entity_schema;
 //!
 //! let schema = generate_entity_schema();
 //! println!("{}", serde_json::to_string_pretty(&schema).unwrap());
@@ -43,7 +43,7 @@
 //! # Example: Generate All Schemas
 //!
 //! ```rust,ignore
-//! use anno_core::schema;
+//! use crate::schema;
 //! use std::fs;
 //!
 //! let schemas = vec![
@@ -257,7 +257,9 @@ mod tests {
         let schema = generate_entity_schema();
         assert!(schema.is_object());
         let obj = schema.as_object().unwrap();
-        assert!(obj.contains_key("$schema") || obj.contains_key("title") || obj.contains_key("type"));
+        assert!(
+            obj.contains_key("$schema") || obj.contains_key("title") || obj.contains_key("type")
+        );
     }
 
     #[test]
@@ -268,4 +270,3 @@ mod tests {
         assert!(schemas.contains_key("grounded_document"));
     }
 }
-

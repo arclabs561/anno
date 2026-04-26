@@ -33,7 +33,7 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 // Type aliases for complex types
-type PerExampleScores = Vec<(Vec<anno_core::Entity>, Vec<anno_core::Entity>, String)>;
+type PerExampleScores = Vec<(Vec<anno::Entity>, Vec<anno::Entity>, String)>;
 
 // Constants for evaluation
 /// 95% confidence interval z-score (normal distribution)
@@ -2141,7 +2141,7 @@ impl TaskEvaluator {
                                             .collect();
                                         CorefChain {
                                             mentions,
-                                            cluster_id: Some(anno_core::CanonicalId::new(
+                                            cluster_id: Some(anno::CanonicalId::new(
                                                 cluster.id as u64,
                                             )),
                                             entity_type: None,
@@ -2173,8 +2173,8 @@ impl TaskEvaluator {
                 let mut gold_entities: Vec<crate::Entity> = Vec::new();
                 for chain in &doc.chains {
                     for m in &chain.mentions {
-                        let is_zero = m.mention_type == Some(anno_core::MentionType::Zero)
-                            || m.start == m.end;
+                        let is_zero =
+                            m.mention_type == Some(anno::MentionType::Zero) || m.start == m.end;
                         if is_zero {
                             continue;
                         }
@@ -4011,7 +4011,7 @@ impl TaskEvaluator {
         config: &TaskEvalConfig,
     ) -> Option<super::robustness::RobustnessResults> {
         use super::robustness::RobustnessEvaluator;
-        use anno_core::Entity;
+        use anno::Entity;
 
         // Create backend for robustness testing
         // NOTE: We create a new backend instance here rather than reusing from main evaluation

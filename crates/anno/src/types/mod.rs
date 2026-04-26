@@ -10,7 +10,7 @@
 //! |------|-----------|--------|-------------|
 //! | [`Confidence`] | f64 | [0, 1] | All confidence/probability scores |
 //!
-//! `Confidence` is re-exported from `anno_core`. It supports construction
+//! `Confidence` is re-exported from `crate::core`. It supports construction
 //! from raw values (`new`), logits (`from_logit`), and scaled logits
 //! (`from_logit_scaled`).
 //!
@@ -36,21 +36,20 @@
 //! ```
 
 mod ext;
-pub use anno_core::Confidence;
+pub use crate::Confidence;
 pub use ext::EntitySliceExt;
 
 /// Static assertions for struct layouts and invariants.
 #[doc(hidden)]
 pub mod static_checks {
     // Confidence is zero-cost (same size as f64)
-    const _: () =
-        assert!(std::mem::size_of::<anno_core::Confidence>() == std::mem::size_of::<f64>());
+    const _: () = assert!(std::mem::size_of::<crate::Confidence>() == std::mem::size_of::<f64>());
 
     // Entity is reasonably sized (fits in a few cache lines)
-    const _: () = assert!(std::mem::size_of::<anno_core::Entity>() <= 512);
+    const _: () = assert!(std::mem::size_of::<crate::Entity>() <= 512);
 
     // SpanCandidate is small and copyable (used in hot loops)
-    const _: () = assert!(std::mem::size_of::<anno_core::SpanCandidate>() <= 16);
+    const _: () = assert!(std::mem::size_of::<crate::SpanCandidate>() <= 16);
 
     // HierarchicalConfidence is compact (3 x Confidence/f64 = 24 bytes)
     const _: () = assert!(std::mem::size_of::<crate::HierarchicalConfidence>() <= 24);

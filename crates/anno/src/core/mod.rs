@@ -22,7 +22,7 @@
 //! ### Entities and Spans
 //!
 //! ```rust,ignore
-//! use anno_core::{Entity, EntityType, Span};
+//! use crate::{Entity, EntityType, Span};
 //!
 //! let entity = Entity::new("Barack Obama", EntityType::Person)
 //!     .with_span(Span::new(0, 12))
@@ -34,7 +34,7 @@
 //! For cross-document coreference, entities are "grounded" to real-world identities:
 //!
 //! ```rust,ignore
-//! use anno_core::{GroundedDocument, Identity, Signal};
+//! use crate::{GroundedDocument, Identity, Signal};
 //!
 //! // Multiple mentions across documents resolve to one identity
 //! let obama_id = Identity::new("Q76"); // Wikidata ID
@@ -63,7 +63,7 @@
 //! ## Minimal surface
 //!
 //! If you’re downstream and want a small “just the contract” import set, prefer
-//! `anno_core::minimal` (or `anno::core::*` in the `anno` crate) rather than grabbing the entire
+//! `crate::minimal` (or `anno::core::*` in the `anno` crate) rather than grabbing the entire
 //! re-export surface.
 
 pub mod confidence;
@@ -92,7 +92,7 @@ pub use error::{Error, Result};
 // Coreference types
 pub use coref::{entities_to_chains, CorefChain, CorefDocument, CoreferenceResolver, Mention};
 
-// Other modules accessible via anno_core::module_name
+// Other modules accessible via crate::module_name
 pub use types::{
     Animacy, Gender, MentionType, MetricStats, Number, Person, PhiFeatures, TypeLabel,
 };

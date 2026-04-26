@@ -26,8 +26,8 @@
 //! 9. **Substring/fuzzy match** -- links mentions sharing a substring (>= 3 chars) or a matching
 //!    last word, same entity type required.
 
+use crate::{CanonicalId, CoreferenceResolver, Gender};
 use crate::{Entity, EntityType};
-use anno_core::{CanonicalId, CoreferenceResolver, Gender};
 use std::collections::HashMap;
 
 /// Configuration for [`SimpleCorefResolver`].

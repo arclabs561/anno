@@ -1,8 +1,8 @@
 //! Core encoder traits for GLiNER/ModernBERT-style bi-encoder extraction.
 
+use crate::RaggedBatch;
 #[allow(unused_imports)]
 use crate::{Entity, EntityType};
-use anno_core::RaggedBatch;
 
 // Core Encoder Traits (GLiNER/ModernBERT Alignment)
 // =============================================================================

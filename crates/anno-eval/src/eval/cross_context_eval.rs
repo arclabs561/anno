@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn test_long_document_creation() {
-        use anno_core::MentionType;
+        use anno::MentionType;
 
         fn new_mention(text: &str, start: usize, end: usize) -> Mention {
             Mention {

@@ -1,4 +1,4 @@
-//! # `anno_core::coalesce`
+//! # `crate::coalesce`
 //!
 //! Cross-document coalescing groups extracted mentions/tracks into “identities” across documents.
 //! This module is implementation-focused: similarity primitives, candidate generation, and

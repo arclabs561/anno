@@ -19,7 +19,7 @@
 
 use crate::{Entity, Error, Language, Result};
 #[cfg(feature = "onnx")]
-use anno_core::{EntityCategory, EntityType};
+use crate::{EntityCategory, EntityType};
 
 #[cfg(feature = "onnx")]
 use {ndarray::Array2, ort::session::Session, std::collections::HashMap, tokenizers::Tokenizer};

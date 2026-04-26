@@ -7,8 +7,8 @@
 //! - Overlapping entity detection
 
 use super::datasets::GoldEntity;
+use anno::EntityType;
 use anno::{Error, Result};
-use anno_core::EntityType;
 
 /// Validation result for ground truth entities.
 #[derive(Debug, Clone)]

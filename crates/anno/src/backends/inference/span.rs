@@ -4,7 +4,7 @@
 //! - `HandshakingMatrix`, `HandshakingCell`: sparse grid for W2NER / TPLinker
 
 use super::registry::{LabelCategory, LabelDefinition, SemanticRegistry};
-use anno_core::SpanCandidate;
+use crate::SpanCandidate;
 
 // Handshaking Matrix (TPLinker-style Joint Extraction)
 // =============================================================================

@@ -44,8 +44,8 @@
 //! ## Example
 //!
 //! ```
-//! use anno_core::coalesce::Resolver;
-//! use anno_core::Corpus;
+//! use crate::coalesce::Resolver;
+//! use crate::Corpus;
 //!
 //! let resolver = Resolver::new()
 //!     .with_threshold(0.7)
@@ -297,7 +297,7 @@ impl Default for Resolver {
 /// # Example
 ///
 /// ```rust
-/// use anno_core::coalesce::resolver::string_similarity;
+/// use crate::coalesce::resolver::string_similarity;
 ///
 /// let sim = string_similarity("Lynn Conway", "Lynn Conway");
 /// assert_eq!(sim, 1.0);
@@ -349,7 +349,7 @@ pub fn string_similarity(a: &str, b: &str) -> f32 {
 /// # Example
 ///
 /// ```rust
-/// use anno_core::coalesce::resolver::embedding_similarity;
+/// use crate::coalesce::resolver::embedding_similarity;
 ///
 /// let emb1 = vec![1.0, 0.0, 0.0];
 /// let emb2 = vec![1.0, 0.0, 0.0];

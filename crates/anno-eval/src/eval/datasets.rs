@@ -11,8 +11,8 @@
 //! - MultiNERD: Multi-ontology, JSON format
 //! - Wikiann: 282 languages, JSONL format
 
+use anno::EntityType;
 use anno::{Error, Result};
-use anno_core::EntityType;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 

@@ -1,6 +1,6 @@
 //! Lightweight import surface for downstream crates.
 //!
-//! `anno-core` is ~22k lines. Most downstream crates only need the core data types --
+//! `crate::core` is ~22k lines. Most downstream callers only need the core data types --
 //! entities, spans, mentions, coreference chains, and provenance. This module collects
 //! those types into a single `use` target so that consumers avoid pulling in the dataset
 //! registry, calibration machinery, graph-export formats, and historical-linguistics types.
@@ -9,8 +9,8 @@
 //!
 //! | Import path | What you get | What you skip |
 //! |---|---|---|
-//! | `anno_core::minimal::*` | Data types, builders, coref, provenance | Dataset registry, calibration, historical, graph export |
-//! | `anno_core::*` | Everything | Nothing |
+//! | `crate::minimal::*` | Data types, builders, coref, provenance | Dataset registry, calibration, historical, graph export |
+//! | `crate::*` | Everything | Nothing |
 //!
 //! Prefer `minimal` when your crate only reads/writes annotation data. Use the full
 //! surface when you need evaluation infrastructure or dataset loading.
@@ -18,7 +18,7 @@
 //! # Quick start
 //!
 //! ```rust
-//! use anno_core::minimal::{Entity, EntityType, Span, Mention, CorefChain};
+//! use crate::minimal::{Entity, EntityType, Span, Mention, CorefChain};
 //!
 //! // Build an entity at character offsets 0..6.
 //! let entity = Entity::new("Berlin", EntityType::Location, 0, 6, 0.95);
@@ -38,7 +38,7 @@
 //! For richer construction, use [`EntityBuilder`]:
 //!
 //! ```rust
-//! use anno_core::minimal::{EntityBuilder, EntityType, Provenance};
+//! use crate::minimal::{EntityBuilder, EntityType, Provenance};
 //!
 //! let entity = EntityBuilder::new("Berlin", EntityType::Location)
 //!     .span(0, 6)

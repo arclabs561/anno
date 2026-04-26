@@ -701,7 +701,7 @@ fn qa_n9_html_head_metadata_stripped() {
 #[test]
 fn qa_quantifier_approximately() {
     use anno::heuristics::detect_quantifier_en;
-    use anno_core::Quantifier;
+    use anno::Quantifier;
 
     // "approximately" before a number + entity
     let text = "Approximately 500 employees at Google received options.";
@@ -717,7 +717,7 @@ fn qa_quantifier_approximately() {
 #[test]
 fn qa_quantifier_at_least() {
     use anno::heuristics::detect_quantifier_en;
-    use anno_core::Quantifier;
+    use anno::Quantifier;
 
     let text = "At least three companies bid.";
     // entity "companies" starts at char 20
@@ -732,7 +732,7 @@ fn qa_quantifier_at_least() {
 #[test]
 fn qa_quantifier_about() {
     use anno::heuristics::detect_quantifier_en;
-    use anno_core::Quantifier;
+    use anno::Quantifier;
 
     let text = "About 2.5 million users signed up.";
     // entity "users" starts at char 22
@@ -747,7 +747,7 @@ fn qa_quantifier_about() {
 #[test]
 fn qa_quantifier_definite_still_works() {
     use anno::heuristics::detect_quantifier_en;
-    use anno_core::Quantifier;
+    use anno::Quantifier;
 
     let text = "The patient has no history.";
     let q = detect_quantifier_en(text, 4);
@@ -761,7 +761,7 @@ fn qa_quantifier_definite_still_works() {
 #[test]
 fn qa_quantifier_no_false_positive_far_away() {
     use anno::heuristics::detect_quantifier_en;
-    use anno_core::Quantifier;
+    use anno::Quantifier;
 
     // "approximately" is >40 chars before "Boston" - should not trigger
     let text = "Approximately 50 students from MIT attended the conference in Boston.";

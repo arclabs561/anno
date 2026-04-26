@@ -226,7 +226,7 @@ pub fn run(args: ExplainArgs) -> Result<(), String> {
 }
 
 /// Analyze features that contributed to entity classification
-fn analyze_features(text: &str, entity: &anno_core::Entity) -> Vec<FeatureContribution> {
+fn analyze_features(text: &str, entity: &anno::Entity) -> Vec<FeatureContribution> {
     let mut features = Vec::new();
     let entity_text = &entity.text;
 

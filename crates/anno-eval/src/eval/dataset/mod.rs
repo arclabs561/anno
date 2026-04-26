@@ -323,7 +323,7 @@ impl NERDataset {
     }
 
     /// Filter to examples containing a specific entity type.
-    pub fn filter_entity_type(&self, entity_type: &anno_core::EntityType) -> Self {
+    pub fn filter_entity_type(&self, entity_type: &anno::EntityType) -> Self {
         let examples = self
             .examples
             .iter()
