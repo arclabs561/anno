@@ -2086,7 +2086,7 @@ impl MentionRankingCoref {
     ///
     /// ```rust,ignore
     /// use anno::backends::coref::mention_ranking::MentionRankingCoref;
-    /// use crate::GroundedDocument;
+    /// use anno::GroundedDocument;
     ///
     /// let coref = MentionRankingCoref::new();
     /// let (signals, tracks) = coref.resolve_to_grounded("John saw Mary. He waved.")?;

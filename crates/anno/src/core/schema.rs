@@ -15,7 +15,7 @@
 //! Then generate schemas:
 //!
 //! ```rust,ignore
-//! use crate::core::schema::generate_entity_schema;
+//! use anno::core::schema::generate_entity_schema;
 //!
 //! let schema = generate_entity_schema();
 //! println!("{}", serde_json::to_string_pretty(&schema).unwrap());
@@ -43,7 +43,7 @@
 //! # Example: Generate All Schemas
 //!
 //! ```rust,ignore
-//! use crate::schema;
+//! use anno::schema;
 //! use std::fs;
 //!
 //! let schemas = vec![

@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```rust
-//! use crate::{SignalId, TrackId};
+//! use anno::{SignalId, TrackId};
 //!
 //! fn process_signal(id: SignalId) { /* ... */ }
 //! fn process_track(id: TrackId) { /* ... */ }
@@ -212,7 +212,7 @@ define_id! {
 /// # Example
 ///
 /// ```rust
-/// use crate::core::types::CharOffset;
+/// use anno::core::types::CharOffset;
 ///
 /// let text = "日本語";
 /// let start = CharOffset::new(0);

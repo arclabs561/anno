@@ -18,7 +18,7 @@
 //! # Quick start
 //!
 //! ```rust
-//! use crate::minimal::{Entity, EntityType, Span, Mention, CorefChain};
+//! use anno::minimal::{Entity, EntityType, Span, Mention, CorefChain};
 //!
 //! // Build an entity at character offsets 0..6.
 //! let entity = Entity::new("Berlin", EntityType::Location, 0, 6, 0.95);
@@ -38,7 +38,7 @@
 //! For richer construction, use [`EntityBuilder`]:
 //!
 //! ```rust
-//! use crate::minimal::{EntityBuilder, EntityType, Provenance};
+//! use anno::minimal::{EntityBuilder, EntityType, Provenance};
 //!
 //! let entity = EntityBuilder::new("Berlin", EntityType::Location)
 //!     .span(0, 6)

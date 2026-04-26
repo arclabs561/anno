@@ -22,7 +22,7 @@
 //! ### Entities and Spans
 //!
 //! ```rust,ignore
-//! use crate::{Entity, EntityType, Span};
+//! use anno::{Entity, EntityType, Span};
 //!
 //! let entity = Entity::new("Barack Obama", EntityType::Person)
 //!     .with_span(Span::new(0, 12))
@@ -34,7 +34,7 @@
 //! For cross-document coreference, entities are "grounded" to real-world identities:
 //!
 //! ```rust,ignore
-//! use crate::{GroundedDocument, Identity, Signal};
+//! use anno::{GroundedDocument, Identity, Signal};
 //!
 //! // Multiple mentions across documents resolve to one identity
 //! let obama_id = Identity::new("Q76"); // Wikidata ID

@@ -148,7 +148,7 @@ impl std::fmt::Display for EntityCategory {
 /// # Examples
 ///
 /// ```
-/// use crate::EntityType;
+/// use anno::EntityType;
 ///
 /// let ty = EntityType::Email;
 /// assert!(ty.category().pattern_detectable());
@@ -245,7 +245,7 @@ impl EntityType {
     /// Convert to standard label string (CoNLL/OntoNotes format).
     ///
     /// ```
-    /// use crate::EntityType;
+    /// use anno::EntityType;
     ///
     /// assert_eq!(EntityType::Person.as_label(), "PER");
     /// assert_eq!(EntityType::Location.as_label(), "LOC");
@@ -275,7 +275,7 @@ impl EntityType {
     /// Handles various formats: CoNLL (PER), OntoNotes (PERSON), BIO (B-PER).
     ///
     /// ```
-    /// use crate::EntityType;
+    /// use anno::EntityType;
     ///
     /// assert_eq!(EntityType::from_label("PER"), EntityType::Person);
     /// assert_eq!(EntityType::from_label("B-ORG"), EntityType::Organization);
@@ -336,7 +336,7 @@ impl EntityType {
     /// # Examples
     ///
     /// ```
-    /// use crate::{EntityType, EntityCategory};
+    /// use anno::{EntityType, EntityCategory};
     ///
     /// let disease = EntityType::custom("DISEASE", EntityCategory::Agent);
     /// assert!(disease.requires_ml());
@@ -463,7 +463,7 @@ impl<'de> Deserialize<'de> for EntityType {
 /// # Example
 ///
 /// ```rust
-/// use crate::{TypeMapper, EntityType, EntityCategory};
+/// use anno::{TypeMapper, EntityType, EntityCategory};
 ///
 /// // MIT Movie dataset mapping
 /// let mut mapper = TypeMapper::new();
@@ -705,7 +705,7 @@ impl ExtractionMethod {
     /// # Example
     ///
     /// ```rust
-    /// use crate::ExtractionMethod;
+    /// use anno::ExtractionMethod;
     ///
     /// assert!(ExtractionMethod::Neural.is_calibrated());
     /// assert!(!ExtractionMethod::Pattern.is_calibrated());
@@ -787,7 +787,7 @@ impl std::fmt::Display for ExtractionMethod {
 /// # Example
 ///
 /// ```rust
-/// use crate::{Lexicon, EntityType, HashMapLexicon};
+/// use anno::{Lexicon, EntityType, HashMapLexicon};
 ///
 /// // Create a domain-specific lexicon
 /// let mut lexicon = HashMapLexicon::new("stock_tickers");
@@ -934,7 +934,7 @@ impl Provenance {
     ///
     /// Accepts both static strings and owned strings:
     /// ```rust
-    /// use crate::Provenance;
+    /// use anno::Provenance;
     ///
     /// // Static string (zero allocation)
     /// let p1 = Provenance::ml("gliner", 0.95);
@@ -1148,7 +1148,7 @@ impl Span {
 /// # Example
 ///
 /// ```rust
-/// use crate::DiscontinuousSpan;
+/// use anno::DiscontinuousSpan;
 ///
 /// // "severe pain in the abdomen" where "severe" modifies "pain"
 /// // but they're separated by other words
@@ -1790,7 +1790,7 @@ impl Entity {
     /// Create a new entity.
     ///
     /// ```
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let e = Entity::new("Berlin", EntityType::Location, 10, 16, 0.95);
     /// assert_eq!(e.text, "Berlin");
@@ -1975,7 +1975,7 @@ impl Entity {
     ///
     /// # Examples
     /// ```
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     /// let mut e = Entity::new("Marie Curie", EntityType::Person, 0, 11, 0.95);
     /// e.link_to_kb("Q7186");
     /// assert_eq!(e.kb_id.as_deref(), Some("Q7186"));
@@ -1995,7 +1995,7 @@ impl Entity {
     ///
     /// # Example
     /// ```
-    /// use crate::{CanonicalId, Entity, EntityType};
+    /// use anno::{CanonicalId, Entity, EntityType};
     /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.9)
     ///     .with_canonical_id(42);
     /// assert_eq!(entity.canonical_id, Some(CanonicalId::new(42)));
@@ -2075,7 +2075,7 @@ impl Entity {
     /// # Examples
     ///
     /// ```rust
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let mut entity = Entity::new("Jan 15", EntityType::Date, 0, 6, 0.95);
     /// entity.set_normalized("2024-01-15");
@@ -2214,7 +2214,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust,ignore
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let (byte_start, byte_end) = char_to_byte_offsets(text, entity.start(), entity.end());
     /// ```
@@ -2236,7 +2236,7 @@ impl Entity {
     ///
     /// # Example
     /// ```rust
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let text = "Hello, 日本!";
     /// let entity = Entity::new("日本", EntityType::Location, 7, 9, 0.95);
@@ -2299,7 +2299,7 @@ impl Entity {
     /// # Example
     ///
     /// ```rust
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let text = "John works at Apple";
     /// let entity = Entity::new("John", EntityType::Person, 0, 4, 0.95);
@@ -2416,7 +2416,7 @@ impl Entity {
     /// # Example
     ///
     /// ```rust
-    /// use crate::{Entity, EntityType};
+    /// use anno::{Entity, EntityType};
     ///
     /// let text = "John and Jane work at Apple";
     /// let entities = vec![
@@ -2525,7 +2525,7 @@ impl std::fmt::Display for ValidationIssue {
 /// # Example
 ///
 /// ```rust
-/// use crate::{Entity, EntityType, Provenance};
+/// use anno::{Entity, EntityType, Provenance};
 ///
 /// let entity = Entity::builder("Marie Curie", EntityType::Person)
 ///     .span(0, 11)

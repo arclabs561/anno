@@ -13,7 +13,7 @@
 //! # Example
 //!
 //! ```rust
-//! use crate::core::coref::{Mention, CorefChain, CorefDocument};
+//! use anno::core::coref::{Mention, CorefChain, CorefDocument};
 //!
 //! // "John went to the store. He bought milk."
 //! let john = Mention::new("John", 0, 4);
@@ -80,7 +80,7 @@ impl Mention {
     /// Offsets are character positions, not byte positions.
     ///
     /// ```
-    /// use crate::Mention;
+    /// use anno::Mention;
     ///
     /// let m = Mention::new("John", 0, 4);
     /// assert_eq!(m.text, "John");
@@ -105,7 +105,7 @@ impl Mention {
     /// The head is the syntactic nucleus: in "the former president", head is "president".
     ///
     /// ```
-    /// # use crate::core::coref::Mention;
+    /// # use anno::core::coref::Mention;
     /// let m = Mention::with_head("the former president", 0, 20, 11, 20);
     /// assert_eq!(m.head_start, Some(11)); // "president" starts at 11
     /// ```
@@ -131,8 +131,8 @@ impl Mention {
     /// Mention with type annotation for type-aware evaluation.
     ///
     /// ```
-    /// # use crate::core::coref::Mention;
-    /// # use crate::core::types::MentionType;
+    /// # use anno::core::coref::Mention;
+    /// # use anno::core::types::MentionType;
     /// let pronoun = Mention::with_type("he", 25, 27, MentionType::Pronominal);
     /// let proper = Mention::with_type("John Smith", 0, 10, MentionType::Proper);
     /// ```
@@ -195,7 +195,7 @@ impl Mention {
     /// head "president").
     ///
     /// ```
-    /// # use crate::core::coref::Mention;
+    /// # use anno::core::coref::Mention;
     /// let m = Mention::with_head("the former president", 0, 20, 11, 20);
     /// assert_eq!(m.span_id_head(), (11, 20));
     ///
@@ -224,7 +224,7 @@ impl std::fmt::Display for Mention {
 /// A coreference chain: mentions that all refer to the same entity.
 ///
 /// ```
-/// # use crate::core::coref::{CorefChain, Mention};
+/// # use anno::core::coref::{CorefChain, Mention};
 /// // "John went to the store. He bought milk."
 /// //  ^^^^                    ^^
 /// let john = Mention::new("John", 0, 4);
@@ -253,7 +253,7 @@ impl CorefChain {
     /// Build a chain from mentions. Sorts by position automatically.
     ///
     /// ```
-    /// # use crate::core::coref::{CorefChain, Mention};
+    /// # use anno::core::coref::{CorefChain, Mention};
     /// let chain = CorefChain::new(vec![
     ///     Mention::new("she", 50, 53),
     ///     Mention::new("Dr. Smith", 0, 9),  // out of order
@@ -315,7 +315,7 @@ impl CorefChain {
     /// All pairwise links. For MUC: `n` mentions = `n*(n-1)/2` links.
     ///
     /// ```
-    /// # use crate::core::coref::{CorefChain, Mention};
+    /// # use anno::core::coref::{CorefChain, Mention};
     /// let chain = CorefChain::new(vec![
     ///     Mention::new("A", 0, 1),
     ///     Mention::new("B", 2, 3),
@@ -435,7 +435,7 @@ impl CorefDocument {
     /// Create a new document with chains.
     ///
     /// ```
-    /// use crate::core::coref::{CorefDocument, CorefChain, Mention};
+    /// use anno::core::coref::{CorefDocument, CorefChain, Mention};
     ///
     /// let chain = CorefChain::new(vec![
     ///     Mention::new("John", 0, 4),
@@ -615,7 +615,7 @@ pub fn entities_to_chains(entities: &[Entity]) -> Vec<CorefChain> {
 /// # Example Implementation
 ///
 /// ```rust
-/// use crate::{CoreferenceResolver, Entity, EntityType};
+/// use anno::{CoreferenceResolver, Entity, EntityType};
 ///
 /// struct ExactMatchResolver;
 ///

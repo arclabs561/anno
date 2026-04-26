@@ -97,7 +97,7 @@ pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> Str
 ///
 /// ```
 /// use anno::export;
-/// use crate::{Entity, EntityType};
+/// use anno::{Entity, EntityType};
 ///
 /// let text = "Alice met Bob.";
 /// let entities = vec![

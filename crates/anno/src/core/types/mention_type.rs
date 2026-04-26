@@ -46,7 +46,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use crate::MentionType;
+/// use anno::MentionType;
 ///
 /// let mention_type = MentionType::classify("John Smith");
 /// assert_eq!(mention_type, MentionType::Proper);
@@ -166,7 +166,7 @@ impl MentionType {
     /// # Examples
     ///
     /// ```rust
-    /// use crate::MentionType;
+    /// use anno::MentionType;
     ///
     /// assert_eq!(MentionType::classify("Barack Obama"), MentionType::Proper);
     /// assert_eq!(MentionType::classify("the former president"), MentionType::Nominal);

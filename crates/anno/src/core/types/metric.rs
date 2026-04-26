@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 /// # Examples
 ///
 /// ```rust
-/// use crate::core::MetricStats;
+/// use anno::core::MetricStats;
 ///
 /// let stats = MetricStats::from_samples(&[0.85, 0.87, 0.82, 0.88, 0.84]);
 /// println!("F1: {}", stats.format_ci());
@@ -71,7 +71,7 @@ impl MetricStats {
     /// # Examples
     ///
     /// ```rust
-    /// use crate::core::MetricStats;
+    /// use anno::core::MetricStats;
     ///
     /// let stats = MetricStats::from_samples(&[0.80, 0.82, 0.85, 0.83, 0.80]);
     /// assert!((stats.mean - 0.82).abs() < 0.01);
@@ -147,7 +147,7 @@ impl MetricStats {
     /// # Examples
     ///
     /// ```rust
-    /// use crate::core::MetricStats;
+    /// use anno::core::MetricStats;
     ///
     /// let stats = MetricStats::from_samples(&[0.85, 0.87, 0.83]);
     /// println!("{}", stats.format_ci());
