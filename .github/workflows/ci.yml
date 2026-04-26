@@ -671,6 +671,30 @@ jobs:
           # Note: Unmaintained crate warnings (number_prefix, paste) are expected
           # This job will show warnings but won't fail the workflow
           # Actual security vulnerabilities would still be reported
+
+  semver-checks:
+    name: Cargo Semver Checks
+    runs-on: ubuntu-latest
+    # Non-blocking while we baseline; promote to required once it's been
+    # green for one release cycle.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # cargo-semver-checks compares against the previous published
+          # release; needs full history to find the baseline.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          # `cuda` feature requires nvcc which Linux runners don't have;
+          # `--all-features` is unbuildable. Per-crate default-features only.
+          feature-group: only-explicit-features
+          features: ""
+          package: anno-core,anno-metrics,anno-graph,anno,anno-eval
   # ==========================================================================
   # Static Analysis Tools
   # ==========================================================================
