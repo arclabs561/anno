@@ -39,26 +39,15 @@ jobs:
         uses: rust-lang/crates-io-auth-action@v1
 
       # Publish bottom-up by dep order:
-      # anno-core -> anno-metrics -> anno-graph -> anno -> anno-eval -> anno-cli
+      # anno -> anno-eval -> anno-cli
       #
       # Each step is idempotent: if a crate is already published at the current
       # version, cargo's "crate version X is already uploaded" response is treated
       # as success and the step moves on. Any other failure aborts the workflow.
-      - name: cargo publish (anno-core)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: ./.github/workflows/publish-crate.sh anno-core
-
-      - name: cargo publish (anno-metrics)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: ./.github/workflows/publish-crate.sh anno-metrics
-
-      - name: cargo publish (anno-graph)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: ./.github/workflows/publish-crate.sh anno-graph
-
+      #
+      # The legacy anno-core / anno-metrics / anno-graph crates are frozen on
+      # crates.io at 0.8.0 (folded into `anno` post-Phase-B, 2026-04-26) and
+      # are not part of this publish chain.
       - name: cargo publish (anno)
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

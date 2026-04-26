@@ -183,7 +183,7 @@ ci: fmt
     cargo build -p anno-cli --features "eval onnx pdf"
     cargo build --workspace --no-default-features
     cargo test --workspace --no-default-features --lib
-    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
+    RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-eval --no-deps --features "eval discourse"
     @echo "CI simulation passed"
 
 # Simulate CI with sanity evals (includes small random sample evals)
@@ -356,11 +356,11 @@ test-models:
 
 # Build docs
 docs:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse"
+    cargo doc -p anno -p anno-eval --no-deps --features "eval discourse"
 
 # Open docs in browser
 docs-open:
-    cargo doc -p anno -p anno-core -p anno-eval --no-deps --features "eval discourse" --open
+    cargo doc -p anno -p anno-eval --no-deps --features "eval discourse" --open
 
 # Check internal docs markdown links (fast, no network).
 docs-links:

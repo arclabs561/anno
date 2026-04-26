@@ -156,8 +156,8 @@ jobs:
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
         run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
-      - name: Run doc tests (core + lib)
-        run: cargo test -p anno-core -p anno --doc --features discourse
+      - name: Run doc tests
+        run: cargo test -p anno --doc --features discourse
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -331,10 +331,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      # Document all library crates. anno is doc'd twice with different feature
+      # Document the library crates. anno is doc'd twice with different feature
       # combinations to surface feature-gated link errors that single-feature
       # builds miss.
-      - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features eval
+      - run: cargo doc -p anno -p anno-eval --no-deps --features eval
         env:
           RUSTDOCFLAGS: -D warnings
       - run: cargo doc -p anno --no-deps --features discourse
@@ -694,7 +694,7 @@ jobs:
           # `--all-features` is unbuildable. Per-crate default-features only.
           feature-group: only-explicit-features
           features: ""
-          package: anno-core,anno-metrics,anno-graph,anno,anno-eval
+          package: anno,anno-eval
   # ==========================================================================
   # Static Analysis Tools
   # ==========================================================================
