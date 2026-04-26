@@ -3,8 +3,8 @@
 //! Each test documents a specific bug found during QA and prevents regression.
 //! Tests marked `#[ignore]` require ONNX model downloads or long-running inference.
 //!
-//! Run all:    `cargo nextest run -p anno-lib --test qa_regression`
-//! Run ONNX:   `cargo nextest run -p anno-lib --features onnx --test qa_regression -- --ignored`
+//! Run all:    `cargo nextest run -p anno --test qa_regression`
+//! Run ONNX:   `cargo nextest run -p anno --features onnx --test qa_regression -- --ignored`
 
 use anno::{Entity, EntityType, HeuristicNER, Model};
 

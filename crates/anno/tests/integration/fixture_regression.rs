@@ -92,7 +92,7 @@ fn fixture_documents_structure_and_min_counts() {
 }
 
 /// Full PER/ORG/LOC recall requires ONNX backends.
-/// Run with: cargo nextest run -p anno-lib --features onnx --test fixture_regression -- --ignored
+/// Run with: cargo nextest run -p anno --features onnx --test fixture_regression -- --ignored
 #[cfg(feature = "onnx")]
 #[test]
 #[ignore]

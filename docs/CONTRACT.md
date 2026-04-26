@@ -49,13 +49,9 @@ exact string you pass in.
 
 ## Feature gating (how to depend on it)
 
-`anno` is a **facade crate** for the workspace: it re-exports the internal implementation crate
-(`anno-lib`) and forwards feature flags down to it.
+The published `anno` crate is the main library. Feature flags select optional capabilities.
 
-Important default: the facade keeps defaults minimal.
-
-- The `anno` **package** has `default = ["onnx"]` — ONNX ML backends are on by default.
-- It depends on `anno-lib` with `default-features = false`.
+- `anno` has `default = ["onnx"]` — ONNX ML backends are on by default.
 - Use `default-features = false` in your `Cargo.toml` to opt out of ONNX and pull only what you need.
 
 Major feature flags:
@@ -69,12 +65,9 @@ Major feature flags:
 
 Treat feature flags as **capability toggles**: depend on the narrowest set you need. In particular, do not include `eval` in a production dependency; use `analysis` instead if you need metrics primitives.
 
-## CLI packages (two `anno` binaries)
+## CLI
 
-The workspace contains **two binaries named `anno`**:
-
-- **Minimal facade CLI**: package `anno` (this crate). Supports `anno extract` with a small dependency set.
-- **Full CLI**: package `anno-cli` (`crates/anno-cli/`). Includes benchmarking/eval/datasets tooling and richer commands.
+The full CLI lives in `anno-cli` (`crates/anno-cli/`). Install with `cargo install anno-cli`. Includes extraction, batch, eval, and dataset tooling.
 
 ## Integration posture
 

@@ -4,7 +4,9 @@
 [![Documentation](https://docs.rs/anno-core/badge.svg)](https://docs.rs/anno-core)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Stable data model and invariants for [anno](https://crates.io/crates/anno-lib): entities, spans, tracks, signals, coreference chains, and corpus types.
+Stable data model and invariants for [anno](https://crates.io/crates/anno): entities, spans, tracks, signals, coreference chains, and corpus types.
+
+> **Note:** as of 0.8.0 anno's facade has been collapsed (the `anno-lib` package was renamed to `anno`). Phase B will fold this crate's public types into `anno::types::*`. New code should plan to migrate.
 
 This crate intentionally avoids CLI and evaluation dependencies so it can serve as the shared type foundation across the anno workspace.
 

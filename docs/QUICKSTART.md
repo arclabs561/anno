@@ -8,7 +8,7 @@ As a Rust library:
 
 ```toml
 [dependencies]
-anno = "0.3"
+anno = "0.8"
 ```
 
 Full CLI (recommended):
@@ -107,7 +107,7 @@ let ner = StackedNER::default();
 let entities = ner.extract_entities("Lynn Conway worked at IBM and Xerox PARC.", None)?;
 
 for e in entities {
-    println!("{} [{}..{}] {:?}", e.text, e.start, e.end, e.entity_type);
+    println!("{} [{}..{}] {:?}", e.text, e.start(), e.end(), e.entity_type);
 }
 ```
 

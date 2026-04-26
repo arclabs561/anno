@@ -93,7 +93,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo clippy -p anno-lib --lib --features "${{ matrix.features }}" -- -D warnings
+      - run: cargo clippy -p anno --lib --features "${{ matrix.features }}" -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
@@ -155,9 +155,9 @@ jobs:
       - name: Run library tests
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Run integration tests
-        run: cargo test --package anno-lib --tests --features "discourse bundled-crf-weights bundled-hmm-params"
+        run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests (core + lib)
-        run: cargo test -p anno-core -p anno-lib --doc --features discourse
+        run: cargo test -p anno-core -p anno --doc --features discourse
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -331,13 +331,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      # Document all library crates. anno-lib is checked separately because
-      # `cargo doc` can't build both `anno` (facade) and `anno-lib` (same lib name)
-      # in one invocation without filename collisions.
+      # Document all library crates. anno is doc'd twice with different feature
+      # combinations to surface feature-gated link errors that single-feature
+      # builds miss.
       - run: cargo doc -p anno -p anno-core -p anno-eval --no-deps --features eval
         env:
           RUSTDOCFLAGS: -D warnings
-      - run: cargo doc -p anno-lib --no-deps --features discourse
+      - run: cargo doc -p anno --no-deps --features discourse
         env:
           RUSTDOCFLAGS: -D warnings
   # ==========================================================================
@@ -502,7 +502,7 @@ jobs:
       - name: Build examples (eval + discourse)
         run: cargo build --workspace --examples --features "eval discourse"
       - name: Build examples (onnx)
-        run: cargo build -p anno-lib --examples --features "onnx"
+        run: cargo build -p anno --examples --features "onnx"
       - name: Run muxer decision-loop example (offline smoke)
         run: cargo run -p anno-eval --example muxer_decision_loop --features "eval discourse"
   # ==========================================================================

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-26
+
+### Changed (breaking)
+- **Workspace consolidation, phase A: facade collapsed.** The `anno` facade crate (which re-exported `anno-lib`) is gone; the `anno-lib` package was renamed to `anno`. The lib target was already named `anno`, so `use anno::...` keeps working. Users on `anno = "0.7"` upgrade to `anno = "0.8"` with no source change. Users who depended on `anno-lib` directly should switch to `anno`. Rationale: lockstep-versioned facades duplicated maintenance for zero user value (Tokio's 2017 reform precedent; see `.claude/reports/research-2026-04-26.md` for the full survey).
+- **Skipped 0.7.0 publish for 5 of 7 crates.** anno-core 0.7.0 and anno-metrics 0.7.0 were published on 2026-04-25; the rest of the chain hit a trusted-publisher misconfiguration. Rather than re-running the publish for content about to be folded, 0.7.0 is abandoned for those crates and the release rolls forward to 0.8.0 directly.
+- Publish chain reduced from 7 to 6 crates (anno-core, anno-metrics, anno-graph, anno, anno-eval, anno-cli). Phase B (folding anno-core/anno-metrics/anno-graph source into `anno` for a final 3-crate publish surface) is planned for a future release.
+
 ## [0.7.0] - 2026-04-25
 
 ### Changed (breaking)

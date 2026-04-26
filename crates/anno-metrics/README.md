@@ -4,7 +4,9 @@
 [![Documentation](https://docs.rs/anno-metrics/badge.svg)](https://docs.rs/anno-metrics)
 [![CI](https://github.com/arclabs561/anno/actions/workflows/ci.yml/badge.svg)](https://github.com/arclabs561/anno/actions/workflows/ci.yml)
 
-Shared evaluation and analysis primitives for [anno](https://crates.io/crates/anno-lib): coreference scoring metrics and cluster encoders.
+Shared evaluation and analysis primitives for [anno](https://crates.io/crates/anno): coreference scoring metrics and cluster encoders.
+
+> **Note:** as of 0.8.0 anno's facade has been collapsed (the `anno-lib` package was renamed to `anno`). Phase B will fold this crate's public types into `anno::metrics::*`. New code should plan to migrate.
 
 Depends only on `anno-core` and `serde`, so it can be used by both `anno` (library) and `anno-eval` (evaluation harness) without creating dependency cycles.
 

@@ -39,7 +39,7 @@ jobs:
         uses: rust-lang/crates-io-auth-action@v1
 
       # Publish bottom-up by dep order:
-      # anno-core -> anno-metrics -> anno-graph -> anno-lib -> anno -> anno-eval -> anno-cli
+      # anno-core -> anno-metrics -> anno-graph -> anno -> anno-eval -> anno-cli
       #
       # Each step is idempotent: if a crate is already published at the current
       # version, cargo's "crate version X is already uploaded" response is treated
@@ -58,11 +58,6 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: ./.github/workflows/publish-crate.sh anno-graph
-
-      - name: cargo publish (anno-lib)
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-        run: ./.github/workflows/publish-crate.sh anno-lib
 
       - name: cargo publish (anno)
         env:

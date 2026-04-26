@@ -22,7 +22,7 @@ just check-minimal  # without ML feature flags
 ## Workspace layout
 
 - `crates/anno-core`: types, traits, errors. No ML dependencies.
-- `crates/anno` (publishes as `anno-lib`): backends and orchestration. The main library.
+- `crates/anno`: the main library. Backends and orchestration. Published as `anno`.
 - `crates/anno-eval`: evaluation harness, dataset registry, task wiring.
 - `crates/anno-cli`: `anno` binary. CLI parsing and command implementations.
 - `crates/anno-graph`: graph/KG export.
@@ -58,7 +58,7 @@ The `just check-feature-matrix` recipe sweeps the gating combinations that have 
 ## Style
 
 - Direct, lowercase prose in docs and commits. No marketing words ("powerful", "robust", "elegant"). No em-dashes in prose.
-- Commit messages: `scope: short lowercase description`. Examples: `anno-lib: rename GLINER2 → GLINER_MULTITASK`, `docs: fix QUICKSTART relation example`.
+- Commit messages: `scope: short lowercase description`. Examples: `anno: rename GLINER2 → GLINER_MULTITASK`, `docs: fix QUICKSTART relation example`.
 - One commit per logical change. Don't mix renames with behavioral changes.
 - `cargo fmt` and `cargo clippy --all-targets -- -D warnings` must pass before `git add`.
 - Test names should describe the property under test, not the function under test.

@@ -1,7 +1,7 @@
 //! Integration tests for model backends.
 //!
 //! These tests download real models and run inference.
-//! Run with: `cargo test -p anno-lib --features onnx --test model_backends -- --ignored`
+//! Run with: `cargo test -p anno --features onnx --test model_backends -- --ignored`
 
 use anno::{EntityType, HeuristicNER, Model, StackedNER};
 

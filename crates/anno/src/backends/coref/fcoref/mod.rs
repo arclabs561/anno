@@ -473,7 +473,7 @@ mod tests {
     }
 
     // Integration tests require model download -- mark as #[ignore].
-    // Run with: cargo test -p anno-lib --features onnx -- fcoref --ignored
+    // Run with: cargo test -p anno --features onnx -- fcoref --ignored
 
     fn model_dir() -> String {
         let manifest = env!("CARGO_MANIFEST_DIR");

@@ -4,7 +4,7 @@
 //! They require model downloads and the `onnx` feature flag.
 //!
 //! Run with:
-//!   cargo test -p anno-lib --features "onnx analysis" --test model_integration -- --ignored
+//!   cargo test -p anno --features "onnx analysis" --test model_integration -- --ignored
 
 use anno::eval::coref_resolver::SimpleCorefResolver;
 use anno::{EntityType, Model, StackedNER};

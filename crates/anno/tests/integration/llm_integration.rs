@@ -5,7 +5,7 @@
 //! prompt strategies, domain context, and multi-model support.
 //!
 //! Run with:
-//!   cargo test -p anno-lib --features llm --test llm_integration -- --ignored --nocapture
+//!   cargo test -p anno --features llm --test llm_integration -- --ignored --nocapture
 
 use anno::backends::llm_client::LlmConfig;
 use anno::backends::universal_ner::{PromptStrategy, UniversalNER};

@@ -17,7 +17,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
@@ -98,52 +98,6 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 
-[package]
-name = "anno"
-version = { workspace = true }
-edition = { workspace = true }
-rust-version = { workspace = true }
-license = { workspace = true }
-authors = { workspace = true }
-repository = { workspace = true }
-homepage = { workspace = true }
-documentation = { workspace = true }
-description = "NER, coreference resolution, relation extraction, PII detection, and zero-shot entity types"
-readme = "README.md"
-keywords = ["ner", "nlp", "extraction", "coreference", "zero-shot"]
-categories = ["text-processing"]
-include = [
-  "/src/**/*.rs",
-  "/Cargo.toml",
-  "/Cargo.lock",
-  "/LICENSE",
-  "/LICENSE-*",
-  "/README.md",
-]
-
-[lib]
-doc = false
-
-[dependencies]
-anno-lib = { path = "crates/anno", package = "anno-lib", version = "0.7.0", default-features = false }
-serde_json = { workspace = true }
-
-[features]
-default = ["onnx"]
-
-# Keep the facade surface intentionally small: expose stable capability toggles,
-# not every internal wiring switch from `anno-lib`.
-analysis = ["anno-lib/analysis"]
-schema = ["anno-lib/schema"]
-onnx = ["anno-lib/onnx"]
-candle = ["anno-lib/candle"]
-discourse = ["anno-lib/discourse"]
-metal = ["anno-lib/metal"]
-cuda = ["anno-lib/cuda"]
-llm = ["anno-lib/llm"]
-production = ["anno-lib/production"]
-bundled-crf-weights = ["anno-lib/bundled-crf-weights"]
-bundled-hmm-params = ["anno-lib/bundled-hmm-params"]
-
+# This is a virtual workspace. The published `anno` crate lives at `crates/anno/`.
 # Local development overrides (path patches) live in `.cargo/config.toml`.
 # See `.cargo/config.toml.example` for the super-workspace setup.
