@@ -2,12 +2,23 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped `deformat` workspace dep from `0.6` to `0.15`. The 0.15 line gates each backend behind its own feature flag, which means `anno-cli`'s `deformat[readability]` opt-in is now explicit rather than the old "always on" 0.6 behavior. Future option: switching that feature to `deformat[html2text]` would drop the cssparser/selectors MPL-2.0 transitives at the cost of article-extraction quality.
+
 ### Changed (breaking)
 
-- **Workspace consolidation, Phase B: anno-core, anno-metrics, anno-graph folded into `anno`.** The published surface is now three crates (`anno`, `anno-eval`, `anno-cli`) instead of six. Source moves are net-zero LOC. The legacy `anno-core 0.8.0`, `anno-metrics 0.8.0`, and `anno-graph 0.8.0` remain frozen on crates.io; users on those crates keep working until they upgrade.
+- **Workspace consolidation, Phase B: anno-core, anno-metrics, anno-graph folded into `anno`.** The published surface is now three crates (`anno`, `anno-eval`, `anno-cli`) instead of six. Source moves are net-zero LOC. The legacy `anno-core 0.8.0`, `anno-metrics 0.8.0`, and `anno-graph 0.8.0` remain frozen on crates.io; users on those crates keep working until they upgrade. Users depending on `anno-core` / `anno-metrics` / `anno-graph` via git path (not the registry) should switch their imports to `anno::core::*` / `anno::metrics::*` / `anno::graph::*` immediately, since those crate dirs no longer exist in the workspace.
   - `anno_core::*` -> `anno::core::*` (all paths). `anno-core` removed from the workspace.
   - `anno::eval::*` -> `anno::metrics::*`. The legacy module name was a misnomer per its own doc comment; the module is measurement primitives (CorefScores, MUC, B^3, CEAF, LEA, BLANC, cluster encoders), distinct from anno-eval's full harness. `anno-metrics` removed from the workspace.
-  - `anno_graph::*` -> `anno::graph::*` behind the new `graph` feature (4 functions: `grounded_to_graph_document`, `entities_to_graph_document`, `uri_safe`, `entities_to_knowledge_graph`). `lattix`'s `GraphDocument`, `GraphExportFormat`, and `KnowledgeGraph` are re-exported from `anno::graph`. `anno-graph` removed from the workspace.
+  - The `graph` feature (already present on `anno-cli` in 0.8.0, where it forwarded to the separate `anno-graph` crate) now activates `anno::graph::*` directly: 4 functions (`grounded_to_graph_document`, `entities_to_graph_document`, `uri_safe`, `entities_to_knowledge_graph`) plus the `lattix` re-exports (`GraphDocument`, `GraphExportFormat`, `KnowledgeGraph`). The feature name and CLI behavior are unchanged; the dep chain is one crate shorter. `anno-graph` removed from the workspace.
+
+### Fixed
+
+- `cargo-deny` now allows `MPL-2.0` globally for the workspace. The CSS-parsing transitives via `dom_query` (`cssparser`, `cssparser-macros`, `dtoa-short`, `selectors`) were previously rejected, blocking CI across the Phase B series.
+- Doc-test imports under the relocated `anno::core`/`anno::coalesce`/`anno::minimal` modules now use `use anno::Foo;` instead of the (broken) `use crate::Foo;`. `crate::` in a doc-test refers to rustdoc's synthetic wrapper, not the parent crate.
+- `anno::core` module-overview table no longer ships intra-doc links that fail to resolve under `RUSTDOCFLAGS='-D warnings'`.
+- CI workflow no longer references the removed `anno-core` / `anno-metrics` / `anno-graph` package ids in `cargo test --doc`, `cargo doc`, `cargo-semver-checks`, or the publish chain. `justfile` cleaned up similarly.
 
 ## [0.8.0] - 2026-04-26
 
