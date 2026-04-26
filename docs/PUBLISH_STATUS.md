@@ -23,7 +23,7 @@ Phase A (this 0.8.0) collapsed the `anno` facade. Phase B aims for 3 published c
 | `anno-eval` | Stays separate; distinct audience and heavier dep graph. |
 | `anno-cli` | Stays separate; binary. |
 
-Rationale and evidence in `.claude/reports/research-2026-04-26.md` (Tokio's 2017 reform precedent, BurntSushi's split criterion, surveyed 14 Rust projects).
+Rationale: keep the published surface to crates that have distinct release cadence, distinct downstream users, or distinct native-toolchain requirements. The current `*-core`/`*-metrics`/`*-graph` split has none of those properties at present.
 
 ## Publish command
 
