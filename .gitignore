@@ -44,8 +44,10 @@ exports/
 # Note: crates/anno workspace crate is tracked, but ignore any build artifacts within it
 crates/anno/target/
 
-# Proptest regressions (keep these in source control per proptest docs)
-**/proptest-regressions/
+# Proptest regressions ARE tracked (regression seeds for failing tests, per
+# proptest docs). No gitignore line -- the prior `**/proptest-regressions/`
+# pattern was a no-op for the 4 already-tracked files but would have blocked
+# new ones, so it was removed.
 
 # IDE
 .idea/
@@ -196,4 +198,6 @@ build/
 
 # Generated docs (rebuild with scripts)
 docs/generated/
-Cargo.lock
+# Note: Cargo.lock is intentionally tracked because anno-cli is a binary
+# (per ~/.claude/references/publish-and-push.md: "libraries gitignore it,
+# binaries track it"). The workspace shares one Cargo.lock at root.

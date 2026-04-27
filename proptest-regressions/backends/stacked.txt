@@ -1,0 +1,12 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc e86268799fbed50197aec55868d5b33a158a152da8a53cda2d3a1fc93cec1724 # shrinks to text = "/\r\u{5860e}Ⱥ<<?\u{6}Ѩ🕴\u{202e}𧡛`\u{b2675}\u{3c8a8}s?Z\u{202e}/ò?`\u{89}{\r.~\u{c4b}婝.\u{b}\0W\u{e68dc}V\u{3}b"
+cc e540bd3ecdaeeb3121ed63f67c5af6a5d315d8bd868e77c4f1b564899df26391 # shrinks to text = "\u{18cd6}AA\u{b}A"
+cc b6552d6d94ec54d238e80842991072c04f2c417f4b23af574ba9f1f27e059bdd # shrinks to text = "¡\tA @A:0%"
+cc 95509e13f0b3b60c9f2d68b8496341db6ad12502296ff4d9d04715342e889f5d # shrinks to text = "a\u{b}\u{18cd6}B\u{323b0} ƴ\00\0"
+cc b0bab15da3347f0781da922b71b8e0fa21d4f77162d630e39874c7ebc385bd48 # shrinks to text = "ő\u{b}\u{323b0}J\u{b} ࠀ¡"
+cc 68547aeb014fff217a99732da960f491da91f3ee80e521448066b857dd6d5a16 # shrinks to text = "𪏡\r\u{7b090}\u{9c383}\u{202e}�Un\t🕴\u{ab4bd}\u{6}i{y\\(\u{feff}f\u{1b}\u{3a636}\u{9fb62}?Z\u{4b1fb}s\u{dc609}F\u{ab783}{&�K\u{7f}Ѩ*%o7/`\0\u{ca839}𤰄\u{712be}N�\u{e471}\u{7f}=%e🕴1\t_l🕴\u{bb2b1}{n]"
