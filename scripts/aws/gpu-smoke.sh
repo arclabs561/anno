@@ -52,7 +52,9 @@ case "$EP" in
     AMI_FILTER='Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)*'
     AMI_OWNER='amazon'
     CARGO_FEATURES='onnx,onnx-cuda'
-    SMOKE_BIN='onnx_cuda_smoke'
+    # Default smoke binary; override with ANNO_SMOKE_BIN to run the
+    # peer benchmark (`onnx_cuda_bench`) or any future per-EP variant.
+    SMOKE_BIN="${ANNO_SMOKE_BIN:-onnx_cuda_smoke}"
     SSH_USER='ubuntu'
     ;;
   tensorrt|directml)
