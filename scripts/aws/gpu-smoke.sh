@@ -43,7 +43,13 @@ case "$EP" in
     # via ANNO_INSTANCE_TYPE for production-shaped workloads (g5.xlarge A10G,
     # g6.xlarge L4) where CUDA throughput headroom matters.
     INSTANCE_TYPE="${ANNO_INSTANCE_TYPE:-g4dn.xlarge}"
-    AMI_FILTER='Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)*'
+    # Ubuntu 24.04 (glibc 2.39+) -- not 22.04. ort 2.0.0-rc.12's prebuilt
+    # onnxruntime native libs expect glibc 2.38+ symbols (e.g.
+    # `__isoc23_strtol` from C23 ISO). Linking against Ubuntu 22.04's
+    # glibc 2.35 fails with "undefined symbol" errors -- caught the hard
+    # way during smoke validation 2026-04-27. CUDA 12.x supports Ubuntu
+    # 24.04 since CUDA 12.4 (early 2024).
+    AMI_FILTER='Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 24.04)*'
     AMI_OWNER='amazon'
     CARGO_FEATURES='onnx,onnx-cuda'
     SMOKE_BIN='onnx_cuda_smoke'

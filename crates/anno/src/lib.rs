@@ -655,6 +655,14 @@ pub use backends::inference::{
     RelationExtractionConfig, RelationExtractor, RelationTriple, ZeroShotNER,
 };
 
+// ONNX session helpers. The `hf_loader` module itself is `pub(crate)` since
+// its surface is mostly internal plumbing, but these three items are stable
+// enough to expose for downstream users and examples (e.g. the per-EP smoke
+// binaries under `examples/`). The hf_loader module rustdoc already
+// documented this path; this re-export makes the documented path real.
+#[cfg(feature = "onnx")]
+pub use backends::hf_loader::{create_onnx_session, download_model_file, OnnxSessionConfig};
+
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
 pub use backends::{BertNEROnnx, GLiNEROnnx};
