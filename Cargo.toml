@@ -73,7 +73,7 @@ rayon = "1"
 # Utilities
 itertools = "0.14"
 unicode-normalization = "0.1.25"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 # Observability
 tracing = "0.1"
