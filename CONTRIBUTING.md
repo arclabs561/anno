@@ -41,6 +41,32 @@ To add a backend:
 6. Add a row to `docs/BACKENDS.md`.
 7. Add tests under the module.
 
+### `Model` is a sealed trait
+
+`anno::Model` is sealed (`Model: sealed::Sealed + Send + Sync`) where the
+`Sealed` trait is `pub(crate)`. External crates **cannot** add their own
+`impl Model for ...` directly. This is intentional: it keeps the set of
+in-tree backends auditable (each backend lives under
+`crates/anno/src/backends/`), keeps the trait's invariants under one
+roof, and lets us evolve `Model`'s method set without breaking
+downstream impls.
+
+To plug an external backend in, wrap it in `anno::AnyModel` (the public,
+non-sealed adapter) -- this preserves the audit story while still
+letting anno-cli or downstream consumers hand a custom implementation
+to the extraction pipeline.
+
+For tests inside the `anno` crate, two patterns:
+
+- Stubs that need `Model`: register them via
+  `#[cfg(test)] impl Sealed for super::MockModel {}` inside `mod sealed`
+  (see `lib.rs:151-190`).
+- Stubs that only need an extension trait (`ZeroShotNER`,
+  `RelationExtractor`, `DiscontinuousNER`): those traits are not
+  sealed, so the stub can `impl ZeroShotNER for MyStub` directly. See
+  `crates/anno/src/backends/inference/traits.rs::tests::CapturingNer`
+  for the canonical pattern.
+
 ## Feature flags
 
 `crates/anno/Cargo.toml` defines the feature set. Common combos:
