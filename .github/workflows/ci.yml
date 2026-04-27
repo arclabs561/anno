@@ -318,7 +318,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-      - run: cargo check --workspace --no-default-features
+      # `anno-cli` requires at least one HTML-extractor feature; the
+      # MPL-free `extractor-html2text` is the lightest option that satisfies
+      # that constraint and proves the no-default-features build still works.
+      - run: cargo check --workspace --no-default-features --features anno-cli/extractor-html2text
   # ==========================================================================
   # Documentation
   # ==========================================================================
