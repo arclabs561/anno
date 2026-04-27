@@ -52,17 +52,48 @@ AWS_REGION=us-west-2 ANNO_INSTANCE_TYPE=g5.xlarge ./scripts/aws/gpu-smoke.sh cud
 Cost: g4dn.xlarge on-demand is ~$0.53/hr; a smoke takes ~5 minutes including
 AMI boot, workspace sync, and build. Expect ~$0.05-0.10 per run.
 
+## Watching a run live
+
+The script logs to stdout/stderr. When backgrounded with output redirection
+(e.g. for an AI assistant or a long-running shell), tail the log:
+
+```bash
+./scripts/aws/gpu-smoke.sh cuda > /tmp/anno-gpu-smoke.log 2>&1 &
+tail -f /tmp/anno-gpu-smoke.log
+```
+
+Stage markers (`[smoke] ...` from the local script, `[remote] ...` from the
+SSH heredoc) tell you which phase is active. rsync prints a live progress
+counter via `--info=progress2`. SSH uses `-tt` so cargo build output streams
+line-by-line instead of being full-buffered.
+
 ## Safety properties
 
-The script is built around three guarantees:
+The script is built around three guarantees plus a recovery escape hatch:
 
-1. **Always teardown.** A single trap on `EXIT INT TERM` deletes the instance,
-   key pair, and security group regardless of how the script ends (success,
-   build failure, ctrl-C, signal). The trap is idempotent.
-2. **Watchdog timeout.** If the script runs longer than `ANNO_MAX_MINUTES`
-   (default 25), it kills itself, which fires the trap. No runaway instances.
-3. **No persistent secrets.** Each run mints a temporary EC2 key pair and SG,
-   both deleted at end. No long-lived keys in the repo.
+1. **In-process trap.** A single trap on `EXIT INT TERM` deletes the
+   instance, key pair, and security group regardless of how the script
+   ends (success, build failure, ctrl-C, signal). Idempotent.
+2. **Watchdog timeout.** If the script runs longer than
+   `ANNO_MAX_MINUTES` (default 25), it kills itself, which fires the
+   trap. No runaway instances.
+3. **Instance-side self-terminate.** Each instance is launched with
+   `InstanceInitiatedShutdownBehavior=terminate` plus a user-data
+   `shutdown -h +30` timer. Even if the launching client dies (laptop
+   sleep, kill -9, network partition), the instance terminates itself
+   ~30 min after boot. AWS reaps the EBS volume on terminate.
+4. **No persistent secrets.** Each run mints a temporary EC2 key pair
+   and SG, both deleted at end. No long-lived keys in the repo.
+
+If all four somehow fail at once, recover with the janitor:
+
+```bash
+./scripts/aws/cleanup-stale.sh 60        # terminate anno-tagged resources > 60 min old
+./scripts/aws/cleanup-stale.sh 0 dry     # dry-run: list, don't terminate
+```
+
+It filters by `Project=anno + ManagedBy=anno-smoke-script` tags so it
+will not touch unrelated workloads.
 
 ## What gets created and torn down
 

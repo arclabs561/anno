@@ -173,6 +173,16 @@ if [[ -z "${ANNO_SUBNET_ID:-}" ]]; then
 fi
 echo "[smoke] subnet: $ANNO_SUBNET_ID"
 
+# Layer-2 dead-man's switch: instance terminates itself after 30 min if the
+# launching client somehow loses its grip and the in-process trap never fires
+# (laptop sleep, kill -9, network partition, etc). The +30 value gives ~15 min
+# of slack over the script's watchdog so a legitimate longer build does not
+# get kneecapped. InstanceInitiatedShutdownBehavior=terminate is the load-
+# bearing pairing flag: without it, `shutdown -h` only stops the instance
+# (still costs EBS storage; lingers in stopped state). With it, AWS fully
+# terminates and reaps the volume.
+USER_DATA=$(printf '#!/bin/bash\nshutdown -h +30\n')
+
 # 5. Temp security group with SSH from caller only.
 SG_NAME="anno-smoke-$EP-$TS"
 SG_ID=$(aws_cli ec2 create-security-group --group-name "$SG_NAME" \
@@ -190,8 +200,10 @@ INSTANCE_ID=$(aws_cli ec2 run-instances \
   --key-name "$KEY_NAME" \
   --security-group-ids "$SG_ID" \
   --subnet-id "$ANNO_SUBNET_ID" \
+  --instance-initiated-shutdown-behavior terminate \
+  --user-data "$USER_DATA" \
   --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=80,VolumeType=gp3,DeleteOnTermination=true}' \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$SG_NAME},{Key=Project,Value=anno},{Key=Realm,Value=hardware-test},{Key=ManagedBy,Value=anno-smoke-script},{Key=auto-terminate,Value=true}]" \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$SG_NAME},{Key=Project,Value=anno},{Key=Realm,Value=hardware-test},{Key=ManagedBy,Value=anno-smoke-script},{Key=auto-terminate,Value=true},{Key=CreatedBy,Value=anno},{Key=anno:allow_gpu,Value=true}]" \
   --query 'Instances[0].InstanceId' --output text)
 echo "[smoke] instance: $INSTANCE_ID"
 
@@ -207,6 +219,8 @@ SSH_OPTS=(
   -o StrictHostKeyChecking=no
   -o UserKnownHostsFile=/dev/null
   -o ConnectTimeout=10
+  -o ServerAliveInterval=30
+  -o ServerAliveCountMax=10
   -o LogLevel=ERROR
 )
 for i in $(seq 1 30); do
@@ -224,36 +238,51 @@ done
 # 7. Sanity-check NVIDIA driver and CUDA.
 ssh "${SSH_OPTS[@]}" "$SSH_USER@$PUBLIC_IP" 'nvidia-smi -L && (nvcc --version 2>/dev/null | grep release || echo "[remote] nvcc not on PATH; runtime libs will be dlopened")'
 
-# 8. Sync workspace. Excludes target/, .git/, model caches, large fixtures.
+# 8. Sync workspace. `--filter=':- .gitignore'` makes rsync honor every
+# gitignore in the tree (one less list to maintain). The hardcoded
+# excludes cover only `.git/` itself (never gitignored) and a couple of
+# patterns that are tracked but uselessly large for a remote build
+# (testdata fixtures, generated reports). `--info=progress2` prints a
+# single live progress line so the run does not look frozen during
+# upload.
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 echo "[smoke] rsyncing workspace from $REPO_ROOT..."
 # rsync's -e wants a single string; build it from the array.
 SSH_E="ssh $(printf '%q ' "${SSH_OPTS[@]}")"
-rsync -azq --delete \
-  --exclude 'target/' \
+t_rsync_start=$(date +%s)
+rsync -az --info=progress2 --delete \
+  --filter=':- .gitignore' \
   --exclude '.git/' \
-  --exclude '*.onnx' \
-  --exclude '*.safetensors' \
-  --exclude 'crates/*/target/' \
-  --exclude '.venv/' \
+  --exclude 'testdata/' \
+  --exclude 'evals/' \
+  --exclude 'reports/' \
+  --exclude 'archive/' \
+  --exclude 'hack/' \
   -e "$SSH_E" \
   "$REPO_ROOT/" "$SSH_USER@$PUBLIC_IP:~/anno/"
+echo "[smoke] rsync complete in $(( $(date +%s) - t_rsync_start ))s"
 
 # 9. Run smoke. Build is on the box (rust toolchain ships with the DL AMI;
 # if not, the script will fail clearly here -- that's a deliberate signal
-# rather than a silent fallback).
+# rather than a silent fallback). `-tt` forces a pseudo-TTY so cargo emits
+# line-buffered progress instead of full-buffering when piped. Stage echos
+# tell you which phase is active without needing to ssh in separately.
 echo "[smoke] building + running on remote..."
 SMOKE_RC=0
 # shellcheck disable=SC2029  # SMOKE_BIN/CARGO_FEATURES intentionally expand on the client
-ssh "${SSH_OPTS[@]}" "$SSH_USER@$PUBLIC_IP" "
+ssh -tt "${SSH_OPTS[@]}" "$SSH_USER@$PUBLIC_IP" "
   set -e
+  echo '[remote] toolchain check'
   if ! command -v cargo >/dev/null; then
     echo '[remote] installing rustup...'
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -q
     source \$HOME/.cargo/env
   fi
   cd ~/anno
+  echo '[remote] cargo build + smoke run'
+  export CARGO_TERM_COLOR=always
   cargo run --release --example $SMOKE_BIN --features '$CARGO_FEATURES'
+  echo '[remote] smoke run done'
 " || SMOKE_RC=$?
 
 if [[ "$SMOKE_RC" -eq 0 ]]; then
