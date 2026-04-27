@@ -157,9 +157,11 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         status: BackendStatus::Stable,
         zero_shot: true,
         gpu_support: true,
-        // Note: knowledgator/gliner-bi-*-v2.0 models need ONNX export
-        // (not yet available as pre-converted ONNX).
-        description: "GLiNER zero-shot NER (alias for gliner_onnx in this repo)",
+        // Smart-default alias: routes to `gliner_onnx` when the `onnx` feature
+        // is on (preferred), falls back to `gliner_candle` when only `candle`
+        // is on. Pick this when you want GLiNER and don't care which backend
+        // resolves it. Pick `gliner_onnx` or `gliner_candle` to force one.
+        description: "GLiNER zero-shot NER (smart default; prefers ONNX, falls back to Candle)",
         recommended_models: &[crate::models::GLINER, "onnx-community/gliner_large-v2.1"],
     },
     BackendInfo {

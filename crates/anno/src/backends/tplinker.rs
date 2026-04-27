@@ -3,6 +3,16 @@
 //! TPLinker uses a handshaking tagging scheme for joint entity-relation extraction.
 //! It models entity boundaries and relations simultaneously using a unified tagging matrix.
 //!
+//! # Pre-trained weights status
+//!
+//! There is no public HuggingFace distribution of TPLinker weights. The
+//! `export_tplinker_onnx.py` script requires a `--checkpoint <path>` argument
+//! to export trained weights; without one, it exports a randomly-initialized
+//! model that produces garbage. The runtime detects the empty cache and falls
+//! back to the heuristic mode (StackedNER + trigger matching), which is
+//! always available. If you need real TPLinker inference, train or obtain a
+//! checkpoint and pass it to the export script.
+//!
 //! # Handshaking Matrix
 //!
 //! For a sequence of length L, TPLinker builds a handshaking sequence of length

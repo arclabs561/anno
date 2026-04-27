@@ -13,7 +13,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
-| `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- |
+| `tplinker` | Handshaking tagging (joint entity+relation) | No | beta | -- (no public pre-trained weights; runs a heuristic fallback unless you supply a checkpoint to `export_tplinker_onnx.py`) |
 | `glirel` | DeBERTa encoder + scoring head (relations) | Yes | beta | `jackboyla/glirel-large-v0` |
 | `gliner_poly` | Poly-encoder with label attention fusion | Yes | WIP | `knowledgator/gliner-bi-large-v1.0` (also: `gliner-bi-small-v1.0`, `modern-gliner-bi-large-v1.0`, `modern-gliner-bi-base-v1.0`; the `gliner-poly-*-v1.0` repos are model cards only with no weights) |
 | `gliner_pii` | GLiNER PII Edge (60+ PII categories) | Yes | beta | `knowledgator/gliner-pii-edge-v1.0` |
@@ -21,10 +21,12 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 | `deberta_v3` | DeBERTa-v3 NER (local export) | No | WIP | -- |
 | `albert` | ALBERT NER (local export) | No | WIP | -- |
 
-Note: `gliner` and `gliner_onnx` resolve to the same backend type
-(`anno::GLiNEROnnx`); the `gliner` name is the user-facing alias
-recommended in the CLI, `gliner_onnx` is the explicit / lower-level form
-used in code and the eval harness.
+Note: `gliner` is a smart-default alias. Under `--features onnx` it
+resolves to `anno::GLiNEROnnx`; under `--features candle` only (no
+`onnx`) it falls back to `anno::GLiNERCandle`. Pick `gliner` when you
+want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
+or `gliner_candle` explicitly to force one backend and fail at
+construction time if its feature isn't enabled.
 
 ### Neural: Candle (feature `candle`)
 
