@@ -46,7 +46,7 @@ safetensors = { workspace = true, optional = true }
 
 # Semantic text chunking (optional). Uses the `text-splitter` crate, which
 # is the de-facto standard Rust chunker (>1M downloads vs the local `slabs`).
-text-splitter = { version = "0.28", optional = true }
+text-splitter = { version = "0.30", optional = true }
 
 # Graph/KG export (optional). Adapters from extraction output to `lattix::KnowledgeGraph`.
 lattix = { version = "0.6", optional = true }
