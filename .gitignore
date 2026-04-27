@@ -170,6 +170,17 @@ qa/
 # MCP config (may contain API keys)
 .mcp.json*
 
+# AWS smoke-script ephemeral / secret state. The current scripts/aws/gpu-smoke.sh
+# uses mktemp(/tmp) and tears everything down on EXIT, but block these patterns
+# defensively in case a future iteration writes state in-tree.
+scripts/aws/*.pem
+scripts/aws/.env
+scripts/aws/.env.*
+scripts/aws/*.local
+scripts/aws/instance-id*
+scripts/aws/.tfstate*
+scripts/aws/.tfvars
+
 # fcoref ONNX symlinks (any depth; no trailing / — they're symlinks not dirs)
 **/fcoref_onnx
 
