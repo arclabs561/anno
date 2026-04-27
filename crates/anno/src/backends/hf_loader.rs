@@ -173,8 +173,14 @@ pub fn download_onnx_model(
 }
 
 /// Configuration for creating an ONNX Runtime session.
+///
+/// Marked `#[non_exhaustive]` to permit additional execution-provider
+/// preferences in future versions without breaking struct-literal callers.
+/// Construct via `OnnxSessionConfig::default()` and override the fields you
+/// care about with `..Default::default()`.
 #[cfg(feature = "onnx")]
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct OnnxSessionConfig {
     /// ONNX graph optimization level (1-3, default 3).
     pub optimization_level: u8,
@@ -191,6 +197,20 @@ pub struct OnnxSessionConfig {
     /// the value is ignored, hence the `#[allow(dead_code)]`.
     #[cfg_attr(not(feature = "onnx-coreml"), allow(dead_code))]
     pub prefer_coreml: bool,
+    /// Prefer NVIDIA CUDA when available.
+    /// Effective only when the `onnx-cuda` feature is enabled at build
+    /// time AND CUDA 12.x is present at link/runtime. CPU is added as a
+    /// fallback so the session still loads if CUDA cannot initialise.
+    ///
+    /// **Silent CPU fallback is a known ort failure mode** when `cudart.so`
+    /// is missing or the GPU is otherwise unavailable -- compile success
+    /// does not prove runtime acceleration. Use `examples/onnx_gpu_smoke.rs`
+    /// (or an equivalent throughput check) on a real GPU host to confirm.
+    ///
+    /// Without the feature flag the field exists for API stability but
+    /// the value is ignored, hence the `#[allow(dead_code)]`.
+    #[cfg_attr(not(feature = "onnx-cuda"), allow(dead_code))]
+    pub prefer_cuda: bool,
 }
 
 #[cfg(feature = "onnx")]
@@ -201,6 +221,7 @@ impl Default for OnnxSessionConfig {
             num_threads: 0,
             use_cpu_provider: true,
             prefer_coreml: false,
+            prefer_cuda: false,
         }
     }
 }
@@ -238,6 +259,11 @@ pub fn create_onnx_session(
     // always last so a session never fails to start because of an
     // accelerator-specific quirk.
     let mut providers: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
+    #[cfg(feature = "onnx-cuda")]
+    if config.prefer_cuda {
+        use ort::execution_providers::CUDAExecutionProvider;
+        providers.push(CUDAExecutionProvider::default().build());
+    }
     #[cfg(feature = "onnx-coreml")]
     if config.prefer_coreml {
         use ort::execution_providers::CoreMLExecutionProvider;

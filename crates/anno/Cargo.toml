@@ -89,6 +89,13 @@ onnx = [
 # attach the CoreML execution provider; falls back to CPU if CoreML can't
 # load the graph (large models, unsupported ops).
 onnx-coreml = ["onnx", "ort/coreml"]
+# NVIDIA CUDA acceleration for ONNX backends. Linux/Windows + nvcc/CUDA 12.x
+# at link time. Set `OnnxSessionConfig::prefer_cuda = true` to attach the
+# CUDA execution provider; CPU is registered as fallback. Build-time check
+# does NOT prove CUDA is actually used at runtime -- silent CPU fallback is a
+# known ort failure mode when cudart.so is missing. Validate with
+# `examples/onnx_gpu_smoke.rs` on a real GPU host.
+onnx-cuda = ["onnx", "ort/cuda"]
 candle = [
   "dep:candle-core",
   "dep:candle-nn",

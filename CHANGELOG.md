@@ -4,7 +4,13 @@
 
 ### Added
 
+- `anno`: `onnx-cuda` cargo feature (`["onnx", "ort/cuda"]`) for NVIDIA CUDA acceleration on ONNX backends. Set `OnnxSessionConfig::prefer_cuda = true` to attach the CUDA execution provider; CPU is registered as fallback. Validates only at runtime against real GPU hardware (silent CPU fallback is a known ort failure mode when `cudart.so` is missing). Use `cargo run --example onnx_cuda_smoke --features onnx,onnx-cuda` on a CUDA host, or `scripts/aws/gpu-smoke.sh cuda` for an automated EC2 spin-up + teardown.
+- `anno`: new `examples/onnx_cuda_smoke.rs` validator that builds two ONNX sessions (CUDA-on, CUDA-off), runs N=20 inferences each, and asserts ≥3x speedup. Per-EP layout: TensorRT and DirectML deferred (issue #19); ROCm not on AWS (no AMD GPUs in EC2); CoreML already validated locally.
 - `anno-cli`: HTML extractor backend is now selectable at compile time via the `extractor-readability` (default) / `extractor-html2text` features. The default keeps current behavior (readability-class article extraction). Building with `--no-default-features --features "onnx extractor-html2text"` swaps in `html2text` (tag-strip via `html5ever`) and produces a binary with **zero MPL-2.0 transitives** at the cost of dropping article-extraction quality from F~0.90 to F~0.58. Useful for users who want strict licensing manifests or skip the cssparser/selectors chain.
+
+### Changed (breaking)
+
+- `anno`: `OnnxSessionConfig` is now `#[non_exhaustive]`. Struct-literal construction (`OnnxSessionConfig { optimization_level: ..., ... }`) is no longer supported from outside the `anno` crate. Use `OnnxSessionConfig::default()` and override fields via `..Default::default()` spread. Internal callers were swept to the spread form in this release. Locks future EP-preference field-adds (e.g. `prefer_directml`, `prefer_tensorrt`) from breaking the same downstream callers, per the lesson when `prefer_coreml` was added in 0.8.0.
 
 ## [0.9.0] - 2026-04-26
 

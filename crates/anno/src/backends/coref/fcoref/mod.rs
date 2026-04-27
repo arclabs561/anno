@@ -160,7 +160,7 @@ impl FCoref {
                 optimization_level: config.optimization_level,
                 num_threads: config.num_threads,
                 use_cpu_provider: false,
-                prefer_coreml: false,
+                ..Default::default()
             },
         )?;
 
@@ -249,7 +249,7 @@ impl FCoref {
                 optimization_level: config.optimization_level,
                 num_threads: config.num_threads,
                 use_cpu_provider: false,
-                prefer_coreml: false,
+                ..Default::default()
             },
         )?;
 
