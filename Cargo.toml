@@ -50,7 +50,7 @@ toml = "0.8"
 rand = "0.9"
 ureq = { version = "2", features = ["json"] }
 sha2 = "0.10"
-dirs = "5"
+dirs = "6"
 
 # ML backends (not optional in workspace - individual crates can make them optional)
 # TODO: upgrade to stable ort 2.0 when released (still RC as of 2026-03)
