@@ -175,10 +175,12 @@ jobs:
         with:
           cache-all-crates: true
           key: ${{ matrix.os }}
+      # `anno-cli` requires at least one HTML extractor feature.
+      # `extractor-html2text` is the lighter (no-MPL) option.
       - name: Build
-        run: cargo build --workspace --no-default-features
+        run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
-        run: cargo test --workspace --no-default-features --lib
+        run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
   # ==========================================================================
   # ONNX backend tests (Linux only)
   # ==========================================================================
