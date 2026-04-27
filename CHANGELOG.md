@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-26
+
 ### Changed
 
 - Bumped `deformat` workspace dep from `0.6` to `0.15`. The 0.15 line gates each backend behind its own feature flag, which means `anno-cli`'s `deformat[readability]` opt-in is now explicit rather than the old "always on" 0.6 behavior. Future option: switching that feature to `deformat[html2text]` would drop the cssparser/selectors MPL-2.0 transitives at the cost of article-extraction quality.
