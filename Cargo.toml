@@ -48,7 +48,7 @@ toml = "0.8"
 
 # Evaluation
 rand = "0.9"
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "3", features = ["json"] }
 sha2 = "0.10"
 dirs = "5"
 
