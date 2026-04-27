@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `anno-cli`: HTML extractor backend is now selectable at compile time via the `extractor-readability` (default) / `extractor-html2text` features. The default keeps current behavior (readability-class article extraction). Building with `--no-default-features --features "onnx extractor-html2text"` swaps in `html2text` (tag-strip via `html5ever`) and produces a binary with **zero MPL-2.0 transitives** at the cost of dropping article-extraction quality from F~0.90 to F~0.58. Useful for users who want strict licensing manifests or skip the cssparser/selectors chain.
+
 ## [0.9.0] - 2026-04-26
 
 ### Changed

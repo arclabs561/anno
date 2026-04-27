@@ -6,6 +6,46 @@ use std::io::{self, IsTerminal, Read};
 
 use anno::{GroundedDocument, Identity, IdentityId, SignalId, TrackId};
 
+#[cfg(not(any(feature = "extractor-readability", feature = "extractor-html2text")))]
+compile_error!(
+    "anno-cli requires at least one HTML extractor feature: \
+     `extractor-readability` (default, best quality) or \
+     `extractor-html2text` (no MPL-2.0 transitives, lower quality)"
+);
+
+/// Extract HTML into a `deformat::Extracted` (text + metadata). Routes to
+/// a deformat backend based on compile-time `extractor-readability` /
+/// `extractor-html2text` features:
+///
+/// - `extractor-readability` (default): readability-class article
+///   extraction. Best quality on news/article pages. Pulls cssparser /
+///   selectors MPL-2.0 transitives.
+/// - `extractor-html2text` only: tag-strip via `html5ever`. No MPL deps.
+///   Lower quality on boilerplate-heavy pages; `title`/`excerpt` will be
+///   `None`.
+///
+/// If both are enabled, readability wins (strict precedence -- users opt
+/// out of readability by *disabling* the default feature).
+#[cfg(feature = "extractor-readability")]
+pub(crate) fn extract_html(html: &str, url: Option<&str>) -> deformat::Extracted {
+    deformat::extract_readable(html, url)
+}
+
+#[cfg(all(
+    not(feature = "extractor-readability"),
+    feature = "extractor-html2text"
+))]
+pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> deformat::Extracted {
+    // html2text wraps to a fixed width; URL has no role.
+    deformat::extract_html2text(html, 80)
+}
+
+/// Convenience: extract HTML and return only the text. Same backend
+/// routing as [`extract_html`].
+pub(crate) fn extract_html_to_text(html: &str, url: Option<&str>) -> String {
+    extract_html(html, url).text
+}
+
 /// Get input text from various sources (text arg, file, or stdin)
 ///
 /// Sanitizes input to remove shell command fragments that might leak in
@@ -41,8 +81,7 @@ pub fn get_input_text(
             // Auto-detect HTML in stdin and strip it, same as --file does
             if deformat::detect::is_html(&buf) {
                 eprintln!("note: detected HTML content on stdin, converting to text");
-                let text = deformat::extract_readable(&buf, None).text;
-                return Ok(text);
+                return Ok(extract_html_to_text(&buf, None));
             }
             return Ok(sanitize_input(&buf));
         }
@@ -157,10 +196,7 @@ pub fn read_input_file(path: &str) -> Result<String, String> {
             "note: detected HTML content in '{}', converting to text",
             path
         );
-        // Use readability for article extraction, fall back to strip_to_text.
-        // Same strategy as --url path (url_resolver.rs).
-        let text = deformat::extract_readable(&content, None).text;
-        Ok(text)
+        Ok(extract_html_to_text(&content, None))
     } else {
         Ok(content)
     }
@@ -789,6 +825,10 @@ mod tests {
 
     /// Stdin HTML content should be detected and stripped automatically.
     /// This tests the detection logic -- actual stdin piping is tested via CLI integration.
+    /// Gated on `extractor-readability`: the assertions about boilerplate
+    /// stripping (`<nav>` and "Skip this" being removed) only hold for
+    /// readability extraction; html2text retains nav text by design.
+    #[cfg(feature = "extractor-readability")]
     #[test]
     fn html_content_detected_for_stripping() {
         let html = r#"<!DOCTYPE html>
@@ -802,7 +842,7 @@ mod tests {
             deformat::detect::is_html(html),
             "should detect HTML content"
         );
-        let text = deformat::extract_readable(html, None).text;
+        let text = super::extract_html(html, None).text;
         assert!(text.contains("Marie Curie"), "should extract article text");
         assert!(
             text.contains("University of Paris"),

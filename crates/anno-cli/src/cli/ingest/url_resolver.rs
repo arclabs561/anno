@@ -81,8 +81,8 @@ impl UrlResolver for HttpResolver {
         // Check if content looks like HTML
         let text = if deformat::detect::is_html(&content) {
             metadata.insert("content-type".to_string(), "text/html".to_string());
-            // Readability extraction with strip_to_text fallback
-            let result = deformat::extract_readable(&content, Some(url));
+            // Routes between readability / html2text based on anno-cli features.
+            let result = crate::cli::utils::extract_html(&content, Some(url));
             metadata.insert("extractor".to_string(), result.extractor.to_string());
             if let Some(title) = &result.title {
                 metadata.insert("title".to_string(), title.clone());

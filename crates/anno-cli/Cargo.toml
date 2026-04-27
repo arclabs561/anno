@@ -43,12 +43,16 @@ muxer = { version = "0.5", default-features = false, features = [
 # (which pulls in lattix transitively). No separate dep needed here.
 
 # Document-to-text extraction (HTML stripping, readability, PDF).
-deformat = { workspace = true, features = ["readability"] }
+# Backend selection is feature-flagged below: extractor-readability
+# (default, best quality, pulls cssparser/selectors MPL-2.0 transitives)
+# vs extractor-html2text (no MPL deps, lower quality on boilerplate-heavy
+# pages).
+deformat = { workspace = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 rayon = { workspace = true }
 
 [features]
-default = ["onnx"]
+default = ["onnx", "extractor-readability"]
 # Evaluation + muxer tooling.
 eval = ["dep:muxer", "anno/analysis", "anno-eval/eval"]
 eval-bias = ["eval", "anno-eval/eval-bias"]
@@ -63,6 +67,11 @@ graph = ["anno/graph"]
 pdf = ["deformat/pdf"]
 parallel = ["anno/parallel"]
 chunking = ["anno/chunking"]
+# HTML extractor backends. At least one must be enabled; default ships
+# readability. To get an MPL-free build, use:
+#   cargo install anno-cli --no-default-features --features "onnx extractor-html2text"
+extractor-readability = ["deformat/readability"]
+extractor-html2text = ["deformat/html2text"]
 
 [dev-dependencies]
 tempfile = "3"
