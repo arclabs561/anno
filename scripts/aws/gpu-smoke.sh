@@ -139,23 +139,59 @@ aws_cli ec2 create-key-pair --key-name "$KEY_NAME" \
 chmod 600 "$KEY_PATH"
 echo "[smoke] key pair: $KEY_NAME"
 
-# 4. Temp security group with SSH from caller only.
+# 4. Discover VPC + subnet. AWS accounts without a default VPC must explicitly
+# place the SG and instance into one. Honor env overrides; otherwise auto-pick
+# from a single VPC, error if ambiguous.
+if [[ -z "${ANNO_VPC_ID:-}" ]]; then
+  VPC_COUNT=$(aws_cli ec2 describe-vpcs --query 'length(Vpcs[])' --output text)
+  if [[ "$VPC_COUNT" == "0" ]]; then
+    echo "[smoke] no VPCs in $AWS_REGION. Create one or set ANNO_VPC_ID." >&2
+    exit 7
+  elif [[ "$VPC_COUNT" == "1" ]]; then
+    ANNO_VPC_ID=$(aws_cli ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+  else
+    # Prefer default VPC if any; else require explicit choice.
+    ANNO_VPC_ID=$(aws_cli ec2 describe-vpcs --filters 'Name=is-default,Values=true' \
+      --query 'Vpcs[0].VpcId' --output text)
+    if [[ -z "$ANNO_VPC_ID" || "$ANNO_VPC_ID" == "None" ]]; then
+      echo "[smoke] $VPC_COUNT VPCs in $AWS_REGION and no default. Set ANNO_VPC_ID." >&2
+      exit 7
+    fi
+  fi
+fi
+echo "[smoke] VPC: $ANNO_VPC_ID"
+
+if [[ -z "${ANNO_SUBNET_ID:-}" ]]; then
+  # Prefer a subnet that auto-assigns public IPs (we need to SSH in from outside).
+  ANNO_SUBNET_ID=$(aws_cli ec2 describe-subnets \
+    --filters "Name=vpc-id,Values=$ANNO_VPC_ID" "Name=map-public-ip-on-launch,Values=true" \
+    --query 'Subnets[0].SubnetId' --output text)
+  if [[ -z "$ANNO_SUBNET_ID" || "$ANNO_SUBNET_ID" == "None" ]]; then
+    echo "[smoke] no public-IP-auto-assign subnet in $ANNO_VPC_ID. Set ANNO_SUBNET_ID or fix the VPC." >&2
+    exit 7
+  fi
+fi
+echo "[smoke] subnet: $ANNO_SUBNET_ID"
+
+# 5. Temp security group with SSH from caller only.
 SG_NAME="anno-smoke-$EP-$TS"
 SG_ID=$(aws_cli ec2 create-security-group --group-name "$SG_NAME" \
   --description "Temporary anno smoke SG (auto-deleted)" \
+  --vpc-id "$ANNO_VPC_ID" \
   --query 'GroupId' --output text)
 aws_cli ec2 authorize-security-group-ingress --group-id "$SG_ID" \
   --protocol tcp --port 22 --cidr "$MY_IP/32" >/dev/null
 echo "[smoke] security group: $SG_ID"
 
-# 5. Launch.
+# 6. Launch.
 INSTANCE_ID=$(aws_cli ec2 run-instances \
   --image-id "$AMI_ID" \
   --instance-type "$INSTANCE_TYPE" \
   --key-name "$KEY_NAME" \
   --security-group-ids "$SG_ID" \
+  --subnet-id "$ANNO_SUBNET_ID" \
   --block-device-mappings 'DeviceName=/dev/sda1,Ebs={VolumeSize=80,VolumeType=gp3,DeleteOnTermination=true}' \
-  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$SG_NAME},{Key=auto-terminate,Value=true}]" \
+  --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$SG_NAME},{Key=Project,Value=anno},{Key=Realm,Value=hardware-test},{Key=ManagedBy,Value=anno-smoke-script},{Key=auto-terminate,Value=true}]" \
   --query 'Instances[0].InstanceId' --output text)
 echo "[smoke] instance: $INSTANCE_ID"
 
