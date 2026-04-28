@@ -13,8 +13,8 @@ keywords = ["ner", "nlp", "extraction", "cli"]
 categories = ["command-line-utilities", "text-processing"]
 
 [dependencies]
-anno = { path = "../anno", version = "0.9.0", default-features = false }
-anno-eval = { path = "../anno-eval", version = "0.9.0" }
+anno = { path = "../anno", version = "0.10.0", default-features = false }
+anno-eval = { path = "../anno-eval", version = "0.10.0" }
 
 clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 clap_complete = { workspace = true }

@@ -1,6 +1,6 @@
 [package]
 name = "anno"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 description = "NER, coreference resolution, relation extraction, PII detection, and zero-shot entity types"
 license = "MIT OR Apache-2.0"

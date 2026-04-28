@@ -16,7 +16,7 @@ Dual-licensed under MIT or Apache-2.0. MSRV: 1.88.
 
 ```toml
 [dependencies]
-anno = "0.9"
+anno = "0.10"
 ```
 
 ```rust
