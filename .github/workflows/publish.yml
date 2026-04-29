@@ -34,6 +34,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      - name: cargo-semver-checks
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+
       - name: Authenticate (Trusted Publishing)
         id: auth
         uses: rust-lang/crates-io-auth-action@v1
