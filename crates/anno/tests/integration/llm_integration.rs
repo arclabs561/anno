@@ -24,17 +24,17 @@ fn assert_entity_invariants(entities: &[Entity], text: &str) {
     let char_count = text.chars().count();
     for e in entities {
         assert!(
-            e.start < e.end,
+            e.start() < e.end(),
             "start < end: {:?} ({},{})",
             e.text,
-            e.start,
-            e.end
+            e.start(),
+            e.end()
         );
         assert!(
-            e.end <= char_count,
+            e.end() <= char_count,
             "end <= char_count: {:?} end={} chars={}",
             e.text,
-            e.end,
+            e.end(),
             char_count
         );
         assert!(
@@ -45,11 +45,11 @@ fn assert_entity_invariants(entities: &[Entity], text: &str) {
         assert!(!e.text.is_empty(), "entity text must be non-empty");
 
         // Extracted text should match entity text
-        let extracted: String = text.chars().skip(e.start).take(e.end - e.start).collect();
+        let extracted: String = text.chars().skip(e.start()).take(e.end() - e.start()).collect();
         assert_eq!(
             extracted, e.text,
             "span [{},{}) = {:?} vs entity {:?}",
-            e.start, e.end, extracted, e.text
+            e.start(), e.end(), extracted, e.text
         );
     }
 }
@@ -349,8 +349,8 @@ fn llm_caching_avoids_duplicate_calls() {
     );
     for (a, b) in entities1.iter().zip(entities2.iter()) {
         assert_eq!(a.text, b.text, "cached entity text should match");
-        assert_eq!(a.start, b.start, "cached entity start should match");
-        assert_eq!(a.end, b.end, "cached entity end should match");
+        assert_eq!(a.start(), b.start(), "cached entity start should match");
+        assert_eq!(a.end(), b.end(), "cached entity end should match");
     }
 
     // Cache hit should be at least 10x faster (API call typically >500ms, cache <1ms)
@@ -426,7 +426,7 @@ fn llm_compact_prompt_strategy() {
         "Compact entities: {:?}",
         entities
             .iter()
-            .map(|e| (&e.text, &e.entity_type, e.start, e.end))
+            .map(|e| (&e.text, &e.entity_type, e.start(), e.end()))
             .collect::<Vec<_>>()
     );
 
@@ -554,7 +554,7 @@ fn llm_multilingual_extraction() {
         "Multilingual entities: {:?}",
         entities
             .iter()
-            .map(|e| (&e.text, &e.entity_type, e.start, e.end))
+            .map(|e| (&e.text, &e.entity_type, e.start(), e.end()))
             .collect::<Vec<_>>()
     );
 
@@ -724,7 +724,7 @@ fn llm_chunking_large_document() {
     );
 
     // Verify no duplicate (start, end) pairs (overlap dedup works)
-    let mut spans: Vec<(usize, usize)> = entities.iter().map(|e| (e.start, e.end)).collect();
+    let mut spans: Vec<(usize, usize)> = entities.iter().map(|e| (e.start(), e.end())).collect();
     let before = spans.len();
     spans.sort();
     spans.dedup();
@@ -737,7 +737,7 @@ fn llm_chunking_large_document() {
     // Verify entities are sorted by position
     for i in 1..entities.len() {
         assert!(
-            entities[i].start >= entities[i - 1].start,
+            entities[i].start() >= entities[i - 1].start(),
             "entities should be sorted by position"
         );
     }

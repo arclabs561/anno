@@ -317,8 +317,12 @@ pub mod gliner_poly;
 pub mod glirel;
 pub mod universal_ner;
 
-// LLM client abstraction (config, providers, mock)
-pub(crate) mod llm_client;
+// LLM client abstraction (config, providers, mock).
+// Public so external callers can construct `LlmConfig` and pass it to
+// `UniversalNER::with_config`. The module's own doc comment documents
+// `use anno::backends::llm_client::{LlmConfig, LlmProvider, LlmRequest, LlmResponse};`
+// as the public path.
+pub mod llm_client;
 
 // LLM-based NER prompting (CodeNER-style)
 pub(crate) mod llm_prompt;
