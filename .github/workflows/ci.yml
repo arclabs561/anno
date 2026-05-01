@@ -128,7 +128,7 @@ jobs:
       # Configure the role ARN as a repo variable: Settings → Secrets and variables → Actions → Variables.
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -380,7 +380,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -529,7 +529,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -612,7 +612,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
