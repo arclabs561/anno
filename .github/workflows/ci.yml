@@ -143,7 +143,7 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -194,7 +194,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -217,7 +217,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -240,7 +240,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -258,7 +258,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -276,7 +276,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -294,7 +294,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -393,14 +393,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -409,7 +409,7 @@ jobs:
       # Muxer history + eval history in their own cache lineage so MAB learning and
       # dataset observation counts are never overwritten by test-eval/eval-sanity writes.
       - name: Cache muxer state and eval history (persistent MAB learning)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/muxer_history.*.json
@@ -542,14 +542,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -558,7 +558,7 @@ jobs:
       # Restore eval history so CLI benchmark accumulates observation counts across runs.
       # Uses the same anno-muxer key family as matrix-test to share state.
       - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/eval-results.jsonl
@@ -625,14 +625,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -640,7 +640,7 @@ jobs:
             anno-datasets-${{ runner.os }}-v3-
       # Restore eval history so full evals seed from accumulated observation counts.
       - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/eval-results.jsonl
@@ -776,7 +776,7 @@ jobs:
         run: |
           rustup component add miri
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
