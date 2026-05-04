@@ -159,7 +159,7 @@ dependencies = [
  "unicode-normalization",
  "ureq 2.12.1",
  "xxhash-rust",
- "zip 2.4.2",
+ "zip",
 ]
 
 [[package]]
@@ -217,15 +217,6 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
-
-[[package]]
-name = "arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
-dependencies = [
- "derive_arbitrary",
-]
 
 [[package]]
 name = "atomic-waker"
@@ -400,7 +391,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokenizers",
  "yoke 0.8.1",
- "zip 7.2.0",
+ "zip",
 ]
 
 [[package]]
@@ -920,6 +911,8 @@ dependencies = [
 [[package]]
 name = "deformat"
 version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f5dc2d3a65182387850ea2e5277c608f15e1709245fbbb466d366e0154926c9"
 dependencies = [
  "dom_smoothie",
  "html2text",
@@ -935,17 +928,6 @@ checksum = "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb"
 dependencies = [
  "pem-rfc7468",
  "zeroize",
-]
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -1281,6 +1263,7 @@ checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+ "zlib-rs",
 ]
 
 [[package]]
@@ -4289,6 +4272,8 @@ dependencies = [
 [[package]]
 name = "textprep"
 version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0211a3cc01ee0a85cd4537b6e16bbc6eb13778f8acd8e652b36c73ae6e1704d0"
 dependencies = [
  "aho-corasick",
  "unicode-normalization",
@@ -5695,32 +5680,23 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "crossbeam-utils",
- "displaydoc",
- "flate2",
- "indexmap",
- "memchr",
- "thiserror 2.0.18",
- "zopfli",
-]
-
-[[package]]
-name = "zip"
 version = "7.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c42e33efc22a0650c311c2ef19115ce232583abbe80850bc8b66509ebef02de0"
 dependencies = [
  "crc32fast",
+ "flate2",
  "indexmap",
  "memchr",
  "typed-path",
+ "zopfli",
 ]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3be3d40e40a133f9c916ee3f9f4fa2d9d63435b5fbe1bfc6d9dae0aa0ada1513"
 
 [[package]]
 name = "zmij"
@@ -5739,27 +5715,3 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
-
-[[patch.unused]]
-name = "clump"
-version = "0.5.6"
-
-[[patch.unused]]
-name = "graphops"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "innr"
-version = "0.4.0"
-
-[[patch.unused]]
-name = "lattix"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "logp"
-version = "0.2.2"
-
-[[patch.unused]]
-name = "pare"
-version = "0.2.1"
