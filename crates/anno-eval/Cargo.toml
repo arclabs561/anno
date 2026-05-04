@@ -57,7 +57,7 @@ ureq = { workspace = true, features = ["json"] }
 rusqlite = { workspace = true }
 sha2 = { workspace = true }
 zip = { version = "2", default-features = false, features = ["deflate"] }
-quick-xml = "0.37"
+quick-xml = "0.39"
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
