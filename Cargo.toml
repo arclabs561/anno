@@ -61,7 +61,7 @@ indicatif = "0.17"
 toml = "0.8"
 
 # Evaluation
-rand = "0.9"
+rand = "0.10"
 ureq = { version = "2", features = ["json"] }
 sha2 = "0.10"
 dirs = "5"

@@ -64,7 +64,7 @@ impl AdcpeEncryptor {
         // Generate random matrix
         let mut matrix = vec![0.0f64; dim * dim];
         for v in matrix.iter_mut() {
-            *v = rng.gen::<f64>() * 2.0 - 1.0;
+            *v = rng.random::<f64>() * 2.0 - 1.0;
         }
 
         // Gram-Schmidt orthogonalization
@@ -106,7 +106,7 @@ impl AdcpeEncryptor {
         // Add optional noise
         if self.noise_scale > 0.0 {
             for v in result.iter_mut() {
-                *v += self.rng.gen::<f64>() * self.noise_scale;
+                *v += self.rng.random::<f64>() * self.noise_scale;
             }
         }
 
@@ -410,8 +410,8 @@ mod tests {
         let mut enc = AdcpeEncryptor::new(&test_key(), &test_config(128)).unwrap();
 
         let mut rng = StdRng::seed_from_u64(42);
-        let a: Vec<f64> = (0..128).map(|_| rng.gen::<f64>() - 0.5).collect();
-        let b: Vec<f64> = (0..128).map(|_| rng.gen::<f64>() - 0.5).collect();
+        let a: Vec<f64> = (0..128).map(|_| rng.random::<f64>() - 0.5).collect();
+        let b: Vec<f64> = (0..128).map(|_| rng.random::<f64>() - 0.5).collect();
 
         let cos_orig = cosine_similarity(&a, &b);
 

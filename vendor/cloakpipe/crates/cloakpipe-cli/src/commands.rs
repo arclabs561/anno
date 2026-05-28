@@ -564,9 +564,9 @@ pub async fn vector(action: crate::VectorCommands) -> Result<()> {
 
             // Generate sample vectors
             use rand::Rng;
-            let mut rng = rand::thread_rng();
-            let a: Vec<f64> = (0..dim).map(|_| rng.gen::<f64>() - 0.5).collect();
-            let b: Vec<f64> = (0..dim).map(|_| rng.gen::<f64>() - 0.5).collect();
+            let mut rng = rand::rng();
+            let a: Vec<f64> = (0..dim).map(|_| rng.random::<f64>() - 0.5).collect();
+            let b: Vec<f64> = (0..dim).map(|_| rng.random::<f64>() - 0.5).collect();
 
             let cos_orig = cloakpipe_vector::adcpe::cosine_similarity(&a, &b);
 

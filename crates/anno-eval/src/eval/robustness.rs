@@ -220,7 +220,7 @@ impl RobustnessEvaluator {
                 let num_swaps = ((chars.len() as f64 * self.intensity) as usize).max(1);
                 for _ in 0..num_swaps {
                     if chars.len() >= 2 {
-                        let idx = rng.gen_range(chars.len() - 1);
+                        let idx = rng.random_range(0..chars.len() - 1);
                         if chars[idx].is_alphabetic() && chars[idx + 1].is_alphabetic() {
                             chars.swap(idx, idx + 1);
                         }
@@ -524,7 +524,7 @@ fn keyboard_neighbor(c: char, rng: &mut SimpleRng) -> char {
     let lower = c.to_ascii_lowercase();
     for (keys, neighbors) in keyboard {
         if keys.contains(&lower) && !neighbors.is_empty() {
-            let idx = rng.gen_range(neighbors.len());
+            let idx = rng.random_range(0..neighbors.len());
             let neighbor = neighbors[idx];
             return if c.is_uppercase() {
                 neighbor.to_ascii_uppercase()
