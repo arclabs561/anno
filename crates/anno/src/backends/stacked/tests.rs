@@ -2,12 +2,23 @@ use super::*;
 use crate::Confidence;
 use std::sync::LazyLock;
 
-/// Cached default StackedNER shared across unit tests to avoid
-/// rebuilding regex patterns and heuristic tables per test.
-static DEFAULT_STACKED: LazyLock<StackedNER> = LazyLock::new(StackedNER::default);
+/// Cached no-ML StackedNER shared across unit tests.
+///
+/// Not `StackedNER::default()`: under the onnx feature the default stack
+/// loads real ONNX models, and nextest runs each test in its own process,
+/// so a LazyLock of the default pays the multi-second model load once per
+/// TEST, not once per run. Tests that assert properties of the real
+/// default configuration construct `StackedNER::default()` inline.
+static FAST_STACKED: LazyLock<StackedNER> = LazyLock::new(|| {
+    StackedNER::builder()
+        .layer(RegexNER::new())
+        .layer(HeuristicNER::new())
+        .strategy(ConflictStrategy::Priority)
+        .build()
+});
 
 fn extract(text: &str) -> Vec<Entity> {
-    DEFAULT_STACKED.extract_entities(text, None).unwrap()
+    FAST_STACKED.extract_entities(text, None).unwrap()
 }
 
 fn has_type(entities: &[Entity], ty: &EntityType) -> bool {
@@ -60,7 +71,7 @@ fn test_sorted_output() {
 #[cfg(feature = "onnx")]
 #[test]
 fn test_default_includes_ml_backend_when_available() {
-    let stats = DEFAULT_STACKED.stats();
+    let stats = StackedNER::default().stats();
 
     // With onnx AND models available: 3-4 layers (BERT [+ NuNER] + regex + heuristic)
     // With onnx but no model: 2 layers (regex + heuristic)
@@ -156,7 +167,7 @@ fn test_heuristic_only() {
 
 #[test]
 fn test_strategy_default_is_priority() {
-    assert_eq!(DEFAULT_STACKED.strategy(), ConflictStrategy::Priority);
+    assert_eq!(StackedNER::default().strategy(), ConflictStrategy::Priority);
 }
 
 // =========================================================================
@@ -376,7 +387,7 @@ fn test_no_entities() {
 
 #[test]
 fn test_supported_types() {
-    let types = DEFAULT_STACKED.supported_types();
+    let types = FAST_STACKED.supported_types();
 
     // Should include both pattern and heuristic types
     assert!(types.contains(&EntityType::Date));
@@ -388,7 +399,7 @@ fn test_supported_types() {
 
 #[test]
 fn test_stats() {
-    let stats = DEFAULT_STACKED.stats();
+    let stats = FAST_STACKED.stats();
 
     // With ONNX + models: 3-4 layers (BERT [+ NuNER] + regex + heuristic)
     // Without models: 2 layers (regex + heuristic)
