@@ -129,6 +129,15 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &[],
     },
     BackendInfo {
+        name: "heuristic_fr",
+        feature: Some("heuristic-fr"),
+        status: BackendStatus::Beta,
+        zero_shot: false,
+        gpu_support: false,
+        description: "French-specific heuristic NER (orgs, addresses, dates, intl IBANs)",
+        recommended_models: &[],
+    },
+    BackendInfo {
         name: "tplinker",
         feature: None,
         status: BackendStatus::Beta,
