@@ -513,6 +513,11 @@ mod tests {
     #[test]
     fn test_catalog_recommended_models_not_empty_for_ml() {
         for info in BACKEND_CATALOG {
+            // heuristic_fr is feature-gated but pattern-based: it downloads
+            // no models, so the ML invariant below does not apply to it.
+            if info.name == "heuristic_fr" {
+                continue;
+            }
             if info.feature.is_some() && info.status != BackendStatus::WIP {
                 assert!(
                     !info.recommended_models.is_empty(),
