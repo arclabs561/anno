@@ -21,14 +21,14 @@ jobs:
     name: Docs audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Docs hygiene checks (fast, offline)
         run: python3 scripts/docs_audit.py
   check:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -38,7 +38,7 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
@@ -47,9 +47,9 @@ jobs:
     name: Typecheck (Python / ty)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
           cache-dependency-glob: ty.toml
@@ -59,7 +59,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -86,7 +86,7 @@ jobs:
           - "schema"
           - "candle"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -101,7 +101,7 @@ jobs:
     name: Test (minimal)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -115,7 +115,7 @@ jobs:
     name: Test (eval)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -128,7 +128,7 @@ jobs:
       # Configure the role ARN as a repo variable: Settings → Secrets and variables → Actions → Variables.
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -143,7 +143,7 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -169,7 +169,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -188,13 +188,13 @@ jobs:
     name: Test (ONNX backend)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -216,13 +216,13 @@ jobs:
     name: Test (Candle backend)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -239,13 +239,13 @@ jobs:
     name: Test (ONNX + eval)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -257,13 +257,13 @@ jobs:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -275,13 +275,13 @@ jobs:
     name: Test (production features)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -293,13 +293,13 @@ jobs:
     name: Test (Metal on macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -320,7 +320,7 @@ jobs:
     name: Minimal build (no-default-features)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -336,7 +336,7 @@ jobs:
     name: Docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -357,7 +357,7 @@ jobs:
     name: Property Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -374,7 +374,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -385,7 +385,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -398,14 +398,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -414,7 +414,7 @@ jobs:
       # Muxer history + eval history in their own cache lineage so MAB learning and
       # dataset observation counts are never overwritten by test-eval/eval-sanity writes.
       - name: Cache muxer state and eval history (persistent MAB learning)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/muxer_history.*.json
@@ -490,7 +490,7 @@ jobs:
     name: F1 Evaluator Unit Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -504,7 +504,7 @@ jobs:
     name: Examples (build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -523,7 +523,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -534,7 +534,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -547,14 +547,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -563,7 +563,7 @@ jobs:
       # Restore eval history so CLI benchmark accumulates observation counts across runs.
       # Uses the same anno-muxer key family as matrix-test to share state.
       - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/eval-results.jsonl
@@ -589,7 +589,7 @@ jobs:
               > reports/eval-sanity-report.md
           fi
       - name: Upload sanity report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-sanity-report
@@ -606,7 +606,7 @@ jobs:
       github.event_name == 'workflow_dispatch'
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -617,7 +617,7 @@ jobs:
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.ANNO_AWS_ROLE_ARN }}
           aws-region: ${{ vars.ANNO_AWS_REGION != '' && vars.ANNO_AWS_REGION || 'us-east-1' }}
@@ -630,14 +630,14 @@ jobs:
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/heads/eval-')) }}
         run: aws --version
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Cache datasets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.anno_cache
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
@@ -645,7 +645,7 @@ jobs:
             anno-datasets-${{ runner.os }}-v3-
       # Restore eval history so full evals seed from accumulated observation counts.
       - name: Cache eval history (persistent observation counts)
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.anno_cache/eval-results.jsonl
@@ -658,7 +658,7 @@ jobs:
         env:
           MAX_EXAMPLES: ${{ github.event.inputs.max_examples || '' }}
       - name: Upload full report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: eval-full-report
@@ -671,7 +671,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       # Library crates gitignore Cargo.lock; generate one for the audit scan.
       - run: cargo generate-lockfile
@@ -689,7 +689,7 @@ jobs:
     # green for one release cycle.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # cargo-semver-checks compares against the previous published
           # release; needs full history to find the baseline.
@@ -714,7 +714,7 @@ jobs:
     name: Cargo Deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -729,7 +729,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -744,7 +744,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -759,7 +759,7 @@ jobs:
           cat safety-report.json | jq -r '.packages[] | select(.geiger.unsafe_used > 0) | "\(.name): \(.geiger.unsafe_used) unsafe uses"' >> $GITHUB_STEP_SUMMARY || echo "No unsafe code found" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
       - name: Upload safety report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: safety-report
@@ -772,7 +772,7 @@ jobs:
     continue-on-error: true
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'test-unsafe'))
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
@@ -781,7 +781,7 @@ jobs:
         run: |
           rustup component add miri
       - name: Cache HF models
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/huggingface
           key: hf-models-${{ runner.os }}-v2
@@ -798,7 +798,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install OpenGrep
         run: |
           curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
@@ -879,7 +879,7 @@ jobs:
             fi
           done
       - name: Upload JSON results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: opengrep-results
@@ -898,7 +898,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Install ripgrep (for pattern analysis)
         run: |
@@ -921,7 +921,7 @@ jobs:
         run: |
           ./scripts/check-evaluation-invariants.sh || true
       - name: Upload analysis reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: nlp-ml-analysis
@@ -935,7 +935,7 @@ jobs:
     continue-on-error: true
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Install tools
         run: |
@@ -947,7 +947,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq || true
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Generate unified report
@@ -955,7 +955,7 @@ jobs:
           chmod +x scripts/*.sh
           ./scripts/generate-unified-report.sh || true
       - name: Upload unified report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: unified-static-analysis
@@ -968,9 +968,9 @@ jobs:
     continue-on-error: true
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
       - name: Summarize failures
@@ -978,14 +978,14 @@ jobs:
           chmod +x scripts/*.sh
           ./scripts/summarize-failures.sh || true
       - name: Upload summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: static-analysis-summary
           path: static-analysis-failures-summary.md
       - name: Comment on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -1006,7 +1006,7 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1017,10 +1017,10 @@ jobs:
         run: |
           cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info || true
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         if: always()
         with:
-          file: ./lcov.info
+          files: ./lcov.info
           flags: unittests
           name: codecov-anno
   # ==========================================================================
@@ -1031,7 +1031,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -1081,7 +1081,7 @@ jobs:
           See \`docs/PUBLISH_STATUS.md\` for detailed information and fixes.
           EOF
       - name: Upload publish validation report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: publish-validation-report
