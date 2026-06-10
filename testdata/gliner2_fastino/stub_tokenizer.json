@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [
+    {"id": 0, "content": "[PAD]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 1, "content": "[UNK]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 2, "content": "[P]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 3, "content": "[E]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 4, "content": "[C]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 5, "content": "[L]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 6, "content": "[R]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 7, "content": "[SEP_STRUCT]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 8, "content": "[SEP_TEXT]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 17, "content": "[CLS]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 18, "content": "[SEP]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true},
+    {"id": 22, "content": "[DESCRIPTION]", "single_word": false, "lstrip": false, "rstrip": false, "normalized": false, "special": true}
+  ],
+  "normalizer": null,
+  "pre_tokenizer": {"type": "Whitespace"},
+  "post_processor": null,
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {
+      "[PAD]": 0,
+      "[UNK]": 1,
+      "[P]": 2,
+      "[E]": 3,
+      "[C]": 4,
+      "[L]": 5,
+      "[R]": 6,
+      "[SEP_STRUCT]": 7,
+      "[SEP_TEXT]": 8,
+      "person": 9,
+      "organization": 10,
+      "location": 11,
+      "Acme": 12,
+      "Corp": 13,
+      "Paris": 14,
+      "in": 15,
+      ".": 16,
+      "[CLS]": 17,
+      "[SEP]": 18,
+      "(": 19,
+      ")": 20,
+      "entities": 21,
+      "[DESCRIPTION]": 22
+    },
+    "unk_token": "[UNK]"
+  }
+}
