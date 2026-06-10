@@ -78,9 +78,11 @@ version = "0.10.0"
 dependencies = [
  "candle-core",
  "candle-nn",
+ "candle-transformers",
  "criterion",
  "deformat",
  "dirs 5.0.1",
+ "half",
  "hf-hub",
  "itertools 0.14.0",
  "lattix",
@@ -434,13 +436,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9317a09d6530b758990ed7f625ac69ff43653bc9ee28b0464644ad1169ada87"
 dependencies = [
  "candle-core",
+ "candle-metal-kernels",
  "half",
  "libc",
  "num-traits",
+ "objc2-metal",
  "rayon",
  "safetensors 0.7.0",
  "serde",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "candle-transformers"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59d08c89e9f4af9c464e2f3a8e16199e7cc601e6f34538c2cfbb42b623b1783"
+dependencies = [
+ "byteorder",
+ "candle-core",
+ "candle-nn",
+ "fancy-regex",
+ "num-traits",
+ "rand",
+ "rayon",
+ "serde",
+ "serde_json",
+ "serde_plain",
+ "tracing",
 ]
 
 [[package]]
@@ -920,6 +943,8 @@ dependencies = [
 [[package]]
 name = "deformat"
 version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f5dc2d3a65182387850ea2e5277c608f15e1709245fbbb466d366e0154926c9"
 dependencies = [
  "dom_smoothie",
  "html2text",
@@ -1248,6 +1273,17 @@ name = "fallible-streaming-iterator"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+
+[[package]]
+name = "fancy-regex"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72cf461f865c862bb7dc573f643dd6a2b6842f7c30b07882b56bd148cc2761b8"
+dependencies = [
+ "bit-set",
+ "regex-automata",
+ "regex-syntax",
+]
 
 [[package]]
 name = "fastrand"
@@ -3967,6 +4003,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_plain"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ce1fc6db65a611022b23a0dec6975d63fb80a302cb3388835ff02c097258d50"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_spanned"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5739,27 +5784,3 @@ dependencies = [
  "log",
  "simd-adler32",
 ]
-
-[[patch.unused]]
-name = "clump"
-version = "0.5.6"
-
-[[patch.unused]]
-name = "graphops"
-version = "0.4.1"
-
-[[patch.unused]]
-name = "innr"
-version = "0.4.0"
-
-[[patch.unused]]
-name = "lattix"
-version = "0.7.0"
-
-[[patch.unused]]
-name = "logp"
-version = "0.2.2"
-
-[[patch.unused]]
-name = "pare"
-version = "0.2.1"

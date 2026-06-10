@@ -63,6 +63,10 @@ pub enum Error {
     /// Enables `?` propagation from functions returning `crate::Result`.
     #[error(transparent)]
     Core(crate::core::error::Error),
+
+    /// Backend-local error.
+    #[error("backend error: {0}")]
+    Backend(String),
 }
 
 impl Error {

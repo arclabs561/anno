@@ -42,7 +42,9 @@ ndarray = { workspace = true, optional = true }
 lru = { workspace = true, optional = true }
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
+half = { workspace = true, optional = true }
 
 # Semantic text chunking (optional). Uses the `text-splitter` crate, which
 # is the de-facto standard Rust chunker (>1M downloads vs the local `slabs`).
@@ -66,7 +68,8 @@ tempfile = "3"
 criterion = { workspace = true }
 
 [features]
-default = ["onnx"]
+default = ["onnx", "heuristic-fr"]
+heuristic-fr = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
 analysis = []
@@ -96,6 +99,17 @@ onnx-coreml = ["onnx", "ort/coreml"]
 # known ort failure mode when cudart.so is missing. Validate with
 # `examples/onnx_gpu_smoke.rs` on a real GPU host.
 onnx-cuda = ["onnx", "ort/cuda"]
+# fastino-ai GLiNER2 backend (issue #18). Loads `fastino/gliner2-*` models
+# via ONNX. WIP / experimental — no API stability guarantees. Implements
+# Model + ZeroShotNER and an internal classify() method.
+gliner2-fastino = ["onnx", "dep:half"]
+gliner2-fastino-cuda    = ["gliner2-fastino", "onnx-cuda"]
+gliner2-fastino-coreml  = ["gliner2-fastino", "onnx-coreml"]
+# Phase 4: Candle backend with PEFT LoRA adapter merge-at-load.
+# Uses candle-transformers::models::debertav2 for the encoder.
+gliner2-fastino-candle       = ["gliner2-fastino", "candle", "dep:candle-transformers"]
+gliner2-fastino-candle-cuda  = ["gliner2-fastino-candle", "candle-core/cuda", "candle-transformers/cuda"]
+gliner2-fastino-candle-metal = ["gliner2-fastino-candle", "candle-core/metal", "candle-transformers/metal"]
 candle = [
   "dep:candle-core",
   "dep:candle-nn",
@@ -133,6 +147,19 @@ harness = false
 name = "coref"
 harness = false
 
+[[bench]]
+name = "gliner2_fastino_iobinding"
+harness = false
+required-features = ["gliner2-fastino"]
+
+# The demo's whole body is behind `#![cfg(feature = "gliner2-fastino-candle")]`,
+# so without the feature it has no `main` and `cargo check --all-targets`
+# fails with E0601. Gate it the same way the iobinding bench is gated.
+[[example]]
+name = "gliner2_candle_lora_demo"
+required-features = ["gliner2-fastino-candle"]
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
