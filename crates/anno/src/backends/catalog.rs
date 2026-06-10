@@ -284,6 +284,32 @@ pub static BACKEND_CATALOG: &[BackendInfo] = &[
         recommended_models: &[crate::models::GLINER_POLY],
     },
     BackendInfo {
+        name: "gliner2_fastino",
+        feature: Some("gliner2-fastino"),
+        status: BackendStatus::WIP,
+        zero_shot: true,
+        gpu_support: true,
+        description: "fastino-ai GLiNER2 (NER + classification + structure extraction; IoBinding mode opt-in) — experimental, issue #18",
+        recommended_models: &[
+            "fastino/gliner2-multi-v1",
+            "fastino/gliner2-large-v1",
+            "fastino/gliner2-base-v1",
+        ],
+    },
+    BackendInfo {
+        name: "gliner2_fastino_candle",
+        feature: Some("gliner2-fastino-candle"),
+        status: BackendStatus::WIP,
+        zero_shot: true,
+        gpu_support: true,
+        description: "fastino-ai GLiNER2 with PEFT LoRA adapter merge-at-load (Candle backend, multi-domain inference) — experimental, issue #18 / Phase 4",
+        recommended_models: &[
+            "fastino/gliner2-multi-v1",
+            "fastino/gliner2-large-v1",
+            "fastino/gliner2-base-v1",
+        ],
+    },
+    BackendInfo {
         name: "gliner_pii",
         feature: Some("onnx"),
         status: BackendStatus::Beta,
@@ -494,5 +520,20 @@ mod tests {
         let gliner = BackendInfo::by_name("gliner").unwrap();
         assert!(gliner.zero_shot);
         assert_eq!(gliner.feature, Some("onnx"));
+    }
+
+    #[test]
+    #[cfg(feature = "gliner2-fastino")]
+    fn catalog_includes_gliner2_fastino_wip() {
+        let entry = BACKEND_CATALOG
+            .iter()
+            .find(|b| b.name == "gliner2_fastino")
+            .expect("gliner2_fastino missing from catalog");
+        assert_eq!(entry.feature, Some("gliner2-fastino"));
+        assert!(matches!(entry.status, BackendStatus::WIP));
+        assert!(entry.zero_shot);
+        assert!(entry
+            .recommended_models
+            .contains(&"fastino/gliner2-multi-v1"));
     }
 }

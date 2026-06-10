@@ -45,11 +45,19 @@ fn assert_entity_invariants(entities: &[Entity], text: &str) {
         assert!(!e.text.is_empty(), "entity text must be non-empty");
 
         // Extracted text should match entity text
-        let extracted: String = text.chars().skip(e.start()).take(e.end() - e.start()).collect();
+        let extracted: String = text
+            .chars()
+            .skip(e.start())
+            .take(e.end() - e.start())
+            .collect();
         assert_eq!(
-            extracted, e.text,
+            extracted,
+            e.text,
             "span [{},{}) = {:?} vs entity {:?}",
-            e.start(), e.end(), extracted, e.text
+            e.start(),
+            e.end(),
+            extracted,
+            e.text
         );
     }
 }

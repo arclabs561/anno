@@ -83,3 +83,7 @@ path = "src/main.rs"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.dist]
+dist = false  # anno-cli is a developer tool; install via `cargo install anno-cli`. Phase 2A ships anno-rag-bin + anno-privacy-gateway only.
+

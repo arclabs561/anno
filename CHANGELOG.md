@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `anno`: GLiNER2-Fastino backend (issue #18), contributed by @jamon8888. New cargo features: `gliner2-fastino` (ONNX, with IoBinding execution mode), `gliner2-fastino-cuda` / `-coreml` (EP variants), and `gliner2-fastino-candle` (pure-Rust Candle path with PEFT LoRA adapter merge-at-load via `load_adapter` / `unload_adapter`), plus `-candle-cuda` / `-candle-metal` device variants. Includes ONNX/Candle parity gates and Standard ≡ IoBinding parity tests.
+- `anno`: `HeuristicFrNer` backend (`heuristic-fr` feature, now in defaults) for French organizations, addresses, dates, and international IBANs.
+- `anno`: PII span handling fixes: overlapping PII spans are fused instead of dropped, and the original text is re-derived from source text after fusion.
+
+### Changed
+
+- `anno`: `grounded.rs` (6005 lines) split into 5 focused modules under `core/grounded/`; coref `algorithm.rs` (4934 lines) split into features + scoring modules. No public-API changes intended.
+- Workspace `rand` bumped 0.9 -> 0.10; `half = "2"` added to workspace deps (required by gliner2-fastino).
+
 ## [0.10.0] - 2026-04-28
 
 ### Added

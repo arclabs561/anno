@@ -48,7 +48,10 @@
 //! - **ONNX** (recommended): `cargo build --features onnx`
 //! - **Candle** (native): `cargo build --features candle`
 
+#![allow(missing_docs)] // stub implementation; full docs on the real ONNX/Candle structs
+
 use crate::EntityCategory;
+#[allow(unused_imports)] // used only in feature-gated stub/error paths
 use crate::Error;
 use crate::{Entity, EntityType, Language, Result};
 pub(crate) mod relations;
@@ -56,16 +59,23 @@ pub(crate) mod relations;
 /// Reject model IDs that are known to use a different architecture from the one
 /// this backend implements (fastino-ai's GLiNER2). Without this guard, those
 /// models would download successfully and then fail mid-inference with a
-/// cryptic ONNX shape error or a tokenizer-id mismatch. See issue #17.
+/// cryptic ONNX shape error or a tokenizer-id mismatch.
+///
+/// When the `gliner2-fastino` feature is enabled, this guard is a no-op for
+/// `fastino/*` ids — dispatch happens at a higher layer in the loader.
 pub(super) fn check_model_id_is_supported(model_id: &str) -> Result<()> {
     if model_id.starts_with("fastino/") {
+        #[cfg(feature = "gliner2-fastino")]
+        {
+            return Ok(());
+        }
+        #[cfg(not(feature = "gliner2-fastino"))]
         return Err(Error::FeatureNotAvailable(format!(
             "model '{model_id}' uses the fastino-ai GLiNER2 architecture \
-             (Zaratiana et al. 2025, arXiv:2507.18546), which is not yet \
-             supported by the gliner_multitask backend. \
-             gliner_multitask loads GLiNER v1 multi-task models only \
-             (e.g. onnx-community/gliner-multitask-large-v0.5). \
-             See https://github.com/arclabs561/anno/issues/17 for status."
+             (Zaratiana et al. 2025, arXiv:2507.18546). Enable the \
+             `gliner2-fastino` cargo feature to load it: \
+             `cargo build --features gliner2-fastino`. \
+             See https://github.com/arclabs561/anno/issues/18 for status."
         )));
     }
     Ok(())
@@ -494,28 +504,38 @@ mod tests {
 
     #[test]
     fn check_model_id_is_supported_rejects_fastino_models() {
-        // Mirror the issue #17 surface: a user trying any fastino/gliner2-* model
-        // should get a clear, actionable error pointing at the issue, not a
-        // cryptic ONNX shape error after the model downloads.
         for id in [
             "fastino/gliner2-multi-v1",
             "fastino/gliner2-base-v1",
             "fastino/gliner2-large-v1",
         ] {
-            let err = check_model_id_is_supported(id).unwrap_err();
-            let msg = err.to_string();
-            assert!(
-                msg.contains("fastino-ai GLiNER2 architecture"),
-                "{id}: missing architecture mention in: {msg}"
-            );
-            assert!(
-                msg.contains("issues/17"),
-                "{id}: missing issue link in: {msg}"
-            );
-            assert!(
-                matches!(err, Error::FeatureNotAvailable(_)),
-                "{id}: error variant should be FeatureNotAvailable, got: {err:?}"
-            );
+            let result = check_model_id_is_supported(id);
+
+            #[cfg(not(feature = "gliner2-fastino"))]
+            {
+                let err = result.unwrap_err();
+                let msg = err.to_string();
+                assert!(
+                    msg.contains("gliner2-fastino"),
+                    "{id}: missing feature suggestion in: {msg}"
+                );
+                assert!(
+                    msg.contains("issues/18"),
+                    "{id}: missing issue link in: {msg}"
+                );
+                assert!(
+                    matches!(err, Error::FeatureNotAvailable(_)),
+                    "{id}: error variant should be FeatureNotAvailable, got: {err:?}"
+                );
+            }
+
+            #[cfg(feature = "gliner2-fastino")]
+            {
+                assert!(
+                    result.is_ok(),
+                    "{id}: with gliner2-fastino feature, dispatch should be transparent (got {result:?})"
+                );
+            }
         }
     }
 
