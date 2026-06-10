@@ -64,6 +64,11 @@ impl BackendFactory {
                 use anno::backends::heuristic_crf::HeuristicCrfNER;
                 Ok(Box::new(HeuristicCrfNER::new()) as Box<dyn Model>)
             }
+            #[cfg(feature = "heuristic-fr")]
+            "heuristic_fr" | "heuristic-fr" | "heuristicfrner" => {
+                use anno::backends::heuristic_fr::HeuristicFrNer;
+                Ok(Box::new(HeuristicFrNer::new()) as Box<dyn Model>)
+            }
 
             // ONNX backends
             #[cfg(feature = "onnx")]

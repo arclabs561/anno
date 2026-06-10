@@ -216,6 +216,10 @@ pub enum ModelBackend {
     /// Universal NER: LLM-based zero-shot (requires API key)
     #[value(alias = "universal-ner", hide = true)]
     UniversalNer,
+    /// French-specific heuristic NER (orgs, addresses, dates, intl IBANs)
+    #[cfg(feature = "heuristic-fr")]
+    #[value(alias = "heuristic_fr")]
+    HeuristicFr,
 
     // === ONNX Feature Required ===
     /// GLiNER via ONNX (enabled by default; disable with --no-default-features)
@@ -293,6 +297,8 @@ Use `--model gliner` instead."
                 Self::Hmm => "hmm",
                 Self::Ensemble => "ensemble",
                 Self::HeuristicCrf => "heuristic_crf",
+                #[cfg(feature = "heuristic-fr")]
+                Self::HeuristicFr => "heuristic_fr",
                 Self::Tplinker => "tplinker",
                 Self::UniversalNer => "universal_ner",
                 // ONNX
@@ -339,6 +345,8 @@ Use `--model gliner` instead."
                 Self::Hmm => Ok(Box::new(anno::backends::hmm::HmmNER::new())),
                 Self::Ensemble => Ok(Box::new(anno::backends::ensemble::EnsembleNER::default())),
                 Self::HeuristicCrf => Ok(Box::new(anno::backends::heuristic_crf::HeuristicCrfNER::new())),
+                #[cfg(feature = "heuristic-fr")]
+                Self::HeuristicFr => Ok(Box::new(anno::backends::heuristic_fr::HeuristicFrNer::new())),
                 Self::Tplinker => anno::backends::tplinker::TPLinker::new()
                     .map(|m| Box::new(m) as Box<dyn anno::Model>)
                     .map_err(|e| format!("Failed to create TPLinker: {}\n  Tip: Use 'anno models info tplinker' to check model status.", e)),
@@ -512,6 +520,8 @@ Use `--model gliner` instead."
             Self::Hmm => "hmm",
             Self::Ensemble => "ensemble",
             Self::HeuristicCrf => "heuristic-crf",
+            #[cfg(feature = "heuristic-fr")]
+            Self::HeuristicFr => "heuristic-fr",
             Self::Tplinker => "tplinker",
             Self::UniversalNer => "universal-ner",
             // ONNX

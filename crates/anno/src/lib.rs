@@ -197,6 +197,9 @@ mod sealed {
     impl Sealed for super::backends::hmm::HmmNER {}
     impl Sealed for super::backends::heuristic_crf::HeuristicCrfNER {}
 
+    #[cfg(feature = "heuristic-fr")]
+    impl Sealed for super::backends::heuristic_fr::HeuristicFrNer {}
+
     #[cfg(feature = "gliner2-fastino")]
     impl Sealed for super::backends::gliner2_fastino::GLiNER2Fastino {}
 
@@ -870,6 +873,9 @@ pub fn available_backends() -> Vec<(&'static str, bool)> {
                 Some("onnx") => cfg!(feature = "onnx"),
                 Some("candle") => cfg!(feature = "candle"),
                 Some("llm") => cfg!(feature = "llm"),
+                Some("heuristic-fr") => cfg!(feature = "heuristic-fr"),
+                Some("gliner2-fastino") => cfg!(feature = "gliner2-fastino"),
+                Some("gliner2-fastino-candle") => cfg!(feature = "gliner2-fastino-candle"),
                 // Unknown/planned feature gates -- not yet in Cargo.toml.
                 Some(_) => false,
             };

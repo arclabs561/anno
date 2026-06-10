@@ -76,6 +76,7 @@ tempfile = "3"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [features]
+heuristic-fr = ["anno/heuristic-fr"]
 default = []
 parallel = ["dep:rayon"]
 # Muxer-backed evaluation harnesses + sampling tooling.

@@ -98,6 +98,39 @@ impl ZeroShotNER for HeuristicFrNer {
     }
 }
 
+impl crate::Model for HeuristicFrNer {
+    fn extract_entities(
+        &self,
+        text: &str,
+        _language: Option<crate::Language>,
+    ) -> crate::Result<Vec<Entity>> {
+        self.extract_with_types(text, DEFAULT_TYPES, 0.0)
+    }
+
+    fn supported_types(&self) -> Vec<EntityType> {
+        use crate::core::entity::EntityCategory;
+        vec![
+            EntityType::Organization,
+            EntityType::Date,
+            EntityType::custom("address", EntityCategory::Place),
+            EntityType::custom("date_of_birth", EntityCategory::Temporal),
+            EntityType::custom("iban", EntityCategory::Numeric),
+        ]
+    }
+
+    fn is_available(&self) -> bool {
+        true
+    }
+
+    fn name(&self) -> &'static str {
+        "heuristic_fr"
+    }
+
+    fn description(&self) -> &'static str {
+        "French-specific heuristic NER (orgs, addresses, dates, intl IBANs)"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
