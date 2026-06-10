@@ -32,7 +32,7 @@ bitflags = "2"
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
 textprep = "0.1"
 clump = "0.5"
-innr = "0.2"
+innr = "0.4"
 
 ## Clustering / stratification
 #
