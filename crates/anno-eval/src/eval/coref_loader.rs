@@ -1535,7 +1535,23 @@ fn parse_ecb_plus_xml(xml: &str, topic: &str, doc_name: &str) -> Result<CorefDoc
                 // Empty source/target already handled above
             }
             Ok(Event::Text(ref e)) if in_token => {
-                current_token_text.push_str(&e.unescape().unwrap_or_default());
+                current_token_text.push_str(&e.xml_content().unwrap_or_default());
+            }
+            // quick-xml >= 0.38 no longer expands entities inside Text events;
+            // they arrive as separate GeneralRef events.
+            Ok(Event::GeneralRef(ref e)) if in_token => {
+                if let Ok(Some(ch)) = e.resolve_char_ref() {
+                    current_token_text.push(ch);
+                } else {
+                    match e.decode().unwrap_or_default().as_ref() {
+                        "amp" => current_token_text.push('&'),
+                        "lt" => current_token_text.push('<'),
+                        "gt" => current_token_text.push('>'),
+                        "quot" => current_token_text.push('"'),
+                        "apos" => current_token_text.push('\''),
+                        _ => {}
+                    }
+                }
             }
             Ok(Event::End(ref e)) => {
                 let name = e.name();
