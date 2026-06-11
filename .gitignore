@@ -201,3 +201,4 @@ docs/generated/
 # Note: Cargo.lock is intentionally tracked because anno-cli is a binary
 # (per ~/.claude/references/publish-and-push.md: "libraries gitignore it,
 # binaries track it"). The workspace shares one Cargo.lock at root.
+/semver-checks/
