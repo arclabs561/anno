@@ -16,12 +16,24 @@ categories = ["text-processing"]
 doctest = false
 
 [[bin]]
+name = "classical_e2e"
+test = false
+path = "src/bin/classical_e2e.rs"
+
+[[bin]]
+name = "muxer_agg"
+test = false
+path = "src/bin/muxer_agg.rs"
+
+[[bin]]
 name = "muxer_repeat"
+test = false
 path = "src/bin/muxer_repeat.rs"
 required-features = ["eval"]
 
 [[bin]]
 name = "muxer_audit"
+test = false
 path = "src/bin/muxer_audit.rs"
 
 [[example]]
