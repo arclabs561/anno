@@ -12,6 +12,10 @@ keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
   "/src/**/*.rs",
+  # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
+  # whitelist shipped 0.10.0 without them, breaking those features on crates.io
+  "/src/backends/hmm_params.json",
+  "/src/backends/crf_weights.json",
   "/Cargo.toml",
   "/Cargo.lock",
   "/LICENSE",

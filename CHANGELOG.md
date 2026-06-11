@@ -2,6 +2,10 @@
 
 ## [0.11.0] - 2026-06-10
 
+### Fixed
+
+- `anno`'s package `include` whitelist only shipped `src/**/*.rs`, so `bundled-hmm-params` and `bundled-crf-weights` did not compile from crates.io (their `include_str!` JSON assets were missing from the package, 0.10.0 and earlier). Both assets now ship; CI guards the packaged file list.
+
 ### Added
 
 - `anno`: GLiNER2-Fastino backend (issue #18), contributed by @jamon8888. New cargo features: `gliner2-fastino` (ONNX, with IoBinding execution mode), `gliner2-fastino-cuda` / `-coreml` (EP variants), and `gliner2-fastino-candle` (pure-Rust Candle path with PEFT LoRA adapter merge-at-load via `load_adapter` / `unload_adapter`), plus `-candle-cuda` / `-candle-metal` device variants. Includes ONNX/Candle parity gates and Standard ≡ IoBinding parity tests.

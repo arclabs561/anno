@@ -36,6 +36,12 @@ jobs:
 
       - name: cargo-semver-checks
         uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          # The published 0.10.0 baseline does not compile with the bundled-*
+          # features (its package is missing the JSON assets; fixed in 0.11.0),
+          # so all-features baseline builds fail forever. Default features are
+          # the supported gate.
+          feature-group: default-features
 
       - name: Authenticate (Trusted Publishing)
         id: auth
