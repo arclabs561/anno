@@ -1086,3 +1086,17 @@ jobs:
         with:
           name: publish-validation-report
           path: publish-validation-report.md
+
+  packaged-assets:
+    name: Packaged assets present
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      # bundled-* features include_str! these; the include whitelist once
+      # shipped without them (broken on crates.io despite green local builds)
+      - name: bundled assets in cargo package
+        run: |
+          cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
+          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
+          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
