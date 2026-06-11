@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- `anno-eval`: zip 2 -> 7, quick-xml 0.37 -> 0.39 (quick-xml >= 0.38 no longer expands entities inside Text events; the coref XML loader now handles `Event::GeneralRef` explicitly). Workspace toml 0.8 -> 1.
+- New `crates/anno-py`: PyO3 bindings v0 (issue #20), heuristic backends only, not published.
+
 ## [0.11.0] - 2026-06-10
 
 ### Fixed
