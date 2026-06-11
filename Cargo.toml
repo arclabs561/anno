@@ -6,7 +6,7 @@
 # (2026-04-26) folded anno-core, anno-metrics, and anno-graph into the main
 # `anno` crate. anno-eval and anno-cli stay separate.
 #
-members = ["crates/anno", "crates/anno-eval", "crates/anno-cli"]
+members = ["crates/anno", "crates/anno-eval", "crates/anno-cli", "crates/anno-py"]
 resolver = "2"
 
 [workspace.package]

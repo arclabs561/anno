@@ -1,0 +1,35 @@
+[package]
+name = "anno-py"
+# Independent version: wheels ship to PyPI via maturin, not crates.io.
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Python bindings for anno"
+# Not published to crates.io: the artifact is a PyPI wheel built by maturin.
+# (The path dep on `anno` has no version, which also blocks cargo publish.)
+publish = false
+
+[lib]
+name = "anno_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+# abi3-py39: one wheel per platform covers Python 3.9+.
+pyo3 = { version = "0.28.2", features = ["abi3-py39"] }
+# default-features = false drops `onnx` (ort C++ runtime + model downloads).
+# StackedNER then stacks RegexNER + HeuristicNER: zero deps, works offline.
+# `heuristic-fr` is pattern-based (no models, no deps), kept to match the
+# crate's default set minus onnx.
+anno = { path = "../anno", default-features = false, features = ["heuristic-fr"] }
+
+[features]
+default = []
+# Enabled by maturin (see pyproject.toml). Off by default so
+# `cargo check -p anno-py` and `cargo test` link normally.
+extension-module = ["pyo3/extension-module"]
+
+[lints]
+workspace = true
