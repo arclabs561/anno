@@ -15,6 +15,12 @@ publish = false
 [lib]
 name = "anno_py"
 crate-type = ["cdylib"]
+# No Rust unit tests live here (Python-side tests cover the bindings), so
+# skip the empty pyo3-linked test harness that `cargo test --workspace`
+# would otherwise compile and link on every anno change. Same pattern as
+# the `test = false` bins in anno-eval.
+test = false
+doctest = false
 
 [dependencies]
 # abi3-py39: one wheel per platform covers Python 3.9+.

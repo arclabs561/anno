@@ -39,7 +39,6 @@ textprep = "0.1"
 # CLI dependencies
 clap = { version = "4", features = ["derive", "env", "wrap_help"] }
 clap_complete = "4"
-is-terminal = "0.4"
 glob = "0.3"
 indicatif = "0.17"
 toml = "1"
