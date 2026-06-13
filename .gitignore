@@ -113,9 +113,10 @@ runctl.toml
 reports/spot/result-*.txt
 reports/spot/result-*.json
 
-# Test binaries and artifacts
-test_*
-test_profiling*
+# Test binaries and artifacts (root-level cargo scratch bins; anchored so
+# nested python test files like crates/anno-py/tests/test_*.py stay tracked)
+/test_*
+/test_profiling*
 
 # Archived documentation (progress docs, old status reports)
 docs/archive/

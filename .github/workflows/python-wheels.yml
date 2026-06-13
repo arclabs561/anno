@@ -81,3 +81,6 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+          # A version tag pushed after a dispatch-publish triggers a second
+          # run over the same artifacts; treat re-uploads as a no-op.
+          skip-existing: true
