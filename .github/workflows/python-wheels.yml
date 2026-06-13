@@ -29,7 +29,10 @@ jobs:
           - { runner: ubuntu-latest, target: x86_64 }
           - { runner: ubuntu-24.04-arm, target: aarch64 }
           - { runner: macos-14, target: aarch64 }
-          - { runner: macos-13, target: x86_64 }
+          # No macos-13 (Intel) wheel: GitHub's free Intel-mac runners are
+          # being deprecated and the job sits queued indefinitely. Apple
+          # Silicon is covered by macos-14; Intel-mac users build from the
+          # sdist. Re-add if there's demand for a prebuilt x86_64 mac wheel.
           - { runner: windows-latest, target: x64 }
     steps:
       - uses: actions/checkout@v6
