@@ -1,0 +1,83 @@
+name: python-wheels
+
+# Builds anno-py wheels (abi3-py39: one wheel per platform, Python 3.9+).
+# Publishes to PyPI via trusted publishing when dispatched with
+# publish=publish or on an anno-py-v* tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Type 'publish' to upload to PyPI"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "anno-py-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.platform.runner }}, ${{ matrix.platform.target }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { runner: ubuntu-latest, target: x86_64 }
+          - { runner: ubuntu-24.04-arm, target: aarch64 }
+          - { runner: macos-14, target: aarch64 }
+          - { runner: macos-13, target: x86_64 }
+          - { runner: windows-latest, target: x64 }
+    steps:
+      - uses: actions/checkout@v6
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: crates/anno-py
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          manylinux: auto
+      - name: smoke test wheel
+        if: matrix.platform.runner == 'ubuntu-latest'
+        run: |
+          python3 -m venv /tmp/smoke
+          /tmp/smoke/bin/pip install --quiet pytest crates/anno-py/dist/*.whl
+          /tmp/smoke/bin/pytest crates/anno-py/tests -q
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-${{ matrix.platform.runner }}-${{ matrix.platform.target }}
+          path: crates/anno-py/dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: PyO3/maturin-action@v1
+        with:
+          working-directory: crates/anno-py
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: crates/anno-py/dist
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/anno-py-v') || inputs.publish == 'publish'
+    needs: [build, sdist]
+    runs-on: ubuntu-latest
+    # PyPI trusted publisher is configured against this environment name.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
