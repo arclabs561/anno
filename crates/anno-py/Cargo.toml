@@ -24,7 +24,7 @@ doctest = false
 
 [dependencies]
 # abi3-py39: one wheel per platform covers Python 3.9+.
-pyo3 = { version = "0.28.2", features = ["abi3-py39"] }
+pyo3 = { version = "0.29", features = ["abi3-py39"] }
 # default-features = false drops `onnx` (ort C++ runtime + model downloads).
 # StackedNER then stacks RegexNER + HeuristicNER: zero deps, works offline.
 # `heuristic-fr` is pattern-based (no models, no deps), kept to match the
