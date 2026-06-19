@@ -966,6 +966,10 @@ jobs:
     needs: [cargo-deny, unused-deps, safety-report, opengrep, nlp-ml-patterns]
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
     if: always()
     steps:
       - uses: actions/checkout@v6
@@ -984,7 +988,8 @@ jobs:
           name: static-analysis-summary
           path: static-analysis-failures-summary.md
       - name: Comment on PR
-        if: github.event_name == 'pull_request' && always()
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
+        continue-on-error: true
         uses: actions/github-script@v9
         with:
           script: |
