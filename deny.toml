@@ -45,6 +45,9 @@ exceptions = [
     # Root certificate bundles use data licensing.
     { crate = "webpki-root-certs", allow = ["CDLA-Permissive-2.0"] },
     { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+
+    # Build-time target metadata via PyO3.
+    { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
 ]
 
 [licenses.private]
@@ -77,4 +80,3 @@ allow-git = []
 github = ["arclabs561"]
 gitlab = []
 bitbucket = []
-
