@@ -68,7 +68,7 @@ dirs = { workspace = true }
 ureq = { workspace = true, features = ["json"] }
 rusqlite = { workspace = true }
 sha2 = { workspace = true }
-zip = { version = "7", default-features = false, features = ["deflate"] }
+zip = { version = "8", default-features = false, features = ["deflate"] }
 quick-xml = "0.39"
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
