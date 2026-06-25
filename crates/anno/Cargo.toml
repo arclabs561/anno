@@ -50,8 +50,7 @@ candle-transformers = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 half = { workspace = true, optional = true }
 
-# Semantic text chunking (optional). Uses the `text-splitter` crate, which
-# is the de-facto standard Rust chunker (>1M downloads vs the local `slabs`).
+# Semantic text chunking (optional).
 text-splitter = { version = "0.28", optional = true }
 
 # Graph/KG export (optional). Adapters from extraction output to `lattix::KnowledgeGraph`.
@@ -166,4 +165,3 @@ required-features = ["gliner2-fastino-candle"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
