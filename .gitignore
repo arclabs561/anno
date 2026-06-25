@@ -87,6 +87,9 @@ debug_entities
 # Local real-data fixtures (may have redistribution restrictions; keep local-only)
 hack/real_data/
 
+# Datasets fetched by example scripts/fetch_*.sh (examples only)
+crates/*/data/
+
 # Temporary files
 *.tmp
 *.bak

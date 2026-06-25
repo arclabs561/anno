@@ -387,8 +387,7 @@ impl BertNEROnnx {
             if *byte_start > 0 {
                 let char_offset = text[..*byte_start].chars().count();
                 for e in &mut chunk_entities {
-                    e.set_start(e.start() + char_offset);
-                    e.set_end(e.end() + char_offset);
+                    e.shift_by(char_offset); // atomic; avoids transient span inversion
                 }
             }
             all_entities.extend(chunk_entities);

@@ -1119,6 +1119,48 @@ mod tests {
         }
     }
 
+    /// Regression: backends map chunk-LOCAL spans to global coordinates by
+    /// shifting each entity by the chunk's `char_offset`. When a later chunk's
+    /// offset exceeds an entity's local end, doing this as set_start-then-set_end
+    /// transiently inverts the span and panics (observed running GLiNER on long
+    /// documents). The supported `Entity::shift_by` shifts atomically; this test
+    /// exercises that pattern across multiple chunks with offset >> local end.
+    #[test]
+    fn test_extract_chunked_parallel_local_then_shift_no_inversion() {
+        let text: String = "x".repeat(120);
+        let config = ChunkConfig {
+            chunk_size: 30,
+            overlap: 10,
+            respect_sentences: false,
+            buffer_size: 100,
+        };
+        let expected_offsets: Vec<usize> = chunk_text(&text, &config)
+            .iter()
+            .map(|c| c.char_offset)
+            .collect();
+        // Offsets must actually exceed the local end (5) to cover the regression.
+        assert!(expected_offsets.iter().any(|&o| o > 5));
+
+        // Mock mirrors the real backends: build a chunk-LOCAL entity, then shift.
+        let result = extract_chunked_parallel(&text, &config, |_chunk, char_offset| {
+            let mut e = Entity::new("token", EntityType::Organization, 5, 10, 0.9);
+            e.shift_by(char_offset);
+            Ok(vec![e])
+        });
+
+        let entities = result.expect("chunked extraction must not panic or error");
+        for off in &expected_offsets {
+            assert!(
+                entities
+                    .iter()
+                    .any(|e| e.start() == 5 + off && e.end() == 10 + off),
+                "global span [{}, {}] missing",
+                5 + off,
+                10 + off
+            );
+        }
+    }
+
     /// When the mock returns the *same global span* from two chunks (boundary
     /// dedup scenario), `extract_chunked_parallel` must keep only one copy.
     #[test]

@@ -51,6 +51,11 @@ name = "cdcr_eval"
 path = "examples/cdcr_eval.rs"
 required-features = ["eval"]
 
+[[example]]
+name = "wnut_ner_f1"
+path = "examples/wnut_ner_f1.rs"
+required-features = ["onnx", "eval"]
+
 [dependencies]
 anno = { path = "../anno", version = "0.11.0", default-features = false, features = [
   "analysis",
