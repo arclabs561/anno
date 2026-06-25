@@ -124,8 +124,11 @@ impl crate::Model for GLiNEROnnx {
                 return extract_chunked_parallel(text, &config, |chunk_text, char_offset| {
                     let mut entities = self.extract(chunk_text, DEFAULT_GLINER_LABELS, 0.5)?;
                     for e in &mut entities {
-                        e.set_start(e.start() + char_offset);
-                        e.set_end(e.end() + char_offset);
+                        // Map chunk-local spans to document-global coordinates.
+                        // Must be atomic: a sequential set_start/set_end would
+                        // transiently invert the span (set_start exceeds the
+                        // not-yet-shifted end) and trip the inversion assert.
+                        e.shift_by(char_offset);
                     }
                     Ok(entities)
                 });

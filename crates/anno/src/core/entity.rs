@@ -1872,6 +1872,29 @@ impl Entity {
         self.end = end;
     }
 
+    /// Shift the entity's character span by `offset`, e.g. to map a chunk-local
+    /// span into document-global coordinates after chunked extraction.
+    ///
+    /// Moves `start`, `end`, and any discontinuous-span segments together, so the
+    /// span is never transiently inverted. Prefer this over calling
+    /// [`set_start`](Self::set_start) then [`set_end`](Self::set_end): shifting
+    /// both bounds up sequentially makes `set_start` briefly exceed the
+    /// not-yet-shifted `end` and trips the inversion debug-assert. The visual
+    /// span is a bounding box, not a character range, and is left unchanged.
+    #[inline]
+    pub fn shift_by(&mut self, offset: usize) {
+        self.start += offset;
+        self.end += offset;
+        if let Some(ds) = &self.discontinuous_span {
+            let shifted: Vec<std::ops::Range<usize>> = ds
+                .segments()
+                .iter()
+                .map(|r| (r.start + offset)..(r.end + offset))
+                .collect();
+            self.discontinuous_span = Some(DiscontinuousSpan::new(shifted));
+        }
+    }
+
     /// Create a new entity with provenance information.
     #[must_use]
     pub fn with_provenance(
@@ -3762,6 +3785,28 @@ mod proptests {
         let json = r#"{"Other":"foo"}"#;
         let et: EntityType = serde_json::from_str(json).unwrap();
         assert_eq!(et, EntityType::custom("foo", EntityCategory::Misc));
+    }
+
+    #[test]
+    fn shift_by_maps_local_span_to_global_without_inversion() {
+        // Chunk-local span with a LARGE document offset. The regressed pattern
+        // (set_start then set_end) would set start above the not-yet-shifted end
+        // and trip the inversion debug-assert; shift_by moves both atomically.
+        let mut e = Entity::new("token", EntityType::Organization, 5, 20, 0.9);
+        e.shift_by(246_600);
+        assert_eq!(e.start(), 246_605);
+        assert_eq!(e.end(), 246_620);
+
+        // Discontinuous-span segments shift with the primary span.
+        let mut d = Entity::new("ny la", EntityType::Location, 0, 16, 0.9);
+        d.set_discontinuous_span(DiscontinuousSpan::new(vec![0..2, 14..16]));
+        d.shift_by(1000);
+        assert_eq!(d.start(), 1000);
+        assert_eq!(d.end(), 1016);
+        assert_eq!(
+            d.discontinuous_span.as_ref().unwrap().segments(),
+            &[1000..1002, 1014..1016]
+        );
     }
 
     #[test]
