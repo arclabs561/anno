@@ -46,16 +46,18 @@ pub fn run(args: AnalyzeArgs) -> Result<(), String> {
     );
     println!();
 
-    let mut backends = vec![
+    let backends = vec![
         ModelBackend::Pattern,
         ModelBackend::Heuristic,
         ModelBackend::Stacked,
     ];
     #[cfg(feature = "onnx")]
-    {
+    let backends = {
+        let mut backends = backends;
         backends.push(ModelBackend::BertOnnx);
         backends.push(ModelBackend::Nuner);
-    }
+        backends
+    };
 
     let mut all_results: HashMap<String, Vec<Entity>> = HashMap::new();
 
