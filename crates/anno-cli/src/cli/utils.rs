@@ -152,7 +152,7 @@ fn sanitize_input(input: &str) -> String {
 /// Read a file with consistent error handling.
 ///
 /// If the file looks like a PDF (by extension or `%PDF` magic bytes), extracts text
-/// via `pdf-extract` (requires the `pdf` feature).
+/// via `deformat` (requires the `pdf` feature).
 ///
 /// If the file looks like HTML (based on content sniffing or `.html`/`.htm` extension),
 /// automatically strips tags and extracts text -- same logic as `--url` uses.
