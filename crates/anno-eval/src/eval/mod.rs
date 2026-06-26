@@ -756,6 +756,9 @@ pub fn load_conll2003<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEn
     let mut current_text = String::new();
     let mut current_entities: Vec<GoldEntity> = Vec::new();
     let mut char_offset = 0;
+    // Entity type of the immediately preceding token (None if it was O / sentence
+    // start), needed to distinguish IOB1 entity starts from continuations.
+    let mut prev_token_entity: Option<EntityType> = None;
 
     for line in content.lines() {
         if line.trim().is_empty() {
@@ -766,6 +769,7 @@ pub fn load_conll2003<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEn
             current_text.clear();
             current_entities.clear();
             char_offset = 0;
+            prev_token_entity = None;
             continue;
         }
 
@@ -788,53 +792,58 @@ pub fn load_conll2003<P: AsRef<Path>>(path: P) -> Result<Vec<(String, Vec<GoldEn
         char_offset += word.chars().count();
         let word_end = char_offset;
 
-        // Parse NER tag
-        if ner_tag != "O" {
-            let (prefix, entity_type_str) = if let Some(dash_pos) = ner_tag.find('-') {
-                (&ner_tag[..dash_pos], &ner_tag[dash_pos + 1..])
-            } else {
-                continue;
-            };
-
-            let entity_type = match entity_type_str {
-                "PER" => EntityType::Person,
-                "ORG" => EntityType::Organization,
-                "LOC" => EntityType::Location,
-                "MISC" => EntityType::custom("misc", EntityCategory::Misc),
-                "DATE" => EntityType::Date,
-                "MONEY" => EntityType::Money,
-                "PERCENT" => EntityType::Percent,
-                _ => continue,
-            };
-
-            if prefix == "B" {
-                // Beginning of entity - start new entity
-                current_entities.push(GoldEntity::with_span(
-                    word,
-                    entity_type,
-                    word_start,
-                    word_end,
-                ));
-            } else if prefix == "I" {
-                // Inside entity - extend last entity if same type
-                if let Some(last) = current_entities.last_mut() {
-                    if entity_type_matches(&last.entity_type, &entity_type) {
-                        // Extend entity
-                        last.text.push(' ');
-                        last.text.push_str(word);
-                        last.end = word_end;
-                    } else {
-                        // Different type - start new entity
-                        current_entities.push(GoldEntity::with_span(
-                            word,
-                            entity_type,
-                            word_start,
-                            word_end,
-                        ));
-                    }
-                }
-            }
+        // Parse NER tag. Handles both IOB1 (the scheme CoNLL-2003 eng.testb
+        // actually uses, where an entity's first token is tagged I-XXX) and IOB2
+        // (entities start with B-XXX). A token continues the previous entity only
+        // when it is tagged I-XXX AND the immediately preceding token was an entity
+        // of the same type; otherwise it starts a new entity. The previous version
+        // only ever extended an existing entity on I-, so a lone I-XXX after an O
+        // (the common case in IOB1) was silently dropped, yielding ~0 entities.
+        if ner_tag == "O" {
+            prev_token_entity = None;
+            continue;
         }
+
+        let Some(dash_pos) = ner_tag.find('-') else {
+            prev_token_entity = None;
+            continue;
+        };
+        let (prefix, entity_type_str) = (&ner_tag[..dash_pos], &ner_tag[dash_pos + 1..]);
+
+        let entity_type = match entity_type_str {
+            "PER" => EntityType::Person,
+            "ORG" => EntityType::Organization,
+            "LOC" => EntityType::Location,
+            "MISC" => EntityType::custom("misc", EntityCategory::Misc),
+            "DATE" => EntityType::Date,
+            "MONEY" => EntityType::Money,
+            "PERCENT" => EntityType::Percent,
+            _ => {
+                prev_token_entity = None;
+                continue;
+            }
+        };
+
+        let continues = prefix == "I"
+            && prev_token_entity
+                .as_ref()
+                .is_some_and(|prev| entity_type_matches(prev, &entity_type));
+
+        if continues {
+            if let Some(last) = current_entities.last_mut() {
+                last.text.push(' ');
+                last.text.push_str(word);
+                last.end = word_end;
+            }
+        } else {
+            current_entities.push(GoldEntity::with_span(
+                word,
+                entity_type.clone(),
+                word_start,
+                word_end,
+            ));
+        }
+        prev_token_entity = Some(entity_type);
     }
 
     // Handle last sentence if file doesn't end with newline
@@ -1023,5 +1032,51 @@ mod tests {
             &EntityType::Person,
             &EntityType::Organization
         ));
+    }
+
+    #[test]
+    fn load_conll2003_extracts_iob1_entities() {
+        // CoNLL-2003 eng.testb uses IOB1: an entity's first (often only) token is
+        // tagged I-XXX, not B-XXX. This mirrors the real data's 4-column layout
+        // (word POS chunk NER) and asserts entities are recovered, including
+        // multi-token merges and adjacent same-type entities split by an O.
+        let content = "-DOCSTART- -X- -X- O\n\
+            \n\
+            SOCCER NN I-NP O\n\
+            JAPAN NNP I-NP I-LOC\n\
+            GET VB I-VP O\n\
+            CHINA NNP I-NP I-PER\n\
+            \n\
+            Peter NNP I-NP I-PER\n\
+            Smith NNP I-NP I-PER\n\
+            works VBZ I-VP O\n\
+            at IN I-PP O\n\
+            European NNP I-NP I-ORG\n\
+            Union NNP I-NP I-ORG\n";
+
+        let path = std::env::temp_dir().join(format!("anno_conll_iob1_{}.txt", std::process::id()));
+        std::fs::write(&path, content).unwrap();
+        let cases = load_conll2003(&path).expect("load");
+        std::fs::remove_file(&path).ok();
+
+        let all: Vec<&GoldEntity> = cases.iter().flat_map(|(_, e)| e.iter()).collect();
+        let texts: Vec<&str> = all.iter().map(|e| e.text.as_str()).collect();
+        assert_eq!(all.len(), 4, "expected 4 IOB1 entities, got {texts:?}");
+        assert!(texts.contains(&"JAPAN"), "{texts:?}");
+        assert!(texts.contains(&"CHINA"), "{texts:?}");
+        assert!(
+            texts.contains(&"Peter Smith"),
+            "multi-token I- entity should merge: {texts:?}"
+        );
+        assert!(texts.contains(&"European Union"), "{texts:?}");
+
+        // Spans must slice back to the entity text (char offsets).
+        for (text, entities) in &cases {
+            let chars: Vec<char> = text.chars().collect();
+            for e in entities {
+                let got: String = chars[e.start..e.end].iter().collect();
+                assert_eq!(got, e.text, "span [{},{}] of {text:?}", e.start, e.end);
+            }
+        }
     }
 }
