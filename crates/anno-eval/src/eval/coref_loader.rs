@@ -1535,7 +1535,7 @@ fn parse_ecb_plus_xml(xml: &str, topic: &str, doc_name: &str) -> Result<CorefDoc
                 // Empty source/target already handled above
             }
             Ok(Event::Text(ref e)) if in_token => {
-                current_token_text.push_str(&e.xml_content().unwrap_or_default());
+                current_token_text.push_str(&e.xml10_content().unwrap_or_default());
             }
             // quick-xml >= 0.38 no longer expands entities inside Text events;
             // they arrive as separate GeneralRef events.
@@ -2146,6 +2146,7 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
   <token t_id="7" sentence="1" number="1">tremor</token>
   <token t_id="8" sentence="1" number="2">was</token>
   <token t_id="9" sentence="1" number="3">felt</token>
+  <token t_id="10" sentence="1" number="4">A&amp;B</token>
   <Markables>
     <ACTION_OCCURRENCE m_id="30">
       <token_anchor t_id="2"/>
@@ -2172,6 +2173,7 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
         assert_eq!(doc.doc_id.as_deref(), Some("1_1_1ecb"));
         assert!(doc.text.contains("earthquake"));
         assert!(doc.text.contains("tremor"));
+        assert!(doc.text.contains("A&B"));
 
         // Cluster 30001 should have mentions for "earthquake" (t_id=2) and "tremor" (t_id=7)
         let cluster_30001 = doc.chains.iter().find(|c| {
