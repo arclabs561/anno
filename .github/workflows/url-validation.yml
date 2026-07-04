@@ -1,9 +1,6 @@
 name: URL Validation
 
 on:
-  schedule:
-    # Run weekly on Sunday at midnight UTC
-    - cron: '0 0 * * 0'
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -74,4 +71,3 @@ jobs:
           else:
               print(f"URL validation: {errors}/{total} broken ({100*error_rate:.0f}%)")
           EOF
-
