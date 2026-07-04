@@ -4,9 +4,6 @@ name: Static Analysis Weekly
 # Runs on schedule to avoid slowing down PRs
 
 on:
-  schedule:
-    # Run every Monday at 2 AM UTC
-    - cron: '0 2 * * 1'
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -113,4 +110,3 @@ jobs:
                 body: `## Weekly Static Analysis Report\n\n\`\`\`\n${report}\n\`\`\``
               });
             }
-

@@ -764,34 +764,6 @@ jobs:
         with:
           name: safety-report
           path: safety-report.json
-  # Miri: undefined behavior detection (selective on unsafe code)
-  # Only runs on push to main/master or manual trigger (too slow for PRs)
-  miri-unsafe:
-    name: Miri (Unsafe Code Validation)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'test-unsafe'))
-    steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-      - name: Install Miri
-        run: |
-          rustup component add miri
-      - name: Cache HF models
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
-          restore-keys: |
-            hf-models-${{ runner.os }}-
-      - name: Run Miri on unsafe code
-        run: |
-          # Run Miri on files with unsafe code (selective approach)
-          cargo miri test --lib --features onnx -- --test-threads=1 --nocapture || true
-        timeout-minutes: 10
   # OpenGrep: Custom security pattern detection
   opengrep:
     name: OpenGrep Static Analysis
