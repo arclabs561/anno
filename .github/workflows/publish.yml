@@ -25,14 +25,20 @@ jobs:
       - name: Guard (manual trigger)
         if: github.event_name == 'workflow_dispatch'
         run: |
-          if [ "${{ inputs.confirm }}" != "publish" ]; then
+          if [ "${INPUTS_CONFIRM}" != "publish" ]; then
             echo "Refusing to publish: set workflow input confirm=publish"
             exit 1
           fi
+        env:
+          INPUTS_CONFIRM: ${{ inputs.confirm }}
 
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          lookup-only: true
 
       - name: cargo-semver-checks
         uses: obi1kenobi/cargo-semver-checks-action@v2
