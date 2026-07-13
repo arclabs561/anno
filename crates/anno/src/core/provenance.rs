@@ -610,7 +610,7 @@ mod proptests {
             let json = serde_json::to_string(&source).expect("serialize SourceInfo::Dataset");
             let recovered: SourceInfo = serde_json::from_str(&json).expect("deserialize SourceInfo");
 
-            if let SourceInfo::Dataset { name: n, split: _, .. } = recovered {
+            if let SourceInfo::Dataset { name: n, .. } = recovered {
                 prop_assert_eq!(name, n);
             } else {
                 prop_assert!(false, "Expected Dataset variant");
