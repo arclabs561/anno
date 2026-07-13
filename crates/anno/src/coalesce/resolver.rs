@@ -220,7 +220,7 @@ impl Resolver {
         // Note: Singleton clusters (clusters with only one track) still create identities.
         // This allows tracking entities that appear only once across documents.
         let mut created_ids = Vec::new();
-        for (_, member_indices) in cluster_map.iter() {
+        for member_indices in cluster_map.values() {
             if member_indices.is_empty() {
                 continue;
             }
