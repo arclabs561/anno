@@ -5,6 +5,12 @@ on:
   pull_request:
     branches: [main, master]
   workflow_dispatch: # Manual trigger
+    inputs:
+      max_examples:
+        description: "Optional examples per dataset; leave empty for a full evaluation"
+        required: false
+        default: ""
+        type: string
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -697,7 +703,7 @@ jobs:
       - name: Run full evaluations
         run: ./scripts/eval-full.sh
         env:
-          MAX_EXAMPLES: ${{ github.event.inputs.max_examples || '' }}
+          MAX_EXAMPLES: ${{ inputs.max_examples }}
       - name: Upload full report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
