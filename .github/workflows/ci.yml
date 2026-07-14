@@ -16,8 +16,6 @@ env:
   RUST_BACKTRACE: 1
 permissions:
   contents: read
-  checks: write
-  security-events: write
 jobs:
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
@@ -835,6 +833,9 @@ jobs:
     name: OpenGrep Static Analysis
     runs-on: ubuntu-latest
     continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - name: Install OpenGrep
