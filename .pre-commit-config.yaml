@@ -32,7 +32,7 @@ repos:
     hooks:
       - id: cargo-deny
         name: cargo-deny
-        entry: bash -c 'if command -v cargo-deny &> /dev/null; then cargo deny check; else echo "warning: cargo-deny not installed, skipping"; fi'
+        entry: bash -c 'if command -v cargo-deny &> /dev/null; then cargo deny check; else echo "warning, cargo-deny not installed, skipping"; fi'
         language: system
         pass_filenames: false
         always_run: true
@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: cargo-machete
         name: cargo-machete
-        entry: bash -c 'if command -v cargo-machete &> /dev/null; then ./scripts/static-analysis-common.sh machete; else echo "warning: cargo-machete not installed, skipping"; fi'
+        entry: bash -c 'if command -v cargo-machete &> /dev/null; then ./scripts/static-analysis-common.sh machete; else echo "warning, cargo-machete not installed, skipping"; fi'
         language: system
         pass_filenames: false
         always_run: true
@@ -52,9 +52,8 @@ repos:
     hooks:
       - id: opengrep
         name: opengrep
-        entry: bash -c 'if command -v opengrep &> /dev/null; then opengrep scan --config auto --quiet src/ || true; else echo "warning: opengrep not installed, skipping"; fi'
+        entry: bash -c 'if command -v opengrep &> /dev/null; then opengrep scan --config auto --quiet src/ || true; else echo "warning, opengrep not installed, skipping"; fi'
         language: system
         pass_filenames: false
         always_run: false  # Only run on Rust files
         files: \.rs$
-
