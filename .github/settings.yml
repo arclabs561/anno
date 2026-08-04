@@ -16,12 +16,13 @@ repository:
   delete_branch_on_merge: true
 
   topics:
-    - information-extraction
     - coreference-resolution
+    - information-extraction
     - ner
     - nlp
     - pii-detection
     - relation-extraction
+    - rust
 
 branches:
   - name: main
