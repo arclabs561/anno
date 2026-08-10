@@ -1,3 +1,5 @@
+
+
 # anno
 
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
@@ -120,7 +122,7 @@ anno debug --coref -t "Sophie Wilson designed the ARM. She revolutionized mobile
 # Coreference: "Sophie Wilson" -> "She"
 ```
 
-JSON output with `--format json`. Batch processing with `anno batch`. Graph export (N-Triples, JSON-LD, CSV) with `anno export --features graph`.
+JSON output with `--format json`. Batch processing with `anno batch`. Graph export (N-Triples, JSON-LD, CSV) with `anno export` (requires `cargo install anno-cli --features graph`).
 
 ## Coreference
 
