@@ -764,12 +764,11 @@ jobs:
           name: eval-full-report
           path: eval-full-report.md
   # ==========================================================================
-  # Security audit (cargo-audit - legacy, kept for compatibility)
+  # Security audit
   # ==========================================================================
   audit:
     name: Security Audit (cargo-audit)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -779,12 +778,11 @@ jobs:
           toolchain: "stable"
       # Library crates gitignore Cargo.lock; generate one for the audit scan.
       - run: cargo generate-lockfile
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Note: Unmaintained crate warnings (number_prefix, paste) are expected
-          # This job will show warnings but won't fail the workflow
-          # Actual security vulnerabilities would still be reported
+      - name: Install cargo-audit
+        run: cargo install --locked cargo-audit --version 0.22.2
+      - name: Check RustSec advisories
+        # Vulnerabilities fail; informational advisories remain visible warnings.
+        run: cargo audit
 
   semver-checks:
     name: Cargo Semver Checks
@@ -831,7 +829,7 @@ jobs:
         with:
           cache-all-crates: true
       - name: Install cargo-deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny --version 0.19.0
       - name: Check dependencies
         run: cargo deny check
   # Fast unused dependency detection
