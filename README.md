@@ -25,12 +25,9 @@ let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
 for e in &entities {
     println!("{} [{}] ({},{}) {:.2}", e.text, e.entity_type, e.start(), e.end(), e.confidence);
 }
-// Offline (heuristic only):
-//   Sophie Wilson [PER] (0,13) 0.60
-//   ARM [ORG] (27,30) 0.55
-// With `onnx` enabled and default models cached, the ML backends raise
-// confidences and add entities. `ANNO_NO_DOWNLOADS=1` blocks new
-// HuggingFace fetches but still loads cached or locally-exported models.
+// Results include character offsets and backend-specific confidence scores.
+// `ANNO_NO_DOWNLOADS=1` blocks new Hugging Face fetches but still loads
+// cached or locally exported models.
 # Ok::<(), anno::Error>(())
 ```
 
@@ -62,10 +59,11 @@ credit cards, IBANs, email addresses, and phone numbers.
 
 ## Backends
 
-`StackedNER::default()` selects the best available backend at runtime. With
+`StackedNER::default()` selects an available backend at runtime. With
 default features it tries cached ONNX models when available, then falls back to
-pattern and heuristic extraction. Set `ANNO_NO_DOWNLOADS=1` to prevent new model
-downloads while still allowing cached or local models.
+pattern and heuristic extraction. Confidence scores are backend-specific and
+are not calibrated across backends. Set `ANNO_NO_DOWNLOADS=1` to prevent new
+model downloads while still allowing cached or local models.
 
 Feature flags:
 
@@ -103,7 +101,7 @@ let ents = model.extract_entities("test", None)?;
 ## CLI
 
 ```sh
-cargo install anno-cli --features onnx
+cargo install anno-cli
 ```
 
 ```sh
@@ -114,13 +112,16 @@ anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 
 anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
   --text "Aspirin can treat headaches and reduce fever."
-# drug:1 "Aspirin" symptom:2 "headaches" "fever"
+# Output depends on the installed model weights.
 
 anno debug --coref -t "Sophie Wilson designed the ARM. She revolutionized mobile computing."
 # Coreference: "Sophie Wilson" -> "She"
 ```
 
-JSON output with `--format json`. Batch processing with `anno batch`. Graph export (N-Triples, JSON-LD, CSV) with `anno export --features graph`.
+JSON output with `anno extract --format json`. Batch processing with `anno
+batch`. Graph-oriented exports use `anno export --format ntriples`, `jsonld`,
+or `graph-csv`; `graph-ntriples` additionally requires installing `anno-cli`
+with its `graph` feature.
 
 ## Coreference
 
