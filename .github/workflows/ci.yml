@@ -417,6 +417,16 @@ jobs:
       - run: cargo doc -p anno --no-deps --features discourse
         env:
           RUSTDOCFLAGS: -D warnings
+      # Match the cross-platform feature set selected by docs.rs metadata.
+      # Hardware-specific CUDA, Metal, and CoreML features cannot be built on
+      # docs.rs's generic Linux host.
+      - run: >-
+          cargo doc -p anno --no-deps --no-default-features
+          --features "heuristic-fr analysis discourse schema graph onnx
+          gliner2-fastino gliner2-fastino-candle candle llm production
+          bundled-crf-weights bundled-hmm-params chunking parallel"
+        env:
+          RUSTDOCFLAGS: -D warnings
   # ==========================================================================
   # Property tests (proptest)
   # ==========================================================================
