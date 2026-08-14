@@ -67,7 +67,7 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 deformat = { workspace = true }
 proptest = { workspace = true }
-tempfile = "3"
+tempfile = "3.27.0"
 criterion = { workspace = true }
 
 [features]

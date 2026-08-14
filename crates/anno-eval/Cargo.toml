@@ -84,7 +84,7 @@ candle-nn = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
-tempfile = "3"
+tempfile = "3.27.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [features]
