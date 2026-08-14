@@ -2205,7 +2205,7 @@ impl DatasetLoader {
                         log::warn!(
                             "Download attempt {} failed for {}, retrying in {}s...",
                             attempt + 1,
-                            &url,
+                            url,
                             delay_secs
                         );
                         std::thread::sleep(std::time::Duration::from_secs(delay_secs));
@@ -2221,7 +2221,7 @@ impl DatasetLoader {
                  URL: {}",
                 id.name(),
                 MAX_RETRIES + 1,
-                &url
+                url
             ))
         }))
     }
