@@ -163,5 +163,25 @@ name = "gliner2_candle_lora_demo"
 required-features = ["gliner2-fastino-candle"]
 
 [package.metadata.docs.rs]
-all-features = true
+# Hardware-specific features are mutually platform-bound: in particular,
+# `metal` pulls in `objc2`, which intentionally does not compile on docs.rs's
+# Linux builder. Keep this list aligned with the docs job in ci.yml.
+no-default-features = true
+features = [
+  "heuristic-fr",
+  "analysis",
+  "discourse",
+  "schema",
+  "graph",
+  "onnx",
+  "gliner2-fastino",
+  "gliner2-fastino-candle",
+  "candle",
+  "llm",
+  "production",
+  "bundled-crf-weights",
+  "bundled-hmm-params",
+  "chunking",
+  "parallel",
+]
 rustdoc-args = ["--cfg", "docsrs"]
