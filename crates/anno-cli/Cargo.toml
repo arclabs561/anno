@@ -75,7 +75,7 @@ extractor-readability = ["deformat/readability"]
 extractor-html2text = ["deformat/html2text"]
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "3.27.0"
 
 [[bin]]
 name = "anno"
@@ -87,4 +87,3 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [package.metadata.dist]
 dist = false  # anno-cli is a developer tool; install via `cargo install anno-cli`. Phase 2A ships anno-rag-bin + anno-privacy-gateway only.
-

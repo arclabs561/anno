@@ -26,7 +26,7 @@ thiserror = "2"
 regex = "1"
 chrono = { version = "0.4", features = ["serde"] }
 log = "0.4"
-bitflags = "2"
+bitflags = "2.13.1"
 
 # `textprep` is published on crates.io. For local development with sibling checkouts,
 # merge `.cargo/config.toml.example` into your `.cargo/config.toml` to patch it to a path dependency.
@@ -70,14 +70,14 @@ rayon = "1"
 # Utilities
 itertools = "0.14"
 unicode-normalization = "0.1.25"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "fallible_uint"] }
 
 # Observability
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Testing
-proptest = "1"
+proptest = "1.11.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Local development: see .cargo/config.toml.example for path overrides

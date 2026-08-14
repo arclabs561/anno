@@ -1192,6 +1192,80 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
+    fn test_entry(seed: u64, n: usize) -> EvalHistoryEntry {
+        EvalHistoryEntry {
+            timestamp: "2026-08-13T20:00:00Z".to_string(),
+            backend: "test-backend".to_string(),
+            dataset: "test-dataset".to_string(),
+            task: "NER".to_string(),
+            seed,
+            f1: Some(0.85),
+            precision: Some(0.9),
+            recall: Some(0.8),
+            n,
+            duration_ms: Some(10.0),
+            error: None,
+            metadata: Some("{}".to_string()),
+        }
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn sqlite_round_trips_largest_signed_integer_as_unsigned_fields() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        let boundary = i64::MAX as u64;
+        let entry = test_entry(boundary, boundary as usize);
+
+        history.append_entry(&entry).expect("append failed");
+
+        let stored = history
+            .query_recent("test-backend", 1)
+            .expect("query failed")
+            .pop()
+            .expect("missing stored entry");
+        assert_eq!(stored.seed, boundary);
+        assert_eq!(stored.n, boundary as usize);
+    }
+
+    #[test]
+    fn sqlite_rejects_seed_above_signed_integer_range() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        let entry = test_entry(i64::MAX as u64 + 1, 1);
+
+        let error = history
+            .append_entry(&entry)
+            .expect_err("oversized seed must not be truncated");
+
+        assert!(error.to_string().contains("out of range"));
+        assert!(history
+            .query_recent("test-backend", 1)
+            .expect("query failed")
+            .is_empty());
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn sqlite_rejects_count_above_signed_integer_range() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        let entry = test_entry(1, i64::MAX as usize + 1);
+
+        let error = history
+            .append_entry(&entry)
+            .expect_err("oversized count must not be truncated");
+
+        assert!(error.to_string().contains("out of range"));
+        assert!(history
+            .query_recent("test-backend", 1)
+            .expect("query failed")
+            .is_empty());
+    }
+
     #[test]
     fn test_append_and_load() {
         let temp = TempDir::new().expect("failed to create temp dir");
