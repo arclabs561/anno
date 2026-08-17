@@ -68,7 +68,7 @@ deformat = "0.15"
 rayon = "1"
 
 # Utilities
-itertools = "0.14"
+itertools = "0.15"
 unicode-normalization = "0.1.25"
 rusqlite = { version = "0.40.2", features = ["bundled", "fallible_uint"] }
 
