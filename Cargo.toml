@@ -51,7 +51,7 @@ dirs = "5"
 # ML backends (not optional in workspace - individual crates can make them optional)
 # TODO: upgrade to stable ort 2.0 when released (still RC as of 2026-03)
 ort = "=2.0.0-rc.12"
-tokenizers = "0.22"
+tokenizers = "0.23"
 hf-hub = "0.5"
 ndarray = "0.16"
 lru = "0.18.2"
