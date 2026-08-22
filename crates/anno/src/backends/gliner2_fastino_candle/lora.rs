@@ -76,7 +76,9 @@ pub struct LoraModule {
 /// A loaded PEFT adapter: config + per-module deltas keyed by HF
 /// parameter path (e.g. `encoder.encoder.layer.0.attention.self.query_proj`).
 pub struct LoraAdapter {
+    /// Adapter configuration.
     pub config: LoraConfig,
+    /// Per-module LoRA deltas keyed by parameter path.
     pub modules: HashMap<String, LoraModule>,
 }
 

@@ -1,6 +1,6 @@
 //! Re-exports of the ONNX backend's decoder + supporting types.
 //!
-//! The Candle pipeline produces a [`crate::backends::gliner2_fastino::pipeline::ScorerOutput`]
+//! The Candle pipeline produces a `crate::backends::gliner2_fastino::pipeline::ScorerOutput`
 //! (an `Array4<f32>` of shape `[MAX_COUNT, num_words, MAX_WIDTH, num_labels]`)
 //! that's identical to the ONNX backend's output. From there, decoding
 //! to `Vec<Entity>` / `Vec<ExtractedStructure>` reuses the same logic.

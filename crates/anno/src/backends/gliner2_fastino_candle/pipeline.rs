@@ -3,7 +3,7 @@
 //! Per `docs/dev-notes/gliner2-multi-v1-forward-pass.md`, this composes:
 //!   encoder → token_gather (or schema_gather) → span_rep → count_pred
 //!   → count_lstm → scorer
-//! and packages the final scores as a [`super::decoder::ScorerOutput`]
+//! and packages the final scores as a `super::decoder::ScorerOutput`
 //! matching the ONNX backend's contract so the shared decoder family
 //! decodes it identically.
 
