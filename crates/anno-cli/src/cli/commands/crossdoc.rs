@@ -184,7 +184,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut doc_paths: HashMap<String, String> = HashMap::new(); // doc_id -> file_path
     let mut use_corpus = false;
     let mut corpus = Corpus::new();
-    let clusters_from_corpus: Option<Vec<CrossDocCluster>>; // Will be assigned in conditional branches
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
 
     // Helper function to convert Identity to CrossDocCluster with proper mention extraction
@@ -290,7 +289,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         (cdcr_doc, entity_count)
     }
 
-    if !args.import.is_empty() || args.stdin {
+    let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
+        || args.stdin
+    {
         // Import mode: use Corpus for proper inter-doc coref with GroundedDocuments
         use_corpus = true;
         let mut import_files = Vec::new();
@@ -560,7 +561,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             clusters.truncate(args.max_clusters);
         }
 
-        clusters_from_corpus = Some(clusters);
+        Some(clusters)
     } else {
         // Normal mode: extract from text files, use CDCRResolver (legacy path)
         // Normal mode: extract entities from text files
@@ -714,8 +715,8 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         };
 
         // Store clusters for later use
-        clusters_from_corpus = Some(clusters);
-    }
+        Some(clusters)
+    };
 
     // Use clusters from Corpus if available, otherwise use CDCR clusters
     let final_clusters: Vec<CrossDocCluster> = clusters_from_corpus
