@@ -2,7 +2,7 @@
 #![allow(missing_docs)] // implementation internals; public API is on GLiNER2Fastino in mod.rs
 //!
 //! Adapted from SemplificaAI/gliner2-rs (Apache-2.0):
-//! https://github.com/SemplificaAI/gliner2-rs/blob/main/rust_component/src/lib_v2.rs
+//! <https://github.com/SemplificaAI/gliner2-rs/blob/main/rust_component/src/lib_v2.rs>
 //! Specifically: `Gliner2EngineV2::extract_standard` (lines ~660-897).
 //! Original: Copyright 2026 Dario Finardi, Semplifica s.r.l.
 //!

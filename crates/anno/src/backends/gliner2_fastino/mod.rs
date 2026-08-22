@@ -597,7 +597,7 @@ impl GLiNER2Fastino {
     /// permissive bound on rarer labels).
     ///
     /// A label not present in the input list is **dropped entirely** —
-    /// the underlying [`pipeline::decode_entities_with_thresholds`]
+    /// the underlying `pipeline::decode_entities_with_thresholds`
     /// treats unmapped labels as having threshold `+∞`. To mix
     /// per-label thresholds with a default for the rest, just enumerate
     /// every label.
@@ -662,7 +662,7 @@ impl GLiNER2Fastino {
     /// `FieldType::String` is the only fully-supported field type in
     /// Phase 2. `FieldType::List` and `FieldType::Choice` decode the
     /// same single-best-span treatment as `String` — see
-    /// [`pipeline::decode_structure`] for the TODO markers.
+    /// `pipeline::decode_structure` for the TODO markers.
     pub fn extract_structure(
         &self,
         text: &str,

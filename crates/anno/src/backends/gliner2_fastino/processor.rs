@@ -111,10 +111,10 @@ pub enum SchemaTask {
     /// Each tuple is (label, description). Emits
     /// `[E] <label> [DESCRIPTION] <description>` per pair in the prompt.
     EntitiesDescribed(Vec<(String, String)>),
-    /// Phase 3: classification task. (task_name, labels). Uses [L] tokens.
+    /// Phase 3: classification task. (task_name, labels). Uses `[L]` tokens.
     Classifications(String, Vec<String>),
     /// Phase 2: structured-data extraction. (task_name, [(field_name,
-    /// field_type)]). Uses [C] tokens per field. The model treats each
+    /// field_type)]). Uses `[C]` tokens per field. The model treats each
     /// field as an attribute that may appear 0..MAX_COUNT times in the
     /// text; the scorer's `MAX_COUNT` axis decodes to per-instance
     /// occurrences (see `super::pipeline::decode_structure`).

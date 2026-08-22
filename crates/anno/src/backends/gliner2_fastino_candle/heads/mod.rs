@@ -21,9 +21,13 @@ pub mod token_gather;
 
 /// Container for the four parametric inference heads.
 pub struct AllHeads {
+    /// Span-representation head.
     pub span_rep: span_rep::SpanRep,
+    /// Recurrent count-embedding head.
     pub count_lstm: count_lstm::CountLstmFixed,
+    /// Count-prediction head.
     pub count_pred: count_pred::CountPred,
+    /// Span-classification head.
     pub classifier: classifier::Classifier,
 }
 
