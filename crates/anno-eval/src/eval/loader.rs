@@ -2967,7 +2967,19 @@ impl DatasetLoader {
             use sha2::{Digest, Sha256};
             let mut hasher = Sha256::new();
             hasher.update(content.as_bytes());
-            format!("{:x}", hasher.finalize())
+            // `sha2` 0.10's GenericArray implements LowerHex, while the
+            // generic-array 1 output used by `sha2` 0.11 does not. Encode
+            // the digest bytes directly so the checksum representation stays
+            // stable across both supported dependency versions.
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            hasher
+                .finalize()
+                .iter()
+                .fold(String::with_capacity(64), |mut checksum, &byte| {
+                    checksum.push(HEX[usize::from(byte >> 4)] as char);
+                    checksum.push(HEX[usize::from(byte & 0x0f)] as char);
+                    checksum
+                })
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -7001,6 +7013,18 @@ fn map_entity_type(original: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn test_compute_sha256_uses_stable_lowercase_hex() {
+        let cache = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(cache.path()).unwrap();
+
+        assert_eq!(
+            loader.compute_sha256("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
 
     #[test]
     fn test_dataset_id_basics() {
