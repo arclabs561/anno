@@ -18,6 +18,7 @@
 - Batch cache identity includes source IDs, source text, effective local configuration, and CLI version; runs without a reliable artifact identity bypass caching.
 - Cached extraction preserves floating-point confidence values exactly across JSON roundtrips.
 - Grounded entity conversion assigns track and identity IDs in first-seen order.
+- The lockfile uses patched anyhow 1.0.103 and memmap2 0.9.11 releases for RUSTSEC-2026-0190 and RUSTSEC-2026-0186.
 
 ### Changed
 
