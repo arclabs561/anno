@@ -3,6 +3,7 @@
 use super::super::output::color;
 use super::super::utils::find_similar_models;
 use anno::available_backends;
+use anno::backends::catalog::{BackendInfo, BACKEND_CATALOG};
 use clap::{Parser, Subcommand};
 
 /// List and compare available models
@@ -97,6 +98,34 @@ fn parse_model_backend(s: &str) -> Option<super::super::parser::ModelBackend> {
     }
 }
 
+/// Resolve a CLI spelling to the catalog entry used for informational output.
+///
+/// Exact catalog names win so `gliner_onnx` retains its more specific metadata.
+/// Otherwise, reuse the CLI parser's aliases and normalize its canonical name to
+/// the catalog's underscore-separated convention. This must remain metadata-only:
+/// callers of `models list`, `info`, and `compare` must not instantiate a backend.
+fn resolve_backend_metadata(name: &str) -> Option<&'static BackendInfo> {
+    let normalized = name.to_ascii_lowercase().replace('-', "_");
+    BackendInfo::by_name(&normalized).or_else(|| {
+        parse_model_backend(name).and_then(|backend| {
+            let canonical = backend.name().replace('-', "_");
+            BackendInfo::by_name(&canonical)
+        })
+    })
+}
+
+fn compiled_backends() -> std::collections::HashMap<&'static str, bool> {
+    available_backends().into_iter().collect()
+}
+
+fn build_status(compiled: bool) -> String {
+    if compiled {
+        color("32", "compiled")
+    } else {
+        color("90", "not compiled")
+    }
+}
+
 /// Execute the models command.
 pub fn run(args: ModelsArgs) -> Result<(), String> {
     match args.action {
@@ -105,21 +134,15 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             println!("{}", color("1;36", "Available Models"));
             println!();
 
-            let backends = available_backends();
-            for (name, available) in backends {
-                let status = if available {
-                    color("32", "✓ Available")
-                } else {
-                    color("90", "✗ Not available")
-                };
-                let note = if available {
-                    ""
-                } else {
-                    " (requires feature flag - see anno info)"
-                };
-                println!("  {} {}{}", status, name, note);
+            let compiled = compiled_backends();
+            for info in BACKEND_CATALOG {
+                let is_compiled = compiled.get(info.name).copied().unwrap_or(false);
+                println!("  {} {}", build_status(is_compiled), info.name);
             }
             println!();
+            println!(
+                "Build support reflects Cargo features only; runtime readiness is not checked."
+            );
             println!(
                 "Use 'anno models info <MODEL>' for detailed information about a specific model."
             );
@@ -130,83 +153,44 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             println!("{}: {}", color("1;36", "Model Information"), model);
             println!();
 
-            let backends = available_backends();
-            // Try to find model by exact name or common aliases
-            let model_lower = model.to_lowercase();
-            let found = backends.iter().find(|(n, _)| {
-                n.eq_ignore_ascii_case(&model)
-                    || (model_lower == "stacked" && n.eq_ignore_ascii_case("StackedNER"))
-                    || (model_lower == "pattern" && n.eq_ignore_ascii_case("RegexNER"))
-                    || (model_lower == "heuristic" && n.eq_ignore_ascii_case("HeuristicNER"))
-                    || (model_lower == "gliner" && n.eq_ignore_ascii_case("GLiNEROnnx"))
-                    || (model_lower == "bert" && n.eq_ignore_ascii_case("BertNEROnnx"))
-            });
-
-            let (name, available) = if let Some((n, a)) = found {
-                (*n, *a)
-            } else {
-                // Model not found - provide helpful suggestions
-                let backends_list: Vec<&str> = backends.iter().map(|(n, _)| *n).collect();
+            let info = resolve_backend_metadata(&model).ok_or_else(|| {
+                let backends_list: Vec<&str> = BACKEND_CATALOG.iter().map(|info| info.name).collect();
                 let suggestions = find_similar_models(&model, &backends_list);
                 if !suggestions.is_empty() {
-                    println!("{} Model '{}' not found.", color("33", "!"), model);
-                    println!("Did you mean:");
-                    for sug in &suggestions {
-                        println!("  - {}", sug);
-                    }
-                    println!();
-                    println!("Use 'anno models list' to see all available models.");
+                    format!(
+                        "Model '{}' not found. Did you mean: {}? Use 'anno models list' to see all available models.",
+                        model,
+                        suggestions.join(", ")
+                    )
                 } else {
-                    println!("{} Model '{}' not found.", color("31", "error:"), model);
-                    println!("Use 'anno models list' to see all available models.");
+                    format!(
+                        "Model '{}' not found. Use 'anno models list' to see all available models.",
+                        model
+                    )
                 }
-                return Ok(());
-            };
+            })?;
+            let compiled = compiled_backends().get(info.name).copied().unwrap_or(false);
 
-            if !available {
-                println!(
-                    "{} Model '{}' is not available in this build.",
-                    color("33", "!"),
-                    name
-                );
-                println!("Enable required feature flags and rebuild.");
-                println!();
-                println!("Use 'anno info' to see enabled features.");
-                return Ok(());
+            println!("  Name: {}", info.name);
+            println!("  Build support: {}", build_status(compiled));
+            println!("  Implementation: {}", info.status);
+            println!("  Runtime readiness: not checked");
+            println!("  Description: {}", info.description);
+            println!(
+                "  Zero-shot NER: {}",
+                if info.zero_shot { "yes" } else { "no" }
+            );
+            println!(
+                "  GPU support: {}",
+                if info.gpu_support { "yes" } else { "no" }
+            );
+            if let Some(feature) = info.feature {
+                println!("  Required feature: {}", feature);
             }
-
-            // Show model details
-            println!("  Name: {}", name);
-            println!("  Status: {}", color("32", "Available"));
-            println!();
-
-            // Try to create model instance to get more details
-            use super::super::parser::ModelBackend;
-            let backend = match model_lower.as_str() {
-                "pattern" | "regex" => ModelBackend::Pattern,
-                "heuristic" | "statistical" => ModelBackend::Heuristic,
-                "stacked" => ModelBackend::Stacked,
-                #[cfg(feature = "onnx")]
-                "gliner" => ModelBackend::Gliner,
-                #[cfg(feature = "onnx")]
-                "gliner_multitask" => ModelBackend::GlinerMultitask,
-                _ => {
-                    println!("  Note: Detailed information not available for this model.");
-                    return Ok(());
-                }
-            };
-
-            match backend.create_model() {
-                Ok(m) => {
-                    println!("  Description: {}", m.description());
-                    println!();
-                    println!("  Supported Entity Types:");
-                    for t in m.supported_types() {
-                        println!("    - {}", t.as_label());
-                    }
-                }
-                Err(e) => {
-                    println!("  {} Failed to load model: {}", color("33", "warning:"), e);
+            if !info.recommended_models.is_empty() {
+                println!("  Recommended models:");
+                for model_id in info.recommended_models {
+                    println!("    - {}", model_id);
                 }
             }
             println!();
@@ -215,52 +199,24 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
             println!();
             println!("{}", color("1;36", "Model Comparison"));
             println!();
-            println!("{:<20} {:<15} {:<20}", "Model", "Status", "Entity Types");
-            println!("{}", "-".repeat(55));
+            println!(
+                "{:<22} {:<16} {:<12} Runtime",
+                "Model", "Build support", "Status"
+            );
+            println!("{}", "-".repeat(70));
 
-            let backends = available_backends();
-            for (name, available) in backends {
-                let status = if available {
-                    color("32", "Available")
-                } else {
-                    color("90", "Not available")
-                };
-
-                // Try to get entity types if available
-                let types_str = if available {
-                    use super::super::parser::ModelBackend;
-                    let backend_opt = match name.to_lowercase().as_str() {
-                        "pattern" | "regexner" => Some(ModelBackend::Pattern),
-                        "heuristic" | "heuristicner" => Some(ModelBackend::Heuristic),
-                        "stacked" | "stackedner" => Some(ModelBackend::Stacked),
-                        _ => None,
-                    };
-
-                    if let Some(backend) = backend_opt {
-                        if let Ok(m) = backend.create_model() {
-                            let types: Vec<String> = m
-                                .supported_types()
-                                .iter()
-                                .map(|t| t.as_label().to_string())
-                                .collect();
-                            if types.len() <= 5 {
-                                types.join(", ")
-                            } else {
-                                format!("{} (+{} more)", types[..5].join(", "), types.len() - 5)
-                            }
-                        } else {
-                            "N/A".to_string()
-                        }
-                    } else {
-                        "N/A".to_string()
-                    }
-                } else {
-                    "N/A".to_string()
-                };
-
-                println!("{:<20} {:<15} {:<20}", name, status, types_str);
+            let compiled = compiled_backends();
+            for info in BACKEND_CATALOG {
+                let is_compiled = compiled.get(info.name).copied().unwrap_or(false);
+                println!(
+                    "{:<22} {:<16} {:<12} not checked",
+                    info.name,
+                    build_status(is_compiled),
+                    info.status,
+                );
             }
             println!();
+            println!("Comparison uses build metadata only; no model artifacts, configuration, or credentials are loaded.");
         }
         ModelsAction::Download {
             models,
@@ -334,4 +290,40 @@ pub fn run(args: ModelsArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metadata_resolver_preserves_cli_aliases() {
+        assert_eq!(
+            resolve_backend_metadata("regex").map(|info| info.name),
+            Some("pattern")
+        );
+        assert_eq!(
+            resolve_backend_metadata("heuristic-crf").map(|info| info.name),
+            Some("heuristic_crf")
+        );
+        #[cfg(feature = "onnx")]
+        assert_eq!(
+            resolve_backend_metadata("bert").map(|info| info.name),
+            Some("bert_onnx")
+        );
+    }
+
+    #[test]
+    fn metadata_resolver_uses_catalog_without_model_construction() {
+        let info = resolve_backend_metadata("gliner_onnx").expect("catalog entry");
+
+        assert_eq!(info.name, "gliner_onnx");
+        assert_eq!(info.feature, Some("onnx"));
+        assert!(!info.description.is_empty());
+    }
+
+    #[test]
+    fn metadata_resolver_rejects_unknown_backends() {
+        assert!(resolve_backend_metadata("definitely-not-a-model").is_none());
+    }
 }
