@@ -75,6 +75,7 @@ fn main() -> ExitCode {
         Some(Commands::Muxer(args)) => muxer::run(args).map_err(CliError::from),
         Some(Commands::Info) => info::run().map_err(CliError::from),
         Some(Commands::Models(args)) => models::run(args).map_err(CliError::from),
+        Some(Commands::Parse(args)) => parse::run(args).map_err(CliError::from),
         #[cfg(feature = "eval")]
         Some(Commands::CrossDoc(args)) => crossdoc::run(args).map_err(CliError::from),
         Some(Commands::Enhance(args)) => enhance::run(args).map_err(CliError::from),
