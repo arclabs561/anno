@@ -1,30 +1,37 @@
 # Publish status
 
-## Current state (post-2026-04-26 Phase B, unreleased)
+## Current packages
 
-Three crates publish to crates.io. Phase B (2026-04-26) folded `anno-core`, `anno-metrics`, and `anno-graph` back into `anno`.
+The workspace currently assigns version `0.12.0` to its three crates.io
+packages. `anno-py` is a separate PyPI wheel and has `publish = false` for
+crates.io.
 
 | Crate | Package name | Publish | Notes |
 |-------|-------------|---------|-------|
-| `crates/anno` | `anno` | yes | The main library. Includes the type foundation (`anno::core`), coref scoring (`anno::metrics`, behind `analysis`), and KG export (`anno::graph`, behind `graph`). |
-| `crates/anno-eval` | `anno-eval` | yes | Evaluation harnesses, datasets, muxer sampling. |
-| `crates/anno-cli` | `anno-cli` | yes | Full CLI binary. `cargo install anno-cli`. |
+| `crates/anno` | `anno` | yes | Main library; owns the public extraction API. |
+| `crates/anno-eval` | `anno-eval` | yes | Evaluation harnesses and datasets; depends on `anno`. |
+| `crates/anno-cli` | `anno-cli` | yes | Command-line interface; depends on `anno` and `anno-eval`. |
 
-The legacy `anno-core 0.8.0`, `anno-metrics 0.8.0`, and `anno-graph 0.8.0` remain frozen on crates.io. Users on those crates keep working until they upgrade; the next `anno` release exposes the equivalent surface at `anno::core::*`, `anno::metrics::*`, and `anno::graph::*`.
+The publish order is `anno` → `anno-eval` → `anno-cli`; the version constraints
+between these packages must be updated together for a release.
 
 ## Publish command
 
 The publish workflow (`.github/workflows/publish.yml`) fires on `v*` tag push and on workflow_dispatch with `confirm=publish`. Authentication uses crates.io trusted publishing (OIDC), no API tokens.
 
 ```bash
-# Tag-triggered (preferred):
-git tag vX.Y.Z && git push --follow-tags
-
-# Manual dispatch (idempotent, safe to re-run after a partial failure):
-GITHUB_TOKEN= gh workflow run publish.yml -f confirm=publish
+# Dispatch after pushing the release commit and verifying its CI:
+gh workflow run publish.yml --ref main -f confirm=publish
 ```
 
-The publish chain runs bottom-up by dep order: `anno -> anno-eval -> anno-cli`. Each step uses `publish-crate.sh`, which treats "crate version X is already uploaded" as success so re-runs after partial failures pick up where they left off.
+Verify all three registry versions before creating and pushing the release tag
+at the published commit. Check for existing local and remote tags first; never
+reuse a tag from unrelated history. Push only the intended tag. The tag event
+reruns the idempotent publish workflow.
+
+The workflow publishes bottom-up by dependency order. Each step uses
+`publish-crate.sh`, which treats an already-uploaded version as success so a
+rerun can continue after a partial failure.
 
 ## Trusted-publisher configuration (crates.io)
 
@@ -35,7 +42,3 @@ Each published crate needs a trusted publisher entry on crates.io with:
 - Environment: `crates-io`
 
 If `cargo publish` returns `403 Forbidden: provided access token is not valid for crate <name>`, the entry for that crate is missing or has a mismatched workflow/environment. Fix on https://crates.io/crates/<name>/settings.
-
-## Known issue
-
-The 0.7.0 publish (2026-04-25) succeeded for anno-core and anno-metrics but failed mid-chain on anno-graph due to a trusted-publisher misalignment for 5 of 7 entries. Rather than re-running 0.7.0, the release rolled forward to 0.8.0 directly. anno-core 0.7.0 and anno-metrics 0.7.0 remain on crates.io as orphan releases (no functional impact; users on `anno = "0.6"` keep working, and `anno = "0.8"` resolves cleanly to anno-core 0.8.0 + anno-metrics 0.8.0).

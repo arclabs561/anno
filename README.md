@@ -13,7 +13,7 @@ rule-based extractors work offline.
 
 ```toml
 [dependencies]
-anno = "0.11"
+anno = "0.12"
 ```
 
 ```rust

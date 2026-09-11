@@ -2,10 +2,29 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-11
+
+### Added
+
+- Constituency tree import with validated source offsets, `anno parse`, and a locked Python benepar adapter.
+- Grounded document extraction helpers for reusable models and ordered batches.
+- Stacked extraction reports with per-layer outcomes and explicit strict or best-effort failure handling.
+
+### Fixed
+
+- Stacked extraction now reports failure when every attempted layer fails, even if another layer was adaptively skipped.
+- Dataset checksum formatting is compatible with both sha2 0.10 and 0.11.
+- docs.rs metadata excludes platform-specific acceleration features from Linux documentation builds.
+- Batch cache identity includes source IDs, source text, effective local configuration, and CLI version; runs without a reliable artifact identity bypass caching.
+- Cached extraction preserves floating-point confidence values exactly across JSON roundtrips.
+- Grounded entity conversion assigns track and identity IDs in first-seen order.
+
 ### Changed
 
-- `anno-eval`: zip 2 -> 7, quick-xml 0.37 -> 0.39 (quick-xml >= 0.38 no longer expands entities inside Text events; the coref XML loader now handles `Event::GeneralRef` explicitly). Workspace toml 0.8 -> 1.
-- New `crates/anno-py`: PyO3 bindings v0 (issue #20), heuristic backends only, not published.
+- Batch extraction delegates bounded chunks to the backend batch API and preserves bounded parallel extraction and enrichment.
+- Model inspection commands report compiled support separately from unchecked runtime readiness and do not load or download models.
+- `anno-eval`: zip 2 -> 8, quick-xml 0.37 -> 0.41 (quick-xml >= 0.38 no longer expands entities inside Text events; the coref XML loader now handles `Event::GeneralRef` explicitly). Workspace toml 0.8 -> 1.
+- `crates/anno-py`: PyO3 bindings with heuristic backends (issue #20); Python wheels are versioned and published separately.
 
 ## [0.11.0] - 2026-06-10
 
