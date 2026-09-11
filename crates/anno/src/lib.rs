@@ -736,8 +736,13 @@ pub fn extract_batch(texts: &[&str]) -> Vec<Result<Vec<Entity>>> {
     model.extract_batch(texts, None)
 }
 
-pub use annotated::annotate;
-pub use annotated::AnnotatedDoc;
+pub use annotated::{
+    annotate, annotate_grounded, annotate_grounded_batch_with, annotate_grounded_with, AnnotatedDoc,
+};
+
+pub use backends::stacked::{
+    StackedExtractionError, StackedExtractionPolicy, StackedExtractionReport, StackedLayerOutcome,
+};
 
 // =============================================================================
 // Prelude
@@ -858,10 +863,12 @@ pub fn auto() -> Result<Box<dyn Model>> {
     Ok(Box::new(StackedNER::default()))
 }
 
-/// Check which backends are currently available.
+/// List backends and whether their required features are compiled into this build.
 ///
 /// Derives the list from [`backends::catalog::BACKEND_CATALOG`] so every cataloged
 /// backend is always shown, with availability determined by compiled feature flags.
+/// This does not inspect cached artifacts, load models, or check network access.
+/// A `true` entry does not guarantee that constructing the backend will succeed.
 pub fn available_backends() -> Vec<(&'static str, bool)> {
     use backends::catalog::BACKEND_CATALOG;
 
