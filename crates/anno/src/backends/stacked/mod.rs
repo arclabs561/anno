@@ -145,15 +145,14 @@ enum Resolution {
 ///
 /// # Default Configuration
 ///
-/// `StackedNER::default()` creates a Pattern + Heuristic configuration:
-/// - Layer 1: `RegexNER` (dates, money, emails, etc.)
-/// - Layer 2: `HeuristicNER` (person, org, location)
-///
-/// This provides solid NER coverage with zero ML dependencies.
+/// `StackedNER::default()` and `StackedNER::new()` try ML backends when
+/// the `onnx` feature is enabled and fall back to pattern and heuristic layers.
+/// Construction may load or download model artifacts. An explicit builder
+/// selects exactly the layers to construct.
 ///
 /// # Examples
 ///
-/// Zero-dependency default (Pattern + Heuristic):
+/// Default model selection:
 ///
 /// ```rust
 /// use anno::{Model, StackedNER};
@@ -284,11 +283,11 @@ impl StackedNERBuilder {
 }
 
 impl StackedNER {
-    /// Create default configuration: Pattern + Statistical layers.
+    /// Create the same configuration as [`Default::default`].
     ///
-    /// This provides zero-dependency NER with:
-    /// - High-precision structured entity extraction (dates, money, etc.)
-    /// - Heuristic named entity extraction (person, org, location)
+    /// With the `onnx` feature this may load or download ML models before
+    /// falling back to pattern and heuristic layers. Use [`Self::builder`]
+    /// with explicit [`RegexNER`] and [`HeuristicNER`] layers for a local-only stack.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -412,6 +411,121 @@ pub struct StackStats {
     pub layer_names: Vec<String>,
 }
 
+/// How a stacked extraction call handles a failed layer.
+///
+/// [`BestEffort`](Self::BestEffort) retains the historical `Model` behavior:
+/// successful layers still produce a result. [`Strict`](Self::Strict) rejects
+/// a call when any attempted layer fails.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StackedExtractionPolicy {
+    /// Return results from successful layers, while recording failed layers.
+    #[default]
+    BestEffort,
+    /// Return an error if any attempted layer fails.
+    Strict,
+}
+
+/// The result of one layer in a [`StackedExtractionReport`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StackedLayerOutcome {
+    /// The layer ran successfully. The count is before overlap resolution.
+    Succeeded {
+        /// The layer's stable model name.
+        layer: String,
+        /// Entities returned by the layer before stacked post-processing.
+        entity_count: usize,
+    },
+    /// The layer was attempted but returned an error.
+    Failed {
+        /// The layer's stable model name.
+        layer: String,
+        /// The layer error rendered for diagnostics.
+        error: String,
+    },
+    /// The layer was deliberately not attempted.
+    Skipped {
+        /// The layer's stable model name.
+        layer: String,
+        /// The reason the layer was skipped.
+        reason: String,
+    },
+}
+
+/// Entity extraction output and the outcome of every configured layer.
+///
+/// The report preserves layer order. It distinguishes adaptive skips from
+/// failed attempts, so callers can tell a degraded result from a deliberately
+/// reduced-latency one.
+#[derive(Debug, Clone)]
+pub struct StackedExtractionReport {
+    entities: Vec<Entity>,
+    layer_outcomes: Vec<StackedLayerOutcome>,
+}
+
+impl StackedExtractionReport {
+    /// Returns the conflict-resolved entities.
+    #[must_use]
+    pub fn entities(&self) -> &[Entity] {
+        &self.entities
+    }
+
+    /// Returns each configured layer's outcome in priority order.
+    #[must_use]
+    pub fn layer_outcomes(&self) -> &[StackedLayerOutcome] {
+        &self.layer_outcomes
+    }
+
+    /// Consumes the report and returns its conflict-resolved entities.
+    #[must_use]
+    pub fn into_entities(self) -> Vec<Entity> {
+        self.entities
+    }
+}
+
+/// A rejected stacked extraction together with its completed layer report.
+///
+/// This preserves diagnostics for strict-mode and all-layer failures without
+/// changing the [`Model::extract_entities`] error type.
+#[derive(Debug)]
+pub struct StackedExtractionError {
+    report: StackedExtractionReport,
+    source: crate::Error,
+}
+
+impl StackedExtractionError {
+    /// Returns the completed extraction report.
+    #[must_use]
+    pub fn report(&self) -> &StackedExtractionReport {
+        &self.report
+    }
+
+    /// Consumes this error and returns the completed extraction report.
+    #[must_use]
+    pub fn into_report(self) -> StackedExtractionReport {
+        self.report
+    }
+
+    /// Consumes this error and returns the underlying `anno` error.
+    #[must_use]
+    pub fn into_error(self) -> crate::Error {
+        self.source
+    }
+}
+
+impl std::fmt::Display for StackedExtractionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.source.fmt(formatter)
+    }
+}
+
+impl std::error::Error for StackedExtractionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
 impl Default for StackedNER {
     /// Default configuration: Best available model stack.
     ///
@@ -476,13 +590,28 @@ impl Default for StackedNER {
     }
 }
 
-impl Model for StackedNER {
+impl StackedNER {
+    /// Extracts entities and records whether every configured layer ran,
+    /// failed, or was adaptively skipped.
+    ///
+    /// [`StackedExtractionPolicy::BestEffort`] preserves the behavior of
+    /// [`Model::extract_entities`]: it returns entities from successful layers.
+    /// [`StackedExtractionPolicy::Strict`] returns an error when an attempted
+    /// layer fails. In either rejected case, the returned
+    /// [`StackedExtractionError`] retains the completed report.
     #[cfg_attr(feature = "production", tracing::instrument(skip(self, text), fields(text_len = text.len(), num_layers = self.layers.len())))]
-    fn extract_entities(&self, text: &str, language: Option<Language>) -> Result<Vec<Entity>> {
+    pub fn extract_entities_with_report(
+        &self,
+        text: &str,
+        language: Option<Language>,
+        policy: StackedExtractionPolicy,
+    ) -> std::result::Result<StackedExtractionReport, StackedExtractionError> {
         // Performance: Pre-allocate entities vec with estimated capacity
         // Most texts have 0-20 entities, but we'll start with a reasonable default
         let mut entities: Vec<Entity> = Vec::with_capacity(16);
         let mut layer_errors = Vec::new();
+        let mut layer_outcomes = Vec::with_capacity(self.layers.len());
+        let mut attempted_layers = 0_usize;
 
         // Performance optimization: Cache text length (O(n) operation, called many times)
         // This is shared across all backends and called in hot loops
@@ -499,15 +628,30 @@ impl Model for StackedNER {
             // Skip NuNER when text is well-capitalized (saves ~2s latency)
             if skip_nuner && layer_name.to_lowercase().contains("nuner") {
                 log::debug!("StackedNER: skipping NuNER (text appears well-capitalized)");
+                layer_outcomes.push(StackedLayerOutcome::Skipped {
+                    layer: layer_name.to_string(),
+                    reason: "text appears well-capitalized".to_string(),
+                });
                 continue;
             }
 
             // Try to extract from this layer, but continue on error if other layers succeeded
+            attempted_layers += 1;
             let layer_entities = match layer.extract_entities(text, language) {
-                Ok(ents) => ents,
+                Ok(ents) => {
+                    layer_outcomes.push(StackedLayerOutcome::Succeeded {
+                        layer: layer_name.to_string(),
+                        entity_count: ents.len(),
+                    });
+                    ents
+                }
                 Err(e) => {
                     // Log error but continue with remaining layers.
                     // Only fail after all layers have been tried (see below).
+                    layer_outcomes.push(StackedLayerOutcome::Failed {
+                        layer: layer_name.to_string(),
+                        error: e.to_string(),
+                    });
                     layer_errors.push((layer_name.to_string(), e));
                     continue;
                 }
@@ -738,12 +882,6 @@ impl Model for StackedNER {
             });
         }
 
-        // If every layer errored out and we have no entities, surface the last error.
-        if entities.is_empty() && layer_errors.len() == self.layers.len() {
-            if let Some((_, last_err)) = layer_errors.pop() {
-                return Err(last_err);
-            }
-        }
         // If we had errors but got partial results, log them but return success.
         if !layer_errors.is_empty() && !entities.is_empty() {
             log::warn!(
@@ -777,7 +915,41 @@ impl Model for StackedNER {
             }
         }
 
-        Ok(entities)
+        let report = StackedExtractionReport {
+            entities,
+            layer_outcomes,
+        };
+
+        // A skipped layer was never attempted. Fail only when every attempted
+        // layer failed, rather than comparing failures with configured layers.
+        if attempted_layers > 0 && layer_errors.len() == attempted_layers {
+            let (_, source) = layer_errors
+                .pop()
+                .expect("a failed attempted layer has an error");
+            return Err(StackedExtractionError { report, source });
+        }
+        if policy == StackedExtractionPolicy::Strict && !layer_errors.is_empty() {
+            let source = crate::Error::Inference(format!(
+                "StackedNER strict extraction rejected {} failed layer(s): {}",
+                layer_errors.len(),
+                layer_errors
+                    .iter()
+                    .map(|(name, error)| format!("{name}: {error}"))
+                    .join("; ")
+            ));
+            return Err(StackedExtractionError { report, source });
+        }
+
+        Ok(report)
+    }
+}
+
+impl Model for StackedNER {
+    #[cfg_attr(feature = "production", tracing::instrument(skip(self, text), fields(text_len = text.len(), num_layers = self.layers.len())))]
+    fn extract_entities(&self, text: &str, language: Option<Language>) -> Result<Vec<Entity>> {
+        self.extract_entities_with_report(text, language, StackedExtractionPolicy::BestEffort)
+            .map(StackedExtractionReport::into_entities)
+            .map_err(StackedExtractionError::into_error)
     }
 
     fn supported_types(&self) -> Vec<EntityType> {

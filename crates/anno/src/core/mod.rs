@@ -74,6 +74,7 @@ pub mod entity;
 pub mod error;
 pub mod grounded;
 pub mod provenance;
+pub mod syntax;
 pub mod types;
 
 // Re-exports for convenience

@@ -568,6 +568,22 @@ fn test_layer_error_handling() {
         "Should succeed with partial results from later layers: {:?}",
         result,
     );
+    let report = ner_fail_first
+        .extract_entities_with_report(
+            "Dr. John Smith at Apple",
+            None,
+            StackedExtractionPolicy::BestEffort,
+        )
+        .unwrap();
+    assert!(matches!(
+        report.layer_outcomes(),
+        [
+            StackedLayerOutcome::Failed { layer, error },
+            StackedLayerOutcome::Succeeded { layer: working_layer, .. },
+        ] if layer == "fail"
+            && error.contains("intentional failure")
+            && working_layer == "heuristic"
+    ));
 
     // Test 1b: All layers fail => error
     let ner_all_fail = StackedNER::builder()
@@ -577,6 +593,27 @@ fn test_layer_error_handling() {
         .build();
     let result = ner_all_fail.extract_entities("anything", None);
     assert!(result.is_err(), "Should fail when ALL layers fail");
+
+    // An adaptively skipped NuNER layer must not make a total attempted-layer
+    // failure look like a best-effort success.
+    let ner_fail_with_skipped_nuner = StackedNER::builder()
+        .layer(FailingModel { name: "fail" })
+        .layer(FailingModel { name: "nuner" })
+        .build();
+    let error = ner_fail_with_skipped_nuner
+        .extract_entities_with_report(
+            "Alice Smith works at Apple in California.",
+            None,
+            StackedExtractionPolicy::BestEffort,
+        )
+        .unwrap_err();
+    assert!(matches!(
+        error.report().layer_outcomes(),
+        [
+            StackedLayerOutcome::Failed { layer: failed, .. },
+            StackedLayerOutcome::Skipped { layer: skipped, reason },
+        ] if failed == "fail" && skipped == "nuner" && reason.contains("well-capitalized")
+    ));
 
     // Test 2: Failing layer AFTER working layer that produces entities
     // - partial results are returned when subsequent layers fail
@@ -600,6 +637,24 @@ fn test_layer_error_handling() {
         !entities.is_empty(),
         "Should have entities from working layer"
     );
+    let strict_error = ner_fail_second
+        .extract_entities_with_report(
+            "Dr. John Smith works at Apple Inc.",
+            None,
+            StackedExtractionPolicy::Strict,
+        )
+        .unwrap_err();
+    assert!(
+        !strict_error.report().entities().is_empty(),
+        "Strict rejection retains successful-layer entities"
+    );
+    assert!(matches!(
+        strict_error.report().layer_outcomes(),
+        [
+            StackedLayerOutcome::Succeeded { layer: working_layer, .. },
+            StackedLayerOutcome::Failed { layer: failed_layer, .. },
+        ] if working_layer == "heuristic" && failed_layer == "fail"
+    ));
 
     // Test 3: All-working layers should work normally
     let ner_all_working = StackedNER::builder()

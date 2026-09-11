@@ -1686,14 +1686,36 @@ impl GroundedDocument {
             .collect()
     }
 
-    /// Create from legacy Entity slice.
+    /// Create a document with full-fidelity signals from extracted entities.
+    ///
+    /// This preserves entity locations, normalized values, provenance, and hierarchical
+    /// confidence without creating tracks or identities. Use this when a later pipeline stage
+    /// owns coreference and linking decisions.
+    #[must_use]
+    pub fn from_entity_signals(
+        id: impl Into<String>,
+        text: impl Into<String>,
+        entities: &[Entity],
+    ) -> Self {
+        let mut doc = Self::new(id, text);
+        for entity in entities {
+            doc.add_signal(Self::signal_from_entity(entity));
+        }
+        doc
+    }
+
+    /// Create from a legacy Entity slice, including tracks and identities.
+    ///
+    /// Entities with the same canonical ID share a track. Entities without one receive
+    /// singleton tracks. Use [`from_entity_signals`](Self::from_entity_signals) when callers
+    /// need signals only.
     #[must_use]
     pub fn from_entities(
         id: impl Into<String>,
         text: impl Into<String>,
         entities: &[Entity],
     ) -> Self {
-        let mut doc = Self::new(id, text);
+        let mut doc = Self::from_entity_signals(id, text, entities);
 
         // Group entities by canonical_id to form tracks.
         //
@@ -1706,43 +1728,34 @@ impl GroundedDocument {
             Singleton(usize),
         }
 
-        let mut tracks_map: HashMap<TrackKey, Vec<SignalId>> = HashMap::new();
+        // Keep groups in first-seen entity order. `tracks_map` used to be iterated
+        // directly below, which made assigned track and identity IDs depend on the
+        // randomized `HashMap` iteration order.
+        let mut track_groups: Vec<(TrackKey, Vec<SignalId>)> = Vec::new();
+        let mut track_group_indices: HashMap<TrackKey, usize> = HashMap::new();
         let mut signal_to_entity_idx: HashMap<SignalId, usize> = HashMap::new();
 
         for (idx, entity) in entities.iter().enumerate() {
-            let location = if let Some(disc) = &entity.discontinuous_span {
-                Location::Discontinuous {
-                    segments: disc.segments().iter().map(|r| (r.start, r.end)).collect(),
-                }
-            } else if let Some(visual) = &entity.visual_span {
-                Location::from(visual)
-            } else {
-                Location::text(entity.start(), entity.end())
-            };
-
-            let mut signal = Signal::new(
-                SignalId::new(idx as u64),
-                location,
-                &entity.text,
-                entity.entity_type.as_label(),
-                f32::from(entity.confidence),
-            );
-            signal.normalized = entity.normalized.clone();
-            signal.provenance = entity.provenance.clone();
-            signal.hierarchical = entity.hierarchical_confidence;
-
-            let signal_id = doc.add_signal(signal);
+            let signal_id = doc.signals()[idx].id;
             signal_to_entity_idx.insert(signal_id, idx);
 
             let key = match entity.canonical_id {
                 Some(cid) => TrackKey::Canonical(cid),
                 None => TrackKey::Singleton(idx),
             };
-            tracks_map.entry(key).or_default().push(signal_id);
+            let group_index = if let Some(&group_index) = track_group_indices.get(&key) {
+                group_index
+            } else {
+                let group_index = track_groups.len();
+                track_groups.push((key, Vec::new()));
+                track_group_indices.insert(key, group_index);
+                group_index
+            };
+            track_groups[group_index].1.push(signal_id);
         }
 
-        // Create tracks from grouped signals
-        for (_key, signal_ids) in tracks_map {
+        // Create tracks in first-seen entity order so their IDs are stable.
+        for (_key, signal_ids) in track_groups {
             if let Some(first_signal) = signal_ids.first().and_then(|id| doc.get_signal(*id)) {
                 let mut track = Track::new(doc.next_track_id, &first_signal.surface);
                 track.entity_type =
@@ -1774,6 +1787,34 @@ impl GroundedDocument {
         }
 
         doc
+    }
+
+    fn signal_from_entity(entity: &Entity) -> Signal<Location> {
+        let location = if let Some(discontinuous_span) = &entity.discontinuous_span {
+            Location::Discontinuous {
+                segments: discontinuous_span
+                    .segments()
+                    .iter()
+                    .map(|range| (range.start, range.end))
+                    .collect(),
+            }
+        } else if let Some(visual_span) = &entity.visual_span {
+            Location::from(visual_span)
+        } else {
+            Location::text(entity.start(), entity.end())
+        };
+
+        let mut signal = Signal::new(
+            SignalId::ZERO,
+            location,
+            &entity.text,
+            entity.entity_type.as_label(),
+            f32::from(entity.confidence),
+        );
+        signal.normalized = entity.normalized.clone();
+        signal.provenance = entity.provenance.clone();
+        signal.hierarchical = entity.hierarchical_confidence;
+        signal
     }
 
     /// Get signals filtered by label.
@@ -4826,6 +4867,56 @@ mod tests {
         assert_eq!(converted.len(), 2);
         assert_eq!(converted[0].text, "Marie Curie");
         assert_eq!(converted[1].text, "Nobel Prize");
+    }
+
+    #[test]
+    fn from_entity_signals_preserves_signals_without_tracks_or_identities() {
+        let mut entity = Entity::new("Ada", EntityType::Person, 0, 3, 0.95);
+        entity.normalized = Some("Ada Lovelace".to_string());
+        entity.canonical_id = Some(crate::CanonicalId::new(41));
+        entity.kb_id = Some("Q7259".to_string());
+
+        let doc = GroundedDocument::from_entity_signals("doc", "Ada wrote.", &[entity]);
+
+        assert_eq!(doc.signals().len(), 1);
+        assert_eq!(doc.signals()[0].surface, "Ada");
+        assert_eq!(doc.signals()[0].normalized.as_deref(), Some("Ada Lovelace"));
+        assert!(doc.tracks_map().is_empty());
+        assert!(doc.identities_map().is_empty());
+        assert!(doc.validate_invariants().is_empty());
+    }
+
+    #[test]
+    fn from_entities_assigns_stable_track_ids_and_serialization() {
+        let mut first = Entity::new("Ada", EntityType::Person, 0, 3, 0.95);
+        first.canonical_id = Some(crate::CanonicalId::new(41));
+        let mut second = Entity::new("Grace", EntityType::Person, 8, 13, 0.95);
+        second.canonical_id = Some(crate::CanonicalId::new(99));
+        let mut third = Entity::new("Ada", EntityType::Person, 19, 22, 0.95);
+        third.canonical_id = Some(crate::CanonicalId::new(41));
+        let entities = vec![first, second, third];
+        let text = "Ada met Grace, then Ada.";
+
+        let first_doc = GroundedDocument::from_entities("doc", text, &entities);
+        let second_doc = GroundedDocument::from_entities("doc", text, &entities);
+
+        assert_eq!(
+            first_doc.track_for_signal(SignalId::new(0)).unwrap().id,
+            crate::TrackId::new(0)
+        );
+        assert_eq!(
+            first_doc.track_for_signal(SignalId::new(1)).unwrap().id,
+            crate::TrackId::new(1)
+        );
+        assert_eq!(
+            first_doc.track_for_signal(SignalId::new(2)).unwrap().id,
+            crate::TrackId::new(0)
+        );
+        // `to_value` canonicalizes object-key order while retaining every serialized field.
+        assert_eq!(
+            serde_json::to_value(first_doc).unwrap(),
+            serde_json::to_value(second_doc).unwrap()
+        );
     }
 
     #[test]
