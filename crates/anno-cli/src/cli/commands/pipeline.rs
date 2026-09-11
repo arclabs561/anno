@@ -8,7 +8,7 @@ use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::{link_tracks_to_kb, resolve_coreference};
 #[cfg(feature = "eval")]
 use anno::{Entity, EntityType};
-use anno::{GroundedDocument, Signal, SignalId};
+use anno::{GroundedDocument, SignalId};
 
 /// Unified pipeline command
 #[derive(Parser, Debug)]
@@ -137,19 +137,11 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
             pb.set_message(format!("Processing {}", doc_id));
         }
 
-        // Extract entities
         let entities = model
             .extract_entities(text, None)
             .map_err(|e| format!("Extraction failed for {}: {}", doc_id, e))?;
-
-        // Build GroundedDocument
-        let mut doc = GroundedDocument::new(doc_id, text);
-        let mut signal_ids: Vec<SignalId> = Vec::new();
-
-        for e in &entities {
-            let id = doc.add_signal(Signal::from(e));
-            signal_ids.push(id);
-        }
+        let mut doc = GroundedDocument::from_entity_signals(doc_id, text, &entities);
+        let signal_ids: Vec<SignalId> = doc.signals().iter().map(|signal| signal.id).collect();
 
         // Apply enhancements
         if args.coref {

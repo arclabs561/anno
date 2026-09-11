@@ -2,21 +2,24 @@
 //!
 //! ## Parallelism (`--parallel N`)
 //!
-//! When `N > 1`, documents are processed concurrently using a Rayon thread pool capped at `N`
-//! workers. The model is wrapped in an `Arc` and shared across threads; all anno backends
-//! satisfy `Send + Sync`.
+//! Extraction is delegated to [`anno::Model::extract_batch`], allowing a backend to use its
+//! native inference batch. When `N > 1`, bounded extraction batches and CLI-only enrichment
+//! use Rayon thread pools capped at `N` workers.
 //!
 //! ## Caching (`--cache`)
 //!
-//! Results are persisted to `{cache_dir}/results/{model}-{version}/{shard}/{hash}.json`.
-//! The cache key is `xxh3_64(text)` — model name and version are encoded in the path so
-//! changing backend or weights automatically misses. Cache entries are never evicted
-//! automatically; use `anno cache clear` to flush.
+//! Cacheable deterministic results are persisted to
+//! `{cache_dir}/results/v2/{model}-{version}/{shard}/{hash}.json`. The key includes
+//! the document id and text, CLI release and executable digest, selected backend and runtime
+//! model version, and KB-linking.
+//! Artifact-backed, remote, dynamic, and coreference runs bypass the result cache because
+//! their effective model/configuration identity is not available through the public model API.
+//! Cache entries are never evicted automatically; use `anno cache clear` to flush.
 
 use super::super::parser::{ModelBackend, OutputFormat};
 use clap::Parser;
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Batch processing
 #[derive(Parser, Debug)]
@@ -41,15 +44,19 @@ pub struct BatchArgs {
     #[arg(long)]
     pub link_kb: bool,
 
-    /// Number of parallel workers (1 = sequential)
+    /// Number of parallel batch and enrichment workers (1 = sequential)
     #[arg(short, long, default_value = "1")]
     pub parallel: usize,
+
+    /// Maximum documents sent to one model batch (must be at least 1)
+    #[arg(long, default_value = "32")]
+    pub batch_size: NonZeroUsize,
 
     /// Show progress bar
     #[arg(long)]
     pub progress: bool,
 
-    /// Cache extraction results keyed by text hash + model version
+    /// Cache eligible deterministic extraction results
     #[arg(long)]
     pub cache: bool,
 
@@ -68,35 +75,205 @@ pub struct BatchArgs {
 
 // Cache helpers
 
+const RESULT_CACHE_LAYOUT_VERSION: &str = "v2";
+
+/// Known inputs that can change a cache-eligible serialized batch result.
+///
+/// `model_name` records the CLI-selected backend while `runtime_model_name` and
+/// `runtime_model_version` come from the instantiated model. Keeping both avoids
+/// aliases such as `auto` and `stacked` sharing a cache namespace by accident.
+#[derive(Clone, Copy)]
+struct ResultCacheIdentity<'a> {
+    document_id: &'a str,
+    text: &'a str,
+    cli_version: &'a str,
+    executable_fingerprint: &'a str,
+    model_name: &'a str,
+    runtime_model_name: &'a str,
+    runtime_model_version: &'a str,
+    link_kb: bool,
+}
+
+impl ResultCacheIdentity<'_> {
+    /// Produce an unambiguous, length-prefixed cache digest.
+    ///
+    /// Delimiters alone allow ambiguous tuples (for example `("ab", "c")`
+    /// versus `("a", "bc")`). Length-prefixing each field keeps the hash input
+    /// injective for the values represented here.
+    fn digest(&self) -> String {
+        use xxhash_rust::xxh3::xxh3_64;
+
+        let mut bytes = Vec::with_capacity(
+            self.document_id.len()
+                + self.text.len()
+                + self.cli_version.len()
+                + self.executable_fingerprint.len()
+                + self.model_name.len()
+                + self.runtime_model_name.len()
+                + self.runtime_model_version.len()
+                + 48,
+        );
+        for field in [
+            self.document_id,
+            self.text,
+            self.cli_version,
+            self.executable_fingerprint,
+            self.model_name,
+            self.runtime_model_name,
+            self.runtime_model_version,
+        ] {
+            bytes.extend_from_slice(&(field.len() as u64).to_le_bytes());
+            bytes.extend_from_slice(field.as_bytes());
+        }
+        bytes.push(u8::from(self.link_kb));
+        format!("{:016x}", xxh3_64(&bytes))
+    }
+}
+
+/// Hash the executable that determines local deterministic backend behavior.
+fn executable_fingerprint() -> Result<String, String> {
+    use std::io::Read;
+    use xxhash_rust::xxh3::Xxh3;
+
+    let path = std::env::current_exe()
+        .map_err(|error| format!("cannot locate current executable: {error}"))?;
+    let mut executable = std::fs::File::open(&path)
+        .map_err(|error| format!("cannot read executable '{}': {error}", path.display()))?;
+    let mut hasher = Xxh3::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let bytes = executable
+            .read(&mut buffer)
+            .map_err(|error| format!("cannot hash executable '{}': {error}", path.display()))?;
+        if bytes == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes]);
+    }
+    Ok(format!("{:016x}", hasher.digest()))
+}
+
+/// Return why a result cache cannot safely represent this run.
+///
+/// The `Model` trait exposes a name and a logical version but no artifact digest
+/// or complete backend configuration. Admit only local, deterministic backends
+/// whose output is fully identified by the CLI selection and current binary.
+fn cache_ineligibility_reason(backend: ModelBackend, coref: bool) -> Option<&'static str> {
+    if coref {
+        return Some(
+            "coreference can load a separate model artifact whose identity is not cache-keyed",
+        );
+    }
+
+    match backend {
+        ModelBackend::Pattern | ModelBackend::Heuristic | ModelBackend::Minimal => None,
+        #[cfg(feature = "heuristic-fr")]
+        ModelBackend::HeuristicFr => None,
+        _ => Some(
+            "the selected backend may depend on model artifacts, runtime configuration, or a remote service that is not cache-keyed",
+        ),
+    }
+}
+
+/// Return half-open input ranges for bounded model batches.
+fn batch_ranges(total: usize, batch_size: usize) -> Vec<std::ops::Range<usize>> {
+    assert!(batch_size > 0, "clap validates --batch-size >= 1");
+    (0..total)
+        .step_by(batch_size)
+        .map(|start| start..(start + batch_size).min(total))
+        .collect()
+}
+
+/// Extract bounded chunks while preserving the original text order.
+///
+/// Each backend call can use model-native batching. Independent calls are
+/// concurrent only when requested; the resulting chunk order is restored before
+/// individual results are associated with document IDs.
+fn extract_bounded_batches(
+    model: &dyn anno::Model,
+    texts: &[&str],
+    batch_size: NonZeroUsize,
+    parallel: usize,
+    on_batch_completed: impl Fn(usize) + Sync,
+) -> Result<Vec<anno::Result<Vec<anno::Entity>>>, String> {
+    // A small input set must still make use of requested parallelism when the
+    // maximum batch size is larger than the entire input set.
+    let chunk_size = if parallel > 1 {
+        batch_size.get().min((texts.len() / parallel).max(1))
+    } else {
+        batch_size.get()
+    };
+    let ranges = batch_ranges(texts.len(), chunk_size);
+    let extract_one = |(batch_index, range): (usize, std::ops::Range<usize>)| {
+        let batch = &texts[range.clone()];
+        let results = model.extract_batch(batch, None);
+        if results.len() != batch.len() {
+            return Err(format!(
+                "Model '{}' returned {} results for batch {} with {} documents",
+                model.name(),
+                results.len(),
+                batch_index + 1,
+                batch.len(),
+            ));
+        }
+        on_batch_completed(batch.len());
+        Ok((range.start, results))
+    };
+
+    let mut chunks: Vec<(usize, Vec<anno::Result<Vec<anno::Entity>>>)> = if parallel > 1 {
+        use rayon::prelude::*;
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(parallel)
+            .build()
+            .map_err(|error| format!("Failed to build thread pool: {error}"))?;
+        pool.install(|| {
+            ranges
+                .into_par_iter()
+                .enumerate()
+                .map(&extract_one)
+                .collect::<Result<_, _>>()
+        })?
+    } else {
+        ranges
+            .into_iter()
+            .enumerate()
+            .map(&extract_one)
+            .collect::<Result<_, _>>()?
+    };
+    chunks.sort_unstable_by_key(|(start, _)| *start);
+    Ok(chunks
+        .into_iter()
+        .flat_map(|(_, results)| results)
+        .collect())
+}
+
 /// Derive a filesystem path for a cached document result.
 ///
-/// Layout: `{cache_root}/results/{model}-{version}/{first_2_hex}/{full_hash}.json`
-/// The model+version segment encodes the invalidation key, so switching backends
-/// or updating weights causes an automatic miss without any bookkeeping.
-fn result_cache_path(
-    cache_root: &Path,
-    model_name: &str,
-    model_version: &str,
-    text: &str,
-) -> PathBuf {
-    use xxhash_rust::xxh3::xxh3_64;
-    let hash = format!("{:016x}", xxh3_64(text.as_bytes()));
+/// Layout: `{cache_root}/results/v2/{model}-{version}/{first_2_hex}/{full_hash}.json`.
+/// The versioned layout cleanly invalidates the legacy text-only cache format.
+fn result_cache_path(cache_root: &Path, identity: &ResultCacheIdentity<'_>) -> PathBuf {
+    let hash = identity.digest();
     let shard = &hash[..2];
     let segment = format!(
         "{}-{}",
-        model_name.replace(['/', '\\', ':'], "_"),
-        model_version.replace(['/', '\\', ':'], "_"),
+        identity.runtime_model_name.replace(['/', '\\', ':'], "_"),
+        identity
+            .runtime_model_version
+            .replace(['/', '\\', ':'], "_"),
     );
     cache_root
         .join("results")
+        .join(RESULT_CACHE_LAYOUT_VERSION)
         .join(segment)
         .join(shard)
         .join(format!("{}.json", hash))
 }
 
-fn try_load_cached(path: &Path) -> Option<anno::GroundedDocument> {
+fn try_load_cached(path: &Path, document_id: &str, text: &str) -> Option<anno::GroundedDocument> {
     let bytes = std::fs::read(path).ok()?;
-    serde_json::from_slice(&bytes).ok()
+    let doc: anno::GroundedDocument = serde_json::from_slice(&bytes).ok()?;
+    (doc.id() == document_id && doc.text() == text).then_some(doc)
 }
 
 fn store_cached(path: &Path, doc: &anno::GroundedDocument) {
@@ -110,54 +287,41 @@ fn store_cached(path: &Path, doc: &anno::GroundedDocument) {
 
 // Per-document extraction
 
-struct DocOpts<'a> {
+struct DocOpts {
     coref: bool,
     link_kb: bool,
     cache_path: Option<PathBuf>,
-    model: &'a dyn anno::Model,
 }
 
-fn process_document(
-    doc_id: &str,
+struct ProcessedDocument {
+    document: anno::GroundedDocument,
+    cache_hit: bool,
+}
+
+fn finalize_document(
+    mut document: anno::GroundedDocument,
     text: &str,
-    opts: &DocOpts<'_>,
-) -> Result<anno::GroundedDocument, String> {
+    opts: &DocOpts,
+) -> ProcessedDocument {
     use super::super::utils::{link_tracks_to_kb, resolve_coreference};
-    use anno::{GroundedDocument, Signal, SignalId};
-
-    // Cache hit: return early without running extraction
-    if let Some(ref path) = opts.cache_path {
-        if let Some(doc) = try_load_cached(path) {
-            return Ok(doc);
-        }
-    }
-
-    let entities = opts
-        .model
-        .extract_entities(text, None)
-        .map_err(|e| format!("Extraction failed for '{}': {}", doc_id, e))?;
-
-    let mut doc = GroundedDocument::new(doc_id, text);
-    let mut signal_ids: Vec<SignalId> = Vec::with_capacity(entities.len());
-
-    for e in &entities {
-        let id = doc.add_signal(Signal::from(e));
-        signal_ids.push(id);
-    }
 
     if opts.coref {
-        resolve_coreference(&mut doc, text, &signal_ids);
+        // `resolve_coreference` keeps this parameter for compatibility but does
+        // not inspect it; the grounded document already contains all signals.
+        resolve_coreference(&mut document, text, &[]);
     }
     if opts.link_kb {
-        link_tracks_to_kb(&mut doc);
+        link_tracks_to_kb(&mut document);
     }
 
-    // Cache miss: persist
     if let Some(ref path) = opts.cache_path {
-        store_cached(path, &doc);
+        store_cached(path, &document);
     }
 
-    Ok(doc)
+    ProcessedDocument {
+        document,
+        cache_hit: false,
+    }
 }
 
 // Main entry point
@@ -173,15 +337,36 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
         return Err("Cannot use both --dir and --stdin. Choose one.".to_string());
     }
 
-    // Resolve cache root once (before model creation to avoid borrowing model_name later).
-    let cache_root: Option<PathBuf> = if args.cache {
-        Some(super::super::utils::get_cache_dir()?)
+    // Resolve the cache root only for runs whose effective extraction identity
+    // is fully known to this command. See `cache_ineligibility_reason`.
+    let (cache_root, executable_fingerprint): (Option<PathBuf>, Option<String>) = if args.cache {
+        if let Some(reason) = cache_ineligibility_reason(args.model, args.coref) {
+            if !args.quiet {
+                eprintln!("[batch] cache disabled: {reason}");
+            }
+            (None, None)
+        } else {
+            match executable_fingerprint() {
+                Ok(fingerprint) => (
+                    Some(super::super::utils::get_cache_dir()?),
+                    Some(fingerprint),
+                ),
+                Err(reason) => {
+                    if !args.quiet {
+                        eprintln!("[batch] cache disabled: {reason}");
+                    }
+                    (None, None)
+                }
+            }
+        }
     } else {
-        None
+        (None, None)
     };
 
-    // Build the model, then wrap in Arc for cross-thread sharing.
-    let model: Arc<Box<dyn anno::Model>> = Arc::new(args.model.create_model()?);
+    // Build once; extraction below delegates to `Model::extract_batch` so a
+    // backend can use native inference batching.
+    let model = args.model.create_model()?;
+    let selected_model_name = args.model.name();
     let model_name = model.name().to_string();
     let model_version = model.version();
 
@@ -265,7 +450,11 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
         } else {
             "sequential".to_string()
         };
-        let cache_note = if args.cache { ", cache on" } else { "" };
+        let cache_note = if cache_root.is_some() {
+            ", cache on"
+        } else {
+            ""
+        };
         eprintln!(
             "[batch] {} documents, model={}, {}{}",
             inputs.len(),
@@ -295,66 +484,142 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
     // Build per-document cache paths once (deterministic, parallel-safe).
     let cache_paths: Vec<Option<PathBuf>> = inputs
         .iter()
-        .map(|(_, text)| {
-            cache_root
-                .as_ref()
-                .map(|root| result_cache_path(root, &model_name, &model_version, text))
+        .map(|(doc_id, text)| {
+            cache_root.as_ref().map(|root| {
+                let identity = ResultCacheIdentity {
+                    document_id: doc_id,
+                    text,
+                    cli_version: env!("CARGO_PKG_VERSION"),
+                    executable_fingerprint: executable_fingerprint
+                        .as_deref()
+                        .expect("cache root requires executable fingerprint"),
+                    model_name: selected_model_name,
+                    runtime_model_name: &model_name,
+                    runtime_model_version: &model_version,
+                    link_kb: args.link_kb,
+                };
+                result_cache_path(root, &identity)
+            })
         })
         .collect();
 
-    // Process documents — parallel when --parallel > 1, sequential otherwise.
-    let documents: Vec<anno::GroundedDocument> = if args.parallel > 1 {
+    // Read cache hits before invoking the backend. A cached document is checked
+    // against its source id/text as defense-in-depth against manual corruption
+    // or an exceedingly unlikely digest collision.
+    let mut processed: Vec<Option<ProcessedDocument>> =
+        std::iter::repeat_with(|| None).take(inputs.len()).collect();
+    let mut misses = Vec::new();
+    for (index, ((doc_id, text), cache_path)) in inputs.iter().zip(&cache_paths).enumerate() {
+        match cache_path
+            .as_deref()
+            .and_then(|path| try_load_cached(path, doc_id, text))
+        {
+            Some(document) => {
+                processed[index] = Some(ProcessedDocument {
+                    document,
+                    cache_hit: true,
+                });
+                if let Some(ref pb) = pb {
+                    pb.inc(1);
+                }
+            }
+            None => misses.push(index),
+        }
+    }
+
+    // Only misses reach the backend. Preserve the existing CLI document shape:
+    // extraction initially creates signals only, then --coref/--link-kb add
+    // tracks and identities explicitly below.
+    let miss_texts: Vec<&str> = misses
+        .iter()
+        .map(|&index| inputs[index].1.as_str())
+        .collect();
+    let progress_for_batches = pb.clone();
+    let extracted = extract_bounded_batches(
+        model.as_ref(),
+        &miss_texts,
+        args.batch_size,
+        args.parallel,
+        move |completed| {
+            if let Some(ref pb) = progress_for_batches {
+                pb.inc(completed as u64);
+            }
+        },
+    )?;
+
+    let fresh: Vec<(usize, anno::GroundedDocument, Option<PathBuf>)> = misses
+        .into_iter()
+        .zip(extracted)
+        .map(|(index, result)| {
+            result
+                .map(|entities| {
+                    (
+                        index,
+                        anno::GroundedDocument::from_entity_signals(
+                            &inputs[index].0,
+                            &inputs[index].1,
+                            &entities,
+                        ),
+                        cache_paths[index].clone(),
+                    )
+                })
+                .map_err(|error| format!("Extraction failed for '{}': {}", inputs[index].0, error))
+        })
+        .collect::<Result<_, _>>()?;
+
+    // Coreference/linking are CLI-only enrichment steps. Keep them parallelizable
+    // without replacing model-native extraction batching above.
+    let finalized: Vec<(usize, ProcessedDocument)> = if args.parallel > 1 {
         use rayon::prelude::*;
 
-        // Cap the rayon pool to the requested worker count.
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(args.parallel)
             .build()
             .map_err(|e| format!("Failed to build thread pool: {}", e))?;
 
-        let model_ref: Arc<Box<dyn anno::Model>> = Arc::clone(&model);
-        let pb_ref = pb.clone();
-        let results: Vec<Result<anno::GroundedDocument, String>> = pool.install(|| {
-            inputs
-                .par_iter()
-                .zip(cache_paths.par_iter())
-                .map(|((doc_id, text), cache_path)| {
+        pool.install(|| {
+            fresh
+                .into_par_iter()
+                .map(|(index, document, cache_path)| {
                     let opts = DocOpts {
                         coref: args.coref,
                         link_kb: args.link_kb,
-                        cache_path: cache_path.clone(),
-                        model: model_ref.as_ref().as_ref(),
+                        cache_path,
                     };
-                    let result = process_document(doc_id, text, &opts);
-                    if let Some(ref pb) = pb_ref {
-                        pb.inc(1);
-                    }
-                    result
+                    (index, finalize_document(document, &inputs[index].1, &opts))
                 })
                 .collect()
-        });
-
-        // Collect, propagating the first error.
-        results.into_iter().collect::<Result<Vec<_>, _>>()?
+        })
     } else {
-        let mut docs = Vec::with_capacity(inputs.len());
-        for ((doc_id, text), cache_path) in inputs.iter().zip(cache_paths.iter()) {
-            if let Some(ref pb) = pb {
-                pb.set_message(doc_id.clone());
-            }
-            let opts = DocOpts {
-                coref: args.coref,
-                link_kb: args.link_kb,
-                cache_path: cache_path.clone(),
-                model: model.as_ref().as_ref(),
-            };
-            docs.push(process_document(doc_id, text, &opts)?);
-            if let Some(ref pb) = pb {
-                pb.inc(1);
-            }
-        }
-        docs
+        fresh
+            .into_iter()
+            .map(|(index, document, cache_path)| {
+                let opts = DocOpts {
+                    coref: args.coref,
+                    link_kb: args.link_kb,
+                    cache_path,
+                };
+                (index, finalize_document(document, &inputs[index].1, &opts))
+            })
+            .collect()
     };
+
+    for (index, document) in finalized {
+        processed[index] = Some(document);
+    }
+    let cache_hits = processed
+        .iter()
+        .filter(|doc| doc.as_ref().is_some_and(|doc| doc.cache_hit))
+        .count();
+    let documents: Vec<anno::GroundedDocument> = processed
+        .into_iter()
+        .enumerate()
+        .map(|(index, document)| {
+            document
+                .map(|document| document.document)
+                .ok_or_else(|| format!("Batch processing did not produce '{}'.", inputs[index].0))
+        })
+        .collect::<Result<_, _>>()?;
 
     if let Some(pb) = pb {
         pb.finish_and_clear();
@@ -364,15 +629,11 @@ pub fn run(args: BatchArgs) -> Result<(), String> {
     write_outputs(&documents, &args)?;
 
     if !args.quiet {
-        let cached = cache_paths
-            .iter()
-            .filter(|p| p.as_ref().is_some_and(|p| p.exists()))
-            .count();
-        if args.cache && cached > 0 {
+        if cache_root.is_some() && cache_hits > 0 {
             eprintln!(
                 "[batch] {} cache hits, {} computed",
-                cached,
-                documents.len() - cached
+                cache_hits,
+                documents.len() - cache_hits
             );
         }
         if let Some(ref out) = args.output {
@@ -533,7 +794,241 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
     use std::fs;
+    use std::num::NonZeroUsize;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn batch_ranges_preserve_order_and_bound_each_model_call() {
+        assert_eq!(super::batch_ranges(65, 32), vec![0..32, 32..64, 64..65]);
+        assert!(super::batch_ranges(0, 32).is_empty());
+    }
+
+    #[test]
+    fn batch_size_must_be_positive() {
+        assert!(
+            super::BatchArgs::try_parse_from(["anno", "--stdin", "--batch-size", "0"]).is_err()
+        );
+    }
+
+    #[test]
+    fn bounded_batches_run_concurrently_without_exceeding_the_worker_cap() {
+        let active = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let model = {
+            let active = Arc::clone(&active);
+            let peak = Arc::clone(&peak);
+            anno::AnyModel::new("counting", "test model", vec![], move |_, _| {
+                let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                peak.fetch_max(current, Ordering::SeqCst);
+
+                // Wait briefly for another worker, but never use a barrier that
+                // would deadlock if parallel dispatch regressed to sequential.
+                let deadline = Instant::now() + Duration::from_secs(1);
+                while active.load(Ordering::SeqCst) < 2 && Instant::now() < deadline {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                active.fetch_sub(1, Ordering::SeqCst);
+                Ok(Vec::new())
+            })
+        };
+        let texts = ["a", "b", "c", "d"];
+
+        let results = super::extract_bounded_batches(
+            &model,
+            &texts,
+            NonZeroUsize::new(32).unwrap(),
+            2,
+            |_| {},
+        )
+        .unwrap();
+
+        assert_eq!(results.len(), texts.len());
+        assert!(
+            peak.load(Ordering::SeqCst) > 1,
+            "expected concurrent batches"
+        );
+        assert!(
+            peak.load(Ordering::SeqCst) <= 2,
+            "must not exceed the requested worker cap"
+        );
+    }
+
+    #[test]
+    fn bounded_batches_keep_order_and_individual_errors() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let model = anno::AnyModel::new("ordered", "test model", vec![], |text, _| {
+            if text == "failure" {
+                return Err(anno::Error::Inference("document failed".into()));
+            }
+            Ok(vec![anno::Entity::new(
+                text,
+                anno::EntityType::Person,
+                0,
+                text.chars().count(),
+                1.0,
+            )])
+        });
+        let completed = AtomicUsize::new(0);
+        let results = super::extract_bounded_batches(
+            &model,
+            &["Zoë", "failure", "Grace"],
+            NonZeroUsize::new(1).unwrap(),
+            2,
+            |count| {
+                completed.fetch_add(count, Ordering::SeqCst);
+            },
+        )
+        .unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].as_ref().unwrap()[0].text, "Zoë");
+        assert!(results[1].is_err());
+        assert_eq!(results[2].as_ref().unwrap()[0].text, "Grace");
+        assert_eq!(completed.load(Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn result_cache_identity_covers_every_cache_eligible_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let identity = super::ResultCacheIdentity {
+            document_id: "document-a",
+            text: "Alice met Bob.",
+            cli_version: "0.11.0",
+            executable_fingerprint: "executable-a",
+            model_name: "pattern",
+            runtime_model_name: "regex",
+            runtime_model_version: "1",
+            link_kb: false,
+        };
+        let baseline = super::result_cache_path(dir.path(), &identity);
+
+        assert!(baseline.starts_with(dir.path().join("results").join("v2")));
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    document_id: "document-b",
+                    ..identity
+                },
+            ),
+            "the serialized document id is result data and must not cross cache entries"
+        );
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    model_name: "heuristic",
+                    runtime_model_name: "heuristic",
+                    ..identity
+                },
+            ),
+            "CLI backend selection is execution configuration"
+        );
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    runtime_model_version: "2",
+                    ..identity
+                },
+            ),
+            "runtime model version changes extraction output"
+        );
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    link_kb: true,
+                    ..identity
+                },
+            ),
+            "KB linking changes the serialized document"
+        );
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    cli_version: "0.12.0",
+                    ..identity
+                },
+            ),
+            "a CLI release can change deterministic extraction behavior"
+        );
+        assert_ne!(
+            baseline,
+            super::result_cache_path(
+                dir.path(),
+                &super::ResultCacheIdentity {
+                    executable_fingerprint: "executable-b",
+                    ..identity
+                },
+            ),
+            "a local rebuild can change deterministic extraction behavior"
+        );
+    }
+
+    #[test]
+    fn cache_is_limited_to_deterministic_local_backends_without_coreference() {
+        for backend in [
+            super::ModelBackend::Pattern,
+            super::ModelBackend::Heuristic,
+            super::ModelBackend::Minimal,
+        ] {
+            assert!(super::cache_ineligibility_reason(backend, false).is_none());
+            assert!(super::cache_ineligibility_reason(backend, true).is_some());
+        }
+        assert!(super::cache_ineligibility_reason(super::ModelBackend::Stacked, false).is_some());
+        assert!(
+            super::cache_ineligibility_reason(super::ModelBackend::UniversalNer, false).is_some()
+        );
+    }
+
+    #[test]
+    fn cached_extraction_preserves_exact_output() {
+        use anno::Model;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("entry.json");
+        let text = "Zoë: mira@example.org";
+        let entities = anno::RegexNER::new().extract_entities(text, None).unwrap();
+        assert!(!entities.is_empty());
+        let fresh = anno::GroundedDocument::from_entity_signals("unicode", text, &entities);
+        super::store_cached(&path, &fresh);
+        let cached = super::try_load_cached(&path, "unicode", text).unwrap();
+
+        assert_eq!(
+            serde_json::to_value(&fresh).unwrap(),
+            serde_json::to_value(&cached).unwrap(),
+            "cache reuse must preserve the complete extraction, including confidence"
+        );
+        assert_eq!(
+            super::doc_to_clean_json(&fresh, "pattern"),
+            super::doc_to_clean_json(&cached, "pattern")
+        );
+    }
+
+    #[test]
+    fn cached_document_must_match_its_keyed_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("entry.json");
+        let doc = anno::GroundedDocument::new("document-a", "Alice met Bob.");
+        super::store_cached(&path, &doc);
+
+        assert!(super::try_load_cached(&path, "document-a", "Alice met Bob.").is_some());
+        assert!(super::try_load_cached(&path, "document-b", "Alice met Bob.").is_none());
+        assert!(super::try_load_cached(&path, "document-a", "Alice met Carol.").is_none());
+    }
 
     /// Batch should accept .html files alongside .txt and .md
     #[test]
