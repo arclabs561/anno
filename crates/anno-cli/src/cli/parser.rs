@@ -107,6 +107,9 @@ pub enum Commands {
     /// List and compare available models
     Models(commands::ModelsArgs),
 
+    /// Import constituency parses from a parser JSON document
+    Parse(commands::ParseArgs),
+
     /// Cross-document entity coalescing: cluster entities across multiple documents
     #[command(visible_alias = "coalesce")]
     #[cfg(feature = "eval")]

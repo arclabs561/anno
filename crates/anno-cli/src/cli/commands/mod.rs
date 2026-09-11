@@ -24,6 +24,7 @@ pub mod info;
 pub mod models;
 #[cfg(feature = "eval")]
 pub mod muxer;
+pub mod parse;
 pub mod pipeline;
 pub mod privacy;
 pub mod query;
@@ -55,6 +56,7 @@ pub use extract::ExtractArgs;
 pub use history::HistoryArgs;
 pub use import::ImportArgs;
 pub use models::ModelsArgs;
+pub use parse::ParseArgs;
 pub use pipeline::PipelineArgs;
 pub use privacy::PrivacyArgs;
 pub use query::QueryArgs;
