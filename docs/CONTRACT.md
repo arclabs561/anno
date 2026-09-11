@@ -40,6 +40,7 @@ exact string you pass in.
 - Zero-shot extraction with custom entity types (`ZeroShotNER` backends: GLiNER, GLiNER multi-task, NuNER -- use `extract_with_types`; CLI `--extract-types`).
 - Relation extraction (`RelationCapable` backends: `tplinker`, `gliner_multitask`).
 - Graph/KG export: the `graph` feature exposes `GraphDocument` and N-Triples export.
+- Constituency tree interchange with external parsers; see [CONSTITUENCY.md](CONSTITUENCY.md).
 - Evaluation + dataset loading behind feature flags (for benchmarking, not required for usage).
 
 **Out of scope by design**
@@ -51,7 +52,7 @@ exact string you pass in.
 
 The published `anno` crate is the main library. Feature flags select optional capabilities.
 
-- `anno` has `default = ["onnx"]` — ONNX ML backends are on by default.
+- `anno` has `default = ["onnx", "heuristic-fr"]` — ONNX ML backends and French heuristics are on by default.
 - Use `default-features = false` in your `Cargo.toml` to opt out of ONNX and pull only what you need.
 
 Major feature flags:
@@ -59,7 +60,7 @@ Major feature flags:
 - `onnx`: ONNX Runtime backends (GLiNER, BERT-NER, etc.)
 - `candle`: pure-Rust transformer backend (GPU via platform support)
 - `analysis`: lightweight analysis primitives (metrics, encoders) — available at inference time, safe to include in production
-- `eval`: evaluation harnesses (dataset loading, benchmarking) — only needed for benchmarking runs; pulls in heavier dataset/IO deps
+- `eval` on `anno-cli` / `anno-eval`: evaluation harnesses (dataset loading, benchmarking); this is not a feature of the main `anno` library.
 - `discourse`: discourse-level utilities
 - `graph`: graph/KG export surface
 

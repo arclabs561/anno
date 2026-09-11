@@ -69,6 +69,10 @@ jobs:
           cache-dependency-glob: ty.toml
       - name: Run ty
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
+      - name: Test external parser adapter contract (no model downloads)
+        run: uv run --python 3.12 --with nltk==3.10.3 --with spacy==3.8.16 python -m unittest discover -s scripts -p test_parse_benepar.py
+      - name: Check external parser script lock consistency
+        run: uv lock --script scripts/parse_benepar.py --check
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
@@ -611,6 +615,11 @@ jobs:
         run: cargo build -p anno --examples --features "onnx"
       - name: Run muxer decision-loop example (offline smoke)
         run: cargo run -p anno-eval --example muxer_decision_loop --features "eval discourse"
+      - name: Run grounded extraction and constituency import (offline smoke)
+        run: |
+          cargo run -p anno --example grounded
+          cargo run -p anno-cli -- parse --input testdata/constituency/benepar_en3.json --format json > /tmp/anno-parse.json
+          python3 -c 'import json; from pathlib import Path; assert json.loads(Path("/tmp/anno-parse.json").read_text()) == json.loads(Path("testdata/constituency/benepar_en3.json").read_text())'
   # ==========================================================================
   # Sanity Check Evaluations (small random samples on push)
   # ==========================================================================
