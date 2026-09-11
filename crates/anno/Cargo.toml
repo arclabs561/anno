@@ -51,7 +51,7 @@ safetensors = { workspace = true, optional = true }
 half = { workspace = true, optional = true }
 
 # Semantic text chunking (optional).
-text-splitter = { version = "0.28", optional = true }
+text-splitter = { version = "0.32", optional = true }
 
 # Graph/KG export (optional). Adapters from extraction output to `lattix::KnowledgeGraph`.
 lattix = { version = "0.6", optional = true }
