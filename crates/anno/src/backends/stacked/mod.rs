@@ -491,7 +491,7 @@ impl StackedExtractionReport {
 #[derive(Debug)]
 pub struct StackedExtractionError {
     report: StackedExtractionReport,
-    source: crate::Error,
+    source: Box<crate::Error>,
 }
 
 impl StackedExtractionError {
@@ -510,7 +510,7 @@ impl StackedExtractionError {
     /// Consumes this error and returns the underlying `anno` error.
     #[must_use]
     pub fn into_error(self) -> crate::Error {
-        self.source
+        *self.source
     }
 }
 
@@ -522,7 +522,7 @@ impl std::fmt::Display for StackedExtractionError {
 
 impl std::error::Error for StackedExtractionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.source)
+        Some(self.source.as_ref())
     }
 }
 
@@ -926,7 +926,10 @@ impl StackedNER {
             let (_, source) = layer_errors
                 .pop()
                 .expect("a failed attempted layer has an error");
-            return Err(StackedExtractionError { report, source });
+            return Err(StackedExtractionError {
+                report,
+                source: Box::new(source),
+            });
         }
         if policy == StackedExtractionPolicy::Strict && !layer_errors.is_empty() {
             let source = crate::Error::Inference(format!(
@@ -937,7 +940,10 @@ impl StackedNER {
                     .map(|(name, error)| format!("{name}: {error}"))
                     .join("; ")
             ));
-            return Err(StackedExtractionError { report, source });
+            return Err(StackedExtractionError {
+                report,
+                source: Box::new(source),
+            });
         }
 
         Ok(report)
