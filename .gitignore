@@ -58,6 +58,8 @@ crates/anno/target/
 
 # Claude Code (local settings, commands, artifacts)
 .claude/
+.agents/
+.firecrawl/
 
 # Cargo crates.io packaging (local scratch)
 crates/*/README.md

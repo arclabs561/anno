@@ -7,6 +7,9 @@ This directory contains human-oriented docs for `anno`.
 - [QUICKSTART.md](QUICKSTART.md) — 5-minute CLI + library usage
 - [CONTRACT.md](CONTRACT.md) — scope + guarantees
 - [BACKENDS.md](BACKENDS.md) — backend selection and feature flags
+- [CONSTITUENCY.md](CONSTITUENCY.md) — external parser integration and tree interchange
+- [EXTRACTION_WORKFLOWS.md](EXTRACTION_WORKFLOWS.md) — reusable extraction and measured fixture profiles
+- [BUILDING.md](BUILDING.md) — local checks and compiler caching
 - [PUBLISH_STATUS.md](PUBLISH_STATUS.md) — publish + validation checks
 
 ## Reference (kept small)
@@ -20,4 +23,3 @@ Large “design/research notes” have been removed from `docs/` to keep this re
 ## Docs hygiene
 
 - Run `just docs-audit` to check internal links and catch common “stale path” regressions.
-

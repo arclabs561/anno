@@ -19,31 +19,57 @@ check:
         cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
     fi
 
+# Run standard checks with sccache-friendly compilation settings.
+check-cached:
+    # Disable incremental artifacts only for this CI-shaped invocation. This
+    # lets sccache reuse compilations across clean target directories and repos.
+    CARGO_INCREMENTAL=0 just check
+
+# Show sccache health and hit/miss counters.
+cache-stats:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # If Cargo learns its wrapper from `.cargo/config.toml`, export the same
+    # wrapper here to include remote tiers as well as the local disk tier.
+    if [[ -n "${RUSTC_WRAPPER:-}" ]]; then
+        "$RUSTC_WRAPPER" --show-adv-stats
+    else
+        echo 'Using plain sccache; export RUSTC_WRAPPER to inspect a wrapper-configured remote cache.' >&2
+        sccache --show-adv-stats
+    fi
+
 # Run fast checks without features (minimal, for quick iteration)
 check-minimal:
     cargo fmt --manifest-path Cargo.toml -p anno -- --check
     cargo clippy --manifest-path Cargo.toml -p anno --all-targets --no-default-features
     cargo test --manifest-path Cargo.toml -p anno --no-default-features --lib
 
-# Check compile coverage for feature-gated code paths.
+# Check portable feature-gated code paths.
 #
-# This keeps optional features from silently drifting into non-compiling states.
+# CUDA, Metal, and CoreML variants require separate checks on supported hosts.
 check-feature-matrix:
     #!/usr/bin/env bash
     set -euo pipefail
     features=(
-        "semantic-chunking"
-        "subsume"
-        "jiff-time"
+        "heuristic-fr"
+        "analysis"
+        "discourse"
+        "schema"
+        "graph"
+        "onnx"
+        "candle"
+        "gliner2-fastino"
+        "gliner2-fastino-candle"
         "llm"
         "production"
         "bundled-crf-weights"
         "bundled-hmm-params"
-        "burn"
+        "chunking"
+        "parallel"
     )
     for feature in "${features[@]}"; do
-        echo "==> cargo check -p anno-lib --no-default-features --features ${feature}"
-        cargo check -p anno-lib --no-default-features --features "${feature}"
+        echo "==> cargo check -p anno --no-default-features --features ${feature}"
+        cargo check -p anno --no-default-features --features "${feature}"
     done
     # Cross-crate feature combos that have broken before
     echo "==> cargo check -p anno-cli --features 'eval onnx pdf'"
@@ -403,11 +429,11 @@ typecheck-python:
 
 # Run NER benchmark (no execution, just compile)
 bench-check:
-    cargo bench -p anno-lib --no-run
+    cargo bench -p anno --no-run
 
 # Run benchmarks
 bench:
-    cargo bench -p anno-lib
+    cargo bench -p anno
 
 # === Utilities ===
 
@@ -473,7 +499,7 @@ test-count:
 
 # Run quickstart example (no deps)
 example-minimal:
-    cargo run -p anno-lib --example minimal
+    cargo run -p anno --example minimal
 
 # Run deterministic offline muxer decision-loop example
 example-muxer:

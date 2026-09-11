@@ -4,6 +4,9 @@
 [store]
 dir = "target/nextest"
 
+[test-groups]
+model-initialization = { max-threads = 2 }
+
 # =============================================================================
 # Default Profile
 # =============================================================================
@@ -48,6 +51,14 @@ slow-timeout = { period = "10s", terminate-after = 1 }
 # binaries, prefer updating this filter with the actual `binary(...)` names from
 # `cargo nextest list --workspace`.
 default-filter = "not test(/property/) and not test(/proptest/) and not test(/eval::/) and not test(/eval.*harness/) and not test(/backend_availability_matrix/) and not test(/albert::tests::test_albert_name/) and not test(/randomized_matrix_sample/)"
+
+# These tests construct real default models or traverse the document fixture.
+# Keep them in the quick gate, but avoid concurrent model-loading contention and
+# allow the normal 120-second budget (the fixture alone takes about 30 seconds).
+[[profile.quick.overrides]]
+filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or test(convenience_tests::) or test(backends::tplinker::tests::) or test(test_default_includes_ml_backend_when_available) or test(test_strategy_default_is_priority) or test(fixture_documents_structure_and_min_counts))'
+test-group = 'model-initialization'
+slow-timeout = { period = "60s", terminate-after = 2 }
 
 # =============================================================================
 # ML Profile - for ML backend tests
