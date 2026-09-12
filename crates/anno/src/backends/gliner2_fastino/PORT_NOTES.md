@@ -10,8 +10,8 @@ with token-gathering, schema-gathering, ArgMax over count logits, and
 Einsum-style scoring done in Rust. v2 fuses those ops into 3 additional
 ONNX graphs (token_gather, schema_gather, count_pred_argmax,
 count_lstm_fixed) for IOBinding-friendly zero-copy chaining. The
-SemplificaAI pin (`SemplificaAI/gliner2-multi-v1-onnx`, commit
-51d4a15c) ships the v2 graphs in `fp32/` and `fp32_v2/` subdirs. We
+Supported snapshot (`jugaadsrl/gliner2-multi-v1-onnx`, commit
+4241d7c66b648e618c89c150bf4cf418d2f83159) ships the v2 graphs in `fp32/` and `fp32_v2/` subdirs. We
 port v2.
 
 ## Standard mode vs IOBinding mode

@@ -530,6 +530,7 @@ pub mod candle_impl {
         }
 
         /// Load encoder from HuggingFace model (safetensors).
+        #[cfg(not(target_arch = "wasm32"))]
         pub fn from_pretrained(model_id: &str) -> Result<Self> {
             let api = crate::backends::hf_loader::hf_api()?;
 

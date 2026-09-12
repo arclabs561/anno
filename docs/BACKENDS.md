@@ -10,6 +10,7 @@ This page avoids benchmark numbers and "working set" claims that drift. Use `ann
 |---------|--------------|-----------|--------|---------------|
 | `gliner` (canonical) / `gliner_onnx` (low-level) | Bi-encoder span classifier | Yes | stable | `onnx-community/gliner_small-v2.1` |
 | `gliner_multitask` | GLiNER v1 with task-conditioned label prompts (NER + classification + structure; Stepanov & Shtopko 2024) | Yes | beta | `onnx-community/gliner-multitask-large-v0.5` |
+| `gliner2_fastino` | Fastino GLiNER2, eight-graph ONNX pipeline | Yes | experimental | `jugaadsrl/gliner2-multi-v1-onnx` at `4241d7c66b648e618c89c150bf4cf418d2f83159` |
 | `nuner` | Token classifier (BIO) | Yes | stable | `numind/NuNER_Zero` (also: `NuNER_Zero-4k` 4096 ctx, `NuNER_Zero-span`) |
 | `bert_onnx` | BERT sequence labeling | No | beta | `protectai/bert-base-NER-onnx` |
 | `w2ner` | Word-word grids (nested) | No | beta | `ljynlp/w2ner-bert-base` |
@@ -32,14 +33,49 @@ construction time if its feature isn't enabled.
 
 | Backend | Architecture | Zero-shot | Status | Default model |
 |---------|--------------|-----------|--------|---------------|
-| `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `urchade/gliner_small-v2.1` (also: `knowledgator/gliner-bi-base-v2.0`, `gliner-bi-large-v2.0`) |
+| `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | experimental | `urchade/gliner_small-v2.1` is configured, but checkpoint compatibility is not validated |
 | `candle_ner` | BERT NER via Candle | No | beta | `dslim/bert-base-NER` |
+
+`GLiNERCandle::from_assets` accepts configuration, tokenizer JSON, and
+safetensors bytes without downloading files or spawning Python. Native
+`from_pretrained` retains its memory-mapped weight loading. The GLiNER loader
+requires its existing BERT tensor layout; byte-backed construction does not
+add DeBERTa or ModernBERT support.
+
+The experimental Candle target build excludes native network and
+filesystem model constructors:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo build -p anno --target wasm32-unknown-unknown --no-default-features --features candle
+```
+
+Use Cargo and rustc from the toolchain where the target is installed. This is
+library build support, not a JavaScript binding or a verified browser demo.
+A compatible trained checkpoint and browser inference test are still required.
+The public browser feature remains deferred until those gates pass.
+
+### ONNX execution providers
+
+`create_onnx_session_with_provider` accepts an explicit `OnnxExecutionProvider`
+and overrides the older CUDA/CoreML preference flags in `OnnxSessionConfig`.
+CUDA, CoreML, DirectML, and ROCm require `onnx-cuda`, `onnx-coreml`,
+`onnx-directml`, and `onnx-rocm`, respectively. An unavailable requested
+provider returns an error. Successful registration still permits CPU
+execution of unsupported graph nodes; it does not prove full GPU placement.
+
+The `onnx_cuda_smoke` and `onnx_coreml_smoke` examples accept an optional
+local ONNX path to verify registration without a download. CUDA, DirectML,
+and ROCm runtime validation requires the corresponding hardware and drivers.
 
 ### Neural: Fastino GLiNER2 (feature `gliner2-fastino`)
 
 `GLiNER2Fastino` is available behind the `gliner2-fastino` feature. Its
 optional Candle implementation is behind `gliner2-fastino-candle`; see
 [the feature-gating contract](CONTRACT.md) for the supported feature surface.
+The ONNX evaluator uses the pinned `jugaadsrl/gliner2-multi-v1-onnx`
+snapshot `4241d7c66b648e618c89c150bf4cf418d2f83159`; it requires about
+1.25 GB for the selected `fp32_v2` files on first use.
 
 ### Neural: LLM (feature `llm`)
 
@@ -181,6 +217,7 @@ manually for that one backend.
 |---------|---------------|--------|----------------|---------------|
 | `gliner` / `gliner_onnx` | yes | (auto-export on first load if no ONNX cached) | hf-hub cache | `--` |
 | `gliner_multitask` | yes | `--` | hf-hub cache | `--` |
+| `gliner2_fastino` | yes | `--` | hf-hub cache | `--` |
 | `bert_onnx` | yes | `--` | hf-hub cache | `--` |
 | `gliner_candle` / `candle_ner` | yes | `--` | hf-hub cache | `--` |
 | `gliner_pii` | yes | `--` | hf-hub cache | `--` |

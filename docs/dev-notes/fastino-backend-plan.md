@@ -45,7 +45,8 @@ Port. Do not depend.
 1. New module `crates/anno/src/backends/gliner2_fastino/`.
 2. ONNX export route: either ship a script mirroring `lmoe/gliner2-onnx`,
    or pin to a known-good external pre-export
-   (`SemplificaAI/gliner2-multi-v1-onnx`).
+   (`jugaadsrl/gliner2-multi-v1-onnx` at revision
+   `4241d7c66b648e618c89c150bf4cf418d2f83159`).
 3. Port `processor.rs` from `SemplificaAI/gliner2-rs` (Apache-2.0,
    attribute in source comments). Special-token registration from
    `tokenizer.json`. Prompt format:

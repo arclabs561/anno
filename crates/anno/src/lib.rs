@@ -181,13 +181,13 @@ mod sealed {
     #[cfg(feature = "onnx")]
     impl Sealed for super::backends::gliner_multitask::GLiNERMultitaskOnnx {}
 
-    #[cfg(feature = "candle")]
+    #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
     impl Sealed for super::CandleNER {}
 
     #[cfg(feature = "candle")]
     impl Sealed for super::backends::gliner_candle::GLiNERCandle {}
 
-    #[cfg(feature = "candle")]
+    #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
     impl Sealed for super::backends::gliner_multitask::GLiNERMultitaskCandle {}
 
     impl Sealed for super::backends::tplinker::TPLinker {}
@@ -671,7 +671,10 @@ pub use backends::inference::{
 // binaries under `examples/`). The hf_loader module rustdoc already
 // documented this path; this re-export makes the documented path real.
 #[cfg(feature = "onnx")]
-pub use backends::hf_loader::{create_onnx_session, download_model_file, OnnxSessionConfig};
+pub use backends::hf_loader::{
+    create_onnx_session, create_onnx_session_with_provider, download_model_file,
+    OnnxExecutionProvider, OnnxSessionConfig,
+};
 
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
@@ -681,7 +684,7 @@ pub use backends::{BertNEROnnx, GLiNEROnnx};
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
 pub use backends::{FCoref, FCorefConfig};
 
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 #[cfg_attr(docsrs, doc(cfg(feature = "candle")))]
 pub use backends::CandleNER;
 
@@ -692,7 +695,7 @@ pub use backends::CandleNER;
 /// Extract entities from text using the best available backend.
 ///
 /// This is a one-liner convenience function. For control over which backend
-/// to use, construct a specific model (e.g., [`StackedNER`], [`GLiNEROnnx`]).
+/// to use, construct a specific model (e.g., [`StackedNER`] or native `GLiNEROnnx`).
 ///
 /// ```rust
 /// let entities = anno::extract("Marie Curie won the Nobel Prize.")?;
@@ -865,7 +868,7 @@ pub fn auto() -> Result<Box<dyn Model>> {
             ),
         }
     }
-    #[cfg(feature = "candle")]
+    #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
     {
         match CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL) {
             Ok(model) => return Ok(Box::new(model)),

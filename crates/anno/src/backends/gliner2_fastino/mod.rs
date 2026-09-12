@@ -2,7 +2,7 @@
 //!
 //! **Status:** Shipped (Phase 4). Candle + LoRA NER backend with merge-at-load.
 //!
-//! Loads `fastino/gliner2-*` ONNX models (Zaratiana et al. 2025,
+//! Loads GLiNER2-compatible ONNX exports (Zaratiana et al. 2025,
 //! arXiv:2507.18546). Distinct from `gliner_multitask` (which loads GLiNER v1
 //! multi-task models with hardcoded `<<ENT>>=128002` IDs and rejects any
 //! `fastino/*` model id at the discovery layer).
@@ -80,8 +80,9 @@
 //! };
 //!
 //! let model = GLiNER2Fastino::from_pretrained_with_config(
-//!     "SemplificaAI/gliner2-multi-v1-onnx",
+//!     SUPPORTED_GLINER2_FASTINO_MODEL,
 //!     GLiNER2FastinoConfig::default()
+//!         .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION)
 //!         .with_execution_mode(ExecutionMode::IoBinding),
 //! )
 //! .unwrap();
@@ -111,6 +112,12 @@ pub(crate) mod processor;
 pub mod schema;
 pub(crate) mod sessions;
 
+/// Verified GLiNER2 ONNX export used by the evaluation backend.
+pub const SUPPORTED_GLINER2_FASTINO_MODEL: &str = "jugaadsrl/gliner2-multi-v1-onnx";
+
+/// Immutable Hugging Face revision for [`SUPPORTED_GLINER2_FASTINO_MODEL`].
+pub const SUPPORTED_GLINER2_FASTINO_REVISION: &str = "4241d7c66b648e618c89c150bf4cf418d2f83159";
+
 /// Inference execution mode.
 ///
 /// Phase 3 standard mode (`Standard`) round-trips tensors through Rust
@@ -139,6 +146,8 @@ pub struct GLiNER2FastinoConfig {
     pub onnx: crate::backends::hf_loader::OnnxSessionConfig,
     /// Execution path: standard round-trip or IoBinding device-resident.
     pub execution_mode: ExecutionMode,
+    /// Optional immutable Hugging Face revision for reproducible artifact selection.
+    pub model_revision: Option<String>,
 }
 
 impl Default for GLiNER2FastinoConfig {
@@ -146,6 +155,7 @@ impl Default for GLiNER2FastinoConfig {
         Self {
             onnx: crate::backends::hf_loader::OnnxSessionConfig::default(),
             execution_mode: ExecutionMode::Standard,
+            model_revision: None,
         }
     }
 }
@@ -157,6 +167,13 @@ impl GLiNER2FastinoConfig {
     #[must_use]
     pub fn with_execution_mode(mut self, mode: ExecutionMode) -> Self {
         self.execution_mode = mode;
+        self
+    }
+
+    /// Pin the Hugging Face snapshot used by `from_pretrained_with_config`.
+    #[must_use]
+    pub fn with_model_revision(mut self, revision: impl Into<String>) -> Self {
+        self.model_revision = Some(revision.into());
         self
     }
 
@@ -305,6 +322,7 @@ impl GLiNER2Fastino {
             GLiNER2FastinoConfig {
                 onnx: cfg,
                 execution_mode: ExecutionMode::Standard,
+                model_revision: None,
             },
         )
     }
@@ -384,7 +402,20 @@ impl GLiNER2Fastino {
     ) -> crate::Result<Self> {
         let api = crate::backends::hf_loader::hf_api()
             .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: hf_api: {e}")))?;
-        let repo = api.model(model_id.to_string());
+        // The public, supported model is always reproducible by default.
+        // Other model IDs remain floating unless the caller opts into a revision.
+        let revision = cfg.model_revision.as_deref().or_else(|| {
+            (model_id == SUPPORTED_GLINER2_FASTINO_MODEL)
+                .then_some(SUPPORTED_GLINER2_FASTINO_REVISION)
+        });
+        let repo = match revision {
+            Some(revision) => api.repo(hf_hub::Repo::with_revision(
+                model_id.to_string(),
+                hf_hub::RepoType::Model,
+                revision.to_string(),
+            )),
+            None => api.model(model_id.to_string()),
+        };
 
         // Tokenizer + config are co-located with the ONNX files in dtype subdirs.
         // Try fp32_v2/ first, fall back to fp16_v2/, then root for backward compat.
@@ -397,7 +428,7 @@ impl GLiNER2Fastino {
             ],
         )
         .map_err(|e| crate::Error::Backend(format!("gliner2_fastino: download tokenizer: {e}")))?;
-        // config.json is optional — SemplificaAI's export doesn't include it.
+        // config.json is optional — the supported export doesn't include it.
         // Try to download if present, but ignore 404s and fall back to defaults
         // in from_local.
         let _ = crate::backends::hf_loader::download_model_file(
@@ -450,6 +481,25 @@ impl GLiNER2Fastino {
         let mut model = Self::from_local_with_config(snapshot_dir, cfg)?;
         model.model_id = model_id.to_string();
         Ok(model)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn supported_snapshot_is_explicit_and_opt_in() {
+        let cfg =
+            GLiNER2FastinoConfig::default().with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION);
+        assert_eq!(
+            cfg.model_revision.as_deref(),
+            Some(SUPPORTED_GLINER2_FASTINO_REVISION)
+        );
+        assert_eq!(
+            SUPPORTED_GLINER2_FASTINO_MODEL,
+            "jugaadsrl/gliner2-multi-v1-onnx"
+        );
     }
 }
 

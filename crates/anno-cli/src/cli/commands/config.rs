@@ -1,9 +1,10 @@
 //! Config command - Configuration management
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::fs;
 
 use super::super::output::color;
+use super::super::parser::{ModelBackend, OutputFormat};
 use super::super::utils::{get_config_dir, validate_path_component};
 
 /// Configuration management
@@ -25,11 +26,11 @@ pub enum ConfigAction {
 
         /// Model to save in config
         #[arg(long, value_name = "MODEL")]
-        model: Option<String>,
+        model: Option<ModelBackend>,
 
         /// Output format to save in config
         #[arg(long, value_name = "FORMAT")]
-        format: Option<String>,
+        format: Option<OutputFormat>,
 
         /// Include coreference in config
         #[arg(long)]
@@ -39,7 +40,7 @@ pub enum ConfigAction {
         #[arg(long)]
         link_kb: bool,
 
-        /// Threshold for cross-doc
+        /// Minimum extraction confidence threshold to save in config
         #[arg(long, value_name = "FLOAT")]
         threshold: Option<f64>,
     },
@@ -81,11 +82,17 @@ pub fn run(args: ConfigArgs) -> Result<(), String> {
 
             let mut config = toml::map::Map::new();
 
-            if let Some(ref m) = model {
-                config.insert("model".to_string(), Value::String(m.clone()));
+            if let Some(model) = model {
+                config.insert(
+                    "model".to_string(),
+                    Value::String(model.to_possible_value().unwrap().get_name().to_string()),
+                );
             }
-            if let Some(ref f) = format {
-                config.insert("format".to_string(), Value::String(f.clone()));
+            if let Some(format) = format {
+                config.insert(
+                    "format".to_string(),
+                    Value::String(format.to_possible_value().unwrap().get_name().to_string()),
+                );
             }
             if coref {
                 config.insert("coref".to_string(), Value::Boolean(true));

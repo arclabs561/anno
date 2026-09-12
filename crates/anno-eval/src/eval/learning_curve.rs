@@ -131,7 +131,7 @@ impl LearningCurveAnalyzer {
     }
 
     fn compute_efficiency(&self) -> SampleEfficiencyMetrics {
-        let mut sorted_points = self.data_points.clone();
+        let mut sorted_points = self.valid_data_points();
         sorted_points.sort_by_key(|p| p.train_size);
 
         // Compute average F1 improvement per 100 samples
@@ -173,7 +173,11 @@ impl LearningCurveAnalyzer {
     }
 
     fn estimate_samples_for_f1(&self, target_f1: f64) -> Option<usize> {
-        let mut sorted = self.data_points.clone();
+        if !(0.0..=1.0).contains(&target_f1) {
+            return None;
+        }
+
+        let mut sorted = self.valid_data_points();
         sorted.sort_by_key(|p| p.train_size);
 
         // Check if we've already achieved this F1
@@ -188,11 +192,11 @@ impl LearningCurveAnalyzer {
             if let Some(fit) = self.fit_power_law() {
                 // Solve for x: target_f1 = a * x^b + c
                 // x = ((target_f1 - c) / a)^(1/b)
-                let diff = target_f1 - fit.c;
-                if diff > 0.0 && fit.a > 0.0 && fit.b != 0.0 {
-                    let x = (diff / fit.a).powf(1.0 / fit.b);
-                    if x.is_finite() && x > 0.0 {
-                        return Some(x as usize);
+                let ratio = (target_f1 - fit.c) / fit.a;
+                if ratio > 0.0 && fit.b != 0.0 {
+                    let x = ratio.powf(1.0 / fit.b);
+                    if x.is_finite() && x > 0.0 && x <= usize::MAX as f64 {
+                        return Some(x.ceil().max(1.0) as usize);
                     }
                 }
             }
@@ -249,64 +253,69 @@ impl LearningCurveAnalyzer {
     }
 
     fn fit_power_law(&self) -> Option<CurveFitParams> {
-        if self.data_points.len() < 3 {
+        let mut sorted = self.valid_data_points();
+        if sorted.len() < 3 {
             return None;
         }
-
-        // Simple power law fit: y = a * x^b + c
-        // Using least squares on log-transformed data for a and b,
-        // then estimate c from residuals
-
-        let mut sorted = self.data_points.clone();
         sorted.sort_by_key(|p| p.train_size);
 
-        // For simplicity, use a basic heuristic fit
-        // In production, would use proper nonlinear regression
+        let min_y = sorted
+            .iter()
+            .map(|point| point.f1)
+            .fold(f64::INFINITY, f64::min);
+        let max_y = sorted
+            .iter()
+            .map(|point| point.f1)
+            .fold(f64::NEG_INFINITY, f64::max);
+        let mut best_fit = None;
 
-        let x_log: Vec<f64> = sorted.iter().map(|p| (p.train_size as f64).ln()).collect();
-        let y: Vec<f64> = sorted.iter().map(|p| p.f1).collect();
+        // For a learning curve that rises towards an upper asymptote c,
+        // `a` is negative and `b` is normally negative. For completeness, also
+        // fit the mirrored branch below the observations. Once c is fixed,
+        // log(|y - c|) = log(|a|) + b log(x) is an ordinary least-squares fit.
+        for (lower, upper, sign) in [(max_y, 1.0, -1.0), (0.0, min_y, 1.0)] {
+            let margin = ((upper - lower) * 1e-6).max(1e-9);
+            let lower = lower + margin;
+            let upper = upper - margin;
+            if lower >= upper {
+                continue;
+            }
 
-        let n = x_log.len() as f64;
-        let sum_x = x_log.iter().sum::<f64>();
-        let sum_y = y.iter().sum::<f64>();
-        let sum_xy: f64 = x_log.iter().zip(y.iter()).map(|(x, y)| x * y).sum();
-        let sum_x2: f64 = x_log.iter().map(|x| x * x).sum();
-
-        let denom = n * sum_x2 - sum_x * sum_x;
-        if denom.abs() < 1e-10 {
-            return None;
+            for step in 0..=256 {
+                let c = lower + (upper - lower) * step as f64 / 256.0;
+                if let Some((a, b, residual)) = fit_for_offset(&sorted, c, sign) {
+                    if best_fit.is_none_or(|(_, _, _, best_residual)| residual < best_residual) {
+                        best_fit = Some((a, b, c, residual));
+                    }
+                }
+            }
         }
 
-        let b = (n * sum_xy - sum_x * sum_y) / denom;
-        let a_log = (sum_y - b * sum_x) / n;
-        let a = a_log.exp();
-
-        // Estimate c as the asymptote (use last point's F1 + small buffer)
-        let c = sorted.last().map(|p| p.f1 * 1.05).unwrap_or(1.0).min(1.0);
-
-        // Compute R²
-        let y_mean = sum_y / n;
-        let ss_tot: f64 = y.iter().map(|yi| (yi - y_mean).powi(2)).sum();
-        let ss_res: f64 = sorted
+        let (a, b, c, ss_res) = best_fit?;
+        let y_mean = sorted.iter().map(|point| point.f1).sum::<f64>() / sorted.len() as f64;
+        let ss_tot = sorted
             .iter()
-            .map(|p| {
-                let predicted = a * (p.train_size as f64).powf(b);
-                (p.f1 - predicted).powi(2)
-            })
-            .sum();
-
+            .map(|point| (point.f1 - y_mean).powi(2))
+            .sum::<f64>();
         let r_squared = if ss_tot > 0.0 {
-            1.0 - ss_res / ss_tot
+            (1.0 - ss_res / ss_tot).clamp(0.0, 1.0)
+        } else if ss_res <= f64::EPSILON {
+            1.0
         } else {
             0.0
         };
 
-        Some(CurveFitParams {
-            a,
-            b,
-            c,
-            r_squared: r_squared.max(0.0),
-        })
+        Some(CurveFitParams { a, b, c, r_squared })
+    }
+
+    fn valid_data_points(&self) -> Vec<DataPoint> {
+        self.data_points
+            .iter()
+            .filter(|point| {
+                point.train_size > 0 && point.f1.is_finite() && (0.0..=1.0).contains(&point.f1)
+            })
+            .cloned()
+            .collect()
     }
 
     fn generate_recommendations(
@@ -383,6 +392,10 @@ impl LearningCurveAnalysis {
 ///
 /// This is a helper for setting up learning curve experiments.
 pub fn suggested_train_sizes(max_size: usize) -> Vec<usize> {
+    if max_size == 0 {
+        return Vec::new();
+    }
+
     let mut sizes = Vec::new();
 
     // Exponential spacing: 10, 25, 50, 100, 250, 500, 1000, ...
@@ -399,6 +412,43 @@ pub fn suggested_train_sizes(max_size: usize) -> Vec<usize> {
     }
 
     sizes
+}
+
+/// Fit `y = a * x^b + c` for a fixed offset. `sign` selects whether the
+/// observations lie above (`1.0`) or below (`-1.0`) the offset.
+fn fit_for_offset(points: &[DataPoint], c: f64, sign: f64) -> Option<(f64, f64, f64)> {
+    let x_logs: Vec<f64> = points
+        .iter()
+        .map(|point| (point.train_size as f64).ln())
+        .collect();
+    let y_logs: Vec<f64> = points
+        .iter()
+        .map(|point| (sign * (point.f1 - c)).ln())
+        .collect();
+    if y_logs.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+
+    let n = points.len() as f64;
+    let sum_x = x_logs.iter().sum::<f64>();
+    let sum_y = y_logs.iter().sum::<f64>();
+    let sum_xy = x_logs.iter().zip(&y_logs).map(|(x, y)| x * y).sum::<f64>();
+    let sum_x2 = x_logs.iter().map(|x| x * x).sum::<f64>();
+    let denominator = n * sum_x2 - sum_x * sum_x;
+    if denominator.abs() < 1e-12 {
+        return None;
+    }
+
+    let b = (n * sum_xy - sum_x * sum_y) / denominator;
+    let a = sign * ((sum_y - b * sum_x) / n).exp();
+    if !a.is_finite() || !b.is_finite() {
+        return None;
+    }
+    let residual: f64 = points
+        .iter()
+        .map(|point| (point.f1 - (a * (point.train_size as f64).powf(b) + c)).powi(2))
+        .sum();
+    residual.is_finite().then_some((a, b, residual))
 }
 
 // =============================================================================
@@ -570,5 +620,56 @@ mod tests {
 
         assert_eq!(analysis.efficiency.f1_per_100_samples, 0.0);
         assert!(analysis.curve_fit.is_none());
+    }
+
+    #[test]
+    fn test_power_law_fit_uses_documented_offset_model() {
+        let points = [100, 400, 1600, 6400]
+            .into_iter()
+            .map(|train_size| {
+                let f1 = 0.9 - 2.0 * (train_size as f64).powf(-0.5);
+                DataPoint {
+                    train_size,
+                    f1,
+                    precision: f1,
+                    recall: f1,
+                }
+            })
+            .collect();
+        let analyzer = LearningCurveAnalyzer::new(points);
+        let fit = analyzer.fit_power_law().expect("valid power-law fit");
+
+        assert!(fit.a < 0.0);
+        assert!(fit.b < 0.0);
+        assert!(fit.c > 0.85);
+        assert!(fit.r_squared > 0.999);
+        assert!(analyzer.estimate_samples_for_f1(0.875).is_some());
+    }
+
+    #[test]
+    fn test_zero_sized_points_are_not_fit_or_suggested() {
+        let analyzer = LearningCurveAnalyzer::new(vec![
+            DataPoint {
+                train_size: 0,
+                f1: 0.1,
+                precision: 0.1,
+                recall: 0.1,
+            },
+            DataPoint {
+                train_size: 100,
+                f1: 0.5,
+                precision: 0.5,
+                recall: 0.5,
+            },
+            DataPoint {
+                train_size: 1000,
+                f1: 0.7,
+                precision: 0.7,
+                recall: 0.7,
+            },
+        ]);
+
+        assert!(analyzer.fit_power_law().is_none());
+        assert!(suggested_train_sizes(0).is_empty());
     }
 }

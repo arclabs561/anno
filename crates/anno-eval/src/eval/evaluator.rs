@@ -309,13 +309,15 @@ impl Default for StandardNEREvaluator {
     }
 }
 
-impl NEREvaluator for StandardNEREvaluator {
-    fn evaluate_test_case(
+impl StandardNEREvaluator {
+    /// Evaluate one test case, optionally discarding predictions below a confidence threshold.
+    pub fn evaluate_test_case_with_min_confidence(
         &self,
         model: &dyn Model,
         text: &str,
         ground_truth: &[GoldEntity],
         test_case_id: Option<&str>,
+        min_confidence: Option<f64>,
     ) -> Result<NERQueryMetrics> {
         // Validate input
         if text.is_empty() {
@@ -347,7 +349,10 @@ impl NEREvaluator for StandardNEREvaluator {
         let start_time = std::time::Instant::now();
 
         // Extract entities using model
-        let predicted = model.extract_entities(text, None)?;
+        let mut predicted = model.extract_entities(text, None)?;
+        if let Some(min_confidence) = min_confidence {
+            predicted.retain(|entity| entity.confidence.value() >= min_confidence);
+        }
 
         let elapsed = start_time.elapsed().as_secs_f64();
         let tokens = text.split_whitespace().count();
@@ -484,6 +489,18 @@ impl NEREvaluator for StandardNEREvaluator {
             correct,
             tokens_per_second,
         })
+    }
+}
+
+impl NEREvaluator for StandardNEREvaluator {
+    fn evaluate_test_case(
+        &self,
+        model: &dyn Model,
+        text: &str,
+        ground_truth: &[GoldEntity],
+        test_case_id: Option<&str>,
+    ) -> Result<NERQueryMetrics> {
+        self.evaluate_test_case_with_min_confidence(model, text, ground_truth, test_case_id, None)
     }
 
     fn aggregate(&self, query_metrics: &[NERQueryMetrics]) -> Result<NERAggregateMetrics> {

@@ -63,6 +63,26 @@ pub struct BertNEROnnx {
     is_quantized: bool,
 }
 
+/// Decide whether a BIO tag continues the entity currently being decoded.
+///
+/// A beginning tag may only extend an existing entity for another subword of
+/// the same lexical word. An inside tag continues only an equal entity type;
+/// comparing enum discriminants would incorrectly merge distinct `Custom`
+/// labels because they share the same variant.
+#[cfg(feature = "onnx")]
+fn continues_bio_entity(
+    bio: &str,
+    is_subword_continuation: bool,
+    current_type: Option<&EntityType>,
+    next_type: &EntityType,
+) -> bool {
+    match bio {
+        "B" => is_subword_continuation,
+        "I" => current_type.is_some_and(|current| current == next_type),
+        _ => false,
+    }
+}
+
 #[cfg(feature = "onnx")]
 impl BertNEROnnx {
     /// Create a new BERT NER ONNX model with default config.
@@ -761,24 +781,17 @@ impl BertNEROnnx {
 
             match bio {
                 "B" => {
-                    // Check if this B- tag should merge with previous entity.
-                    // Three reasons to merge:
-                    //   1. Same word_id (subword of same word).
-                    //   2. Byte-adjacent AND alphanumeric start (subword tokenization).
-                    //   3. Same type AND within 1 byte gap (adjacent words in same entity).
-                    let should_merge = if let Some((_, prev_end, ref prev_type, _)) = current_entity
-                    {
-                        is_subword_continuation
-                            || (std::mem::discriminant(prev_type)
-                                == std::mem::discriminant(&entity_type)
-                                && byte_start <= prev_end + 2
-                                && (byte_start == prev_end + 1
-                                    || text
-                                        .get(prev_end..byte_start)
-                                        .is_some_and(|g| g == " " || g == "-")))
-                    } else {
-                        false
-                    };
+                    // A B tag starts a new BIO entity. The sole exception is
+                    // a second token for the same lexical word, which keeps
+                    // the decoder's first-subword aggregation behavior.
+                    let should_merge = continues_bio_entity(
+                        bio,
+                        is_subword_continuation,
+                        current_entity
+                            .as_ref()
+                            .map(|(_, _, entity_type, _)| entity_type),
+                        &entity_type,
+                    );
 
                     if should_merge {
                         // Extend the current entity instead of starting new
@@ -799,8 +812,7 @@ impl BertNEROnnx {
                 "I" => {
                     // Continue current entity if same type
                     if let Some((start, _end, ref prev_type, conf)) = current_entity {
-                        if std::mem::discriminant(prev_type) == std::mem::discriminant(&entity_type)
-                        {
+                        if continues_bio_entity("I", false, Some(prev_type), &entity_type) {
                             current_entity = Some((start, byte_end, entity_type, conf));
                             last_entity_word_id = cur_word_id;
                         } else {
@@ -1054,5 +1066,110 @@ mod tests {
 
         assert_eq!(entities.len(), 1);
         assert_eq!(entities[0].confidence.value(), 0.94);
+    }
+
+    /// Requires the `protectai/bert-base-NER-onnx` model and tokenizer to
+    /// already be cached. Run with `ANNO_NO_DOWNLOADS=1` so the test cannot
+    /// fetch them.
+    #[test]
+    #[ignore = "requires cached protectai/bert-base-NER-onnx; run with ANNO_NO_DOWNLOADS=1"]
+    fn decode_output_keeps_adjacent_begin_location_tags_separate(
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        assert_eq!(
+            std::env::var("ANNO_NO_DOWNLOADS").as_deref(),
+            Ok("1"),
+            "this regression must run cache-only; set ANNO_NO_DOWNLOADS=1"
+        );
+
+        let mut model = BertNEROnnx::new("protectai/bert-base-NER-onnx")?;
+        let text = "Paris London";
+        let encoding = model.tokenizer().encode(text, true)?;
+        let label_count = model.id_to_label.keys().max().copied().unwrap_or(0) + 1;
+        let outside_label = model
+            .id_to_label
+            .iter()
+            .find_map(|(&id, label)| (label == "O").then_some(id))
+            .expect("cached model must define O");
+        let location_label = model
+            .id_to_label
+            .iter()
+            .find_map(|(&id, label)| (label == "B-LOC").then_some(id))
+            .expect("cached model must define B-LOC");
+
+        let mut logits =
+            ndarray::Array3::from_elem((1, encoding.len(), label_count), f32::NEG_INFINITY);
+        for token_idx in 0..encoding.len() {
+            logits[[0, token_idx, outside_label]] = 0.0;
+        }
+        for (token_idx, offset) in encoding.get_offsets().iter().enumerate() {
+            if matches!(*offset, (0, 5) | (6, 12)) {
+                logits[[0, token_idx, location_label]] = 1.0;
+            }
+        }
+
+        let output: ort::value::DynValue = ort::value::Tensor::<f32>::from_array((
+            logits.shape().to_vec(),
+            logits.into_raw_vec_and_offset().0,
+        ))?
+        .into();
+        let entities = model.decode_output(&output, text, &encoding)?;
+
+        assert_eq!(entities.len(), 2, "{entities:#?}");
+        assert_eq!(entities[0].text, "Paris");
+        assert_eq!(entities[0].entity_type, EntityType::Location);
+        assert_eq!(entities[0].start(), 0);
+        assert_eq!(entities[0].end(), 5);
+        assert_eq!(entities[1].text, "London");
+        assert_eq!(entities[1].entity_type, EntityType::Location);
+        assert_eq!(entities[1].start(), 6);
+        assert_eq!(entities[1].end(), 12);
+
+        // Reuse two non-O slots to exercise the `Custom` equality branch
+        // through the production decoder. A discriminant-only comparison
+        // would merge these distinct labels into one entity.
+        let mut custom_ids: Vec<_> = model
+            .id_to_label
+            .keys()
+            .copied()
+            .filter(|id| *id != outside_label)
+            .collect();
+        custom_ids.sort_unstable();
+        let disease_label = custom_ids[0];
+        let drug_label = custom_ids[1];
+        model
+            .id_to_label
+            .insert(disease_label, "B-DISEASE".to_string());
+        model.id_to_label.insert(drug_label, "I-DRUG".to_string());
+
+        let mut custom_logits =
+            ndarray::Array3::from_elem((1, encoding.len(), label_count), f32::NEG_INFINITY);
+        for token_idx in 0..encoding.len() {
+            custom_logits[[0, token_idx, outside_label]] = 0.0;
+        }
+        for (token_idx, offset) in encoding.get_offsets().iter().enumerate() {
+            match *offset {
+                (0, 5) => custom_logits[[0, token_idx, disease_label]] = 1.0,
+                (6, 12) => custom_logits[[0, token_idx, drug_label]] = 1.0,
+                _ => {}
+            }
+        }
+
+        let custom_output: ort::value::DynValue = ort::value::Tensor::<f32>::from_array((
+            custom_logits.shape().to_vec(),
+            custom_logits.into_raw_vec_and_offset().0,
+        ))?
+        .into();
+        let custom_entities = model.decode_output(&custom_output, text, &encoding)?;
+        assert_eq!(custom_entities.len(), 2, "{custom_entities:#?}");
+        assert_eq!(
+            custom_entities[0].entity_type,
+            EntityType::custom("DISEASE", EntityCategory::Misc)
+        );
+        assert_eq!(
+            custom_entities[1].entity_type,
+            EntityType::custom("DRUG", EntityCategory::Misc)
+        );
+
+        Ok(())
     }
 }

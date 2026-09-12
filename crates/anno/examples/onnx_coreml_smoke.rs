@@ -16,18 +16,17 @@
 //!
 //! - The `onnx-coreml` cargo feature compiles cleanly.
 //! - `ort/coreml` links cleanly against the host's CoreML.framework.
-//! - `OnnxSessionConfig::prefer_coreml = true` flows through
-//!   `create_onnx_session` into ort's
-//!   `with_execution_providers([CoreMLExecutionProvider::default().build()])`
-//!   without erroring.
+//! - `OnnxExecutionProvider::CoreMl` flows through
+//!   `create_onnx_session_with_provider` into ort's
+//!   `CoreMLExecutionProvider::default().build().error_on_failure()`. CoreML
+//!   must register or the smoke exits with an error.
 //! - The model loads under the resulting session.
 //!
-//! ## What this does NOT validate (deferred -- same gap as onnx_cuda_smoke)
+//! ## What this does NOT validate
 //!
-//! - **Silent CPU fallback.** Detecting this requires inference timing on the
-//!   same model with CoreML on/off. See `onnx_cuda_smoke.rs` for the same
-//!   open question and the path forward (route through anno's GLiNEROnnx
-//!   backend with a CoreML toggle, or vendor a tiny known-input ONNX fixture).
+//! - **Full graph placement.** Successful EP registration proves CoreML was
+//!   available to ONNX Runtime. It does not prove every model node runs on the
+//!   accelerator, because ONNX Runtime may assign unsupported nodes to CPU.
 //!
 //! ## Running
 //!
@@ -38,6 +37,12 @@
 //! No EC2/AWS plumbing -- this runs on the dev macOS box.
 //!
 //! Exit code: 0 on session-creation success, non-zero on any earlier failure.
+//!
+//! ## Model source
+//!
+//! Pass one optional positional path to load a local `.onnx` file without a
+//! network request. With no argument, the smoke retains its default download
+//! of `onnx-community/gliner_small-v2.1`.
 
 #[cfg(not(all(feature = "onnx", feature = "onnx-coreml")))]
 fn main() {
@@ -49,7 +54,7 @@ fn main() {
 
 #[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use anno::{create_onnx_session, OnnxSessionConfig};
+    use anno::{create_onnx_session_with_provider, OnnxExecutionProvider, OnnxSessionConfig};
     use hf_hub::api::sync::Api;
 
     if !cfg!(target_os = "macos") {
@@ -62,25 +67,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const MODEL_REPO: &str = "onnx-community/gliner_small-v2.1";
     const MODEL_FILE: &str = "onnx/model.onnx";
 
-    eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
-    let api = Api::new()?;
-    let repo = api.model(MODEL_REPO.to_string());
-    let model_path = repo.get(MODEL_FILE)?;
+    let mut args = std::env::args_os();
+    let _program = args.next();
+    let model_path = match (args.next(), args.next()) {
+        (Some(path), None) => {
+            let path = std::path::PathBuf::from(path);
+            if !path.is_file() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("local ONNX model is not a file: {}", path.display()),
+                )
+                .into());
+            }
+            path
+        }
+        (Some(_), Some(_)) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "usage: onnx_coreml_smoke [path/to/model.onnx]",
+            )
+            .into());
+        }
+        (None, _) => {
+            eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
+            let api = Api::new()?;
+            let repo = api.model(MODEL_REPO.to_string());
+            repo.get(MODEL_FILE)?
+        }
+    };
     eprintln!("[smoke] model at {}", model_path.display());
 
-    // Mutate-default for non_exhaustive OnnxSessionConfig.
-    let mut cfg = OnnxSessionConfig::default();
-    cfg.prefer_coreml = true;
-    cfg.use_cpu_provider = true; // CPU as fallback so session loads even if CoreML op-coverage is incomplete
-
-    eprintln!("[smoke] building session with prefer_coreml=true");
-    let session = create_onnx_session(&model_path, cfg)?;
+    eprintln!("[smoke] building session with CoreML registration required");
+    let session = create_onnx_session_with_provider(
+        &model_path,
+        OnnxSessionConfig::default(),
+        OnnxExecutionProvider::CoreMl,
+    )?;
 
     eprintln!("[smoke] session ready. inputs:");
     for input in session.inputs().iter() {
         eprintln!("  - {}", input.name());
     }
 
-    eprintln!("[smoke] PASS (session-creation validated; inference benchmark deferred)");
+    eprintln!("[smoke] PASS (CoreML provider registered; graph placement is model-dependent)");
     Ok(())
 }
