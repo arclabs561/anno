@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
+use super::super::utils::resolve_coreference;
 
 /// Analyze singleton coreference clusters
 #[derive(Parser, Debug)]
@@ -114,8 +115,16 @@ pub fn run(args: SingletonArgs) -> Result<(), String> {
         .extract_entities(&text, None)
         .map_err(|e| format!("Extraction failed: {}", e))?;
 
-    // Analyze for singletons
-    let report = analyze_singletons(&entities, &text);
+    let mut document = anno::GroundedDocument::from_entity_signals("singleton", &text, &entities);
+    let signal_ids = document
+        .signals()
+        .iter()
+        .map(|signal| signal.id)
+        .collect::<Vec<_>>();
+    resolve_coreference(&mut document, &text, &signal_ids);
+
+    // Analyze actual coreference memberships, including untracked signals.
+    let report = analyze_singletons(&document, &text);
 
     // Output results
     match args.format.as_str() {
@@ -127,21 +136,42 @@ pub fn run(args: SingletonArgs) -> Result<(), String> {
     Ok(())
 }
 
-fn analyze_singletons(entities: &[anno::Entity], text: &str) -> SingletonReport {
+fn analyze_singletons(document: &anno::GroundedDocument, text: &str) -> SingletonReport {
     let mut singletons_by_type: HashMap<String, Vec<SingletonEntity>> = HashMap::new();
     let mut likely_missed = Vec::new();
     let mut likely_genuine = Vec::new();
 
-    // For now, all entities are "singletons" since we're not doing coreference
-    // In a full implementation, this would use the coreference module
+    let entities = document.to_entities();
     let total_entities = entities.len();
-    let singleton_count = entities.len(); // Without coref, all are singletons
-    let clustered_count = 0;
+    let singleton_count = document
+        .signals()
+        .iter()
+        .filter(|signal| {
+            document
+                .track_for_signal(signal.id)
+                .is_none_or(|track| track.is_singleton())
+        })
+        .count();
+    let clustered_count = document
+        .signals()
+        .iter()
+        .filter(|signal| {
+            document
+                .track_for_signal(signal.id)
+                .is_some_and(|track| !track.is_singleton())
+        })
+        .count();
 
-    // Classify each entity
-    for entity in entities {
+    // Classify only singletons against all extracted entities.
+    for (signal, entity) in document.signals().iter().zip(&entities) {
+        if document
+            .track_for_signal(signal.id)
+            .is_some_and(|track| !track.is_singleton())
+        {
+            continue;
+        }
         let entity_type = entity.entity_type.as_label().to_string();
-        let reason = classify_singleton(entity, entities, text);
+        let reason = classify_singleton(entity, &entities, text);
 
         let singleton = SingletonEntity {
             text: entity.text.clone(),
@@ -405,5 +435,36 @@ fn print_tsv_report(report: &SingletonReport) {
                 s.text, s.entity_type, s.start, s.end, s.confidence, reason_str
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn singleton_stats_follow_actual_track_membership() {
+        let entities = vec![
+            anno::Entity::new("Alice", anno::EntityType::Person, 0, 5, 1.0),
+            anno::Entity::new("Alice", anno::EntityType::Person, 10, 15, 1.0),
+            anno::Entity::new("Paris", anno::EntityType::Location, 19, 24, 1.0),
+        ];
+        let mut document = anno::GroundedDocument::from_entity_signals(
+            "test",
+            "Alice met Alice in Paris.",
+            &entities,
+        );
+        let signal_ids: Vec<_> = document.signals().iter().map(|signal| signal.id).collect();
+        let mut track = anno::Track::new(0, "Alice");
+        track.add_signal(signal_ids[0], 0);
+        track.add_signal(signal_ids[1], 1);
+        document.add_track(track);
+
+        let report = analyze_singletons(&document, document.text());
+        assert_eq!(report.total_entities, 3);
+        assert_eq!(report.clustered_count, 2);
+        assert_eq!(report.singleton_count, 1);
+        assert_eq!(report.singleton_ratio, 1.0 / 3.0);
+        assert_eq!(report.singletons_by_type["LOC"][0].text, "Paris");
     }
 }
