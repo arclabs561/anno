@@ -150,6 +150,7 @@ dependencies = [
  "candle-nn",
  "chrono",
  "dirs 5.0.1",
+ "fs2",
  "hf-hub",
  "log",
  "muxer",

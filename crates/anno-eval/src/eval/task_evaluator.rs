@@ -22,7 +22,7 @@ use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
 use anno::backends::inference::ZeroShotNER;
-use anno::{Entity, Model, Result};
+use anno::{Entity, EntityType, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -51,27 +51,19 @@ fn bootstrap_ci_95(samples: &mut [f64]) -> (f64, f64) {
     (samples[lower], samples[upper])
 }
 
+/// Render entity types under the canonical label mapping used by scoring.
+fn canonical_entity_type_label(entity_type: &EntityType) -> String {
+    EntityType::from_label(entity_type.as_label())
+        .as_label()
+        .to_string()
+}
+
 // Type aliases for complex types
 type PerExampleScores = Vec<(Vec<anno::Entity>, Vec<anno::Entity>, String)>;
 
 // Constants for evaluation
 /// 95% confidence interval z-score (normal distribution)
 const DEFAULT_Z_SCORE_95: f64 = 1.96;
-/// Fallback standard deviation when actual variance cannot be computed.
-///
-/// This value (0.05, or 5%) is used as a conservative estimate when we cannot compute
-/// actual variance from per-example scores. It represents a typical standard deviation
-/// for evaluation metrics, providing a reasonable CI width for reporting purposes.
-///
-/// Note: This is a fallback - prefer computing actual variance from per-example scores
-/// when available via `compute_confidence_intervals_from_scores()`.
-const DEFAULT_FALLBACK_STD_DEV: f64 = 0.05;
-/// Maximum sample size for confidence interval computation (to avoid expensive recomputation)
-const MAX_CI_SAMPLE_SIZE: usize = 100;
-/// Minimum sample size for confidence interval computation
-///
-/// Set to 2 because confidence intervals require at least 2 samples for meaningful variance estimation.
-const MIN_CI_SAMPLE_SIZE: usize = 2;
 /// Number of deterministic sentence-bootstrap replicates for NER confidence intervals.
 const CI_BOOTSTRAP_REPLICATES: usize = 1_000;
 /// Fixed seed makes scorecards reproducible for an unchanged evaluation sample.
@@ -580,7 +572,7 @@ impl TaskEvaluator {
                             Some(per_example),
                         )
                     } else {
-                        self.compute_stratified_metrics(sampled_data, &metrics)
+                        None
                     }
                 } else {
                     None
@@ -588,17 +580,9 @@ impl TaskEvaluator {
 
                 // Compute confidence intervals if requested (use per-example scores if available)
                 let confidence_intervals = if config.confidence_intervals {
-                    if let Some(per_example) = per_example_opt.as_ref() {
+                    per_example_opt.as_ref().and_then(|per_example| {
                         self.compute_confidence_intervals_from_scores(per_example)
-                    } else {
-                        self.compute_confidence_intervals(
-                            sampled_data,
-                            task,
-                            backend_name,
-                            &metrics,
-                            config,
-                        )
-                    }
+                    })
                 } else {
                     None
                 };
@@ -1134,7 +1118,7 @@ impl TaskEvaluator {
         dataset_data: &LoadedDataset,
         _config: &TaskEvalConfig,
     ) -> Result<HashMap<String, f64>> {
-        use crate::eval::metrics::compute_extraction_quality_metrics;
+        use crate::eval::metrics::compute_document_extraction_quality_metrics;
         use crate::eval::ner_metrics::{evaluate_entities, NerEvalResults};
 
         #[cfg(feature = "eval-profiling")]
@@ -1533,7 +1517,13 @@ impl TaskEvaluator {
         metrics.insert("num_predicted".to_string(), all_predicted.len() as f64);
 
         // CORE-KG-inspired diagnostics (heuristic): duplication + noise in predictions.
-        let q = compute_extraction_quality_metrics(&all_predicted);
+        // Sentence-local offsets and repeated mentions make cross-sentence duplicate
+        // detection misleading, so scope duplicate detection to each sentence.
+        let q = compute_document_extraction_quality_metrics(
+            per_example_scores
+                .iter()
+                .map(|(_, predicted, _)| predicted.as_slice()),
+        );
         metrics.insert("pred_duplication_rate".to_string(), q.duplication_rate);
         metrics.insert("pred_noise_rate".to_string(), q.noise_rate);
         metrics.insert("pred_duplicates".to_string(), q.duplicates as f64);
@@ -3879,243 +3869,6 @@ impl TaskEvaluator {
         ))
     }
 
-    /// Compute confidence intervals from aggregate metrics (fallback method).
-    ///
-    /// Uses normal approximation: CI = mean +/- 1.96 * std_dev.
-    /// Uses a fixed fallback std_dev since per-example variance is not available.
-    /// Prefer `compute_confidence_intervals_from_scores` when per-example scores
-    /// are available.
-    fn compute_confidence_intervals_from_aggregate(
-        &self,
-        metrics: &HashMap<String, f64>,
-    ) -> Option<ConfidenceIntervals> {
-        let f1 = metrics.get("f1")?;
-        let precision = metrics.get("precision")?;
-        let recall = metrics.get("recall")?;
-
-        let std_dev = DEFAULT_FALLBACK_STD_DEV;
-        let z = DEFAULT_Z_SCORE_95; // 95% CI
-        let margin = z * std_dev;
-
-        Some(ConfidenceIntervals {
-            f1_ci: ((f1 - margin).clamp(0.0, 1.0), (f1 + margin).clamp(0.0, 1.0)),
-            precision_ci: (
-                (precision - margin).clamp(0.0, 1.0),
-                (precision + margin).clamp(0.0, 1.0),
-            ),
-            recall_ci: (
-                (recall - margin).clamp(0.0, 1.0),
-                (recall + margin).clamp(0.0, 1.0),
-            ),
-        })
-    }
-
-    /// Compute confidence intervals from per-example scores (improved version).
-    ///
-    /// Computes variance from per-example F1, precision, recall scores.
-    ///
-    /// # Performance Note
-    ///
-    /// This function creates a new backend instance and re-runs inference on a sample
-    /// of the dataset to compute per-example scores. This is intentional - proper CI
-    /// computation requires per-example variance, which isn't available from aggregate
-    /// metrics alone.
-    ///
-    /// # Limitations
-    ///
-    /// - Samples up to `MAX_CI_SAMPLE_SIZE` examples for performance
-    /// - Creates a new backend instance (doesn't reuse from main evaluation)
-    /// - For zero-shot backends, creates and uses zero-shot backend instance
-    ///
-    /// Compute confidence intervals from per-example scores or aggregate metrics.
-    ///
-    /// This is the primary method for computing confidence intervals.
-    /// For NER tasks, it samples sentences and re-runs inference to get per-example scores.
-    /// For other tasks, it falls back to aggregate metrics with a fixed fallback std_dev.
-    fn compute_confidence_intervals(
-        &self,
-        dataset_data: &LoadedDataset,
-        task: Task,
-        backend_name: &str,
-        aggregate_metrics: &HashMap<String, f64>,
-        _config: &TaskEvalConfig,
-    ) -> Option<ConfidenceIntervals> {
-        // For NER tasks, compute per-example scores
-        if !matches!(task, Task::NER | Task::DiscontinuousNER) {
-            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
-        }
-
-        // Sample a subset for CI computation (to avoid expensive recomputation)
-        // Ensure sample_size is at least MIN_CI_SAMPLE_SIZE and doesn't exceed dataset size
-        let dataset_len = dataset_data.sentences.len();
-        if dataset_len == 0 {
-            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
-        }
-        // If dataset is too small for meaningful CI, fall back to aggregate metrics
-        if dataset_len < MIN_CI_SAMPLE_SIZE {
-            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
-        }
-        let sample_size = dataset_len.clamp(MIN_CI_SAMPLE_SIZE, MAX_CI_SAMPLE_SIZE);
-        let sample: Vec<_> = dataset_data.sentences.iter().take(sample_size).collect();
-
-        // Compute per-example F1, precision, recall
-        let mut f1_scores = Vec::new();
-        let mut precision_scores = Vec::new();
-        let mut recall_scores = Vec::new();
-
-        // Try to create backend for per-example evaluation
-        let backend = match BackendFactory::create(backend_name) {
-            Ok(b) => b,
-            Err(_) => return self.compute_confidence_intervals_from_aggregate(aggregate_metrics),
-        };
-
-        if !backend.is_available() {
-            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
-        }
-
-        let dataset_labels = dataset_data.id.entity_types();
-        let mapped_labels = Self::map_dataset_labels_to_model(dataset_labels, backend_name);
-        let is_zero_shot = matches!(
-            backend_name.to_lowercase().as_str(),
-            "nuner"
-                | "gliner_onnx"
-                | "gliner_candle"
-                | "gliner_multitask"
-                | "gliner2_fastino"
-                | "gliner_poly"
-                | "universal_ner"
-        );
-
-        for sentence in sample {
-            let text = sentence.text();
-            let gold: Vec<Entity> = sentence
-                .entities()
-                .iter()
-                .map(|g| {
-                    let mut entity =
-                        Entity::new(g.text.clone(), g.entity_type.clone(), g.start, g.end, 1.0);
-                    entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
-                    entity
-                })
-                .collect();
-
-            let predicted = if is_zero_shot && !mapped_labels.is_empty() {
-                // For zero-shot backends, use extract_with_types
-                // Create zero-shot backend instance (reuse thread-local cache if available)
-                #[cfg(feature = "eval-parallel")]
-                {
-                    match Self::create_zero_shot_backend(backend_name) {
-                        Ok(zero_shot_backend) => {
-                            match Self::extract_with_cached_backend(
-                                &zero_shot_backend,
-                                &text,
-                                &mapped_labels,
-                            ) {
-                                Ok(entities) => entities,
-                                Err(_) => continue,
-                            }
-                        }
-                        Err(_) => continue,
-                    }
-                }
-                #[cfg(not(feature = "eval-parallel"))]
-                {
-                    match Self::create_zero_shot_backend_any(backend_name) {
-                        Ok(zero_shot_backend) => {
-                            match Self::extract_with_cached_backend_any(
-                                backend_name,
-                                zero_shot_backend.as_ref(),
-                                &text,
-                                &mapped_labels,
-                            ) {
-                                Ok(entities) => entities,
-                                Err(_) => continue,
-                            }
-                        }
-                        Err(_) => continue,
-                    }
-                }
-            } else {
-                match backend.extract_entities(&text, None) {
-                    Ok(e) => e,
-                    Err(_) => continue,
-                }
-            };
-
-            // Compute per-example metrics
-            use crate::eval::ner_metrics::evaluate_entities;
-            let result = evaluate_entities(&gold, &predicted);
-            let summary = result.summary();
-            f1_scores.push(summary.strict_f1);
-            precision_scores.push(summary.strict_precision);
-            recall_scores.push(summary.strict_recall);
-        }
-
-        if f1_scores.is_empty() {
-            return self.compute_confidence_intervals_from_aggregate(aggregate_metrics);
-        }
-
-        // Compute mean and std_dev
-        let n = f1_scores.len() as f64;
-        let f1_mean = f1_scores.iter().sum::<f64>() / n;
-        let precision_mean = precision_scores.iter().sum::<f64>() / n;
-        let recall_mean = recall_scores.iter().sum::<f64>() / n;
-
-        // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-        let f1_variance = if n > 1.0 {
-            f1_scores
-                .iter()
-                .map(|&x| (x - f1_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-        let precision_variance = if n > 1.0 {
-            precision_scores
-                .iter()
-                .map(|&x| (x - precision_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-        let recall_variance = if n > 1.0 {
-            recall_scores
-                .iter()
-                .map(|&x| (x - recall_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-
-        let f1_std_dev = f1_variance.sqrt();
-        let precision_std_dev = precision_variance.sqrt();
-        let recall_std_dev = recall_variance.sqrt();
-
-        // 95% CI: mean ± DEFAULT_Z_SCORE_95 * std_dev / sqrt(n)
-        let z = DEFAULT_Z_SCORE_95;
-        let f1_margin = z * f1_std_dev / n.sqrt();
-        let precision_margin = z * precision_std_dev / n.sqrt();
-        let recall_margin = z * recall_std_dev / n.sqrt();
-
-        Some(ConfidenceIntervals {
-            f1_ci: (
-                (f1_mean - f1_margin).clamp(0.0, 1.0),
-                (f1_mean + f1_margin).clamp(0.0, 1.0),
-            ),
-            precision_ci: (
-                (precision_mean - precision_margin).clamp(0.0, 1.0),
-                (precision_mean + precision_margin).clamp(0.0, 1.0),
-            ),
-            recall_ci: (
-                (recall_mean - recall_margin).clamp(0.0, 1.0),
-                (recall_mean + recall_margin).clamp(0.0, 1.0),
-            ),
-        })
-    }
-
     /// Compute robustness testing results.
     ///
     /// # Performance Note
@@ -4207,7 +3960,7 @@ impl TaskEvaluator {
 
                 // Group gold entities by type
                 for entity in gold {
-                    let type_str = entity.entity_type.as_label().to_string();
+                    let type_str = canonical_entity_type_label(&entity.entity_type);
                     type_groups
                         .entry(type_str.clone())
                         .or_default()
@@ -4217,7 +3970,7 @@ impl TaskEvaluator {
 
                 // Group predicted entities by type
                 for entity in predicted {
-                    let type_str = entity.entity_type.as_label().to_string();
+                    let type_str = canonical_entity_type_label(&entity.entity_type);
                     type_groups
                         .entry(type_str)
                         .or_default()
@@ -4335,75 +4088,17 @@ impl TaskEvaluator {
         })
     }
 
-    /// Compute stratified metrics across multiple dimensions.
+    /// Aggregate scores cannot establish per-type performance or uncertainty.
     ///
-    /// # Fallback Behavior
-    ///
-    /// This is a **fallback** when per-example predictions are not available.
-    /// All entity types will show the same aggregate F1 metrics because we lack
-    /// the per-prediction data needed for true per-type stratification.
-    ///
-    /// # Preferred Path
-    ///
-    /// For proper per-type stratification, use `Self::compute_stratified_metrics_from_scores`
-    /// which computes actual per-type F1/precision/recall from per-example predictions.
-    /// That method is automatically used when per-example scores are available via
-    /// the evaluation pipeline (see `evaluate_ner_internal`).
-    ///
-    /// # When This Fallback Is Used
-    ///
-    /// - External evaluation without per-example tracking
-    /// - Legacy integrations that only provide aggregate metrics
-    /// - Quick estimates when full stratification isn't needed
+    /// Returns `None`; run the evaluation pipeline with per-example observations
+    /// to obtain measured stratification. The signature remains available for callers
+    /// which previously requested an aggregate-only estimate.
     pub fn compute_stratified_metrics(
         &self,
-        dataset_data: &LoadedDataset,
-        metrics: &HashMap<String, f64>,
+        _dataset_data: &LoadedDataset,
+        _metrics: &HashMap<String, f64>,
     ) -> Option<StratifiedMetrics> {
-        // Extract entity types from dataset (single pass)
-        let mut type_counts: HashMap<String, usize> = HashMap::new();
-        for sentence in &dataset_data.sentences {
-            for entity in sentence.entities() {
-                let type_str = entity.entity_type.as_label().to_string();
-                *type_counts.entry(type_str).or_insert(0) += 1;
-            }
-        }
-
-        if type_counts.is_empty() {
-            return None;
-        }
-
-        // Build per-type metrics (fallback: uses aggregate F1 for all types)
-        // Proper per-type stratification is done by compute_stratified_metrics_from_scores
-        // when per-example scores are available from the evaluation pipeline.
-        let mut by_entity_type = HashMap::new();
-        let aggregate_f1 = metrics.get("f1").copied().unwrap_or(0.0);
-        for (type_str, count) in type_counts {
-            // Fallback: all types get aggregate F1 (proper per-type metrics need per-example data)
-            let mean = aggregate_f1;
-            let std_dev = DEFAULT_FALLBACK_STD_DEV;
-            let z = DEFAULT_Z_SCORE_95;
-            let margin = z * std_dev;
-            by_entity_type.insert(
-                type_str,
-                MetricWithCI {
-                    mean,
-                    std_dev,
-                    ci_95: (
-                        (mean - margin).clamp(0.0, 1.0),
-                        (mean + margin).clamp(0.0, 1.0),
-                    ),
-                    n: count, // Use actual count from dataset
-                },
-            );
-        }
-
-        Some(StratifiedMetrics {
-            by_entity_type,
-            by_temporal_stratum: None, // Would need temporal metadata
-            by_surface_form: None,     // Would need proper noun detection
-            by_mention_char: None,     // Would need mention analysis
-        })
+        None
     }
 }
 
@@ -4624,6 +4319,60 @@ mod tests {
         assert!(metrics.get("f1").copied().unwrap_or(0.0) >= 0.99);
     }
 
+    #[test]
+    fn stratified_metrics_group_normalized_custom_type_labels_together() {
+        use crate::eval::loader::{
+            AnnotatedSentence, AnnotatedToken, DataSource, DatasetMetadata, LoadedDataset,
+        };
+        use anno::EntityCategory;
+
+        let scores = vec![(
+            vec![Entity::new(
+                "Asian",
+                EntityType::custom("MISC", EntityCategory::Misc),
+                0,
+                5,
+                1.0,
+            )],
+            vec![Entity::new(
+                "Asian",
+                EntityType::custom("misc", EntityCategory::Misc),
+                0,
+                5,
+                1.0,
+            )],
+            "Asian".to_string(),
+        )];
+        let dataset = LoadedDataset {
+            id: DatasetId::CoNLL2003Sample,
+            sentences: vec![AnnotatedSentence {
+                tokens: vec![AnnotatedToken {
+                    text: "Asian".into(),
+                    ner_tag: "B-MISC".into(),
+                }],
+                source_dataset: DatasetId::CoNLL2003Sample,
+            }],
+            loaded_at: "test".to_string(),
+            source_url: "fixture".to_string(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+
+        let stratified = TaskEvaluator::new()
+            .unwrap()
+            .compute_stratified_metrics_from_scores(&dataset, &HashMap::new(), Some(&scores))
+            .unwrap();
+
+        assert_eq!(stratified.by_entity_type.len(), 1);
+        assert_eq!(stratified.by_entity_type["MISC"].mean, 1.0);
+        // Gold labels and a global score do not establish per-type performance.
+        assert!(TaskEvaluator::new()
+            .unwrap()
+            .compute_stratified_metrics(&dataset, &HashMap::from([("f1".into(), 0.8)]))
+            .is_none());
+    }
+
     // =========================================================================
     // MetricWithCI Tests
     // =========================================================================
@@ -4667,6 +4416,14 @@ mod tests {
         // sentence bootstrap must therefore remain near the aggregate metric.
         assert!(ci.f1_ci.0 > 0.995, "pooled CI was {:?}", ci.f1_ci);
         assert_eq!(ci.f1_ci, repeated_ci.f1_ci);
+    }
+
+    #[test]
+    fn aggregate_only_metrics_do_not_report_confidence_intervals() {
+        assert!(TaskEvaluator::new()
+            .unwrap()
+            .compute_confidence_intervals_from_scores(&[])
+            .is_none());
     }
 
     #[test]

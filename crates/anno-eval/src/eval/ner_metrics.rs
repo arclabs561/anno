@@ -28,7 +28,7 @@
 //!
 //! - **Strict**: Exact boundary AND exact type match required
 //! - **Exact**: Exact boundary match only (type ignored)
-//! - **Partial**: Partial boundary overlap (type ignored)  
+//! - **Partial**: Partial boundary overlap (type ignored)
 //! - **Type**: Some overlap required, type must match
 //!
 //! Each schema tracks MUC-style counts:
@@ -88,7 +88,7 @@ impl EvalSpan {
     /// Check if types match.
     #[must_use]
     pub fn type_match(&self, other: &Self) -> bool {
-        self.entity_type == other.entity_type
+        super::entity_type_matches(&self.entity_type, &other.entity_type)
     }
 }
 
@@ -564,6 +564,24 @@ mod tests {
         assert_eq!(results.partial.correct, 1);
         // Type: incorrect (type mismatch)
         assert_eq!(results.ent_type.incorrect, 1);
+    }
+
+    #[test]
+    fn test_custom_type_labels_match_case_insensitively() {
+        let gold = vec![span(
+            EntityType::custom("MISC", anno::EntityCategory::Misc),
+            0,
+            5,
+        )];
+        let pred = vec![span(
+            EntityType::custom("misc", anno::EntityCategory::Misc),
+            0,
+            5,
+        )];
+
+        let results = evaluate_ner(&gold, &pred);
+        assert_eq!(results.strict.correct, 1);
+        assert_eq!(results.ent_type.correct, 1);
     }
 
     #[test]
