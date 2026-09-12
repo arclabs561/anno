@@ -221,6 +221,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: "stable"
+          components: clippy
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-all-crates: true
@@ -233,6 +234,11 @@ jobs:
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
+      # Compile/lint the Windows provider path; hosted runners do not provide
+      # representative DirectML GPU execution evidence.
+      - name: Check DirectML session configuration
+        if: runner.os == 'Windows'
+        run: cargo clippy -p anno --features onnx-directml -- -D warnings
   # ==========================================================================
   # ONNX backend tests (Linux only)
   # ==========================================================================
