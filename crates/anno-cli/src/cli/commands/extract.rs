@@ -38,8 +38,12 @@ pub struct ExtractArgs {
     pub file: Option<String>,
 
     /// Model backend to use
-    #[arg(short, long, default_value = "stacked")]
-    pub model: ModelBackend,
+    #[arg(short, long, value_name = "MODEL")]
+    pub model: Option<ModelBackend>,
+
+    /// Saved workflow configuration to apply before execution
+    #[arg(long, value_name = "NAME")]
+    pub config: Option<String>,
 
     /// Filter to specific entity types (repeatable)
     #[arg(short, long = "label", value_name = "TYPE")]
@@ -84,8 +88,8 @@ pub struct ExtractArgs {
     pub expected_types: Option<String>,
 
     /// Output format
-    #[arg(long, default_value = "human")]
-    pub format: OutputFormat,
+    #[arg(long, value_name = "FORMAT")]
+    pub format: Option<OutputFormat>,
 
     /// Include a character context window around each extracted entity (adds `context_before` / `context_after`)
     #[arg(long, value_name = "CHARS")]
@@ -146,6 +150,12 @@ pub struct ExtractArgs {
 
 /// Execute the extract command.
 pub fn run(args: ExtractArgs) -> Result<(), CliError> {
+    validate_confidence_threshold("--threshold", args.threshold)?;
+    let relation_threshold = args.relation_threshold.or(args.threshold);
+    validate_confidence_threshold("--relation-threshold", relation_threshold)?;
+
+    let model = args.model.unwrap_or_default();
+    let format = args.format.unwrap_or_default();
     // Level 1 (Signal): Raw entity extraction from single document
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
@@ -255,11 +265,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 .collect()
         });
 
-    let relation_threshold = args
-        .relation_threshold
-        .or(args.threshold)
-        .unwrap_or(0.55)
-        .clamp(0.0, 1.0) as f32;
+    let relation_threshold = relation_threshold.unwrap_or(0.55) as f32;
 
     let start = Instant::now();
 
@@ -273,7 +279,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         };
         let rel_schema: Vec<&str> = relation_types.iter().map(|s| s.as_str()).collect();
 
-        match args.model {
+        match model {
             ModelBackend::Tplinker => {
                 let re = anno::backends::tplinker::TPLinker::new()
                     .map_err(|e| CliError::from(format!("Failed to init tplinker: {}", e)))?;
@@ -298,15 +304,15 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 // Standard extraction, then heuristic relation detection.
                 let ents = if let Some(ref custom_types) = extract_types {
                     extract_with_custom_types(
-                        &args.model,
+                        &model,
                         &text,
                         custom_types,
                         args.threshold,
                         args.quiet,
                     )?
                 } else {
-                    let model = args.model.create_model().map_err(CliError::from)?;
-                    model
+                    let backend = model.create_model().map_err(CliError::from)?;
+                    backend
                         .extract_entities(&text, None)
                         .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
                 };
@@ -316,11 +322,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     } else {
         let ents = if let Some(ref custom_types) = extract_types {
             // Zero-shot extraction with custom types
-            extract_with_custom_types(&args.model, &text, custom_types, args.threshold, args.quiet)?
+            extract_with_custom_types(&model, &text, custom_types, args.threshold, args.quiet)?
         } else {
             // Standard extraction
-            let model = args.model.create_model().map_err(CliError::from)?;
-            model
+            let backend = model.create_model().map_err(CliError::from)?;
+            backend
                 .extract_entities(&text, None)
                 .map_err(|e| CliError::from(format!("Extraction failed: {}", e)))?
         };
@@ -388,10 +394,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     #[cfg(feature = "onnx")]
     if entities.is_empty()
         && extract_types.is_none()
-        && matches!(
-            args.model,
-            ModelBackend::Gliner | ModelBackend::GlinerMultitask
-        )
+        && matches!(model, ModelBackend::Gliner | ModelBackend::GlinerMultitask)
         && !args.quiet
     {
         eprintln!(
@@ -533,7 +536,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     };
 
     // Output
-    match args.format {
+    match format {
         OutputFormat::Json => {
             let entities_out: Vec<serde_json::Value> = doc
                 .signals()
@@ -568,7 +571,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                args.model.name(),
+                model.name(),
                 &entities_out,
                 elapsed,
                 detected_language.as_deref().and_then(Language::from_code),
@@ -618,7 +621,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
             let provenance = build_provenance(
                 &text,
-                args.model.name(),
+                model.name(),
                 &entities_out,
                 elapsed,
                 detected_language.as_deref().and_then(Language::from_code),
@@ -739,7 +742,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                     println!();
                     println!("  {}:", color("90", "Metadata"));
                     println!("    document: {}", doc.id());
-                    println!("    model: {}", args.model.name());
+                    println!("    model: {}", model.name());
                     println!("    timing: {:.1}ms", elapsed.as_secs_f64() * 1000.0);
                     println!("    text length: {} chars", text_len);
                     if stats.signal_count > 0 {
@@ -884,6 +887,17 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_confidence_threshold(flag: &str, value: Option<f64>) -> Result<(), CliError> {
+    if let Some(value) = value {
+        if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+            return Err(CliError::from(format!(
+                "{flag} must be a finite value between 0.0 and 1.0"
+            )));
+        }
+    }
     Ok(())
 }
 

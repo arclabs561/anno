@@ -50,8 +50,12 @@ pub struct DebugArgs {
     pub export_graph: Option<String>,
 
     /// Model backend to use
-    #[arg(short, long, default_value = "stacked")]
-    pub model: ModelBackend,
+    #[arg(short, long, value_name = "MODEL")]
+    pub model: Option<ModelBackend>,
+
+    /// Saved workflow configuration to apply before execution
+    #[arg(long, value_name = "NAME")]
+    pub config: Option<String>,
 
     /// Output as HTML (default: text)
     #[arg(long)]
@@ -70,12 +74,24 @@ pub struct DebugArgs {
     pub output: Option<String>,
 
     /// Run coreference resolution to form tracks
-    #[arg(long)]
-    pub coref: bool,
+    #[arg(
+        long,
+        action = clap::ArgAction::Set,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        require_equals = true
+    )]
+    pub coref: Option<bool>,
 
     /// Attach demo KB-style IDs to tracks (offline; no network).
-    #[arg(long)]
-    pub link_kb: bool,
+    #[arg(
+        long,
+        action = clap::ArgAction::Set,
+        num_args = 0..=1,
+        default_missing_value = "true",
+        require_equals = true
+    )]
+    pub link_kb: Option<bool>,
 
     /// Suppress status messages
     #[arg(short, long)]
@@ -140,7 +156,9 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
     }
 
     let text = raw_text;
-    let model = args.model.create_model()?;
+    let model = args.model.unwrap_or_default().create_model()?;
+    let coref = args.coref.unwrap_or_default();
+    let link_kb = args.link_kb.unwrap_or_default();
 
     let entities = model
         .extract_entities(&text, None)
@@ -157,12 +175,12 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
     }
 
     // Run coreference resolution if requested
-    if args.coref {
+    if coref {
         resolve_coreference(&mut doc, &text, &signal_ids);
     }
 
     // Link tracks to KB identities if requested
-    if args.link_kb {
+    if link_kb {
         link_tracks_to_kb(&mut doc);
     }
 
@@ -275,7 +293,7 @@ pub fn run(args: DebugArgs) -> Result<(), String> {
             println!("(no entities)");
         } else {
             // Use verbose level from args, but ensure tracks/identities are shown if coref/link_kb was run
-            let effective_verbose = if args.coref || args.link_kb {
+            let effective_verbose = if coref || link_kb {
                 args.verbose.max(2) // At least level 2 if coref or KB linking was run
             } else {
                 args.verbose
