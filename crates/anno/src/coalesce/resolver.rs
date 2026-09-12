@@ -57,7 +57,7 @@
 //! let identities = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
 //! ```
 
-use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackId, TrackRef};
+use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackRef};
 use std::collections::HashMap;
 
 /// Coalescer for inter-document entity resolution.
@@ -247,36 +247,19 @@ impl Resolver {
                 aliases: Vec::new(),
                 confidence: first_track.cluster_confidence,
                 source: Some(IdentitySource::CrossDocCoref {
-                    track_refs: track_refs_in_cluster,
+                    track_refs: track_refs_in_cluster.clone(),
                 }),
             };
 
-            let identity_id = corpus.add_identity(identity);
-            created_ids.push(identity_id);
-
-            // 5. Link tracks to identity
-            // Collect doc_id and track_id pairs first to avoid borrow conflicts
-            let links: Vec<(String, TrackId)> = member_indices
-                .iter()
-                .map(|&idx| {
-                    let track_ref = &track_data[idx].track_ref;
-                    (track_ref.doc_id.clone(), track_ref.track_id)
-                })
-                .collect();
-
-            for (doc_id, track_id) in links {
-                if let Some(doc) = corpus.get_document_mut(&doc_id) {
-                    doc.link_track_to_identity(track_id, identity_id);
-                } else {
-                    // Document was removed or doesn't exist - this is a data consistency issue
-                    // Log warning but continue with other tracks
-                    log::warn!(
-                        "Document '{}' not found when linking track {} to identity {}",
-                        doc_id,
-                        track_id,
-                        identity_id
-                    );
-                }
+            if let Some(identity_id) =
+                corpus.add_identity_for_tracks(identity, &track_refs_in_cluster)
+            {
+                created_ids.push(identity_id);
+            } else {
+                log::warn!(
+                    "Could not bind coalesced identity for tracks {:?}",
+                    track_refs_in_cluster
+                );
             }
         }
 
@@ -377,6 +360,26 @@ pub fn embedding_similarity(emb_a: &[f32], emb_b: &[f32]) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{GroundedDocument, Location, Signal, Track, TrackId};
+
+    fn document_with_linked_local_identity(
+        doc_id: &str,
+        text: &str,
+    ) -> (GroundedDocument, TrackId, crate::SignalId) {
+        let mut document = GroundedDocument::new(doc_id, text);
+        let signal_id = document.add_signal(Signal::new(
+            0,
+            Location::text(0, text.chars().count()),
+            text,
+            "PERSON",
+            0.9,
+        ));
+        let track_id = document.add_track(Track::new(0, text));
+        assert!(document.add_signal_to_track(signal_id, track_id, 0));
+        let local_identity_id = document.add_identity(Identity::new(0, "local identity"));
+        document.link_track_to_identity(track_id, local_identity_id);
+        (document, track_id, signal_id)
+    }
 
     #[test]
     fn test_string_similarity_identical() {
@@ -466,6 +469,146 @@ mod tests {
         let resolver = Resolver::default();
         assert_eq!(resolver.similarity_threshold, 0.7);
         assert!(resolver.require_type_match); // Default is true
+    }
+
+    #[test]
+    fn corpus_kb_link_propagates_a_collision_safe_identity_to_document() {
+        let (document, track_id, signal_id) =
+            document_with_linked_local_identity("ada", "Ada Lovelace");
+        let mut corpus = Corpus::new();
+        corpus.add_document(document);
+        let track_ref = TrackRef {
+            doc_id: "ada".to_string(),
+            track_id,
+        };
+
+        let identity_id = corpus
+            .link_track_to_kb(&track_ref, "wikidata", "Q7259", "Ada Lovelace")
+            .unwrap();
+        assert_ne!(identity_id, IdentityId::ZERO);
+        assert_eq!(
+            corpus.get_identity(identity_id).unwrap().kb_id.as_deref(),
+            Some("Q7259")
+        );
+
+        let document = corpus.get_document("ada").unwrap();
+        assert_eq!(
+            document.get_track(track_id).unwrap().identity_id,
+            Some(identity_id)
+        );
+        assert_eq!(
+            document.identity_for_track(track_id).unwrap().id,
+            identity_id
+        );
+        assert_eq!(
+            document.identity_for_signal(signal_id).unwrap().id,
+            identity_id
+        );
+        assert!(document.invariants_hold());
+    }
+
+    #[test]
+    fn kb_link_does_not_reuse_a_post_insertion_local_id_collision() {
+        let mut corpus = Corpus::new();
+        let mut first = GroundedDocument::new("first", "Ada Lovelace");
+        let first_track = first.add_track(Track::new(0, "Ada Lovelace"));
+        corpus.add_document(first);
+        let first_ref = TrackRef {
+            doc_id: "first".to_string(),
+            track_id: first_track,
+        };
+        let first_identity = corpus
+            .link_track_to_kb(&first_ref, "wikidata", "Q7259", "Ada Lovelace")
+            .unwrap();
+
+        corpus.add_document(GroundedDocument::new("second", "Grace Hopper"));
+        let second_track = {
+            let second = corpus.get_document_mut("second").unwrap();
+            let track_id = second.add_track(Track::new(0, "Grace Hopper"));
+            let colliding_local_id = second.add_identity(Identity::new(0, "local Grace"));
+            assert_eq!(colliding_local_id, first_identity);
+            second.link_track_to_identity(track_id, colliding_local_id);
+            track_id
+        };
+        let second_ref = TrackRef {
+            doc_id: "second".to_string(),
+            track_id: second_track,
+        };
+
+        let second_identity = corpus
+            .link_track_to_kb(&second_ref, "wikidata", "Q11641", "Grace Hopper")
+            .unwrap();
+        assert_ne!(second_identity, first_identity);
+        assert_eq!(
+            corpus.get_identity(first_identity).unwrap().canonical_name,
+            "Ada Lovelace"
+        );
+        assert_eq!(
+            corpus.get_identity(second_identity).unwrap().canonical_name,
+            "Grace Hopper"
+        );
+
+        let first = corpus.get_document("first").unwrap();
+        let second = corpus.get_document("second").unwrap();
+        assert_eq!(
+            first
+                .identity_for_track(first_track)
+                .unwrap()
+                .canonical_name,
+            "Ada Lovelace"
+        );
+        assert_eq!(
+            second.get_track(second_track).unwrap().identity_id,
+            Some(second_identity)
+        );
+        assert!(first.invariants_hold());
+        assert!(second.invariants_hold());
+    }
+
+    #[test]
+    fn coalescing_links_document_mirrors_without_overwriting_local_identities() {
+        let (first, first_track, first_signal) =
+            document_with_linked_local_identity("first", "Ada Lovelace");
+        let (second, second_track, second_signal) =
+            document_with_linked_local_identity("second", "Ada Lovelace");
+        let mut corpus = Corpus::new();
+        corpus.add_document(first);
+        corpus.add_document(second);
+
+        let identity_ids = Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(identity_ids.len(), 1);
+        let identity_id = identity_ids[0];
+        assert_ne!(identity_id, IdentityId::ZERO);
+
+        for (doc_id, track_id, signal_id) in [
+            ("first", first_track, first_signal),
+            ("second", second_track, second_signal),
+        ] {
+            let document = corpus.get_document(doc_id).unwrap();
+            assert_eq!(
+                document.get_track(track_id).unwrap().identity_id,
+                Some(identity_id)
+            );
+            assert_eq!(
+                document.identity_for_signal(signal_id).unwrap().id,
+                identity_id
+            );
+            assert!(document.invariants_hold());
+        }
+    }
+
+    #[test]
+    fn adding_document_remaps_a_conflicting_local_identity() {
+        let mut corpus = Corpus::new();
+        let corpus_identity_id = corpus.add_identity(Identity::new(0, "corpus identity"));
+        let (document, track_id, _) = document_with_linked_local_identity("local", "Ada");
+        corpus.add_document(document);
+
+        let document = corpus.get_document("local").unwrap();
+        let local_identity_id = document.get_track(track_id).unwrap().identity_id.unwrap();
+        assert_ne!(local_identity_id, corpus_identity_id);
+        assert!(document.get_identity(local_identity_id).is_some());
+        assert!(document.invariants_hold());
     }
 }
 
