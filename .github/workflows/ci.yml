@@ -397,16 +397,13 @@ jobs:
       - name: Test Metal (unit)
         run: cargo test --workspace --lib --features "metal"
   # ==========================================================================
-  # Minimal build (no-default-features)
+  # Minimum supported Rust version
   # ==========================================================================
-  # The declared `rust-version = "1.88"` cannot be tested on x86_64 because
-  # the `innr` 0.2.x transitive dep uses avx512 intrinsics that require a
-  # newer stable compiler. This job approximates the declared MSRV by
-  # verifying the workspace compiles without default features on current
-  # stable -- it catches feature-gate regressions without resolving the
-  # avx512 incompatibility.
+  # `deformat` 0.15.3, which the CLI ships by default, requires Rust 1.91.
+  # Test the declared floor directly so a dependency or feature change cannot
+  # silently raise the supported compiler version.
   minimal-build:
-    name: Minimal build (no-default-features)
+    name: MSRV (Rust 1.91)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -414,13 +411,13 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
-          toolchain: "stable"
+          toolchain: "1.91"
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-all-crates: true
-      # `anno-cli` requires at least one HTML-extractor feature; the
-      # MPL-free `extractor-html2text` is the lightest option that satisfies
-      # that constraint and proves the no-default-features build still works.
+      - run: cargo check --workspace
+      # `anno-cli` requires at least one HTML-extractor feature. This keeps
+      # the lightweight, MPL-free configuration covered at the MSRV as well.
       - run: cargo check --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -1064,12 +1061,11 @@ jobs:
           path: lcov.info
           if-no-files-found: error
   # ==========================================================================
-  # Publish Validation (best-effort; expected to fail while publishing is paused)
+  # Publish validation for all crates.io packages
   # ==========================================================================
   publish-validation:
     name: Publish Validation
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1080,56 +1076,16 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-all-crates: true
-      - name: Validate workspace structure
+      - name: Validate packaged workspace
         run: |
-          echo "## Workspace Structure Validation" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cargo metadata --format-version 1 | jq -r '.workspace_members[]' | sort >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Check publish readiness (anno)
-        id: anno
-        run: |
-          echo "Checking anno publish readiness (best-effort)..."
-          if cargo publish --dry-run -p anno; then
-            echo "status=ready" >> $GITHUB_OUTPUT
-            echo "[ok] anno: Ready to publish" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "status=error" >> $GITHUB_OUTPUT
-            echo "[error] anno: Publish validation failed (expected while publishing is paused)" >> $GITHUB_STEP_SUMMARY
-          fi
-      - name: Check crates.io status
-        run: |
-          echo "## Crates.io Status" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          for crate in anno; do
-            if curl -s "https://crates.io/api/v1/crates/$crate" 2>/dev/null | jq -r '.crate | "\(.name): v\(.max_version // "not published")"' 2>/dev/null; then
-              echo "- **$crate**: Published" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- **$crate**: Not published" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-      - name: Generate publish status report
-        run: |
-          cat > publish-validation-report.md << EOF
-          # Publish Validation Report
-
-          Generated: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-
-          ## Publish Readiness Status
-
-          ### anno
-          $([ "${{ steps.anno.outputs.status }}" == "ready" ] && echo "[ok] **Ready to publish**" || echo "[error] **Publish validation failed**")
-
-          ## Next Steps
-
-          See \`docs/PUBLISH_STATUS.md\` for detailed information and fixes.
-          EOF
-      - name: Upload publish validation report
+          set -o pipefail
+          scripts/validate-publish.sh 2>&1 | tee publish-validation.log
+      - name: Upload publish validation log
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: publish-validation-report
-          path: publish-validation-report.md
+          path: publish-validation.log
 
   packaged-assets:
     name: Packaged assets present

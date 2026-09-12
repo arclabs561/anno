@@ -1635,50 +1635,54 @@ mod tests {
             }
         }
 
-        // The diagnostic trace deliberately rejects this input because it
-        // would combine several graph invocations. Normal extraction must
-        // instead use its sentence-overlap chunk path and return valid global
-        // character spans.
-        let long_text = "Paris is sunny. ".repeat(200);
-        let terminal_paris_start = long_text.chars().count() - "Paris is sunny. ".chars().count();
-        assert!(model.debug_trace(&long_text).is_err());
-        let entities = model.extract_entities(&long_text, None)?;
-        assert!(
-            entities
-                .iter()
-                .all(|entity| entity.start() < entity.end()
-                    && entity.end() <= long_text.chars().count()),
-            "{entities:#?}"
-        );
-        assert!(
-            entities.iter().any(|entity| {
-                entity.start() <= terminal_paris_start
-                    && entity.end() >= terminal_paris_start + "Paris".chars().count()
-            }),
-            "chunked cached BERT output must cover the terminal Paris rather than only a prefix location: {entities:#?}"
-        );
+        // A trace represents one graph invocation; long-input extraction is
+        // covered separately by the tokenizer-truncation regression below.
+        assert!(model.debug_trace(&"Paris is sunny. ".repeat(200)).is_err());
+        assert!(model.debug_trace(&"Paris ".repeat(600)).is_err());
 
-        // A single sentence has no punctuation boundary to reuse. It must
-        // still be split on tokenizer boundaries instead of being silently
-        // truncated by the serialized tokenizer configuration.
-        let long_sentence = "Paris ".repeat(600);
-        let terminal_paris_start = long_sentence.chars().count() - "Paris ".chars().count();
-        assert!(model.debug_trace(&long_sentence).is_err());
-        let long_sentence_entities = model.extract_entities(&long_sentence, None)?;
-        assert!(
-            long_sentence_entities
-                .iter()
-                .all(|entity| entity.start() < entity.end()
-                    && entity.end() <= long_sentence.chars().count()),
-            "{long_sentence_entities:#?}"
+        Ok(())
+    }
+
+    /// A tokenizer snapshot may serialize its own 512-token truncation rule.
+    /// BERT must disable that rule before probing and chunking, otherwise long
+    /// inputs appear short and lose their suffix without an error.
+    #[test]
+    #[ignore = "requires cached protectai/bert-base-NER-onnx; run with ANNO_NO_DOWNLOADS=1"]
+    fn long_inputs_are_chunked_without_tokenizer_truncation(
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        assert_eq!(
+            std::env::var("ANNO_NO_DOWNLOADS").as_deref(),
+            Ok("1"),
+            "this regression must run cache-only; set ANNO_NO_DOWNLOADS=1"
         );
-        assert!(
-            long_sentence_entities.iter().any(|entity| {
-                entity.start() <= terminal_paris_start
-                    && entity.end() >= terminal_paris_start + "Paris".chars().count()
-            }),
-            "hard BERT chunks must cover the terminal Paris rather than only a prefix location: {long_sentence_entities:#?}"
-        );
+        let model = BertNEROnnx::new("protectai/bert-base-NER-onnx")?;
+
+        for (text, terminal_suffix) in [
+            ("Paris is sunny. ".repeat(200), "Paris is sunny. "),
+            ("Paris ".repeat(600), "Paris "),
+        ] {
+            let terminal_start = text.chars().count() - terminal_suffix.chars().count();
+            let encoding = model.tokenizer().encode(text.as_str(), true)?;
+            assert!(
+                encoding.len() > BertNEROnnx::MAX_TOKENS + 2,
+                "the fixture must exceed BERT's graph window"
+            );
+            let entities = model.extract_entities(&text, None)?;
+            assert!(
+                entities
+                    .iter()
+                    .all(|entity| entity.start() < entity.end()
+                        && entity.end() <= text.chars().count()),
+                "{entities:#?}"
+            );
+            assert!(
+                entities.iter().any(|entity| {
+                    entity.start() <= terminal_start
+                        && entity.end() >= terminal_start + "Paris".chars().count()
+                }),
+                "chunked output must cover the terminal Paris rather than only a prefix location: {entities:#?}"
+            );
+        }
 
         Ok(())
     }
