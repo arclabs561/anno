@@ -9,8 +9,8 @@ Most common entrypoints are wrapped in `justfile` so you don’t need to remembe
 
 - **Health**: `just check`, `just ci`, `just ci-eval`
 - **Eval**: `just matrix`, `just eval-quick`, `just eval-wide`
-- **Docs**: `just docs-audit`, `just serve-readme`, `just e2e-readme-test`
-- **Static analysis**: `just static-analysis`, `just validate-static-analysis-setup`
+- **Docs**: `just docs-audit`, `just readme-preview`
+- **Static analysis**: `just static-analysis`, `just validate-setup`
 
 ## Python scripts
 
@@ -33,7 +33,7 @@ If a script is meant to be sourced (rare here), it should avoid setting shell op
 
 ## Organization (informal)
 
-- **Eval + regression hunting**: `eval-*.sh`, `check-*-patterns.sh`, `summarize-failures.sh`
+- **Eval + regression hunting**: `eval-*.sh`, `check-*-patterns.sh`
 - **Dataset registry + generation**: `generate_*`, `*_registry*`, `verify_dataset_urls.py`
 - **S3 cache + artifacts**: `sync_datasets_s3.sh`, `prepare_datasets_s3.py`, `upload_*_s3.sh`
 - **CI helpers**: `benchmark-static-analysis.sh`, `validate-static-analysis-setup.sh`

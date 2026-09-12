@@ -17,6 +17,7 @@ struct Expected {
 #[derive(serde::Deserialize)]
 #[allow(non_snake_case)]
 struct DocExpected {
+    #[cfg_attr(not(feature = "bundled-crf-weights"), allow(dead_code))]
     min_entities: usize,
     #[serde(default)]
     must_find_PER: Vec<String>,
@@ -25,6 +26,7 @@ struct DocExpected {
     #[serde(default)]
     must_find_ORG: Vec<String>,
     #[serde(default)]
+    #[cfg_attr(not(feature = "bundled-crf-weights"), allow(dead_code))]
     must_not_contain: Vec<String>,
 }
 
@@ -43,6 +45,7 @@ fn read_fixture(name: &str) -> String {
     })
 }
 
+#[cfg(feature = "bundled-crf-weights")]
 fn extract_from_fixture(name: &str) -> Vec<Entity> {
     let text = read_fixture(name);
     let ner = anno::StackedNER::default();
