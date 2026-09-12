@@ -90,9 +90,9 @@ pub struct PIIEntity {
     pub text: String,
     /// Type of PII (PERSON, DATE, EMAIL, etc.)
     pub pii_type: String,
-    /// Start byte offset
+    /// Start character offset
     pub start: usize,
-    /// End byte offset (exclusive)
+    /// End character offset (exclusive)
     pub end: usize,
     /// Risk level (low, medium, high)
     pub risk_level: String,
@@ -321,8 +321,8 @@ fn scan_structured_pii(text: &str) -> Vec<PIIEntity> {
         if let Ok(re) = Regex::new(pat) {
             for m in re.find_iter(text) {
                 // Avoid overlaps with already-found PII
-                let start = m.start();
-                let end = m.end();
+                let start = text[..m.start()].chars().count();
+                let end = text[..m.end()].chars().count();
                 let overlaps = results
                     .iter()
                     .any(|e: &PIIEntity| !(end <= e.start || start >= e.end));
@@ -340,6 +340,20 @@ fn scan_structured_pii(text: &str) -> Vec<PIIEntity> {
     }
 
     results
+}
+
+/// Convert a character-offset span to byte offsets suitable for string slicing.
+fn char_span_to_byte_range(text: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    if start > end {
+        return None;
+    }
+
+    let mut boundaries = text
+        .char_indices()
+        .map(|(byte, _)| byte)
+        .collect::<Vec<_>>();
+    boundaries.push(text.len());
+    Some((*boundaries.get(start)?, *boundaries.get(end)?))
 }
 
 fn generate_pii_report(entities: &[PIIEntity]) -> PIIReport {
@@ -456,19 +470,47 @@ fn print_pii_report(report: &PIIReport, quiet: bool) {
     );
 }
 
+/// Merge overlapping detections before replacement, including partial overlaps from
+/// different backends. The union prevents a second edit from slicing a replacement.
+fn replacement_spans(text: &str, entities: &[PIIEntity]) -> Vec<PIIEntity> {
+    let mut sorted = entities.to_vec();
+    sorted.sort_by_key(|entity| (entity.start, std::cmp::Reverse(entity.end)));
+    let mut spans: Vec<PIIEntity> = Vec::new();
+    for entity in sorted {
+        if entity.start >= entity.end
+            || char_span_to_byte_range(text, entity.start, entity.end).is_none()
+        {
+            continue;
+        }
+        if let Some(previous) = spans.last_mut() {
+            if entity.start < previous.end {
+                previous.end = previous.end.max(entity.end);
+                previous.text = text
+                    .chars()
+                    .skip(previous.start)
+                    .take(previous.end - previous.start)
+                    .collect();
+                continue;
+            }
+        }
+        spans.push(entity);
+    }
+    spans
+}
+
 fn redact_text(text: &str, entities: &[PIIEntity]) -> String {
     let mut result = text.to_string();
     let mut type_counts: HashMap<&str, usize> = HashMap::new();
 
-    // Sort by start position descending to preserve offsets
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
-
-    for entity in sorted {
+    let spans = replacement_spans(text, entities);
+    for entity in spans.iter().rev() {
+        let Some((start, end)) = char_span_to_byte_range(text, entity.start, entity.end) else {
+            continue;
+        };
         let count = type_counts.entry(&entity.pii_type).or_insert(0);
         *count += 1;
         let replacement = format!("[{}_{}]", entity.pii_type, count);
-        result.replace_range(entity.start..entity.end, &replacement);
+        result.replace_range(start..end, &replacement);
     }
 
     result
@@ -495,11 +537,11 @@ fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<Str
         "Casey Martinez",
     ];
 
-    // Sort by start position descending
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
-
-    for entity in sorted {
+    let spans = replacement_spans(text, entities);
+    for entity in spans.iter().rev() {
+        let Some((start, end)) = char_span_to_byte_range(text, entity.start, entity.end) else {
+            continue;
+        };
         let fake = if let Some(existing) = mapping.get(&entity.text) {
             existing.clone()
         } else {
@@ -532,7 +574,7 @@ fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<Str
             fake
         };
 
-        result.replace_range(entity.start..entity.end, &fake);
+        result.replace_range(start..end, &fake);
     }
 
     (result, mapping)
@@ -596,6 +638,62 @@ mod tests {
             pii.iter().any(|p| p.pii_type == "CONTACT"),
             "Email should be detected as CONTACT: {:?}",
             pii
+        );
+    }
+
+    #[test]
+    fn overlapping_unicode_detections_are_replaced_once() {
+        let text = "éé Alice Smith!";
+        let person = |start, end| PIIEntity {
+            text: text.chars().skip(start).take(end - start).collect(),
+            pii_type: "PERSON".into(),
+            start,
+            end,
+            risk_level: "HIGH".into(),
+        };
+        let detections = vec![person(3, 8), person(6, 14), person(3, 8)];
+        assert_eq!(redact_text(text, &detections), "éé [PERSON_1]!");
+        let (pseudonymized, mapping) = pseudonymize_text(text, &detections);
+        assert_eq!(pseudonymized, "éé John Smith!");
+        assert_eq!(mapping.len(), 1);
+        assert_eq!(mapping["Alice Smith"], "John Smith");
+    }
+
+    #[test]
+    fn structured_scan_uses_character_offsets_after_unicode_prefix() {
+        let text = "東京の連絡先: bob@example.com";
+        let entity = scan_structured_pii(text)
+            .into_iter()
+            .find(|entity| entity.text == "bob@example.com")
+            .expect("email should be detected");
+
+        assert_eq!(
+            entity.start,
+            text[..text.find("bob@example.com").unwrap()]
+                .chars()
+                .count()
+        );
+        assert_eq!(entity.end, text.chars().count());
+    }
+
+    #[test]
+    fn redaction_preserves_unicode_prefix() {
+        let text = "東京の連絡先: bob@example.com";
+        let entities = scan_structured_pii(text);
+
+        assert_eq!(redact_text(text, &entities), "東京の連絡先: [CONTACT_1]");
+    }
+
+    #[test]
+    fn pseudonymization_preserves_unicode_prefix() {
+        let text = "東京の連絡先: bob@example.com";
+        let entities = scan_structured_pii(text);
+        let (result, mapping) = pseudonymize_text(text, &entities);
+
+        assert_eq!(result, "東京の連絡先: contact@example.com");
+        assert_eq!(
+            mapping.get("bob@example.com"),
+            Some(&"contact@example.com".to_string())
         );
     }
 

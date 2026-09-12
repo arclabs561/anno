@@ -537,33 +537,41 @@ pub mod candle_impl {
 
             // Download config, weights, tokenizer
             // Try config.json first, fall back to gliner_config.json for GLiNER models
-            let config_path = repo
-                .get("config.json")
-                .or_else(|_| repo.get("gliner_config.json"))
-                .map_err(|e| {
-                    Error::Retrieval(format!(
-                        "config (tried config.json and gliner_config.json): {}",
-                        e
-                    ))
-                })?;
-            let weights_path = repo
-                .get("model.safetensors")
-                .or_else(|_| {
-                    // Try to convert pytorch_model.bin to safetensors
-                    let pytorch_path = repo.get("pytorch_model.bin")?;
-                    crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
-                })
-                .map_err(|e| {
-                    Error::Retrieval(format!("weights not found and conversion failed: {}", e))
-                })?;
+            let config_path = crate::backends::hf_loader::download_model_file(
+                &repo,
+                &["config.json", "gliner_config.json"],
+            )
+            .map_err(|e| {
+                Error::Retrieval(format!(
+                    "config (tried config.json and gliner_config.json): {}",
+                    e
+                ))
+            })?;
+            let weights_path =
+                crate::backends::hf_loader::download_model_file(&repo, &["model.safetensors"])
+                    .or_else(|_| {
+                        // Try to convert pytorch_model.bin to safetensors
+                        let pytorch_path = crate::backends::hf_loader::download_model_file(
+                            &repo,
+                            &["pytorch_model.bin"],
+                        )?;
+                        crate::backends::gliner_candle::convert_pytorch_to_safetensors(
+                            &pytorch_path,
+                        )
+                    })
+                    .map_err(|e| {
+                        Error::Retrieval(format!("weights not found and conversion failed: {}", e))
+                    })?;
             // Try tokenizer.json first, fall back to vocab.txt for older models
-            let tokenizer_path = repo.get("tokenizer.json").or_else(|_| {
-                repo.get("vocab.txt").map_err(|e| {
-                    Error::Retrieval(format!(
-                        "tokenizer: neither tokenizer.json nor vocab.txt found: {}",
-                        e
-                    ))
-                })
+            let tokenizer_path = crate::backends::hf_loader::download_model_file(
+                &repo,
+                &["tokenizer.json", "vocab.txt"],
+            )
+            .map_err(|e| {
+                Error::Retrieval(format!(
+                    "tokenizer: neither tokenizer.json nor vocab.txt found: {}",
+                    e
+                ))
             })?;
 
             // Parse config

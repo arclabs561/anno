@@ -22,7 +22,7 @@ Academic papers, datasets, and software cited across the anno codebase.
 
 - U. Zaratiana, G. Pasternak, O. Boyd, G. Hurn-Maloney, and A. Lewis. "GLiNER2: An Efficient Multi-Task Information Extraction System with Schema-Driven Interface." *EMNLP* (System Demonstrations), 2025.
   [[arXiv:2507.18546]](https://arxiv.org/abs/2507.18546)
-  — Distinct architecture (fastino-ai). Different special tokens (`[P]/[E]/[C]/[L]/[SEP]`) and head structure (count-predictor + occurrence ID embeddings). Not yet wired as a backend; see issue #17.
+  — Distinct architecture (fastino-ai). Different special tokens (`[P]/[E]/[C]/[L]/[SEP]`) and head structure (count-predictor + occurrence ID embeddings). Implemented as the feature-gated `gliner2_fastino` backend.
 
 - D. Bogdanov, A. Mokhov, et al. "NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data." 2024.
   [[arXiv:2402.15343]](https://arxiv.org/abs/2402.15343)

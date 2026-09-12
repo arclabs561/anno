@@ -200,18 +200,17 @@ impl FCoref {
 
         // Helper to download a file, returning Ok(None) if not found
         let try_get = |name: &str| -> Result<Option<std::path::PathBuf>> {
-            match repo.get(name) {
+            match hf_loader::download_model_file(&repo, &[name]) {
                 Ok(p) => Ok(Some(p)),
                 Err(_) => Ok(None),
             }
         };
 
         // Download required files
-        let weights_path = repo
-            .get("scorer_weights.safetensors")
-            .map_err(|e| Error::Retrieval(format!("scorer_weights download: {}", e)))?;
-        let tokenizer_path = repo
-            .get("tokenizer.json")
+        let weights_path =
+            hf_loader::download_model_file(&repo, &["scorer_weights.safetensors"])
+                .map_err(|e| Error::Retrieval(format!("scorer_weights download: {}", e)))?;
+        let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])
             .map_err(|e| Error::Retrieval(format!("tokenizer download: {}", e)))?;
 
         // Prefer quantized encoder if available
@@ -219,7 +218,7 @@ impl FCoref {
             log::info!("[f-coref] Using quantized encoder from {}", model_id);
             q
         } else {
-            repo.get("encoder.onnx")
+            hf_loader::download_model_file(&repo, &["encoder.onnx"])
                 .map_err(|e| Error::Retrieval(format!("encoder.onnx download: {}", e)))?
         };
 
