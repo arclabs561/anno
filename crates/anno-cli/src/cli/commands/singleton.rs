@@ -10,9 +10,9 @@ use std::path::PathBuf;
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
-use super::super::utils::resolve_coreference;
+use anno::backends::coref::SimpleCorefResolver;
 
-/// Analyze singleton coreference clusters
+/// Analyze singleton clusters using local heuristic coreference
 #[derive(Parser, Debug)]
 pub struct SingletonArgs {
     /// Input file or text
@@ -68,9 +68,9 @@ pub struct SingletonEntity {
     pub text: String,
     /// Entity type label
     pub entity_type: String,
-    /// Start byte offset
+    /// Start character offset
     pub start: usize,
-    /// End byte offset (exclusive)
+    /// End character offset (exclusive)
     pub end: usize,
     /// Extraction confidence
     pub confidence: f32,
@@ -115,13 +115,7 @@ pub fn run(args: SingletonArgs) -> Result<(), String> {
         .extract_entities(&text, None)
         .map_err(|e| format!("Extraction failed: {}", e))?;
 
-    let mut document = anno::GroundedDocument::from_entity_signals("singleton", &text, &entities);
-    let signal_ids = document
-        .signals()
-        .iter()
-        .map(|signal| signal.id)
-        .collect::<Vec<_>>();
-    resolve_coreference(&mut document, &text, &signal_ids);
+    let document = singleton_document(&text, &entities);
 
     // Analyze actual coreference memberships, including untracked signals.
     let report = analyze_singletons(&document, &text);
@@ -134,6 +128,21 @@ pub fn run(args: SingletonArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Build singleton-analysis memberships with the local rule-based resolver.
+///
+/// This command intentionally clusters only the extracted entities. It does not
+/// acquire a neural model or synthesize additional mention signals. Existing
+/// canonical IDs are cleared because this is a fresh, command-local heuristic
+/// clustering pass; otherwise the resolver skips those entities.
+fn singleton_document(text: &str, entities: &[anno::Entity]) -> anno::GroundedDocument {
+    let mut heuristic_entities = entities.to_vec();
+    for entity in &mut heuristic_entities {
+        entity.canonical_id = None;
+    }
+    let resolved = SimpleCorefResolver::default().resolve(&heuristic_entities);
+    anno::GroundedDocument::from_entities("singleton", text, &resolved)
 }
 
 fn analyze_singletons(document: &anno::GroundedDocument, text: &str) -> SingletonReport {
@@ -443,24 +452,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn singleton_stats_follow_actual_track_membership() {
+    fn singleton_pipeline_preserves_mentions_and_tracks_heuristically() {
         let entities = vec![
-            anno::Entity::new("Alice", anno::EntityType::Person, 0, 5, 1.0),
-            anno::Entity::new("Alice", anno::EntityType::Person, 10, 15, 1.0),
-            anno::Entity::new("Paris", anno::EntityType::Location, 19, 24, 1.0),
+            anno::Entity::new("Alice", anno::EntityType::Person, 0, 5, 1.0).with_canonical_id(99),
+            anno::Entity::new("Alice", anno::EntityType::Person, 10, 15, 1.0).with_canonical_id(99),
+            anno::Entity::new("Paris", anno::EntityType::Location, 19, 24, 1.0)
+                .with_canonical_id(99),
         ];
-        let mut document = anno::GroundedDocument::from_entity_signals(
-            "test",
-            "Alice met Alice in Paris.",
-            &entities,
-        );
-        let signal_ids: Vec<_> = document.signals().iter().map(|signal| signal.id).collect();
-        let mut track = anno::Track::new(0, "Alice");
-        track.add_signal(signal_ids[0], 0);
-        track.add_signal(signal_ids[1], 1);
-        document.add_track(track);
+        let text = "Alice met Alice in Paris.";
+        let document = singleton_document(text, &entities);
 
-        let report = analyze_singletons(&document, document.text());
+        let report = analyze_singletons(&document, text);
+        assert_eq!(document.signals().len(), 3);
         assert_eq!(report.total_entities, 3);
         assert_eq!(report.clustered_count, 2);
         assert_eq!(report.singleton_count, 1);
