@@ -47,6 +47,7 @@
 #![allow(dead_code)] // Token constants for future prompt encoding
 
 use crate::{Entity, EntityType, Error, Language, Result};
+#[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "candle")]
@@ -116,7 +117,7 @@ pub use layers::*;
 /// Matches text spans to entity type descriptions using a bi-encoder.
 /// Supports Metal (Apple Silicon) and CUDA (NVIDIA) GPU acceleration.
 mod inference;
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub(crate) use inference::convert_pytorch_to_safetensors;
 #[cfg(feature = "candle")]
 pub use inference::GLiNERCandle;
@@ -210,6 +211,16 @@ crate::backends::macros::define_feature_stub! {
     methods {
         /// Load from pretrained (requires candle feature).
         pub fn from_pretrained(_model_id: &str) -> crate::Result<Self> {
+            Self::new("")
+        }
+
+        /// Load from byte-backed assets (requires candle feature).
+        pub fn from_assets(
+            _model_name: &str,
+            _config: &[u8],
+            _tokenizer: &[u8],
+            _weights: Vec<u8>,
+        ) -> crate::Result<Self> {
             Self::new("")
         }
     }

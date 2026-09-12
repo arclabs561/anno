@@ -14,6 +14,81 @@ fn test_stub_without_feature() {
 }
 
 #[cfg(feature = "candle")]
+const MINIMAL_TOKENIZER: &[u8] = br#"{
+    "version": "1.0",
+    "truncation": null,
+    "padding": null,
+    "added_tokens": [],
+    "normalizer": null,
+    "pre_tokenizer": null,
+    "post_processor": null,
+    "decoder": null,
+    "model": {
+        "type": "WordLevel",
+        "vocab": {"[UNK]": 0},
+        "unk_token": "[UNK]"
+    }
+}"#;
+
+#[cfg(feature = "candle")]
+const MINIMAL_CONFIG: &[u8] = br#"{"encoder_config":{"hidden_size":1}}"#;
+
+#[cfg(feature = "candle")]
+fn empty_safetensors() -> Vec<u8> {
+    // The safetensors header is an eight-byte little-endian length followed by JSON metadata.
+    // An empty tensor map is enough to test construction-time asset validation; loading model
+    // layers would correctly fail later because the GLiNER tensors are absent.
+    let mut bytes = Vec::from(2_u64.to_le_bytes());
+    bytes.extend_from_slice(b"{}");
+    bytes
+}
+
+#[cfg(feature = "candle")]
+#[test]
+fn candle_assets_reject_missing_inputs() {
+    let missing_config =
+        GLiNERCandle::from_assets("fixture", &[], MINIMAL_TOKENIZER, empty_safetensors())
+            .unwrap_err();
+    assert!(missing_config.to_string().contains("config asset is empty"));
+
+    let missing_tokenizer =
+        GLiNERCandle::from_assets("fixture", MINIMAL_CONFIG, &[], empty_safetensors()).unwrap_err();
+    assert!(missing_tokenizer
+        .to_string()
+        .contains("tokenizer asset is empty"));
+
+    let missing_weights =
+        GLiNERCandle::from_assets("fixture", MINIMAL_CONFIG, MINIMAL_TOKENIZER, Vec::new())
+            .unwrap_err();
+    assert!(missing_weights
+        .to_string()
+        .contains("weights asset is empty"));
+}
+
+#[cfg(feature = "candle")]
+#[test]
+fn candle_assets_reject_malformed_inputs() {
+    let malformed_tokenizer =
+        GLiNERCandle::from_assets("fixture", MINIMAL_CONFIG, b"not json", empty_safetensors())
+            .unwrap_err();
+    assert!(malformed_tokenizer.to_string().contains("tokenizer:"));
+
+    let malformed_weights =
+        GLiNERCandle::from_assets("fixture", MINIMAL_CONFIG, MINIMAL_TOKENIZER, vec![0])
+            .unwrap_err();
+    assert!(malformed_weights.to_string().contains("safetensors:"));
+
+    let malformed_config = GLiNERCandle::from_assets(
+        "fixture",
+        b"not json",
+        MINIMAL_TOKENIZER,
+        empty_safetensors(),
+    )
+    .unwrap_err();
+    assert!(malformed_config.to_string().contains("config JSON:"));
+}
+
+#[cfg(feature = "candle")]
 #[test]
 fn test_span_label_matcher() {
     let device = Device::Cpu;

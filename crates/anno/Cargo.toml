@@ -40,8 +40,6 @@ dirs = { workspace = true }
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.
 ort = { workspace = true, features = ["ndarray"], optional = true }
-tokenizers = { workspace = true, optional = true }
-hf-hub = { workspace = true, optional = true }
 ndarray = { workspace = true, optional = true }
 lru = { workspace = true, optional = true }
 candle-core = { workspace = true, optional = true }
@@ -62,6 +60,17 @@ rayon = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, optional = true }
+
+# The synchronous Hugging Face client owns a native filesystem cache and native
+# HTTP stack. Browser builds receive model bytes from their JS host instead.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+
+# tokenizers defaults use Oniguruma, which builds a C library. The wasm
+# implementation uses its Rust regex path instead.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokenizers = { version = "0.22", optional = true, default-features = false, features = ["unstable_wasm"] }
 
 
 [dev-dependencies]
@@ -92,18 +101,19 @@ onnx = [
 # Apple CoreML / Apple Neural Engine acceleration for ONNX backends.
 # macOS only (the underlying ort/coreml feature requires macOS at link time).
 # Set `OnnxSessionConfig::prefer_coreml = true` at session construction to
-# attach the CoreML execution provider; falls back to CPU if CoreML can't
-# load the graph (large models, unsupported ops).
+# require CoreML provider registration. Unsupported graph nodes can still
+# execute on CPU after the provider registers successfully.
 onnx-coreml = ["onnx", "ort/coreml"]
 # NVIDIA CUDA acceleration for ONNX backends. Linux/Windows + nvcc/CUDA 12.x
 # at link time. Set `OnnxSessionConfig::prefer_cuda = true` to attach the
-# CUDA execution provider; CPU is registered as fallback. Build-time check
-# does NOT prove CUDA is actually used at runtime -- silent CPU fallback is a
-# known ort failure mode when cudart.so is missing. Validate with
-# `examples/onnx_gpu_smoke.rs` on a real GPU host.
+# CUDA execution provider with registration required. Unsupported graph nodes
+# can still execute on CPU. A build does not prove acceleration; validate with
+# `examples/onnx_cuda_smoke.rs` on a real GPU host.
 onnx-cuda = ["onnx", "ort/cuda"]
-# fastino-ai GLiNER2 backend (issue #18). Loads `fastino/gliner2-*` models
-# via ONNX. WIP / experimental — no API stability guarantees. Implements
+onnx-directml = ["onnx", "ort/directml"]
+onnx-rocm = ["onnx", "ort/rocm"]
+# fastino-ai GLiNER2 backend (issue #18). Loads a compatible pre-exported
+# ONNX snapshot. WIP / experimental — no API stability guarantees. Implements
 # Model + ZeroShotNER and an internal classify() method.
 gliner2-fastino = ["onnx", "dep:half"]
 gliner2-fastino-cuda    = ["gliner2-fastino", "onnx-cuda"]
@@ -120,6 +130,9 @@ candle = [
   "dep:tokenizers",
   "dep:hf-hub",
 ]
+# Experimental WebAssembly build support. Callers provide byte-backed assets;
+# a compatible trained checkpoint and browser runtime validation are separate gates.
+wasm = ["candle"]
 metal = ["candle", "candle-core/metal"]
 cuda = ["candle", "candle-core/cuda"]
 llm = ["dep:ureq"]

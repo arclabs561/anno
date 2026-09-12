@@ -3,7 +3,7 @@
 //! [`anno::backends::gliner2_fastino::ExecutionMode::IoBinding`] on the
 //! same workload.
 //!
-//! Run with the cached `SemplificaAI/gliner2-multi-v1-onnx` snapshot:
+//! Run with the cached supported GLiNER2 ONNX snapshot:
 //!
 //! ```bash
 //! cargo bench --bench gliner2_fastino_iobinding --features gliner2-fastino
@@ -17,15 +17,17 @@
 //!
 //! **Skipped automatically when the snapshot isn't cached** — the
 //! `from_pretrained_with_config` call would attempt to download
-//! ~6 GB. Each `bench_*` group eprintln-skips if model load fails.
+//! ~1.25 GB. Each `bench_*` group eprintln-skips if model load fails.
 
 #![cfg(feature = "gliner2-fastino")]
 
-use anno::backends::gliner2_fastino::{ExecutionMode, GLiNER2Fastino, GLiNER2FastinoConfig};
+use anno::backends::gliner2_fastino::{
+    ExecutionMode, GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
+};
 use anno::backends::inference::ZeroShotNER;
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
-const MODEL_ID: &str = "SemplificaAI/gliner2-multi-v1-onnx";
+const MODEL_ID: &str = SUPPORTED_GLINER2_FASTINO_MODEL;
 
 const SHORT: &str = "Marie Curie discovered radium.";
 
