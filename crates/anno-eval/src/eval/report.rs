@@ -365,7 +365,10 @@ impl ReportBuilder {
         let evaluator = DemographicBiasEvaluator::new(true);
         let demo_results = evaluator.try_evaluate_ner(model, &names)?;
 
-        let bias_detected = demo_results.ethnicity_parity_gap > 0.1;
+        let max_gap = demo_results
+            .ethnicity_parity_gap
+            .max(demo_results.script_bias_gap);
+        let bias_detected = max_gap > 0.1;
 
         // Find underperforming groups
         let mut underperforming_groups = Vec::new();
@@ -379,9 +382,7 @@ impl ReportBuilder {
             bias_detected,
             gender: None,
             demographic: Some(DemographicBiasMetrics {
-                max_gap: demo_results
-                    .ethnicity_parity_gap
-                    .max(demo_results.script_bias_gap),
+                max_gap,
                 underperforming_groups,
             }),
             length: None, // Can be added if needed
