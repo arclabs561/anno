@@ -277,9 +277,10 @@ impl AnnotatedExample {
         let gold_entities = entities
             .into_iter()
             .map(|(entity_text, entity_type_str)| {
-                let start = text.find(entity_text).unwrap_or_else(|| {
+                let byte_start = text.find(entity_text).unwrap_or_else(|| {
                     panic!("Entity '{}' not found in text '{}'", entity_text, text)
                 });
+                let start = text[..byte_start].chars().count();
                 let entity_type = EntityType::from_label(entity_type_str);
                 GoldEntity::new(entity_text, entity_type, start)
             })
@@ -465,6 +466,15 @@ mod tests {
         assert_eq!(example.entities[0].start, 0);
         assert_eq!(example.entities[1].text, "Google");
         assert_eq!(example.entities[1].start, 14);
+    }
+
+    #[test]
+    fn test_annotated_example_from_tuples_uses_character_offsets() {
+        let example = AnnotatedExample::from_tuples("田中 met Oslo", vec![("Oslo", "LOC")]);
+
+        assert_eq!(example.entities[0].start, 7);
+        assert_eq!(example.entities[0].end, 11);
+        assert_eq!(example.entities[0].extract_text(&example.text), "Oslo");
     }
 
     #[test]
