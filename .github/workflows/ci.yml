@@ -1018,6 +1018,9 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1033,7 +1036,7 @@ jobs:
       - name: Install cargo-nextest
         run: cargo install --locked cargo-nextest
       - name: Generate coverage
-        run: cargo llvm-cov nextest --profile quick --workspace --features "eval discourse" --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
       - name: Upload to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         if: always()
@@ -1041,6 +1044,7 @@ jobs:
           files: ./lcov.info
           flags: unittests
           name: codecov-anno
+          use_oidc: true
   # ==========================================================================
   # Publish Validation (best-effort; expected to fail while publishing is paused)
   # ==========================================================================
