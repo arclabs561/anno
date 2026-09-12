@@ -1008,134 +1008,12 @@ jobs:
             opengrep-error-results.json
             opengrep-memory-results.json
           if-no-files-found: error
-  # NLP/ML-specific pattern checks
-  nlp-ml-patterns:
-    name: NLP/ML Pattern Analysis
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
-        with:
-          toolchain: "stable"
-      - name: Install ripgrep (for pattern analysis)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ripgrep jq
-      - name: Check NLP patterns
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/check-nlp-patterns.sh || true
-      - name: Analyze evaluation patterns
-        run: |
-          ./scripts/analyze-evaluation-patterns.sh || true
-      - name: Check ML backend patterns
-        run: |
-          ./scripts/check-ml-backend-patterns.sh || true
-      - name: Check historical bug patterns
-        run: |
-          ./scripts/check-historical-bugs.sh || true
-      - name: Check evaluation invariants
-        run: |
-          ./scripts/check-evaluation-invariants.sh || true
-      - name: Upload analysis reports
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: nlp-ml-analysis
-          path: |
-            evaluation-pattern-analysis.md
-  # Unified static analysis report
-  unified-static-analysis:
-    name: Unified Static Analysis Report
-    needs: [cargo-deny, unused-deps, safety-report, opengrep, nlp-ml-patterns]
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    if: always()
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
-        with:
-          toolchain: "stable"
-      - name: Install tools
-        run: |
-          cargo install --locked cargo-deny || true
-          cargo install cargo-machete || true
-          cargo install cargo-geiger || true
-          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash || true
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          sudo apt-get update
-          sudo apt-get install -y jq || true
-      - name: Download artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: artifacts
-      - name: Generate unified report
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/generate-unified-report.sh || true
-      - name: Upload unified report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: unified-static-analysis
-          path: unified-static-analysis-report.md
-  # Static analysis failure summary
-  static-analysis-summary:
-    name: Static Analysis Summary
-    needs: [cargo-deny, unused-deps, safety-report, opengrep, nlp-ml-patterns]
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: read
-    if: always()
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Download artifacts
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: artifacts
-      - name: Summarize failures
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/summarize-failures.sh || true
-      - name: Upload summary
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: static-analysis-summary
-          path: static-analysis-failures-summary.md
-      - name: Comment on PR
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && always()
-        continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const fs = require('fs');
-            if (fs.existsSync('static-analysis-failures-summary.md')) {
-              const summary = fs.readFileSync('static-analysis-failures-summary.md', 'utf8');
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `## Static Analysis Summary\n\n${summary}`
-              });
-            }
   # Code coverage (optional, runs on schedule or manual trigger)
   # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs)
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1148,9 +1026,10 @@ jobs:
           cache-all-crates: true
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
+      - name: Install cargo-nextest
+        run: cargo install cargo-nextest
       - name: Generate coverage
-        run: |
-          cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info || true
+        run: cargo llvm-cov nextest --profile quick --workspace --features "eval discourse" --lcov --output-path lcov.info
       - name: Upload to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         if: always()

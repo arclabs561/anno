@@ -1,43 +1,59 @@
 #!/usr/bin/env python3
-"""Analyze test profiling results from nextest timing JSON files."""
+"""Analyze newline-delimited libtest-json-plus output from cargo nextest."""
 
 import json
 import sys
 from pathlib import Path
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict
 
 def analyze_timing_file(timing_file: Path) -> Dict:
     """Analyze a nextest JSON output file (libtest-json-plus format)."""
     executions = []
     
     # Nextest outputs newline-delimited JSON
-    with open(timing_file) as f:
-        for line in f:
+    with open(timing_file, encoding="utf-8") as f:
+        for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
             try:
                 event = json.loads(line)
-                # Look for test completion events
-                if event.get("type") == "test":
-                    test_event = event.get("event")
-                    if test_event in ("ok", "failed", "ignored"):
-                        test_name = event.get("name", "unknown")
-                        elapsed = event.get("elapsed", 0)
-                        # Extract binary from test name or use default
-                        binary = event.get("binary_name", "unknown")
-                        if "nextest" in event:
-                            binary = event["nextest"].get("binary_name", binary)
-                        
-                        executions.append({
-                            "test_name": test_name,
-                            "duration_secs": elapsed,
-                            "binary_name": binary,
-                            "status": test_event,
-                        })
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                return {"error": f"Invalid JSON on line {line_number}: {exc.msg}"}
+
+            # nextest's libtest-compatible terminal test events report elapsed
+            # wall time as `exec_time`, not `elapsed`.
+            if event.get("type") != "test":
                 continue
+            test_event = event.get("event")
+            if test_event not in ("ok", "failed", "ignored"):
+                continue
+
+            exec_time = event.get("exec_time", 0.0)
+            if not isinstance(exec_time, (int, float)):
+                return {
+                    "error": f"Invalid exec_time on line {line_number}: {exec_time!r}"
+                }
+
+            nextest = event.get("nextest")
+            binary = "unknown"
+            if isinstance(nextest, dict):
+                binary = nextest.get("test_binary", nextest.get("binary_name", binary))
+            if binary == "unknown":
+                # In the recorded libtest-json-plus stream, suite events carry
+                # `nextest.test_binary`, but terminal test events do not. Their
+                # name prefix is `crate::binary$test_path`.
+                test_prefix = event.get("name", "").split("$", maxsplit=1)[0]
+                if "::" in test_prefix:
+                    binary = test_prefix.rsplit("::", maxsplit=1)[1]
+
+            executions.append({
+                "test_name": event.get("name", "unknown"),
+                "duration_secs": float(exec_time),
+                "binary_name": binary,
+                "status": test_event,
+            })
     
     if not executions:
         return {"error": "No test executions found in JSON output"}
@@ -192,8 +208,9 @@ def main():
     
     analysis = analyze_timing_file(timing_file)
     print_analysis(analysis)
+    if "error" in analysis:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
-
