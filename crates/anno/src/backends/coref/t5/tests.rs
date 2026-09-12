@@ -113,6 +113,15 @@ fn extract_mentions_span_offsets_are_consistent() {
     }
 }
 
+#[test]
+fn extract_mentions_uses_character_offsets_for_unicode() {
+    let marked = "<m> 田中 </m> met <m> Élise </m>";
+    let (plain, mentions) = extract_t5_mentions(marked).unwrap();
+    assert_eq!(plain, "田中 met Élise");
+    assert_eq!(mentions[0], ("田中".to_string(), 0, 2));
+    assert_eq!(mentions[1], ("Élise".to_string(), 7, 12));
+}
+
 // -------------------------------------------------------------------------
 // parse_t5_coref_output
 // -------------------------------------------------------------------------
@@ -296,4 +305,54 @@ fn parse_output_cluster_id_with_trailing_punctuation() {
     assert_eq!(c.id, 1);
     assert!(c.mentions.contains(&"Marie".to_string()));
     assert!(c.mentions.contains(&"She".to_string()));
+}
+
+#[test]
+fn alignment_uses_source_coordinates_for_the_complete_token_stream() {
+    let source = "田中 met Marie. She thanked Marie.";
+    let decoded = "田中 met Marie | 1 She | 1 thanked Marie.";
+
+    let clusters = align_t5_coref_output(decoded, source).unwrap();
+    assert_eq!(clusters.len(), 1);
+    assert_eq!(clusters[0].mentions, vec!["Marie", "She"]);
+    assert_eq!(clusters[0].spans, vec![(7, 12), (14, 17)]);
+}
+
+#[test]
+fn alignment_preserves_unicode_source_spans() {
+    let clusters = align_t5_coref_output("田中 | 1 met Élise | 1", "田中 met Élise.").unwrap();
+
+    assert_eq!(clusters[0].mentions, vec!["田中", "Élise"]);
+    assert_eq!(clusters[0].spans, vec![(0, 2), (7, 12)]);
+}
+
+#[test]
+fn alignment_rejects_changed_or_omitted_decoder_tokens() {
+    let error = align_t5_coref_output(
+        "A different rendering: Marie | 1 then She | 1.",
+        "Marie arrived. She waved.",
+    )
+    .unwrap_err();
+
+    assert!(error.to_string().contains("does not reproduce"));
+}
+
+#[test]
+fn alignment_rejects_omitted_repeated_name() {
+    let error = align_t5_coref_output(
+        "Marie arrived. She | 1 waved.",
+        "Marie arrived. Marie left. She waved.",
+    )
+    .unwrap_err();
+
+    assert!(error.to_string().contains("does not reproduce"));
+}
+
+#[test]
+fn alignment_preserves_the_correct_repeated_name_occurrence() {
+    let source = "Marie arrived. Marie left. She waved.";
+    let clusters =
+        align_t5_coref_output("Marie | 1 arrived. Marie | 1 left. She | 1 waved.", source).unwrap();
+
+    assert_eq!(clusters[0].spans, vec![(0, 5), (15, 20), (27, 30)]);
 }

@@ -103,25 +103,32 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
             results.push((backend.name().to_string(), entities));
         }
 
-        // Output comparison
-        match args.format.as_str() {
+        let output = match args.format.as_str() {
             "table" => {
-                println!("\nModel Comparison:");
-                println!("{:<15} {:<10}", "Model", "Entities");
-                println!("{}", "-".repeat(25));
+                let mut output = String::from("\nModel Comparison:\n");
+                output.push_str(&format!("{:<15} {:<10}\n", "Model", "Entities"));
+                output.push_str(&format!("{}\n", "-".repeat(25)));
                 for (name, entities) in &results {
-                    println!("{:<15} {:<10}", name, entities.len());
+                    output.push_str(&format!("{:<15} {:<10}\n", name, entities.len()));
                 }
+                output
             }
             _ => {
+                let mut output = String::new();
                 for (name, entities) in &results {
-                    println!("\n{} ({} entities):", name, entities.len());
+                    output.push_str(&format!("\n{} ({} entities):\n", name, entities.len()));
                     for e in entities {
-                        println!("  - {} ({})", e.text, e.entity_type.as_label());
+                        output.push_str(&format!(
+                            "  - {} ({})\n",
+                            e.text,
+                            e.entity_type.as_label()
+                        ));
                     }
                 }
+                output
             }
-        }
+        };
+        write_or_print_output(args.output.as_deref(), &output)?;
     } else {
         // Compare two documents / extraction outputs
         let file2 = args
@@ -141,7 +148,7 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
         let (diffs, counts, jaccard) =
             compare_entities(&ents1, &ents2, args.confidence_epsilon, args.changes_only);
 
-        match args.format.as_str() {
+        let output = match args.format.as_str() {
             "json" => {
                 let out = serde_json::json!({
                     "file1": args.file1,
@@ -153,7 +160,8 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
                     "modified": counts.modified,
                     "diffs": diffs,
                 });
-                println!("{}", serde_json::to_string_pretty(&out).unwrap_or_default());
+                serde_json::to_string_pretty(&out)
+                    .map_err(|e| format!("Failed to serialize comparison: {e}"))?
             }
             "jsonl" => {
                 let summary = serde_json::json!({
@@ -164,21 +172,30 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
                     "unchanged": counts.unchanged,
                     "modified": counts.modified,
                 });
-                println!("{}", summary);
+                let mut output = format!("{summary}\n");
                 for d in diffs {
-                    println!("{}", serde_json::to_string(&d).unwrap_or_default());
+                    output.push_str(
+                        &serde_json::to_string(&d)
+                            .map_err(|e| format!("Failed to serialize comparison: {e}"))?,
+                    );
+                    output.push('\n');
                 }
+                output
             }
             "diff" | "summary" => {
                 // Keep legacy human output for interactive usage.
-                println!("\nComparison: {} vs {}", args.file1, file2);
-                println!(
-                    "added={} removed={} modified={} unchanged={} jaccard={:.3}",
+                let mut output = format!("\nComparison: {} vs {}\n", args.file1, file2);
+                output.push_str(&format!(
+                    "added={} removed={} modified={} unchanged={} jaccard={:.3}\n",
                     counts.added, counts.removed, counts.modified, counts.unchanged, jaccard
-                );
+                ));
                 for d in diffs {
-                    println!("  {}: {} [{}]", d.change_type, d.text, d.entity_type);
+                    output.push_str(&format!(
+                        "  {}: {} [{}]\n",
+                        d.change_type, d.text, d.entity_type
+                    ));
                 }
+                output
             }
             _ => {
                 return Err(format!(
@@ -186,10 +203,20 @@ pub fn run(args: CompareArgs) -> Result<(), String> {
                     args.format
                 ))
             }
-        }
+        };
+        write_or_print_output(args.output.as_deref(), &output)?;
     }
 
     Ok(())
+}
+
+fn write_or_print_output(path: Option<&str>, output: &str) -> Result<(), String> {
+    if let Some(path) = path {
+        fs::write(path, output).map_err(|e| format!("Failed to write output: {e}"))
+    } else {
+        print!("{output}");
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -474,5 +501,36 @@ mod tests {
             result.is_err(),
             "Unknown backend should be rejected by clap"
         );
+    }
+
+    #[test]
+    fn compare_command_writes_json_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let file1 = dir.path().join("first.json");
+        let file2 = dir.path().join("second.json");
+        let output = dir.path().join("comparison.json");
+        fs::write(
+            &file1,
+            r#"{"entities":[{"text":"Alice","type":"PER","start":0,"end":5,"confidence":0.9}]}"#,
+        )
+        .unwrap();
+        fs::write(&file2, r#"{"entities":[]}"#).unwrap();
+
+        run(CompareArgs {
+            file1: file1.to_string_lossy().into_owned(),
+            file2: Some(file2.to_string_lossy().into_owned()),
+            models: false,
+            model_list: Vec::new(),
+            format: "json".to_string(),
+            confidence_epsilon: 0.05,
+            changes_only: false,
+            output: Some(output.to_string_lossy().into_owned()),
+        })
+        .unwrap();
+
+        let output: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(output).unwrap()).unwrap();
+        assert_eq!(output["removed"], 1);
+        assert_eq!(output["diffs"][0]["text"], "Alice");
     }
 }

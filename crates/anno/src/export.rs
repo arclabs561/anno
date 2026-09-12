@@ -287,6 +287,23 @@ fn rel_predicate_uri(base_uri: &str, rel_type: &str) -> String {
     format!("<{}/rel/{}>", base, uri_safe(rel_type))
 }
 
+/// Resolve a relation endpoint to exactly one exported entity.
+///
+/// A relation owns cloned endpoint entities, so pointer identity is unavailable.
+/// Match the stable mention identity instead. When duplicate entities still share
+/// that identity, omit the relation rather than binding it arbitrarily.
+fn resolve_relation_endpoint(entities: &[Entity], endpoint: &Entity) -> Option<usize> {
+    let mut matches = entities.iter().enumerate().filter(|(_, entity)| {
+        entity.text == endpoint.text
+            && entity.start() == endpoint.start()
+            && entity.end() == endpoint.end()
+            && entity.entity_type == endpoint.entity_type
+            && entity.canonical_id == endpoint.canonical_id
+    });
+    let (idx, _) = matches.next()?;
+    matches.next().is_none().then_some(idx)
+}
+
 /// Minimal CSV field escaping.
 fn csv_escape(s: &str) -> String {
     if s.contains(',') || s.contains('"') || s.contains('\n') {
@@ -352,15 +369,11 @@ pub fn to_ntriples(
     }
 
     for rel in relations {
-        let head_uri = ent_uri.iter().zip(entities.iter()).find_map(|(u, e)| {
-            (e.text == rel.head.text && e.start() == rel.head.start()).then_some(u.as_str())
-        });
-        let tail_uri = ent_uri.iter().zip(entities.iter()).find_map(|(u, e)| {
-            (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(u.as_str())
-        });
-        if let (Some(h), Some(t)) = (head_uri, tail_uri) {
+        let head_idx = resolve_relation_endpoint(entities, &rel.head);
+        let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
+        if let (Some(h), Some(t)) = (head_idx, tail_idx) {
             let pred = rel_predicate_uri(base_uri, &rel.relation_type);
-            lines.push(format!("{} {} {} .", h, pred, t));
+            lines.push(format!("{} {} {} .", ent_uri[h], pred, ent_uri[t]));
         }
     }
 
@@ -399,17 +412,16 @@ pub fn to_jsonld(
     let mut rel_by_head: std::collections::HashMap<&str, Vec<serde_json::Value>> =
         std::collections::HashMap::new();
     for rel in relations {
-        let head_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-            (e.text == rel.head.text && e.start() == rel.head.start()).then_some(id.as_str())
-        });
-        let tail_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-            (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(id.as_str())
-        });
-        if let (Some(h), Some(t)) = (head_id, tail_id) {
-            rel_by_head.entry(h).or_default().push(serde_json::json!({
-                "@type": format!("{}/rel/{}", base, uri_safe(&rel.relation_type)),
-                "target": { "@id": t }
-            }));
+        let head_idx = resolve_relation_endpoint(entities, &rel.head);
+        let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
+        if let (Some(h), Some(t)) = (head_idx, tail_idx) {
+            rel_by_head
+                .entry(&entity_ids[h])
+                .or_default()
+                .push(serde_json::json!({
+                    "@type": format!("{}/rel/{}", base, uri_safe(&rel.relation_type)),
+                    "target": { "@id": entity_ids[t] }
+                }));
         }
     }
 
@@ -503,17 +515,13 @@ pub fn to_graph_csv(
 
     if !relations.is_empty() {
         for rel in relations {
-            let head_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-                (e.text == rel.head.text && e.start() == rel.head.start()).then_some(id.as_str())
-            });
-            let tail_id = entity_ids.iter().zip(entities.iter()).find_map(|(id, e)| {
-                (e.text == rel.tail.text && e.start() == rel.tail.start()).then_some(id.as_str())
-            });
-            if let (Some(h), Some(t)) = (head_id, tail_id) {
+            let head_idx = resolve_relation_endpoint(entities, &rel.head);
+            let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
+            if let (Some(h), Some(t)) = (head_idx, tail_idx) {
                 edges.push_str(&format!(
                     "{},{},{},{:.4}\n",
-                    csv_escape(h),
-                    csv_escape(t),
+                    csv_escape(&entity_ids[h]),
+                    csv_escape(&entity_ids[t]),
                     csv_escape(&rel.relation_type),
                     rel.confidence,
                 ));
@@ -675,6 +683,96 @@ mod tests {
             !edges.contains("CO_OCCURS"),
             "relations should suppress co-occurrence"
         );
+    }
+
+    #[test]
+    fn relation_exports_bind_typed_full_span_endpoints() {
+        let product = Entity::new(
+            "Apple",
+            EntityType::custom("PRODUCT", crate::EntityCategory::Misc),
+            0,
+            5,
+            0.9,
+        );
+        let entities = vec![
+            Entity::new("Apple", EntityType::Organization, 0, 5, 0.9),
+            Entity::new(
+                "Apple",
+                EntityType::custom("PRODUCT", crate::EntityCategory::Misc),
+                0,
+                6,
+                0.9,
+            ),
+            product.clone(),
+            Entity::new("Tim Cook", EntityType::Person, 10, 18, 0.95),
+        ];
+        let relation = Relation::new(product, entities[3].clone(), "MAKES", 0.8);
+
+        let ntriples = to_ntriples(
+            &entities,
+            std::slice::from_ref(&relation),
+            "test.txt",
+            "http://example.org",
+        );
+        assert!(ntriples.contains(
+            "<http://example.org/entity/product/2_Apple_0> <http://example.org/rel/MAKES> <http://example.org/entity/per/3_Tim_Cook_10> ."
+        ));
+
+        let jsonld = to_jsonld(
+            &entities,
+            std::slice::from_ref(&relation),
+            "test.txt",
+            false,
+            "http://example.org",
+        );
+        let jsonld: serde_json::Value = serde_json::from_str(&jsonld).unwrap();
+        let relations = &jsonld["@graph"][2]["anno:relations"];
+        assert_eq!(
+            relations[0]["target"]["@id"],
+            "http://example.org/entity/per/3_Tim_Cook_10"
+        );
+
+        let (_, csv) = to_graph_csv(&entities, &[relation], "test.txt", false);
+        assert!(csv.contains("product:2_Apple,per:3_Tim_Cook,MAKES,0.8000"));
+        assert!(!csv.contains("org:0_Apple,per:3_Tim_Cook,MAKES"));
+        assert!(!csv.contains("product:1_Apple,per:3_Tim_Cook,MAKES"));
+    }
+
+    #[test]
+    fn relation_exports_skip_ambiguous_endpoints() {
+        let product = Entity::new(
+            "Apple",
+            EntityType::custom("PRODUCT", crate::EntityCategory::Misc),
+            0,
+            5,
+            0.9,
+        );
+        let entities = vec![
+            product.clone(),
+            product.clone(),
+            Entity::new("Tim Cook", EntityType::Person, 10, 18, 0.95),
+        ];
+        let relation = Relation::new(product, entities[2].clone(), "MAKES", 0.8);
+
+        let ntriples = to_ntriples(
+            &entities,
+            std::slice::from_ref(&relation),
+            "test.txt",
+            "http://example.org",
+        );
+        assert!(!ntriples.contains("/rel/MAKES>"));
+
+        let jsonld = to_jsonld(
+            &entities,
+            std::slice::from_ref(&relation),
+            "test.txt",
+            false,
+            "http://example.org",
+        );
+        assert!(!jsonld.contains("anno:relations"));
+
+        let (_, csv) = to_graph_csv(&entities, &[relation], "test.txt", false);
+        assert_eq!(csv, "from,to,rel_type,confidence\n");
     }
 
     #[test]

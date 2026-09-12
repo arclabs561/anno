@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use std::fs;
 
 use super::super::output::color;
-use super::super::utils::get_config_dir;
+use super::super::utils::{get_config_dir, validate_path_component};
 
 /// Configuration management
 #[derive(Parser, Debug)]
@@ -76,6 +76,7 @@ pub fn run(args: ConfigArgs) -> Result<(), String> {
             link_kb,
             threshold,
         } => {
+            validate_path_component(&name, "config name")?;
             use toml::Value;
 
             let mut config = toml::map::Map::new();
@@ -144,6 +145,7 @@ pub fn run(args: ConfigArgs) -> Result<(), String> {
             }
         }
         ConfigAction::Show { name } => {
+            validate_path_component(&name, "config name")?;
             let config_file = config_dir.join(format!("{}.toml", name));
             if !config_file.exists() {
                 return Err(format!("Config '{}' not found", name));
@@ -155,6 +157,7 @@ pub fn run(args: ConfigArgs) -> Result<(), String> {
             println!("{}", content);
         }
         ConfigAction::Delete { name } => {
+            validate_path_component(&name, "config name")?;
             let config_file = config_dir.join(format!("{}.toml", name));
             if !config_file.exists() {
                 return Err(format!("Config '{}' not found", name));

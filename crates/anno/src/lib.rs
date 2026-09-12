@@ -847,17 +847,33 @@ pub const DEFAULT_W2NER_MODEL: &str = models::W2NER;
 pub fn auto() -> Result<Box<dyn Model>> {
     #[cfg(feature = "onnx")]
     {
-        if let Ok(model) = GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
-            return Ok(Box::new(model));
+        match GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
+            Ok(model) => return Ok(Box::new(model)),
+            Err(error) => log::warn!(
+                "could not load default GLiNER model {}; trying default BERT model {}: {}",
+                DEFAULT_GLINER_MODEL,
+                DEFAULT_BERT_ONNX_MODEL,
+                error
+            ),
         }
-        if let Ok(model) = BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL) {
-            return Ok(Box::new(model));
+        match BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL) {
+            Ok(model) => return Ok(Box::new(model)),
+            Err(error) => log::warn!(
+                "could not load default BERT model {}; trying the default backend stack: {}",
+                DEFAULT_BERT_ONNX_MODEL,
+                error
+            ),
         }
     }
     #[cfg(feature = "candle")]
     {
-        if let Ok(model) = CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL) {
-            return Ok(Box::new(model));
+        match CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL) {
+            Ok(model) => return Ok(Box::new(model)),
+            Err(error) => log::warn!(
+                "could not load default Candle model {}; trying the default backend stack: {}",
+                DEFAULT_CANDLE_MODEL,
+                error
+            ),
         }
     }
     Ok(Box::new(StackedNER::default()))
