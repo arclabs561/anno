@@ -1,7 +1,9 @@
-# Fastino GLiNER2 backend (design plan)
+# Fastino GLiNER2 backend (historical design plan)
 
-Work-in-progress design notes for a future `gliner2_fastino` backend in
-`crates/anno/src/backends/`. See issue arclabs561/anno#17 for surface context.
+Historical design notes for the `gliner2_fastino` backend in
+`crates/anno/src/backends/`. The backend is now implemented behind the
+`gliner2-fastino` feature; this document preserves the original design context
+and attribution. See issue arclabs561/anno#17 for surface context.
 
 ## Why a separate backend
 

@@ -88,7 +88,7 @@ impl GLiREL {
         let model_path = hf_loader::download_model_file(&repo, &["onnx/model.onnx", "model.onnx"])?;
         let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
 
-        let config = match repo.get("glirel_config.json") {
+        let config = match hf_loader::download_model_file(&repo, &["glirel_config.json"]) {
             Ok(config_path) => {
                 let data = std::fs::read_to_string(&config_path)
                     .map_err(|e| Error::Retrieval(format!("glirel config read: {e}")))?;

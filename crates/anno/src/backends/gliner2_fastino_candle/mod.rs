@@ -42,6 +42,63 @@ use std::path::{Path, PathBuf};
 
 use candle_core::Device;
 
+const SUPPORTED_HIDDEN_SIZE: usize = 768;
+
+fn validate_supported_model_metadata(model_dir: &Path, config_path: &Path) -> crate::Result<()> {
+    let wrapper_path = model_dir.join("config.json");
+    if wrapper_path.exists() {
+        let wrapper = std::fs::read_to_string(&wrapper_path).map_err(|e| {
+            crate::Error::Backend(format!("gliner2_fastino_candle: read model config: {e}"))
+        })?;
+        let wrapper: serde_json::Value = serde_json::from_str(&wrapper).map_err(|e| {
+            crate::Error::Backend(format!("gliner2_fastino_candle: parse model config: {e}"))
+        })?;
+        let is_boundary_extractor =
+            ["architecture", "architectures"]
+                .into_iter()
+                .any(|key| match wrapper.get(key) {
+                    Some(serde_json::Value::String(value)) => {
+                        is_boundary_extractor_architecture(value)
+                    }
+                    Some(serde_json::Value::Array(values)) => values
+                        .iter()
+                        .filter_map(serde_json::Value::as_str)
+                        .any(is_boundary_extractor_architecture),
+                    _ => false,
+                });
+        if is_boundary_extractor {
+            return Err(crate::Error::Backend(
+                "gliner2_fastino_candle supports the legacy span/encoder GLiNER2 layout; BoundaryExtractor artifacts use an unsupported decoder".into(),
+            ));
+        }
+    }
+    let config = std::fs::read_to_string(config_path).map_err(|e| {
+        crate::Error::Backend(format!("gliner2_fastino_candle: read encoder config: {e}"))
+    })?;
+    let config: serde_json::Value = serde_json::from_str(&config).map_err(|e| {
+        crate::Error::Backend(format!("gliner2_fastino_candle: parse encoder config: {e}"))
+    })?;
+    let hidden_size = config
+        .get("hidden_size")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            crate::Error::Backend(
+                "gliner2_fastino_candle: encoder config is missing hidden_size".into(),
+            )
+        })? as usize;
+    if hidden_size != SUPPORTED_HIDDEN_SIZE {
+        return Err(crate::Error::Backend(format!(
+            "gliner2_fastino_candle supports only {SUPPORTED_HIDDEN_SIZE}-dimension fastino/gliner2-multi-v1 artifacts; encoder config declares hidden_size={hidden_size}"
+        )));
+    }
+    Ok(())
+}
+
+fn is_boundary_extractor_architecture(value: &str) -> bool {
+    let value = value.to_ascii_lowercase();
+    value == "boundary" || value == "boundaryextractor"
+}
+
 /// Phase 4 Candle-based GLiNER2 backend with PEFT LoRA adapter
 /// merge-at-load support.
 pub struct GLiNER2FastinoCandle {
@@ -191,11 +248,9 @@ impl GLiNER2FastinoCandle {
         let _encoder_config =
             crate::backends::hf_loader::download_model_file(&repo, &["encoder_config/config.json"])
                 .map_err(|e| crate::Error::Backend(format!("download encoder_config: {e}")))?;
-        let weights_path = crate::backends::hf_loader::download_model_file(
-            &repo,
-            &["model.safetensors", "pytorch_model.bin"],
-        )
-        .map_err(|e| crate::Error::Backend(format!("download weights: {e}")))?;
+        let weights_path =
+            crate::backends::hf_loader::download_model_file(&repo, &["model.safetensors"])
+                .map_err(|e| crate::Error::Backend(format!("download weights: {e}")))?;
 
         let snapshot_dir = weights_path
             .parent()
@@ -229,6 +284,8 @@ impl GLiNER2FastinoCandle {
                 model_dir.display()
             )));
         }
+
+        validate_supported_model_metadata(model_dir, &config_path)?;
 
         let tokenizer = crate::backends::hf_loader::load_tokenizer(&tokenizer_path)
             .map_err(|e| crate::Error::Backend(format!("tokenizer: {e}")))?;
@@ -486,8 +543,7 @@ impl GLiNER2FastinoCandle {
 
         let probs = pipeline::run_classify_pipeline_candle(self, &record, task_map)?;
 
-        let mut out: Vec<(String, f32)> =
-            label_strings.into_iter().zip(probs.into_iter()).collect();
+        let mut out: Vec<(String, f32)> = label_strings.into_iter().zip(probs).collect();
         out.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         Ok(out)
     }
@@ -573,5 +629,53 @@ mod tests {
         let err = GLiNER2FastinoCandle::from_local_with_device(dir.path(), &Device::Cpu)
             .expect_err("empty dir must fail");
         assert!(err.to_string().contains("model.safetensors"));
+    }
+
+    #[test]
+    fn rejects_non_768_encoder_metadata_before_loading_artifacts() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("model.safetensors"), "placeholder").unwrap();
+        std::fs::create_dir(dir.path().join("encoder_config")).unwrap();
+        std::fs::write(
+            dir.path().join("encoder_config/config.json"),
+            r#"{"hidden_size":1024}"#,
+        )
+        .unwrap();
+        let err = GLiNER2FastinoCandle::from_local_with_device(dir.path(), &Device::Cpu)
+            .expect_err("unsupported metadata must fail before artifact loading");
+        assert!(err.to_string().contains("768-dimension"));
+        assert!(err.to_string().contains("hidden_size=1024"));
+    }
+
+    #[test]
+    fn rejects_boundary_extractor_metadata_at_supported_hidden_size() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("model.safetensors"), "placeholder").unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"architecture":"boundary","hidden_size":768}"#,
+        )
+        .unwrap();
+        let err = GLiNER2FastinoCandle::from_local_with_device(dir.path(), &Device::Cpu)
+            .expect_err("boundary extractor must fail before artifact loading");
+        assert!(err
+            .to_string()
+            .contains("BoundaryExtractor artifacts use an unsupported decoder"));
+    }
+
+    #[test]
+    fn rejects_boundary_extractor_metadata_without_hidden_size() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("model.safetensors"), "placeholder").unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"architecture":"boundary","architectures":["BoundaryExtractor"]}"#,
+        )
+        .unwrap();
+        let err = GLiNER2FastinoCandle::from_local_with_device(dir.path(), &Device::Cpu)
+            .expect_err("boundary extractor must not fall through to missing hidden_size");
+        assert!(err
+            .to_string()
+            .contains("BoundaryExtractor artifacts use an unsupported decoder"));
     }
 }
