@@ -27,7 +27,7 @@ def analyze_timing_file(timing_file: Path) -> Dict:
             if event.get("type") != "test":
                 continue
             test_event = event.get("event")
-            if test_event not in ("ok", "failed", "ignored"):
+            if test_event not in ("ok", "failed"):
                 continue
 
             exec_time = event.get("exec_time", 0.0)
@@ -73,8 +73,10 @@ def analyze_timing_file(timing_file: Path) -> Dict:
         test_name = exec["test_name"]
         binary = exec["binary_name"]
         
-        # Extract module from test name (e.g., "anno::entity::tests::test_span" -> "anno::entity")
-        parts = test_name.split("::")
+        # Test names are encoded as `crate::binary$module::test`; bucket by
+        # the module path rather than the crate/binary transport prefix.
+        test_path = test_name.split("$", maxsplit=1)[-1]
+        parts = test_path.split("::")
         module = "::".join(parts[:-2]) if len(parts) > 2 else "unknown"
         
         by_binary[binary]["count"] += 1
