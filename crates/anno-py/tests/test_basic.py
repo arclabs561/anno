@@ -7,6 +7,7 @@ via RegexNER is deterministic (confidence 0.98), so it anchors the assertions.
 """
 
 import anno_py
+import pytest
 
 
 def test_extract_email():
@@ -47,3 +48,32 @@ def test_repr():
     assert ents, "expected at least the email entity"
     r = repr(ents[0])
     assert r.startswith("Entity(") and "label=" in r
+
+
+def test_offline_backend_is_explicit_and_rejects_model_options():
+    ex = anno_py.Extractor(backend="offline")
+    assert any(e.label == "EMAIL" for e in ex.extract("admin@example.org"))
+    with pytest.raises(ValueError, match="does not accept"):
+        anno_py.Extractor(backend="offline", model="some-model")
+
+
+def test_invalid_backend_and_gliner_options():
+    with pytest.raises(ValueError, match="backend must be one of"):
+        anno_py.Extractor(backend="unknown")
+    with pytest.raises(ValueError, match="threshold"):
+        anno_py.Extractor(backend="gliner", threshold=1.1)
+    with pytest.raises(ValueError, match="labels"):
+        anno_py.Extractor(backend="gliner", labels=[])
+    with pytest.raises(ValueError, match="does not support zero-shot"):
+        anno_py.Extractor(backend="bert", labels=["person"])
+    with pytest.raises(ValueError, match="does not support zero-shot"):
+        anno_py.Extractor(backend="bert", threshold=0.5)
+
+
+@pytest.mark.parametrize("backend", ["bert", "gliner"])
+def test_model_backends_require_onnx_in_default_wheel(backend):
+    # The default development/wheel feature set is intentionally offline.
+    # An opt-in ONNX build changes this test's branch to construction instead.
+    if not getattr(anno_py, "__onnx_enabled__", False):
+        with pytest.raises(RuntimeError, match="ONNX-enabled wheel"):
+            anno_py.Extractor(backend=backend)
