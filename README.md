@@ -13,7 +13,7 @@ rule-based extractors work offline.
 
 ```toml
 [dependencies]
-anno = "0.12"
+anno = "0.13"
 ```
 
 ```rust
@@ -73,7 +73,7 @@ The [backend guide](docs/BACKENDS.md) lists model identifiers, feature flags,
 and hardware requirements.
 
 This crate provides inference and annotation utilities, not model training.
-The minimum supported Rust version is 1.88.
+The minimum supported Rust version is 1.91.
 
 Further documentation:
 

@@ -8,7 +8,7 @@ For non-trivial work (new backends, API changes, new features, large refactors),
 
 ## Setup
 
-- Rust toolchain: stable, MSRV `1.88`. Use `rustup` to manage.
+- Rust toolchain: stable, MSRV `1.91`. Use `rustup` to manage.
 - Optional: `cargo-nextest` for faster test runs (`cargo install cargo-nextest`).
 - Optional: `just` for the canonical recipes (`brew install just` or `cargo install just`).
 
