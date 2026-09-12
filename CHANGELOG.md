@@ -12,6 +12,12 @@
 
 ### Fixed
 
+- Privacy redaction and pseudonymization preserve Unicode prefixes and use character offsets consistently.
+- NER evaluation matches within each sentence, samples negative examples, fails on inference errors, and credits each prediction at most once in reports.
+- Dataset fallbacks prefer held-out splits, reject train-only repositories, pin raw Hub files to their revision, and retain artifact provenance across cache loads.
+- Offline model loading guards quantized downloads, backend file retrieval, and automatic Python conversion; cached lookups preserve the requested repository revision.
+- Grounded document imports reject malformed spans, dangling links, duplicate IDs, and exhausted ID counters. Invalid link mutations leave documents unchanged.
+- Relation exports resolve endpoints by full mention identity and omit ambiguous links.
 - Stacked extraction now reports failure when every attempted layer fails, even if another layer was adaptively skipped.
 - Dataset checksum formatting is compatible with both sha2 0.10 and 0.11.
 - docs.rs metadata excludes platform-specific acceleration features from Linux documentation builds.
