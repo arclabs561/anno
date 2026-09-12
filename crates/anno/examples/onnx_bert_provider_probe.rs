@@ -272,8 +272,14 @@ fn mean_run_ms(
     Ok(started.elapsed().as_secs_f64() * 1000.0 / runs as f64)
 }
 
-#[cfg(all(feature = "onnx", feature = "onnx-coreml"))]
+#[cfg(any(test, all(feature = "onnx", feature = "onnx-coreml")))]
 fn max_abs_delta(left: &[f32], right: &[f32]) -> Result<f32, Box<dyn std::error::Error>> {
+    if left.is_empty() || right.is_empty() {
+        return Err("empty BERT logits".into());
+    }
+    if left.iter().chain(right).any(|value| !value.is_finite()) {
+        return Err("BERT logits contain a non-finite value".into());
+    }
     if left.len() != right.len() {
         return Err(format!("logit lengths differ: {} != {}", left.len(), right.len()).into());
     }
@@ -372,4 +378,21 @@ fn summarize_profile(
         }
     }
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::max_abs_delta;
+
+    #[test]
+    fn numerical_gate_rejects_invalid_logits() {
+        for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(max_abs_delta(&[invalid], &[invalid]).is_err());
+            assert!(max_abs_delta(&[1.0, invalid], &[1.0, 0.0]).is_err());
+            assert!(max_abs_delta(&[1.0, 0.0], &[1.0, invalid]).is_err());
+        }
+        assert!(max_abs_delta(&[], &[]).is_err());
+        assert!(max_abs_delta(&[1.0], &[1.0, 2.0]).is_err());
+        assert_eq!(max_abs_delta(&[1.0, -2.0], &[1.25, -1.5]).unwrap(), 0.5);
+    }
 }
