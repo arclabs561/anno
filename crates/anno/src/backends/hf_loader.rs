@@ -466,6 +466,15 @@ fn create_onnx_session_with_requested_provider(
             #[cfg(feature = "onnx-directml")]
             {
                 use ort::ep::DirectML;
+                // DirectML requires disabled memory patterns and sequential
+                // execution. ort's provider registration does not set these.
+                builder = builder
+                    .with_memory_pattern(false)
+                    .map_err(|e| Error::Retrieval(format!("ONNX DirectML memory pattern: {}", e)))?
+                    .with_parallel_execution(false)
+                    .map_err(|e| {
+                        Error::Retrieval(format!("ONNX DirectML execution mode: {}", e))
+                    })?;
                 providers.push(DirectML::default().build().error_on_failure());
             }
             #[cfg(not(feature = "onnx-directml"))]
