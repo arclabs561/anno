@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- `anno-eval`: `ReportBuilder::build` returns `Result<EvalReport>`. Callers must handle inference or requested-analysis failures instead of receiving a successful report with empty predictions.
+
+### Fixed
+
+- Corpus identity linking keeps document-local identities and track indexes consistent, including collisions with preexisting local IDs.
+- Plain CLI input retains its source text; CoNLL, BIO, dataset helpers and context previews use Unicode character offsets. Batch IDs and saved configuration names cannot escape their output directory.
+- `compare --output`, query filter expressions and singleton membership statistics use their documented behavior.
+- Chunk deduplication preserves distinct labels and retains the highest-confidence duplicate. UniversalNER availability uses the same credential resolver as extraction.
+- Candle multitask spans retain single-token candidates; Fastino Candle rejects unsupported encoder dimensions and boundary-decoder artifacts.
+- T5 coreference aligns decoder annotations against the complete source token sequence before returning source spans.
+- CADEC first-token spans and RAMS inclusive multi-token spans parse correctly. Bridging evaluation matches typed links once within their document.
+- Evaluation failures remain errors across report and task paths; relation reports disclose gold-entity oracle use.
+- Unavailable calibration, data-quality and temporal analyses no longer emit proxy or invented measurements.
+- Spot workers survive empty queue polls and emit machine-readable benchmark artifacts; test profiling uses one Nextest run with structured output separated from diagnostics.
+
+### Removed
+
+- Unreferenced duplicate dataset registry fragments and redundant advisory CI report jobs.
+
 ## [0.12.0] - 2026-09-11
 
 ### Added
