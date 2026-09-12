@@ -451,7 +451,7 @@ fn stacked_ner_deterministic() {
 #[cfg(all(feature = "onnx", feature = "candle"))]
 fn gliner_onnx_candle_parity_basic() {
     use anno::backends::gliner_candle::GLiNERCandle;
-    use anno::{GLiNEROnnx, Model};
+    use anno::GLiNEROnnx;
     use std::collections::HashSet;
 
     let text = "Marie Curie discovered radium in Paris.";

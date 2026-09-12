@@ -47,7 +47,6 @@
 //! - `ANTHROPIC_API_KEY` - Anthropic API
 //! - `GEMINI_API_KEY` - Google Gemini API
 //! - `OLLAMA_HOST` - Ollama server URL (default: `http://localhost:11434`; no key needed)
-//! - `UNIVERSAL_NER_API_KEY` - Dedicated UniversalNER key
 
 use std::collections::HashMap;
 
@@ -109,6 +108,19 @@ fn cache_key(text: &str, types: &[&str], model: &str) -> u64 {
     hasher.finish()
 }
 
+/// Whether the configured LLM feature can resolve a provider for extraction.
+fn llm_provider_available() -> bool {
+    #[cfg(feature = "llm")]
+    {
+        crate::env::llm_api_key().is_some()
+    }
+
+    #[cfg(not(feature = "llm"))]
+    {
+        false
+    }
+}
+
 /// Prompting strategy for LLM-based NER.
 #[derive(Debug, Clone, Default)]
 pub enum PromptStrategy {
@@ -168,14 +180,7 @@ impl UniversalNER {
         // Load .env if present (idempotent)
         crate::env::load_dotenv();
 
-        // LLM availability depends on:
-        // - compile-time feature (`llm`) for HTTP support
-        // - runtime configuration (API key or local Ollama)
-        let universal_key = std::env::var("UNIVERSAL_NER_API_KEY")
-            .ok()
-            .is_some_and(|v| !v.trim().is_empty());
-        let llm_available =
-            cfg!(feature = "llm") && (crate::env::has_llm_api_key() || universal_key);
+        let llm_available = llm_provider_available();
 
         Ok(Self {
             llm_available,
@@ -191,11 +196,7 @@ impl UniversalNER {
     /// Create with a specific LLM configuration.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
         crate::env::load_dotenv();
-        let universal_key = std::env::var("UNIVERSAL_NER_API_KEY")
-            .ok()
-            .is_some_and(|v| !v.trim().is_empty());
-        let llm_available =
-            cfg!(feature = "llm") && (crate::env::has_llm_api_key() || universal_key);
+        let llm_available = llm_provider_available();
         Ok(Self {
             llm_available,
             config: Some(config),
@@ -914,7 +915,7 @@ impl Model for UniversalNER {
     fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, UNIVERSAL_NER_API_KEY, or run Ollama locally."
+                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
                     .into(),
             ));
         }
@@ -967,7 +968,7 @@ impl ZeroShotNER for UniversalNER {
     ) -> Result<Vec<Entity>> {
         if !self.llm_available {
             return Err(crate::Error::FeatureNotAvailable(
-                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, UNIVERSAL_NER_API_KEY, or run Ollama locally."
+                "UniversalNER requires an LLM provider. Set OPENROUTER_API_KEY (recommended), GROQ_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or run Ollama locally."
                     .into(),
             ));
         }
@@ -1025,7 +1026,7 @@ mod tests {
 
         std::env::set_var("UNIVERSAL_NER_API_KEY", "dummy");
         let model2 = UniversalNER::new().unwrap();
-        assert_eq!(model2.is_available(), cfg!(feature = "llm"));
+        assert_eq!(model2.is_available(), llm_provider_available());
     }
 
     #[test]
