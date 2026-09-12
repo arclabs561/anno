@@ -80,7 +80,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anno"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "anno-cli"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anno",
  "anno-eval",
@@ -142,7 +142,7 @@ dependencies = [
 
 [[package]]
 name = "anno-eval"
-version = "0.12.0"
+version = "0.13.0"
 dependencies = [
  "anno",
  "bitflags 2.13.1",
