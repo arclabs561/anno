@@ -72,6 +72,8 @@ jobs:
           cache-dependency-glob: ty.toml
       - name: Run ty
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
+      - name: Test profiling JSON analysis
+        run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test external parser adapter contract (no model downloads)
         run: uv run --python 3.12 --with nltk==3.10.3 --with spacy==3.8.16 python -m unittest discover -s scripts -p test_parse_benepar.py
       - name: Check external parser script lock consistency
