@@ -22,6 +22,7 @@ use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 use crate::eval::profiling;
 use crate::eval::provenance::{
     artifact_status, canonical_entity_type_label, current_build_provenance,
+    legacy_eval_run_provenance,
 };
 pub use crate::eval::provenance::{
     ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
@@ -276,7 +277,7 @@ pub struct TaskEvalResult {
     /// This is deliberately a receipt, not a configuration registry: fields that
     /// the active backend does not expose are represented as `unknown` rather
     /// than inferred from a cache layout or a backend name.
-    #[serde(default)]
+    #[serde(default = "legacy_eval_run_provenance")]
     pub provenance: EvalRunProvenance,
 }
 
@@ -4852,6 +4853,26 @@ mod tests {
             EvaluationScheduling::Unknown { .. }
         ));
         assert!(!result.provenance.build.package_version.is_empty());
+    }
+
+    #[test]
+    fn legacy_result_without_provenance_does_not_claim_current_build() {
+        let mut json = serde_json::to_value(make_test_result(true, None, Some(0.5)))
+            .expect("serialize current result");
+        json.as_object_mut()
+            .expect("result JSON object")
+            .remove("provenance");
+
+        let legacy: TaskEvalResult =
+            serde_json::from_value(json).expect("deserialize legacy result");
+        assert_eq!(legacy.provenance.schema_version, 0);
+        assert_eq!(legacy.provenance.build.package_version, "unknown");
+        assert!(legacy.provenance.build.source_revision.is_none());
+        assert!(legacy.provenance.build.enabled_features.is_empty());
+        assert!(matches!(
+            legacy.provenance.runtime.scheduling,
+            EvaluationScheduling::Unknown { .. }
+        ));
     }
 
     #[test]
