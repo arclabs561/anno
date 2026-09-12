@@ -103,6 +103,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "text-splitter",
  "textprep",
@@ -177,6 +178,7 @@ version = "0.1.0"
 dependencies = [
  "anno",
  "pyo3",
+ "serde_json",
 ]
 
 [[package]]

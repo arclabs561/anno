@@ -36,6 +36,101 @@ pub struct BertNERConfig {
     pub num_threads: usize,
 }
 
+/// The exact local artifacts used by a loaded [`BertNEROnnx`] model.
+///
+/// These paths are captured when the model is constructed. They are useful for
+/// reproducible evaluation receipts: callers can hash the returned files
+/// without guessing which Hugging Face cache entry was selected. The paths are
+/// local implementation details and may cease to exist if a cache is cleaned.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BertNerArtifactPaths {
+    /// The ONNX graph passed to ONNX Runtime, including the selected quantized
+    /// graph when one was available.
+    pub graph: std::path::PathBuf,
+    /// The tokenizer JSON used to construct input IDs and offsets.
+    pub tokenizer: std::path::PathBuf,
+    /// The model configuration that supplied the label mapping, when one was
+    /// selected. Local models without `config.json` use the documented
+    /// CoNLL-03 fallback and must not claim a nonexistent artifact.
+    pub config: Option<std::path::PathBuf>,
+}
+
+/// A content-addressed BERT artifact used for one diagnostic trace.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct BertNerTraceArtifact {
+    /// The exact local file that was hashed.
+    pub path: std::path::PathBuf,
+    /// SHA-256 of the file bytes at trace time.
+    pub sha256: String,
+}
+
+/// Content-addressed artifacts used by a [`BertNerTrace`].
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+pub struct BertNerTraceArtifacts {
+    /// The ONNX graph executed by the trace.
+    pub graph: BertNerTraceArtifact,
+    /// The tokenizer used to create trace inputs.
+    pub tokenizer: BertNerTraceArtifact,
+    /// The configuration used for label mapping, if one was selected.
+    pub config: Option<BertNerTraceArtifact>,
+}
+
+/// A single-window BERT inference trace for parity diagnostics.
+///
+/// This is deliberately a diagnostic record rather than a second extraction
+/// API. It makes the tokenizer inputs, raw graph output, selected labels, and
+/// decoded spans inspectable when comparing anno with another ONNX Runtime
+/// host. Long inputs are rejected so the trace always corresponds to exactly
+/// one graph invocation.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct BertNerTrace {
+    /// Content hashes of the exact graph, tokenizer, and configuration used.
+    ///
+    /// Parity comparators must require these values to match before treating
+    /// tokenizer or logits agreement as evidence about the implementation.
+    pub artifacts: BertNerTraceArtifacts,
+    /// Input IDs passed to the graph, including special tokens.
+    pub input_ids: Vec<u32>,
+    /// Attention mask passed to the graph.
+    pub attention_mask: Vec<u32>,
+    /// Segment IDs passed to the graph when it declares `token_type_ids`.
+    ///
+    /// anno supplies zeros for its single-sequence BERT requests.
+    pub token_type_ids: Option<Vec<u32>>,
+    /// Tokenizer token strings in graph order.
+    pub tokens: Vec<String>,
+    /// UTF-8 byte offsets in the input text for each token.
+    pub offsets: Vec<(usize, usize)>,
+    /// Fast-tokenizer word IDs in graph order.
+    pub word_ids: Vec<Option<u32>>,
+    /// Graph logits, shaped `[sequence][label]` for the sole batch item.
+    pub logits: Vec<Vec<f32>>,
+    /// Argmax label selected for each token.
+    pub labels: Vec<String>,
+    /// Decoded anno entities for the same graph output.
+    pub entities: Vec<BertNerTraceEntity>,
+}
+
+/// An entity in a [`BertNerTrace`].
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, serde::Serialize, PartialEq)]
+pub struct BertNerTraceEntity {
+    /// Extracted surface text.
+    pub text: String,
+    /// Start character offset.
+    pub start: usize,
+    /// End character offset.
+    pub end: usize,
+    /// Canonical anno entity type.
+    pub entity_type: String,
+    /// Confidence retained by anno's BIO decoder.
+    pub confidence: f64,
+}
+
 #[cfg(feature = "onnx")]
 impl Default for BertNERConfig {
     fn default() -> Self {
@@ -61,6 +156,7 @@ pub struct BertNEROnnx {
     model_name: String,
     /// Whether a quantized model was loaded.
     is_quantized: bool,
+    artifact_paths: BertNerArtifactPaths,
 }
 
 /// Decide whether a BIO tag continues the entity currently being decoded.
@@ -160,6 +256,11 @@ impl BertNEROnnx {
             label_to_entity_type,
             model_name: model_name.to_string(),
             is_quantized,
+            artifact_paths: BertNerArtifactPaths {
+                graph: model_path,
+                tokenizer: tokenizer_path,
+                config: Some(config_path),
+            },
         })
     }
 
@@ -193,29 +294,31 @@ impl BertNEROnnx {
         let tokenizer = Self::load_untruncated_tokenizer(&tokenizer_path)?;
 
         let config_path = dir.join("config.json");
-        let (id_to_label, label_to_entity_type) = if config_path.exists() {
-            let config_str = std::fs::read_to_string(&config_path)
-                .map_err(|e| Error::Retrieval(format!("Failed to read config.json: {}", e)))?;
-            let config_json: serde_json::Value = serde_json::from_str(&config_str)
-                .map_err(|e| Error::Parse(format!("Failed to parse config.json: {}", e)))?;
-            (
-                Self::build_id_to_label(&config_json),
-                Self::build_label_to_entity_type(),
-            )
-        } else {
-            // Fallback: CoNLL-03 defaults
-            let mut map = HashMap::new();
-            map.insert(0, "O".to_string());
-            map.insert(1, "B-MISC".to_string());
-            map.insert(2, "I-MISC".to_string());
-            map.insert(3, "B-PER".to_string());
-            map.insert(4, "I-PER".to_string());
-            map.insert(5, "B-ORG".to_string());
-            map.insert(6, "I-ORG".to_string());
-            map.insert(7, "B-LOC".to_string());
-            map.insert(8, "I-LOC".to_string());
-            (map, Self::build_label_to_entity_type())
-        };
+        let selected_config = config_path.exists().then_some(config_path);
+        let (id_to_label, label_to_entity_type) =
+            if let Some(config_path) = selected_config.as_ref() {
+                let config_str = std::fs::read_to_string(config_path)
+                    .map_err(|e| Error::Retrieval(format!("Failed to read config.json: {}", e)))?;
+                let config_json: serde_json::Value = serde_json::from_str(&config_str)
+                    .map_err(|e| Error::Parse(format!("Failed to parse config.json: {}", e)))?;
+                (
+                    Self::build_id_to_label(&config_json),
+                    Self::build_label_to_entity_type(),
+                )
+            } else {
+                // Fallback: CoNLL-03 defaults
+                let mut map = HashMap::new();
+                map.insert(0, "O".to_string());
+                map.insert(1, "B-MISC".to_string());
+                map.insert(2, "I-MISC".to_string());
+                map.insert(3, "B-PER".to_string());
+                map.insert(4, "I-PER".to_string());
+                map.insert(5, "B-ORG".to_string());
+                map.insert(6, "I-ORG".to_string());
+                map.insert(7, "B-LOC".to_string());
+                map.insert(8, "I-LOC".to_string());
+                (map, Self::build_label_to_entity_type())
+            };
 
         let session = hf_loader::create_onnx_session(
             &model_path,
@@ -234,6 +337,11 @@ impl BertNEROnnx {
             label_to_entity_type,
             model_name: dir.display().to_string(),
             is_quantized,
+            artifact_paths: BertNerArtifactPaths {
+                graph: model_path,
+                tokenizer: tokenizer_path,
+                config: selected_config,
+            },
         })
     }
 
@@ -249,11 +357,12 @@ impl BertNEROnnx {
         std::sync::Arc::clone(&self.tokenizer)
     }
 
-    /// Load the artifact tokenizer without its serialized model-window limit.
+    /// Load an artifact tokenizer but disable its serialized truncation rule.
     ///
-    /// BERT needs the complete tokenized input to select sentence or token
-    /// windows itself. Retaining a tokenizer's serialized 512-token limit
-    /// would truncate that probe before chunking can begin.
+    /// BERT's tokenizer snapshot commonly serializes a 512-token limit. anno
+    /// needs to observe the complete input before it can select sentence or
+    /// token windows itself; retaining that rule would silently truncate the
+    /// probe and bypass chunking.
     fn load_untruncated_tokenizer(path: &std::path::Path) -> Result<Tokenizer> {
         use crate::backends::hf_loader;
 
@@ -271,6 +380,64 @@ impl BertNEROnnx {
         self.tokenizer
             .encode(text, true)
             .map_err(|error| Error::Parse(format!("Failed to tokenize input: {error}")))
+    }
+
+    /// Return the exact local files selected while this model was constructed.
+    ///
+    /// This does not discover cache entries or touch the network. Consumers
+    /// that write evaluation receipts should hash these paths at the time of
+    /// the run and record a missing file explicitly.
+    #[must_use]
+    pub fn artifact_paths(&self) -> &BertNerArtifactPaths {
+        &self.artifact_paths
+    }
+
+    /// Hash the exact artifacts selected by this model for a parity trace.
+    fn trace_artifacts(&self) -> Result<BertNerTraceArtifacts> {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+
+        fn hash(path: &std::path::Path) -> Result<BertNerTraceArtifact> {
+            let mut source = std::fs::File::open(path).map_err(|error| {
+                Error::Retrieval(format!(
+                    "Failed to open BERT trace artifact {}: {error}",
+                    path.display()
+                ))
+            })?;
+            let mut digest = Sha256::new();
+            let mut buffer = [0_u8; 8192];
+            loop {
+                let read = source.read(&mut buffer).map_err(|error| {
+                    Error::Retrieval(format!(
+                        "Failed to read BERT trace artifact {}: {error}",
+                        path.display()
+                    ))
+                })?;
+                if read == 0 {
+                    break;
+                }
+                digest.update(&buffer[..read]);
+            }
+            Ok(BertNerTraceArtifact {
+                path: path.to_path_buf(),
+                sha256: digest
+                    .finalize()
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+            })
+        }
+
+        Ok(BertNerTraceArtifacts {
+            graph: hash(&self.artifact_paths.graph)?,
+            tokenizer: hash(&self.artifact_paths.tokenizer)?,
+            config: self
+                .artifact_paths
+                .config
+                .as_deref()
+                .map(hash)
+                .transpose()?,
+        })
     }
 
     /// Build id_to_label mapping from config.
@@ -339,7 +506,7 @@ impl BertNEROnnx {
     /// Vector of NER entities with positions, types, and confidence scores
     /// Maximum tokens per BERT chunk (512 model limit minus [CLS] and [SEP]).
     const MAX_TOKENS: usize = 510;
-    /// Token overlap for a single sentence that exceeds BERT's window.
+    /// Token overlap used only when a single sentence exceeds BERT's window.
     const HARD_CHUNK_OVERLAP_TOKENS: usize = 32;
 
     pub fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
@@ -467,11 +634,11 @@ impl BertNEROnnx {
         Ok(all_entities)
     }
 
-    /// Split one selected text range into model-sized tokenizer windows.
+    /// Split one already-selected text range into model-sized tokenizer windows.
     ///
-    /// Sentence boundaries are preferred above. This fallback handles a single
-    /// sentence that exceeds the model window and always advances on a token
-    /// byte boundary.
+    /// Sentence boundaries are preferred by [`Self::extract_entities_chunked`].
+    /// This fallback only handles a single sentence that exceeds the model
+    /// window, and always advances on a tokenizer byte boundary.
     fn split_oversized_chunk(
         &self,
         text: &str,
@@ -532,6 +699,18 @@ impl BertNEROnnx {
         text: &str,
         encoding: &tokenizers::Encoding,
     ) -> Result<Vec<Entity>> {
+        self.with_logits(encoding, |logits, _has_token_type_ids| {
+            self.decode_output(logits, text, encoding)
+        })
+    }
+
+    /// Invoke the selected graph once and expose its `logits` tensor to a
+    /// caller while the ONNX session output remains valid.
+    fn with_logits<T>(
+        &self,
+        encoding: &tokenizers::Encoding,
+        consume: impl FnOnce(&ort::value::DynValue, bool) -> Result<T>,
+    ) -> Result<T> {
         let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
         let attention_mask: Vec<i64> = encoding
             .get_attention_mask()
@@ -594,8 +773,91 @@ impl BertNEROnnx {
             Error::Parse("ONNX model output does not contain 'logits' key".to_string())
         })?;
 
-        // Decode logits to entities
-        self.decode_output(logits, text, encoding)
+        consume(logits, has_token_type_ids)
+    }
+
+    /// Run exactly one BERT window and return the inputs, logits, labels, and
+    /// decoded output used by anno. This is intended for implementation-parity
+    /// tests with another host of the *same selected local graph*.
+    pub fn debug_trace(&self, text: &str) -> Result<BertNerTrace> {
+        let encoding = self.encode_untruncated(text)?;
+        if encoding.len() > Self::MAX_TOKENS + 2 {
+            return Err(Error::Parse(format!(
+                "BERT parity trace accepts one window (at most {} tokens including special tokens), got {}",
+                Self::MAX_TOKENS + 2,
+                encoding.len()
+            )));
+        }
+        let artifacts = self.trace_artifacts()?;
+
+        self.with_logits(&encoding, |output, has_token_type_ids| {
+            let (shape, logits_data) = output
+                .try_extract_tensor::<f32>()
+                .map_err(|e| Error::Parse(format!("Failed to extract logits tensor: {e}")))?;
+            if shape.len() != 3 || shape[0] != 1 {
+                return Err(Error::Parse(format!("Unexpected logits shape: {shape:?}")));
+            }
+            let sequence_len = shape[1] as usize;
+            let label_count = shape[2] as usize;
+            let expected_len = sequence_len.checked_mul(label_count).ok_or_else(|| {
+                Error::Parse("BERT parity trace logits size overflow".to_string())
+            })?;
+            if logits_data.len() != expected_len {
+                return Err(Error::Parse(format!(
+                    "BERT parity trace logits length {} does not match shape {shape:?}",
+                    logits_data.len()
+                )));
+            }
+
+            let logits: Vec<Vec<f32>> = logits_data
+                .chunks_exact(label_count)
+                .map(|row| row.to_vec())
+                .collect();
+            let labels = logits
+                .iter()
+                .map(|row| {
+                    let label_id = row
+                        .iter()
+                        .enumerate()
+                        .max_by(|(_, left), (_, right)| left.total_cmp(right))
+                        .map(|(id, _)| id)
+                        .unwrap_or(0);
+                    self.id_to_label
+                        .get(&label_id)
+                        .cloned()
+                        .unwrap_or_else(|| format!("LABEL_{label_id}"))
+                })
+                .collect();
+            let entities = self.decode_output(output, text, &encoding)?;
+
+            Ok(BertNerTrace {
+                artifacts,
+                input_ids: encoding.get_ids().to_vec(),
+                attention_mask: encoding.get_attention_mask().to_vec(),
+                token_type_ids: has_token_type_ids.then(|| vec![0; encoding.len()]),
+                tokens: encoding.get_tokens().to_vec(),
+                offsets: encoding.get_offsets().to_vec(),
+                word_ids: encoding.get_word_ids().to_vec(),
+                logits,
+                labels,
+                entities: entities
+                    .into_iter()
+                    .map(|entity| {
+                        let start = entity.start();
+                        let end = entity.end();
+                        let entity_type = entity.entity_type.to_string();
+                        let confidence = entity.confidence.value();
+                        BertNerTraceEntity {
+                            text: entity.text,
+                            start,
+                            end,
+                            entity_type,
+                            confidence,
+                        }
+                    })
+                    .collect(),
+            })
+        })
     }
 
     /// Decode model output logits to NER entities.
@@ -1153,9 +1415,58 @@ mod tests {
         );
 
         let mut model = BertNEROnnx::new("protectai/bert-base-NER-onnx")?;
+        let artifacts = model.artifact_paths();
+        assert!(
+            artifacts.graph.is_file(),
+            "graph: {}",
+            artifacts.graph.display()
+        );
+        assert!(
+            artifacts.tokenizer.is_file(),
+            "tokenizer: {}",
+            artifacts.tokenizer.display()
+        );
+        assert!(
+            artifacts
+                .config
+                .as_deref()
+                .is_some_and(std::path::Path::is_file),
+            "config: {:?}",
+            artifacts.config
+        );
+        assert_eq!(
+            artifacts.graph.file_name().and_then(|name| name.to_str()),
+            Some("model.onnx"),
+            "the cached revision has no quantized graph, so provenance must report fp32"
+        );
         let text = "Paris London";
-        let encoding = model.tokenizer().encode(text, true)?;
         let label_count = model.id_to_label.keys().max().copied().unwrap_or(0) + 1;
+        let trace = model.debug_trace(text)?;
+        assert_eq!(trace.artifacts.graph.sha256.len(), 64);
+        assert_eq!(trace.artifacts.tokenizer.sha256.len(), 64);
+        assert_eq!(
+            trace
+                .artifacts
+                .config
+                .as_ref()
+                .map(|config| config.sha256.len()),
+            Some(64)
+        );
+        assert_eq!(trace.input_ids.len(), trace.tokens.len());
+        assert_eq!(trace.input_ids.len(), trace.attention_mask.len());
+        assert_eq!(trace.input_ids.len(), trace.offsets.len());
+        assert_eq!(trace.input_ids.len(), trace.word_ids.len());
+        assert_eq!(trace.input_ids.len(), trace.logits.len());
+        assert_eq!(trace.input_ids.len(), trace.labels.len());
+        assert_eq!(trace.token_type_ids, Some(vec![0; trace.input_ids.len()]));
+        assert!(trace.logits.iter().all(|row| row.len() == label_count));
+        if std::env::var_os("ANNO_BERT_TRACE_JSON").is_some() {
+            println!(
+                "ANNO_BERT_TRACE_JSON={}",
+                serde_json::to_string(&trace).expect("BERT trace must serialize")
+            );
+        }
+        let encoding = model.tokenizer().encode(text, true)?;
         let outside_label = model
             .id_to_label
             .iter()
@@ -1194,6 +1505,37 @@ mod tests {
         assert_eq!(entities[1].entity_type, EntityType::Location);
         assert_eq!(entities[1].start(), 6);
         assert_eq!(entities[1].end(), 12);
+
+        // The production decoder deliberately extends a PER entity over an
+        // adjacent capitalized O-tagged surname. Keep that policy explicit:
+        // it is postprocessing, not a graph/tokenizer parity discrepancy.
+        let person_label = model
+            .id_to_label
+            .iter()
+            .find_map(|(&id, label)| (label == "B-PER").then_some(id))
+            .expect("cached model must define B-PER");
+        let name_text = "Marie Curie";
+        let name_encoding = model.tokenizer().encode(name_text, true)?;
+        let mut name_logits =
+            ndarray::Array3::from_elem((1, name_encoding.len(), label_count), f32::NEG_INFINITY);
+        for token_idx in 0..name_encoding.len() {
+            name_logits[[0, token_idx, outside_label]] = 0.0;
+        }
+        for (token_idx, offset) in name_encoding.get_offsets().iter().enumerate() {
+            if *offset == (0, 5) {
+                name_logits[[0, token_idx, person_label]] = 1.0;
+            }
+        }
+        let name_output: ort::value::DynValue = ort::value::Tensor::<f32>::from_array((
+            name_logits.shape().to_vec(),
+            name_logits.into_raw_vec_and_offset().0,
+        ))?
+        .into();
+        let name_entities = model.decode_output(&name_output, name_text, &name_encoding)?;
+        assert_eq!(name_entities.len(), 1, "{name_entities:#?}");
+        assert_eq!(name_entities[0].text, "Marie Curie");
+        assert_eq!(name_entities[0].entity_type, EntityType::Person);
+        assert_eq!((name_entities[0].start(), name_entities[0].end()), (0, 11));
 
         // Reuse two non-O slots to exercise the `Custom` equality branch
         // through the production decoder. A discriminant-only comparison
@@ -1240,6 +1582,63 @@ mod tests {
             custom_entities[1].entity_type,
             EntityType::custom("DRUG", EntityCategory::Misc)
         );
+
+        Ok(())
+    }
+
+    /// Run a fixed panel through the selected cached graph. The JSON trace is
+    /// intentionally opt-in: the Python reference runner compares tokenizer
+    /// inputs and logits separately from the decoder's documented policies.
+    #[test]
+    #[ignore = "requires cached protectai/bert-base-NER-onnx; run with ANNO_NO_DOWNLOADS=1"]
+    fn debug_trace_covers_fixed_parity_panel(
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        assert_eq!(
+            std::env::var("ANNO_NO_DOWNLOADS").as_deref(),
+            Ok("1"),
+            "this regression must run cache-only; set ANNO_NO_DOWNLOADS=1"
+        );
+        let model = BertNEROnnx::new("protectai/bert-base-NER-onnx")?;
+        let cases = [
+            ("unicode_astral", "Beyoncé met Ada Lovelace in Montréal 🚀."),
+            (
+                "punctuation",
+                "Apple, Inc. hired Jane Doe; she visited New York.",
+            ),
+            (
+                "org_person_mix",
+                "Satya Nadella leads Microsoft Corporation.",
+            ),
+        ];
+
+        for (name, text) in cases {
+            let trace = model.debug_trace(text)?;
+            assert_eq!(trace.input_ids.len(), trace.tokens.len(), "{name}");
+            assert_eq!(trace.input_ids.len(), trace.attention_mask.len(), "{name}");
+            assert_eq!(trace.input_ids.len(), trace.offsets.len(), "{name}");
+            assert_eq!(trace.input_ids.len(), trace.word_ids.len(), "{name}");
+            assert_eq!(trace.input_ids.len(), trace.logits.len(), "{name}");
+            assert_eq!(trace.input_ids.len(), trace.labels.len(), "{name}");
+            assert!(
+                trace
+                    .entities
+                    .iter()
+                    .all(|entity| entity.start < entity.end && entity.end <= text.chars().count()),
+                "{name}: {:#?}",
+                trace.entities
+            );
+            if std::env::var_os("ANNO_BERT_PARITY_PANEL_JSON").is_some() {
+                println!(
+                    "ANNO_BERT_PARITY_PANEL_JSON={}",
+                    serde_json::json!({ "case": name, "text": text, "trace": trace })
+                );
+            }
+        }
+
+        // A trace represents one graph invocation; long-input extraction is
+        // covered separately by the tokenizer-truncation regression below.
+        assert!(model.debug_trace(&"Paris is sunny. ".repeat(200)).is_err());
+        assert!(model.debug_trace(&"Paris ".repeat(600)).is_err());
 
         Ok(())
     }

@@ -83,7 +83,7 @@ impl GLiNEROnnx {
         };
 
         // Read class_token_index from gliner_config.json (if present).
-        let (token_ent, token_sep) = match hf_loader::download_model_file(
+        let (token_ent, token_sep, config_path) = match hf_loader::download_model_file(
             &repo,
             &["gliner_config.json"],
         ) {
@@ -99,11 +99,11 @@ impl GLiNEROnnx {
                         DEFAULT_TOKEN_ENT
                     );
                 }
-                (ent, sep)
+                (ent, sep, Some(config_path))
             }
             Err(error) => {
                 log::warn!("[GLiNER] gliner_config.json unavailable; using default special-token IDs: {error}");
-                (DEFAULT_TOKEN_ENT, DEFAULT_TOKEN_SEP)
+                (DEFAULT_TOKEN_ENT, DEFAULT_TOKEN_SEP, None)
             }
         };
 
@@ -117,70 +117,80 @@ impl GLiNEROnnx {
 
         // For bi-encoder models, try to load the separate label encoder ONNX session.
         // The export script produces `label_encoder.onnx` alongside `model.onnx`.
-        let (label_encoder_session, label_tokenizer) = if encoder_mode == config::EncoderMode::Bi {
-            log::info!("[GLiNER] Bi-encoder model detected, loading label encoder...");
+        let (label_encoder_session, label_tokenizer, label_encoder_path, label_tokenizer_path) =
+            if encoder_mode == config::EncoderMode::Bi {
+                log::info!("[GLiNER] Bi-encoder model detected, loading label encoder...");
 
-            // Try HF repo first, then check the local cache dir (auto-export writes there)
-            let le_path = hf_loader::download_model_file(
-                &repo,
-                &["label_encoder.onnx", "label_encoder_quantized.onnx"],
-            )
-            .ok()
-            .or_else(|| {
-                // Check the same directory as the main model (auto-export output location)
-                let cache_dir = model_path.parent()?;
-                let local = cache_dir.join("label_encoder.onnx");
-                if local.exists() {
-                    Some(local)
-                } else {
-                    None
-                }
-            });
-
-            let le_session = le_path.and_then(|path| {
-                hf_loader::create_onnx_session(
-                    &path,
-                    hf_loader::OnnxSessionConfig {
-                        optimization_level: config.optimization_level,
-                        num_threads: config.num_threads,
-                        use_cpu_provider: true,
-                        ..Default::default()
-                    },
+                // Try HF repo first, then check the local cache dir (auto-export writes there)
+                let le_path = hf_loader::download_model_file(
+                    &repo,
+                    &["label_encoder.onnx", "label_encoder_quantized.onnx"],
                 )
                 .ok()
-            });
-
-            if le_session.is_some() {
-                log::info!("[GLiNER] Label encoder loaded");
-            } else {
-                log::warn!(
-                    "[GLiNER] Bi-encoder model detected but label_encoder.onnx not found. \
-                     Label embeddings must be pre-computed externally."
-                );
-            }
-
-            // Try loading a separate label tokenizer (BGE models use different tokenizer).
-            // Check HF repo first, then local cache dir.
-            let le_tokenizer = hf_loader::download_model_file(&repo, &["label_tokenizer.json"])
-                .ok()
                 .or_else(|| {
+                    // Check the same directory as the main model (auto-export output location)
                     let cache_dir = model_path.parent()?;
-                    let local = cache_dir.join("label_tokenizer.json");
+                    let local = cache_dir.join("label_encoder.onnx");
                     if local.exists() {
                         Some(local)
                     } else {
                         None
                     }
-                })
-                .and_then(|path| hf_loader::load_tokenizer(&path).ok());
+                });
 
-            (
-                le_session.map(Mutex::new),
-                le_tokenizer.map(std::sync::Arc::new),
-            )
-        } else {
-            (None, None)
-        };
+                let le_session = le_path.as_ref().and_then(|path| {
+                    hf_loader::create_onnx_session(
+                        path,
+                        hf_loader::OnnxSessionConfig {
+                            optimization_level: config.optimization_level,
+                            num_threads: config.num_threads,
+                            use_cpu_provider: true,
+                            ..Default::default()
+                        },
+                    )
+                    .ok()
+                });
+
+                if le_session.is_some() {
+                    log::info!("[GLiNER] Label encoder loaded");
+                } else {
+                    log::warn!(
+                        "[GLiNER] Bi-encoder model detected but label_encoder.onnx not found. \
+                     Label embeddings must be pre-computed externally."
+                    );
+                }
+
+                // Try loading a separate label tokenizer (BGE models use different tokenizer).
+                // Check HF repo first, then local cache dir.
+                let le_tokenizer_path =
+                    hf_loader::download_model_file(&repo, &["label_tokenizer.json"])
+                        .ok()
+                        .or_else(|| {
+                            let cache_dir = model_path.parent()?;
+                            let local = cache_dir.join("label_tokenizer.json");
+                            if local.exists() {
+                                Some(local)
+                            } else {
+                                None
+                            }
+                        });
+                let le_tokenizer = le_tokenizer_path
+                    .as_ref()
+                    .and_then(|path| hf_loader::load_tokenizer(path).ok());
+                // Record optional assets only when their corresponding session or
+                // tokenizer was actually installed on this instance.
+                let selected_label_encoder_path = le_session.as_ref().and(le_path);
+                let selected_label_tokenizer_path = le_tokenizer.as_ref().and(le_tokenizer_path);
+
+                (
+                    le_session.map(Mutex::new),
+                    le_tokenizer.map(std::sync::Arc::new),
+                    selected_label_encoder_path,
+                    selected_label_tokenizer_path,
+                )
+            } else {
+                (None, None, None, None)
+            };
 
         Ok(Self {
             session: Mutex::new(session),
@@ -195,6 +205,13 @@ impl GLiNEROnnx {
             label_cache: Mutex::new(HashMap::new()),
             label_encoder_session,
             label_tokenizer,
+            artifact_paths: GLiNEROnnxArtifactPaths {
+                graph: model_path,
+                tokenizer: tokenizer_path,
+                config: config_path,
+                label_encoder: label_encoder_path,
+                label_tokenizer: label_tokenizer_path,
+            },
         })
     }
 
@@ -208,6 +225,12 @@ impl GLiNEROnnx {
     #[must_use]
     pub fn tokenizer(&self) -> std::sync::Arc<tokenizers::Tokenizer> {
         std::sync::Arc::clone(&self.tokenizer)
+    }
+
+    /// Return the exact local files selected while constructing this model.
+    #[must_use]
+    pub fn artifact_paths(&self) -> &GLiNEROnnxArtifactPaths {
+        &self.artifact_paths
     }
 
     /// Get model name.
