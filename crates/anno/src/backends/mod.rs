@@ -385,7 +385,10 @@ pub use universal_ner::UniversalNER;
 pub use gliner_onnx::GLiNEROnnx;
 
 #[cfg(feature = "onnx")]
-pub use onnx::BertNEROnnx;
+pub use onnx::{
+    BertNEROnnx, BertNerArtifactPaths, BertNerTrace, BertNerTraceArtifact, BertNerTraceArtifacts,
+    BertNerTraceEntity,
+};
 
 #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub use candle::CandleNER;

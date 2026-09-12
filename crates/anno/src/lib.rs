@@ -678,7 +678,10 @@ pub use backends::hf_loader::{
 
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]
-pub use backends::{BertNEROnnx, GLiNEROnnx};
+pub use backends::{
+    BertNEROnnx, BertNerArtifactPaths, BertNerTrace, BertNerTraceArtifact, BertNerTraceArtifacts,
+    BertNerTraceEntity, GLiNEROnnx,
+};
 
 #[cfg(feature = "onnx")]
 #[cfg_attr(docsrs, doc(cfg(feature = "onnx")))]

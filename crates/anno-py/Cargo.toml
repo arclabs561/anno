@@ -15,11 +15,10 @@ publish = false
 [lib]
 name = "anno_py"
 crate-type = ["cdylib"]
-# No Rust unit tests live here (Python-side tests cover the bindings), so
-# skip the empty pyo3-linked test harness that `cargo test --workspace`
-# would otherwise compile and link on every anno change. Same pattern as
-# the `test = false` bins in anno-eval.
-test = false
+# Keep the focused binding-conversion regression tests enabled. They exercise
+# feature-independent error handling without loading a model; Python tests
+# cover the extension boundary separately.
+test = true
 doctest = false
 
 [dependencies]
@@ -40,6 +39,18 @@ extension-module = ["pyo3/extension-module"]
 # Opt-in model-backed extractors. Keep the wheel default offline: ONNX Runtime
 # and model retrieval are only included when a caller builds with this feature.
 onnx = ["anno/onnx"]
+# Opt-in source-build support for the experimental fastino GLiNER2 ONNX
+# runtime. It is intentionally absent from the standard wheel because the
+# runtime fetches model assets on first use and has not received a platform
+# distribution decision yet.
+fastino = ["anno/gliner2-fastino"]
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[[example]]
+name = "fastino_reference"
+required-features = ["fastino"]
 
 [lints]
 workspace = true

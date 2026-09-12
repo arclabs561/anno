@@ -13,24 +13,43 @@
 //! - **Comprehensive**: Evaluates all valid task-dataset-backend combinations
 //! - **Extensible**: Easy to add new tasks, datasets, or backends
 
-use crate::eval::backend_factory::BackendFactory;
+#[cfg(any(feature = "onnx", feature = "gliner2-fastino"))]
+use crate::eval::backend_factory::artifact_receipt_from_paths;
+use crate::eval::backend_factory::{BackendConstructionReceipt, BackendFactory};
 use crate::eval::backend_name::BackendName;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 #[cfg(feature = "eval-profiling")]
 use crate::eval::profiling;
+use crate::eval::provenance::{
+    artifact_status, canonical_entity_type_label, current_build_provenance,
+};
+pub use crate::eval::provenance::{
+    ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
+    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvaluationScheduling,
+    ExecutionProvenanceStatus, InferenceSettingProvenance, NerInferenceProvenance,
+    NerLabelPolicyReport,
+};
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
 };
 use anno::backends::inference::ZeroShotNER;
 use anno::{Entity, EntityType, Model, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Mutex;
 use std::time::Instant;
 
 /// Lock a std::sync::Mutex, recovering from poisoning.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+#[cfg(feature = "eval-parallel")]
+fn observe_construction_receipt(
+    observed: &std::sync::Arc<Mutex<Vec<BackendConstructionReceipt>>>,
+    receipt: &BackendConstructionReceipt,
+) {
+    lock(observed).push(receipt.clone());
 }
 
 /// Deterministically choose one sentence for a bootstrap replicate.
@@ -49,13 +68,6 @@ fn bootstrap_ci_95(samples: &mut [f64]) -> (f64, f64) {
     let lower = ((samples.len() - 1) as f64 * 0.025).round() as usize;
     let upper = ((samples.len() - 1) as f64 * 0.975).round() as usize;
     (samples[lower], samples[upper])
-}
-
-/// Render entity types under the canonical label mapping used by scoring.
-fn canonical_entity_type_label(entity_type: &EntityType) -> String {
-    EntityType::from_label(entity_type.as_label())
-        .as_label()
-        .to_string()
 }
 
 // Type aliases for complex types
@@ -259,12 +271,50 @@ pub struct TaskEvalResult {
     pub confidence_intervals: Option<ConfidenceIntervals>,
     /// KB version used (if available from dataset metadata)
     pub kb_version: Option<String>,
+    /// Inputs and scoring policy actually used for this result.
+    ///
+    /// This is deliberately a receipt, not a configuration registry: fields that
+    /// the active backend does not expose are represented as `unknown` rather
+    /// than inferred from a cache layout or a backend name.
+    #[serde(default)]
+    pub provenance: EvalRunProvenance,
 }
 
 #[derive(Debug)]
 struct BackendEvalOk {
     metrics: HashMap<String, f64>,
     backend_display: Option<String>,
+    configured_labels: Option<Vec<String>>,
+    ner_label_policy: Option<NerLabelPolicyReport>,
+    construction_receipt: BackendConstructionReceipt,
+    scheduling: EvaluationScheduling,
+}
+
+#[derive(Debug)]
+struct NerEvaluationReceipt {
+    metrics: HashMap<String, f64>,
+    configured_labels: Option<Vec<String>>,
+    label_policy: NerLabelPolicyReport,
+    construction_receipt: BackendConstructionReceipt,
+    scheduling: EvaluationScheduling,
+}
+
+struct ProvenanceInput<'a> {
+    requested_backend_name: &'a str,
+    effective_backend_name: &'a str,
+    backend_display: Option<String>,
+    dataset: &'a LoadedDataset,
+    config: &'a TaskEvalConfig,
+    configured_labels: Option<Vec<String>>,
+    ner_label_policy: Option<NerLabelPolicyReport>,
+    construction_receipt: BackendConstructionReceipt,
+    scheduling: EvaluationScheduling,
+}
+
+#[cfg(not(feature = "eval-parallel"))]
+struct CachedBackendAny {
+    backend: Box<dyn std::any::Any>,
+    construction_receipt: BackendConstructionReceipt,
 }
 
 impl TaskEvalResult {
@@ -521,6 +571,7 @@ impl TaskEvaluator {
         config: &TaskEvalConfig,
     ) -> TaskEvalResult {
         let seed = config.seed.unwrap_or(42);
+        let requested_backend_name = backend_name;
         // Use the same canonical spelling accepted by the factory and typed
         // backend API before compatibility checks and zero-shot dispatch.
         let backend_name = BackendName::try_parse(backend_name)
@@ -531,6 +582,7 @@ impl TaskEvaluator {
         match self.try_evaluate_backend(task, dataset, backend_name, sampled_data, config) {
             Ok(ok) => {
                 let metrics = ok.metrics;
+                let backend_display = ok.backend_display;
                 let duration = start.elapsed().as_secs_f64() * 1000.0;
                 let num_examples = if task.is_coref_family() {
                     metrics
@@ -598,7 +650,7 @@ impl TaskEvaluator {
                     task,
                     dataset,
                     backend: backend_name.to_string(),
-                    backend_display: ok.backend_display,
+                    backend_display: backend_display.clone(),
                     seed,
                     success: true,
                     error: None,
@@ -613,15 +665,39 @@ impl TaskEvaluator {
                     stratified,
                     confidence_intervals,
                     kb_version,
+                    provenance: Self::run_provenance(ProvenanceInput {
+                        requested_backend_name,
+                        effective_backend_name: backend_name,
+                        backend_display,
+                        dataset: sampled_data,
+                        config,
+                        configured_labels: ok.configured_labels,
+                        ner_label_policy: ok.ner_label_policy,
+                        construction_receipt: ok.construction_receipt,
+                        scheduling: ok.scheduling,
+                    }),
                 }
             }
             Err(e) => Self::failed_task_eval_result(
                 task,
                 dataset,
-                backend_name,
                 seed,
                 sentences_to_use,
                 start.elapsed().as_secs_f64() * 1000.0,
+                ProvenanceInput {
+                    requested_backend_name,
+                    effective_backend_name: backend_name,
+                    backend_display: None,
+                    dataset: sampled_data,
+                    config,
+                    configured_labels: None,
+                    ner_label_policy: None,
+                    construction_receipt: BackendConstructionReceipt::default(),
+                    scheduling: EvaluationScheduling::Unknown {
+                        reason: "evaluation failed before its scheduling strategy was recorded"
+                            .to_string(),
+                    },
+                },
                 e,
             ),
         }
@@ -630,16 +706,16 @@ impl TaskEvaluator {
     fn failed_task_eval_result(
         task: Task,
         dataset: DatasetId,
-        backend_name: &str,
         seed: u64,
         sentences_to_use: usize,
         duration_ms: f64,
+        provenance: ProvenanceInput<'_>,
         error: impl std::fmt::Display,
     ) -> TaskEvalResult {
         TaskEvalResult {
             task,
             dataset,
-            backend: backend_name.to_string(),
+            backend: provenance.effective_backend_name.to_string(),
             backend_display: None,
             seed,
             success: false,
@@ -655,6 +731,68 @@ impl TaskEvaluator {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: Self::run_provenance(provenance),
+        }
+    }
+
+    fn run_provenance(input: ProvenanceInput<'_>) -> EvalRunProvenance {
+        EvalRunProvenance {
+            schema_version: 1,
+            build: current_build_provenance(),
+            dataset: DatasetRunProvenance {
+                source_url: input.dataset.source_url.clone(),
+                data_source: input.dataset.data_source.to_string(),
+                split: input.dataset.metadata.split.clone(),
+                version: input.dataset.metadata.version.clone(),
+                language: input.dataset.metadata.language.clone(),
+                domain: input.dataset.metadata.domain.clone(),
+                sentence_count: input.dataset.sentences.len(),
+                entity_count: input.dataset.entity_count(),
+            },
+            backend: BackendRunProvenance {
+                requested: input.requested_backend_name.to_string(),
+                effective: input.effective_backend_name.to_string(),
+                display_name: input.backend_display,
+                configured_labels: input.configured_labels,
+                model_artifacts: artifact_status(input.construction_receipt),
+                execution: ExecutionProvenanceStatus::default(),
+            },
+            runtime: EvalRuntimeProvenance {
+                seed: input.config.seed.unwrap_or(42),
+                cached_only: input.config.require_cached,
+                max_examples: input.config.max_examples,
+                confidence_intervals: input.config.confidence_intervals,
+                robustness: input.config.robustness,
+                relation_threshold: input.config.relation_threshold,
+                ner_inference: Self::ner_inference_provenance(input.effective_backend_name),
+                scheduling: input.scheduling,
+            },
+            ner_label_policy: input.ner_label_policy,
+        }
+    }
+
+    fn ner_inference_provenance(backend_name: &str) -> NerInferenceProvenance {
+        let uses_evaluator_threshold = matches!(
+            backend_name,
+            "nuner"
+                | "gliner_onnx"
+                | "gliner"
+                | "gliner2_fastino"
+                | "gliner_candle"
+                | "gliner_poly"
+                | "universal_ner"
+        );
+        NerInferenceProvenance {
+            threshold: if uses_evaluator_threshold {
+                InferenceSettingProvenance::Known {
+                    value: serde_json::json!(0.5),
+                }
+            } else {
+                InferenceSettingProvenance::Unknown {
+                    reason: "evaluator did not supply a NER threshold for this backend".to_string(),
+                }
+            },
+            ..Default::default()
         }
     }
 
@@ -759,6 +897,7 @@ impl TaskEvaluator {
                         stratified: None,
                         confidence_intervals: None,
                         kb_version: None,
+                        provenance: EvalRunProvenance::default(),
                     });
                 }
 
@@ -812,6 +951,7 @@ impl TaskEvaluator {
                                     stratified: None,
                                     confidence_intervals: None,
                                     kb_version: None,
+                                    provenance: EvalRunProvenance::default(),
                                 });
                             }
                             continue;
@@ -848,6 +988,7 @@ impl TaskEvaluator {
                             stratified: None,
                             confidence_intervals: None,
                             kb_version: None,
+                            provenance: EvalRunProvenance::default(),
                         });
                     }
                     continue;
@@ -1016,14 +1157,25 @@ impl TaskEvaluator {
             | Task::EventExtraction
             | Task::Temporal
             | Task::DiscourseSegmentation => {
-                let defer_fastino_load =
-                    backend_name == "gliner2_fastino" && !dataset.entity_types().is_empty();
-                // `evaluate_ner_task` caches a label-aware zero-shot backend. Do
-                // not construct one here first: that would load the same model twice.
-                let backend = if defer_fastino_load {
-                    None
+                let defer_label_conditioned_load = !dataset.entity_types().is_empty()
+                    && matches!(
+                        backend_name,
+                        "nuner"
+                            | "gliner_onnx"
+                            | "gliner"
+                            | "gliner_multitask"
+                            | "gliner2_fastino"
+                            | "gliner_poly"
+                            | "universal_ner"
+                    );
+                // `evaluate_ner_task` caches one label-aware instance per worker.
+                // Constructing one here first would load GLiNER/Fastino twice and
+                // make the recorded receipt describe an unused instance.
+                let (backend, construction_receipt) = if defer_label_conditioned_load {
+                    (None, BackendConstructionReceipt::default())
                 } else {
-                    Some(BackendFactory::create(backend_name)?)
+                    let (backend, receipt) = BackendFactory::create_with_provenance(backend_name)?;
+                    (Some(backend), receipt)
                 };
                 let backend_display = backend
                     .as_ref()
@@ -1044,16 +1196,32 @@ impl TaskEvaluator {
                         )));
                     }
                 }
-                let metrics = self.evaluate_ner_task(
+                let ner = self.evaluate_ner_task(
                     backend_name,
                     backend.as_deref(),
                     dataset,
                     dataset_data,
                     config,
                 )?;
+                let NerEvaluationReceipt {
+                    metrics,
+                    configured_labels,
+                    label_policy,
+                    construction_receipt: zero_shot_receipt,
+                    scheduling,
+                } = ner;
+                let construction_receipt = if zero_shot_receipt.model_artifacts.is_some() {
+                    zero_shot_receipt
+                } else {
+                    construction_receipt
+                };
                 Ok(BackendEvalOk {
                     metrics,
                     backend_display,
+                    configured_labels,
+                    ner_label_policy: Some(label_policy),
+                    construction_receipt,
+                    scheduling,
                 })
             }
             Task::IntraDocCoref | Task::InterDocCoref | Task::AbstractAnaphora => {
@@ -1063,11 +1231,16 @@ impl TaskEvaluator {
                 Ok(BackendEvalOk {
                     metrics,
                     backend_display: None,
+                    configured_labels: None,
+                    ner_label_policy: None,
+                    construction_receipt: BackendConstructionReceipt::default(),
+                    scheduling: EvaluationScheduling::Sequential,
                 })
             }
             Task::RelationExtraction => {
                 // Relation extraction requires a Model backend
-                let backend = BackendFactory::create(backend_name)?;
+                let (backend, construction_receipt) =
+                    BackendFactory::create_with_provenance(backend_name)?;
                 let backend_display = {
                     let n = backend.name().trim();
                     if n.is_empty() || n.eq_ignore_ascii_case("unknown") {
@@ -1088,6 +1261,10 @@ impl TaskEvaluator {
                 Ok(BackendEvalOk {
                     metrics,
                     backend_display,
+                    configured_labels: None,
+                    ner_label_policy: None,
+                    construction_receipt,
+                    scheduling: EvaluationScheduling::Sequential,
                 })
             }
             Task::TextClassification | Task::SpeechActClassification | Task::DiscourseRelations => {
@@ -1100,6 +1277,10 @@ impl TaskEvaluator {
                 Ok(BackendEvalOk {
                     metrics,
                     backend_display: None,
+                    configured_labels: None,
+                    ner_label_policy: None,
+                    construction_receipt: BackendConstructionReceipt::default(),
+                    scheduling: EvaluationScheduling::Sequential,
                 })
             }
             _ => Err(crate::Error::InvalidInput(format!(
@@ -1117,7 +1298,7 @@ impl TaskEvaluator {
         dataset: DatasetId,
         dataset_data: &LoadedDataset,
         _config: &TaskEvalConfig,
-    ) -> Result<HashMap<String, f64>> {
+    ) -> Result<NerEvaluationReceipt> {
         use crate::eval::metrics::compute_document_extraction_quality_metrics;
         use crate::eval::ner_metrics::{evaluate_entities, NerEvalResults};
 
@@ -1141,6 +1322,10 @@ impl TaskEvaluator {
         // Extract dataset entity types and map to model-compatible labels
         let dataset_labels = dataset.entity_types();
         let mapped_labels = Self::map_dataset_labels_to_model(dataset_labels, backend_name);
+        let dataset_label_space: BTreeSet<String> = dataset_labels
+            .iter()
+            .map(|label| canonical_entity_type_label(&EntityType::from_label(label)))
+            .collect();
 
         // Debug: log mapped labels for zero-shot models
         if std::env::var("ANNO_DEBUG_LABELS").is_ok() {
@@ -1164,11 +1349,14 @@ impl TaskEvaluator {
 
         // Process sentences (parallel if rayon is available, sequential otherwise)
         let total_sentences = dataset_data.sentences.len();
+        let mut zero_shot_construction_receipt = BackendConstructionReceipt::default();
+        let scheduling;
 
         #[cfg(feature = "eval-parallel")]
         {
             use rayon::prelude::*;
             use std::cell::RefCell;
+            use std::collections::HashSet;
             use std::sync::atomic::{AtomicUsize, Ordering};
             use std::sync::Arc;
 
@@ -1176,9 +1364,10 @@ impl TaskEvaluator {
             // This avoids the need to share state across threads while still caching per thread
             // Using CachedBackend enum instead of Box<dyn Any> to avoid downcast issues
             thread_local! {
-                // Store (normalized_name, backend_name_used_for_creation, backend)
+                // Store (normalized_name, backend_name_used_for_creation, backend, receipt).
+                // Hashes belong to construction, so warm cache hits clone this receipt.
                 // Using enum instead of Box<dyn Any> for type safety
-                static THREAD_CACHED_BACKEND: RefCell<Option<(String, String, CachedBackend)>> = const { RefCell::new(None) };
+                static THREAD_CACHED_BACKEND: RefCell<Option<(String, String, CachedBackend, BackendConstructionReceipt)>> = const { RefCell::new(None) };
             }
 
             // Normalize backend name to lowercase for consistent caching
@@ -1186,6 +1375,9 @@ impl TaskEvaluator {
             let backend_name_arc = Arc::new(backend_name_normalized);
             let mapped_labels_arc = Arc::new(mapped_labels.clone());
             let is_zero_shot_flag = is_zero_shot;
+            let observed_construction_receipts = Arc::new(Mutex::new(Vec::new()));
+            let worker_threads = Arc::new(Mutex::new(HashSet::new()));
+            let configured_rayon_threads = rayon::current_num_threads();
 
             let progress_counter = AtomicUsize::new(0);
             let last_progress_percent = Arc::new(Mutex::new(0));
@@ -1195,6 +1387,7 @@ impl TaskEvaluator {
                 .par_iter()
                 .enumerate()
                 .map(|(idx, sentence)| {
+                    lock(&worker_threads).insert(std::thread::current().id());
                     let text = sentence.text();
                     let chars_count = text.chars().count();
 
@@ -1217,8 +1410,12 @@ impl TaskEvaluator {
                             let mut cached = cache.borrow_mut();
                             // Check if we have a cached backend for this backend_name (case-insensitive)
                             let backend_name_lower = backend_name_arc.as_str().to_lowercase();
-                            if let Some((ref cached_name, ref _creation_name, ref backend)) = *cached {
+                            if let Some((ref cached_name, ref _creation_name, ref backend, ref receipt)) = *cached {
                                 if cached_name.to_lowercase() == backend_name_lower {
+                                    observe_construction_receipt(
+                                        &observed_construction_receipts,
+                                        receipt,
+                                    );
                                     // Use cached backend - no downcast needed, enum is type-safe
                                     return Self::extract_with_cached_backend(
                                         backend,
@@ -1231,13 +1428,18 @@ impl TaskEvaluator {
                             let creation_name = backend_name_arc.as_str().to_string();
                             match Self::create_zero_shot_backend(backend_name_arc.as_str()) {
                                 Ok(new_backend) => {
+                                    let receipt = Self::cached_backend_construction_receipt(&new_backend);
+                                    observe_construction_receipt(
+                                        &observed_construction_receipts,
+                                        &receipt,
+                                    );
                                     let result = Self::extract_with_cached_backend(
                                         &new_backend,
                                         &text,
                                         &mapped_labels_arc,
                                     );
                                     // Store normalized (lowercase) name for matching, and creation name for reference
-                                    *cached = Some((backend_name_lower, creation_name, new_backend));
+                                    *cached = Some((backend_name_lower, creation_name, new_backend, receipt));
                                     result
                                 }
                                 Err(e) => Err(e),
@@ -1284,6 +1486,21 @@ impl TaskEvaluator {
                     (idx, chars_count, gold_entities, entities_result, text.to_string())
                 })
                 .collect();
+
+            let observed = lock(&observed_construction_receipts);
+            if let Some(first) = observed.first() {
+                if observed.iter().any(|receipt| receipt != first) {
+                    return Err(crate::Error::Inference(
+                        "parallel zero-shot backend instances selected different artifact receipts"
+                            .to_string(),
+                    ));
+                }
+                zero_shot_construction_receipt = first.clone();
+            }
+            scheduling = EvaluationScheduling::Rayon {
+                configured_threads: configured_rayon_threads,
+                effective_threads: lock(&worker_threads).len(),
+            };
 
             // Final progress update with timing
             let total_elapsed = start_time.elapsed();
@@ -1346,14 +1563,18 @@ impl TaskEvaluator {
 
         #[cfg(not(feature = "eval-parallel"))]
         {
+            scheduling = EvaluationScheduling::Sequential;
             // For zero-shot backends, create a cached instance once to avoid recreating for each sentence
             // Non-parallel path still uses Box<dyn Any> for backward compatibility
-            let zero_shot_backend: Option<Box<dyn std::any::Any>> =
+            let zero_shot_backend: Option<CachedBackendAny> =
                 if is_zero_shot && !mapped_labels.is_empty() {
                     Some(Self::create_zero_shot_backend_any(backend_name)?)
                 } else {
                     None
                 };
+            if let Some(cached) = zero_shot_backend.as_ref() {
+                zero_shot_construction_receipt = cached.construction_receipt.clone();
+            }
 
             // Sequential processing (fallback when rayon not available)
             for (idx, sentence) in dataset_data.sentences.iter().enumerate() {
@@ -1411,7 +1632,7 @@ impl TaskEvaluator {
                         // Dereference Box to get &dyn Any (not &Box<dyn Any>)
                         Self::extract_with_cached_backend_any(
                             backend_name,
-                            cached.as_ref(),
+                            cached.backend.as_ref(),
                             &text,
                             &mapped_labels,
                         )
@@ -1516,6 +1737,58 @@ impl TaskEvaluator {
         metrics.insert("num_gold".to_string(), all_gold.len() as f64);
         metrics.insert("num_predicted".to_string(), all_predicted.len() as f64);
 
+        // Primary metrics above deliberately score every emitted entity. The dataset's
+        // label space is recorded only to account for broader outputs (for example,
+        // DATE/MONEY emitted while scoring CoNLL) and to produce a separately named
+        // closed-label diagnostic. Do not silently substitute this diagnostic for F1.
+        let mut closed_label_results = NerEvalResults::new();
+        let mut gold_outside_dataset_labels = 0usize;
+        let mut predictions_outside_dataset_labels = 0usize;
+        let mut closed_gold_count = 0usize;
+        let mut closed_prediction_count = 0usize;
+        for (gold, predicted, _) in &per_example_scores {
+            let closed_gold: Vec<Entity> = gold
+                .iter()
+                .filter(|entity| {
+                    dataset_label_space.contains(&canonical_entity_type_label(&entity.entity_type))
+                })
+                .cloned()
+                .collect();
+            let closed_predicted: Vec<Entity> = predicted
+                .iter()
+                .filter(|entity| {
+                    dataset_label_space.contains(&canonical_entity_type_label(&entity.entity_type))
+                })
+                .cloned()
+                .collect();
+            gold_outside_dataset_labels += gold.len() - closed_gold.len();
+            predictions_outside_dataset_labels += predicted.len() - closed_predicted.len();
+            closed_gold_count += closed_gold.len();
+            closed_prediction_count += closed_predicted.len();
+            closed_label_results.merge(&evaluate_entities(&closed_gold, &closed_predicted));
+        }
+        let closed_summary = closed_label_results.summary();
+        metrics.insert(
+            "dataset_label_closed_precision".to_string(),
+            closed_summary.strict_precision,
+        );
+        metrics.insert(
+            "dataset_label_closed_recall".to_string(),
+            closed_summary.strict_recall,
+        );
+        metrics.insert(
+            "dataset_label_closed_f1".to_string(),
+            closed_summary.strict_f1,
+        );
+        metrics.insert(
+            "gold_outside_dataset_labels".to_string(),
+            gold_outside_dataset_labels as f64,
+        );
+        metrics.insert(
+            "predictions_outside_dataset_labels".to_string(),
+            predictions_outside_dataset_labels as f64,
+        );
+
         // CORE-KG-inspired diagnostics (heuristic): duplication + noise in predictions.
         // Sentence-local offsets and repeated mentions make cross-sentence duplicate
         // detection misleading, so scope duplicate detection to each sentence.
@@ -1542,7 +1815,27 @@ impl TaskEvaluator {
             // If lock fails, continue without caching (non-critical)
         }
 
-        Ok(metrics)
+        Ok(NerEvaluationReceipt {
+            metrics,
+            configured_labels: is_zero_shot.then_some(mapped_labels),
+            label_policy: NerLabelPolicyReport {
+                primary_policy:
+                    "strict span-and-type micro score over all emitted entities; no label filtering"
+                        .to_string(),
+                dataset_label_space: dataset_label_space.into_iter().collect(),
+                operational_gold_outside_dataset_labels: gold_outside_dataset_labels,
+                operational_predictions_outside_dataset_labels: predictions_outside_dataset_labels,
+                dataset_label_closed_diagnostic: ClosedLabelDiagnostic {
+                    strict_precision: closed_summary.strict_precision,
+                    strict_recall: closed_summary.strict_recall,
+                    strict_f1: closed_summary.strict_f1,
+                    gold_entities_scored: closed_gold_count,
+                    predicted_entities_scored: closed_prediction_count,
+                },
+            },
+            construction_receipt: zero_shot_construction_receipt,
+            scheduling,
+        })
     }
 
     /// Map dataset entity type labels to model-compatible labels.
@@ -1622,11 +1915,70 @@ impl TaskEvaluator {
             .collect()
     }
 
-    /// Create a zero-shot backend instance (returns Box<dyn Any> for non-parallel path).
+    #[cfg(feature = "onnx")]
+    fn gliner_onnx_construction_receipt(
+        model: &anno::backends::gliner_onnx::GLiNEROnnx,
+    ) -> BackendConstructionReceipt {
+        let paths = model.artifact_paths();
+        let mut files = vec![
+            ("graph".to_string(), paths.graph.clone()),
+            ("tokenizer".to_string(), paths.tokenizer.clone()),
+        ];
+        for (role, path) in [
+            ("config", paths.config.as_ref()),
+            ("label_encoder", paths.label_encoder.as_ref()),
+            ("label_tokenizer", paths.label_tokenizer.as_ref()),
+        ] {
+            if let Some(path) = path {
+                files.push((role.to_string(), path.clone()));
+            }
+        }
+        BackendConstructionReceipt {
+            model_artifacts: Some(artifact_receipt_from_paths(
+                "gliner_onnx",
+                model.model_name(),
+                None,
+                files,
+            )),
+        }
+    }
+
+    #[cfg(feature = "gliner2-fastino")]
+    fn fastino_construction_receipt(
+        model: &anno::backends::gliner2_fastino::GLiNER2Fastino,
+    ) -> BackendConstructionReceipt {
+        let paths = model.artifact_paths();
+        let mut files = vec![("tokenizer".to_string(), paths.tokenizer)];
+        if let Some(config) = paths.config {
+            files.push(("config".to_string(), config));
+        }
+        files.extend(paths.graphs);
+        BackendConstructionReceipt {
+            model_artifacts: Some(artifact_receipt_from_paths(
+                "gliner2_fastino",
+                model.model_id(),
+                model.model_revision(),
+                files,
+            )),
+        }
+    }
+
+    #[cfg(feature = "eval-parallel")]
+    fn cached_backend_construction_receipt(backend: &CachedBackend) -> BackendConstructionReceipt {
+        match backend {
+            #[cfg(feature = "onnx")]
+            CachedBackend::GLiNEROnnx(model) => Self::gliner_onnx_construction_receipt(model),
+            #[cfg(feature = "gliner2-fastino")]
+            CachedBackend::GLiNER2Fastino(model) => Self::fastino_construction_receipt(model),
+            _ => BackendConstructionReceipt::default(),
+        }
+    }
+
+    /// Create a zero-shot backend instance for the sequential evaluator.
     ///
     /// This avoids recreating the model for every sentence, which causes ONNX errors.
     #[cfg(not(feature = "eval-parallel"))]
-    fn create_zero_shot_backend_any(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
+    fn create_zero_shot_backend_any(backend_name: &str) -> Result<CachedBackendAny> {
         Self::create_zero_shot_backend_impl(backend_name)
     }
 
@@ -1724,7 +2076,7 @@ impl TaskEvaluator {
 
     /// Internal implementation that creates backend as Box<dyn Any> (for non-parallel path).
     #[cfg(not(feature = "eval-parallel"))]
-    fn create_zero_shot_backend_impl(backend_name: &str) -> Result<Box<dyn std::any::Any>> {
+    fn create_zero_shot_backend_impl(backend_name: &str) -> Result<CachedBackendAny> {
         match backend_name.to_lowercase().as_str() {
             "nuner" => {
                 #[cfg(feature = "onnx")]
@@ -1732,7 +2084,10 @@ impl TaskEvaluator {
                     use crate::DEFAULT_NUNER_MODEL;
                     use anno::backends::nuner::NuNER;
                     let nuner = NuNER::from_pretrained(DEFAULT_NUNER_MODEL)?;
-                    Ok(Box::new(nuner))
+                    Ok(CachedBackendAny {
+                        backend: Box::new(nuner),
+                        construction_receipt: BackendConstructionReceipt::default(),
+                    })
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
@@ -1747,7 +2102,11 @@ impl TaskEvaluator {
                     use crate::DEFAULT_GLINER_MODEL;
                     use anno::backends::gliner_onnx::GLiNEROnnx;
                     let gliner = GLiNEROnnx::new(DEFAULT_GLINER_MODEL)?;
-                    Ok(Box::new(gliner))
+                    let construction_receipt = Self::gliner_onnx_construction_receipt(&gliner);
+                    Ok(CachedBackendAny {
+                        backend: Box::new(gliner),
+                        construction_receipt,
+                    })
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
@@ -1763,7 +2122,10 @@ impl TaskEvaluator {
                     use anno::backends::gliner_multitask::GLiNERMultitaskOnnx;
                     let gliner_multitask =
                         GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)?;
-                    Ok(Box::new(gliner_multitask))
+                    Ok(CachedBackendAny {
+                        backend: Box::new(gliner_multitask),
+                        construction_receipt: BackendConstructionReceipt::default(),
+                    })
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
@@ -1779,11 +2141,16 @@ impl TaskEvaluator {
                         GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
                         SUPPORTED_GLINER2_FASTINO_REVISION,
                     };
-                    Ok(Box::new(GLiNER2Fastino::from_pretrained_with_config(
+                    let fastino = GLiNER2Fastino::from_pretrained_with_config(
                         SUPPORTED_GLINER2_FASTINO_MODEL,
                         GLiNER2FastinoConfig::default()
                             .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
-                    )?))
+                    )?;
+                    let construction_receipt = Self::fastino_construction_receipt(&fastino);
+                    Ok(CachedBackendAny {
+                        backend: Box::new(fastino),
+                        construction_receipt,
+                    })
                 }
                 #[cfg(not(feature = "gliner2-fastino"))]
                 {
@@ -1798,7 +2165,10 @@ impl TaskEvaluator {
                     use crate::DEFAULT_GLINER_MODEL;
                     use anno::backends::gliner_candle::GLiNERCandle;
                     let gliner = GLiNERCandle::from_pretrained(DEFAULT_GLINER_MODEL)?;
-                    Ok(Box::new(gliner))
+                    Ok(CachedBackendAny {
+                        backend: Box::new(gliner),
+                        construction_receipt: BackendConstructionReceipt::default(),
+                    })
                 }
                 #[cfg(not(feature = "candle"))]
                 {
@@ -1813,7 +2183,10 @@ impl TaskEvaluator {
                     use anno::backends::gliner_poly::GLiNERPoly;
                     use anno::DEFAULT_GLINER_POLY_MODEL;
                     let gliner_poly = GLiNERPoly::new(DEFAULT_GLINER_POLY_MODEL)?;
-                    Ok(Box::new(gliner_poly))
+                    Ok(CachedBackendAny {
+                        backend: Box::new(gliner_poly),
+                        construction_receipt: BackendConstructionReceipt::default(),
+                    })
                 }
                 #[cfg(not(feature = "onnx"))]
                 {
@@ -1825,7 +2198,10 @@ impl TaskEvaluator {
             "universal_ner" => {
                 use anno::backends::universal_ner::UniversalNER;
                 let universal_ner = UniversalNER::new()?;
-                Ok(Box::new(universal_ner))
+                Ok(CachedBackendAny {
+                    backend: Box::new(universal_ner),
+                    construction_receipt: BackendConstructionReceipt::default(),
+                })
             }
             _ => Err(crate::Error::InvalidInput(format!(
                 "Unknown zero-shot backend: {}",
@@ -3222,6 +3598,35 @@ impl ComprehensiveEvalResults {
         let mut md = String::new();
         md.push_str("# Eval Report\n\n");
 
+        let ner_policy_rows: Vec<_> = self
+            .results
+            .iter()
+            .filter_map(|result| {
+                result
+                    .provenance
+                    .ner_label_policy
+                    .as_ref()
+                    .map(|policy| (result, policy))
+            })
+            .collect();
+        if !ner_policy_rows.is_empty() {
+            md.push_str("## NER label policy\n\n");
+            md.push_str("Primary NER P/R/F1 uses strict span-and-type matching over every entity emitted by the backend. The closed-label value below is a separately named diagnostic using the same scorer after retaining the dataset label space; it never replaces the primary score.\n\n");
+            md.push_str("| Dataset | Backend | Pred outside dataset labels | Gold outside dataset labels | Closed-label F1 (diagnostic) |\n");
+            md.push_str("|---------|---------|-----------------------------|-----------------------------|------------------------------|\n");
+            for (result, policy) in ner_policy_rows {
+                md.push_str(&format!(
+                    "| {:?} | {} | {} | {} | {:.1} |\n",
+                    result.dataset,
+                    result.backend,
+                    policy.operational_predictions_outside_dataset_labels,
+                    policy.operational_gold_outside_dataset_labels,
+                    policy.dataset_label_closed_diagnostic.strict_f1 * 100.0,
+                ));
+            }
+            md.push('\n');
+        }
+
         // Backend macro-averages by task (successful-only).
         //
         // This is intentionally “objective backing”: within a single run/config, report
@@ -4107,6 +4512,38 @@ mod tests {
     use super::*;
     use crate::eval::loader::DatasetId;
 
+    #[cfg(feature = "eval-parallel")]
+    #[test]
+    fn parallel_receipt_observation_keeps_warm_cache_identity() {
+        use std::cell::RefCell;
+        use std::sync::Arc;
+
+        thread_local! {
+            static WARM_RECEIPT: RefCell<Option<BackendConstructionReceipt>> = const { RefCell::new(None) };
+        }
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("one-thread Rayon pool");
+        let observed = Arc::new(Mutex::new(Vec::new()));
+
+        for _ in 0..2 {
+            let observed = Arc::clone(&observed);
+            pool.install(|| {
+                WARM_RECEIPT.with(|cached| {
+                    let mut cached = cached.borrow_mut();
+                    let receipt = cached.get_or_insert_with(BackendConstructionReceipt::default);
+                    observe_construction_receipt(&observed, receipt);
+                });
+            });
+        }
+
+        let observed = lock(&observed);
+        assert_eq!(observed.len(), 2);
+        assert_eq!(observed[0], observed[1]);
+    }
+
     #[test]
     fn test_task_mapping_build() {
         let mapping = TaskMapping::build();
@@ -4253,9 +4690,9 @@ mod tests {
                 &TaskEvalConfig::default(),
             )
             .unwrap();
-        assert_eq!(metrics["f1"], 0.0);
-        assert_eq!(metrics["precision"], 0.0);
-        assert_eq!(metrics["recall"], 0.0);
+        assert_eq!(metrics.metrics["f1"], 0.0);
+        assert_eq!(metrics.metrics["precision"], 0.0);
+        assert_eq!(metrics.metrics["recall"], 0.0);
         let broken = anno::AnyModel::new("broken", "inference failure", vec![], |_, _| {
             Err(anno::Error::Inference("fixture failure".into()))
         });
@@ -4316,7 +4753,105 @@ mod tests {
             )
             .expect("evaluate_ner_task");
 
-        assert!(metrics.get("f1").copied().unwrap_or(0.0) >= 0.99);
+        assert!(metrics.metrics.get("f1").copied().unwrap_or(0.0) >= 0.99);
+    }
+
+    #[test]
+    fn ner_receipt_keeps_all_output_score_and_names_closed_label_diagnostic() {
+        use crate::eval::loader::{
+            AnnotatedSentence, AnnotatedToken, DataSource, DatasetMetadata, LoadedDataset,
+        };
+        use anno::{AnyModel, Entity, EntityType};
+
+        let dataset = LoadedDataset {
+            id: DatasetId::CoNLL2003Sample,
+            sentences: vec![AnnotatedSentence {
+                tokens: vec![
+                    AnnotatedToken {
+                        text: "Alice".into(),
+                        ner_tag: "B-PER".into(),
+                    },
+                    AnnotatedToken {
+                        text: "2024".into(),
+                        ner_tag: "O".into(),
+                    },
+                ],
+                source_dataset: DatasetId::CoNLL2003Sample,
+            }],
+            loaded_at: "test".to_string(),
+            source_url: "fixture".to_string(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+        let model = AnyModel::new("broader-output", "fixture", vec![], |_, _| {
+            Ok(vec![
+                Entity::new("Alice", EntityType::Person, 0, 5, 1.0),
+                Entity::new("2024", EntityType::Date, 6, 10, 1.0),
+            ])
+        });
+
+        let receipt = TaskEvaluator::new()
+            .unwrap()
+            .evaluate_ner_task(
+                "broader-output",
+                Some(&model),
+                DatasetId::CoNLL2003Sample,
+                &dataset,
+                &TaskEvalConfig::default(),
+            )
+            .unwrap();
+
+        assert_eq!(receipt.metrics["predictions_outside_dataset_labels"], 1.0);
+        assert!(receipt.metrics["f1"] < receipt.metrics["dataset_label_closed_f1"]);
+        assert_eq!(
+            receipt.label_policy.primary_policy,
+            "strict span-and-type micro score over all emitted entities; no label filtering"
+        );
+    }
+
+    #[test]
+    fn provenance_records_evaluator_supplied_zero_shot_threshold_only() {
+        assert!(matches!(
+            TaskEvaluator::ner_inference_provenance("gliner_onnx").threshold,
+            InferenceSettingProvenance::Known { value } if value == serde_json::json!(0.5)
+        ));
+        assert!(matches!(
+            TaskEvaluator::ner_inference_provenance("bert_onnx").threshold,
+            InferenceSettingProvenance::Unknown { .. }
+        ));
+    }
+
+    #[test]
+    fn failed_result_does_not_claim_sequential_scheduling() {
+        use crate::eval::loader::{DataSource, DatasetMetadata, LoadedDataset};
+
+        let dataset = LoadedDataset {
+            id: DatasetId::CoNLL2003Sample,
+            sentences: vec![],
+            loaded_at: "test".to_string(),
+            source_url: "fixture".to_string(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+        let result = TaskEvaluator::new()
+            .expect("TaskEvaluator::new")
+            .evaluate_backend_on_loaded(
+                Task::NER,
+                DatasetId::CoNLL2003Sample,
+                "not-a-backend",
+                &dataset,
+                0,
+                &TaskEvalConfig::default(),
+            );
+
+        assert!(!result.success);
+        assert!(matches!(
+            result.provenance.runtime.scheduling,
+            EvaluationScheduling::Unknown { .. }
+        ));
+        assert!(!result.provenance.build.package_version.is_empty());
     }
 
     #[test]
@@ -4537,6 +5072,7 @@ mod tests {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: EvalRunProvenance::default(),
         }
     }
 
@@ -4577,6 +5113,7 @@ mod tests {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: EvalRunProvenance::default(),
         };
 
         assert!(skipped.is_skipped());
@@ -4600,6 +5137,7 @@ mod tests {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: EvalRunProvenance::default(),
         };
 
         assert!(!not_skipped.is_skipped());
@@ -4733,6 +5271,44 @@ mod tests {
 
         assert_eq!(success_count, 1);
         assert_eq!(failure_count, 1);
+    }
+
+    #[test]
+    fn markdown_discloses_operational_and_closed_label_scores_separately() {
+        let mut result = make_test_result(true, None, Some(0.5));
+        result.provenance.ner_label_policy = Some(NerLabelPolicyReport {
+            primary_policy:
+                "strict span-and-type micro score over all emitted entities; no label filtering"
+                    .to_string(),
+            dataset_label_space: vec!["person".to_string()],
+            operational_gold_outside_dataset_labels: 0,
+            operational_predictions_outside_dataset_labels: 3,
+            dataset_label_closed_diagnostic: ClosedLabelDiagnostic {
+                strict_precision: 1.0,
+                strict_recall: 1.0,
+                strict_f1: 1.0,
+                gold_entities_scored: 1,
+                predicted_entities_scored: 1,
+            },
+        });
+        let report = ComprehensiveEvalResults {
+            results: vec![result],
+            summary: EvalSummary {
+                total_combinations: 1,
+                successful: 1,
+                failed: 0,
+                skipped: 0,
+                tasks: vec![Task::NER],
+                datasets: vec![DatasetId::WikiGold],
+                backends: vec!["stacked".to_string()],
+            },
+        }
+        .to_markdown();
+
+        assert!(report
+            .contains("Primary NER P/R/F1 uses strict span-and-type matching over every entity"));
+        assert!(report.contains("Closed-label F1 (diagnostic)"));
+        assert!(report.contains("| WikiGold | stacked | 3 | 0 | 100.0 |"));
     }
 
     #[test]

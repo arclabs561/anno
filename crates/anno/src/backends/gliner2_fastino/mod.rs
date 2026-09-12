@@ -224,7 +224,21 @@ pub struct GLiNER2Fastino {
     pub(crate) config: config::FastinoConfig,
     pub(crate) sessions: sessions::Sessions,
     pub(crate) model_id: String,
+    model_revision: Option<String>,
     pub(crate) execution_mode: ExecutionMode,
+    tokenizer_path: std::path::PathBuf,
+    config_path: Option<std::path::PathBuf>,
+}
+
+/// Exact local files selected for a GLiNER2 Fastino instance.
+#[derive(Debug, Clone)]
+pub struct GLiNER2FastinoArtifactPaths {
+    /// Tokenizer used for the encoded text and schema inputs.
+    pub tokenizer: std::path::PathBuf,
+    /// Optional model configuration selected at construction.
+    pub config: Option<std::path::PathBuf>,
+    /// Each ONNX graph selected for the live multi-session pipeline, by role.
+    pub graphs: Vec<(String, std::path::PathBuf)>,
 }
 
 impl std::fmt::Debug for GLiNER2Fastino {
@@ -304,7 +318,10 @@ impl GLiNER2Fastino {
                 .file_name()
                 .map(|s| s.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "gliner2_fastino_local".to_string()),
+            model_revision: cfg.model_revision.clone(),
             execution_mode: cfg.execution_mode,
+            tokenizer_path,
+            config_path: config_path.exists().then_some(config_path),
         })
     }
 
@@ -481,6 +498,28 @@ impl GLiNER2Fastino {
         let mut model = Self::from_local_with_config(snapshot_dir, cfg)?;
         model.model_id = model_id.to_string();
         Ok(model)
+    }
+
+    /// Return the exact local assets selected while constructing this model.
+    #[must_use]
+    pub fn artifact_paths(&self) -> GLiNER2FastinoArtifactPaths {
+        GLiNER2FastinoArtifactPaths {
+            tokenizer: self.tokenizer_path.clone(),
+            config: self.config_path.clone(),
+            graphs: self.sessions.artifact_paths().to_vec(),
+        }
+    }
+
+    /// Model ID passed to the constructor for this instance.
+    #[must_use]
+    pub fn model_id(&self) -> &str {
+        &self.model_id
+    }
+
+    /// Pinned revision used for this instance, when the caller supplied one.
+    #[must_use]
+    pub fn model_revision(&self) -> Option<&str> {
+        self.model_revision.as_deref()
     }
 }
 

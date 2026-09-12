@@ -1,8 +1,7 @@
 //! ONNX CoreML EP inference benchmark.
 //!
 //! Successor to `onnx_coreml_smoke.rs`: the smoke validates session creation;
-//! this benchmark validates that CoreML actually accelerates inference (i.e.
-//! catches silent CPU fallback). Builds two sessions on the same model
+//! this benchmark compares end-to-end timing for CoreML and CPU sessions. Builds two sessions on the same model
 //! (`prefer_coreml=true` and `prefer_coreml=false`), runs N inferences each,
 //! compares wall time.
 //!
@@ -31,7 +30,9 @@
 //! cargo run --release --example onnx_coreml_bench --features onnx,onnx-coreml
 //! ```
 //!
-//! Exit code: 0 when speedup >= MIN_SPEEDUP, 1 otherwise.
+//! This example does not prove graph placement. Use
+//! `onnx_bert_provider_probe` with a representative model when provider
+//! assignment is required.
 
 #[cfg(not(all(feature = "onnx", feature = "onnx-coreml")))]
 fn main() {
@@ -195,21 +196,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let speedup = cpu_time / coreml_time;
     eprintln!("[bench] speedup: {:.2}x (CoreML / CPU ratio)", speedup);
 
-    // Both inferences completing end-to-end is the smoke. The speedup ratio
-    // is a measurement, not an assertion: for small models on Apple Silicon,
+    // The speedup ratio is a measurement, not an assertion: for small models on Apple Silicon,
     // CoreML's CPU<->ANE transfer overhead frequently exceeds the speedup,
     // and ratios <1.0 are expected (and observed, ~0.21 on all-MiniLM-L6-v2).
-    // The actual silent-fallback failure mode would manifest as runtime
-    // errors during session.run() above, which would have aborted the bench
-    // before reaching this print.
+    // A successful run or a speed difference does not prove CoreML node
+    // placement; ONNX Runtime may run unsupported nodes on CPU.
     if speedup < 1.0 {
         eprintln!(
             "[bench] note: CoreML slower than CPU here. This is expected on small models \
              where the kernel-compile + tensor-transfer overhead dominates. Larger models \
-             that fit ANE typically show >1x. The fact that both runs completed proves \
-             CoreML executed the graph end-to-end."
+             that fit ANE may show >1x. Inspect an ORT profiling trace before attributing \
+             this result to accelerator graph placement."
         );
     }
-    eprintln!("[bench] PASS (both inferences completed end-to-end)");
+    eprintln!("[bench] PASS (timing comparison completed; provider assignment unverified)");
     Ok(())
 }

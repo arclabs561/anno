@@ -4435,6 +4435,7 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
         }
     }
 

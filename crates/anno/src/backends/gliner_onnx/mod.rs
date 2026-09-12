@@ -90,6 +90,26 @@ pub struct GLiNEROnnx {
     /// BGE models use a different tokenizer than DeBERTa. Falls back to the main
     /// tokenizer if no separate label tokenizer is found.
     label_tokenizer: Option<std::sync::Arc<tokenizers::Tokenizer>>,
+    /// Exact files selected while constructing this instance.
+    artifact_paths: GLiNEROnnxArtifactPaths,
+}
+
+/// Paths selected by a concrete GLiNER ONNX construction.
+///
+/// These are retained so evaluation can hash the files that were actually
+/// opened, rather than attempting to reconstruct a Hugging Face cache choice.
+#[derive(Debug, Clone)]
+pub struct GLiNEROnnxArtifactPaths {
+    /// Main ONNX graph opened for this instance.
+    pub graph: std::path::PathBuf,
+    /// Text tokenizer loaded for this instance.
+    pub tokenizer: std::path::PathBuf,
+    /// Optional GLiNER configuration file that supplied special-token IDs.
+    pub config: Option<std::path::PathBuf>,
+    /// Optional label-encoder graph installed for a bi-encoder model.
+    pub label_encoder: Option<std::path::PathBuf>,
+    /// Optional label tokenizer installed for a bi-encoder model.
+    pub label_tokenizer: Option<std::path::PathBuf>,
 }
 
 #[cfg(feature = "onnx")]
