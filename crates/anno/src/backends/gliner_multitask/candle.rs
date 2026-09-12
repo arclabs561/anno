@@ -238,15 +238,16 @@ impl GLiNERMultitaskCandle {
 
         // Load config -- try config.json first, fall back to gliner_config.json
         // (GLiNER models like urchade/gliner_multi-v2.1 only have gliner_config.json)
-        let config_path = repo
-            .get("config.json")
-            .or_else(|_| repo.get("gliner_config.json"))
-            .map_err(|e| {
-                Error::Retrieval(format!(
-                    "config (tried config.json and gliner_config.json): {}",
-                    e
-                ))
-            })?;
+        let config_path = crate::backends::hf_loader::download_model_file(
+            &repo,
+            &["config.json", "gliner_config.json"],
+        )
+        .map_err(|e| {
+            Error::Retrieval(format!(
+                "config (tried config.json and gliner_config.json): {}",
+                e
+            ))
+        })?;
         let config_str = std::fs::read_to_string(&config_path)
             .map_err(|e| Error::Retrieval(format!("read config: {}", e)))?;
         let config: serde_json::Value = serde_json::from_str(&config_str)
@@ -257,17 +258,17 @@ impl GLiNERMultitaskCandle {
         let device = Device::cuda_if_available(0).unwrap_or(Device::Cpu);
 
         // Load weights - try safetensors first, then convert pytorch if needed
-        let weights_path = repo
-            .get("model.safetensors")
-            .or_else(|_| repo.get("gliner_model.safetensors"))
-            .or_else(|_| {
-                // Try to convert pytorch_model.bin to safetensors
-                let pytorch_path = repo.get("pytorch_model.bin")?;
-                crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
-            })
-            .map_err(|e| {
-                Error::Retrieval(format!("weights not found and conversion failed: {}", e))
-            })?;
+        let weights_path = crate::backends::hf_loader::download_model_file(
+            &repo,
+            &["model.safetensors", "gliner_model.safetensors"],
+        )
+        .or_else(|_| {
+            // Try to convert pytorch_model.bin to safetensors
+            let pytorch_path =
+                crate::backends::hf_loader::download_model_file(&repo, &["pytorch_model.bin"])?;
+            crate::backends::gliner_candle::convert_pytorch_to_safetensors(&pytorch_path)
+        })
+        .map_err(|e| Error::Retrieval(format!("weights not found and conversion failed: {}", e)))?;
 
         // SAFETY: VarBuilder::from_mmaped_safetensors uses unsafe internally for memory mapping.
         // The weights_path is validated to exist before this call, and the safetensors format

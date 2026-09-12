@@ -607,8 +607,9 @@ pub fn cross_lingual_similarity(a: &str, b: &str) -> f32 {
                 }
             }
             if let Some(start) = text.find('（') {
-                if let Some(end) = text[start..].find('）') {
-                    let content = text[start + 1..start + end].trim();
+                let after_start = &text[start..];
+                if let Some(end) = after_start.find('）') {
+                    let content = after_start['（'.len_utf8()..end].trim();
                     if !content.is_empty() {
                         variants.push(content.to_string());
                     }
@@ -1145,6 +1146,16 @@ mod proptests {
         // Test the reverse direction
         let sim = cross_lingual_similarity("Tokyo", "東京 (Tokyo)");
         assert!(sim > 0.5, "Should work in reverse direction, got {}", sim);
+    }
+
+    #[test]
+    fn test_cross_lingual_with_fullwidth_parentheses() {
+        let sim = cross_lingual_similarity("巴黎（Paris）", "Paris");
+        assert!(
+            sim > 0.5,
+            "Should extract transliteration from fullwidth parentheses, got {}",
+            sim
+        );
     }
 
     #[test]

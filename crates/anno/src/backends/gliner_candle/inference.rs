@@ -59,6 +59,12 @@ pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<Path
         return Ok(safetensors_path);
     }
 
+    if crate::backends::hf_loader::no_downloads() {
+        return Err(Error::Retrieval(
+            "ANNO_NO_DOWNLOADS is set; pre-convert PyTorch weights to safetensors before offline loading".into(),
+        ));
+    }
+
     log::info!(
         "Converting PyTorch model to safetensors: {:?}",
         pytorch_path
@@ -148,24 +154,31 @@ impl GLiNERCandle {
         // Try knowledgator models first (they have safetensors + tokenizer.json)
         // knowledgator/modern-gliner-bi-large-v1.0 has safetensors available
         // Fall back to urchade models if needed
-        let tokenizer_path = repo.get("tokenizer.json").map_err(|e| {
-            Error::Retrieval(format!(
-                "tokenizer.json not found. GLiNER Candle requires tokenizer.json. \
+        let tokenizer_path =
+            crate::backends::hf_loader::download_model_file(&repo, &["tokenizer.json"]).map_err(
+                |e| {
+                    Error::Retrieval(format!(
+                        "tokenizer.json not found. GLiNER Candle requires tokenizer.json. \
                  Try using knowledgator/modern-gliner-bi-large-v1.0 (has safetensors) \
                  or GLiNEROnnx instead. Original error: {}",
-                e
-            ))
-        })?;
+                        e
+                    ))
+                },
+            )?;
         // GLiNER Candle requires safetensors format
         // Most GLiNER models only have pytorch_model.bin, which Candle cannot load directly
         // Workaround: Try to convert pytorch_model.bin to safetensors on-the-fly
-        let weights_path = repo
-            .get("model.safetensors")
-            .or_else(|_| repo.get("gliner_model.safetensors"))
+        let weights_path = crate::backends::hf_loader::download_model_file(
+            &repo,
+            &["model.safetensors", "gliner_model.safetensors"],
+        )
             .or_else(|_| {
                 // Workaround: Try to convert pytorch_model.bin to safetensors
                 // Now that we have From<ApiError>, we can use ? directly
-                let pytorch_path = repo.get("pytorch_model.bin")?;
+                let pytorch_path = crate::backends::hf_loader::download_model_file(
+                    &repo,
+                    &["pytorch_model.bin"],
+                )?;
                 convert_pytorch_to_safetensors(&pytorch_path)
             })
             .map_err(|e| Error::Retrieval(format!(
@@ -177,15 +190,16 @@ impl GLiNERCandle {
                 e
             )))?;
         // GLiNER models use gliner_config.json instead of standard config.json
-        let config_path = repo
-            .get("config.json")
-            .or_else(|_| repo.get("gliner_config.json"))
-            .map_err(|e| {
-                Error::Retrieval(format!(
-                    "config (tried config.json and gliner_config.json): {}",
-                    e
-                ))
-            })?;
+        let config_path = crate::backends::hf_loader::download_model_file(
+            &repo,
+            &["config.json", "gliner_config.json"],
+        )
+        .map_err(|e| {
+            Error::Retrieval(format!(
+                "config (tried config.json and gliner_config.json): {}",
+                e
+            ))
+        })?;
 
         // Load tokenizer (only if tokenizer.json, not tokenizer_config.json)
         let tokenizer = if tokenizer_path.ends_with("tokenizer.json") {
