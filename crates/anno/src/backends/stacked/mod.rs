@@ -545,17 +545,36 @@ impl Default for StackedNER {
         #[cfg(feature = "onnx")]
         {
             // Try ML backends independently: each is useful on its own.
-            // Construction errors (including "cached-only mode, file missing")
-            // surface as `Err`, which `.ok()` drops so the stacked builder
-            // falls through to heuristic backends.
             use crate::backends::onnx::BertNEROnnx;
             use crate::DEFAULT_BERT_ONNX_MODEL;
-            let bert = BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL).ok();
+            let bert = match BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL) {
+                Ok(model) => Some(model),
+                Err(error) => {
+                    log::warn!(
+                        "could not load default BERT model {}; trying default NuNER model {}: {}",
+                        DEFAULT_BERT_ONNX_MODEL,
+                        crate::DEFAULT_NUNER_MODEL,
+                        error
+                    );
+                    None
+                }
+            };
             // NuNER threshold is higher (0.9) when stacked with other ML
             // backends to avoid false positives on common nouns.
-            let nuner = crate::backends::nuner::NuNER::from_pretrained(crate::DEFAULT_NUNER_MODEL)
-                .map(|n| n.with_threshold(0.9))
-                .ok();
+            let nuner = match crate::backends::nuner::NuNER::from_pretrained(
+                crate::DEFAULT_NUNER_MODEL,
+            ) {
+                Ok(model) => Some(model.with_threshold(0.9)),
+                Err(error) => {
+                    log::warn!(
+                        "could not load default NuNER model {}; trying default GLiNER model {} if no ML backend loads: {}",
+                        crate::DEFAULT_NUNER_MODEL,
+                        DEFAULT_GLINER_MODEL,
+                        error
+                    );
+                    None
+                }
+            };
 
             if bert.is_some() || nuner.is_some() {
                 let mut builder = Self::builder();
@@ -573,12 +592,19 @@ impl Default for StackedNER {
 
             // Fallback to GLiNER (zero-shot, broader label set).
             use crate::{GLiNEROnnx, DEFAULT_GLINER_MODEL};
-            if let Ok(gliner) = GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
-                return Self::builder()
-                    .layer_boxed(Box::new(gliner))
-                    .layer(RegexNER::new())
-                    .layer(HeuristicNER::new())
-                    .build();
+            match GLiNEROnnx::new(DEFAULT_GLINER_MODEL) {
+                Ok(gliner) => {
+                    return Self::builder()
+                        .layer_boxed(Box::new(gliner))
+                        .layer(RegexNER::new())
+                        .layer(HeuristicNER::new())
+                        .build();
+                }
+                Err(error) => log::warn!(
+                    "could not load default GLiNER model {}; using the pattern and heuristic fallback: {}",
+                    DEFAULT_GLINER_MODEL,
+                    error
+                ),
             }
         }
 

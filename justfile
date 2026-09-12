@@ -11,7 +11,7 @@ check:
     #!/usr/bin/env bash
     set -e
     just docs-audit
-    cargo fmt --manifest-path Cargo.toml -p anno -- --check
+    cargo fmt --manifest-path Cargo.toml --all -- --check
     cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval discourse" -- -D warnings
     if command -v cargo-nextest >/dev/null 2>&1; then
         cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
@@ -115,9 +115,9 @@ t FILTER:
 tf FILTER:
     #!/usr/bin/env bash
     if command -v cargo-nextest >/dev/null 2>&1; then
-        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features "eval discourse"
+        cargo nextest run --profile quick -p anno -E 'test(/{{FILTER}}/)' --features discourse
     else
-        cargo test -p anno --features "eval discourse" -- '{{FILTER}}'
+        cargo test -p anno --features discourse -- '{{FILTER}}'
     fi
 
 # === Test Profiling (Nextest + Rust Tooling) ===
@@ -146,28 +146,13 @@ profile-ml:
 profile-filter FILTER:
     @just profile-tests quick "{{FILTER}}"
 
-# Quick timing report (no full run, just analyze existing)
+# Analyze the latest recorded nextest profile without rerunning tests.
 profile-timing:
-    @NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 cargo nextest run --profile quick --workspace --features "eval discourse" --message-format libtest-json-plus --status-level all
+    @just profile-analyze
 
 # Show slowest tests from last profile run
 profile-slowest:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if [ -z "$(ls -A target/test-profiles/timing_*.json 2>/dev/null || true)" ]; then
-        echo "No timing files found. Run 'just profile-tests' first."
-        exit 1
-    fi
-    LATEST="$(ls -t target/test-profiles/timing_*.json | sed -n '1p')"
-    echo "Analyzing: $LATEST"
-    if command -v jq >/dev/null 2>&1; then
-        echo ""
-        echo "=== Slowest Tests ==="
-        jq -r '.test_executions[] | select(.duration_secs > 0.1) | "\(.duration_secs | tostring | .[0:6])s  \(.test_name)"' \
-            "$LATEST" | sort -rn
-    else
-        echo "Install jq for analysis: brew install jq"
-    fi
+    @just profile-analyze
 
 # Analyze test profile with detailed breakdown
 profile-analyze FILE="":
@@ -205,10 +190,10 @@ ci: fmt
     cargo test --package anno --lib
     cargo build --workspace --features "eval discourse"
     cargo test --workspace --lib --features "eval discourse"
-    cargo test --package anno --tests --features "eval discourse"
+    cargo test --package anno --tests --features discourse
     cargo build -p anno-cli --features "eval onnx pdf"
-    cargo build --workspace --no-default-features
-    cargo test --workspace --no-default-features --lib
+    cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
+    cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
     RUSTDOCFLAGS='-D warnings' cargo doc -p anno -p anno-eval --no-deps --features "eval discourse"
     @echo "CI simulation passed"
 
@@ -413,10 +398,6 @@ readme-preview:
     open http://localhost:$$PORT/README_github_style.html && \
     echo "ok: Preview at http://localhost:$$PORT/README_github_style.html (auto-reloads)"
 
-# Run e2e test with Playwright + Gemini VLM
-readme-test:
-    @uv run scripts/e2e_readme_test.py
-
 # Type-check Python scripts with ty (optional).
 # Notes:
 # - Uses `uvx` so you don't have to install ty into your repo venv.
@@ -531,16 +512,6 @@ validate-rules:
     @echo "Validating OpenGrep rules against known patterns..."
     @./scripts/validate-rules.sh
 
-unified-report:
-    @echo "Generating unified static analysis report..."
-    @./scripts/generate-unified-report.sh
-    @echo "Report generated: unified-static-analysis-report.md"
-
-failure-summary:
-    @echo "Summarizing static analysis failures..."
-    @./scripts/summarize-failures.sh
-    @echo "Summary generated: static-analysis-failures-summary.md"
-
 # Static analysis tools
 deny:
     @which cargo-deny > /dev/null || (echo "Install: cargo install --locked cargo-deny" && exit 1)
@@ -647,7 +618,8 @@ test-nextest:
 # Generate code coverage report
 coverage:
     @which cargo-llvm-cov > /dev/null || (echo "Install: cargo install cargo-llvm-cov" && exit 1)
-    cargo llvm-cov --features "eval discourse" --workspace --lcov --output-path lcov.info
+    @which cargo-nextest > /dev/null || (echo "Install: cargo install cargo-nextest" && exit 1)
+    cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
     @echo "Coverage report generated: lcov.info"
     @echo "View with: genhtml lcov.info -o coverage-html && open coverage-html/index.html"
 

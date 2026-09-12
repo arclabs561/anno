@@ -37,7 +37,10 @@ impl GLiNEROnnx {
 
         // Download model - try ONNX first, fall back to auto-export from PyTorch
         let (model_path, is_quantized) =
-            hf_loader::download_onnx_model(&repo, config.prefer_quantized).or_else(|_| {
+            hf_loader::download_onnx_model(&repo, config.prefer_quantized).or_else(|error| {
+                if hf_loader::no_downloads() {
+                    return Err(error);
+                }
                 log::info!(
                     "[GLiNER] No ONNX model in repo '{}', attempting auto-export from PyTorch...",
                     model_name
@@ -80,30 +83,29 @@ impl GLiNEROnnx {
         };
 
         // Read class_token_index from gliner_config.json (if present).
-        let (token_ent, token_sep) =
-            match hf_loader::download_model_file(&repo, &["gliner_config.json"]) {
-                Ok(config_path) => {
-                    let config_str = std::fs::read_to_string(&config_path).unwrap_or_default();
-                    let config_json: serde_json::Value =
-                        serde_json::from_str(&config_str).unwrap_or_default();
-                    let ent = config_json
-                        .get("class_token_index")
-                        .and_then(|v| v.as_u64())
-                        .map(|v| v as u32)
-                        .unwrap_or(DEFAULT_TOKEN_ENT);
-                    // sep is typically class_token_index + 1
-                    let sep = ent.saturating_add(1);
-                    if ent != DEFAULT_TOKEN_ENT {
-                        log::info!(
+        let (token_ent, token_sep) = match hf_loader::download_model_file(
+            &repo,
+            &["gliner_config.json"],
+        ) {
+            Ok(config_path) => {
+                let config_str = std::fs::read_to_string(&config_path).map_err(|error| {
+                    Error::Retrieval(format!("read gliner_config.json: {error}"))
+                })?;
+                let (ent, sep) = gliner_token_ids(&config_str)?;
+                if ent != DEFAULT_TOKEN_ENT {
+                    log::info!(
                         "[GLiNER] Using class_token_index={} from gliner_config.json (default={})",
                         ent,
                         DEFAULT_TOKEN_ENT
                     );
-                    }
-                    (ent, sep)
                 }
-                Err(_) => (DEFAULT_TOKEN_ENT, DEFAULT_TOKEN_SEP),
-            };
+                (ent, sep)
+            }
+            Err(error) => {
+                log::warn!("[GLiNER] gliner_config.json unavailable; using default special-token IDs: {error}");
+                (DEFAULT_TOKEN_ENT, DEFAULT_TOKEN_SEP)
+            }
+        };
 
         // Detect whether the model expects span_idx/span_mask inputs.
         // Token-level classifiers (e.g., gliner-pii-edge) don't have these.
@@ -1234,6 +1236,22 @@ impl GLiNEROnnx {
     }
 }
 
+#[cfg(feature = "onnx")]
+fn gliner_token_ids(config_str: &str) -> Result<(u32, u32)> {
+    let config_json: serde_json::Value = serde_json::from_str(config_str)
+        .map_err(|error| Error::Parse(format!("gliner_config.json: {error}")))?;
+    let ent = match config_json.get("class_token_index") {
+        None if config_json.is_object() => DEFAULT_TOKEN_ENT,
+        Some(value) => value
+            .as_u64()
+            .and_then(|v| u32::try_from(v).ok())
+            .filter(|v| *v < u32::MAX)
+            .ok_or_else(|| Error::Parse("gliner_config.json: invalid class_token_index".into()))?,
+        _ => return Err(Error::Parse("gliner_config.json must be an object".into())),
+    };
+    Ok((ent, ent + 1))
+}
+
 pub(crate) fn looks_like_company_name(text: &str) -> bool {
     // Keep the logic cheap and conservative (no regex): normalize and check suffix markers.
     let t = text.trim();
@@ -1513,6 +1531,18 @@ pub(super) const DEFAULT_GLINER_LABELS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn malformed_gliner_config_is_an_error() {
+        let error = gliner_token_ids("{").expect_err("malformed config must fail");
+        assert!(error.to_string().contains("gliner_config.json"));
+        assert!(gliner_token_ids(r#"{"class_token_index":"invalid"}"#).is_err());
+        assert!(gliner_token_ids(r#"{"class_token_index":4294967295}"#).is_err());
+        assert_eq!(
+            gliner_token_ids(r#"{"class_token_index":128000}"#).unwrap(),
+            (128000, 128001)
+        );
+    }
 
     #[test]
     fn test_extract_char_slice_with_len_basic() {

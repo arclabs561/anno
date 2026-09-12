@@ -3814,7 +3814,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         backends: chosen_backends.clone(),
         max_examples: Some(max_examples_per_dataset()),
         seed: Some(seed),
-        require_cached,
+        require_cached: require_cached_for_run,
         relation_threshold: 0.5,
         robustness: false,
         compute_familiarity: false,
