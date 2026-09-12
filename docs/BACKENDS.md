@@ -35,6 +35,12 @@ construction time if its feature isn't enabled.
 | `gliner_candle` | GLiNER via Candle (pure Rust) | Yes | beta | `urchade/gliner_small-v2.1` (also: `knowledgator/gliner-bi-base-v2.0`, `gliner-bi-large-v2.0`) |
 | `candle_ner` | BERT NER via Candle | No | beta | `dslim/bert-base-NER` |
 
+### Neural: Fastino GLiNER2 (feature `gliner2-fastino`)
+
+`GLiNER2Fastino` is available behind the `gliner2-fastino` feature. Its
+optional Candle implementation is behind `gliner2-fastino-candle`; see
+[the feature-gating contract](CONTRACT.md) for the supported feature surface.
+
 ### Neural: LLM (feature `llm`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
@@ -84,18 +90,13 @@ Pointers (for “what good looks like” in classical NER):
 ## GLiNER entity type limit
 
 Cross-encoder GLiNER models (e.g. `gliner_small-v2.1`) encode entity type labels
-jointly with the input text. Performance degrades beyond ~30 entity types per
-inference call. If you need more types, batch them into groups of 20-30 and merge
-results across calls.
+jointly with the input text. For large label sets, measure the chosen model and
+batch labels when that fits the workload.
 
 The `knowledgator/gliner-bi-*-v2.0` bi-encoder models pre-compute label
-embeddings independently from the input text. This gives ~130x speedup at high
-label counts since label embeddings can be cached and reused across inputs. These
-models are available for the `gliner_candle` backend (safetensors). Pre-converted
-ONNX exports are not yet available for the `gliner`/`gliner_onnx` backends.
-
-Source: practitioner findings from the GLiNER community and "Illustrated GLiNER"
-(Shahrukh Khan). Bi-encoder speedup figure from Knowledgator's model card.
+embeddings independently from the input text. These models are available for the
+`gliner_candle` backend (safetensors). Pre-converted ONNX exports are not yet
+available for the `gliner`/`gliner_onnx` backends.
 
 ## Backend setup (export scripts and weights)
 
@@ -227,11 +228,10 @@ Notes:
 Some optional modules are *helpers* that operate over the same span/offset contract, but they are
 not “backends” in the NER table sense:
 
-- **Chunking helpers**: `anno::backends::semantic_chunking` always provides a lightweight
-  rule-based chunker (paragraph boundaries + size limits + overlap). The `semantic-chunking`
-  feature adds a sentence-similarity strategy (still dependency-light; no embedding model).
-  Chunking does not change extraction shapes; it only decides which slices of text to run
-  extraction over.
+- **Chunking helpers**: `anno::backends::chunking` splits text into overlapping
+  chunks with source character offsets. The `chunking` feature adds
+  `chunk_text_semantic`, which uses `text-splitter` for Unicode sentence, word,
+  and grapheme boundaries.
 - **`discourse` feature**: discourse-level utilities (centering, shell nouns, abstract referents).
   These operate on **character-offset spans** (events/propositions still need localization), and
   are primarily used by evaluation tooling.
