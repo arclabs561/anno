@@ -56,7 +56,7 @@ default-filter = "not test(/property/) and not test(/proptest/) and not test(/ev
 # Keep them in the quick gate, but avoid concurrent model-loading contention and
 # allow the normal 120-second budget (the fixture alone takes about 30 seconds).
 [[profile.quick.overrides]]
-filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or test(convenience_tests::) or test(backends::tplinker::tests::) or test(test_default_includes_ml_backend_when_available) or test(test_strategy_default_is_priority) or test(fixture_documents_structure_and_min_counts))'
+filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or test(convenience_tests::) or test(backends::tplinker::tests::) or test(test_default_includes_ml_backend_when_available) or test(test_strategy_default_is_priority) or test(fixture_documents_structure_and_min_counts) or test(enrich_findings::all_backends_))'
 test-group = 'model-initialization'
 slow-timeout = { period = "60s", terminate-after = 2 }
 
