@@ -42,17 +42,18 @@ safetensors bytes without downloading files or spawning Python. Native
 requires its existing BERT tensor layout; byte-backed construction does not
 add DeBERTa or ModernBERT support.
 
-The experimental `wasm` feature builds the library with native network and
-filesystem model constructors excluded:
+The experimental Candle target build excludes native network and
+filesystem model constructors:
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo build -p anno --target wasm32-unknown-unknown --no-default-features --features wasm
+cargo build -p anno --target wasm32-unknown-unknown --no-default-features --features candle
 ```
 
 Use Cargo and rustc from the toolchain where the target is installed. This is
 library build support, not a JavaScript binding or a verified browser demo.
 A compatible trained checkpoint and browser inference test are still required.
+The public browser feature remains deferred until those gates pass.
 
 ### ONNX execution providers
 

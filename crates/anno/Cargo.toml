@@ -130,9 +130,6 @@ candle = [
   "dep:tokenizers",
   "dep:hf-hub",
 ]
-# Experimental WebAssembly build support. Callers provide byte-backed assets;
-# a compatible trained checkpoint and browser runtime validation are separate gates.
-wasm = ["candle"]
 metal = ["candle", "candle-core/metal"]
 cuda = ["candle", "candle-core/cuda"]
 llm = ["dep:ureq"]
