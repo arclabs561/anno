@@ -65,8 +65,18 @@ provider returns an error. Successful registration still permits CPU
 execution of unsupported graph nodes; it does not prove full GPU placement.
 
 The `onnx_cuda_smoke` and `onnx_coreml_smoke` examples accept an optional
-local ONNX path to verify registration without a download. CUDA, DirectML,
-and ROCm runtime validation requires the corresponding hardware and drivers.
+local ONNX path to verify registration without a download. CUDA and DirectML
+runtime validation requires the corresponding hardware and drivers.
+
+DirectML sessions disable memory patterns and use sequential execution, as
+required by the [DirectML provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html).
+Real-model placement on Windows remains unverified.
+
+The `onnx-rocm` feature is a legacy binding, not a supported AMD runtime path
+with the current dependency: `ort` targets ONNX Runtime 1.24, while the
+[ROCm provider was removed in 1.23](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html).
+Upstream recommends MIGraphX. Selecting and validating a compatible AMD
+provider is tracked in [issue #19](https://github.com/arclabs561/anno/issues/19).
 
 For a cached BERT graph, `onnx_bert_cuda_provider_probe` retains CPU/CUDA
 profiles, artifact hashes, label agreement, and the strict logit comparison.
