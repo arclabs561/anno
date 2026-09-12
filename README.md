@@ -5,8 +5,8 @@
 
 Text annotation and entity extraction.
 
-`anno` extracts entity spans, resolves coreference, and finds common forms of
-personally identifiable information. Model-backed extractors are optional; the
+Extract entity spans, coreference links, and common forms of personally
+identifiable information from text. Model-backed extractors are optional; the
 rule-based extractors work offline.
 
 ## Library
@@ -17,21 +17,25 @@ anno = "0.12"
 ```
 
 ```rust
-let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
-for entity in entities {
-    println!(
-        "{} [{}] {}..{}",
-        entity.text,
-        entity.entity_type,
-        entity.start(),
-        entity.end()
-    );
+fn main() -> anno::Result<()> {
+    let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
+    for entity in entities {
+        println!(
+            "{} [{}] {}..{}",
+            entity.text,
+            entity.entity_type,
+            entity.start(),
+            entity.end()
+        );
+    }
+    Ok(())
 }
-# Ok::<(), anno::Error>(())
 ```
 
-Offsets are character offsets, not UTF-8 byte offsets. Confidence scores depend
-on the selected backend and are not calibrated across backends.
+For repeated extraction, create and reuse a model rather than calling
+`anno::extract` each time. Offsets are character offsets, not UTF-8 byte
+offsets. Confidence scores are backend-local and are not calibrated across
+backends.
 
 Pattern-based PII redaction covers values such as email addresses, phone
 numbers, and identification numbers:
@@ -51,23 +55,22 @@ cargo install anno-cli
 ```
 
 ```console
-$ anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
+$ ANNO_NO_DOWNLOADS=1 anno extract --model heuristic --text "Lynn Conway worked at IBM and Xerox PARC in California."
 PER:1 "Lynn Conway"
 ORG:2 "IBM" "Xerox PARC"
 LOC:1 "California"
 ```
 
-`anno extract --format json` emits JSON. Run `anno help <command>` for command
-options.
+This uses the offline heuristic backend. `anno extract --format json` emits
+JSON. Run `anno help <command>` for command options.
 
 ## Backends
 
 The default `onnx` feature may download model weights on first use. Set
-`ANNO_NO_DOWNLOADS=1` to allow only cached or local models; extraction then
-falls back to pattern and heuristic backends when those models are unavailable.
-Other optional features include `candle`, GPU support, discourse analysis,
-metrics, graph export, and JSON Schema. Their requirements and model identifiers
-are listed in [the backend guide](docs/BACKENDS.md).
+`ANNO_NO_DOWNLOADS=1` to use only cached or local models; the default stack then
+falls back to pattern and heuristic extractors when a model is unavailable.
+The [backend guide](docs/BACKENDS.md) lists model identifiers, feature flags,
+and hardware requirements.
 
 This crate provides inference and annotation utilities, not model training.
 The minimum supported Rust version is 1.88.
