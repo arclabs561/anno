@@ -185,7 +185,8 @@ pub struct VisualNERMetrics {
     pub e2e_f1: f64,
 
     // Per-type breakdown
-    /// Metrics per entity type
+    /// Metrics per entity type. Empty when type matching is disabled because
+    /// type-agnostic matches cannot be attributed coherently to one type.
     pub per_type: HashMap<String, VisualTypeMetrics>,
 
     // Counts
@@ -244,11 +245,6 @@ pub fn evaluate_visual_ner(
 
     let mut type_stats: HashMap<String, (usize, usize, usize, usize, usize)> = HashMap::new();
 
-    // Track which gold entities have been matched
-    let mut gold_text_matched = vec![false; gold.len()];
-    let mut gold_box_matched = vec![false; gold.len()];
-    let mut gold_e2e_matched = vec![false; gold.len()];
-
     // Initialize type stats
     for g in gold {
         type_stats
@@ -263,54 +259,49 @@ pub fn evaluate_visual_ner(
             .1 += 1;
     }
 
-    // Match predictions to gold
-    for p in pred {
-        let pred_text = normalize_text(&p.text, config);
+    // Each metric has a separate maximum-cardinality one-to-one assignment.
+    // This preserves independent text/box/E2E semantics while ensuring that
+    // greedy early choices cannot reduce the number of valid matches.
+    let text_assignment = maximum_cardinality_matching(pred.len(), gold.len(), |p_idx, g_idx| {
+        let p = &pred[p_idx];
+        let g = &gold[g_idx];
+        (!config.require_type_match || p.entity_type == g.entity_type)
+            && normalize_text(&p.text, config) == normalize_text(&g.text, config)
+    });
+    let box_assignment = maximum_cardinality_matching(pred.len(), gold.len(), |p_idx, g_idx| {
+        let p = &pred[p_idx];
+        let g = &gold[g_idx];
+        (!config.require_type_match || p.entity_type == g.entity_type)
+            && p.bbox.iou(&g.bbox) >= config.iou_threshold
+    });
+    let e2e_assignment = maximum_cardinality_matching(pred.len(), gold.len(), |p_idx, g_idx| {
+        let p = &pred[p_idx];
+        let g = &gold[g_idx];
+        (!config.require_type_match || p.entity_type == g.entity_type)
+            && normalize_text(&p.text, config) == normalize_text(&g.text, config)
+            && p.bbox.iou(&g.bbox) >= config.iou_threshold
+    });
 
-        for (g_idx, g) in gold.iter().enumerate() {
-            // Check type match if required
-            if config.require_type_match && p.entity_type != g.entity_type {
-                continue;
+    for g_idx in text_assignment.into_iter().flatten() {
+        text_matches += 1;
+        if let Some(stats) = type_stats.get_mut(&gold[g_idx].entity_type) {
+            stats.2 += 1;
+        }
+    }
+    for (p_idx, g_idx) in box_assignment.into_iter().enumerate() {
+        if let Some(g_idx) = g_idx {
+            box_matches += 1;
+            iou_sum += pred[p_idx].bbox.iou(&gold[g_idx].bbox) as f64;
+            iou_count += 1;
+            if let Some(stats) = type_stats.get_mut(&gold[g_idx].entity_type) {
+                stats.3 += 1;
             }
-
-            let gold_text = normalize_text(&g.text, config);
-            let text_match = pred_text == gold_text;
-            let iou = p.bbox.iou(&g.bbox);
-            let box_match = iou >= config.iou_threshold;
-
-            // Update IoU stats for any overlapping boxes
-            if iou > 0.0 {
-                iou_sum += iou as f64;
-                iou_count += 1;
-            }
-
-            // Text match
-            if text_match && !gold_text_matched[g_idx] {
-                gold_text_matched[g_idx] = true;
-                text_matches += 1;
-                if let Some(stats) = type_stats.get_mut(&g.entity_type) {
-                    stats.2 += 1;
-                }
-            }
-
-            // Box match
-            if box_match && !gold_box_matched[g_idx] {
-                gold_box_matched[g_idx] = true;
-                box_matches += 1;
-                if let Some(stats) = type_stats.get_mut(&g.entity_type) {
-                    stats.3 += 1;
-                }
-            }
-
-            // End-to-end match (both text AND box)
-            if text_match && box_match && !gold_e2e_matched[g_idx] {
-                gold_e2e_matched[g_idx] = true;
-                e2e_matches += 1;
-                if let Some(stats) = type_stats.get_mut(&g.entity_type) {
-                    stats.4 += 1;
-                }
-                break; // Found a complete match, move to next prediction
-            }
+        }
+    }
+    for g_idx in e2e_assignment.into_iter().flatten() {
+        e2e_matches += 1;
+        if let Some(stats) = type_stats.get_mut(&gold[g_idx].entity_type) {
+            stats.4 += 1;
         }
     }
 
@@ -360,43 +351,50 @@ pub fn evaluate_visual_ner(
         0.0
     };
 
-    // Per-type metrics
-    let per_type: HashMap<_, _> = type_stats
-        .into_iter()
-        .map(|(et, (gold_count, pred_count, text_tp, box_tp, e2e_tp))| {
-            let text_f1 = if gold_count > 0 && pred_count > 0 {
-                let p = text_tp as f64 / pred_count as f64;
-                let r = text_tp as f64 / gold_count as f64;
-                f1(p, r)
-            } else {
-                0.0
-            };
-            let box_f1 = if gold_count > 0 && pred_count > 0 {
-                let p = box_tp as f64 / pred_count as f64;
-                let r = box_tp as f64 / gold_count as f64;
-                f1(p, r)
-            } else {
-                0.0
-            };
-            let e2e_f1 = if gold_count > 0 && pred_count > 0 {
-                let p = e2e_tp as f64 / pred_count as f64;
-                let r = e2e_tp as f64 / gold_count as f64;
-                f1(p, r)
-            } else {
-                0.0
-            };
-            (
-                et.clone(),
-                VisualTypeMetrics {
-                    entity_type: et,
-                    text_f1,
-                    box_f1,
-                    e2e_f1,
-                    support: gold_count,
-                },
-            )
-        })
-        .collect();
+    // A type-agnostic match has no coherent per-type true-positive owner.
+    let per_type = if config.require_type_match {
+        type_stats
+            .into_iter()
+            .map(|(et, (gold_count, pred_count, text_tp, box_tp, e2e_tp))| {
+                let text_f1 = if gold_count > 0 && pred_count > 0 {
+                    f1(
+                        text_tp as f64 / pred_count as f64,
+                        text_tp as f64 / gold_count as f64,
+                    )
+                } else {
+                    0.0
+                };
+                let box_f1 = if gold_count > 0 && pred_count > 0 {
+                    f1(
+                        box_tp as f64 / pred_count as f64,
+                        box_tp as f64 / gold_count as f64,
+                    )
+                } else {
+                    0.0
+                };
+                let e2e_f1 = if gold_count > 0 && pred_count > 0 {
+                    f1(
+                        e2e_tp as f64 / pred_count as f64,
+                        e2e_tp as f64 / gold_count as f64,
+                    )
+                } else {
+                    0.0
+                };
+                (
+                    et.clone(),
+                    VisualTypeMetrics {
+                        entity_type: et,
+                        text_f1,
+                        box_f1,
+                        e2e_f1,
+                        support: gold_count,
+                    },
+                )
+            })
+            .collect()
+    } else {
+        HashMap::new()
+    };
 
     VisualNERMetrics {
         text_precision,
@@ -421,6 +419,73 @@ pub fn evaluate_visual_ner(
 // =============================================================================
 // HELPERS
 // =============================================================================
+
+/// Return a maximum-cardinality assignment from predictions to gold entries.
+///
+/// The augmenting-path algorithm is small and sufficient for document-level
+/// entity lists. It makes match counts independent of the input ordering.
+fn maximum_cardinality_matching<F>(
+    prediction_count: usize,
+    gold_count: usize,
+    compatible: F,
+) -> Vec<Option<usize>>
+where
+    F: Fn(usize, usize) -> bool,
+{
+    let candidates: Vec<Vec<usize>> = (0..prediction_count)
+        .map(|p_idx| {
+            (0..gold_count)
+                .filter(|&g_idx| compatible(p_idx, g_idx))
+                .collect()
+        })
+        .collect();
+    let mut gold_to_prediction = vec![None; gold_count];
+
+    for p_idx in 0..prediction_count {
+        let mut visited_gold = vec![false; gold_count];
+        augment_matching(
+            p_idx,
+            &candidates,
+            &mut gold_to_prediction,
+            &mut visited_gold,
+        );
+    }
+
+    let mut prediction_to_gold = vec![None; prediction_count];
+    for (g_idx, p_idx) in gold_to_prediction.into_iter().enumerate() {
+        if let Some(p_idx) = p_idx {
+            prediction_to_gold[p_idx] = Some(g_idx);
+        }
+    }
+    prediction_to_gold
+}
+
+fn augment_matching(
+    p_idx: usize,
+    candidates: &[Vec<usize>],
+    gold_to_prediction: &mut [Option<usize>],
+    visited_gold: &mut [bool],
+) -> bool {
+    for &g_idx in &candidates[p_idx] {
+        if visited_gold[g_idx] {
+            continue;
+        }
+        visited_gold[g_idx] = true;
+        let matched_prediction = gold_to_prediction[g_idx];
+        if matched_prediction.is_none()
+            || augment_matching(
+                matched_prediction.expect("checked is_none above"),
+                candidates,
+                gold_to_prediction,
+                visited_gold,
+            )
+        {
+            gold_to_prediction[g_idx] = Some(p_idx);
+            return true;
+        }
+    }
+    false
+}
 
 fn normalize_text(text: &str, config: &VisualEvalConfig) -> String {
     let mut s = text.to_string();
@@ -558,6 +623,66 @@ mod tests {
 
         assert!((metrics.text_f1 - 1.0).abs() < 0.001);
         assert!(metrics.e2e_f1 < 0.5); // E2E should fail due to box mismatch
+    }
+
+    #[test]
+    fn test_prediction_cannot_match_multiple_identical_gold_entities() {
+        let bbox = BoundingBox::new(0.1, 0.1, 0.3, 0.2);
+        let gold = vec![
+            VisualGold::new("Total", "AMOUNT", bbox),
+            VisualGold::new("Total", "AMOUNT", bbox),
+        ];
+        let pred = vec![VisualPrediction {
+            text: "Total".to_string(),
+            entity_type: "AMOUNT".to_string(),
+            bbox,
+            confidence: 0.95,
+        }];
+
+        let metrics = evaluate_visual_ner(&gold, &pred, &VisualEvalConfig::default());
+
+        assert_eq!(metrics.text_matches, 1);
+        assert_eq!(metrics.box_matches, 1);
+        assert_eq!(metrics.e2e_matches, 1);
+        assert!((metrics.text_recall - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_maximum_matching_avoids_greedy_two_by_two_loss() {
+        // P0 can match either gold, P1 can match only G0. A greedy P0→G0
+        // assignment leaves P1 unmatched, while an augmenting path finds two.
+        let compatibility = [[true, true], [true, false]];
+        let matching =
+            maximum_cardinality_matching(2, 2, |p_idx, g_idx| compatibility[p_idx][g_idx]);
+        assert_eq!(matching.iter().flatten().count(), 2);
+
+        // Reordering both partitions represents the same graph and must retain
+        // the same metric count.
+        let reordered = [[false, true], [true, true]];
+        let reordered_matching =
+            maximum_cardinality_matching(2, 2, |p_idx, g_idx| reordered[p_idx][g_idx]);
+        assert_eq!(reordered_matching.iter().flatten().count(), 2);
+    }
+
+    #[test]
+    fn test_type_agnostic_matches_do_not_report_per_type_scores() {
+        let bbox = BoundingBox::new(0.1, 0.1, 0.3, 0.2);
+        let gold = vec![VisualGold::new("Acme", "ORG", bbox)];
+        let pred = vec![VisualPrediction {
+            text: "Acme".to_string(),
+            entity_type: "PER".to_string(),
+            bbox,
+            confidence: 0.9,
+        }];
+        let config = VisualEvalConfig {
+            require_type_match: false,
+            ..VisualEvalConfig::default()
+        };
+
+        let metrics = evaluate_visual_ner(&gold, &pred, &config);
+
+        assert_eq!(metrics.e2e_matches, 1);
+        assert!(metrics.per_type.is_empty());
     }
 
     #[test]

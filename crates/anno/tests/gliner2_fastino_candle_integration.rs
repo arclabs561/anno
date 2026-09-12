@@ -1,5 +1,5 @@
 //! Phase 4 integration tests against `fastino/gliner2-multi-v1` (the
-//! PyTorch repo, not the SemplificaAI ONNX export).
+//! PyTorch repo, not the supported GLiNER2 ONNX export).
 //!
 //! All tests are `#[ignore]`-gated because they require the model
 //! cached locally (~280M base, plus tokenizer/config). Run with:
@@ -11,7 +11,7 @@
 
 #![cfg(feature = "gliner2-fastino-candle")]
 
-use anno::backends::gliner2_fastino::GLiNER2Fastino;
+use anno::backends::gliner2_fastino::{GLiNER2Fastino, SUPPORTED_GLINER2_FASTINO_MODEL};
 use anno::backends::gliner2_fastino_candle::GLiNER2FastinoCandle;
 use anno::backends::inference::ZeroShotNER;
 
@@ -34,8 +34,7 @@ fn from_pretrained_smoke() {
 #[test]
 #[ignore]
 fn parity_onnx_candle_extract_with_types() {
-    let onnx =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load ONNX");
+    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
     let candle =
         GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
 
@@ -86,8 +85,7 @@ fn parity_onnx_candle_long_text_many_types() {
     // Validation: stress the pipeline with longer text + more entity
     // types than the basic parity test. If parity holds here, the
     // port works on realistic inputs.
-    let onnx =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load ONNX");
+    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
     let candle =
         GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
 
@@ -169,8 +167,7 @@ fn parity_onnx_candle_classify() {
     // count_pred → classifier → softmax) must match the ONNX classify
     // path. Without this test, half of the Candle backend (the classify
     // half) is unverified.
-    let onnx =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load ONNX");
+    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
     let candle =
         GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
 

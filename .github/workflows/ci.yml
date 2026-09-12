@@ -74,6 +74,8 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
+      - name: Test HuggingFace downloader regression (offline fixtures)
+        run: python3 -m unittest discover -s scripts -p test_download_hf_datasets.py
       - name: Test external parser adapter contract (no model downloads)
         run: uv run --python 3.12 --with nltk==3.10.3 --with spacy==3.8.16 python -m unittest discover -s scripts -p test_parse_benepar.py
       - name: Check external parser script lock consistency
@@ -227,6 +229,8 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Test eval history persistence
+        run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
   # ==========================================================================
   # ONNX backend tests (Linux only)
   # ==========================================================================
@@ -403,6 +407,10 @@ jobs:
       # MPL-free `extractor-html2text` is the lightest option that satisfies
       # that constraint and proves the no-default-features build still works.
       - run: cargo check --workspace --no-default-features --features anno-cli/extractor-html2text
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Check Candle backend for wasm32
+        run: cargo check -p anno --target wasm32-unknown-unknown --no-default-features --features candle
   # ==========================================================================
   # Documentation
   # ==========================================================================

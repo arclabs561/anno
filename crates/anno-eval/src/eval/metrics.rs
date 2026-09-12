@@ -232,6 +232,45 @@ pub fn compute_extraction_quality_metrics(entities: &[Entity]) -> ExtractionQual
     }
 }
 
+/// Compute duplication/noise metrics with duplicate detection scoped to each document.
+///
+/// Repeated entity surface forms in separate documents are legitimate mentions, so they
+/// are not counted as duplicates. A duplicate is the same normalized surface, type, and
+/// exact span repeated within one document.
+#[must_use]
+pub(crate) fn compute_document_extraction_quality_metrics<'a>(
+    documents: impl IntoIterator<Item = &'a [Entity]>,
+) -> ExtractionQualityMetrics {
+    let mut metrics = ExtractionQualityMetrics::default();
+
+    for entities in documents {
+        let mut seen: HashSet<(anno::EntityType, usize, usize, String)> = HashSet::new();
+        for entity in entities {
+            metrics.total += 1;
+            if is_noisy_span(&entity.text) {
+                metrics.noisy += 1;
+            }
+
+            let key = (
+                entity.entity_type.clone(),
+                entity.start(),
+                entity.end(),
+                normalize_for_duplication(&entity.text),
+            );
+            if !seen.insert(key) {
+                metrics.duplicates += 1;
+            }
+        }
+    }
+
+    if metrics.total > 0 {
+        metrics.duplication_rate = metrics.duplicates as f64 / metrics.total as f64;
+        metrics.noise_rate = metrics.noisy as f64 / metrics.total as f64;
+    }
+
+    metrics
+}
+
 /// Confidence threshold analysis.
 ///
 /// Analyzes model performance at different confidence thresholds.
@@ -543,5 +582,46 @@ mod tests {
         let metrics = calculate_partial_match_metrics(&predicted, &ground_truth, 0.5);
         assert!((metrics.precision - 1.0).abs() < 0.001);
         assert!((metrics.recall - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn document_scoped_duplicate_metric_ignores_same_name_in_separate_sentences() {
+        let first = vec![Entity::new("Paris", EntityType::Location, 0, 5, 0.9)];
+        let second = vec![Entity::new("Paris", EntityType::Location, 0, 5, 0.9)];
+
+        let metrics =
+            compute_document_extraction_quality_metrics([first.as_slice(), second.as_slice()]);
+
+        assert_eq!(metrics.total, 2);
+        assert_eq!(metrics.duplicates, 0);
+        assert_eq!(metrics.duplication_rate, 0.0);
+    }
+
+    #[test]
+    fn document_scoped_duplicate_metric_allows_distinct_mentions_in_one_sentence() {
+        let document = vec![
+            Entity::new("Paris", EntityType::Location, 0, 5, 0.9),
+            Entity::new("Paris", EntityType::Location, 12, 17, 0.9),
+        ];
+
+        let metrics = compute_document_extraction_quality_metrics([document.as_slice()]);
+
+        assert_eq!(metrics.total, 2);
+        assert_eq!(metrics.duplicates, 0);
+        assert_eq!(metrics.duplication_rate, 0.0);
+    }
+
+    #[test]
+    fn document_scoped_duplicate_metric_counts_repeated_exact_span() {
+        let document = vec![
+            Entity::new("Paris", EntityType::Location, 0, 5, 0.9),
+            Entity::new("Paris", EntityType::Location, 0, 5, 0.8),
+        ];
+
+        let metrics = compute_document_extraction_quality_metrics([document.as_slice()]);
+
+        assert_eq!(metrics.total, 2);
+        assert_eq!(metrics.duplicates, 1);
+        assert_eq!(metrics.duplication_rate, 0.5);
     }
 }

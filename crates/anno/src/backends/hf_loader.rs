@@ -94,11 +94,10 @@ pub fn download_model_file(
     }
 
     if no_downloads() {
+        let identity = cache_repo_identity(repo)?;
+        let cache = hf_hub::Cache::from_env().repo(identity.clone());
         for candidate in candidates {
-            if let Some(path) = hf_hub::Cache::from_env()
-                .repo(cache_repo_identity(repo)?)
-                .get(candidate)
-            {
+            if let Some(path) = cached_model_file(&cache, identity.revision(), candidate) {
                 return Ok(path);
             }
         }
@@ -125,6 +124,21 @@ pub fn download_model_file(
             .map(|e| e.to_string())
             .unwrap_or_else(|| "unknown".to_string())
     )))
+}
+
+/// Python's Hub client stores immutable revisions directly as snapshots, without a
+/// `refs/<commit>` file. hf-hub 0.5's `get` only resolves refs, so check the exact
+/// snapshot for a full commit ID before resolving named revisions.
+fn cached_model_file(
+    cache: &hf_hub::CacheRepo,
+    revision: &str,
+    filename: &str,
+) -> Option<std::path::PathBuf> {
+    if revision.len() == 40 && revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        let path = cache.pointer_path(revision).join(filename);
+        return path.is_file().then_some(path);
+    }
+    cache.get(filename)
 }
 
 /// Recover repository type and revision from hf-hub's public URL contract.
@@ -198,6 +212,33 @@ pub fn download_onnx_model(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn immutable_snapshot_loads_without_a_ref_file() {
+        let home = tempfile::tempdir().unwrap();
+        let revision = "4241d7c66b648e618c89c150bf4cf418d2f83159";
+        let cache =
+            hf_hub::Cache::new(home.path().to_path_buf()).repo(hf_hub::Repo::with_revision(
+                "anno-tests/pinned".into(),
+                hf_hub::RepoType::Model,
+                revision.into(),
+            ));
+        let path = cache.pointer_path(revision).join("tokenizer.json");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{}").unwrap();
+        assert!(cache.get("tokenizer.json").is_none());
+        assert_eq!(
+            cached_model_file(&cache, revision, "tokenizer.json"),
+            Some(path)
+        );
+        assert!(cached_model_file(&cache, revision, "missing.json").is_none());
+        assert!(cached_model_file(
+            &cache,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tokenizer.json"
+        )
+        .is_none());
+    }
 
     #[test]
     fn offline_quantized_lookup_preserves_revision_without_network() {
@@ -278,27 +319,48 @@ pub struct OnnxSessionConfig {
     pub use_cpu_provider: bool,
     /// Prefer Apple CoreML (Apple Neural Engine + GPU) when available.
     /// Effective only when the `onnx-coreml` feature is enabled at build
-    /// time AND the host is macOS. CPU is added as a fallback so the
-    /// session still loads if CoreML cannot handle the graph.
+    /// time AND the host is macOS. If requested, CoreML must register or
+    /// session construction returns an error. CPU can execute graph nodes
+    /// CoreML does not support after registration succeeds.
     ///
-    /// Without the feature flag the field exists for API stability but
-    /// the value is ignored, hence the `#[allow(dead_code)]`.
+    /// Without the feature flag, requesting it returns an error that names
+    /// the needed Cargo feature.
     #[cfg_attr(not(feature = "onnx-coreml"), allow(dead_code))]
     pub prefer_coreml: bool,
     /// Prefer NVIDIA CUDA when available.
     /// Effective only when the `onnx-cuda` feature is enabled at build
-    /// time AND CUDA 12.x is present at link/runtime. CPU is added as a
-    /// fallback so the session still loads if CUDA cannot initialise.
+    /// time AND CUDA 12.x is present at link/runtime. If requested, CUDA
+    /// must register or session construction returns an error.
     ///
-    /// **Silent CPU fallback is a known ort failure mode** when `cudart.so`
-    /// is missing or the GPU is otherwise unavailable -- compile success
-    /// does not prove runtime acceleration. Use `examples/onnx_gpu_smoke.rs`
-    /// (or an equivalent throughput check) on a real GPU host to confirm.
+    /// This rejects ONNX Runtime's silent fallback when CUDA registration
+    /// fails. It does not prove every graph node runs on CUDA; CPU may execute
+    /// nodes CUDA does not support.
     ///
-    /// Without the feature flag the field exists for API stability but
-    /// the value is ignored, hence the `#[allow(dead_code)]`.
+    /// Without the feature flag, requesting it returns an error that names
+    /// the needed Cargo feature.
     #[cfg_attr(not(feature = "onnx-cuda"), allow(dead_code))]
     pub prefer_cuda: bool,
+}
+
+/// An execution provider selectable through
+/// [`create_onnx_session_with_provider`].
+///
+/// The function is additive: it avoids extending [`OnnxSessionConfig`], whose
+/// public fields are also used by in-crate struct literals.
+#[cfg(feature = "onnx")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum OnnxExecutionProvider {
+    /// ONNX Runtime's CPU provider.
+    Cpu,
+    /// NVIDIA CUDA on Linux or Windows.
+    Cuda,
+    /// Apple CoreML on macOS.
+    CoreMl,
+    /// DirectML on Windows.
+    DirectMl,
+    /// ROCm on x86_64 Linux.
+    Rocm,
 }
 
 #[cfg(feature = "onnx")]
@@ -328,6 +390,36 @@ pub fn create_onnx_session(
     model_path: &std::path::Path,
     config: OnnxSessionConfig,
 ) -> Result<ort::session::Session> {
+    create_onnx_session_with_requested_provider(model_path, config, None)
+}
+
+/// Create a session with one explicitly selected execution provider.
+///
+/// If the selected accelerator cannot register, this returns an error rather
+/// than accepting ONNX Runtime's default silent fallback to CPU. CPU remains
+/// available for nodes unsupported by an accelerator that *does* register.
+/// `provider` overrides `config.prefer_cuda` and `config.prefer_coreml`; those
+/// legacy preferences are only honored by [`create_onnx_session`].
+#[cfg(feature = "onnx")]
+pub fn create_onnx_session_with_provider(
+    model_path: &std::path::Path,
+    mut config: OnnxSessionConfig,
+    provider: OnnxExecutionProvider,
+) -> Result<ort::session::Session> {
+    // This API promises one explicit provider. Retaining a legacy preference
+    // here could add a second EP or make an explicit CPU request fail because
+    // CUDA/CoreML was not compiled into this build.
+    config.prefer_cuda = false;
+    config.prefer_coreml = false;
+    create_onnx_session_with_requested_provider(model_path, config, Some(provider))
+}
+
+#[cfg(feature = "onnx")]
+fn create_onnx_session_with_requested_provider(
+    model_path: &std::path::Path,
+    config: OnnxSessionConfig,
+    requested_provider: Option<OnnxExecutionProvider>,
+) -> Result<ort::session::Session> {
     use ort::session::builder::GraphOptimizationLevel;
     use ort::session::Session;
 
@@ -342,22 +434,90 @@ pub fn create_onnx_session(
         .with_optimization_level(opt_level)
         .map_err(|e| Error::Retrieval(format!("ONNX optimization level: {}", e)))?;
 
-    // Build execution-provider list in priority order. ort tries each in
-    // turn and falls back to the next if one can't load the graph. CPU is
-    // always last so a session never fails to start because of an
-    // accelerator-specific quirk.
+    // Build execution-provider list in priority order. A caller that requests
+    // an accelerator needs an explicit error if it cannot register: ort's
+    // default is otherwise to log and silently fall through to CPU. CPU is
+    // still last so it can execute nodes unsupported by a registered EP.
     let mut providers: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
+    match requested_provider {
+        Some(OnnxExecutionProvider::Cuda) => {
+            #[cfg(feature = "onnx-cuda")]
+            {
+                use ort::execution_providers::CUDAExecutionProvider;
+                providers.push(CUDAExecutionProvider::default().build().error_on_failure());
+            }
+            #[cfg(not(feature = "onnx-cuda"))]
+            return Err(Error::Retrieval(
+                "CUDA requested, but anno was built without the `onnx-cuda` feature".into(),
+            ));
+        }
+        Some(OnnxExecutionProvider::Rocm) => {
+            #[cfg(feature = "onnx-rocm")]
+            {
+                use ort::ep::ROCm;
+                providers.push(ROCm::default().build().error_on_failure());
+            }
+            #[cfg(not(feature = "onnx-rocm"))]
+            return Err(Error::Retrieval(
+                "ROCm requested, but anno was built without the `onnx-rocm` feature".into(),
+            ));
+        }
+        Some(OnnxExecutionProvider::DirectMl) => {
+            #[cfg(feature = "onnx-directml")]
+            {
+                use ort::ep::DirectML;
+                providers.push(DirectML::default().build().error_on_failure());
+            }
+            #[cfg(not(feature = "onnx-directml"))]
+            return Err(Error::Retrieval(
+                "DirectML requested, but anno was built without the `onnx-directml` feature".into(),
+            ));
+        }
+        Some(OnnxExecutionProvider::CoreMl) => {
+            #[cfg(feature = "onnx-coreml")]
+            {
+                use ort::execution_providers::CoreMLExecutionProvider;
+                providers.push(
+                    CoreMLExecutionProvider::default()
+                        .build()
+                        .error_on_failure(),
+                );
+            }
+            #[cfg(not(feature = "onnx-coreml"))]
+            return Err(Error::Retrieval(
+                "CoreML requested, but anno was built without the `onnx-coreml` feature".into(),
+            ));
+        }
+        Some(OnnxExecutionProvider::Cpu) | None => {}
+    }
+
+    #[cfg(not(feature = "onnx-cuda"))]
+    if config.prefer_cuda && requested_provider != Some(OnnxExecutionProvider::Cuda) {
+        return Err(Error::Retrieval(
+            "CUDA requested, but anno was built without the `onnx-cuda` feature".into(),
+        ));
+    }
     #[cfg(feature = "onnx-cuda")]
-    if config.prefer_cuda {
+    if config.prefer_cuda && requested_provider != Some(OnnxExecutionProvider::Cuda) {
         use ort::execution_providers::CUDAExecutionProvider;
-        providers.push(CUDAExecutionProvider::default().build());
+        providers.push(CUDAExecutionProvider::default().build().error_on_failure());
+    }
+    #[cfg(not(feature = "onnx-coreml"))]
+    if config.prefer_coreml && requested_provider != Some(OnnxExecutionProvider::CoreMl) {
+        return Err(Error::Retrieval(
+            "CoreML requested, but anno was built without the `onnx-coreml` feature".into(),
+        ));
     }
     #[cfg(feature = "onnx-coreml")]
-    if config.prefer_coreml {
+    if config.prefer_coreml && requested_provider != Some(OnnxExecutionProvider::CoreMl) {
         use ort::execution_providers::CoreMLExecutionProvider;
-        providers.push(CoreMLExecutionProvider::default().build());
+        providers.push(
+            CoreMLExecutionProvider::default()
+                .build()
+                .error_on_failure(),
+        );
     }
-    if config.use_cpu_provider {
+    if config.use_cpu_provider || requested_provider == Some(OnnxExecutionProvider::Cpu) {
         use ort::execution_providers::CPUExecutionProvider;
         providers.push(CPUExecutionProvider::default().build());
     }
@@ -383,4 +543,48 @@ pub fn create_onnx_session(
 pub fn load_tokenizer(path: &std::path::Path) -> Result<tokenizers::Tokenizer> {
     tokenizers::Tokenizer::from_file(path)
         .map_err(|e| Error::Retrieval(format!("Tokenizer load: {}", e)))
+}
+
+#[cfg(all(test, feature = "onnx"))]
+mod onnx_session_tests {
+    use super::*;
+
+    fn missing_model_path() -> std::path::PathBuf {
+        tempfile::tempdir()
+            .unwrap()
+            .path()
+            .join("missing-model.onnx")
+    }
+
+    #[cfg(not(feature = "onnx-cuda"))]
+    #[test]
+    fn explicit_cuda_without_feature_errors_before_model_load() {
+        let error = create_onnx_session_with_provider(
+            &missing_model_path(),
+            OnnxSessionConfig::default(),
+            OnnxExecutionProvider::Cuda,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("onnx-cuda"), "{error}");
+        assert!(!error.to_string().contains("ONNX model load"), "{error}");
+    }
+
+    #[test]
+    fn explicit_cpu_ignores_legacy_accelerator_preferences() {
+        let config = OnnxSessionConfig {
+            prefer_cuda: true,
+            prefer_coreml: true,
+            ..OnnxSessionConfig::default()
+        };
+
+        let error = create_onnx_session_with_provider(
+            &missing_model_path(),
+            config,
+            OnnxExecutionProvider::Cpu,
+        )
+        .unwrap_err();
+
+        assert!(error.to_string().contains("ONNX model load"), "{error}");
+    }
 }

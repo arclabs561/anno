@@ -902,6 +902,28 @@ pub fn evaluate_ner_model_with_mapper(
     test_cases: &[(String, Vec<GoldEntity>)],
     type_mapper: Option<&anno::TypeMapper>,
 ) -> Result<NEREvaluationResults> {
+    evaluate_ner_model_with_options(model, test_cases, type_mapper, None)
+}
+
+/// Evaluate NER model with optional type normalization and prediction thresholding.
+///
+/// Predictions whose confidence is below `min_confidence` are excluded before the
+/// standard evaluator performs exact-match scoring.
+pub fn evaluate_ner_model_with_mapper_and_min_confidence(
+    model: &dyn Model,
+    test_cases: &[(String, Vec<GoldEntity>)],
+    type_mapper: Option<&anno::TypeMapper>,
+    min_confidence: Option<f64>,
+) -> Result<NEREvaluationResults> {
+    evaluate_ner_model_with_options(model, test_cases, type_mapper, min_confidence)
+}
+
+fn evaluate_ner_model_with_options(
+    model: &dyn Model,
+    test_cases: &[(String, Vec<GoldEntity>)],
+    type_mapper: Option<&anno::TypeMapper>,
+    min_confidence: Option<f64>,
+) -> Result<NEREvaluationResults> {
     let evaluator = evaluator::StandardNEREvaluator::new();
 
     if test_cases.is_empty() {
@@ -935,12 +957,16 @@ pub fn evaluate_ner_model_with_mapper(
         let truth_ref = if let Some(mapper) = type_mapper {
             normalized_truth = ground_truth
                 .iter()
-                .map(|e| GoldEntity {
-                    text: e.text.clone(),
-                    entity_type: mapper.normalize(e.entity_type.as_label()),
-                    original_label: e.original_label.clone(), // Preserve original for debugging
-                    start: e.start,
-                    end: e.end,
+                .map(|entity| GoldEntity {
+                    text: entity.text.clone(),
+                    entity_type: mapper.normalize(if entity.original_label.is_empty() {
+                        entity.entity_type.as_label()
+                    } else {
+                        &entity.original_label
+                    }),
+                    original_label: entity.original_label.clone(), // Preserve original for debugging
+                    start: entity.start,
+                    end: entity.end,
                 })
                 .collect();
             &normalized_truth
@@ -948,7 +974,13 @@ pub fn evaluate_ner_model_with_mapper(
             ground_truth
         };
 
-        let metrics = evaluator.evaluate_test_case(model, text, truth_ref, Some(&test_case_id))?;
+        let metrics = evaluator.evaluate_test_case_with_min_confidence(
+            model,
+            text,
+            truth_ref,
+            Some(&test_case_id),
+            min_confidence,
+        )?;
         query_metrics.push(metrics);
     }
 

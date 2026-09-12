@@ -1,5 +1,5 @@
 //! Tier-2 integration tests for `gliner2_fastino`. `#[ignore]`-gated since
-//! they download the SemplificaAI/gliner2-multi-v1-onnx model (~6 GB) on
+//! they download the pinned jugaadsrl GLiNER2 ONNX snapshot (~1.25 GB) on
 //! first run and require a working multi-session pipeline (Phase 3).
 //!
 //! Run locally with:
@@ -9,7 +9,7 @@
 
 #![cfg(feature = "gliner2-fastino")]
 
-use anno::backends::gliner2_fastino::GLiNER2Fastino;
+use anno::backends::gliner2_fastino::{GLiNER2Fastino, SUPPORTED_GLINER2_FASTINO_MODEL};
 use anno::backends::inference::ZeroShotNER;
 
 const FIXTURE: &str = "Acme Corp signed a deal with Globex in Paris on January 5th.";
@@ -17,7 +17,7 @@ const FIXTURE: &str = "Acme Corp signed a deal with Globex in Paris on January 5
 #[test]
 #[ignore]
 fn fastino_multi_v1_extracts_org_and_loc() {
-    let model = GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx")
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
         .expect("load gliner2-multi-v1");
     let ents = model
         .extract_with_types(FIXTURE, &["organization", "location"], 0.5)
@@ -42,7 +42,7 @@ fn fastino_extract_with_label_descriptions() {
     // end-to-end against the real model and returns expected entities.
     // The actual accuracy boost vs labels-only isn't measured here —
     // that's a benchmark concern. This just exercises the pipeline.
-    let model = GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx")
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
         .expect("load gliner2-multi-v1");
     let labeled: Vec<(&str, &str)> = vec![
         ("organization", "a company, corporation, or institution"),
@@ -71,7 +71,7 @@ fn fastino_batch_per_sample_labels() {
     // Text 0 only looks for orgs; text 1 only looks for people + places.
     use anno::backends::gliner2_fastino::BatchSchemaMode;
 
-    let model = GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx")
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
         .expect("load gliner2-multi-v1");
     let texts: Vec<&str> = vec!["Acme Corp signed a deal.", "Marie Curie worked in France."];
     let labels_per_text: Vec<Vec<&str>> = vec![vec!["organization"], vec!["person", "location"]];
@@ -107,8 +107,7 @@ fn fastino_batch_per_sample_length_mismatch_errors() {
     // a typed Backend error, not a panic.
     use anno::backends::gliner2_fastino::BatchSchemaMode;
 
-    let model =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load");
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load");
     let texts: Vec<&str> = vec!["one", "two"];
     let labels_per_text: Vec<Vec<&str>> = vec![vec!["organization"]]; // 1 entry, not 2.
 
@@ -130,7 +129,7 @@ fn fastino_batch_extract_streaming_fires_callbacks_in_order() {
     // text's callback fires sequentially with the right index. Asserts:
     //   1. All five indices are seen, in order.
     //   2. Total entities >= number of texts (each one has at least one).
-    let model = GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx")
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
         .expect("load gliner2-multi-v1");
     let texts: Vec<&str> = vec![
         "Acme Corp signed a deal in Paris.",
@@ -167,8 +166,7 @@ fn fastino_batch_extract_streaming_fires_callbacks_in_order() {
 #[ignore]
 fn fastino_batch_extract_streaming_rejects_zero_batch_size() {
     // Defensive: typed Backend error rather than silent loop / divide-by-zero.
-    let model =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load");
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load");
     let texts: &[&str] = &["irrelevant"];
     let result = model.batch_extract_streaming(texts, &["organization"], 0.5, 0, |_, _| {
         panic!("callback should not fire when batch_size = 0")
@@ -183,8 +181,7 @@ fn fastino_batch_extract_streaming_rejects_zero_batch_size() {
 #[test]
 #[ignore]
 fn fastino_classify_smoke() {
-    let model =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load");
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load");
     let scores = model
         .classify(
             "This product is wonderful, I love it.",
@@ -209,7 +206,7 @@ fn fastino_extract_structure_invoice_single_instance() {
         FieldType, StructureTask, StructureValue, TaskSchema,
     };
 
-    let model = GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx")
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
         .expect("load gliner2-multi-v1");
     let schema = TaskSchema::new().with_structure(
         StructureTask::new("invoice")
@@ -257,8 +254,7 @@ fn fastino_extract_structure_multi_instance_people() {
     // the text → expect at least 2 instances.
     use anno::backends::gliner2_fastino::schema::{FieldType, StructureTask, TaskSchema};
 
-    let model =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load");
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load");
     let schema = TaskSchema::new().with_structure(
         StructureTask::new("person_record")
             .with_field("name", FieldType::String)
@@ -288,8 +284,7 @@ fn fastino_extract_structure_empty_schema_returns_empty() {
     // Phase 2 M5: defensive — empty schema → empty vec, no inference passes.
     use anno::backends::gliner2_fastino::schema::TaskSchema;
 
-    let model =
-        GLiNER2Fastino::from_pretrained("SemplificaAI/gliner2-multi-v1-onnx").expect("load");
+    let model = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load");
     let schema = TaskSchema::new(); // no structures
     let result = model
         .extract_structure("anything", &schema, 0.5)
@@ -301,8 +296,8 @@ fn fastino_extract_structure_empty_schema_returns_empty() {
 // Phase 3.5 — Standard ≡ IoBinding parity tests.
 //
 // These run the same input through both ExecutionMode paths and verify the
-// outputs match within a tolerance. Require the SemplificaAI/gliner2-multi-v1-onnx
-// snapshot cached locally (~6 GB).
+// outputs match within a tolerance. Require the supported GLiNER2 ONNX snapshot
+// snapshot cached locally (~1.25 GB).
 //
 // Tolerance: max_abs_diff < 1e-4 on per-entity confidence scores. Looser than
 // the spec's 1e-5 for fp32 because:
@@ -319,7 +314,7 @@ fn fastino_extract_structure_empty_schema_returns_empty() {
 fn parity_standard_iobinding_extract_with_types() {
     use anno::backends::gliner2_fastino::{ExecutionMode, GLiNER2FastinoConfig};
 
-    let model_id = "SemplificaAI/gliner2-multi-v1-onnx";
+    let model_id = SUPPORTED_GLINER2_FASTINO_MODEL;
 
     let standard = GLiNER2Fastino::from_pretrained_with_config(
         model_id,
@@ -389,7 +384,7 @@ fn parity_standard_iobinding_extract_with_types() {
 fn parity_standard_iobinding_classify() {
     use anno::backends::gliner2_fastino::{ExecutionMode, GLiNER2FastinoConfig};
 
-    let model_id = "SemplificaAI/gliner2-multi-v1-onnx";
+    let model_id = SUPPORTED_GLINER2_FASTINO_MODEL;
 
     let standard = GLiNER2Fastino::from_pretrained_with_config(
         model_id,
@@ -459,9 +454,8 @@ fn smoke_iobinding_cuda() {
         .with_execution_mode(ExecutionMode::IoBinding)
         .with_onnx(onnx);
 
-    let model =
-        GLiNER2Fastino::from_pretrained_with_config("SemplificaAI/gliner2-multi-v1-onnx", cfg)
-            .expect("load with CUDA + IoBinding");
+    let model = GLiNER2Fastino::from_pretrained_with_config(SUPPORTED_GLINER2_FASTINO_MODEL, cfg)
+        .expect("load with CUDA + IoBinding");
 
     let text = "Marie Curie won the Nobel Prize in Physics in 1903.";
     let result = ZeroShotNER::extract_with_types(&model, text, &["person", "award", "year"], 0.5)

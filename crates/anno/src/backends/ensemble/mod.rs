@@ -166,7 +166,7 @@ impl EnsembleNER {
         }
 
         // Add Candle GLiNER if available
-        #[cfg(feature = "candle")]
+        #[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
         {
             use super::GLiNERCandle;
             use crate::DEFAULT_GLINER_MODEL;

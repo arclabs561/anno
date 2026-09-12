@@ -226,13 +226,7 @@ impl LowResourceEvaluator {
         };
 
         // Calculate entity density ratio
-        let total_chars: usize = test_cases.iter().map(|(text, _)| text.len()).sum();
-        let total_entities: usize = test_cases.iter().map(|(_, entities)| entities.len()).sum();
-        let entity_density = if total_chars > 0 {
-            total_entities as f64 / total_chars as f64
-        } else {
-            0.0
-        };
+        let entity_density = entity_density(test_cases);
         // English baseline entity density (approximate from CoNLL-2003)
         let english_baseline_density = 0.05;
         let entity_density_ratio = entity_density / english_baseline_density;
@@ -378,6 +372,10 @@ impl LowResourceEvaluator {
                 total_gold_morphemes += morpheme_count;
             }
 
+            // A gold entity can only be credited once, even when the model
+            // emits duplicate spans.
+            let mut gold_matched = vec![false; gold_entities.len()];
+
             // Count morphemes in predicted entities
             for entity in &predictions {
                 // Note: entity.start/end are CHARACTER offsets, not byte offsets
@@ -394,12 +392,16 @@ impl LowResourceEvaluator {
                     .max(1);
                 total_pred_morphemes += morpheme_count;
 
-                // Check if this prediction matches a gold entity
-                for gold in gold_entities {
-                    if entity.start() == gold.start && entity.end() == gold.end {
-                        total_correct_morphemes += morpheme_count;
-                        break;
-                    }
+                // Check if this prediction matches an as-yet-unmatched gold entity.
+                if let Some((gold_index, _)) =
+                    gold_entities.iter().enumerate().find(|(index, gold)| {
+                        !gold_matched[*index]
+                            && entity.start() == gold.start
+                            && entity.end() == gold.end
+                    })
+                {
+                    gold_matched[gold_index] = true;
+                    total_correct_morphemes += morpheme_count;
                 }
             }
         }
@@ -438,35 +440,22 @@ impl LowResourceEvaluator {
         // Evaluate without normalization
         let raw_results = super::evaluate_ner_model(model, test_cases)?;
 
-        // Apply normalization to test cases
-        let normalized_cases: Vec<(String, Vec<super::GoldEntity>)> = test_cases
-            .iter()
-            .map(|(text, entities)| {
-                let normalized_text = self.normalize_text(text, config);
-                let normalized_entities: Vec<super::GoldEntity> = entities
-                    .iter()
-                    .map(|e| super::GoldEntity {
-                        text: self.normalize_text(&e.text, config),
-                        entity_type: e.entity_type.clone(),
-                        original_label: e.original_label.clone(),
-                        start: e.start,
-                        end: e.end,
-                    })
-                    .collect();
-                (normalized_text, normalized_entities)
-            })
-            .collect();
+        // Apply normalization and remap character offsets into the normalized
+        // text. NFC, case folding, and diacritic removal may change the number
+        // of Unicode scalar values, so retaining source offsets is incorrect.
+        let normalized_cases = self.normalize_test_cases(test_cases, config)?;
 
         // Evaluate with normalization
         let normalized_results = super::evaluate_ner_model(model, &normalized_cases)?;
 
         // Count affected entities
-        let mut entities_affected = 0;
-        for ((orig_text, _), (norm_text, _)) in test_cases.iter().zip(normalized_cases.iter()) {
-            if orig_text != norm_text {
-                entities_affected += 1;
-            }
-        }
+        let entities_affected = test_cases
+            .iter()
+            .zip(&normalized_cases)
+            .map(|((_, original_entities), (_, normalized_entities))| {
+                affected_entity_count(original_entities, normalized_entities)
+            })
+            .sum();
 
         Ok(NormalizationImpact {
             raw_f1: raw_results.f1,
@@ -503,6 +492,85 @@ impl LowResourceEvaluator {
 
         result
     }
+
+    fn normalize_test_cases(
+        &self,
+        test_cases: &[(String, Vec<super::GoldEntity>)],
+        config: &OrthographicConfig,
+    ) -> Result<Vec<(String, Vec<super::GoldEntity>)>> {
+        test_cases
+            .iter()
+            .map(|(text, entities)| self.normalize_test_case(text, entities, config))
+            .collect()
+    }
+
+    fn normalize_test_case(
+        &self,
+        text: &str,
+        entities: &[super::GoldEntity],
+        config: &OrthographicConfig,
+    ) -> Result<(String, Vec<super::GoldEntity>)> {
+        let normalized_text = self.normalize_text(text, config);
+        let source_chars: Vec<char> = text.chars().collect();
+        // Mapping a source boundary through the same normalization pipeline is
+        // Unicode-safe and keeps the offsets in the character coordinate system
+        // used by GoldEntity and Model::extract_entities.
+        let normalized_boundaries: Vec<usize> = (0..=source_chars.len())
+            .map(|boundary| {
+                self.normalize_text(&source_chars[..boundary].iter().collect::<String>(), config)
+                    .chars()
+                    .count()
+            })
+            .collect();
+        let normalized_chars: Vec<char> = normalized_text.chars().collect();
+
+        let normalized_entities = entities
+            .iter()
+            .map(|entity| {
+                if entity.start >= entity.end || entity.end > source_chars.len() {
+                    return Err(Error::evaluation(format!(
+                        "cannot normalize entity with invalid character span {}..{} for text of {} characters",
+                        entity.start,
+                        entity.end,
+                        source_chars.len()
+                    )));
+                }
+                let source_surface: String = source_chars[entity.start..entity.end].iter().collect();
+                if source_surface != entity.text {
+                    return Err(Error::evaluation(format!(
+                        "cannot normalize entity span {}..{} because its surface does not match the source text",
+                        entity.start, entity.end
+                    )));
+                }
+
+                let start = normalized_boundaries[entity.start];
+                let end = normalized_boundaries[entity.end];
+                if start >= end || end > normalized_chars.len() {
+                    return Err(Error::evaluation(format!(
+                        "normalization erased or made entity span {}..{} unrepresentable",
+                        entity.start, entity.end
+                    )));
+                }
+                let normalized_surface: String = normalized_chars[start..end].iter().collect();
+                if normalized_surface != self.normalize_text(&entity.text, config) {
+                    return Err(Error::evaluation(format!(
+                        "normalization changed context across entity boundary for span {}..{}",
+                        entity.start, entity.end
+                    )));
+                }
+
+                Ok(super::GoldEntity {
+                    text: normalized_surface,
+                    entity_type: entity.entity_type.clone(),
+                    original_label: entity.original_label.clone(),
+                    start,
+                    end,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok((normalized_text, normalized_entities))
+    }
 }
 
 impl Default for LowResourceEvaluator {
@@ -517,6 +585,34 @@ fn remove_diacritics(text: &str) -> String {
     text.nfd()
         .filter(|c| !unicode_normalization::char::is_combining_mark(*c))
         .collect()
+}
+
+fn entity_density(test_cases: &[(String, Vec<super::GoldEntity>)]) -> f64 {
+    let total_chars: usize = test_cases
+        .iter()
+        .map(|(text, _)| text.chars().count())
+        .sum();
+    let total_entities: usize = test_cases.iter().map(|(_, entities)| entities.len()).sum();
+    if total_chars > 0 {
+        total_entities as f64 / total_chars as f64
+    } else {
+        0.0
+    }
+}
+
+fn affected_entity_count(
+    original_entities: &[super::GoldEntity],
+    normalized_entities: &[super::GoldEntity],
+) -> usize {
+    original_entities
+        .iter()
+        .zip(normalized_entities)
+        .filter(|(original, normalized)| {
+            original.text != normalized.text
+                || original.start != normalized.start
+                || original.end != normalized.end
+        })
+        .count()
 }
 
 /// Create metadata for common Indigenous American languages.
@@ -898,6 +994,113 @@ mod tests {
         let evaluator = LowResourceEvaluator::new();
         let normalized = evaluator.normalize_text("Café", &config);
         assert_eq!(normalized, "cafe");
+    }
+
+    #[test]
+    fn test_normalization_remaps_unicode_character_offsets() {
+        use anno::EntityType;
+
+        let evaluator = LowResourceEvaluator::new();
+        let config = OrthographicConfig {
+            unicode_normalize: true,
+            ..OrthographicConfig::default()
+        };
+        let text = "Cafe\u{301} Noir";
+        let entities = vec![super::super::GoldEntity::with_span(
+            "Cafe\u{301}",
+            EntityType::Organization,
+            0,
+            5,
+        )];
+
+        let (normalized_text, normalized_entities) = evaluator
+            .normalize_test_case(text, &entities, &config)
+            .unwrap();
+
+        assert_eq!(normalized_text, "Café Noir");
+        assert_eq!(normalized_entities[0].start, 0);
+        assert_eq!(normalized_entities[0].end, 4);
+        assert_eq!(normalized_entities[0].text, "Café");
+    }
+
+    #[test]
+    fn test_normalization_impact_counts_changed_entities_not_documents() {
+        use anno::EntityType;
+
+        let evaluator = LowResourceEvaluator::new();
+        let config = OrthographicConfig {
+            unicode_normalize: true,
+            ..OrthographicConfig::default()
+        };
+        let unchanged = vec![
+            super::super::GoldEntity::new("Café", EntityType::Organization, 0),
+            super::super::GoldEntity::new("Noir", EntityType::Organization, 5),
+        ];
+        let (_, normalized_unchanged) = evaluator
+            .normalize_test_case("Café Noir", &unchanged, &config)
+            .unwrap();
+        assert_eq!(affected_entity_count(&unchanged, &normalized_unchanged), 0);
+
+        let changed = vec![
+            super::super::GoldEntity::with_span("Cafe\u{301}", EntityType::Organization, 0, 5),
+            super::super::GoldEntity::with_span("Tea\u{301}", EntityType::Organization, 10, 14),
+        ];
+        let (_, normalized_changed) = evaluator
+            .normalize_test_case("Cafe\u{301} and Tea\u{301}", &changed, &config)
+            .unwrap();
+        assert_eq!(affected_entity_count(&changed, &normalized_changed), 2);
+    }
+
+    #[test]
+    fn test_normalization_rejects_invalid_source_span() {
+        use anno::EntityType;
+
+        let entity = super::super::GoldEntity::with_span("Café", EntityType::Organization, 0, 8);
+        let error = LowResourceEvaluator::new()
+            .normalize_test_case("Café", &[entity], &OrthographicConfig::default())
+            .unwrap_err();
+
+        assert!(error.to_string().contains("invalid character span"));
+    }
+
+    #[test]
+    fn test_normalization_rejects_entity_erased_by_combining_mark_removal() {
+        use anno::EntityType;
+
+        let config = OrthographicConfig {
+            ignore_diacritics: true,
+            ..OrthographicConfig::default()
+        };
+        let entity = super::super::GoldEntity::with_span("\u{301}", EntityType::Organization, 1, 2);
+        let error = LowResourceEvaluator::new()
+            .normalize_test_case("e\u{301}", &[entity], &config)
+            .unwrap_err();
+
+        assert!(error.to_string().contains("unrepresentable"));
+    }
+
+    #[test]
+    fn test_entity_density_uses_character_count() {
+        use anno::EntityType;
+
+        let accented = vec![(
+            "é".to_string(),
+            vec![super::super::GoldEntity::new(
+                "é",
+                EntityType::Organization,
+                0,
+            )],
+        )];
+        let ascii = vec![(
+            "e".to_string(),
+            vec![super::super::GoldEntity::new(
+                "e",
+                EntityType::Organization,
+                0,
+            )],
+        )];
+
+        assert!((entity_density(&accented) - entity_density(&ascii)).abs() < f64::EPSILON);
     }
 
     #[test]

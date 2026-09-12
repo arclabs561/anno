@@ -32,6 +32,7 @@
 //! }
 //! ```
 
+use crate::eval::ner_metrics::evaluate_entities;
 use crate::{Entity, Model};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -129,22 +130,33 @@ pub struct RobustnessResults {
     pub baseline_f1: f64,
     /// F1 score by perturbation type
     pub by_perturbation: HashMap<String, PerturbationMetrics>,
-    /// Average F1 across all perturbations
+    /// Average F1 across all configured non-baseline perturbations.
+    ///
+    /// This includes 0.0 for a perturbation with no scored examples. It is comparable only when
+    /// [`coverage_complete`](Self::coverage_complete) is true.
     pub avg_perturbed_f1: f64,
-    /// Robustness score: avg_perturbed_f1 / baseline_f1 (1.0 = perfectly robust)
+    /// Robustness score: avg_perturbed_f1 / baseline_f1 (1.0 = perfectly robust).
+    ///
+    /// Comparable only when [`coverage_complete`](Self::coverage_complete) is true.
     pub robustness_score: f64,
     /// Worst perturbation type
     pub worst_perturbation: String,
     /// Best perturbation type (often "None")
     pub best_perturbation: String,
-    /// Total examples tested
+    /// Total input examples before perturbation-specific alignment exclusions
     pub total_examples: usize,
+    /// Whether every configured perturbation scored every input example.
+    ///
+    /// When false, score summaries are not comparable across runs; inspect each
+    /// perturbation's `count`, `excluded_count`, and `exclusion_reasons`.
+    #[serde(default)]
+    pub coverage_complete: bool,
 }
 
 /// Metrics for a single perturbation type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerturbationMetrics {
-    /// F1 score under this perturbation
+    /// F1 score under this perturbation, or 0.0 when no examples could be scored
     pub f1: f64,
     /// Precision under this perturbation
     pub precision: f64,
@@ -152,8 +164,14 @@ pub struct PerturbationMetrics {
     pub recall: f64,
     /// Relative change from baseline: (perturbed - baseline) / baseline
     pub relative_change: f64,
-    /// Number of examples tested
+    /// Number of examples scored after projecting gold into perturbed text
     pub count: usize,
+    /// Number of examples excluded because their gold annotations could not be projected safely
+    #[serde(default)]
+    pub excluded_count: usize,
+    /// Exclusion counts keyed by stable projection reason
+    #[serde(default)]
+    pub exclusion_reasons: HashMap<String, usize>,
 }
 
 // =============================================================================
@@ -401,21 +419,57 @@ impl RobustnessEvaluator {
         model: &dyn Model,
         test_cases: &[(String, Vec<Entity>)],
     ) -> RobustnessResults {
-        let mut by_perturbation: HashMap<String, Vec<(f64, f64, f64)>> = HashMap::new();
+        #[derive(Default)]
+        struct PerturbationSamples {
+            metrics: Vec<(f64, f64, f64)>,
+            exclusions: HashMap<String, usize>,
+        }
+
+        let mut by_perturbation: HashMap<String, PerturbationSamples> = self
+            .perturbations
+            .iter()
+            .map(|perturbation| {
+                (
+                    format!("{:?}", perturbation),
+                    PerturbationSamples::default(),
+                )
+            })
+            .collect();
 
         for (text, gold_entities) in test_cases {
             for &perturbation in &self.perturbations {
                 let perturbed = self.apply_perturbation(text, perturbation);
-                let predicted = model.extract_entities(&perturbed, None).unwrap_or_default();
-
-                // Compute metrics (simplified - just count matches)
-                let (precision, recall, f1) =
-                    compute_simple_metrics(&predicted, gold_entities, text, &perturbed);
-
-                by_perturbation
+                let samples = by_perturbation
                     .entry(format!("{:?}", perturbation))
-                    .or_default()
-                    .push((precision, recall, f1));
+                    .or_default();
+                // Gold offsets and surface forms belong to the original text. Project them
+                // through the perturbation before scoring; otherwise changes before an entity
+                // shift its offsets and changes inside it make its old surface form invalid.
+                // Ambiguous or lossy edit alignments are deliberately excluded rather than
+                // inventing a gold span that could reward or penalize the model incorrectly.
+                let perturbed_gold = match project_gold_entities(text, &perturbed, gold_entities) {
+                    Ok(gold) => gold,
+                    Err(reason) => {
+                        *samples
+                            .exclusions
+                            .entry(reason.as_str().to_string())
+                            .or_default() += 1;
+                        continue;
+                    }
+                };
+                let predicted = match model.extract_entities(&perturbed, None) {
+                    Ok(predicted) => predicted,
+                    Err(_) => {
+                        *samples
+                            .exclusions
+                            .entry("inference_error".to_string())
+                            .or_default() += 1;
+                        continue;
+                    }
+                };
+
+                let (precision, recall, f1) = compute_simple_metrics(&predicted, &perturbed_gold);
+                samples.metrics.push((precision, recall, f1));
             }
         }
 
@@ -423,14 +477,12 @@ impl RobustnessEvaluator {
         let mut aggregated: HashMap<String, PerturbationMetrics> = HashMap::new();
         let baseline_f1 = by_perturbation
             .get("None")
-            .map(|v| v.iter().map(|(_, _, f1)| f1).sum::<f64>() / v.len() as f64)
+            .and_then(|samples| average_metrics(&samples.metrics).map(|(_, _, f1)| f1))
             .unwrap_or(0.0);
 
-        for (name, metrics) in &by_perturbation {
-            let avg_precision =
-                metrics.iter().map(|(p, _, _)| p).sum::<f64>() / metrics.len() as f64;
-            let avg_recall = metrics.iter().map(|(_, r, _)| r).sum::<f64>() / metrics.len() as f64;
-            let avg_f1 = metrics.iter().map(|(_, _, f)| f).sum::<f64>() / metrics.len() as f64;
+        for (name, samples) in &by_perturbation {
+            let (avg_precision, avg_recall, avg_f1) =
+                average_metrics(&samples.metrics).unwrap_or((0.0, 0.0, 0.0));
             let relative_change = if baseline_f1 > 0.0 {
                 (avg_f1 - baseline_f1) / baseline_f1
             } else {
@@ -444,15 +496,21 @@ impl RobustnessEvaluator {
                     precision: avg_precision,
                     recall: avg_recall,
                     relative_change,
-                    count: metrics.len(),
+                    count: samples.metrics.len(),
+                    excluded_count: samples.exclusions.values().sum(),
+                    exclusion_reasons: samples.exclusions.clone(),
                 },
             );
         }
 
+        let coverage_complete = aggregated
+            .values()
+            .all(|metrics| metrics.excluded_count == 0);
+
         // Find best/worst
         let (worst, _) = aggregated
             .iter()
-            .filter(|(k, _)| k.as_str() != "None")
+            .filter(|(k, metrics)| k.as_str() != "None" && metrics.count > 0)
             .min_by(|a, b| {
                 a.1.f1
                     .partial_cmp(&b.1.f1)
@@ -463,6 +521,7 @@ impl RobustnessEvaluator {
 
         let (best, _) = aggregated
             .iter()
+            .filter(|(_, metrics)| metrics.count > 0)
             .max_by(|a, b| {
                 a.1.f1
                     .partial_cmp(&b.1.f1)
@@ -471,7 +530,9 @@ impl RobustnessEvaluator {
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
-        // Average F1 across perturbations (excluding baseline)
+        // Include every configured perturbation, including those with zero scored examples.
+        // `coverage_complete` marks the resulting summary as non-comparable when exclusions
+        // occurred; zero values prevent unscored perturbations from disappearing silently.
         let perturbed_f1s: Vec<f64> = aggregated
             .iter()
             .filter(|(k, _)| k.as_str() != "None")
@@ -497,6 +558,7 @@ impl RobustnessEvaluator {
             worst_perturbation: worst,
             best_perturbation: best,
             total_examples: test_cases.len(),
+            coverage_complete,
         }
     }
 }
@@ -578,41 +640,247 @@ fn add_diacritic(c: char) -> char {
     }
 }
 
-/// Compute simple P/R/F1 metrics.
-fn compute_simple_metrics(
-    predicted: &[Entity],
-    gold: &[Entity],
-    _original_text: &str,
-    _perturbed_text: &str,
-) -> (f64, f64, f64) {
-    // Simplified matching: count entities by type
-    let mut correct = 0;
+#[derive(Clone, Copy, Debug)]
+enum ProjectionError {
+    AlignmentTooLarge,
+    AmbiguousAlignment,
+    InvalidGoldSpan,
+    GoldTextMismatch,
+    EmptyProjection,
+    NonContiguousProjection,
+}
 
-    for pred in predicted {
-        if gold.iter().any(|g| {
-            g.entity_type == pred.entity_type && g.text.to_lowercase() == pred.text.to_lowercase()
-        }) {
-            correct += 1;
+impl ProjectionError {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::AlignmentTooLarge => "alignment_too_large",
+            Self::AmbiguousAlignment => "ambiguous_alignment",
+            Self::InvalidGoldSpan => "invalid_gold_span",
+            Self::GoldTextMismatch => "gold_text_mismatch",
+            Self::EmptyProjection => "empty_projection",
+            Self::NonContiguousProjection => "non_contiguous_projection",
+        }
+    }
+}
+
+/// Project gold entities from the original text onto a perturbed version.
+///
+/// The projection uses a unique minimum-edit alignment over character offsets. A gold entity is
+/// usable only when its source span agrees with its surface text and it retains a non-empty,
+/// contiguous perturbed span. Ambiguous alignments and inputs over the bounded alignment budget
+/// return an exclusion reason, causing the caller to record and exclude that example.
+fn project_gold_entities(
+    original_text: &str,
+    perturbed_text: &str,
+    gold: &[Entity],
+) -> std::result::Result<Vec<Entity>, ProjectionError> {
+    const MAX_ALIGNMENT_CELLS: usize = 4_000_000;
+
+    if gold.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let original: Vec<char> = original_text.chars().collect();
+    if original_text == perturbed_text {
+        validate_gold_entities(&original, gold)?;
+        return Ok(gold.to_vec());
+    }
+
+    let perturbed: Vec<char> = perturbed_text.chars().collect();
+    let rows = original
+        .len()
+        .checked_add(1)
+        .ok_or(ProjectionError::AlignmentTooLarge)?;
+    let cols = perturbed
+        .len()
+        .checked_add(1)
+        .ok_or(ProjectionError::AlignmentTooLarge)?;
+    if rows
+        .checked_mul(cols)
+        .ok_or(ProjectionError::AlignmentTooLarge)?
+        > MAX_ALIGNMENT_CELLS
+    {
+        return Err(ProjectionError::AlignmentTooLarge);
+    }
+    #[derive(Clone, Copy)]
+    enum Step {
+        Diagonal,
+        Delete,
+        Insert,
+    }
+
+    let index = |i: usize, j: usize| i * cols + j;
+    let mut costs = vec![0usize; rows * cols];
+    let mut paths = vec![0u8; rows * cols];
+    let mut steps = vec![None; rows * cols];
+    paths[0] = 1;
+
+    for i in 0..rows {
+        for j in 0..cols {
+            if i == 0 && j == 0 {
+                continue;
+            }
+
+            let mut best_cost = usize::MAX;
+            let mut path_count = 0u8;
+            let mut chosen_step = None;
+            let mut consider = |cost: usize, count: u8, step: Step| {
+                if cost < best_cost {
+                    best_cost = cost;
+                    path_count = count;
+                    chosen_step = Some(step);
+                } else if cost == best_cost {
+                    path_count = path_count.saturating_add(count).min(2);
+                }
+            };
+
+            if i > 0 && j > 0 {
+                let substitution_cost = usize::from(original[i - 1] != perturbed[j - 1]);
+                let previous = index(i - 1, j - 1);
+                consider(
+                    costs[previous] + substitution_cost,
+                    paths[previous],
+                    Step::Diagonal,
+                );
+            }
+            if i > 0 {
+                let previous = index(i - 1, j);
+                consider(costs[previous] + 1, paths[previous], Step::Delete);
+            }
+            if j > 0 {
+                let previous = index(i, j - 1);
+                consider(costs[previous] + 1, paths[previous], Step::Insert);
+            }
+
+            let current = index(i, j);
+            costs[current] = best_cost;
+            paths[current] = path_count;
+            steps[current] = chosen_step;
         }
     }
 
-    let precision = if predicted.is_empty() {
-        0.0
-    } else {
-        correct as f64 / predicted.len() as f64
-    };
-    let recall = if gold.is_empty() {
-        0.0
-    } else {
-        correct as f64 / gold.len() as f64
-    };
-    let f1 = if precision + recall > 0.0 {
-        2.0 * precision * recall / (precision + recall)
-    } else {
-        0.0
-    };
+    if paths[index(original.len(), perturbed.len())] != 1 {
+        return Err(ProjectionError::AmbiguousAlignment);
+    }
 
-    (precision, recall, f1)
+    let mut reversed_steps = Vec::with_capacity(original.len() + perturbed.len());
+    let (mut i, mut j) = (original.len(), perturbed.len());
+    while i > 0 || j > 0 {
+        let step = steps[index(i, j)].ok_or(ProjectionError::AmbiguousAlignment)?;
+        reversed_steps.push(step);
+        match step {
+            Step::Diagonal => {
+                i -= 1;
+                j -= 1;
+            }
+            Step::Delete => i -= 1,
+            Step::Insert => j -= 1,
+        }
+    }
+    reversed_steps.reverse();
+
+    #[derive(Clone, Copy)]
+    enum Owner {
+        Source(usize),
+        Gap(usize),
+    }
+
+    let mut owners = Vec::with_capacity(perturbed.len());
+    let (mut source_index, mut target_index) = (0usize, 0usize);
+    for step in reversed_steps {
+        match step {
+            Step::Diagonal => {
+                owners.push(Owner::Source(source_index));
+                source_index += 1;
+                target_index += 1;
+            }
+            Step::Delete => source_index += 1,
+            Step::Insert => {
+                owners.push(Owner::Gap(source_index));
+                target_index += 1;
+            }
+        }
+    }
+    debug_assert_eq!(target_index, perturbed.len());
+
+    gold.iter()
+        .map(|entity| {
+            let start = entity.start();
+            let end = entity.end();
+            if start >= end || end > original.len() {
+                return Err(ProjectionError::InvalidGoldSpan);
+            }
+            if original[start..end].iter().collect::<String>() != entity.text {
+                return Err(ProjectionError::GoldTextMismatch);
+            }
+
+            let mut first = None;
+            let mut last = 0usize;
+            for (offset, owner) in owners.iter().enumerate() {
+                let belongs_to_entity = match owner {
+                    Owner::Source(index) => start <= *index && *index < end,
+                    Owner::Gap(index) => start < *index && *index < end,
+                };
+                if belongs_to_entity {
+                    first.get_or_insert(offset);
+                    last = offset + 1;
+                }
+            }
+            let first = first.ok_or(ProjectionError::EmptyProjection)?;
+            if owners[first..last].iter().any(|owner| match owner {
+                Owner::Source(index) => !(*index < end && start <= *index),
+                Owner::Gap(index) => !(*index < end && start < *index),
+            }) {
+                return Err(ProjectionError::NonContiguousProjection);
+            }
+
+            Ok(Entity::new(
+                perturbed[first..last].iter().collect::<String>(),
+                entity.entity_type.clone(),
+                first,
+                last,
+                entity.confidence,
+            ))
+        })
+        .collect()
+}
+
+fn validate_gold_entities(
+    original: &[char],
+    gold: &[Entity],
+) -> std::result::Result<(), ProjectionError> {
+    for entity in gold {
+        let start = entity.start();
+        let end = entity.end();
+        if start >= end || end > original.len() {
+            return Err(ProjectionError::InvalidGoldSpan);
+        }
+        if original[start..end].iter().collect::<String>() != entity.text {
+            return Err(ProjectionError::GoldTextMismatch);
+        }
+    }
+    Ok(())
+}
+
+fn average_metrics(metrics: &[(f64, f64, f64)]) -> Option<(f64, f64, f64)> {
+    (!metrics.is_empty()).then(|| {
+        let count = metrics.len() as f64;
+        (
+            metrics.iter().map(|(p, _, _)| p).sum::<f64>() / count,
+            metrics.iter().map(|(_, r, _)| r).sum::<f64>() / count,
+            metrics.iter().map(|(_, _, f)| f).sum::<f64>() / count,
+        )
+    })
+}
+
+/// Compute strict span-and-type P/R/F1 using the canonical one-to-one NER matcher.
+fn compute_simple_metrics(predicted: &[Entity], gold: &[Entity]) -> (f64, f64, f64) {
+    let strict = evaluate_entities(gold, predicted).strict;
+    (
+        strict.precision_exact(),
+        strict.recall_exact(),
+        strict.f1_exact(),
+    )
 }
 
 /// Grade robustness score.
@@ -696,5 +964,120 @@ mod tests {
         assert_eq!(robustness_grade(0.75), "Moderate robustness");
         assert_eq!(robustness_grade(0.60), "Poor robustness");
         assert_eq!(robustness_grade(0.30), "Very poor robustness");
+    }
+
+    #[test]
+    fn projects_gold_surface_and_offsets_after_punctuation_removal() {
+        let original = "Alice, works at Acme.";
+        let gold = vec![
+            Entity::new("Alice", crate::EntityType::Person, 0, 5, 1.0),
+            Entity::new("Acme", crate::EntityType::Organization, 16, 20, 1.0),
+        ];
+
+        let projected = project_gold_entities(original, "Alice works at Acme", &gold).unwrap();
+
+        assert_eq!(projected[0].text, "Alice");
+        assert_eq!((projected[0].start(), projected[0].end()), (0, 5));
+        assert_eq!(projected[1].text, "Acme");
+        assert_eq!((projected[1].start(), projected[1].end()), (15, 19));
+    }
+
+    #[test]
+    fn excludes_ambiguous_or_inconsistent_gold_projections() {
+        let gold = vec![Entity::new("a", crate::EntityType::Person, 0, 1, 1.0)];
+        assert!(matches!(
+            project_gold_entities("a", "aa", &gold),
+            Err(ProjectionError::AmbiguousAlignment)
+        ));
+
+        let inconsistent = vec![Entity::new("Bob", crate::EntityType::Person, 0, 3, 1.0)];
+        assert!(matches!(
+            project_gold_entities("Ann", "Ann", &inconsistent),
+            Err(ProjectionError::GoldTextMismatch)
+        ));
+    }
+
+    #[test]
+    fn strict_metrics_do_not_credit_duplicate_predictions() {
+        let gold = vec![Entity::new("Alice", crate::EntityType::Person, 0, 5, 1.0)];
+        let predicted = vec![
+            Entity::new("Alice", crate::EntityType::Person, 0, 5, 1.0),
+            Entity::new("Alice", crate::EntityType::Person, 0, 5, 1.0),
+        ];
+
+        let (precision, recall, f1) = compute_simple_metrics(&predicted, &gold);
+
+        assert_eq!(precision, 0.5);
+        assert_eq!(recall, 1.0);
+        assert!((f1 - 2.0 / 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn retains_an_entirely_unscoreable_perturbation_with_coverage_details() {
+        let evaluator = RobustnessEvaluator {
+            perturbations: vec![Perturbation::PunctuationExtra],
+            intensity: 1.0,
+            ..Default::default()
+        };
+        let model = anno::AnyModel::new("empty", "returns no entities", vec![], |_, _| Ok(vec![]));
+        let test_cases = vec![(
+            "!".to_string(),
+            vec![Entity::new("!", crate::EntityType::Person, 0, 1, 1.0)],
+        )];
+
+        let results = evaluator.evaluate(&model, &test_cases);
+        let metrics = &results.by_perturbation["PunctuationExtra"];
+
+        assert_eq!(metrics.count, 0);
+        assert_eq!(metrics.excluded_count, 1);
+        assert_eq!(metrics.exclusion_reasons["ambiguous_alignment"], 1);
+        assert_eq!(results.avg_perturbed_f1, 0.0);
+        assert!(!results.coverage_complete);
+    }
+
+    #[test]
+    fn scores_an_over_budget_unchanged_baseline_without_alignment() {
+        let text = "a".repeat(2_000);
+        let gold = vec![Entity::new(
+            text.clone(),
+            crate::EntityType::Person,
+            0,
+            text.chars().count(),
+            1.0,
+        )];
+        let model = anno::AnyModel::new("echo", "returns the whole input", vec![], |text, _| {
+            Ok(vec![Entity::new(
+                text,
+                crate::EntityType::Person,
+                0,
+                text.chars().count(),
+                1.0,
+            )])
+        });
+        let evaluator = RobustnessEvaluator::new(vec![Perturbation::None]);
+
+        let results = evaluator.evaluate(&model, &[(text, gold)]);
+
+        assert_eq!(results.by_perturbation["None"].count, 1);
+        assert_eq!(results.baseline_f1, 1.0);
+        assert!(results.coverage_complete);
+    }
+
+    #[test]
+    fn bounds_alignment_for_changed_over_budget_text() {
+        let original = "a".repeat(2_000);
+        let perturbed = "b".repeat(2_000);
+        let gold = vec![Entity::new(
+            original.clone(),
+            crate::EntityType::Person,
+            0,
+            original.chars().count(),
+            1.0,
+        )];
+
+        assert!(matches!(
+            project_gold_entities(&original, &perturbed, &gold),
+            Err(ProjectionError::AlignmentTooLarge)
+        ));
     }
 }

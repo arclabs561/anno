@@ -45,7 +45,7 @@ impl std::fmt::Debug for GLiNERCandle {
 /// PyTorch state dicts use Python pickle format with `torch._utils._rebuild_tensor_v2`
 /// which requires parsing complex nested structures. The `tch` crate can load models
 /// but doesn't provide direct state dict -> safetensors conversion.
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<PathBuf> {
     let cache_dir = pytorch_path
         .parent()
@@ -144,6 +144,7 @@ impl GLiNERCandle {
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "urchade/gliner_small-v2.1")
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn from_pretrained(model_id: &str) -> Result<Self> {
         let device = best_device()?;
 
@@ -217,23 +218,11 @@ impl GLiNERCandle {
             )));
         };
 
-        // Parse config - GLiNER config has encoder_config nested inside
-        let config_str = std::fs::read_to_string(&config_path)
-            .map_err(|e| Error::Retrieval(format!("config: {}", e)))?;
-        let config: serde_json::Value = serde_json::from_str(&config_str)
-            .map_err(|e| Error::Parse(format!("config JSON: {}", e)))?;
+        let config_bytes =
+            std::fs::read(&config_path).map_err(|e| Error::Retrieval(format!("config: {}", e)))?;
 
-        // GLiNER has encoder config nested inside encoder_config key
-        let encoder_config_json = if config.get("encoder_config").is_some() {
-            config["encoder_config"].clone()
-        } else {
-            // Fallback to top-level for non-GLiNER models
-            config.clone()
-        };
-
-        let hidden_size = encoder_config_json["hidden_size"].as_u64().unwrap_or(768) as usize;
-
-        // Load weights
+        // Keep the native load mmap-backed: model weights can be large enough that copying them
+        // into a buffered builder would materially increase startup memory use.
         // SAFETY: VarBuilder::from_mmaped_safetensors uses unsafe internally for memory mapping.
         // The weights_path is validated to exist before this call, and the safetensors format
         // is validated by the library. This is a safe FFI boundary.
@@ -241,6 +230,69 @@ impl GLiNERCandle {
             VarBuilder::from_mmaped_safetensors(&[weights_path], DType::F32, &device)
                 .map_err(|e| Error::Retrieval(format!("safetensors: {}", e)))?
         };
+
+        Self::from_var_builder(model_id, &config_bytes, tokenizer, device, vb)
+    }
+
+    /// Load GLiNER from immutable model assets already held in memory.
+    ///
+    /// This is suitable for callers which own model delivery, such as an offline cache or a
+    /// browser bundle. `model_name` is retained as the model provenance returned by
+    /// [`Self::model_name`]. The weights must contain one complete safetensors file.
+    ///
+    /// Native `from_pretrained` deliberately retains its mmap-backed weights path;
+    /// this constructor uses Candle's buffered safetensors loader because byte assets have no
+    /// stable filesystem path to map.
+    pub fn from_assets(
+        model_name: &str,
+        config: &[u8],
+        tokenizer: &[u8],
+        weights: Vec<u8>,
+    ) -> Result<Self> {
+        if config.is_empty() {
+            return Err(Error::Retrieval("GLiNER config asset is empty".into()));
+        }
+        if tokenizer.is_empty() {
+            return Err(Error::Retrieval("GLiNER tokenizer asset is empty".into()));
+        }
+        if weights.is_empty() {
+            return Err(Error::Retrieval(
+                "GLiNER safetensors weights asset is empty".into(),
+            ));
+        }
+
+        let device = best_device()?;
+        let tokenizer = Tokenizer::from_bytes(tokenizer)
+            .map_err(|e| Error::Retrieval(format!("tokenizer: {}", e)))?;
+        let vb = VarBuilder::from_buffered_safetensors(weights, DType::F32, &device)
+            .map_err(|e| Error::Retrieval(format!("safetensors: {}", e)))?;
+
+        Self::from_var_builder(model_name, config, tokenizer, device, vb)
+    }
+
+    /// Assemble the model after an asset source has created a Candle variable builder.
+    ///
+    /// Both file-backed and byte-backed construction use this path so config interpretation and
+    /// inference-layer layout stay identical.
+    fn from_var_builder(
+        model_name: &str,
+        config_bytes: &[u8],
+        tokenizer: Tokenizer,
+        device: Device,
+        vb: VarBuilder,
+    ) -> Result<Self> {
+        // Parse config - GLiNER config has encoder_config nested inside.
+        let config: serde_json::Value = serde_json::from_slice(config_bytes)
+            .map_err(|e| Error::Parse(format!("config JSON: {}", e)))?;
+
+        // GLiNER has encoder config nested inside encoder_config key.
+        let encoder_config_json = if config.get("encoder_config").is_some() {
+            config["encoder_config"].clone()
+        } else {
+            // Fallback to top-level for non-GLiNER models.
+            config
+        };
+        let hidden_size = encoder_config_json["hidden_size"].as_u64().unwrap_or(768) as usize;
 
         // Build encoder from the GLiNER-specific path
         // GLiNER stores BERT weights under token_rep_layer.bert_layer.model.*
@@ -265,7 +317,7 @@ impl GLiNERCandle {
 
         log::info!(
             "[GLiNER-Candle] Loaded {} (hidden={}) on {:?}",
-            model_id,
+            model_name,
             hidden_size,
             device
         );
@@ -276,13 +328,14 @@ impl GLiNERCandle {
             span_rep,
             label_encoder,
             matcher,
-            model_name: model_id.to_string(),
+            model_name: model_name.to_string(),
             hidden_size,
             device,
         })
     }
 
-    /// Simplified constructor that creates with random weights (for testing).
+    /// Load a pretrained model using the native Hugging Face cache.
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn new(model_name: &str) -> Result<Self> {
         Self::from_pretrained(model_name)
     }
