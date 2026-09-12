@@ -4,7 +4,7 @@ This repo is **pre-1.0** and prioritizes long-term maintainability over API stab
 
 ## Crate layout (dependency boundaries)
 
-After the 2026-04-26 Phase B consolidation, the workspace ships **three** crates. The earlier `anno-core`, `anno-metrics`, and `anno-graph` packages were folded back into `anno` (their content lives at `anno::core::*`, `anno::metrics::*`, and `anno::graph::*`, the latter behind `feature = "graph"`).
+After the Phase B consolidation, the workspace ships **four** crates. The earlier `anno-core`, `anno-metrics`, and `anno-graph` packages were folded back into `anno` (their content lives at `anno::core::*`, `anno::metrics::*`, and `anno::graph::*`, the latter behind `feature = "graph"`).
 
 - `crates/anno` (**library + type foundation + backends + metrics + graph export**)
   - Owns: extraction types (entity/coref/grounded), runtime backends (regex/heuristic/onnx/candle/llm), ingest pipeline, env/offset helpers, coreference scoring metrics, KG export adapters.
@@ -21,6 +21,10 @@ After the 2026-04-26 Phase B consolidation, the workspace ships **three** crates
 - `crates/anno-cli` (**the `anno` binary**)
   - Owns: CLI UX, command wiring, output formatting, file I/O.
   - Depends on: `anno`, `anno-eval`. `anno/graph` is forwarded behind the `graph` feature.
+
+- `crates/anno-py` (**Python bindings**)
+  - Owns: the PyO3 extension surface for `anno`.
+  - Depends on: `anno` and PyO3.
 
 ### Intended direction of dependencies
 
@@ -58,4 +62,3 @@ If you feel pressure to add a dependency "upwards" (e.g. anno -> anno-eval), tha
 - `anno` doctests are kept enabled.
 - `anno-eval` doctests are currently **disabled** (`[lib] doctest = false`).
   - The full evaluation harness lives in `anno_eval::eval`, while `anno::metrics` (behind the `analysis` feature) provides the dependency-light coref scoring primitives.
-
