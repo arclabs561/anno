@@ -681,6 +681,11 @@ fn project_gold_entities(
     }
 
     let original: Vec<char> = original_text.chars().collect();
+    if original_text == perturbed_text {
+        validate_gold_entities(&original, gold)?;
+        return Ok(gold.to_vec());
+    }
+
     let perturbed: Vec<char> = perturbed_text.chars().collect();
     let rows = original
         .len()
@@ -697,11 +702,6 @@ fn project_gold_entities(
     {
         return Err(ProjectionError::AlignmentTooLarge);
     }
-    if original_text == perturbed_text {
-        validate_gold_entities(&original, gold)?;
-        return Ok(gold.to_vec());
-    }
-
     #[derive(Clone, Copy)]
     enum Step {
         Diagonal,
@@ -1033,5 +1033,51 @@ mod tests {
         assert_eq!(metrics.exclusion_reasons["ambiguous_alignment"], 1);
         assert_eq!(results.avg_perturbed_f1, 0.0);
         assert!(!results.coverage_complete);
+    }
+
+    #[test]
+    fn scores_an_over_budget_unchanged_baseline_without_alignment() {
+        let text = "a".repeat(2_000);
+        let gold = vec![Entity::new(
+            text.clone(),
+            crate::EntityType::Person,
+            0,
+            text.chars().count(),
+            1.0,
+        )];
+        let model = anno::AnyModel::new("echo", "returns the whole input", vec![], |text, _| {
+            Ok(vec![Entity::new(
+                text,
+                crate::EntityType::Person,
+                0,
+                text.chars().count(),
+                1.0,
+            )])
+        });
+        let evaluator = RobustnessEvaluator::new(vec![Perturbation::None]);
+
+        let results = evaluator.evaluate(&model, &[(text, gold)]);
+
+        assert_eq!(results.by_perturbation["None"].count, 1);
+        assert_eq!(results.baseline_f1, 1.0);
+        assert!(results.coverage_complete);
+    }
+
+    #[test]
+    fn bounds_alignment_for_changed_over_budget_text() {
+        let original = "a".repeat(2_000);
+        let perturbed = "b".repeat(2_000);
+        let gold = vec![Entity::new(
+            original.clone(),
+            crate::EntityType::Person,
+            0,
+            original.chars().count(),
+            1.0,
+        )];
+
+        assert!(matches!(
+            project_gold_entities(&original, &perturbed, &gold),
+            Err(ProjectionError::AlignmentTooLarge)
+        ));
     }
 }

@@ -26,6 +26,7 @@
 //! ```
 
 use crate::eval::task_evaluator::TaskEvalResult;
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -150,9 +151,18 @@ impl EvalHistory {
             .map(|p| p.join("eval-history.db"))
             .or_else(|| Some(PathBuf::from("eval-history.db")));
 
-        // Initialize SQLite schema if needed
+        // Initialize SQLite schema under the database-owned lock. A corrupt index is tolerated
+        // here so callers can construct history and invoke the explicit rebuild recovery.
         if let Some(ref db_path) = sqlite_path {
-            Self::init_sqlite(db_path)?;
+            let _lock = Self::lock_sqlite(db_path)?;
+            // Do not let SQLite open a database while an external WAL or journal exists: opening
+            // a corrupt database can clean up sidecars that this process does not own.
+            Self::reject_sqlite_sidecars(db_path)?;
+            match Self::init_sqlite(db_path) {
+                Ok(()) => {}
+                Err(error) if Self::is_corrupt_sqlite_error(&error) => {}
+                Err(error) => return Err(std::io::Error::other(format!("SQLite error: {error}"))),
+            }
         }
 
         Ok(Self {
@@ -174,6 +184,7 @@ impl EvalHistory {
     /// Lower-level method that accepts a pre-constructed entry.
     /// Useful when you need to customize the entry (e.g., set seed from config).
     pub fn append_entry(&self, entry: &EvalHistoryEntry) -> std::io::Result<()> {
+        let _lock = self.lock_history()?;
         let git_commit = cached_git_commit();
 
         // Always write to JSONL first (source of truth)
@@ -196,6 +207,31 @@ impl EvalHistory {
         Ok(())
     }
 
+    /// Serialize JSONL and SQLite updates across processes using a persistent database sidecar.
+    /// The lock is advisory, so external SQLite clients must not mutate this index directly.
+    fn lock_history(&self) -> std::io::Result<File> {
+        let db_path = self.sqlite_path.as_ref().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::Unsupported, "SQLite index is disabled")
+        })?;
+        Self::lock_sqlite(db_path)
+    }
+
+    fn lock_sqlite(db_path: &Path) -> std::io::Result<File> {
+        let lock_path = Self::sqlite_lock_path(db_path);
+        let lock = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(lock_path)?;
+        lock.lock_exclusive()?;
+        Ok(lock)
+    }
+
+    fn sqlite_lock_path(db_path: &Path) -> PathBuf {
+        db_path.with_extension("db.lock")
+    }
+
     /// Append entry to JSONL file.
     fn append_jsonl(
         &self,
@@ -205,6 +241,7 @@ impl EvalHistory {
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
+            .truncate(false)
             .open(&self.jsonl_path)?;
 
         let record = StoredEvalHistoryEntry {
@@ -321,11 +358,10 @@ impl EvalHistory {
         })
     }
 
-    fn init_sqlite(db_path: &Path) -> std::io::Result<()> {
+    fn init_sqlite(db_path: &Path) -> rusqlite::Result<()> {
         use rusqlite::Connection;
 
-        let conn = Connection::open(db_path)
-            .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
+        let conn = Connection::open(db_path)?;
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS eval_results (
@@ -345,27 +381,22 @@ impl EvalHistory {
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )",
             [],
-        )
-        .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
+        )?;
 
         // Create indexes for common queries
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_backend_dataset ON eval_results(backend, dataset)",
             [],
-        )
-        .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
+        )?;
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_timestamp ON eval_results(timestamp)",
             [],
-        )
-        .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_f1 ON eval_results(f1)", [])
-            .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
+        )?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_f1 ON eval_results(f1)", [])?;
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_backend_timestamp ON eval_results(backend, timestamp)",
             [],
-        )
-        .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
+        )?;
 
         // Schema evolution: add git_commit column if not present.
         // This enables change-point detection tied to specific code versions.
@@ -1197,36 +1228,145 @@ impl EvalHistory {
         Ok(alerts)
     }
 
+    fn rebuild_initialized_index_transactionally(
+        db_path: &Path,
+        entries: &[StoredEvalHistoryEntry],
+    ) -> std::io::Result<()> {
+        let mut conn = rusqlite::Connection::open(db_path)
+            .map_err(|e| std::io::Error::other(format!("SQLite error: {e}")))?;
+        let transaction = conn.transaction().map_err(std::io::Error::other)?;
+        transaction
+            .execute("DELETE FROM eval_results", [])
+            .map_err(std::io::Error::other)?;
+
+        // Insert recorded provenance, never resolving the current checkout. Historic JSONL
+        // lines without provenance intentionally remain NULL.
+        for record in entries {
+            Self::insert_sqlite_into(&transaction, &record.entry, record.git_commit.as_deref())?;
+        }
+        transaction.commit().map_err(std::io::Error::other)
+    }
+
+    fn is_corrupt_sqlite_error(error: &rusqlite::Error) -> bool {
+        matches!(
+            error.sqlite_error_code(),
+            Some(rusqlite::ErrorCode::DatabaseCorrupt | rusqlite::ErrorCode::NotADatabase)
+        )
+    }
+
+    fn sqlite_sidecar_paths(db_path: &Path) -> Vec<PathBuf> {
+        ["-wal", "-shm", "-journal"]
+            .into_iter()
+            .map(|suffix| {
+                let mut path = db_path.as_os_str().to_os_string();
+                path.push(suffix);
+                PathBuf::from(path)
+            })
+            .collect()
+    }
+
+    fn reject_sqlite_sidecars(db_path: &Path) -> std::io::Result<()> {
+        let sidecars: Vec<_> = Self::sqlite_sidecar_paths(db_path)
+            .into_iter()
+            .filter(|path| path.exists())
+            .collect();
+        if sidecars.is_empty() {
+            return Ok(());
+        }
+        Err(std::io::Error::other(format!(
+            "refusing SQLite index rebuild while sidecars exist: {}",
+            sidecars
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )))
+    }
+
+    fn reserve_rebuild_path(db_path: &Path, kind: &str) -> std::io::Result<PathBuf> {
+        let parent = db_path.parent().unwrap_or_else(|| Path::new("."));
+        let file_name = db_path.file_name().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "SQLite index has no file name",
+            )
+        })?;
+        for attempt in 0..100 {
+            let candidate = parent.join(format!(
+                ".{}.{kind}.{}.{}",
+                file_name.to_string_lossy(),
+                std::process::id(),
+                attempt
+            ));
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&candidate)
+            {
+                Ok(_) => return Ok(candidate),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "could not reserve a SQLite recovery path",
+        ))
+    }
+
+    fn rebuild_corrupt_index(
+        db_path: &Path,
+        entries: &[StoredEvalHistoryEntry],
+    ) -> std::io::Result<()> {
+        Self::reject_sqlite_sidecars(db_path)?;
+
+        let replacement = Self::reserve_rebuild_path(db_path, "rebuild")?;
+        let rebuild_result = Self::init_sqlite(&replacement)
+            .map_err(std::io::Error::other)
+            .and_then(|_| Self::rebuild_initialized_index_transactionally(&replacement, entries));
+        if let Err(error) = rebuild_result {
+            let _ = std::fs::remove_file(&replacement);
+            return Err(error);
+        }
+
+        // Recheck immediately before replacement: our sidecar lock serializes anno writers, and
+        // this guard declines recovery if an external SQLite client created WAL state meanwhile.
+        if let Err(error) = Self::reject_sqlite_sidecars(db_path) {
+            let _ = std::fs::remove_file(&replacement);
+            return Err(error);
+        }
+
+        if let Err(error) = std::fs::rename(&replacement, db_path) {
+            let _ = std::fs::remove_file(&replacement);
+            return Err(error);
+        }
+
+        Ok(())
+    }
+
     /// Rebuild SQLite index from JSONL file.
     ///
-    /// Useful if SQLite gets corrupted or out of sync. If an append reports an index failure,
-    /// its JSONL record remains durable and this method restores the index from that source.
+    /// A sidecar lock serializes anno appenders and rebuilders. Healthy indexes are refreshed in
+    /// place in one transaction. A corrupt index is replaced only after a fresh index is built
+    /// from fully validated JSONL, and recovery rejects active SQLite sidecars.
     pub fn rebuild_index(&self) -> std::io::Result<()> {
+        let _lock = self.lock_history()?;
         if let Some(ref db_path) = self.sqlite_path {
             // Validate the complete source before touching the current index. `load_all` remains
             // permissive for historic inspection, but rebuild must never silently drop a line.
             let entries = self.load_stored_entries_strict()?;
 
-            // Ensure the schema is current before replacing index contents.
-            Self::init_sqlite(db_path)?;
+            // Check before opening SQLite: opening a corrupt database can clean up unowned WAL
+            // state, so an external sidecar must stop recovery before SQLite sees the database.
+            Self::reject_sqlite_sidecars(db_path)?;
 
-            let mut conn = rusqlite::Connection::open(db_path)
-                .map_err(|e| std::io::Error::other(format!("SQLite error: {e}")))?;
-            let transaction = conn.transaction().map_err(std::io::Error::other)?;
-            transaction
-                .execute("DELETE FROM eval_results", [])
-                .map_err(std::io::Error::other)?;
-
-            // Insert recorded provenance, never resolving the current checkout. Historic JSONL
-            // lines without provenance intentionally remain NULL.
-            for record in &entries {
-                Self::insert_sqlite_into(
-                    &transaction,
-                    &record.entry,
-                    record.git_commit.as_deref(),
-                )?;
+            match Self::init_sqlite(db_path) {
+                Ok(()) => Self::rebuild_initialized_index_transactionally(db_path, &entries)?,
+                Err(error) if Self::is_corrupt_sqlite_error(&error) => {
+                    Self::rebuild_corrupt_index(db_path, &entries)?;
+                }
+                Err(error) => return Err(std::io::Error::other(format!("SQLite error: {error}"))),
             }
-            transaction.commit().map_err(std::io::Error::other)?;
 
             eprintln!(
                 "[history] Rebuilt SQLite index with {} entries",
@@ -1432,6 +1572,95 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn rebuild_replaces_corrupt_sqlite_index_from_valid_jsonl() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let jsonl_path = temp.path().join("history.jsonl");
+        let history = EvalHistory::new(&jsonl_path).expect("failed to create history");
+        history
+            .append_entry(&test_entry(7, 100))
+            .expect("failed to append valid entry");
+        let db_path = history
+            .sqlite_path
+            .as_ref()
+            .expect("SQLite index is enabled")
+            .clone();
+        drop(history);
+        std::fs::write(&db_path, b"this is not a SQLite database")
+            .expect("failed to corrupt SQLite index fixture");
+
+        let history = EvalHistory::new(&jsonl_path)
+            .expect("corrupt SQLite index must not prevent recovery construction");
+
+        history
+            .rebuild_index()
+            .expect("failed to rebuild corrupt SQLite index");
+        let indexed = history
+            .query_recent("test-backend", 10)
+            .expect("failed to query recovered index");
+        assert_eq!(indexed.len(), 1);
+        assert_eq!(indexed[0].seed, 7);
+    }
+
+    #[test]
+    fn corrupt_rebuild_rejects_active_sqlite_sidecars() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        history
+            .append_entry(&test_entry(7, 100))
+            .expect("failed to append valid entry");
+        let db_path = history
+            .sqlite_path
+            .as_ref()
+            .expect("SQLite index is enabled");
+        std::fs::write(db_path, b"this is not a SQLite database")
+            .expect("failed to corrupt SQLite index fixture");
+        let mut wal_path = db_path.as_os_str().to_os_string();
+        wal_path.push("-wal");
+        let wal_path = PathBuf::from(wal_path);
+        std::fs::write(&wal_path, b"external WAL state")
+            .expect("failed to create SQLite sidecar fixture");
+
+        let error = history
+            .rebuild_index()
+            .expect_err("active sidecars must prevent replacement");
+        assert!(error.to_string().contains("sidecars exist"));
+        assert_eq!(
+            std::fs::read(db_path).expect("failed to inspect preserved corrupt index"),
+            b"this is not a SQLite database"
+        );
+        assert_eq!(
+            std::fs::read(wal_path).expect("failed to inspect preserved SQLite sidecar"),
+            b"external WAL state"
+        );
+    }
+
+    #[test]
+    fn database_owned_lock_excludes_second_handle_until_drop() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let db_path = temp.path().join("eval-history.db");
+        let lock = EvalHistory::lock_sqlite(&db_path).expect("failed to acquire first lock");
+        let lock_path = EvalHistory::sqlite_lock_path(&db_path);
+
+        let blocked = std::thread::spawn(move || {
+            let second = OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(lock_path)
+                .expect("failed to open second lock handle");
+            fs2::FileExt::try_lock_exclusive(&second).is_err()
+        })
+        .join()
+        .expect("second lock thread panicked");
+        assert!(blocked, "second handle must not acquire the database lock");
+
+        drop(lock);
+        let second = EvalHistory::lock_sqlite(&db_path)
+            .expect("second handle must acquire lock after first drops");
+        drop(second);
     }
 
     #[test]
