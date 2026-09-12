@@ -4381,12 +4381,12 @@ impl DatasetLoader {
                                     {
                                         if *token_start >= start && *token_end <= end {
                                             if idx > 0
-                                                && annotated_tokens[idx - 1]
+                                                && (annotated_tokens[idx - 1]
                                                     .ner_tag
                                                     .starts_with(&format!("I-{}", label))
-                                                || annotated_tokens[idx - 1]
-                                                    .ner_tag
-                                                    .starts_with(&format!("B-{}", label))
+                                                    || annotated_tokens[idx - 1]
+                                                        .ner_tag
+                                                        .starts_with(&format!("B-{}", label)))
                                             {
                                                 annotated_tokens[idx].ner_tag =
                                                     format!("I-{}", label);
@@ -6736,8 +6736,8 @@ impl DatasetLoader {
                                     .unwrap_or("event");
 
                                 // Extract trigger text
-                                if end <= all_tokens.len() {
-                                    let trigger_text = all_tokens[start..=end.min(start)].join(" ");
+                                if start <= end && end < all_tokens.len() {
+                                    let trigger_text = all_tokens[start..=end].join(" ");
                                     let tokens = vec![AnnotatedToken {
                                         text: trigger_text,
                                         ner_tag: format!("B-{}", event_type),
@@ -6765,9 +6765,8 @@ impl DatasetLoader {
                                         let end = span[1].as_u64().unwrap_or(0) as usize;
                                         let role = link_arr[2].as_str().unwrap_or("argument");
 
-                                        if end < all_tokens.len() {
-                                            let arg_text =
-                                                all_tokens[start..=end.min(start)].join(" ");
+                                        if start <= end && end < all_tokens.len() {
+                                            let arg_text = all_tokens[start..=end].join(" ");
                                             let tokens = vec![AnnotatedToken {
                                                 text: arg_text,
                                                 ner_tag: format!("B-ARG_{}", role),
@@ -6919,10 +6918,21 @@ impl DatasetLoader {
 
                 let form = fields[1]; // Word form
                 let upos = fields[3]; // Universal POS tag
+                let misc = fields.get(9).copied().unwrap_or("_");
+                let ner_tag = if misc == "O"
+                    || misc.starts_with("B-")
+                    || misc.starts_with("I-")
+                    || misc.starts_with("E-")
+                    || misc.starts_with("S-")
+                {
+                    misc.to_string()
+                } else {
+                    format!("B-{}", upos)
+                };
 
                 current_tokens.push(AnnotatedToken {
                     text: form.to_string(),
-                    ner_tag: format!("B-{}", upos), // Use POS tag as entity type
+                    ner_tag,
                 });
             }
         }
@@ -8041,8 +8051,8 @@ Blackburn NNP I-NP I-PER
 
         // Check Achilles (Ἀχιλῆος) entity
         assert_eq!(dataset.sentences[0].tokens[4].text, "Ἀχιλῆος");
-        // Note: CoNLLU parser may use POS tags if MISC doesn't have NER
-        // This depends on how the parser handles the MISC column
+        assert_eq!(dataset.sentences[0].tokens[3].ner_tag, "B-PER");
+        assert_eq!(dataset.sentences[0].tokens[4].ner_tag, "I-PER");
     }
 
     #[test]
@@ -8417,6 +8427,18 @@ Blackburn NNP I-NP I-PER
     }
 
     #[test]
+    fn test_parse_rams_preserves_multi_token_trigger_and_argument_spans() {
+        let sample_jsonl = r#"{"doc_key":"doc1","sentences":[["The","soldier","fired","his","weapon","."]],"evt_triggers":[[1,2,[["conflict.attack",1.0]]],[6,6,[["invalid",1.0]]]],"gold_evt_links":[[[0],[3,4],"target"]]}"#;
+        let loader = DatasetLoader::new().unwrap();
+
+        let dataset = loader.parse_rams(sample_jsonl, DatasetId::RAMS).unwrap();
+
+        assert_eq!(dataset.sentences.len(), 2);
+        assert_eq!(dataset.sentences[0].tokens[0].text, "soldier fired");
+        assert_eq!(dataset.sentences[1].tokens[0].text, "his weapon");
+    }
+
+    #[test]
     fn test_parse_trec() {
         // Test TREC question classification format
         let sample =
@@ -8707,6 +8729,16 @@ Blackburn NNP I-NP I-PER
             .tokens
             .iter()
             .any(|t| t.ner_tag == "B-DRUG" || t.ner_tag == "I-DRUG"));
+    }
+
+    #[test]
+    fn test_parse_cadec_discontinuous_entity_at_first_token() {
+        let sample = r#"{"tokens":["Aspirin","caused","rash"],"entities":[{"label":"DRUG","spans":[[0,7]]}]}"#;
+        let loader = DatasetLoader::new().unwrap();
+
+        let dataset = loader.parse_cadec_jsonl(sample, DatasetId::CADEC).unwrap();
+
+        assert_eq!(dataset.sentences[0].tokens[0].ner_tag, "B-DRUG");
     }
 
     #[test]

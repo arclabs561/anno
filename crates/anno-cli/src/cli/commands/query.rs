@@ -68,8 +68,57 @@ pub struct QueryArgs {
     pub output: Option<String>,
 }
 
+#[derive(Default)]
+struct FilterExpression {
+    entity_type: Option<String>,
+    confidence_greater_than: Option<f64>,
+}
+
+fn parse_filter_expression(expr: &str) -> Result<FilterExpression, String> {
+    let mut filter = FilterExpression::default();
+    for clause in expr.split(" AND ") {
+        let clause = clause.trim();
+        if let Some(entity_type) = clause.strip_prefix("type=") {
+            if entity_type.is_empty()
+                || entity_type.chars().any(char::is_whitespace)
+                || entity_type.contains(['=', '<', '>'])
+            {
+                return Err(format!("invalid type value in filter: {entity_type:?}"));
+            }
+            if filter.entity_type.is_some() {
+                return Err("filter may contain only one type clause".to_string());
+            }
+            filter.entity_type = Some(entity_type.to_string());
+        } else if let Some(confidence) = clause.strip_prefix("confidence>") {
+            if filter.confidence_greater_than.is_some() {
+                return Err("filter may contain only one confidence clause".to_string());
+            }
+            let confidence = confidence
+                .parse::<f64>()
+                .map_err(|_| format!("invalid confidence threshold in filter: {confidence}"))?;
+            if !confidence.is_finite() || !(0.0..=1.0).contains(&confidence) {
+                return Err(format!(
+                    "confidence threshold must be finite and within 0..=1: {confidence}"
+                ));
+            }
+            filter.confidence_greater_than = Some(confidence);
+        } else {
+            return Err(format!(
+                "unsupported filter clause '{clause}'; use type=TYPE and confidence>VALUE joined by AND"
+            ));
+        }
+    }
+    Ok(filter)
+}
+
 /// Execute the query command.
 pub fn run(args: QueryArgs) -> Result<(), String> {
+    let expression = args
+        .filter
+        .as_deref()
+        .map(parse_filter_expression)
+        .transpose()?
+        .unwrap_or_default();
     // Load input file
     let json_content = if args.input == "-" {
         let mut buf = String::new();
@@ -107,6 +156,14 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
         if let Some(min_conf) = args.min_confidence {
             // Filter by confidence (could use confident_signals, but already have collection)
             signals.retain(|s| s.confidence >= min_conf);
+        }
+
+        if let Some(ref filter_type) = expression.entity_type {
+            signals.retain(|s| s.label().eq_ignore_ascii_case(filter_type));
+        }
+
+        if let Some(confidence) = expression.confidence_greater_than {
+            signals.retain(|s| s.confidence > confidence);
         }
 
         if let Some(ref entity_text) = args.entity {
@@ -187,6 +244,22 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
                     });
                 }
 
+                if let Some(ref filter_type) = expression.entity_type {
+                    filtered.retain(|c| {
+                        c.entity_type
+                            .as_ref()
+                            .map(|t| t.as_label().eq_ignore_ascii_case(filter_type))
+                            .unwrap_or(false)
+                    });
+                }
+
+                if expression.confidence_greater_than.is_some() {
+                    return Err(
+                        "confidence filters are only supported for GroundedDocument input"
+                            .to_string(),
+                    );
+                }
+
                 if let Some(ref entity_text) = args.entity {
                     filtered.retain(|c| {
                         c.canonical_name
@@ -237,4 +310,67 @@ pub fn run(args: QueryArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn documented_filter_expression_maps_to_existing_predicates() {
+        let filter = parse_filter_expression("type=ORG AND confidence>0.7").unwrap();
+        assert_eq!(filter.entity_type.as_deref(), Some("ORG"));
+        assert_eq!(filter.confidence_greater_than, Some(0.7));
+    }
+
+    #[test]
+    fn filter_expression_rejects_silent_noop_clauses() {
+        assert!(parse_filter_expression("surface~Alice").is_err());
+        assert!(parse_filter_expression("type=ORG AND type=PER").is_err());
+        assert!(parse_filter_expression("confidence>NaN").is_err());
+        assert!(parse_filter_expression("confidence>1.1").is_err());
+        assert!(parse_filter_expression("type>ORG").is_err());
+    }
+
+    #[test]
+    fn query_filter_expression_uses_strict_confidence_and_writes_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("input.json");
+        let output = dir.path().join("output.json");
+        let entities = vec![
+            anno::Entity::new("Equal", anno::EntityType::Organization, 0, 5, 0.7),
+            anno::Entity::new("Included", anno::EntityType::Organization, 6, 14, 0.9),
+            anno::Entity::new("WrongType", anno::EntityType::Person, 15, 24, 0.99),
+        ];
+        let document = anno::GroundedDocument::from_entity_signals(
+            "test",
+            "Equal Included WrongType",
+            &entities,
+        );
+        fs::write(&input, serde_json::to_string(&document).unwrap()).unwrap();
+
+        run(QueryArgs {
+            input: input.to_string_lossy().into_owned(),
+            r#type: None,
+            entity: None,
+            min_confidence: None,
+            filter: Some("type=ORG AND confidence>0.7".to_string()),
+            start_offset: None,
+            end_offset: None,
+            negated: false,
+            quantified: false,
+            untracked: false,
+            linked: false,
+            unlinked: false,
+            format: OutputFormat::Json,
+            output: Some(output.to_string_lossy().into_owned()),
+        })
+        .unwrap();
+
+        let output: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(output).unwrap()).unwrap();
+        let signals = output.as_array().unwrap();
+        assert_eq!(signals.len(), 1);
+        assert_eq!(signals[0]["surface"], "Included");
+    }
 }

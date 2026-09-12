@@ -966,6 +966,13 @@ impl TaskEvaluator {
         dataset_data: &LoadedDataset,
         config: &TaskEvalConfig,
     ) -> Result<BackendEvalOk> {
+        if config.temporal_stratification {
+            return Err(crate::Error::FeatureNotAvailable(
+                "Temporal stratification requires per-example timestamps, which this evaluator does not load"
+                    .to_string(),
+            ));
+        }
+
         // Validate task-dataset compatibility
         let dataset_tasks = dataset_tasks(dataset);
         if !dataset_tasks.contains(&task) {
@@ -2149,11 +2156,10 @@ impl TaskEvaluator {
                                     .collect()
                             }
                             Err(e) => {
-                                eprintln!(
-                                    "Warning: CorefBackend inference failed for document: {}",
-                                    e
-                                );
-                                Vec::new()
+                                return Err(crate::Error::Inference(format!(
+                                    "Coreference backend '{backend_name}' inference failed for document {:?}: {e}",
+                                    doc.doc_id
+                                )));
                             }
                         }
                     }
@@ -2221,8 +2227,10 @@ impl TaskEvaluator {
                         entities_to_chains(&resolved_entities)
                     }
                     Err(e) => {
-                        eprintln!("Warning: NER backend inference failed for document: {}", e);
-                        Vec::new()
+                        return Err(crate::Error::Inference(format!(
+                            "NER backend '{ner_backend_name}' inference failed for coreference document {:?}: {e}",
+                            doc.doc_id
+                        )));
                     }
                 }
             };
@@ -2515,39 +2523,19 @@ impl TaskEvaluator {
                     match self.loader.load_or_download_relation(dataset_data.id) {
                         Ok(docs) => docs,
                         Err(e) => {
-                            eprintln!(
-                                "Warning: Failed to load/download relations for {:?}: {}",
-                                dataset_data.id, e
-                            );
-                            let mut metrics = HashMap::new();
-                            metrics.insert("boundary_f1".to_string(), 0.0);
-                            metrics.insert("strict_f1".to_string(), 0.0);
-                            metrics.insert("num_gold_relations".to_string(), 0.0);
-                            metrics.insert("num_predicted_relations".to_string(), 0.0);
-                            metrics.insert(
-                                "num_sentences".to_string(),
-                                dataset_data.sentences.len() as f64,
-                            );
-                            return Ok(metrics);
+                            return Err(crate::Error::InvalidInput(format!(
+                                "Failed to load/download relations for {:?}: {e}",
+                                dataset_data.id
+                            )));
                         }
                     }
                 }
                 #[cfg(not(feature = "eval"))]
                 {
-                    eprintln!(
-                        "Warning: Relations for {:?} not cached and 'eval' feature not enabled (cannot download)",
+                    return Err(crate::Error::InvalidInput(format!(
+                        "Relations for {:?} are not cached and the 'eval' feature cannot download them",
                         dataset_data.id
-                    );
-                    let mut metrics = HashMap::new();
-                    metrics.insert("boundary_f1".to_string(), 0.0);
-                    metrics.insert("strict_f1".to_string(), 0.0);
-                    metrics.insert("num_gold_relations".to_string(), 0.0);
-                    metrics.insert("num_predicted_relations".to_string(), 0.0);
-                    metrics.insert(
-                        "num_sentences".to_string(),
-                        dataset_data.sentences.len() as f64,
-                    );
-                    return Ok(metrics);
+                    )));
                 }
             }
         };
@@ -2632,7 +2620,7 @@ impl TaskEvaluator {
         let mut oracle_docs_used: usize = 0;
         let mut oracle_tplinker_docs_used: usize = 0;
 
-        for doc in &relation_docs {
+        for (doc_index, doc) in relation_docs.iter().enumerate() {
             let text = &doc.text;
 
             if let Some(ref rel_extractor) = relation_extractor {
@@ -2844,7 +2832,10 @@ impl TaskEvaluator {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Warning: Relation extraction failed: {}", e);
+                        return Err(crate::Error::Inference(format!(
+                            "Relation backend '{backend_name}' inference failed for document {}: {e}",
+                            doc_index + 1
+                        )));
                     }
                 }
             } else {
@@ -2852,8 +2843,10 @@ impl TaskEvaluator {
                 let entities = match backend.extract_entities(text, None) {
                     Ok(ents) => ents,
                     Err(e) => {
-                        eprintln!("Warning: Entity extraction failed: {}", e);
-                        continue;
+                        return Err(crate::Error::Inference(format!(
+                            "Relation fallback backend '{backend_name}' entity inference failed for document {}: {e}",
+                            doc_index + 1
+                        )));
                     }
                 };
 
@@ -3001,9 +2994,7 @@ impl TaskEvaluator {
             let extractor: Option<()> = None;
 
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            let extractor_candle = if backend_name_norm == "gliner_multitask_candle"
-                || backend_name_norm == "gliner_multitask_candle"
-            {
+            let extractor_candle = if backend_name_norm == "gliner_multitask_candle" {
                 use crate::DEFAULT_GLINER_MULTITASK_MODEL;
                 use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
                 Some(GLiNERMultitaskCandle::from_pretrained(
@@ -3320,8 +3311,12 @@ impl ComprehensiveEvalResults {
                     true
                 }
                 Task::RelationExtraction => {
-                    md.push_str("| Dataset | Backend | Strict | Boundary | N | ms |\n");
-                    md.push_str("|---------|---------|--------|----------|---|----|\n");
+                    md.push_str(
+                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs | N | ms |\n",
+                    );
+                    md.push_str(
+                        "|---------|---------|--------|----------|-------------|---|----|\n",
+                    );
                     true
                 }
                 _ => {
@@ -3576,12 +3571,18 @@ impl ComprehensiveEvalResults {
                                 .get("boundary_f1")
                                 .map(|v| *v * 100.0)
                                 .unwrap_or(0.0);
+                            let oracle_docs = result
+                                .metrics
+                                .get("oracle_docs_used")
+                                .copied()
+                                .unwrap_or(0.0);
                             md.push_str(&format!(
-                                "| {:?} | {} | {:.1} | {:.1} | {} | {} |\n",
+                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
                                 strict,
                                 boundary,
+                                oracle_docs,
                                 result.num_examples,
                                 time_str
                             ));
@@ -4153,12 +4154,8 @@ impl TaskEvaluator {
                 );
             }
 
-            // Compute temporal stratification if metadata available
-            let by_temporal_stratum = if let Some(ref temporal) = dataset_data.temporal_metadata {
-                self.compute_temporal_stratification(per_example, temporal)
-            } else {
-                None
-            };
+            // This loader carries only dataset-level temporal metadata, not example timestamps.
+            let by_temporal_stratum = None;
 
             return Some(StratifiedMetrics {
                 by_entity_type,
@@ -4170,122 +4167,6 @@ impl TaskEvaluator {
 
         // Fallback to simplified version using aggregate metrics
         self.compute_stratified_metrics(dataset_data, aggregate_metrics)
-    }
-
-    /// Compute temporal stratification from per-example scores and temporal metadata.
-    fn compute_temporal_stratification(
-        &self,
-        per_example_scores: &[(Vec<Entity>, Vec<Entity>, String)],
-        temporal_metadata: &super::loader::TemporalMetadata,
-    ) -> Option<HashMap<String, MetricWithCI>> {
-        use crate::eval::ner_metrics::evaluate_entities;
-
-        // If no temporal cutoff, can't stratify
-        let cutoff = temporal_metadata.temporal_cutoff.as_ref()?;
-
-        // Parse cutoff date (ISO 8601 format: YYYY-MM-DD)
-        // For now, we use a simple heuristic: all examples are pre-cutoff
-        // Future: would need entity creation dates or document timestamps to properly stratify
-        let _cutoff_date = cutoff.split('T').next()?; // Remove time if present
-                                                      // Note: cutoff date parsing removed - not used in current heuristic implementation
-
-        // Group examples by temporal stratum
-        let mut pre_cutoff_scores = Vec::new();
-        let mut post_cutoff_scores = Vec::new();
-
-        // Heuristic: Split examples in half based on order
-        // First half treated as pre-cutoff, second half as post-cutoff
-        // This approximates temporal drift when entity creation dates are unavailable
-        let total = per_example_scores.len();
-        let cutoff_index = total / 2;
-
-        for (idx, (gold, predicted, _text)) in per_example_scores.iter().enumerate() {
-            // Split data in half: first half = pre-cutoff, second half = post-cutoff
-            // This is a heuristic approximation - proper temporal stratification would
-            // require entity creation dates from entity linking or document timestamps
-            let is_post_cutoff = idx >= cutoff_index;
-
-            // Compute per-example metrics
-            let result = evaluate_entities(gold, predicted);
-            let summary = result.summary();
-
-            if is_post_cutoff {
-                post_cutoff_scores.push(summary.strict_f1);
-            } else {
-                pre_cutoff_scores.push(summary.strict_f1);
-            }
-        }
-
-        // Compute metrics for each stratum
-        let mut by_temporal = HashMap::new();
-
-        if !pre_cutoff_scores.is_empty() {
-            let n = pre_cutoff_scores.len() as f64;
-            let mean = pre_cutoff_scores.iter().sum::<f64>() / n;
-            // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-            let variance = if n > 1.0 {
-                pre_cutoff_scores
-                    .iter()
-                    .map(|&x| (x - mean).powi(2))
-                    .sum::<f64>()
-                    / (n - 1.0)
-            } else {
-                0.0
-            };
-            let std_dev = variance.sqrt();
-            let z = DEFAULT_Z_SCORE_95;
-            let margin = z * std_dev / n.sqrt();
-
-            by_temporal.insert(
-                "pre_cutoff".to_string(),
-                MetricWithCI {
-                    mean,
-                    std_dev,
-                    ci_95: (
-                        (mean - margin).clamp(0.0, 1.0),
-                        (mean + margin).clamp(0.0, 1.0),
-                    ),
-                    n: pre_cutoff_scores.len(),
-                },
-            );
-        }
-
-        if !post_cutoff_scores.is_empty() {
-            let n = post_cutoff_scores.len() as f64;
-            let mean = post_cutoff_scores.iter().sum::<f64>() / n;
-            // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-            let variance = if n > 1.0 {
-                post_cutoff_scores
-                    .iter()
-                    .map(|&x| (x - mean).powi(2))
-                    .sum::<f64>()
-                    / (n - 1.0)
-            } else {
-                0.0
-            };
-            let std_dev = variance.sqrt();
-            let z = DEFAULT_Z_SCORE_95;
-            let margin = z * std_dev / n.sqrt();
-
-            by_temporal.insert(
-                "post_cutoff".to_string(),
-                MetricWithCI {
-                    mean,
-                    std_dev,
-                    ci_95: (
-                        (mean - margin).clamp(0.0, 1.0),
-                        (mean + margin).clamp(0.0, 1.0),
-                    ),
-                    n: post_cutoff_scores.len(),
-                },
-            );
-        }
-
-        if by_temporal.is_empty() {
-            None
-        } else {
-            Some(by_temporal)
-        }
     }
 
     /// Compute confidence intervals from per-example scores.
@@ -4984,5 +4865,31 @@ mod tests {
         assert_eq!(summary.successful + summary.failed + summary.skipped, 100);
         assert!(!summary.tasks.is_empty());
         assert!(!summary.backends.is_empty());
+    }
+
+    #[test]
+    fn relation_markdown_discloses_oracle_entity_documents() {
+        let mut result = make_test_result(true, None, None);
+        result.task = Task::RelationExtraction;
+        result.metrics.insert("strict_f1".to_string(), 0.5);
+        result.metrics.insert("boundary_f1".to_string(), 0.75);
+        result.metrics.insert("oracle_docs_used".to_string(), 2.0);
+
+        let report = ComprehensiveEvalResults {
+            results: vec![result],
+            summary: EvalSummary {
+                total_combinations: 1,
+                successful: 1,
+                failed: 0,
+                skipped: 0,
+                tasks: vec![Task::RelationExtraction],
+                datasets: vec![DatasetId::WikiGold],
+                backends: vec!["stacked".to_string()],
+            },
+        }
+        .to_markdown();
+
+        assert!(report.contains("Gold-oracle docs"));
+        assert!(report.contains("| WikiGold | stacked | 50.0 | 75.0 | 2 |"));
     }
 }

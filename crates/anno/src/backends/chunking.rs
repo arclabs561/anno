@@ -336,7 +336,7 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
 /// This is the generic parallel chunking primitive. Backend-specific wrappers
 /// (e.g., UniversalNER) call this with their own extraction closure.
 ///
-/// Returns entities sorted by position with no duplicate spans.
+/// Returns entities sorted by position with no duplicate `(span, type)` pairs.
 pub fn extract_chunked_parallel<F>(
     text: &str,
     config: &ChunkConfig,
@@ -373,7 +373,7 @@ where
     for result in results {
         let entities = result?;
         for entity in entities {
-            if seen.insert((entity.start(), entity.end())) {
+            if seen.insert((entity.start(), entity.end(), entity.entity_type.clone())) {
                 all_entities.push(entity);
             }
         }
@@ -1189,6 +1189,37 @@ mod tests {
         );
         assert_eq!(entities[0].start(), 5);
         assert_eq!(entities[0].end(), 10);
+    }
+
+    /// Boundary copies of an entity with the same label collapse, but distinct
+    /// labels assigned to the same span must remain available to callers.
+    #[test]
+    fn test_extract_chunked_parallel_preserves_same_span_different_types() {
+        let text: String = "x".repeat(60);
+        let config = ChunkConfig {
+            chunk_size: 30,
+            overlap: 10,
+            respect_sentences: false,
+            buffer_size: 100,
+        };
+
+        let entities = extract_chunked_parallel(&text, &config, |_chunk, _char_offset| {
+            Ok(vec![
+                Entity::new("shared", EntityType::Person, 5, 10, 0.9),
+                Entity::new("shared", EntityType::Organization, 5, 10, 0.8),
+            ])
+        })
+        .expect("must not error");
+
+        assert_eq!(entities.len(), 2);
+        assert!(entities.iter().any(|entity| {
+            entity.start() == 5 && entity.end() == 10 && entity.entity_type == EntityType::Person
+        }));
+        assert!(entities.iter().any(|entity| {
+            entity.start() == 5
+                && entity.end() == 10
+                && entity.entity_type == EntityType::Organization
+        }));
     }
 
     /// Empty text returns no entities and does not error.

@@ -134,9 +134,10 @@ impl SpanRepLayer {
             for span in spans_data {
                 let start = span[0] as usize;
                 let end = span[1] as usize;
-                // Validate span: end must be > start to prevent underflow
-                if end <= start {
-                    log::warn!("Invalid span: end ({}) <= start ({})", end, start);
+                // Span indices use inclusive endpoints, so (start, start) is
+                // the valid one-word candidate emitted by generate_spans.
+                if !inclusive_span_is_valid(start, end) {
+                    log::warn!("Invalid span: end ({}) < start ({})", end, start);
                     continue;
                 }
                 let width = end - start;
@@ -175,6 +176,11 @@ impl SpanRepLayer {
         Tensor::from_vec(all_span_embs, (batch_size, num_spans, hidden_size), device)
             .map_err(|e| Error::Inference(format!("span tensor: {}", e)))
     }
+}
+
+#[cfg(feature = "candle")]
+fn inclusive_span_is_valid(start: usize, end: usize) -> bool {
+    end >= start
 }
 
 #[cfg(feature = "candle")]
@@ -775,6 +781,39 @@ impl GLiNERMultitaskCandle {
         entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 
         Ok(entities)
+    }
+}
+
+#[cfg(all(test, feature = "candle"))]
+mod candle_span_tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn span_rep() -> SpanRepLayer {
+        let device = Device::Cpu;
+        let mut tensors = HashMap::new();
+        tensors.insert(
+            "width_embeddings.weight".to_string(),
+            Tensor::zeros((3, 2), DType::F32, &device).unwrap(),
+        );
+        let vb = VarBuilder::from_tensors(tensors, DType::F32, &device);
+        SpanRepLayer::new(2, 3, vb).unwrap()
+    }
+
+    #[test]
+    fn span_rep_preserves_single_word_and_mixed_width_candidates() {
+        let device = Device::Cpu;
+        let tokens = Tensor::zeros((1, 3, 2), DType::F32, &device).unwrap();
+        let layer = span_rep();
+
+        let one_word = Tensor::from_vec(vec![0i64, 0], (1, 1, 2), &device).unwrap();
+        assert_eq!(
+            layer.forward(&tokens, &one_word).unwrap().dims(),
+            &[1, 1, 2]
+        );
+
+        let mixed = Tensor::from_vec(vec![0i64, 0, 0, 1, 1, 1], (1, 3, 2), &device).unwrap();
+        assert_eq!(layer.forward(&tokens, &mixed).unwrap().dims(), &[1, 3, 2]);
     }
 }
 
