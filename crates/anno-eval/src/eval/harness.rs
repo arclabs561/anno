@@ -35,12 +35,13 @@
 
 use crate::eval::datasets::GoldEntity;
 use crate::eval::loader::{DatasetId, DatasetLoader};
-use crate::eval::synthetic::{
-    all_datasets, datasets_by_difficulty, datasets_by_domain, AnnotatedExample, Difficulty, Domain,
-};
+use crate::eval::synthetic::{all_datasets, AnnotatedExample, Difficulty, Domain};
 use crate::eval::types::MetricWithVariance;
-use crate::eval::{evaluate_ner_model, TypeMetrics};
-use anno::{Error, Model, Result};
+use crate::eval::{
+    evaluate_ner_model, evaluate_ner_model_with_mapper,
+    evaluate_ner_model_with_mapper_and_min_confidence, TypeMetrics,
+};
+use anno::{Error, Model, Result, TypeMapper};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
@@ -600,18 +601,18 @@ impl EvalHarness {
         }
 
         let all_examples = all_datasets();
-        let test_cases: Vec<_> = all_examples
-            .iter()
+        let selected_examples: Vec<_> = all_examples
+            .into_iter()
             .filter(|ex| !ex.text.is_empty())
             .take(if self.config.max_examples_per_dataset > 0 {
                 self.config.max_examples_per_dataset
             } else {
                 usize::MAX
             })
-            .map(|ex| (ex.text.clone(), ex.entities.clone()))
             .collect();
+        let test_cases = cases_from_examples(&selected_examples);
 
-        let dataset_stats = compute_dataset_stats(&all_examples);
+        let dataset_stats = compute_dataset_stats(&selected_examples);
 
         let mut backends_results = Vec::new();
 
@@ -628,13 +629,13 @@ impl EvalHarness {
 
         // Breakdowns
         let by_difficulty = if self.config.breakdown_by_difficulty {
-            Some(self.compute_difficulty_breakdown()?)
+            Some(self.compute_difficulty_breakdown(&selected_examples)?)
         } else {
             None
         };
 
         let by_domain = if self.config.breakdown_by_domain {
-            Some(self.compute_domain_breakdown()?)
+            Some(self.compute_domain_breakdown(&selected_examples)?)
         } else {
             None
         };
@@ -820,9 +821,28 @@ impl EvalHarness {
             }
         }
 
+        let type_mapper = self.config.normalize_types.then(harness_type_mapper);
+
         let start = Instant::now();
-        let results = evaluate_ner_model(model, test_cases)?;
+        let mut results = if let Some(min_confidence) = self.config.min_confidence {
+            evaluate_ner_model_with_mapper_and_min_confidence(
+                model,
+                test_cases,
+                type_mapper.as_ref(),
+                Some(min_confidence),
+            )?
+        } else if let Some(mapper) = type_mapper.as_ref() {
+            evaluate_ner_model_with_mapper(model, test_cases, Some(mapper))?
+        } else {
+            evaluate_ner_model(model, test_cases)?
+        };
         let duration = start.elapsed();
+
+        if !self.config.breakdown_by_type {
+            results.per_type.clear();
+            results.macro_f1 = None;
+            results.weighted_f1 = None;
+        }
 
         let total_gold: usize = test_cases.iter().map(|(_, gold)| gold.len()).sum();
 
@@ -844,22 +864,20 @@ impl EvalHarness {
     }
 
     /// Compute breakdown by difficulty.
-    fn compute_difficulty_breakdown(&self) -> Result<HashMap<String, Vec<BackendDatasetResult>>> {
-        let difficulties = [
-            Difficulty::Easy,
-            Difficulty::Medium,
-            Difficulty::Hard,
-            Difficulty::Adversarial,
-        ];
-
+    fn compute_difficulty_breakdown(
+        &self,
+        examples: &[AnnotatedExample],
+    ) -> Result<HashMap<String, Vec<BackendDatasetResult>>> {
         let mut breakdown = HashMap::new();
 
-        for difficulty in difficulties {
-            let subset: Vec<_> = datasets_by_difficulty(difficulty)
-                .into_iter()
-                .filter(|ex| !ex.text.is_empty())
-                .map(|ex| (ex.text, ex.entities))
-                .collect();
+        for &difficulty in Difficulty::all() {
+            let subset = cases_from_examples(
+                &examples
+                    .iter()
+                    .filter(|ex| ex.difficulty == difficulty)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
 
             if subset.is_empty() {
                 continue;
@@ -881,36 +899,20 @@ impl EvalHarness {
     }
 
     /// Compute breakdown by domain.
-    fn compute_domain_breakdown(&self) -> Result<HashMap<String, Vec<BackendDatasetResult>>> {
-        let domains = [
-            Domain::News,
-            Domain::Financial,
-            Domain::Technical,
-            Domain::Sports,
-            Domain::Entertainment,
-            Domain::Politics,
-            Domain::Ecommerce,
-            Domain::Travel,
-            Domain::Weather,
-            Domain::Academic,
-            Domain::Historical,
-            Domain::Food,
-            Domain::RealEstate,
-            Domain::Conversational,
-            Domain::SocialMedia,
-            Domain::Biomedical,
-            Domain::Legal,
-            Domain::Scientific,
-        ];
-
+    fn compute_domain_breakdown(
+        &self,
+        examples: &[AnnotatedExample],
+    ) -> Result<HashMap<String, Vec<BackendDatasetResult>>> {
         let mut breakdown = HashMap::new();
 
-        for domain in domains {
-            let subset: Vec<_> = datasets_by_domain(domain)
-                .into_iter()
-                .filter(|ex| !ex.text.is_empty())
-                .map(|ex| (ex.text, ex.entities))
-                .collect();
+        for &domain in Domain::all() {
+            let subset = cases_from_examples(
+                &examples
+                    .iter()
+                    .filter(|ex| ex.domain == domain)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
 
             if subset.is_empty() {
                 continue;
@@ -929,6 +931,32 @@ impl EvalHarness {
 
         Ok(breakdown)
     }
+}
+
+fn cases_from_examples(examples: &[AnnotatedExample]) -> Vec<(String, Vec<GoldEntity>)> {
+    examples
+        .iter()
+        .map(|example| (example.text.clone(), example.entities.clone()))
+        .collect()
+}
+
+/// Build one mapper for the domain-specific type families supported by the harness.
+fn harness_type_mapper() -> TypeMapper {
+    let mut mapper = TypeMapper::new();
+    for source in [
+        TypeMapper::mit_movie(),
+        TypeMapper::mit_restaurant(),
+        TypeMapper::biomedical(),
+        TypeMapper::social_media(),
+        TypeMapper::manufacturing(),
+    ] {
+        for label in source.labels() {
+            if let Some(entity_type) = source.map(label) {
+                mapper.add(label, entity_type.clone());
+            }
+        }
+    }
+    mapper
 }
 
 // =============================================================================
@@ -1310,6 +1338,16 @@ small { color: #8b949e; }
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anno::{AnyModel, Entity, EntityCategory, EntityType};
+
+    fn fixed_model(entities: Vec<Entity>) -> AnyModel {
+        AnyModel::new(
+            "fixed",
+            "fixed test model",
+            vec![EntityType::Person],
+            move |_, _| Ok(entities.clone()),
+        )
+    }
 
     #[test]
     fn test_eval_config_default() {
@@ -1379,5 +1417,122 @@ mod tests {
         assert!(html.contains("<html"));
         assert!(html.contains("NER Evaluation Report"));
         assert!(html.contains("RegexNER"));
+    }
+
+    #[test]
+    fn confidence_threshold_filters_predictions_before_scoring() {
+        let cases = vec![(
+            "Alice".to_string(),
+            vec![GoldEntity::new("Alice", EntityType::Person, 0)],
+        )];
+        let model = fixed_model(vec![Entity::new("Alice", EntityType::Person, 0, 5, 0.4)]);
+
+        let unfiltered = EvalHarness::new(EvalConfig {
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap()
+        .evaluate_model_on_cases(&model, "fixed", "test", &cases)
+        .unwrap();
+        let filtered = EvalHarness::new(EvalConfig {
+            min_confidence: Some(0.8),
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap()
+        .evaluate_model_on_cases(&model, "fixed", "test", &cases)
+        .unwrap();
+
+        assert_eq!(unfiltered.f1, 1.0);
+        assert_eq!(filtered.found, 0);
+        assert_eq!(filtered.f1, 0.0);
+    }
+
+    #[test]
+    fn type_normalization_maps_domain_labels_before_scoring() {
+        let cases = vec![(
+            "Alice".to_string(),
+            vec![GoldEntity::with_label(
+                "Alice",
+                EntityType::custom("ACTOR", EntityCategory::Agent),
+                "ACTOR",
+                0,
+            )],
+        )];
+        let model = fixed_model(vec![Entity::new("Alice", EntityType::Person, 0, 5, 1.0)]);
+
+        let raw = EvalHarness::new(EvalConfig {
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap()
+        .evaluate_model_on_cases(&model, "fixed", "test", &cases)
+        .unwrap();
+        let normalized = EvalHarness::new(EvalConfig {
+            normalize_types: true,
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap()
+        .evaluate_model_on_cases(&model, "fixed", "test", &cases)
+        .unwrap();
+
+        assert_eq!(raw.f1, 0.0);
+        assert_eq!(normalized.f1, 1.0);
+    }
+
+    #[test]
+    fn type_breakdown_can_be_disabled() {
+        let mut harness = EvalHarness::new(EvalConfig {
+            max_examples_per_dataset: 1,
+            breakdown_by_difficulty: false,
+            breakdown_by_domain: false,
+            breakdown_by_type: false,
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap();
+        harness.register("fixed", "fixed test model", Box::new(fixed_model(vec![])));
+
+        let result = harness.run_synthetic().unwrap();
+        let dataset_result = &result.backends[0].per_dataset[0];
+        assert!(dataset_result.per_type.is_empty());
+        assert_eq!(dataset_result.macro_f1, None);
+    }
+
+    #[test]
+    fn synthetic_breakdowns_use_the_capped_aggregate_sample() {
+        let mut harness = EvalHarness::new(EvalConfig {
+            max_examples_per_dataset: 7,
+            breakdown_by_difficulty: true,
+            breakdown_by_domain: true,
+            warmup: false,
+            ..EvalConfig::default()
+        })
+        .unwrap();
+        harness.register("fixed", "fixed test model", Box::new(fixed_model(vec![])));
+
+        let result = harness.run_synthetic().unwrap();
+        let aggregate_examples = result.backends[0].total_examples;
+        let difficulty_examples: usize = result
+            .by_difficulty
+            .as_ref()
+            .unwrap()
+            .values()
+            .flat_map(|results| results.iter())
+            .map(|result| result.num_examples)
+            .sum();
+        let domain_examples: usize = result
+            .by_domain
+            .as_ref()
+            .unwrap()
+            .values()
+            .flat_map(|results| results.iter())
+            .map(|result| result.num_examples)
+            .sum();
+
+        assert_eq!(aggregate_examples, 7);
+        assert_eq!(difficulty_examples, aggregate_examples);
+        assert_eq!(domain_examples, aggregate_examples);
     }
 }

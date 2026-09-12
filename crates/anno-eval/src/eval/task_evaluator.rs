@@ -14,6 +14,7 @@
 //! - **Extensible**: Easy to add new tasks, datasets, or backends
 
 use crate::eval::backend_factory::BackendFactory;
+use crate::eval::backend_name::BackendName;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 #[cfg(feature = "eval-profiling")]
 use crate::eval::profiling;
@@ -30,6 +31,24 @@ use std::time::Instant;
 /// Lock a std::sync::Mutex, recovering from poisoning.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Deterministically choose one sentence for a bootstrap replicate.
+fn bootstrap_index(state: &mut u64, sample_count: usize) -> usize {
+    debug_assert!(sample_count > 0);
+    *state ^= *state << 13;
+    *state ^= *state >> 7;
+    *state ^= *state << 17;
+    (*state as usize) % sample_count
+}
+
+/// Return the equal-tailed 95% percentile interval for bootstrap samples.
+fn bootstrap_ci_95(samples: &mut [f64]) -> (f64, f64) {
+    debug_assert!(!samples.is_empty());
+    samples.sort_by(f64::total_cmp);
+    let lower = ((samples.len() - 1) as f64 * 0.025).round() as usize;
+    let upper = ((samples.len() - 1) as f64 * 0.975).round() as usize;
+    (samples[lower], samples[upper])
 }
 
 // Type aliases for complex types
@@ -53,6 +72,10 @@ const MAX_CI_SAMPLE_SIZE: usize = 100;
 ///
 /// Set to 2 because confidence intervals require at least 2 samples for meaningful variance estimation.
 const MIN_CI_SAMPLE_SIZE: usize = 2;
+/// Number of deterministic sentence-bootstrap replicates for NER confidence intervals.
+const CI_BOOTSTRAP_REPLICATES: usize = 1_000;
+/// Fixed seed makes scorecards reproducible for an unchanged evaluation sample.
+const CI_BOOTSTRAP_SEED: u64 = 0xC195_5EED;
 /// Maximum number of examples for robustness testing (performance limit)
 ///
 /// Used in `compute_robustness()` to limit the number of test cases processed.
@@ -106,6 +129,8 @@ enum CachedBackend {
     GLiNEROnnx(anno::backends::gliner_onnx::GLiNEROnnx),
     #[cfg(feature = "onnx")]
     GLiNERMultitaskOnnx(anno::backends::gliner_multitask::GLiNERMultitaskOnnx),
+    #[cfg(feature = "gliner2-fastino")]
+    GLiNER2Fastino(anno::backends::gliner2_fastino::GLiNER2Fastino),
     #[cfg(feature = "candle")]
     GLiNERCandle(anno::backends::gliner_candle::GLiNERCandle),
     #[cfg(feature = "onnx")]
@@ -504,6 +529,11 @@ impl TaskEvaluator {
         config: &TaskEvalConfig,
     ) -> TaskEvalResult {
         let seed = config.seed.unwrap_or(42);
+        // Use the same canonical spelling accepted by the factory and typed
+        // backend API before compatibility checks and zero-shot dispatch.
+        let backend_name = BackendName::try_parse(backend_name)
+            .map(|name| name.as_str())
+            .unwrap_or(backend_name);
         // Try to evaluate backend (handles backend creation internally)
         let start = Instant::now();
         match self.try_evaluate_backend(task, dataset, backend_name, sampled_data, config) {
@@ -1002,24 +1032,41 @@ impl TaskEvaluator {
             | Task::EventExtraction
             | Task::Temporal
             | Task::DiscourseSegmentation => {
-                let backend = BackendFactory::create(backend_name)?;
-                let backend_display = {
-                    let n = backend.name().trim();
-                    if n.is_empty() || n.eq_ignore_ascii_case("unknown") {
-                        Some(backend_name.to_string())
-                    } else {
-                        Some(n.to_string())
-                    }
+                let defer_fastino_load =
+                    backend_name == "gliner2_fastino" && !dataset.entity_types().is_empty();
+                // `evaluate_ner_task` caches a label-aware zero-shot backend. Do
+                // not construct one here first: that would load the same model twice.
+                let backend = if defer_fastino_load {
+                    None
+                } else {
+                    Some(BackendFactory::create(backend_name)?)
                 };
-                // Check availability before evaluation
-                if !backend.is_available() {
-                    return Err(crate::Error::FeatureNotAvailable(format!(
-                        "Backend '{}' is not available (feature not enabled or model not loaded)",
-                        backend_name
-                    )));
+                let backend_display = backend
+                    .as_ref()
+                    .map(|backend| {
+                        let name = backend.name().trim();
+                        if name.is_empty() || name.eq_ignore_ascii_case("unknown") {
+                            backend_name.to_string()
+                        } else {
+                            name.to_string()
+                        }
+                    })
+                    .or_else(|| Some(backend_name.to_string()));
+                if let Some(backend) = backend.as_ref() {
+                    if !backend.is_available() {
+                        return Err(crate::Error::FeatureNotAvailable(format!(
+                            "Backend '{}' is not available (feature not enabled or model not loaded)",
+                            backend_name
+                        )));
+                    }
                 }
-                let metrics =
-                    self.evaluate_ner_task(backend_name, &*backend, dataset, dataset_data, config)?;
+                let metrics = self.evaluate_ner_task(
+                    backend_name,
+                    backend.as_deref(),
+                    dataset,
+                    dataset_data,
+                    config,
+                )?;
                 Ok(BackendEvalOk {
                     metrics,
                     backend_display,
@@ -1082,7 +1129,7 @@ impl TaskEvaluator {
     fn evaluate_ner_task(
         &self,
         backend_name: &str,
-        backend: &dyn Model,
+        backend: Option<&dyn Model>,
         dataset: DatasetId,
         dataset_data: &LoadedDataset,
         _config: &TaskEvalConfig,
@@ -1126,6 +1173,7 @@ impl TaskEvaluator {
                 | "gliner_onnx"
                 | "gliner_candle"
                 | "gliner_multitask"
+                | "gliner2_fastino"
                 | "gliner_poly"
                 | "universal_ner"
         );
@@ -1212,7 +1260,13 @@ impl TaskEvaluator {
                             }
                         })
                     } else {
-                        backend.extract_entities(&text, None)
+                        backend
+                            .map(|backend| backend.extract_entities(&text, None))
+                            .unwrap_or_else(|| {
+                                Err(crate::Error::InvalidInput(format!(
+                                    "Zero-shot backend '{backend_name}' requires dataset labels"
+                                )))
+                            })
                     };
 
                     // Update progress with time estimates
@@ -1378,7 +1432,13 @@ impl TaskEvaluator {
                             &mapped_labels,
                         )
                     } else {
-                        backend.extract_entities(&text, None)
+                        backend
+                            .ok_or_else(|| {
+                                crate::Error::InvalidInput(format!(
+                                    "Zero-shot backend '{backend_name}' requires dataset labels"
+                                ))
+                            })?
+                            .extract_entities(&text, None)
                     };
                     let _ = inference_start; // reserved for future profiling
                     result
@@ -1558,6 +1618,7 @@ impl TaskEvaluator {
                         "gliner_onnx"
                             | "gliner_candle"
                             | "gliner_multitask"
+                            | "gliner2_fastino"
                             | "gliner_poly"
                             | "universal_ner"
                     ) =>
@@ -1618,6 +1679,24 @@ impl TaskEvaluator {
             #[cfg(not(feature = "onnx"))]
             "gliner_multitask" => Err(crate::Error::FeatureNotAvailable(
                 "GLiNER multi-task requires the 'onnx' feature".to_string(),
+            )),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_fastino" => {
+                use anno::backends::gliner2_fastino::{
+                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
+                    SUPPORTED_GLINER2_FASTINO_REVISION,
+                };
+                Ok(CachedBackend::GLiNER2Fastino(
+                    GLiNER2Fastino::from_pretrained_with_config(
+                        SUPPORTED_GLINER2_FASTINO_MODEL,
+                        GLiNER2FastinoConfig::default()
+                            .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
+                    )?,
+                ))
+            }
+            #[cfg(not(feature = "gliner2-fastino"))]
+            "gliner2_fastino" => Err(crate::Error::FeatureNotAvailable(
+                "GLiNER2 Fastino requires the 'gliner2-fastino' feature".to_string(),
             )),
             #[cfg(feature = "candle")]
             "gliner_candle" => {
@@ -1703,6 +1782,26 @@ impl TaskEvaluator {
                     ))
                 }
             }
+            "gliner2_fastino" => {
+                #[cfg(feature = "gliner2-fastino")]
+                {
+                    use anno::backends::gliner2_fastino::{
+                        GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
+                        SUPPORTED_GLINER2_FASTINO_REVISION,
+                    };
+                    Ok(Box::new(GLiNER2Fastino::from_pretrained_with_config(
+                        SUPPORTED_GLINER2_FASTINO_MODEL,
+                        GLiNER2FastinoConfig::default()
+                            .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
+                    )?))
+                }
+                #[cfg(not(feature = "gliner2-fastino"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER2 Fastino requires the 'gliner2-fastino' feature".to_string(),
+                    ))
+                }
+            }
             "gliner_candle" => {
                 #[cfg(feature = "candle")]
                 {
@@ -1776,6 +1875,10 @@ impl TaskEvaluator {
                 let schema = TaskSchema::new().with_entities(&label_strs);
                 let result = gliner_multitask.extract(text, &schema)?;
                 Ok(result.entities)
+            }
+            #[cfg(feature = "gliner2-fastino")]
+            CachedBackend::GLiNER2Fastino(gliner) => {
+                gliner.extract_with_types(text, &label_strs, 0.5)
             }
             #[cfg(feature = "candle")]
             CachedBackend::GLiNERCandle(gliner) => gliner.extract(text, &label_strs, 0.5),
@@ -1881,6 +1984,26 @@ impl TaskEvaluator {
                 {
                     Err(crate::Error::FeatureNotAvailable(
                         "GLiNER multi-task requires the 'onnx' feature".to_string(),
+                    ))
+                }
+            }
+            "gliner2_fastino" => {
+                #[cfg(feature = "gliner2-fastino")]
+                {
+                    if let Some(gliner) =
+                        cached.downcast_ref::<anno::backends::gliner2_fastino::GLiNER2Fastino>()
+                    {
+                        gliner.extract_with_types(text, &label_strs, 0.5)
+                    } else {
+                        Err(crate::Error::InvalidInput(
+                            "Failed to downcast cached GLiNER2 Fastino backend".to_string(),
+                        ))
+                    }
+                }
+                #[cfg(not(feature = "gliner2-fastino"))]
+                {
+                    Err(crate::Error::FeatureNotAvailable(
+                        "GLiNER2 Fastino requires the 'gliner2-fastino' feature".to_string(),
                     ))
                 }
             }
@@ -3718,6 +3841,7 @@ impl TaskEvaluator {
                 | "gliner_onnx"
                 | "gliner_candle"
                 | "gliner_multitask"
+                | "gliner2_fastino"
                 | "gliner_poly"
                 | "universal_ner"
         );
@@ -3857,6 +3981,7 @@ impl TaskEvaluator {
                 | "gliner_onnx"
                 | "gliner_candle"
                 | "gliner_multitask"
+                | "gliner2_fastino"
                 | "gliner_poly"
                 | "universal_ner"
         );
@@ -4169,87 +4294,44 @@ impl TaskEvaluator {
         self.compute_stratified_metrics(dataset_data, aggregate_metrics)
     }
 
-    /// Compute confidence intervals from per-example scores.
+    /// Compute pooled-micro confidence intervals from per-example scores.
     fn compute_confidence_intervals_from_scores(
         &self,
         per_example_scores: &[(Vec<Entity>, Vec<Entity>, String)],
     ) -> Option<ConfidenceIntervals> {
-        use crate::eval::ner_metrics::evaluate_entities;
+        use crate::eval::ner_metrics::{evaluate_entities, MucCounts};
 
         if per_example_scores.is_empty() {
             return None;
         }
 
-        let mut f1_scores = Vec::new();
-        let mut precision_scores = Vec::new();
-        let mut recall_scores = Vec::new();
+        // Score each sentence once, then bootstrap by merging the already-scored
+        // strict counts. Averaging per-sentence F1 would estimate macro F1, while
+        // the scorecard's primary metrics are pooled micro metrics.
+        let strict_counts: Vec<MucCounts> = per_example_scores
+            .iter()
+            .map(|(gold, predicted, _text)| evaluate_entities(gold, predicted).strict)
+            .collect();
+        let sample_count = strict_counts.len();
+        let mut state = CI_BOOTSTRAP_SEED;
+        let mut f1_samples = Vec::with_capacity(CI_BOOTSTRAP_REPLICATES);
+        let mut precision_samples = Vec::with_capacity(CI_BOOTSTRAP_REPLICATES);
+        let mut recall_samples = Vec::with_capacity(CI_BOOTSTRAP_REPLICATES);
 
-        for (gold, predicted, _text) in per_example_scores {
-            let result = evaluate_entities(gold, predicted);
-            let summary = result.summary();
-            f1_scores.push(summary.strict_f1);
-            precision_scores.push(summary.strict_precision);
-            recall_scores.push(summary.strict_recall);
+        for _ in 0..CI_BOOTSTRAP_REPLICATES {
+            let mut pooled = MucCounts::default();
+            for _ in 0..sample_count {
+                pooled.merge(&strict_counts[bootstrap_index(&mut state, sample_count)]);
+            }
+            f1_samples.push(pooled.f1_exact());
+            precision_samples.push(pooled.precision_exact());
+            recall_samples.push(pooled.recall_exact());
         }
 
-        // Compute mean and std_dev
-        let n = f1_scores.len() as f64;
-        let f1_mean = f1_scores.iter().sum::<f64>() / n;
-        let precision_mean = precision_scores.iter().sum::<f64>() / n;
-        let recall_mean = recall_scores.iter().sum::<f64>() / n;
-
-        // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-        let f1_variance = if n > 1.0 {
-            f1_scores
-                .iter()
-                .map(|&x| (x - f1_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-        let precision_variance = if n > 1.0 {
-            precision_scores
-                .iter()
-                .map(|&x| (x - precision_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-        let recall_variance = if n > 1.0 {
-            recall_scores
-                .iter()
-                .map(|&x| (x - recall_mean).powi(2))
-                .sum::<f64>()
-                / (n - 1.0)
-        } else {
-            0.0
-        };
-
-        let f1_std_dev = f1_variance.sqrt();
-        let precision_std_dev = precision_variance.sqrt();
-        let recall_std_dev = recall_variance.sqrt();
-
-        // 95% CI: mean ± 1.96 * std_dev / sqrt(n)
-        let z = DEFAULT_Z_SCORE_95;
-        let f1_margin = z * f1_std_dev / n.sqrt();
-        let precision_margin = z * precision_std_dev / n.sqrt();
-        let recall_margin = z * recall_std_dev / n.sqrt();
-
         Some(ConfidenceIntervals {
-            f1_ci: (
-                (f1_mean - f1_margin).clamp(0.0, 1.0),
-                (f1_mean + f1_margin).clamp(0.0, 1.0),
-            ),
-            precision_ci: (
-                (precision_mean - precision_margin).clamp(0.0, 1.0),
-                (precision_mean + precision_margin).clamp(0.0, 1.0),
-            ),
-            recall_ci: (
-                (recall_mean - recall_margin).clamp(0.0, 1.0),
-                (recall_mean + recall_margin).clamp(0.0, 1.0),
-            ),
+            f1_ci: bootstrap_ci_95(&mut f1_samples),
+            precision_ci: bootstrap_ci_95(&mut precision_samples),
+            recall_ci: bootstrap_ci_95(&mut recall_samples),
         })
     }
 
@@ -4470,7 +4552,7 @@ mod tests {
         let metrics = eval
             .evaluate_ner_task(
                 "wrong-sentence",
-                &model,
+                Some(&model),
                 ds.id,
                 &ds,
                 &TaskEvalConfig::default(),
@@ -4483,7 +4565,13 @@ mod tests {
             Err(anno::Error::Inference("fixture failure".into()))
         });
         let error = eval
-            .evaluate_ner_task("broken", &broken, ds.id, &ds, &TaskEvalConfig::default())
+            .evaluate_ner_task(
+                "broken",
+                Some(&broken),
+                ds.id,
+                &ds,
+                &TaskEvalConfig::default(),
+            )
             .unwrap_err();
         assert!(error.to_string().contains("sentence 1"));
         assert!(error.to_string().contains("fixture failure"));
@@ -4526,7 +4614,7 @@ mod tests {
         let metrics = eval
             .evaluate_ner_task(
                 "event-dummy",
-                &m,
+                Some(&m),
                 DatasetId::MAVEN,
                 &ds,
                 &TaskEvalConfig::default(),
@@ -4539,6 +4627,47 @@ mod tests {
     // =========================================================================
     // MetricWithCI Tests
     // =========================================================================
+
+    #[test]
+    fn confidence_intervals_bootstrap_pooled_strict_counts() {
+        use anno::EntityType;
+
+        let good_sentence: Vec<_> = (0..100)
+            .map(|index| {
+                let start = index * 2;
+                Entity::new(
+                    format!("e{index}"),
+                    EntityType::Person,
+                    start,
+                    start + 1,
+                    1.0,
+                )
+            })
+            .collect();
+        let mut scores = Vec::new();
+        for _ in 0..99 {
+            scores.push((good_sentence.clone(), good_sentence.clone(), String::new()));
+        }
+        scores.push((
+            vec![Entity::new("miss", EntityType::Person, 0, 1, 1.0)],
+            Vec::new(),
+            String::new(),
+        ));
+
+        let evaluator = TaskEvaluator::new().unwrap();
+        let ci = evaluator
+            .compute_confidence_intervals_from_scores(&scores)
+            .unwrap();
+        let repeated_ci = evaluator
+            .compute_confidence_intervals_from_scores(&scores)
+            .unwrap();
+
+        // The aggregate has 9,900 correct matches out of 9,901 gold entities,
+        // while the arithmetic mean of sentence F1 values is only 0.99. A pooled
+        // sentence bootstrap must therefore remain near the aggregate metric.
+        assert!(ci.f1_ci.0 > 0.995, "pooled CI was {:?}", ci.f1_ci);
+        assert_eq!(ci.f1_ci, repeated_ci.f1_ci);
+    }
 
     #[test]
     fn test_metric_with_ci_structure() {

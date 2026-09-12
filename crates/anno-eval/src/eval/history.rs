@@ -86,6 +86,19 @@ pub struct EvalHistoryEntry {
     pub metadata: Option<String>,
 }
 
+/// On-disk JSONL representation of an evaluation entry.
+///
+/// Git provenance belongs to the observation, rather than the SQLite index: the index can be
+/// rebuilt at a later checkout, but that must not change which source revision produced a result.
+/// `git_commit` is optional so JSONL files written before provenance was added remain readable.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredEvalHistoryEntry {
+    #[serde(flatten)]
+    entry: EvalHistoryEntry,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    git_commit: Option<String>,
+}
+
 impl From<&TaskEvalResult> for EvalHistoryEntry {
     fn from(result: &TaskEvalResult) -> Self {
         let f1 = result.metrics.get("f1").copied();
@@ -161,27 +174,47 @@ impl EvalHistory {
     /// Lower-level method that accepts a pre-constructed entry.
     /// Useful when you need to customize the entry (e.g., set seed from config).
     pub fn append_entry(&self, entry: &EvalHistoryEntry) -> std::io::Result<()> {
+        let git_commit = cached_git_commit();
+
         // Always write to JSONL first (source of truth)
-        self.append_jsonl(entry)?;
+        self.append_jsonl(entry, git_commit.as_deref())?;
 
         // Update SQLite index for fast queries
         if let Some(ref db_path) = self.sqlite_path {
-            self.insert_sqlite(entry, db_path)?;
+            if let Err(error) = self.insert_sqlite(entry, git_commit.as_deref(), db_path) {
+                return Err(std::io::Error::new(
+                    error.kind(),
+                    format!(
+                        "evaluation entry was persisted to JSONL, but the SQLite index update failed: {error}; \
+                         run `anno history --history-file {} rebuild` to recover the index",
+                        self.jsonl_path.display()
+                    ),
+                ));
+            }
         }
 
         Ok(())
     }
 
     /// Append entry to JSONL file.
-    fn append_jsonl(&self, entry: &EvalHistoryEntry) -> std::io::Result<()> {
+    fn append_jsonl(
+        &self,
+        entry: &EvalHistoryEntry,
+        git_commit: Option<&str>,
+    ) -> std::io::Result<()> {
         let mut file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.jsonl_path)?;
 
-        let line = serde_json::to_string(entry)
+        let record = StoredEvalHistoryEntry {
+            entry: entry.clone(),
+            git_commit: git_commit.map(str::to_owned),
+        };
+        let line = serde_json::to_string(&record)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         writeln!(file, "{}", line)?;
+        file.sync_data()?;
         Ok(())
     }
 
@@ -193,19 +226,49 @@ impl EvalHistory {
 
         let file = File::open(&self.jsonl_path)?;
         let reader = BufReader::new(file);
-        let mut entries = Vec::new();
+        Self::read_jsonl_records(reader)
+            .map(|records| records.into_iter().map(|record| record.entry).collect())
+    }
 
+    fn load_stored_entries_strict(&self) -> std::io::Result<Vec<StoredEvalHistoryEntry>> {
+        if !self.jsonl_path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let reader = BufReader::new(File::open(&self.jsonl_path)?);
+        let mut records = Vec::new();
+        for (line_number, line) in reader.lines().enumerate() {
+            let line = line?;
+            if line.trim().is_empty() {
+                continue;
+            }
+            let record =
+                serde_json::from_str::<StoredEvalHistoryEntry>(&line).map_err(|error| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!(
+                            "invalid history JSONL entry on line {}: {error}",
+                            line_number + 1
+                        ),
+                    )
+                })?;
+            records.push(record);
+        }
+        Ok(records)
+    }
+
+    fn read_jsonl_records(reader: impl BufRead) -> std::io::Result<Vec<StoredEvalHistoryEntry>> {
+        let mut records = Vec::new();
         for line in reader.lines() {
             let line = line?;
             if line.trim().is_empty() {
                 continue;
             }
-            if let Ok(entry) = serde_json::from_str::<EvalHistoryEntry>(&line) {
-                entries.push(entry);
+            if let Ok(record) = serde_json::from_str::<StoredEvalHistoryEntry>(&line) {
+                records.push(record);
             }
         }
-
-        Ok(entries)
+        Ok(records)
     }
 
     /// Get all unique backends in history.
@@ -311,15 +374,24 @@ impl EvalHistory {
         Ok(())
     }
 
-    fn insert_sqlite(&self, entry: &EvalHistoryEntry, db_path: &Path) -> std::io::Result<()> {
-        use rusqlite::params;
-
+    fn insert_sqlite(
+        &self,
+        entry: &EvalHistoryEntry,
+        git_commit: Option<&str>,
+        db_path: &Path,
+    ) -> std::io::Result<()> {
         let conn = rusqlite::Connection::open(db_path)
             .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
 
-        // Include git commit hash if available (for change-point detection).
-        // Cached to avoid spawning `git` on every insert.
-        let git_commit = cached_git_commit();
+        Self::insert_sqlite_into(&conn, entry, git_commit)
+    }
+
+    fn insert_sqlite_into(
+        conn: &rusqlite::Connection,
+        entry: &EvalHistoryEntry,
+        git_commit: Option<&str>,
+    ) -> std::io::Result<()> {
+        use rusqlite::params;
 
         conn.execute(
             "INSERT INTO eval_results (
@@ -1127,22 +1199,34 @@ impl EvalHistory {
 
     /// Rebuild SQLite index from JSONL file.
     ///
-    /// Useful if SQLite gets corrupted or out of sync.
+    /// Useful if SQLite gets corrupted or out of sync. If an append reports an index failure,
+    /// its JSONL record remains durable and this method restores the index from that source.
     pub fn rebuild_index(&self) -> std::io::Result<()> {
         if let Some(ref db_path) = self.sqlite_path {
-            // Delete existing database
-            if db_path.exists() {
-                std::fs::remove_file(db_path)?;
-            }
+            // Validate the complete source before touching the current index. `load_all` remains
+            // permissive for historic inspection, but rebuild must never silently drop a line.
+            let entries = self.load_stored_entries_strict()?;
 
-            // Reinitialize schema
+            // Ensure the schema is current before replacing index contents.
             Self::init_sqlite(db_path)?;
 
-            // Reload all entries and insert
-            let entries = self.load_all()?;
-            for entry in &entries {
-                self.insert_sqlite(entry, db_path)?;
+            let mut conn = rusqlite::Connection::open(db_path)
+                .map_err(|e| std::io::Error::other(format!("SQLite error: {e}")))?;
+            let transaction = conn.transaction().map_err(std::io::Error::other)?;
+            transaction
+                .execute("DELETE FROM eval_results", [])
+                .map_err(std::io::Error::other)?;
+
+            // Insert recorded provenance, never resolving the current checkout. Historic JSONL
+            // lines without provenance intentionally remain NULL.
+            for record in &entries {
+                Self::insert_sqlite_into(
+                    &transaction,
+                    &record.entry,
+                    record.git_commit.as_deref(),
+                )?;
             }
+            transaction.commit().map_err(std::io::Error::other)?;
 
             eprintln!(
                 "[history] Rebuilt SQLite index with {} entries",
@@ -1264,6 +1348,131 @@ mod tests {
             .query_recent("test-backend", 1)
             .expect("query failed")
             .is_empty());
+    }
+
+    #[test]
+    fn missing_sqlite_table_leaves_jsonl_recoverable_by_rebuild() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        let db_path = history
+            .sqlite_path
+            .as_ref()
+            .expect("SQLite index is enabled");
+        let conn = rusqlite::Connection::open(db_path).expect("failed to open SQLite index");
+        conn.execute("DROP TABLE eval_results", [])
+            .expect("failed to remove SQLite table");
+
+        let error = history
+            .append_entry(&test_entry(42, 100))
+            .expect_err("missing SQLite table must make index insertion fail");
+        assert!(error.to_string().contains("persisted to JSONL"));
+        assert_eq!(history.load_all().expect("failed to load JSONL").len(), 1);
+
+        drop(conn);
+        history.rebuild_index().expect("rebuild failed");
+        assert_eq!(
+            history
+                .query_recent("test-backend", 10)
+                .expect("query failed")
+                .len(),
+            1
+        );
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn failed_rebuild_preserves_existing_index() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        history
+            .append_entry(&test_entry(1, 100))
+            .expect("failed to append valid entry");
+
+        let oversized = test_entry(2, i64::MAX as usize + 1);
+        history
+            .append_entry(&oversized)
+            .expect_err("oversized entry must fail SQLite insertion");
+
+        let error = history
+            .rebuild_index()
+            .expect_err("rebuild must reject an unindexable JSONL entry");
+        assert!(error.to_string().contains("out of range"));
+        let indexed = history
+            .query_recent("test-backend", 10)
+            .expect("failed to query preserved index");
+        assert_eq!(indexed.len(), 1);
+        assert_eq!(indexed[0].seed, 1);
+    }
+
+    #[test]
+    fn malformed_jsonl_prevents_rebuild_without_discarding_index() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let jsonl_path = temp.path().join("history.jsonl");
+        let history = EvalHistory::new(&jsonl_path).expect("failed to create history");
+        history
+            .append_entry(&test_entry(1, 100))
+            .expect("failed to append valid entry");
+
+        let valid_jsonl = std::fs::read_to_string(&jsonl_path).expect("failed to read JSONL");
+        std::fs::write(&jsonl_path, format!("{valid_jsonl}not JSON\n"))
+            .expect("failed to add malformed JSONL line");
+
+        let error = history
+            .rebuild_index()
+            .expect_err("malformed JSONL must prevent rebuild");
+        assert!(error
+            .to_string()
+            .contains("invalid history JSONL entry on line 2"));
+        assert_eq!(
+            history
+                .query_recent("test-backend", 10)
+                .expect("failed to query preserved index")
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn rebuild_preserves_recorded_commit_and_leaves_legacy_records_unattributed() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let jsonl_path = temp.path().join("history.jsonl");
+        let history = EvalHistory::new(&jsonl_path).expect("failed to create history");
+        let recorded = test_entry(1, 100);
+        let legacy = test_entry(2, 100);
+
+        std::fs::write(
+            &jsonl_path,
+            format!(
+                "{}\n{}\n",
+                serde_json::to_string(&StoredEvalHistoryEntry {
+                    entry: recorded,
+                    git_commit: Some("historic-commit".to_string()),
+                })
+                .expect("failed to serialize recorded entry"),
+                serde_json::to_string(&legacy).expect("failed to serialize legacy entry"),
+            ),
+        )
+        .expect("failed to write fixture JSONL");
+
+        history.rebuild_index().expect("rebuild failed");
+        let conn = rusqlite::Connection::open(
+            history
+                .sqlite_path
+                .as_ref()
+                .expect("SQLite index is enabled"),
+        )
+        .expect("failed to open SQLite index");
+        let commits: Vec<Option<String>> = conn
+            .prepare("SELECT git_commit FROM eval_results ORDER BY seed")
+            .expect("failed to prepare commit query")
+            .query_map([], |row| row.get(0))
+            .expect("failed to query commits")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("failed to read commits");
+
+        assert_eq!(commits, vec![Some("historic-commit".to_string()), None]);
     }
 
     #[test]
