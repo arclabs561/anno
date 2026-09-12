@@ -68,6 +68,27 @@ The `onnx_cuda_smoke` and `onnx_coreml_smoke` examples accept an optional
 local ONNX path to verify registration without a download. CUDA, DirectML,
 and ROCm runtime validation requires the corresponding hardware and drivers.
 
+For a cached BERT graph, `onnx_bert_cuda_provider_probe` retains CPU/CUDA
+profiles, artifact hashes, label agreement, and the strict logit comparison.
+Run a matched TF32 pair on Linux/CUDA with separate receipt directories:
+
+```sh
+cargo run -p anno --release --example onnx_bert_cuda_provider_probe --features onnx,onnx-cuda -- /model-dir /receipts/tf32-on --tf32=true
+cargo run -p anno --release --example onnx_bert_cuda_provider_probe --features onnx,onnx-cuda -- /model-dir /receipts/tf32-off --tf32=false
+```
+
+The model directory must contain `model.onnx`, `tokenizer.json`, and
+`config.json`. The probe's `cuda_tf32` receipt field records the explicit
+choice; omitting the option leaves the runtime default unchanged and records
+`null`. The tolerance stays `1e-4` in both runs. Tolerance, label-agreement,
+or placement failures return a nonzero exit after saving the receipt and
+profiles. Invalid logits in the initial comparison (empty, mismatched, or
+non-finite) terminate with an error before producing a receipt. Warm and
+timed iterations measure latency; they do not repeat the comparison.
+Results cover the fixed probe input,
+not general model quality or throughput. These are diagnostic options, not
+changes to the library's provider defaults.
+
 ### Neural: Fastino GLiNER2 (feature `gliner2-fastino`)
 
 `GLiNER2Fastino` is available behind the `gliner2-fastino` feature. Its

@@ -8,8 +8,12 @@
 //!
 //! ```text
 //! cargo run -p anno --release --example onnx_bert_cuda_provider_probe \
-//!   --features onnx,onnx-cuda -- /model-dir /receipt-dir
+//!   --features onnx,onnx-cuda -- /model-dir /receipt-dir --tf32=false
 //! ```
+//!
+//! Use `--tf32=true` for the matched TF32 comparison and a separate output
+//! directory for each run. Omit the option to leave the runtime default unchanged;
+//! the receipt records that choice as `cuda_tf32: null`.
 
 #[cfg(not(all(feature = "onnx", feature = "onnx-cuda")))]
 fn main() {
@@ -44,18 +48,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program = args.next().unwrap_or_default();
     let model_dir = args.next().map(PathBuf::from).ok_or_else(|| {
         format!(
-            "usage: {} /path/to/model-dir /path/to/output-dir",
+            "usage: {} /path/to/model-dir /path/to/output-dir [--tf32=true|false]",
             Path::new(&program).display()
         )
     })?;
     let output_dir = args.next().map(PathBuf::from).ok_or_else(|| {
         format!(
-            "usage: {} /path/to/model-dir /path/to/output-dir",
+            "usage: {} /path/to/model-dir /path/to/output-dir [--tf32=true|false]",
             Path::new(&program).display()
         )
     })?;
+    let cuda_tf32 = parse_tf32(args.next())?;
     if args.next().is_some() {
-        return Err("expected exactly a model directory and output directory".into());
+        return Err("unexpected arguments after TF32 option".into());
     }
     for asset in ["model.onnx", "tokenizer.json", "config.json"] {
         if !model_dir.join(asset).is_file() {
@@ -79,15 +84,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_profiling(&cpu_prefix)?
         .with_execution_providers([CPUExecutionProvider::default().build()])?
         .commit_from_file(&graph)?;
+    let cuda_provider = CUDAExecutionProvider::default().with_memory_limit(CUDA_ARENA_BYTES);
+    let cuda_provider = match cuda_tf32 {
+        Some(enabled) => cuda_provider.with_tf32(enabled),
+        None => cuda_provider,
+    };
     let mut cuda = Session::builder()?
         .with_optimization_level(GraphOptimizationLevel::Level3)?
         .with_intra_threads(1)?
         .with_profiling(&cuda_prefix)?
         .with_execution_providers([
-            CUDAExecutionProvider::default()
-                .with_memory_limit(CUDA_ARENA_BYTES)
-                .build()
-                .error_on_failure(),
+            cuda_provider.build().error_on_failure(),
             CPUExecutionProvider::default().build(),
         ])?
         .commit_from_file(&graph)?;
@@ -132,6 +139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: Option<PathBuf>,
         trace: BertNerTrace,
         cuda_arena_bytes: usize,
+        cuda_tf32: Option<bool>,
         warm_runs: usize,
         timed_runs: usize,
         strict_logit_tolerance_pass: bool,
@@ -157,6 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: paths.config.clone(),
         trace,
         cuda_arena_bytes: CUDA_ARENA_BYTES,
+        cuda_tf32,
         warm_runs: WARM_RUNS,
         timed_runs: TIMED_RUNS,
         strict_logit_tolerance_pass,
@@ -235,15 +244,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Ok(started.elapsed().as_secs_f64() * 1000.0 / runs as f64)
     }
-    fn max_delta(a: &[f32], b: &[f32]) -> Result<f32, Box<dyn std::error::Error>> {
-        if a.len() != b.len() {
-            return Err(format!("logit lengths differ: {} != {}", a.len(), b.len()).into());
-        }
-        Ok(a.iter()
-            .zip(b)
-            .map(|(x, y)| (x - y).abs())
-            .fold(0.0_f32, f32::max))
-    }
     fn argmaxes(logits: &[f32], labels: usize) -> Result<Vec<usize>, Box<dyn std::error::Error>> {
         if labels == 0 || !logits.len().is_multiple_of(labels) {
             return Err("invalid BERT logits shape".into());
@@ -309,5 +309,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Ok(result)
+    }
+}
+
+#[cfg(any(test, all(feature = "onnx", feature = "onnx-cuda")))]
+fn max_delta(a: &[f32], b: &[f32]) -> Result<f32, Box<dyn std::error::Error>> {
+    if a.is_empty() || b.is_empty() {
+        return Err("empty BERT logits".into());
+    }
+    if a.iter().chain(b).any(|value| !value.is_finite()) {
+        return Err("BERT logits contain a non-finite value".into());
+    }
+    if a.len() != b.len() {
+        return Err(format!("logit lengths differ: {} != {}", a.len(), b.len()).into());
+    }
+    Ok(a.iter()
+        .zip(b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0_f32, f32::max))
+}
+
+#[cfg(any(test, all(feature = "onnx", feature = "onnx-cuda")))]
+fn parse_tf32(value: Option<std::ffi::OsString>) -> Result<Option<bool>, String> {
+    match value.as_deref().and_then(std::ffi::OsStr::to_str) {
+        None if value.is_none() => Ok(None),
+        Some("--tf32=true") => Ok(Some(true)),
+        Some("--tf32=false") => Ok(Some(false)),
+        _ => Err("expected --tf32=true or --tf32=false".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{max_delta, parse_tf32};
+
+    #[test]
+    fn tf32_selection_is_explicit_or_left_unset() {
+        assert_eq!(parse_tf32(None).unwrap(), None);
+        assert_eq!(parse_tf32(Some("--tf32=true".into())).unwrap(), Some(true));
+        assert_eq!(
+            parse_tf32(Some("--tf32=false".into())).unwrap(),
+            Some(false)
+        );
+        for invalid in ["--tf32=auto", "true", "--tf32", "--unknown=false"] {
+            assert!(parse_tf32(Some(invalid.into())).is_err());
+        }
+    }
+
+    #[test]
+    fn numerical_gate_rejects_invalid_logits() {
+        for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(max_delta(&[invalid], &[invalid]).is_err());
+            assert!(max_delta(&[1.0, invalid], &[1.0, 0.0]).is_err());
+            assert!(max_delta(&[1.0, 0.0], &[1.0, invalid]).is_err());
+        }
+        assert!(max_delta(&[], &[]).is_err());
+        assert!(max_delta(&[1.0], &[1.0, 2.0]).is_err());
+        assert_eq!(max_delta(&[1.0, -2.0], &[1.25, -1.5]).unwrap(), 0.5);
     }
 }
