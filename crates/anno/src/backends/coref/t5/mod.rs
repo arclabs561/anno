@@ -87,6 +87,11 @@ use crate::{Entity, Error, Result};
 
 /// Return type for mention extraction: `(plain_text, [(mention_text, char_start, char_end)])`.
 type MentionList = (String, Vec<(String, usize, usize)>);
+
+enum T5ResolutionFailure {
+    Inference(Error),
+    Alignment(Error),
+}
 use ndarray::{Array2, Array3};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -257,7 +262,8 @@ impl T5Coref {
                 log::debug!("[T5-Coref] inference produced no clusters, using heuristic fallback");
                 self.resolve_simple(text)
             }
-            Err(e) => {
+            Err(T5ResolutionFailure::Alignment(e)) => Err(e),
+            Err(T5ResolutionFailure::Inference(e)) => {
                 log::warn!(
                     "[T5-Coref] inference failed ({}), using heuristic fallback",
                     e
@@ -272,15 +278,12 @@ impl T5Coref {
     // -------------------------------------------------------------------------
 
     /// Full T5 inference path: mark → encode → greedy-decode → parse.
-    fn resolve_t5(&self, text: &str) -> Result<Vec<CorefCluster>> {
+    fn resolve_t5(
+        &self,
+        text: &str,
+    ) -> std::result::Result<Vec<CorefCluster>, T5ResolutionFailure> {
         let marked = self.mark_mentions(text);
-        let (input_ids, attention_mask) = self.tokenize_input(&marked)?;
-        let (enc_hidden, enc_seq_len, hidden_size) =
-            self.run_encoder(&input_ids, &attention_mask)?;
-        let output_ids =
-            self.greedy_decode(&enc_hidden, enc_seq_len, hidden_size, &attention_mask)?;
-        let decoded = self.decode_tokens(&output_ids)?;
-        Ok(self.parse_coref_output(&decoded))
+        self.resolve_t5_raw(&marked, text)
     }
 
     /// Heuristically mark pronouns and capitalised tokens with `<m>…</m>` so the
@@ -463,19 +466,6 @@ impl T5Coref {
             .map_err(|e| Error::Parse(format!("T5Coref decode_tokens: {e}")))
     }
 
-    /// Parse T5 cluster-ID output format (`"word | N"`) into `CorefCluster`s.
-    ///
-    /// The expected output format is:
-    /// ```text
-    /// "Jensen | 1 founded NVIDIA | 2. He | 1 later led its AI division."
-    /// ```
-    /// where ` | N` immediately follows a mention token and assigns it to cluster `N`.
-    ///
-    /// Singletons (clusters with only one mention) are filtered out.
-    fn parse_coref_output(&self, decoded: &str) -> Vec<CorefCluster> {
-        parse_t5_coref_output(decoded)
-    }
-
     /// Resolve coreference with pre-marked mentions.
     ///
     /// Expects mentions marked with `<m>` and `</m>` tags:
@@ -494,10 +484,11 @@ impl T5Coref {
             return Ok(vec![]);
         }
         // The text is already marked — feed it directly to T5 without re-marking.
-        match self.resolve_t5_raw(marked_text) {
+        match self.resolve_t5_raw(marked_text, &plain_text) {
             Ok(clusters) if !clusters.is_empty() => Ok(clusters),
             Ok(_) => self.cluster_mentions(&plain_text, &mentions),
-            Err(e) => {
+            Err(T5ResolutionFailure::Alignment(e)) => Err(e),
+            Err(T5ResolutionFailure::Inference(e)) => {
                 log::warn!(
                     "[T5-Coref] resolve_marked inference failed ({}), using fallback",
                     e
@@ -518,24 +509,19 @@ impl T5Coref {
 
         // Rebuild marked text from entity spans so T5 sees explicit mention boundaries.
         let marked = self.mark_entity_spans(text, entities);
-        match self.resolve_t5_raw(&marked) {
+        let mentions: Vec<(String, usize, usize)> = entities
+            .iter()
+            .map(|e| (e.text.clone(), e.start(), e.end()))
+            .collect();
+        match self.resolve_t5_raw(&marked, text) {
             Ok(clusters) if !clusters.is_empty() => Ok(clusters),
-            Ok(_) => {
-                let mentions: Vec<(String, usize, usize)> = entities
-                    .iter()
-                    .map(|e| (e.text.clone(), e.start(), e.end()))
-                    .collect();
-                self.cluster_mentions(text, &mentions)
-            }
-            Err(e) => {
+            Ok(_) => self.cluster_mentions(text, &mentions),
+            Err(T5ResolutionFailure::Alignment(e)) => Err(e),
+            Err(T5ResolutionFailure::Inference(e)) => {
                 log::warn!(
                     "[T5-Coref] resolve_entities inference failed ({}), using fallback",
                     e
                 );
-                let mentions: Vec<(String, usize, usize)> = entities
-                    .iter()
-                    .map(|e| (e.text.clone(), e.start(), e.end()))
-                    .collect();
                 self.cluster_mentions(text, &mentions)
             }
         }
@@ -545,14 +531,24 @@ impl T5Coref {
     ///
     /// This is the shared inner path for [`resolve_marked`] and [`resolve_entities`];
     /// unlike [`resolve_t5`] it does **not** call `mark_mentions`.
-    fn resolve_t5_raw(&self, marked_text: &str) -> Result<Vec<CorefCluster>> {
-        let (input_ids, attention_mask) = self.tokenize_input(marked_text)?;
-        let (enc_hidden, enc_seq_len, hidden_size) =
-            self.run_encoder(&input_ids, &attention_mask)?;
-        let output_ids =
-            self.greedy_decode(&enc_hidden, enc_seq_len, hidden_size, &attention_mask)?;
-        let decoded = self.decode_tokens(&output_ids)?;
-        Ok(self.parse_coref_output(&decoded))
+    fn resolve_t5_raw(
+        &self,
+        marked_text: &str,
+        source_text: &str,
+    ) -> std::result::Result<Vec<CorefCluster>, T5ResolutionFailure> {
+        let (input_ids, attention_mask) = self
+            .tokenize_input(marked_text)
+            .map_err(T5ResolutionFailure::Inference)?;
+        let (enc_hidden, enc_seq_len, hidden_size) = self
+            .run_encoder(&input_ids, &attention_mask)
+            .map_err(T5ResolutionFailure::Inference)?;
+        let output_ids = self
+            .greedy_decode(&enc_hidden, enc_seq_len, hidden_size, &attention_mask)
+            .map_err(T5ResolutionFailure::Inference)?;
+        let decoded = self
+            .decode_tokens(&output_ids)
+            .map_err(T5ResolutionFailure::Inference)?;
+        align_t5_coref_output(&decoded, source_text).map_err(T5ResolutionFailure::Alignment)
     }
 
     /// Reconstruct a `<m>…</m>`-marked string from entity spans.
@@ -596,18 +592,10 @@ impl T5Coref {
         // Simple heuristic: find pronouns and link to nearest compatible noun
         let pronouns = ["he", "she", "they", "it", "his", "her", "their", "its"];
 
-        let words: Vec<(String, usize, usize)> = {
-            let mut result = Vec::new();
-            let mut pos = 0;
-            for word in text.split_whitespace() {
-                if let Some(start) = text[pos..].find(word) {
-                    let abs_start = pos + start;
-                    result.push((word.to_string(), abs_start, abs_start + word.len()));
-                    pos = abs_start + word.len();
-                }
-            }
-            result
-        };
+        let words: Vec<(String, usize, usize)> = parse_t5_tokens(text)
+            .into_iter()
+            .map(|token| (token.text, token.start, token.end))
+            .collect();
 
         // Find potential antecedents (capitalized words, likely names)
         let antecedents: Vec<&(String, usize, usize)> = words
@@ -819,20 +807,34 @@ pub fn mark_mentions_for_t5(text: &str) -> String {
     out
 }
 
-/// Parse T5 cluster-ID output format (`"word | N"`) into [`CorefCluster`]s.
-///
-/// Singletons are filtered out.  This is the same logic as
-/// `T5Coref::parse_coref_output` and is exposed as a free function for testing.
-pub fn parse_t5_coref_output(decoded: &str) -> Vec<CorefCluster> {
-    let mut clusters: HashMap<u32, CorefCluster> = HashMap::new();
-    let tokens: Vec<&str> = decoded.split_whitespace().collect();
-    let mut offset: usize = 0;
+#[derive(Debug)]
+struct ParsedT5Token {
+    text: String,
+    start: usize,
+    end: usize,
+    cluster_id: Option<u32>,
+}
+
+fn parse_t5_tokens(text: &str) -> Vec<ParsedT5Token> {
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    let mut search_start = 0;
+    let token_starts: Vec<usize> = tokens
+        .iter()
+        .map(|token| {
+            let start = text[search_start..]
+                .find(token)
+                .map_or(search_start, |offset| search_start + offset);
+            search_start = start + token.len();
+            start
+        })
+        .collect();
+    let mut parsed = Vec::new();
     let mut i = 0;
 
     while i < tokens.len() {
         let tok = tokens[i];
-        let is_pipe = tokens.get(i + 1).map(|&t| t == "|").unwrap_or(false);
-        let cluster_id: Option<u32> = if is_pipe {
+        let mention = tok.trim_matches(|c: char| !c.is_alphanumeric());
+        let cluster_id = if !mention.is_empty() && tokens.get(i + 1) == Some(&"|") {
             tokens
                 .get(i + 2)
                 .and_then(|t| t.trim_matches(|c: char| !c.is_ascii_digit()).parse().ok())
@@ -840,27 +842,48 @@ pub fn parse_t5_coref_output(decoded: &str) -> Vec<CorefCluster> {
             None
         };
 
-        if let Some(cid) = cluster_id {
-            let mention = tok.trim_matches(|c: char| !c.is_alphanumeric()).to_string();
-            if !mention.is_empty() {
-                let start = offset;
-                let end = offset + mention.len();
-                let entry = clusters.entry(cid).or_insert_with(|| CorefCluster {
-                    id: cid,
-                    mentions: Vec::new(),
-                    spans: Vec::new(),
-                    canonical: String::new(),
-                });
-                entry.mentions.push(mention);
-                entry.spans.push((start, end));
-            }
-            offset += tok.len() + 1;
-            i += 3;
-            continue;
+        if !mention.is_empty() {
+            let token_start = token_starts[i];
+            let mention_start = text[token_start..]
+                .find(mention)
+                .map_or(token_start, |start| token_start + start);
+            let start = text[..mention_start].chars().count();
+            parsed.push(ParsedT5Token {
+                text: mention.to_string(),
+                start,
+                end: start + mention.chars().count(),
+                cluster_id,
+            });
         }
 
-        offset += tok.len() + 1;
-        i += 1;
+        if cluster_id.is_some() {
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+
+    parsed
+}
+
+/// Parse T5 cluster-ID output format (`"word | N"`) into [`CorefCluster`]s.
+///
+/// Singletons are filtered out. Its spans are character offsets in `decoded`;
+/// production resolution uses source alignment instead.
+pub fn parse_t5_coref_output(decoded: &str) -> Vec<CorefCluster> {
+    let mut clusters: HashMap<u32, CorefCluster> = HashMap::new();
+    for token in parse_t5_tokens(decoded) {
+        let Some(cluster_id) = token.cluster_id else {
+            continue;
+        };
+        let entry = clusters.entry(cluster_id).or_insert_with(|| CorefCluster {
+            id: cluster_id,
+            mentions: Vec::new(),
+            spans: Vec::new(),
+            canonical: String::new(),
+        });
+        entry.mentions.push(token.text);
+        entry.spans.push((token.start, token.end));
     }
 
     let mut result: Vec<CorefCluster> = clusters
@@ -879,6 +902,61 @@ pub fn parse_t5_coref_output(decoded: &str) -> Vec<CorefCluster> {
     result
 }
 
+/// Align decoder-emitted labels to the full verified source token stream.
+///
+/// The decoder may add whitespace and `| ID` annotations, but may not rewrite,
+/// insert, omit, or reorder lexical tokens. Source positions are therefore exact.
+fn align_t5_coref_output(decoded: &str, source_text: &str) -> Result<Vec<CorefCluster>> {
+    let decoded_tokens = parse_t5_tokens(decoded);
+    let source_tokens = parse_t5_tokens(source_text);
+
+    if decoded_tokens.len() != source_tokens.len() {
+        return Err(Error::InvalidInput(format!(
+            "T5 coreference output does not reproduce the source token stream: expected {} tokens, got {}",
+            source_tokens.len(),
+            decoded_tokens.len()
+        )));
+    }
+    for (index, (decoded, source)) in decoded_tokens.iter().zip(&source_tokens).enumerate() {
+        if decoded.text != source.text {
+            return Err(Error::InvalidInput(format!(
+                "T5 coreference output diverges from source token {index}: expected '{}', got '{}'",
+                source.text, decoded.text
+            )));
+        }
+    }
+
+    let mut clusters: HashMap<u32, CorefCluster> = HashMap::new();
+    for (decoded, source) in decoded_tokens.iter().zip(&source_tokens) {
+        let Some(cluster_id) = decoded.cluster_id else {
+            continue;
+        };
+        let cluster = clusters.entry(cluster_id).or_insert_with(|| CorefCluster {
+            id: cluster_id,
+            mentions: Vec::new(),
+            spans: Vec::new(),
+            canonical: String::new(),
+        });
+        cluster.mentions.push(source.text.clone());
+        cluster.spans.push((source.start, source.end));
+    }
+
+    let mut result: Vec<CorefCluster> = clusters
+        .into_values()
+        .filter(|cluster| cluster.mentions.len() > 1)
+        .collect();
+    for cluster in &mut result {
+        cluster.canonical = cluster
+            .mentions
+            .iter()
+            .max_by_key(|mention| mention.chars().count())
+            .cloned()
+            .unwrap_or_default();
+    }
+    result.sort_by_key(|cluster| cluster.id);
+    Ok(result)
+}
+
 /// Extract `<m>…</m>` spans from `marked_text`, returning `(plain_text, mentions)`.
 ///
 /// Each mention is `(text, char_start, char_end)` in the plain text.
@@ -893,14 +971,14 @@ pub fn extract_t5_mentions(marked_text: &str) -> Result<MentionList> {
     while !remaining.is_empty() {
         if let Some(start_pos) = remaining.find("<m>") {
             plain_text.push_str(&remaining[..start_pos]);
-            offset += start_pos;
+            offset += remaining[..start_pos].chars().count();
 
             let after_start = &remaining[start_pos + 3..];
             if let Some(end_pos) = after_start.find("</m>") {
                 let mention_text = after_start[..end_pos].trim();
                 let mention_start = offset;
                 plain_text.push_str(mention_text);
-                let mention_end = offset + mention_text.len();
+                let mention_end = offset + mention_text.chars().count();
                 offset = mention_end;
 
                 mentions.push((mention_text.to_string(), mention_start, mention_end));

@@ -14,12 +14,13 @@
 //!     .with_core_metrics(true)
 //!     .with_bias_analysis(false)  // Skip if no PER/ORG support
 //!     .with_error_analysis(true)
-//!     .build(&model);
+//!     .build(&model)?;
 //!
 //! println!("{}", report.summary());
+//! # Ok::<(), anno::Error>(())
 //! ```
 
-use anno::{Model, Result};
+use anno::{Entity, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -48,7 +49,7 @@ pub struct EvalReport {
     /// Error analysis (if enabled)
     pub errors: Option<ErrorSummary>,
 
-    /// Bias analysis (if enabled and applicable)
+    /// Demographic NER bias analysis (if enabled)
     pub bias: Option<BiasSummary>,
 
     /// Data quality findings (if enabled)
@@ -318,8 +319,10 @@ impl ReportBuilder {
         self
     }
 
-    /// Include bias analysis (default: false).
-    /// Only meaningful for models that detect PER/ORG entities.
+    /// Include demographic NER bias analysis (default: false).
+    ///
+    /// This builder evaluates the supplied [`Model`] on person-name examples.
+    /// It cannot evaluate coreference gender bias because no coreference resolver is supplied.
     pub fn with_bias_analysis(mut self, include: bool) -> Self {
         self.include_bias = include;
         self
@@ -344,29 +347,28 @@ impl ReportBuilder {
         self
     }
 
-    /// Run bias analysis using EvalSystem.
+    /// Run demographic NER bias analysis for the supplied model.
     #[cfg(feature = "eval-bias")]
-    fn run_bias_analysis<M: Model>(model: &M) -> Result<BiasSummary> {
-        use crate::eval::coref_resolver::SimpleCorefResolver;
+    fn run_bias_analysis<M: Model>(model: &M, warnings: &mut Vec<String>) -> Result<BiasSummary> {
         use crate::eval::demographic_bias::{
             create_diverse_name_dataset, DemographicBiasEvaluator,
         };
-        use crate::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 
-        // Run demographic bias analysis
+        // This API receives a NER model, not a coreference resolver. Do not
+        // substitute a default resolver and attribute its result to `model`.
+        warnings.push(
+            "Gender bias is unavailable because ReportBuilder has no supplied coreference resolver."
+                .to_string(),
+        );
+
         let names = create_diverse_name_dataset();
         let evaluator = DemographicBiasEvaluator::new(true);
-        let demo_results = evaluator.evaluate_ner(model, &names);
+        let demo_results = evaluator.try_evaluate_ner(model, &names)?;
 
-        // Gender bias (coreference)
-        let resolver = SimpleCorefResolver::default();
-        let templates = create_winobias_templates();
-        let gender_evaluator = GenderBiasEvaluator::new(true);
-        let gender_results = gender_evaluator.evaluate_resolver(&resolver, &templates);
-
-        // Determine if bias was detected
-        let bias_detected =
-            gender_results.bias_gap > 0.1 || demo_results.ethnicity_parity_gap > 0.1;
+        let max_gap = demo_results
+            .ethnicity_parity_gap
+            .max(demo_results.script_bias_gap);
+        let bias_detected = max_gap > 0.1;
 
         // Find underperforming groups
         let mut underperforming_groups = Vec::new();
@@ -378,20 +380,9 @@ impl ReportBuilder {
 
         Ok(BiasSummary {
             bias_detected,
-            gender: Some(GenderBiasMetrics {
-                pro_stereotype_accuracy: gender_results.pro_stereotype_accuracy,
-                anti_stereotype_accuracy: gender_results.anti_stereotype_accuracy,
-                gap: gender_results.bias_gap,
-                verdict: if gender_results.bias_gap > 0.1 {
-                    "Significant gender bias detected".to_string()
-                } else {
-                    "No significant gender bias".to_string()
-                },
-            }),
+            gender: None,
             demographic: Some(DemographicBiasMetrics {
-                max_gap: demo_results
-                    .ethnicity_parity_gap
-                    .max(demo_results.script_bias_gap),
+                max_gap,
                 underperforming_groups,
             }),
             length: None, // Can be added if needed
@@ -410,10 +401,13 @@ impl ReportBuilder {
         let mut predictions = Vec::new();
         let mut has_calibrated_entities = false;
 
-        for case in test_cases {
-            let entities = model
-                .extract_entities(&case.text, None)
-                .unwrap_or_else(|_| Vec::new());
+        for (case_index, case) in test_cases.iter().enumerate() {
+            let entities = model.extract_entities(&case.text, None).map_err(|e| {
+                crate::Error::Inference(format!(
+                    "calibration extraction failed for test_case={}: {}",
+                    case_index, e
+                ))
+            })?;
 
             for entity in &entities {
                 // Check if this entity's extraction method is calibrated
@@ -440,14 +434,11 @@ impl ReportBuilder {
             }
         }
 
-        // If no calibrated entities found, return a warning summary
+        // Calibration cannot be measured without calibrated predictions.
         if !has_calibrated_entities || predictions.is_empty() {
-            return Ok(CalibrationSummary {
-                ece: 0.0,
-                mce: 0.0,
-                optimal_threshold: 0.5,
-                grade: '?', // Unknown - no calibrated predictions
-            });
+            return Err(crate::Error::InvalidInput(
+                "calibration requested but no calibrated predictions were produced".to_string(),
+            ));
         }
 
         // Compute calibration metrics
@@ -555,7 +546,7 @@ impl ReportBuilder {
     }
 
     /// Build the report by running the model on test data.
-    pub fn build<M: Model>(self, model: &M) -> EvalReport {
+    pub fn build<M: Model>(self, model: &M) -> Result<EvalReport> {
         let timestamp = chrono_lite_timestamp();
         let mut warnings = Vec::new();
         let mut recommendations = Vec::new();
@@ -573,28 +564,27 @@ impl ReportBuilder {
         let mut per_type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new();
         let mut all_errors = Vec::new();
 
-        for case in &test_cases {
-            let predictions = model
-                .extract_entities(&case.text, None)
-                .unwrap_or_else(|e| {
-                    warnings.push(format!("Failed to extract entities for test case: {}", e));
-                    Vec::new()
-                });
+        for (case_index, case) in test_cases.iter().enumerate() {
+            let predictions = model.extract_entities(&case.text, None).map_err(|e| {
+                crate::Error::Inference(format!(
+                    "report extraction failed for model={} test_case={}: {}",
+                    self.model_name, case_index, e
+                ))
+            })?;
 
             total_gold += case.gold_entities.len();
             total_predicted += predictions.len();
 
-            // Match predictions to gold
-            for gold in &case.gold_entities {
+            // Match predictions to gold one-to-one. A model can emit duplicate entities, and a
+            // test set can contain duplicate annotations, so a prediction must not credit more
+            // than one gold entity.
+            let matched_predictions = match_prediction_indices(&case.gold_entities, &predictions);
+            for (gold_index, gold) in case.gold_entities.iter().enumerate() {
                 let type_key = gold.entity_type.clone();
                 let entry = per_type_stats.entry(type_key.clone()).or_insert((0, 0, 0));
                 entry.0 += 1; // gold count
 
-                let matched = predictions.iter().any(|p| {
-                    p.start() == gold.start
-                        && p.end() == gold.end
-                        && p.entity_type.as_label() == gold.entity_type
-                });
+                let matched = matched_predictions[gold_index];
 
                 if matched {
                     total_correct += 1;
@@ -710,24 +700,17 @@ impl ReportBuilder {
             None
         };
 
-        // Bias analysis (if enabled) - use EvalSystem
+        // Demographic NER bias analysis
         let bias = if self.include_bias {
             #[cfg(feature = "eval-bias")]
             {
-                // Create a boxed model for EvalSystem
-                // Note: This requires cloning or wrapping the model
-                // For now, we'll use a simplified approach
-                match Self::run_bias_analysis(model) {
-                    Ok(bias_results) => Some(bias_results),
-                    Err(e) => {
-                        warnings.push(format!("Bias analysis failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_bias_analysis(model, &mut warnings)?)
             }
             #[cfg(not(feature = "eval-bias"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "bias analysis requires the eval-bias feature".to_string(),
+                ));
             }
         } else {
             None
@@ -737,17 +720,13 @@ impl ReportBuilder {
         let calibration = if self.include_calibration {
             #[cfg(feature = "eval")]
             {
-                match Self::run_calibration_analysis(model, &test_cases) {
-                    Ok(cal_results) => Some(cal_results),
-                    Err(e) => {
-                        warnings.push(format!("Calibration analysis failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_calibration_analysis(model, &test_cases)?)
             }
             #[cfg(not(feature = "eval"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "calibration analysis requires the eval feature".to_string(),
+                ));
             }
         } else {
             None
@@ -757,23 +736,19 @@ impl ReportBuilder {
         let data_quality = if self.include_data_quality {
             #[cfg(feature = "eval")]
             {
-                match Self::run_data_quality_checks(&test_cases) {
-                    Ok(quality_results) => Some(quality_results),
-                    Err(e) => {
-                        warnings.push(format!("Data quality checks failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_data_quality_checks(&test_cases)?)
             }
             #[cfg(not(feature = "eval"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "data quality checks require the eval feature".to_string(),
+                ));
             }
         } else {
             None
         };
 
-        EvalReport {
+        Ok(EvalReport {
             model_name: self.model_name,
             timestamp,
             core,
@@ -784,7 +759,7 @@ impl ReportBuilder {
             calibration,
             recommendations,
             warnings,
-        }
+        })
     }
 }
 
@@ -897,6 +872,33 @@ fn chrono_lite_timestamp() -> String {
     format!("{}s since epoch", duration.as_secs())
 }
 
+/// Return the gold entities that can be credited by a distinct exact-match prediction.
+///
+/// Predictions are reserved in gold order, which makes the result deterministic for duplicate
+/// annotations while preserving the report's exact-span, exact-label metric definition.
+fn match_prediction_indices(
+    gold_entities: &[SimpleGoldEntity],
+    predictions: &[Entity],
+) -> Vec<bool> {
+    let mut used_predictions = vec![false; predictions.len()];
+
+    gold_entities
+        .iter()
+        .map(|gold| {
+            let Some((index, _)) = predictions.iter().enumerate().find(|(index, prediction)| {
+                !used_predictions[*index]
+                    && prediction.start() == gold.start
+                    && prediction.end() == gold.end
+                    && prediction.entity_type.as_label() == gold.entity_type
+            }) else {
+                return false;
+            };
+            used_predictions[index] = true;
+            true
+        })
+        .collect()
+}
+
 fn default_synthetic_cases() -> Vec<TestCase> {
     // Minimal synthetic test set for quick evaluation
     vec![
@@ -955,12 +957,48 @@ mod tests {
     use super::*;
 
     #[test]
+    fn duplicate_gold_cannot_reuse_one_prediction() {
+        let gold = SimpleGoldEntity {
+            text: "Alice".into(),
+            entity_type: "PER".into(),
+            start: 0,
+            end: 5,
+        };
+        let model = anno::AnyModel::new(
+            "one",
+            "one prediction",
+            vec![anno::EntityType::Person],
+            |_, _| {
+                Ok(vec![Entity::new(
+                    "Alice",
+                    anno::EntityType::Person,
+                    0,
+                    5,
+                    1.0,
+                )])
+            },
+        );
+        let report = ReportBuilder::new("one")
+            .with_test_data(vec![TestCase {
+                text: "Alice".into(),
+                gold_entities: vec![gold.clone(), gold],
+            }])
+            .build(&model)
+            .unwrap();
+        assert_eq!(report.core.total_correct, 1);
+        assert_eq!(report.core.total_gold, 2);
+        assert_eq!(report.core.precision, 1.0);
+        assert_eq!(report.core.recall, 0.5);
+    }
+
+    #[test]
     fn test_report_builder_basic() {
         use crate::RegexNER;
         let model = RegexNER::new();
         let report = ReportBuilder::new("RegexNER")
             .with_error_analysis(true)
-            .build(&model);
+            .build(&model)
+            .unwrap();
 
         assert_eq!(report.model_name, "RegexNER");
         assert!(report.core.total_gold > 0);
@@ -1049,7 +1087,8 @@ mod tests {
 
         let report = ReportBuilder::new("RegexNER")
             .with_test_data(test_data)
-            .build(&model);
+            .build(&model)
+            .unwrap();
 
         // RegexNER can't detect PER/ORG, so F1 should be low
         // and recommendations should be generated
@@ -1058,5 +1097,173 @@ mod tests {
                 || !report.recommendations.is_empty()
                 || report.core.total_gold == 0
         );
+    }
+
+    #[test]
+    fn report_builder_propagates_extraction_failure_with_context() {
+        let model = anno::AnyModel::new("failing", "always fails", vec![], |_, _| {
+            Err(anno::Error::Inference("model unavailable".to_string()))
+        });
+        let error = ReportBuilder::new("failing-model")
+            .with_test_data(vec![TestCase {
+                text: "Alice".to_string(),
+                gold_entities: vec![],
+            }])
+            .build(&model)
+            .expect_err("report construction must fail when extraction fails");
+        let message = error.to_string();
+        assert!(message.contains("failing-model"));
+        assert!(message.contains("test_case=0"));
+        assert!(message.contains("model unavailable"));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_bias_is_demographic_ner_only() {
+        let model = anno::AnyModel::new("empty", "returns no entities", vec![], |_, _| Ok(vec![]));
+
+        let report = ReportBuilder::new("empty")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect("demographic bias report should succeed");
+
+        let bias = report.bias.expect("requested bias analysis is present");
+        assert!(bias.gender.is_none());
+        assert!(report.warnings.iter().any(|warning| {
+            warning.contains("Gender bias is unavailable because ReportBuilder")
+        }));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_propagates_requested_bias_inference_failure() {
+        let model = anno::AnyModel::new("failing", "fails during bias", vec![], |_, _| {
+            Err(anno::Error::Inference(
+                "bias backend unavailable".to_string(),
+            ))
+        });
+
+        let error = ReportBuilder::new("failing")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect_err("requested bias analysis must propagate inference failure");
+
+        let message = error.to_string();
+        assert!(message.contains("demographic bias extraction failed for name_index=0"));
+        assert!(message.contains("bias backend unavailable"));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_detects_script_only_demographic_bias() {
+        use crate::eval::demographic_bias::{
+            create_diverse_name_dataset, DemographicBiasEvaluator, NameExample, Script,
+        };
+        use std::collections::BTreeMap;
+
+        let names = create_diverse_name_dataset();
+        let mut names_by_ethnicity: BTreeMap<String, Vec<NameExample>> = BTreeMap::new();
+        for name in &names {
+            names_by_ethnicity
+                .entry(format!("{:?}", name.ethnicity))
+                .or_default()
+                .push(name.clone());
+        }
+
+        // Recognize the same fraction of every ethnicity, choosing Latin-script
+        // names first within each group. This leaves ethnicity parity intact while
+        // creating a measurable script disparity.
+        let mut recognized_names = Vec::new();
+        for mut ethnicity_names in names_by_ethnicity.into_values() {
+            ethnicity_names
+                .sort_by_key(|name| (!matches!(name.script, Script::Latin), name.name.clone()));
+            let selected_count = ethnicity_names.len() / 2;
+            recognized_names.extend(
+                ethnicity_names
+                    .into_iter()
+                    .take(selected_count)
+                    .map(|name| name.name),
+            );
+        }
+
+        let model = anno::AnyModel::new(
+            "latin-biased",
+            "recognizes Latin names first within every ethnicity",
+            vec![anno::EntityType::Person],
+            move |text, _| {
+                let entities = recognized_names
+                    .iter()
+                    .filter_map(|name| {
+                        text.find(name).map(|byte_start| {
+                            let start = text[..byte_start].chars().count();
+                            let end = start + name.chars().count();
+                            Entity::new(name.clone(), anno::EntityType::Person, start, end, 1.0)
+                        })
+                    })
+                    .collect();
+                Ok(entities)
+            },
+        );
+
+        let measurements = DemographicBiasEvaluator::new(true)
+            .try_evaluate_ner(&model, &names)
+            .expect("deterministic demographic evaluation succeeds");
+        assert!(
+            measurements.ethnicity_parity_gap <= 0.1,
+            "selection should keep ethnicity parity: {measurements:?}"
+        );
+        assert!(
+            measurements.script_bias_gap > 0.1,
+            "selection should create a script gap: {measurements:?}"
+        );
+
+        let report = ReportBuilder::new("latin-biased")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect("bias report should use the measured script gap");
+        assert!(
+            report
+                .bias
+                .expect("requested bias analysis is present")
+                .bias_detected
+        );
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn report_builder_propagates_calibration_extraction_failure() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_model = Arc::clone(&calls);
+        let model = anno::AnyModel::new(
+            "stateful",
+            "fails during calibration",
+            vec![],
+            move |_, _| {
+                if calls_for_model.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Ok(vec![])
+                } else {
+                    Err(anno::Error::Inference(
+                        "calibration pass unavailable".to_string(),
+                    ))
+                }
+            },
+        );
+        let error = ReportBuilder::new("stateful")
+            .with_calibration(true)
+            .with_test_data(vec![TestCase {
+                text: "Alice".to_string(),
+                gold_entities: vec![],
+            }])
+            .build(&model)
+            .expect_err("calibration extraction failure must fail the report");
+        assert!(error.to_string().contains("calibration pass unavailable"));
     }
 }

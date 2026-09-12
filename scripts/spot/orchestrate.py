@@ -22,6 +22,7 @@ import json
 import os
 import sys
 import time
+import unittest
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -353,6 +354,141 @@ def cmd_status(args, config: Config):
 # Results Aggregation
 # ============================================================================
 
+
+def expand_result_artifact(data: object) -> list[dict]:
+    """Expand a benchmark JSON artifact into records used by the spot summary.
+
+    Current `anno benchmark --output-json` writes a `ComprehensiveEvalResults`
+    object: one top-level `results` list of task/dataset/backend records. Older
+    spot artifacts stored one already-flat record with `_meta`; retain those so
+    historical uploads remain readable.
+    """
+    if not isinstance(data, dict):
+        return []
+
+    current_results = data.get("results")
+    if isinstance(current_results, list):
+        records = []
+        for result in current_results:
+            if not isinstance(result, dict):
+                continue
+            backend = result.get("backend")
+            dataset = result.get("dataset")
+            if not isinstance(backend, str) or not isinstance(dataset, str):
+                continue
+            record = dict(result)
+            record["_meta"] = {
+                "backend": backend,
+                "dataset": dataset,
+                "seed": result.get("seed"),
+                "task": result.get("task"),
+            }
+            records.append(record)
+        return records
+
+    return [data]
+
+
+def summarize_results(results: list[dict], generated_at: str | None = None) -> dict:
+    """Summarize current and legacy spot result records without inventing metrics."""
+    by_backend = {}
+    for result in results:
+        meta = result.get("_meta", {})
+        backend = meta.get("backend", "unknown")
+        by_backend.setdefault(backend, []).append(result)
+
+    summary = {
+        "total_results": len(results),
+        "backends": {},
+        "timestamp": generated_at or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    for backend, backend_results in by_backend.items():
+        f1_scores = []
+        for result in backend_results:
+            if result.get("success") is False:
+                continue
+            if "f1" in result:
+                f1_scores.append(result["f1"])
+            elif "metrics" in result and "f1" in result["metrics"]:
+                f1_scores.append(result["metrics"]["f1"])
+
+        summary["backends"][backend] = {
+            "count": len(backend_results),
+            "datasets": sorted({r.get("_meta", {}).get("dataset", "?") for r in backend_results}),
+            "mean_f1": sum(f1_scores) / len(f1_scores) if f1_scores else None,
+            "min_f1": min(f1_scores) if f1_scores else None,
+            "max_f1": max(f1_scores) if f1_scores else None,
+        }
+    return summary
+
+
+class ResultArtifactTests(unittest.TestCase):
+    def test_comprehensive_eval_json_expands_to_spot_records(self):
+        # Matches `ComprehensiveEvalResults` serialized by `anno benchmark
+        # --output-json`: result-level metadata and metrics are authoritative.
+        artifact = {
+            "results": [
+                {
+                    "task": "NER",
+                    "dataset": "WikiGold",
+                    "backend": "gliner",
+                    "seed": 42,
+                    "success": True,
+                    "error": None,
+                    "metrics": {"f1": 0.73, "precision": 0.71, "recall": 0.75},
+                    "num_examples": 20,
+                    "duration_ms": 125.0,
+                    "label_shift": None,
+                    "robustness": None,
+                    "stratified": None,
+                    "confidence_intervals": None,
+                    "kb_version": None,
+                },
+                {
+                    "task": "NER",
+                    "dataset": "WikiGold",
+                    "backend": "gliner",
+                    "seed": 42,
+                    "success": False,
+                    "error": "model unavailable",
+                    "metrics": {"f1": 0.99},
+                    "num_examples": 0,
+                    "duration_ms": 1.0,
+                    "label_shift": None,
+                    "robustness": None,
+                    "stratified": None,
+                    "confidence_intervals": None,
+                    "kb_version": None,
+                }
+            ],
+            "summary": {
+                "total_combinations": 2,
+                "successful": 1,
+                "failed": 1,
+                "skipped": 0,
+                "tasks": ["NER"],
+                "datasets": ["WikiGold"],
+                "backends": ["gliner"],
+            },
+        }
+
+        records = expand_result_artifact(artifact)
+        self.assertEqual(len(records), 2)
+        self.assertEqual(
+            records[0]["_meta"],
+            {"backend": "gliner", "dataset": "WikiGold", "seed": 42, "task": "NER"},
+        )
+        summary = summarize_results(records, generated_at="2026-09-11T00:00:00Z")
+        self.assertEqual(summary["total_results"], 2)
+        self.assertEqual(summary["backends"]["gliner"]["count"], 2)
+        self.assertEqual(summary["backends"]["gliner"]["datasets"], ["WikiGold"])
+        self.assertEqual(summary["backends"]["gliner"]["mean_f1"], 0.73)
+
+    def test_legacy_flat_record_remains_readable(self):
+        legacy = {"_meta": {"backend": "heuristic", "dataset": "WikiGold"}, "f1": 0.5}
+        self.assertEqual(expand_result_artifact(legacy), [legacy])
+
+
 def aggregate_results(config: Config, output_path: Path) -> dict:
     """Download and aggregate all results from S3."""
     s3 = boto3.client("s3", region_name=config.region)
@@ -367,42 +503,11 @@ def aggregate_results(config: Config, output_path: Path) -> dict:
                 try:
                     resp = s3.get_object(Bucket=config.bucket, Key=key)
                     data = json.loads(resp["Body"].read())
-                    results.append(data)
+                    results.extend(expand_result_artifact(data))
                 except Exception as e:
                     console.print(f"[yellow]Warning: Failed to load {key}: {e}[/yellow]")
     
-    # Aggregate by backend
-    by_backend = {}
-    for r in results:
-        meta = r.get("_meta", {})
-        backend = meta.get("backend", "unknown")
-        if backend not in by_backend:
-            by_backend[backend] = []
-        by_backend[backend].append(r)
-    
-    # Compute summary statistics
-    summary = {
-        "total_results": len(results),
-        "backends": {},
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
-    
-    for backend, backend_results in by_backend.items():
-        # Extract F1 scores (if present in results)
-        f1_scores = []
-        for r in backend_results:
-            if "f1" in r:
-                f1_scores.append(r["f1"])
-            elif "metrics" in r and "f1" in r["metrics"]:
-                f1_scores.append(r["metrics"]["f1"])
-        
-        summary["backends"][backend] = {
-            "count": len(backend_results),
-            "datasets": list({r.get("_meta", {}).get("dataset", "?") for r in backend_results}),
-            "mean_f1": sum(f1_scores) / len(f1_scores) if f1_scores else None,
-            "min_f1": min(f1_scores) if f1_scores else None,
-            "max_f1": max(f1_scores) if f1_scores else None,
-        }
+    summary = summarize_results(results)
     
     # Write output
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -752,4 +857,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
