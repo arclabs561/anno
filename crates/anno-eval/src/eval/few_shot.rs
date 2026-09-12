@@ -28,7 +28,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Entity annotation: (entity_text, start_offset, end_offset)
+/// Untyped entity annotation: (entity_text, start_offset, end_offset).
+///
+/// This alias intentionally carries no entity label, so it cannot establish
+/// membership in a requested few-shot entity type.
 pub type EntityAnnotation = (String, usize, usize);
 
 /// Annotated example: (full_text, list of entity annotations)
@@ -190,18 +193,30 @@ impl FewShotEvaluator {
             total_gold += g.entities.len();
             total_predicted += pred.predicted.len();
 
-            // Count matches (exact span match)
+            // Assign each prediction to at most one gold entity. Without this,
+            // duplicate gold surface forms can both receive credit from one
+            // prediction and make recall exceed what the predictions support.
+            let mut prediction_matched = vec![false; pred.predicted.len()];
             for (g_text, g_start, g_end) in &g.entities {
-                for (p_text, p_start, p_end, _conf) in &pred.predicted {
-                    if g_start == p_start && g_end == p_end {
-                        total_correct += 1;
-                        break;
-                    }
-                    // Also allow text match if spans differ slightly
-                    if g_text.to_lowercase() == p_text.to_lowercase() {
-                        total_correct += 1;
-                        break;
-                    }
+                if let Some((prediction_index, _)) = pred
+                    .predicted
+                    .iter()
+                    .enumerate()
+                    .find(|(index, (_, p_start, p_end, _))| {
+                        !prediction_matched[*index] && g_start == p_start && g_end == p_end
+                    })
+                    .or_else(|| {
+                        pred.predicted
+                            .iter()
+                            .enumerate()
+                            .find(|(index, (p_text, _, _, _))| {
+                                !prediction_matched[*index]
+                                    && g_text.to_lowercase() == p_text.to_lowercase()
+                            })
+                    })
+                {
+                    prediction_matched[prediction_index] = true;
+                    total_correct += 1;
                 }
             }
         }
@@ -345,43 +360,40 @@ impl FewShotEvaluator {
 
 /// Create a simulated few-shot task from existing annotated data.
 ///
-/// Takes a dataset and creates K support examples + M query examples.
+/// The caller declares that every annotation in `all_examples` belongs to
+/// `entity_type`; `AnnotatedText` does not carry labels and this function does
+/// not infer them. Do not use it with mixed-type examples. It returns `None`
+/// when there are not enough non-empty examples for K support examples and at
+/// least one query.
 pub fn simulate_few_shot_task(
     entity_type: &str,
     all_examples: &[AnnotatedText],
     k: usize,
     max_queries: usize,
 ) -> Option<(FewShotTask, Vec<FewShotGold>)> {
-    // Filter examples containing this entity type
     let mut matching: Vec<_> = all_examples
         .iter()
         .filter(|(_, entities)| !entities.is_empty())
         .cloned()
         .collect();
-
     if matching.len() < k + 1 {
-        return None; // Not enough examples
+        return None;
     }
 
-    // Split into support (first K) and query (rest)
-    let support: Vec<_> = matching
+    let support = matching
         .drain(..k)
         .filter_map(|(text, entities)| {
             let (entity_text, start, end) = entities.first()?;
             Some(SupportExample::new(text, entity_text.clone(), *start, *end))
         })
         .collect();
-
-    let query_count = matching.len().min(max_queries);
-    let queries: Vec<_> = matching[..query_count].to_vec();
-
+    let queries = &matching[..matching.len().min(max_queries)];
     let task = FewShotTask {
         entity_type: entity_type.to_string(),
         support,
-        query_texts: queries.iter().map(|(t, _)| t.clone()).collect(),
+        query_texts: queries.iter().map(|(text, _)| text.clone()).collect(),
     };
-
-    let gold: Vec<_> = queries
+    let gold = queries
         .iter()
         .map(|(text, entities)| FewShotGold {
             text: text.clone(),
@@ -436,6 +448,38 @@ mod tests {
         let results = evaluator.evaluate("DISEASE", 2, &predictions, &gold);
         assert!((results.recall).abs() < 0.01);
         assert_eq!(results.num_correct, 0);
+    }
+
+    #[test]
+    fn test_prediction_cannot_match_duplicate_gold_entities() {
+        let evaluator = FewShotEvaluator::default();
+        let predictions = vec![FewShotPrediction {
+            text: "Paris and Paris".into(),
+            predicted: vec![("Paris".into(), 0, 5, 0.95)],
+        }];
+        let gold = vec![FewShotGold {
+            text: "Paris and Paris".into(),
+            entities: vec![("Paris".into(), 0, 5), ("Paris".into(), 10, 15)],
+        }];
+
+        let results = evaluator.evaluate("LOC", 1, &predictions, &gold);
+
+        assert_eq!(results.num_correct, 1);
+        assert!((results.recall - 0.5).abs() < f64::EPSILON);
+        assert!((results.precision - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_homogeneous_examples_simulate_the_caller_declared_type() {
+        let examples = vec![
+            ("Paris".to_string(), vec![("Paris".to_string(), 0, 5)]),
+            ("Lyon".to_string(), vec![("Lyon".to_string(), 0, 4)]),
+        ];
+
+        let (task, gold) = simulate_few_shot_task("LOC", &examples, 1, 1).unwrap();
+        assert_eq!(task.entity_type, "LOC");
+        assert_eq!(task.support.len(), 1);
+        assert_eq!(gold.len(), 1);
     }
 
     #[test]

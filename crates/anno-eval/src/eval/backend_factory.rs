@@ -31,6 +31,7 @@ impl BackendFactory {
     /// - `nuner` / `NuNER` - NuNER (zero-shot, token-based)
     /// - `w2ner` / `W2NER` - W2NER (discontinuous NER)
     /// - `gliner_multitask` / `GLiNERMultitaskOnnx` - GLiNERMultitask multi-task
+    /// - `gliner2_fastino` / `GLiNER2Fastino` - GLiNER2 ONNX (zero-shot)
     ///
     /// ## Candle Feature Required
     /// - `candle_ner` / `CandleNER` - Candle BERT NER
@@ -261,6 +262,31 @@ impl BackendFactory {
                 "GLiNER multi-task (ONNX) requires 'onnx' feature".to_string(),
             )),
 
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
+                use anno::backends::gliner2_fastino::{
+                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
+                    SUPPORTED_GLINER2_FASTINO_REVISION,
+                };
+                GLiNER2Fastino::from_pretrained_with_config(
+                    SUPPORTED_GLINER2_FASTINO_MODEL,
+                    GLiNER2FastinoConfig::default()
+                        .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
+                )
+                .map(|m| Box::new(m) as Box<dyn Model>)
+                .map_err(|e| {
+                    crate::Error::FeatureNotAvailable(format!(
+                        "Failed to create GLiNER2 Fastino (ONNX): {e}"
+                    ))
+                })
+            }
+            #[cfg(not(feature = "gliner2-fastino"))]
+            "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => Err(
+                crate::Error::FeatureNotAvailable(
+                    "GLiNER2 Fastino requires 'gliner2-fastino' feature".to_string(),
+                ),
+            ),
+
             // Candle backends
             #[cfg(feature = "candle")]
             "candle_ner" | "candlener" => {
@@ -466,6 +492,11 @@ impl BackendFactory {
             }
         }
 
+        #[cfg(feature = "gliner2-fastino")]
+        {
+            backends.push("gliner2_fastino");
+        }
+
         #[cfg(feature = "candle")]
         {
             backends.extend(&["candle_ner", "gliner_candle"]);
@@ -601,6 +632,12 @@ mod tests {
         assert!(backends.contains(&"pattern"));
         assert!(backends.contains(&"heuristic"));
         assert!(backends.contains(&"stacked"));
+    }
+
+    #[cfg(feature = "gliner2-fastino")]
+    #[test]
+    fn fastino_is_advertised_without_constructing_or_downloading_it() {
+        assert!(BackendFactory::available_backends().contains(&"gliner2_fastino"));
     }
 }
 

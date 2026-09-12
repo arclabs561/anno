@@ -423,6 +423,7 @@ pub fn backend_tasks(backend_name: &str) -> &'static [Task] {
         // Zero-shot NER backends (implement Model + ZeroShotNER)
         "gliner_onnx" | "GLiNEROnnx" => &[Task::NER],
         "gliner_candle" | "GLiNERCandle" => &[Task::NER],
+        "gliner2_fastino" | "gliner2-fastino" | "GLiNER2Fastino" => &[Task::NER],
         "gliner_poly" | "GLiNERPoly" => &[Task::NER],
         "gliner_pii" | "pii_ml" => &[Task::NER], // PII entity types
         "gliner_relex" | "relex" => &[Task::NER, Task::RelationExtraction],
@@ -537,6 +538,7 @@ pub fn get_task_backends(task: Task) -> Vec<&'static str> {
         "gliner_onnx",
         "gliner_candle",
         "gliner_multitask",
+        "gliner2_fastino",
         "gliner_pii",
         "gliner_relex",
         "w2ner",
@@ -686,6 +688,12 @@ mod tests {
         assert!(tasks.contains(&Task::TextClassification));
         assert!(tasks.contains(&Task::HierarchicalExtraction));
         assert!(tasks.contains(&Task::RelationExtraction));
+    }
+
+    #[test]
+    fn fastino_is_a_zero_shot_ner_scorecard_candidate() {
+        assert_eq!(backend_tasks("gliner2_fastino"), &[Task::NER]);
+        assert!(get_task_backends(Task::NER).contains(&"gliner2_fastino"));
     }
 
     #[test]

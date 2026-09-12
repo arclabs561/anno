@@ -2566,6 +2566,7 @@ impl DatasetLoader {
         let mut features = None;
         let mut offset: usize = 0;
         let mut total_rows = None;
+        let mut last_row_idx = None;
 
         log::info!(
             "Downloading {} with pagination (page size: {})",
@@ -2575,23 +2576,31 @@ impl DatasetLoader {
 
         loop {
             // Build paginated URL
-            let url = if base_url.contains("offset=") {
-                // Replace existing offset parameter
-                let prev_offset = offset.saturating_sub(PAGE_SIZE);
-                base_url
-                    .replace(
-                        &format!("offset={}", prev_offset),
-                        &format!("offset={}", offset),
-                    )
-                    .replace("length=100", &format!("length={}", PAGE_SIZE))
-            } else {
-                // Add pagination parameters
-                let separator = if base_url.contains('?') { "&" } else { "?" };
-                format!(
-                    "{}{}offset={}&length={}",
-                    base_url, separator, offset, PAGE_SIZE
-                )
-            };
+            let (path, query) = base_url.split_once('?').unwrap_or((base_url, ""));
+            let mut params = Vec::new();
+            let mut has_offset = false;
+            let mut has_length = false;
+            for param in query.split('&').filter(|param| !param.is_empty()) {
+                let (key, _) = param.split_once('=').unwrap_or((param, ""));
+                match key {
+                    "offset" => {
+                        params.push(format!("offset={offset}"));
+                        has_offset = true;
+                    }
+                    "length" => {
+                        params.push(format!("length={PAGE_SIZE}"));
+                        has_length = true;
+                    }
+                    _ => params.push(param.to_string()),
+                }
+            }
+            if !has_offset {
+                params.push(format!("offset={offset}"));
+            }
+            if !has_length {
+                params.push(format!("length={PAGE_SIZE}"));
+            }
+            let url = format!("{}?{}", path, params.join("&"));
 
             match self.download_attempt(&url) {
                 Ok(content) => {
@@ -2617,6 +2626,26 @@ impl DatasetLoader {
                     if let Some(rows) = parsed.get("rows").and_then(|v| v.as_array()) {
                         if rows.is_empty() {
                             break; // No more rows
+                        }
+                        for row in rows {
+                            let row_idx = row
+                                .get("row_idx")
+                                .and_then(|value| value.as_u64())
+                                .and_then(|value| usize::try_from(value).ok())
+                                .ok_or_else(|| {
+                                    Error::InvalidInput(
+                                        "HF Dataset Viewer row is missing a usable row_idx; refetch the dataset"
+                                            .to_string(),
+                                    )
+                                })?;
+                            let expected = last_row_idx.map_or(0, |last| last + 1);
+                            if row_idx != expected {
+                                return Err(Error::InvalidInput(format!(
+                                    "HF Dataset Viewer pagination repeated or skipped row_idx {} (expected {}); refetch the dataset",
+                                    row_idx, expected
+                                )));
+                            }
+                            last_row_idx = Some(row_idx);
                         }
                         all_rows.extend_from_slice(rows);
                         log::debug!(
@@ -2681,6 +2710,8 @@ impl DatasetLoader {
         if let Some(total) = total_rows {
             response["num_rows_total"] = serde_json::json!(total);
         }
+
+        Self::validate_hf_dataset_viewer_envelope(&response)?;
 
         serde_json::to_string(&response).map_err(|e| {
             Error::InvalidInput(format!("Failed to serialize paginated response: {}", e))
@@ -3061,6 +3092,34 @@ impl DatasetLoader {
             Error::InvalidInput(format!("No parser configured for dataset {:?}", id))
         })?;
 
+        if Self::looks_like_html_document(content) {
+            return Err(Error::InvalidInput(format!(
+                "Dataset {:?} cache contains HTML, not a dataset payload",
+                id
+            )));
+        }
+
+        // The HuggingFace Dataset Viewer caches a JSON envelope even for datasets
+        // whose registry format is CoNLL. Dispatch it before the format-specific
+        // parser: treating the one-line JSON document as CoNLL creates one enormous
+        // token and can make downstream model evaluation exhaust memory.
+        if self.is_hf_api_response(content) {
+            return match plan {
+                DatasetParsePlan::CadecHybrid => self.parse_cadec_hf_api(content, id),
+                _ => self.parse_hf_api_response(content, id),
+            };
+        }
+
+        let trimmed = content.trim_start();
+        if matches!(plan, DatasetParsePlan::Conll)
+            && (trimmed.starts_with('{') || trimmed.starts_with('['))
+        {
+            return Err(Error::InvalidInput(format!(
+                "Dataset {:?} expected CoNLL text but received an unsupported JSON payload",
+                id
+            )));
+        }
+
         let result = match plan {
             DatasetParsePlan::Conll => self.parse_conll(content, id),
             DatasetParsePlan::JsonlNer => self.parse_jsonl_ner(content, id),
@@ -3114,13 +3173,71 @@ impl DatasetLoader {
 
     /// Check if content is HuggingFace datasets-server API response.
     fn is_hf_api_response(&self, content: &str) -> bool {
-        // Check for HF datasets-server API response structure
-        let trimmed = content.trim_start();
-        trimmed.starts_with("{\"rows\":")
-            || trimmed.starts_with("{\"features\":")
-            || (trimmed.starts_with("{")
-                && trimmed.contains("\"rows\":[")
-                && trimmed.contains("\"features\":["))
+        serde_json::from_str::<serde_json::Value>(content)
+            .ok()
+            .is_some_and(|value| {
+                value.get("features").and_then(|v| v.as_array()).is_some()
+                    && value.get("rows").and_then(|v| v.as_array()).is_some()
+            })
+    }
+
+    /// Reject common server error pages before a text parser can treat markup as a token.
+    fn looks_like_html_document(content: &str) -> bool {
+        let prefix = content
+            .trim_start()
+            .get(..64)
+            .unwrap_or(content)
+            .to_ascii_lowercase();
+        prefix.starts_with("<!doctype html") || prefix.starts_with("<html")
+    }
+
+    /// Ensure a complete Dataset Viewer cache has one ordered row for every advertised index.
+    fn validate_hf_dataset_viewer_envelope(parsed: &serde_json::Value) -> Result<()> {
+        let Some(total) = parsed
+            .get("num_rows_total")
+            .and_then(|value| value.as_u64())
+            .and_then(|value| usize::try_from(value).ok())
+        else {
+            return Ok(());
+        };
+
+        let rows = parsed
+            .get("rows")
+            .and_then(|value| value.as_array())
+            .ok_or_else(|| {
+                Error::InvalidInput(
+                    "HF Dataset Viewer envelope has num_rows_total but no rows array; refetch the dataset"
+                        .to_string(),
+                )
+            })?;
+        if rows.len() != total {
+            return Err(Error::InvalidInput(format!(
+                "HF Dataset Viewer cache has {} rows but num_rows_total is {}; refetch the dataset",
+                rows.len(),
+                total
+            )));
+        }
+
+        for (expected, row) in rows.iter().enumerate() {
+            let row_idx = row
+                .get("row_idx")
+                .and_then(|value| value.as_u64())
+                .and_then(|value| usize::try_from(value).ok())
+                .ok_or_else(|| {
+                    Error::InvalidInput(
+                        "HF Dataset Viewer cache row is missing a usable row_idx; refetch the dataset"
+                            .to_string(),
+                    )
+                })?;
+            if row_idx != expected {
+                return Err(Error::InvalidInput(format!(
+                    "HF Dataset Viewer cache row_idx {} is not the expected ordered index {}; refetch the dataset",
+                    row_idx, expected
+                )));
+            }
+        }
+
+        Ok(())
     }
 
     /// Parse CoNLL/BIO format content.
@@ -3317,11 +3434,12 @@ impl DatasetLoader {
     fn parse_hf_api_response(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let parsed: serde_json::Value = serde_json::from_str(content)
             .map_err(|e| Error::InvalidInput(format!("Failed to parse HF API response: {}", e)))?;
+        Self::validate_hf_dataset_viewer_envelope(&parsed)?;
 
         let mut sentences = Vec::new();
 
         // Extract tag names from features if available (for integer tag mapping)
-        let tag_names = self.extract_tag_names_from_features(&parsed);
+        let tag_names = self.extract_tag_names_from_features(&parsed, id);
         let class_names = self.extract_class_names_from_features(&parsed);
 
         let rows = parsed
@@ -3335,10 +3453,12 @@ impl DatasetLoader {
                 None => continue,
             };
 
-            // Primary path: token-level NER rows (`tokens` + `ner_tags`)
+            // Primary path: token-level NER rows (`tokens` + `ner_tags`/`tags`)
             if let (Some(tokens), Some(ner_tags)) = (
                 row.get("tokens").and_then(|v| v.as_array()),
-                row.get("ner_tags").and_then(|v| v.as_array()),
+                row.get("ner_tags")
+                    .or_else(|| row.get("tags"))
+                    .and_then(|v| v.as_array()),
             ) {
                 if tokens.len() != ner_tags.len() {
                     continue;
@@ -3609,13 +3729,17 @@ impl DatasetLoader {
     }
 
     /// Extract tag names from HF API features metadata.
-    fn extract_tag_names_from_features(&self, parsed: &serde_json::Value) -> Vec<String> {
+    fn extract_tag_names_from_features(
+        &self,
+        parsed: &serde_json::Value,
+        id: DatasetId,
+    ) -> Vec<String> {
         let mut tag_names = Vec::new();
 
         if let Some(features) = parsed.get("features").and_then(|v| v.as_array()) {
             for feature in features {
                 let name = feature.get("name").and_then(|v| v.as_str());
-                if name == Some("ner_tags") {
+                if matches!(name, Some("ner_tags" | "tags")) {
                     // Look for ClassLabel names
                     if let Some(names) = feature
                         .get("type")
@@ -3632,6 +3756,18 @@ impl DatasetLoader {
                     break;
                 }
             }
+        }
+
+        if tag_names.is_empty() && id == DatasetId::CoNLL2003Sample {
+            // tner/conll2003's Dataset Viewer envelope currently describes `tags`
+            // only as `int32`, omitting ClassLabel names. This order is from the
+            // source's pinned dataset/label.json, and applies only to this identity.
+            tag_names = [
+                "O", "B-ORG", "B-MISC", "B-PER", "I-PER", "B-LOC", "I-ORG", "I-MISC", "I-LOC",
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect();
         }
 
         tag_names
@@ -8815,6 +8951,83 @@ g1\tJohn met Mary. He waved.\tHe\t14\tJohn\t0\tTRUE\tMary\t9\tFALSE\thttp://exam
             .unwrap();
         assert_eq!(ds.sentences.len(), 1);
         assert_eq!(ds.sentences[0].tokens[0].ner_tag, "B-PER");
+    }
+
+    #[test]
+    fn conll_dataset_viewer_envelope_dispatches_before_conll_fallback() {
+        // Shape captured from the local tner/conll2003 Dataset Viewer cache:
+        // a one-line JSON envelope with `features`, `num_rows_total`, and `rows`.
+        let sample = r#"{"features":[{"feature_idx":0,"name":"tokens","type":{"_type":"List","feature":{"_type":"Value","dtype":"string"}}},{"feature_idx":1,"name":"tags","type":{"_type":"List","feature":{"_type":"Value","dtype":"int32"}}}],"num_rows_total":2,"rows":[{"row":{"tags":[0,0,5,0,0,0,0,3,0,0,0,0],"tokens":["SOCCER","-","JAPAN","GET","LUCKY","WIN",",","CHINA","IN","SURPRISE","DEFEAT","."]},"row_idx":0,"truncated_cells":[]},{"row":{"tags":[3,4],"tokens":["EU","officials"]},"row_idx":1,"truncated_cells":[]}]}"#;
+
+        let loader = DatasetLoader::new().unwrap();
+        let dataset = loader
+            .parse_content_str(sample, DatasetId::CoNLL2003Sample)
+            .expect("Dataset Viewer envelope should parse as token rows");
+
+        assert_eq!(dataset.sentences.len(), 2);
+        assert_eq!(dataset.entity_count(), 3);
+        assert_eq!(dataset.sentences[0].tokens[2].ner_tag, "B-LOC");
+        assert_eq!(dataset.sentences[0].tokens[7].ner_tag, "B-PER");
+
+        let first_entities = dataset.sentences[0].entities();
+        assert_eq!(first_entities.len(), 2);
+        assert_eq!(first_entities[0].text, "JAPAN");
+        assert_eq!((first_entities[0].start, first_entities[0].end), (9, 14));
+        assert_eq!(first_entities[1].text, "CHINA");
+        assert_eq!((first_entities[1].start, first_entities[1].end), (31, 36));
+    }
+
+    #[test]
+    fn dataset_viewer_feature_names_override_dataset_tag_fallback() {
+        let sample = r#"{"features":[{"name":"tokens"},{"name":"tags","type":{"feature":{"names":["O","B-CUSTOM"]}}}],"num_rows_total":1,"rows":[{"row":{"tokens":["custom"],"tags":[1]},"row_idx":0}]}"#;
+
+        let loader = DatasetLoader::new().unwrap();
+        let dataset = loader
+            .parse_content_str(sample, DatasetId::CoNLL2003Sample)
+            .expect("feature ClassLabel names should drive integer tag decoding");
+        assert_eq!(dataset.sentences[0].tokens[0].ner_tag, "B-CUSTOM");
+    }
+
+    #[test]
+    fn dataset_viewer_envelope_rejects_repeated_pages() {
+        let sample = r#"{"features":[{"name":"tokens"},{"name":"tags"}],"num_rows_total":2,"rows":[{"row":{"tokens":["first"],"tags":[0]},"row_idx":0},{"row":{"tokens":["first"],"tags":[0]},"row_idx":0}]}"#;
+
+        let loader = DatasetLoader::new().unwrap();
+        let err = loader
+            .parse_content_str(sample, DatasetId::CoNLL2003Sample)
+            .expect_err("repeated Dataset Viewer pages must be rejected");
+        assert!(err.to_string().contains("row_idx"));
+        assert!(err.to_string().contains("refetch"));
+    }
+
+    #[test]
+    fn dataset_viewer_envelope_rejects_incomplete_row_count() {
+        let sample = r#"{"features":[{"name":"tokens"},{"name":"tags"}],"num_rows_total":1,"rows":[{"row":{"tokens":["first"],"tags":[0]},"row_idx":0},{"row":{"tokens":["second"],"tags":[0]},"row_idx":1}]}"#;
+
+        let loader = DatasetLoader::new().unwrap();
+        let err = loader
+            .parse_content_str(sample, DatasetId::CoNLL2003Sample)
+            .unwrap_err();
+
+        assert!(err.to_string().contains("num_rows_total"));
+        assert!(err.to_string().contains("refetch"));
+    }
+
+    #[test]
+    fn conll_parser_rejects_html_and_unrecognized_json_payloads() {
+        let loader = DatasetLoader::new().unwrap();
+        for payload in [
+            "<!DOCTYPE html><html><body>not found</body></html>",
+            "{\"error\":\"not found\"}",
+        ] {
+            let err = loader
+                .parse_content_str(payload, DatasetId::CoNLL2003Sample)
+                .expect_err("non-CoNLL payload must not become a giant token");
+            assert!(
+                err.to_string().contains("HTML") || err.to_string().contains("JSON"),
+                "unexpected error: {err}"
+            );
+        }
     }
 
     #[test]

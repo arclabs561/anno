@@ -44,6 +44,9 @@ pub enum BackendName {
     /// GLiNER v2 zero-shot NER via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERMultitask,
+    /// Fastino GLiNER2 zero-shot NER via a pinned ONNX snapshot.
+    #[cfg(feature = "gliner2-fastino")]
+    GLiNER2Fastino,
     /// GLiNER with polynomial attention via ONNX runtime.
     #[cfg(feature = "onnx")]
     GLiNERPoly,
@@ -97,6 +100,8 @@ impl BackendName {
             BackendName::W2NER => "w2ner",
             #[cfg(feature = "onnx")]
             BackendName::GLiNERMultitask => "gliner_multitask",
+            #[cfg(feature = "gliner2-fastino")]
+            BackendName::GLiNER2Fastino => "gliner2_fastino",
             #[cfg(feature = "onnx")]
             BackendName::GLiNERPoly => "gliner_poly",
             #[cfg(feature = "onnx")]
@@ -137,6 +142,10 @@ impl BackendName {
             "w2ner" => Some(BackendName::W2NER),
             #[cfg(feature = "onnx")]
             "gliner_multitask" | "gliner_multitask_onnx" => Some(BackendName::GLiNERMultitask),
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
+                Some(BackendName::GLiNER2Fastino)
+            }
             #[cfg(feature = "onnx")]
             "gliner_poly" | "glinerpoly" => Some(BackendName::GLiNERPoly),
             #[cfg(feature = "onnx")]
@@ -187,6 +196,11 @@ impl BackendName {
                 BackendName::ALBERT,
                 BackendName::TPLinker,
             ]);
+        }
+
+        #[cfg(feature = "gliner2-fastino")]
+        {
+            backends.push(BackendName::GLiNER2Fastino);
         }
 
         #[cfg(feature = "candle")]
