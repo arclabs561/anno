@@ -60,6 +60,18 @@ filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or 
 test-group = 'model-initialization'
 slow-timeout = { period = "60s", terminate-after = 2 }
 
+# These metadata tests instantiate production defaults, which may load cached ONNX models.
+# Keep their assertions in quick coverage while applying the existing initialized-model budget.
+[[profile.quick.overrides]]
+filter = 'package(anno) and test(=backends::ensemble::tests::test_new_backend_ids_have_weights)'
+test-group = 'model-initialization'
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[[profile.quick.overrides]]
+filter = 'package(anno-cli) and test(=cli::parser::tests::test_stacked_default_has_ml_backend_when_available)'
+test-group = 'model-initialization'
+slow-timeout = { period = "60s", terminate-after = 2 }
+
 # =============================================================================
 # ML Profile - for ML backend tests
 # =============================================================================
