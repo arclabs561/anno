@@ -1031,7 +1031,7 @@ jobs:
       - name: Install cargo-llvm-cov
         run: cargo install cargo-llvm-cov
       - name: Install cargo-nextest
-        run: cargo install cargo-nextest
+        run: cargo install --locked cargo-nextest
       - name: Generate coverage
         run: cargo llvm-cov nextest --profile quick --workspace --features "eval discourse" --lcov --output-path lcov.info
       - name: Upload to Codecov
