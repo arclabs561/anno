@@ -46,6 +46,30 @@ impl Default for EvalRunProvenance {
     }
 }
 
+/// Deserialize results written before per-result provenance existed.
+///
+/// This must never use [`current_build_provenance`]: a missing field describes
+/// an older observation, not the executable currently reading it.
+pub(crate) fn legacy_eval_run_provenance() -> EvalRunProvenance {
+    EvalRunProvenance {
+        schema_version: 0,
+        build: EvalBuildProvenance {
+            package_version: "unknown".to_string(),
+            source_revision: None,
+            enabled_features: Vec::new(),
+        },
+        dataset: DatasetRunProvenance::default(),
+        backend: BackendRunProvenance::default(),
+        runtime: EvalRuntimeProvenance {
+            scheduling: EvaluationScheduling::Unknown {
+                reason: "historical result did not record scheduling provenance".to_string(),
+            },
+            ..Default::default()
+        },
+        ner_label_policy: None,
+    }
+}
+
 /// Source and feature settings compiled into the evaluator.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct EvalBuildProvenance {
