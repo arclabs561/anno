@@ -279,9 +279,9 @@ jobs:
           restore-keys: |
             hf-models-${{ runner.os }}-
       - name: Build Candle backend
-        run: cargo build --workspace --features candle
+        run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
-        run: cargo test --workspace --lib --features candle
+        run: cargo test --workspace --lib --features "candle gliner2-fastino-candle"
   # ==========================================================================
   # Feature Combination Tests (important combos not covered above)
   # ==========================================================================
