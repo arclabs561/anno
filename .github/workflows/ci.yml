@@ -233,6 +233,11 @@ jobs:
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
+      # Compile/lint the Windows provider path; hosted runners do not provide
+      # representative DirectML GPU execution evidence.
+      - name: Check DirectML session configuration
+        if: runner.os == 'Windows'
+        run: cargo clippy -p anno --features onnx-directml -- -D warnings
   # ==========================================================================
   # ONNX backend tests (Linux only)
   # ==========================================================================
