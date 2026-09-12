@@ -158,7 +158,10 @@ process_task() {
     
     log_info "Processing: backend=$backend dataset=$dataset seed=$seed"
     
-    local output_file="/tmp/result_${backend}_${dataset}_${seed}.json"
+    local result_dir
+    result_dir=$(mktemp -d "${TMPDIR:-/tmp}/anno-spot-result.XXXXXX")
+    local markdown_file="$result_dir/report.md"
+    local json_file="$result_dir/report.json"
     local start_time
     start_time=$(date +%s)
     
@@ -188,7 +191,8 @@ process_task() {
         --tasks "$task_type" \
         --max-examples "$max_examples" \
         --seed "$seed" \
-        --output "$output_file" 2>&1 | tee /tmp/eval_output.log; then
+        --output "$markdown_file" \
+        --output-json "$json_file" 2>&1 | tee /tmp/eval_output.log; then
         exit_code=${PIPESTATUS[0]}
     fi
     
@@ -214,23 +218,29 @@ process_task() {
     # Upload result with metadata in filename
     local timestamp
     timestamp=$(date +%Y%m%d_%H%M%S)
-    local result_key="results/${backend}/${dataset}/seed_${seed}_${timestamp}.md"
+    local result_prefix="results/${backend}/${dataset}/seed_${seed}_${timestamp}"
     
-    if [[ -f "$output_file" && -s "$output_file" ]]; then
-        # Output is markdown, upload directly with metadata header
+    if [[ -s "$markdown_file" && -s "$json_file" ]]; then
+        # Preserve the human-readable report alongside the machine artifact.
         {
             echo "<!-- _meta: backend=$backend dataset=$dataset seed=$seed instance=$INSTANCE_ID duration=${duration}s exit_code=$exit_code -->"
-            cat "$output_file"
-        } > "${output_file}.wrapped"
+            cat "$markdown_file"
+        } > "${markdown_file}.wrapped"
         
-        # Upload to S3
-        aws s3 cp "${output_file}.wrapped" "s3://$BUCKET/$result_key" --region "$REGION"
-        log_info "Result uploaded: s3://$BUCKET/$result_key"
+        aws s3 cp "${markdown_file}.wrapped" "s3://$BUCKET/${result_prefix}.md" --region "$REGION"
+        aws s3 cp "$json_file" "s3://$BUCKET/${result_prefix}.json" --region "$REGION"
+        log_info "Results uploaded: s3://$BUCKET/${result_prefix}.{md,json}"
+        rm -rf -- "$result_dir"
     else
         # Upload error marker
         echo "{\"error\": \"evaluation failed\", \"exit_code\": $exit_code, \"backend\": \"$backend\", \"dataset\": \"$dataset\"}" | \
-            aws s3 cp - "s3://$BUCKET/${result_key}.error" --region "$REGION"
+            aws s3 cp - "s3://$BUCKET/${result_prefix}.error" --region "$REGION"
         log_error "Evaluation failed for $backend/$dataset (exit $exit_code)"
+        if [[ "${ANNO_SPOT_RETAIN_FAILURE_ARTIFACTS:-0}" == "1" ]]; then
+            log_info "Retained failure artifacts: $result_dir"
+        else
+            rm -rf -- "$result_dir"
+        fi
     fi
     
     # Delete message from queue (task complete)
@@ -303,7 +313,7 @@ main() {
             idle_count=0
             process_task "$task"
         else
-            ((idle_count++))
+            ((idle_count++)) || true
             log_info "No tasks available (idle $idle_count/$max_idle)"
             
             if [[ $idle_count -ge $max_idle ]]; then
@@ -320,4 +330,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-
