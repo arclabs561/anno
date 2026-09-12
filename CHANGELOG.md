@@ -21,6 +21,7 @@
 - Evaluation uses canonical labels, one-to-one matching and pooled confidence intervals; unavailable observations no longer produce invented uncertainty.
 - Dataset handoff validates source labels and pagination, pins direct artifacts and rejects malformed cached envelopes.
 - BERT decoding preserves adjacent beginning tags and distinct custom labels; robustness scoring retains valid long unchanged inputs.
+- BERT disables serialized tokenizer truncation and splits oversized sentences into overlapping windows so long inputs retain their suffix.
 
 ### Changed (breaking)
 
