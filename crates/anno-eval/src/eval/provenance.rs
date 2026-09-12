@@ -84,27 +84,27 @@ pub struct EvalBuildProvenance {
 
 /// Build information available without shelling out or guessing repository state.
 pub(crate) fn current_build_provenance() -> EvalBuildProvenance {
-    let mut enabled_features = Vec::new();
-    macro_rules! record_feature {
-        ($name:literal) => {
-            #[cfg(feature = $name)]
-            enabled_features.push($name.to_string());
-        };
-    }
-    record_feature!("eval");
-    record_feature!("parallel");
-    record_feature!("eval-parallel");
-    record_feature!("onnx");
-    record_feature!("gliner2-fastino");
-    record_feature!("candle");
-    record_feature!("llm");
-    record_feature!("hf-hub");
-    record_feature!("discourse");
-    record_feature!("eval-profiling");
-    record_feature!("eval-bias");
-    record_feature!("heuristic-fr");
-    record_feature!("bundled-crf-weights");
-    record_feature!("bundled-hmm-params");
+    let enabled_features = [
+        ("default", cfg!(feature = "default")),
+        ("eval", cfg!(feature = "eval")),
+        ("parallel", cfg!(feature = "parallel")),
+        ("eval-parallel", cfg!(feature = "eval-parallel")),
+        ("onnx", cfg!(feature = "onnx")),
+        ("gliner2-fastino", cfg!(feature = "gliner2-fastino")),
+        ("candle", cfg!(feature = "candle")),
+        ("llm", cfg!(feature = "llm")),
+        ("hf-hub", cfg!(feature = "hf-hub")),
+        ("discourse", cfg!(feature = "discourse")),
+        ("eval-profiling", cfg!(feature = "eval-profiling")),
+        ("eval-bias", cfg!(feature = "eval-bias")),
+        ("heuristic-fr", cfg!(feature = "heuristic-fr")),
+        ("bundled-crf-weights", cfg!(feature = "bundled-crf-weights")),
+        ("bundled-hmm-params", cfg!(feature = "bundled-hmm-params")),
+    ]
+    .into_iter()
+    .filter(|(_, enabled)| *enabled)
+    .map(|(name, _)| name.to_string())
+    .collect();
     EvalBuildProvenance {
         package_version: env!("CARGO_PKG_VERSION").to_string(),
         source_revision: option_env!("ANNO_GIT_COMMIT").map(str::to_string),
