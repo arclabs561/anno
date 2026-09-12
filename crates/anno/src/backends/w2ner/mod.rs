@@ -219,18 +219,22 @@ impl W2NER {
             // HuggingFace download
             let api = hf_loader::hf_api()?;
             let repo = api.model(model_path.to_string());
+            let no_downloads = hf_loader::no_downloads();
 
-            let (model_file, tokenizer_file) = match repo
-                .get("model.onnx")
-                .or_else(|_| repo.get("onnx/model.onnx"))
-            {
+            let (model_file, tokenizer_file) = match hf_loader::download_model_file(
+                &repo,
+                &["model.onnx", "onnx/model.onnx"],
+            ) {
                 Ok(p) => {
-                    let tok = repo.get("tokenizer.json").map_err(|e| {
-                        Error::Retrieval(format!("Failed to download tokenizer: {}", e))
-                    })?;
+                    let tok = hf_loader::download_model_file(&repo, &["tokenizer.json"]).map_err(
+                        |e| Error::Retrieval(format!("Failed to download tokenizer: {}", e)),
+                    )?;
                     (p, tok)
                 }
                 Err(e) => {
+                    if no_downloads {
+                        return Err(e);
+                    }
                     let error_msg = format!("{e}");
                     // Check if it's an authentication error (401) or gated model
                     if error_msg.contains("401") || error_msg.contains("Unauthorized") {
@@ -252,14 +256,11 @@ impl W2NER {
                     //
                     // IMPORTANT: many dev shells set `CI=1`, which should not disable auto-export
                     // when running locally. Only treat GitHub Actions as “CI” for this purpose.
-                    let in_github_actions = std::env::var("GITHUB_ACTIONS").is_ok();
-                    let auto_export = match std::env::var("ANNO_W2NER_AUTO_EXPORT").ok() {
-                        None => !in_github_actions,
-                        Some(v) => {
-                            let t = v.trim().to_lowercase();
-                            t == "1" || t == "true" || t == "yes" || t == "y" || t == "on"
-                        }
-                    };
+                    let auto_export = w2ner_auto_export_enabled(
+                        no_downloads,
+                        std::env::var("GITHUB_ACTIONS").is_ok(),
+                        std::env::var("ANNO_W2NER_AUTO_EXPORT").ok().as_deref(),
+                    );
 
                     if auto_export {
                         let Some(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR").ok() else {
@@ -754,6 +755,24 @@ impl W2NER {
         }
 
         Ok(entities)
+    }
+}
+
+#[cfg(feature = "onnx")]
+fn w2ner_auto_export_enabled(
+    no_downloads: bool,
+    in_github_actions: bool,
+    configured: Option<&str>,
+) -> bool {
+    if no_downloads {
+        return false;
+    }
+    match configured {
+        None => !in_github_actions,
+        Some(value) => matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "y" | "on"
+        ),
     }
 }
 

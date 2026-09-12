@@ -1270,8 +1270,19 @@ struct GroundedDocumentWire {
     identities: HashMap<IdentityId, Identity>,
 }
 
-impl From<GroundedDocumentWire> for GroundedDocument {
-    fn from(wire: GroundedDocumentWire) -> Self {
+impl TryFrom<GroundedDocumentWire> for GroundedDocument {
+    type Error = String;
+
+    fn try_from(wire: GroundedDocumentWire) -> Result<Self, Self::Error> {
+        if wire.signals.iter().any(|s| s.id == SignalId::new(u64::MAX))
+            || wire.tracks.keys().any(|id| *id == TrackId::new(u64::MAX))
+            || wire
+                .identities
+                .keys()
+                .any(|id| *id == IdentityId::new(u64::MAX))
+        {
+            return Err("document IDs must leave room for the next ID".into());
+        }
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
@@ -1285,7 +1296,14 @@ impl From<GroundedDocumentWire> for GroundedDocument {
             next_identity_id: IdentityId::ZERO,
         };
         doc.rebuild_indexes();
-        doc
+        let errors = doc.validate_invariants();
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+        if !doc.is_valid() {
+            return Err("signal locations or surfaces do not match document text".into());
+        }
+        Ok(doc)
     }
 }
 
@@ -1353,7 +1371,7 @@ impl From<GroundedDocumentWire> for GroundedDocument {
 /// Internal indexes (`signal_to_track`, `track_to_identity`, counter fields) are **not**
 /// serialized. They are rebuilt automatically on deserialization via [`rebuild_indexes`](Self::rebuild_indexes).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(from = "GroundedDocumentWire")]
+#[serde(try_from = "GroundedDocumentWire")]
 pub struct GroundedDocument {
     /// Document identifier
     id: String,
@@ -1528,6 +1546,9 @@ impl GroundedDocument {
         for signal_ref in &track.signals {
             self.signal_to_track.insert(signal_ref.signal_id, id);
         }
+        if let Some(identity_id) = track.identity_id {
+            self.track_to_identity.insert(id, identity_id);
+        }
 
         self.tracks.insert(id, track);
         self.next_track_id += 1;
@@ -1549,7 +1570,7 @@ impl GroundedDocument {
     /// Add a signal to an existing track.
     ///
     /// This properly updates the signal_to_track index.
-    /// Returns true if the signal was added, false if track doesn't exist.
+    /// Returns false if either ID is missing or the signal already belongs to a track.
     pub fn add_signal_to_track(
         &mut self,
         signal_id: impl Into<SignalId>,
@@ -1558,6 +1579,9 @@ impl GroundedDocument {
     ) -> bool {
         let signal_id = signal_id.into();
         let track_id = track_id.into();
+        if self.get_signal(signal_id).is_none() || self.signal_to_track.contains_key(&signal_id) {
+            return false;
+        }
         if let Some(track) = self.tracks.get_mut(&track_id) {
             track.add_signal(signal_id, position);
             self.signal_to_track.insert(signal_id, track_id);
@@ -1592,7 +1616,46 @@ impl GroundedDocument {
         id
     }
 
-    /// Link a track to an identity.
+    /// Insert a corpus-owned identity under its already assigned ID.
+    ///
+    /// Corpus links use this to keep a document independently serializable
+    /// while sharing the corpus identity namespace. Existing entries are never
+    /// overwritten because a same-ID collision would make the document's
+    /// persisted identity ambiguous.
+    pub(crate) fn insert_identity_with_id(&mut self, identity: Identity) -> bool {
+        let id = identity.id;
+        if self.identities.contains_key(&id) {
+            return false;
+        }
+        self.identities.insert(id, identity);
+        if id >= self.next_identity_id {
+            self.next_identity_id = id + 1;
+        }
+        true
+    }
+
+    fn remap_identity_id(&mut self, from: IdentityId, to: IdentityId) -> bool {
+        if from == to {
+            return true;
+        }
+        if self.identities.contains_key(&to) {
+            return false;
+        }
+        let Some(mut identity) = self.identities.remove(&from) else {
+            return false;
+        };
+        identity.id = to;
+        self.identities.insert(to, identity);
+        for track in self.tracks.values_mut() {
+            if track.identity_id == Some(from) {
+                track.identity_id = Some(to);
+            }
+        }
+        self.rebuild_indexes();
+        true
+    }
+
+    /// Link a track to an identity. Missing track or identity IDs leave the document unchanged.
     pub fn link_track_to_identity(
         &mut self,
         track_id: impl Into<TrackId>,
@@ -1600,6 +1663,9 @@ impl GroundedDocument {
     ) {
         let track_id = track_id.into();
         let identity_id = identity_id.into();
+        if !self.identities.contains_key(&identity_id) {
+            return;
+        }
         if let Some(track) = self.tracks.get_mut(&track_id) {
             track.identity_id = Some(identity_id);
             self.track_to_identity.insert(track_id, identity_id);
@@ -1993,8 +2059,27 @@ impl GroundedDocument {
         let signal_ids: std::collections::HashSet<_> = self.signals.iter().map(|s| s.id).collect();
 
         // 2. Track signal references point to existing signals
+        let mut assigned_signals = std::collections::HashSet::new();
         for (track_id, track) in &self.tracks {
+            if track.id != *track_id {
+                errors.push(format!(
+                    "Track map key {} differs from its ID {}",
+                    track_id, track.id
+                ));
+            }
             for signal_ref in &track.signals {
+                if !assigned_signals.insert(signal_ref.signal_id) {
+                    errors.push(format!(
+                        "Signal {} has multiple track references",
+                        signal_ref.signal_id
+                    ));
+                }
+                if self.signal_to_track.get(&signal_ref.signal_id) != Some(track_id) {
+                    errors.push(format!(
+                        "Track {} has an unindexed signal {}",
+                        track_id, signal_ref.signal_id
+                    ));
+                }
                 if !signal_ids.contains(&signal_ref.signal_id) {
                     errors.push(format!(
                         "Track {} references non-existent signal {}",
@@ -2050,8 +2135,22 @@ impl GroundedDocument {
         }
 
         // 5. Track identity references point to existing identities
+        for (identity_id, identity) in &self.identities {
+            if identity.id != *identity_id {
+                errors.push(format!(
+                    "Identity map key {} differs from its ID {}",
+                    identity_id, identity.id
+                ));
+            }
+        }
         for (track_id, track) in &self.tracks {
             if let Some(identity_id) = track.identity_id {
+                if self.track_to_identity.get(track_id) != Some(&identity_id) {
+                    errors.push(format!(
+                        "Track {} has an unindexed identity {}",
+                        track_id, identity_id
+                    ));
+                }
                 if !self.identities.contains_key(&identity_id) {
                     errors.push(format!(
                         "Track {} references non-existent identity {}",
@@ -4413,11 +4512,110 @@ impl Corpus {
     /// This method assigns the next available identity ID and inserts the identity.
     /// Used by coalescing operations to create cross-document identities.
     pub fn add_identity(&mut self, mut identity: Identity) -> IdentityId {
-        let id = self.next_identity_id;
+        let id = self
+            .next_unbound_identity_id()
+            .expect("identity IDs must leave room for the next allocation");
         identity.id = id;
         self.identities.insert(id, identity);
-        self.next_identity_id += 1;
+        self.next_identity_id = id + 1;
         id
+    }
+
+    fn next_unbound_identity_id(&self) -> Option<IdentityId> {
+        let mut id = self.next_identity_id;
+        loop {
+            if id == IdentityId::new(u64::MAX) {
+                return None;
+            }
+            let used_by_document = self
+                .documents
+                .values()
+                .any(|document| document.identities.contains_key(&id));
+            if !self.identities.contains_key(&id) && !used_by_document {
+                return Some(id);
+            }
+            id += 1;
+        }
+    }
+
+    fn next_unbound_identity_id_for_document(
+        &self,
+        document: &GroundedDocument,
+    ) -> Option<IdentityId> {
+        let mut id = self.next_identity_id;
+        loop {
+            if id == IdentityId::new(u64::MAX) {
+                return None;
+            }
+            let used_by_document = self
+                .documents
+                .values()
+                .any(|existing| existing.identities.contains_key(&id));
+            if !self.identities.contains_key(&id)
+                && !used_by_document
+                && !document.identities.contains_key(&id)
+            {
+                return Some(id);
+            }
+            id += 1;
+        }
+    }
+
+    /// Create one corpus identity and link it to every referenced track.
+    ///
+    /// The identity is copied into each document before linking so documents
+    /// remain self-contained and their identity invariants continue to hold.
+    /// A fresh ID is chosen outside every document's local identity map, which
+    /// prevents an unrelated local identity from being overwritten.
+    pub(crate) fn add_identity_for_tracks(
+        &mut self,
+        mut identity: Identity,
+        track_refs: &[TrackRef],
+    ) -> Option<IdentityId> {
+        if track_refs.iter().any(|track_ref| {
+            self.documents
+                .get(&track_ref.doc_id)
+                .and_then(|document| document.get_track(track_ref.track_id))
+                .is_none()
+        }) {
+            return None;
+        }
+
+        let identity_id = self.next_unbound_identity_id()?;
+        identity.id = identity_id;
+
+        let document_ids: std::collections::HashSet<&str> = track_refs
+            .iter()
+            .map(|track_ref| track_ref.doc_id.as_str())
+            .collect();
+        if document_ids.iter().any(|document_id| {
+            self.documents
+                .get(*document_id)
+                .is_none_or(|document| document.identities.contains_key(&identity_id))
+        }) {
+            return None;
+        }
+        for document_id in &document_ids {
+            let document = self
+                .documents
+                .get_mut(*document_id)
+                .expect("track references were validated before identity creation");
+            assert!(
+                document.insert_identity_with_id(identity.clone()),
+                "identity-map collisions were preflighted"
+            );
+        }
+
+        self.identities.insert(identity_id, identity);
+        self.next_identity_id = identity_id + 1;
+        for track_ref in track_refs {
+            self.documents
+                .get_mut(&track_ref.doc_id)
+                .expect("track references were validated before identity creation")
+                .link_track_to_identity(track_ref.track_id, identity_id);
+        }
+
+        Some(identity_id)
     }
 
     /// Get the next identity ID that would be assigned.
@@ -4425,7 +4623,8 @@ impl Corpus {
     /// This is used by coalescing operations to reserve identity IDs.
     #[must_use]
     pub fn next_identity_id(&self) -> IdentityId {
-        self.next_identity_id
+        self.next_unbound_identity_id()
+            .expect("identity IDs must leave room for the next allocation")
     }
 
     /// Get all documents in the corpus.
@@ -4454,7 +4653,33 @@ impl Corpus {
     ///
     /// If a document with the same ID already exists, it will be replaced.
     /// Returns the document ID.
-    pub fn add_document(&mut self, document: GroundedDocument) -> String {
+    pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
+        let mut identity_ids: Vec<IdentityId> = document.identities.keys().copied().collect();
+        identity_ids.sort_unstable();
+        for identity_id in identity_ids {
+            let Some(corpus_identity) = self.identities.get(&identity_id).cloned() else {
+                continue;
+            };
+            if document.identities.get(&identity_id) == Some(&corpus_identity) {
+                // Preserve the canonical corpus copy in an independently
+                // serializable document when this is the same shared identity.
+                document.identities.insert(identity_id, corpus_identity);
+                continue;
+            }
+
+            let replacement_id = self
+                .next_unbound_identity_id_for_document(&document)
+                .expect("identity IDs must leave room for collision remapping");
+            assert!(
+                document.remap_identity_id(identity_id, replacement_id),
+                "replacement IDs are selected outside document maps"
+            );
+        }
+        if let Some(max_identity_id) = document.identities.keys().copied().max() {
+            self.next_identity_id = self
+                .next_identity_id
+                .max(IdentityId::new(max_identity_id.get().saturating_add(1)));
+        }
         let doc_id = document.id.clone();
         self.documents.insert(doc_id.clone(), document);
         doc_id
@@ -4490,33 +4715,41 @@ impl Corpus {
     ) -> super::Result<IdentityId> {
         use super::error::Error;
 
-        let doc = self.documents.get_mut(&track_ref.doc_id).ok_or_else(|| {
+        let document = self.documents.get(&track_ref.doc_id).ok_or_else(|| {
             Error::track_ref(format!(
                 "Document '{}' not found in corpus",
                 track_ref.doc_id
             ))
         })?;
-        let track = doc.get_track(track_ref.track_id).ok_or_else(|| {
+        let track = document.get_track(track_ref.track_id).ok_or_else(|| {
             Error::track_ref(format!(
                 "Track {} not found in document '{}'",
                 track_ref.track_id, track_ref.doc_id
             ))
         })?;
+        let existing_identity_id = track.identity_id;
+        let local_identity = existing_identity_id
+            .and_then(|identity_id| document.get_identity(identity_id))
+            .cloned();
+        let entity_type = track.entity_type.clone();
+        let embedding = track.embedding.clone();
+        let confidence = track.cluster_confidence;
 
         let kb_name_str = kb_name.into();
         let kb_id_str = kb_id.into();
         let canonical_name_str = canonical_name.into();
 
-        // Check if track already has an identity
-        let identity_id = if let Some(existing_id) = track.identity_id {
-            // Update existing identity with KB info if it exists in corpus
-            if let Some(identity) = self.identities.get_mut(&existing_id) {
-                identity.kb_id = Some(kb_id_str.clone());
-                identity.kb_name = Some(kb_name_str.clone());
-                identity.canonical_name = canonical_name_str.clone();
-
-                // Update source
-                identity.source = Some(match identity.source.take() {
+        if let (Some(existing_id), Some(local_identity), Some(canonical_identity)) = (
+            existing_identity_id,
+            local_identity,
+            existing_identity_id.and_then(|id| self.identities.get(&id).cloned()),
+        ) {
+            if local_identity == canonical_identity {
+                let mut updated_identity = canonical_identity.clone();
+                updated_identity.kb_id = Some(kb_id_str.clone());
+                updated_identity.kb_name = Some(kb_name_str.clone());
+                updated_identity.canonical_name = canonical_name_str.clone();
+                updated_identity.source = Some(match updated_identity.source.take() {
                     Some(IdentitySource::CrossDocCoref { track_refs }) => IdentitySource::Hybrid {
                         track_refs,
                         kb_name: kb_name_str.clone(),
@@ -4527,68 +4760,36 @@ impl Corpus {
                         kb_id: kb_id_str.clone(),
                     },
                 });
-
-                existing_id
-            } else {
-                // Identity ID exists in document but not in corpus - this is inconsistent.
-                // This can happen if:
-                // 1. Document was added to corpus with pre-existing identities
-                // 2. Identity was removed from corpus but document still references it
-                //
-                // Fix: Create new identity and update ALL references in the document
-                // to ensure consistency between document and corpus state.
-                let new_id = self.next_identity_id;
-                self.next_identity_id += 1;
-
-                let identity = Identity {
-                    id: new_id,
-                    canonical_name: canonical_name_str,
-                    entity_type: track.entity_type.clone(),
-                    kb_id: Some(kb_id_str.clone()),
-                    kb_name: Some(kb_name_str.clone()),
-                    description: None,
-                    embedding: track.embedding.clone(),
-                    aliases: Vec::new(),
-                    confidence: track.cluster_confidence,
-                    source: Some(IdentitySource::KnowledgeBase {
-                        kb_name: kb_name_str,
-                        kb_id: kb_id_str,
-                    }),
-                };
-
-                self.identities.insert(new_id, identity);
-                // Update the track's identity reference to point to the new identity
-                // This ensures document and corpus are consistent
-                doc.link_track_to_identity(track_ref.track_id, new_id);
-                new_id
+                self.identities
+                    .insert(existing_id, updated_identity.clone());
+                for document in self.documents.values_mut() {
+                    if document.identities.get(&existing_id) == Some(&canonical_identity) {
+                        document
+                            .identities
+                            .insert(existing_id, updated_identity.clone());
+                    }
+                }
+                return Ok(existing_id);
             }
-        } else {
-            // Create new identity
-            let new_id = self.next_identity_id;
-            self.next_identity_id += 1;
+        }
 
-            let identity = Identity {
-                id: new_id,
-                canonical_name: canonical_name_str,
-                entity_type: track.entity_type.clone(),
-                kb_id: Some(kb_id_str.clone()),
-                kb_name: Some(kb_name_str.clone()),
-                description: None,
-                embedding: track.embedding.clone(),
-                aliases: Vec::new(),
-                confidence: track.cluster_confidence,
-                source: Some(IdentitySource::KnowledgeBase {
-                    kb_name: kb_name_str,
-                    kb_id: kb_id_str,
-                }),
-            };
-
-            self.identities.insert(new_id, identity);
-            doc.link_track_to_identity(track_ref.track_id, new_id);
-            new_id
+        let identity = Identity {
+            id: IdentityId::ZERO,
+            canonical_name: canonical_name_str,
+            entity_type,
+            kb_id: Some(kb_id_str.clone()),
+            kb_name: Some(kb_name_str.clone()),
+            description: None,
+            embedding,
+            aliases: Vec::new(),
+            confidence,
+            source: Some(IdentitySource::KnowledgeBase {
+                kb_name: kb_name_str,
+                kb_id: kb_id_str,
+            }),
         };
-
-        Ok(identity_id)
+        self.add_identity_for_tracks(identity, std::slice::from_ref(track_ref))
+            .ok_or_else(|| Error::track_ref("could not bind identity to track"))
     }
 }
 
@@ -6034,6 +6235,51 @@ mod proptests {
     // =========================================================================
     // TrackStats Tests
     // =========================================================================
+
+    #[test]
+    fn document_import_rejects_invalid_structure_and_source_spans() {
+        let mut doc = GroundedDocument::new("unicode", "Zoë");
+        let signal = doc.add_signal(Signal::new(0, Location::text(0, 3), "Zoë", "PER", 0.9));
+        let track = doc.add_track(Track::new(0, "Zoë"));
+        assert!(doc.add_signal_to_track(signal, track, 0));
+        let wire = serde_json::to_value(&doc).unwrap();
+        let roundtrip: GroundedDocument = serde_json::from_value(wire.clone()).unwrap();
+        assert!(roundtrip.invariants_hold());
+        assert!(roundtrip.is_valid());
+
+        let mut dangling = wire.clone();
+        dangling["tracks"]["0"]["identity_id"] = serde_json::json!(42);
+        assert!(serde_json::from_value::<GroundedDocument>(dangling).is_err());
+
+        let mut duplicate = wire.clone();
+        duplicate["signals"]
+            .as_array_mut()
+            .unwrap()
+            .push(wire["signals"][0].clone());
+        assert!(serde_json::from_value::<GroundedDocument>(duplicate).is_err());
+
+        let mut invalid_span = wire.clone();
+        invalid_span["signals"][0]["location"]["Text"]["end"] = serde_json::json!(4);
+        assert!(serde_json::from_value::<GroundedDocument>(invalid_span).is_err());
+
+        let mut exhausted = wire;
+        exhausted["signals"][0]["id"] = serde_json::json!(u64::MAX);
+        assert!(serde_json::from_value::<GroundedDocument>(exhausted).is_err());
+    }
+
+    #[test]
+    fn invalid_links_leave_document_invariants_intact() {
+        let mut doc = GroundedDocument::new("unicode", "Zoë");
+        let signal = doc.add_signal(Signal::new(0, Location::text(0, 3), "Zoë", "PER", 0.9));
+        let first = doc.add_track(Track::new(0, "Zoë"));
+        let second = doc.add_track(Track::new(0, "Another entity"));
+        assert!(!doc.add_signal_to_track(99, first, 0));
+        assert!(doc.add_signal_to_track(signal, first, 0));
+        assert!(!doc.add_signal_to_track(signal, second, 0));
+        doc.link_track_to_identity(first, 99);
+        assert!(doc.get_track(first).unwrap().identity_id.is_none());
+        assert!(doc.invariants_hold());
+    }
 
     #[test]
     fn test_track_stats_basic() {

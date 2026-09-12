@@ -263,7 +263,7 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let mut annotations = Vec::new();
-    let mut current_entity: Option<(String, String, usize)> = None; // (type, text, start)
+    let mut current_entity: Option<(String, String, usize, usize)> = None; // (type, text, start, end)
     let mut char_idx = 0;
 
     for line in content.lines() {
@@ -272,16 +272,16 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             let word = parts[0];
             let tag = parts[1];
 
-            let word_len = word.len();
+            let word_len = word.chars().count();
 
             if tag.starts_with("B-") {
                 // End previous entity if any
-                if let Some((entity_type, text, start)) = current_entity.take() {
+                if let Some((entity_type, text, start, end)) = current_entity.take() {
                     annotations.push(ImportedAnnotation {
                         text,
                         entity_type,
                         start,
-                        end: char_idx,
+                        end,
                         source: input.to_string_lossy().to_string(),
                         confidence: None,
                     });
@@ -291,21 +291,23 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
                     .strip_prefix("B-")
                     .expect("tag.starts_with('B-') checked above")
                     .to_string();
-                current_entity = Some((entity_type, word.to_string(), char_idx));
+                current_entity =
+                    Some((entity_type, word.to_string(), char_idx, char_idx + word_len));
             } else if tag.starts_with("I-") && current_entity.is_some() {
                 // Continue entity
-                if let Some((_, ref mut text, _)) = current_entity {
+                if let Some((_, ref mut text, _, ref mut end)) = current_entity {
                     text.push(' ');
                     text.push_str(word);
+                    *end = char_idx + word_len;
                 }
             } else {
                 // End entity
-                if let Some((entity_type, text, start)) = current_entity.take() {
+                if let Some((entity_type, text, start, end)) = current_entity.take() {
                     annotations.push(ImportedAnnotation {
                         text,
                         entity_type,
                         start,
-                        end: char_idx,
+                        end,
                         source: input.to_string_lossy().to_string(),
                         confidence: None,
                     });
@@ -317,12 +319,12 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
     }
 
     // End final entity if any
-    if let Some((entity_type, text, start)) = current_entity {
+    if let Some((entity_type, text, start, end)) = current_entity {
         annotations.push(ImportedAnnotation {
             text,
             entity_type,
             start,
-            end: char_idx,
+            end,
             source: input.to_string_lossy().to_string(),
             confidence: None,
         });
@@ -588,4 +590,21 @@ fn import_jsonld(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
 
     annotations.sort_unstable_by_key(|a| a.start);
     Ok(annotations)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn conll_import_uses_character_offsets_for_unicode_tokens() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("unicode.conll");
+        fs::write(&path, "東京\tB-LOC\n駅\tI-LOC\nopen\tO\n").unwrap();
+
+        let annotations = import_conll(&path).unwrap();
+        assert_eq!(annotations.len(), 1);
+        assert_eq!(annotations[0].text, "東京 駅");
+        assert_eq!((annotations[0].start, annotations[0].end), (0, 4));
+    }
 }
