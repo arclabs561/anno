@@ -419,51 +419,58 @@ impl TaskEvaluator {
             } else {
                 // Task-aware, deterministic sampling:
                 //
-                // For NER, prefer sentences that actually contain gold entities so tiny samples
-                // are less likely to be “all negatives”, which creates noisy 0.0-F1 outcomes.
+                // For NER-like tasks, preserve the corpus's positive/negative mix. Sampling only
+                // positive sentences hides false positives and overstates precision.
                 let seed = config.seed.unwrap_or(42);
                 use std::collections::hash_map::DefaultHasher;
                 use std::hash::{Hash, Hasher};
-                let eligible_indices: Vec<usize> = match task {
-                    Task::NER | Task::DiscontinuousNER | Task::EventExtraction => dataset_data
-                        .sentences
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(i, s)| {
-                            if s.entities().is_empty() {
-                                None
-                            } else {
-                                Some(i)
-                            }
+                let select = |base: Vec<usize>, count: usize| {
+                    let mut indices: Vec<(usize, u64)> = base
+                        .into_iter()
+                        .map(|i| {
+                            let mut hasher = DefaultHasher::new();
+                            seed.hash(&mut hasher);
+                            i.hash(&mut hasher);
+                            (i, hasher.finish())
                         })
-                        .collect(),
-                    _ => (0..total).collect(),
-                };
-                let fallback_indices: Vec<usize>;
-                let base: &[usize] = if eligible_indices.is_empty() {
-                    // Fallback if we can’t detect positives / no gold entities.
-                    fallback_indices = (0..total).collect();
-                    &fallback_indices
-                } else {
-                    &eligible_indices
+                        .collect();
+                    indices.sort_by_key(|(_, hash)| *hash);
+                    indices
+                        .into_iter()
+                        .take(count)
+                        .map(|(i, _)| i)
+                        .collect::<Vec<_>>()
                 };
 
-                let mut indices: Vec<(usize, u64)> = base
-                    .iter()
-                    .copied()
-                    .map(|i| {
-                        let mut hasher = DefaultHasher::new();
-                        seed.hash(&mut hasher);
-                        i.hash(&mut hasher);
-                        (i, hasher.finish())
-                    })
-                    .collect();
-                indices.sort_by_key(|(_, hash)| *hash);
-                let selected_indices: Vec<usize> = indices
-                    .iter()
-                    .take(max.min(indices.len()))
-                    .map(|(i, _)| *i)
-                    .collect();
+                let mut selected_indices = match task {
+                    Task::NER | Task::DiscontinuousNER | Task::EventExtraction => {
+                        let (positive, negative): (Vec<_>, Vec<_>) = dataset_data
+                            .sentences
+                            .iter()
+                            .enumerate()
+                            .partition(|(_, sentence)| !sentence.entities().is_empty());
+                        let positive: Vec<usize> = positive.into_iter().map(|(i, _)| i).collect();
+                        let negative: Vec<usize> = negative.into_iter().map(|(i, _)| i).collect();
+
+                        if positive.is_empty() || negative.is_empty() {
+                            select((0..total).collect(), max)
+                        } else {
+                            // Round to the corpus negative rate. With room for both strata, keep
+                            // one representative from each so neither error mode disappears.
+                            let negative_count = ((max * negative.len()) + (total / 2)) / total;
+                            let negative_count = if max > 1 {
+                                negative_count.clamp(1, max - 1)
+                            } else {
+                                negative_count
+                            };
+                            let mut selected = select(positive, max - negative_count);
+                            selected.extend(select(negative, negative_count));
+                            selected
+                        }
+                    }
+                    _ => select((0..total).collect(), max),
+                };
+                selected_indices.sort_unstable();
                 let sampled_sentences: Vec<_> = selected_indices
                     .iter()
                     .filter_map(|&i| dataset_data.sentences.get(i).cloned())
@@ -594,29 +601,46 @@ impl TaskEvaluator {
                     kb_version,
                 }
             }
-            Err(e) => {
-                let duration = start.elapsed().as_secs_f64() * 1000.0;
-                TaskEvalResult {
-                    task,
-                    dataset,
-                    backend: backend_name.to_string(),
-                    backend_display: None,
-                    seed,
-                    success: false,
-                    error: Some(format!("{}", e)),
-                    metrics: HashMap::new(),
-                    num_examples: sentences_to_use,
-                    duration_ms: Some(duration),
-                    label_shift: None,
-                    #[cfg(feature = "eval")]
-                    robustness: None,
-                    #[cfg(not(feature = "eval"))]
-                    robustness: None,
-                    stratified: None,
-                    confidence_intervals: None,
-                    kb_version: None,
-                }
-            }
+            Err(e) => Self::failed_task_eval_result(
+                task,
+                dataset,
+                backend_name,
+                seed,
+                sentences_to_use,
+                start.elapsed().as_secs_f64() * 1000.0,
+                e,
+            ),
+        }
+    }
+
+    fn failed_task_eval_result(
+        task: Task,
+        dataset: DatasetId,
+        backend_name: &str,
+        seed: u64,
+        sentences_to_use: usize,
+        duration_ms: f64,
+        error: impl std::fmt::Display,
+    ) -> TaskEvalResult {
+        TaskEvalResult {
+            task,
+            dataset,
+            backend: backend_name.to_string(),
+            backend_display: None,
+            seed,
+            success: false,
+            error: Some(error.to_string()),
+            metrics: HashMap::new(),
+            num_examples: sentences_to_use,
+            duration_ms: Some(duration_ms),
+            label_shift: None,
+            #[cfg(feature = "eval")]
+            robustness: None,
+            #[cfg(not(feature = "eval"))]
+            robustness: None,
+            stratified: None,
+            confidence_intervals: None,
+            kb_version: None,
         }
     }
 
@@ -942,6 +966,13 @@ impl TaskEvaluator {
         dataset_data: &LoadedDataset,
         config: &TaskEvalConfig,
     ) -> Result<BackendEvalOk> {
+        if config.temporal_stratification {
+            return Err(crate::Error::FeatureNotAvailable(
+                "Temporal stratification requires per-example timestamps, which this evaluator does not load"
+                    .to_string(),
+            ));
+        }
+
         // Validate task-dataset compatibility
         let dataset_tasks = dataset_tasks(dataset);
         if !dataset_tasks.contains(&task) {
@@ -1057,7 +1088,7 @@ impl TaskEvaluator {
         _config: &TaskEvalConfig,
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::metrics::compute_extraction_quality_metrics;
-        use crate::eval::ner_metrics::evaluate_entities;
+        use crate::eval::ner_metrics::{evaluate_entities, NerEvalResults};
 
         #[cfg(feature = "eval-profiling")]
         profiling::start("evaluate_ner_task");
@@ -1066,6 +1097,7 @@ impl TaskEvaluator {
         let estimated_entities = dataset_data.sentences.len() * 3; // Rough estimate: ~3 entities per sentence
         let mut all_gold = Vec::with_capacity(estimated_entities);
         let mut all_predicted = Vec::with_capacity(estimated_entities);
+        let mut eval_results = NerEvalResults::new();
         let mut total_chars = 0;
         let start_time = Instant::now();
 
@@ -1130,7 +1162,7 @@ impl TaskEvaluator {
             let all_results: Vec<_> = dataset_data.sentences
                 .par_iter()
                 .enumerate()
-                .map(|(_idx, sentence)| {
+                .map(|(idx, sentence)| {
                     let text = sentence.text();
                     let chars_count = text.chars().count();
 
@@ -1211,7 +1243,7 @@ impl TaskEvaluator {
                     }
 
                     let text = sentence.text();
-                    (chars_count, gold_entities, entities_result, text.to_string())
+                    (idx, chars_count, gold_entities, entities_result, text.to_string())
                 })
                 .collect();
 
@@ -1244,11 +1276,15 @@ impl TaskEvaluator {
             eprintln!(); // Newline after progress
 
             // Aggregate results and track per-example scores if needed
-            for (chars_count, gold_entities, entities_result, text) in all_results {
+            for (idx, chars_count, gold_entities, entities_result, text) in all_results {
                 total_chars += chars_count;
 
                 match entities_result {
                     Ok(entities) => {
+                        // Entity offsets are local to each sentence, so match before merging
+                        // counts. Pooling entities would make equal offsets in separate
+                        // sentences look like true positives.
+                        eval_results.merge(&evaluate_entities(&gold_entities, &entities));
                         if track_per_example {
                             // Clone when tracking per-example (need to store in cache)
                             all_gold.extend(gold_entities.clone());
@@ -1261,13 +1297,10 @@ impl TaskEvaluator {
                         }
                     }
                     Err(e) => {
-                        // Still need to extend all_gold even on error (for metrics)
-                        if track_per_example {
-                            all_gold.extend(gold_entities.clone());
-                        } else {
-                            all_gold.extend(gold_entities);
-                        }
-                        eprintln!("\nWarning: Backend inference failed: {}", e);
+                        return Err(crate::Error::Inference(format!(
+                            "Backend '{backend_name}' inference failed for sentence {}: {e}",
+                            idx + 1
+                        )));
                     }
                 }
             }
@@ -1316,14 +1349,17 @@ impl TaskEvaluator {
 
                 #[cfg(feature = "eval-profiling")]
                 profiling::start("extract_gold_entities");
-                // Extract gold entities from sentence
-                let gold_entities = sentence.entities();
-                all_gold.extend(gold_entities.iter().map(|g| {
-                    let mut entity =
-                        Entity::new(g.text.clone(), g.entity_type.clone(), g.start, g.end, 1.0);
-                    entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
-                    entity
-                }));
+                // Extract gold entities from sentence.
+                let gold_entities: Vec<Entity> = sentence
+                    .entities()
+                    .iter()
+                    .map(|g| {
+                        let mut entity =
+                            Entity::new(g.text.clone(), g.entity_type.clone(), g.start, g.end, 1.0);
+                        entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
+                        entity
+                    })
+                    .collect();
                 #[cfg(feature = "eval-profiling")]
                 profiling::stop("extract_gold_entities");
 
@@ -1353,53 +1389,26 @@ impl TaskEvaluator {
 
                 match entities {
                     Ok(entities) => {
+                        // Match local sentence spans before aggregating counts across the
+                        // dataset; offsets restart at zero for each AnnotatedSentence.
+                        eval_results.merge(&evaluate_entities(&gold_entities, &entities));
                         if track_per_example {
                             // Clone when tracking per-example (need to store in cache)
-                            let gold: Vec<Entity> = gold_entities
-                                .iter()
-                                .map(|g| {
-                                    let mut entity = Entity::new(
-                                        g.text.clone(),
-                                        g.entity_type.clone(),
-                                        g.start,
-                                        g.end,
-                                        1.0,
-                                    );
-                                    entity.provenance = Some(crate::Provenance::ml("gold", 1.0));
-                                    entity
-                                })
-                                .collect();
+                            let gold = gold_entities.clone();
+                            all_gold.extend(gold_entities);
                             all_predicted.extend(entities.clone());
                             per_example_scores.push((gold, entities, text.to_string()));
                         } else {
                             // Move when not tracking (more efficient)
+                            all_gold.extend(gold_entities);
                             all_predicted.extend(entities);
                         }
                     }
                     Err(e) => {
-                        // Log error with more context but continue with other sentences
-                        let error_msg = format!("{}", e);
-                        // Categorize errors for better reporting
-                        let error_type = if error_msg.contains("ONNX")
-                            || error_msg.contains("GatherElements")
-                            || error_msg.contains("span_idx")
-                        {
-                            "ONNX inference error"
-                        } else if error_msg.contains("Mutex lock failed") {
-                            "Thread synchronization error"
-                        } else if error_msg.contains("Retrieval error") {
-                            "Model loading error"
-                        } else {
-                            "Backend error"
-                        };
-                        eprintln!("\nWarning: {} for sentence {}: {}", error_type, idx + 1, e);
-                        // Log to debug channel for detailed analysis
-                        log::debug!(
-                            "Backend '{}' failed on sentence {}: {}",
-                            backend_name,
-                            idx + 1,
-                            e
-                        );
+                        return Err(crate::Error::Inference(format!(
+                            "Backend '{backend_name}' inference failed for sentence {}: {e}",
+                            idx + 1
+                        )));
                     }
                 }
             }
@@ -1440,9 +1449,6 @@ impl TaskEvaluator {
         } else {
             0.0
         };
-
-        // Compute metrics
-        let eval_results = evaluate_entities(&all_gold, &all_predicted);
 
         #[cfg(feature = "eval-profiling")]
         profiling::stop("compute_metrics");
@@ -2150,11 +2156,10 @@ impl TaskEvaluator {
                                     .collect()
                             }
                             Err(e) => {
-                                eprintln!(
-                                    "Warning: CorefBackend inference failed for document: {}",
-                                    e
-                                );
-                                Vec::new()
+                                return Err(crate::Error::Inference(format!(
+                                    "Coreference backend '{backend_name}' inference failed for document {:?}: {e}",
+                                    doc.doc_id
+                                )));
                             }
                         }
                     }
@@ -2222,8 +2227,10 @@ impl TaskEvaluator {
                         entities_to_chains(&resolved_entities)
                     }
                     Err(e) => {
-                        eprintln!("Warning: NER backend inference failed for document: {}", e);
-                        Vec::new()
+                        return Err(crate::Error::Inference(format!(
+                            "NER backend '{ner_backend_name}' inference failed for coreference document {:?}: {e}",
+                            doc.doc_id
+                        )));
                     }
                 }
             };
@@ -2516,39 +2523,19 @@ impl TaskEvaluator {
                     match self.loader.load_or_download_relation(dataset_data.id) {
                         Ok(docs) => docs,
                         Err(e) => {
-                            eprintln!(
-                                "Warning: Failed to load/download relations for {:?}: {}",
-                                dataset_data.id, e
-                            );
-                            let mut metrics = HashMap::new();
-                            metrics.insert("boundary_f1".to_string(), 0.0);
-                            metrics.insert("strict_f1".to_string(), 0.0);
-                            metrics.insert("num_gold_relations".to_string(), 0.0);
-                            metrics.insert("num_predicted_relations".to_string(), 0.0);
-                            metrics.insert(
-                                "num_sentences".to_string(),
-                                dataset_data.sentences.len() as f64,
-                            );
-                            return Ok(metrics);
+                            return Err(crate::Error::InvalidInput(format!(
+                                "Failed to load/download relations for {:?}: {e}",
+                                dataset_data.id
+                            )));
                         }
                     }
                 }
                 #[cfg(not(feature = "eval"))]
                 {
-                    eprintln!(
-                        "Warning: Relations for {:?} not cached and 'eval' feature not enabled (cannot download)",
+                    return Err(crate::Error::InvalidInput(format!(
+                        "Relations for {:?} are not cached and the 'eval' feature cannot download them",
                         dataset_data.id
-                    );
-                    let mut metrics = HashMap::new();
-                    metrics.insert("boundary_f1".to_string(), 0.0);
-                    metrics.insert("strict_f1".to_string(), 0.0);
-                    metrics.insert("num_gold_relations".to_string(), 0.0);
-                    metrics.insert("num_predicted_relations".to_string(), 0.0);
-                    metrics.insert(
-                        "num_sentences".to_string(),
-                        dataset_data.sentences.len() as f64,
-                    );
-                    return Ok(metrics);
+                    )));
                 }
             }
         };
@@ -2633,7 +2620,7 @@ impl TaskEvaluator {
         let mut oracle_docs_used: usize = 0;
         let mut oracle_tplinker_docs_used: usize = 0;
 
-        for doc in &relation_docs {
+        for (doc_index, doc) in relation_docs.iter().enumerate() {
             let text = &doc.text;
 
             if let Some(ref rel_extractor) = relation_extractor {
@@ -2845,7 +2832,10 @@ impl TaskEvaluator {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Warning: Relation extraction failed: {}", e);
+                        return Err(crate::Error::Inference(format!(
+                            "Relation backend '{backend_name}' inference failed for document {}: {e}",
+                            doc_index + 1
+                        )));
                     }
                 }
             } else {
@@ -2853,8 +2843,10 @@ impl TaskEvaluator {
                 let entities = match backend.extract_entities(text, None) {
                     Ok(ents) => ents,
                     Err(e) => {
-                        eprintln!("Warning: Entity extraction failed: {}", e);
-                        continue;
+                        return Err(crate::Error::Inference(format!(
+                            "Relation fallback backend '{backend_name}' entity inference failed for document {}: {e}",
+                            doc_index + 1
+                        )));
                     }
                 };
 
@@ -3002,9 +2994,7 @@ impl TaskEvaluator {
             let extractor: Option<()> = None;
 
             #[cfg(all(feature = "candle", feature = "onnx"))]
-            let extractor_candle = if backend_name_norm == "gliner_multitask_candle"
-                || backend_name_norm == "gliner_multitask_candle"
-            {
+            let extractor_candle = if backend_name_norm == "gliner_multitask_candle" {
                 use crate::DEFAULT_GLINER_MULTITASK_MODEL;
                 use anno::backends::gliner_multitask::GLiNERMultitaskCandle;
                 Some(GLiNERMultitaskCandle::from_pretrained(
@@ -3321,8 +3311,12 @@ impl ComprehensiveEvalResults {
                     true
                 }
                 Task::RelationExtraction => {
-                    md.push_str("| Dataset | Backend | Strict | Boundary | N | ms |\n");
-                    md.push_str("|---------|---------|--------|----------|---|----|\n");
+                    md.push_str(
+                        "| Dataset | Backend | Strict | Boundary | Gold-oracle docs | N | ms |\n",
+                    );
+                    md.push_str(
+                        "|---------|---------|--------|----------|-------------|---|----|\n",
+                    );
                     true
                 }
                 _ => {
@@ -3577,12 +3571,18 @@ impl ComprehensiveEvalResults {
                                 .get("boundary_f1")
                                 .map(|v| *v * 100.0)
                                 .unwrap_or(0.0);
+                            let oracle_docs = result
+                                .metrics
+                                .get("oracle_docs_used")
+                                .copied()
+                                .unwrap_or(0.0);
                             md.push_str(&format!(
-                                "| {:?} | {} | {:.1} | {:.1} | {} | {} |\n",
+                                "| {:?} | {} | {:.1} | {:.1} | {:.0} | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
                                 strict,
                                 boundary,
+                                oracle_docs,
                                 result.num_examples,
                                 time_str
                             ));
@@ -4154,12 +4154,8 @@ impl TaskEvaluator {
                 );
             }
 
-            // Compute temporal stratification if metadata available
-            let by_temporal_stratum = if let Some(ref temporal) = dataset_data.temporal_metadata {
-                self.compute_temporal_stratification(per_example, temporal)
-            } else {
-                None
-            };
+            // This loader carries only dataset-level temporal metadata, not example timestamps.
+            let by_temporal_stratum = None;
 
             return Some(StratifiedMetrics {
                 by_entity_type,
@@ -4171,122 +4167,6 @@ impl TaskEvaluator {
 
         // Fallback to simplified version using aggregate metrics
         self.compute_stratified_metrics(dataset_data, aggregate_metrics)
-    }
-
-    /// Compute temporal stratification from per-example scores and temporal metadata.
-    fn compute_temporal_stratification(
-        &self,
-        per_example_scores: &[(Vec<Entity>, Vec<Entity>, String)],
-        temporal_metadata: &super::loader::TemporalMetadata,
-    ) -> Option<HashMap<String, MetricWithCI>> {
-        use crate::eval::ner_metrics::evaluate_entities;
-
-        // If no temporal cutoff, can't stratify
-        let cutoff = temporal_metadata.temporal_cutoff.as_ref()?;
-
-        // Parse cutoff date (ISO 8601 format: YYYY-MM-DD)
-        // For now, we use a simple heuristic: all examples are pre-cutoff
-        // Future: would need entity creation dates or document timestamps to properly stratify
-        let _cutoff_date = cutoff.split('T').next()?; // Remove time if present
-                                                      // Note: cutoff date parsing removed - not used in current heuristic implementation
-
-        // Group examples by temporal stratum
-        let mut pre_cutoff_scores = Vec::new();
-        let mut post_cutoff_scores = Vec::new();
-
-        // Heuristic: Split examples in half based on order
-        // First half treated as pre-cutoff, second half as post-cutoff
-        // This approximates temporal drift when entity creation dates are unavailable
-        let total = per_example_scores.len();
-        let cutoff_index = total / 2;
-
-        for (idx, (gold, predicted, _text)) in per_example_scores.iter().enumerate() {
-            // Split data in half: first half = pre-cutoff, second half = post-cutoff
-            // This is a heuristic approximation - proper temporal stratification would
-            // require entity creation dates from entity linking or document timestamps
-            let is_post_cutoff = idx >= cutoff_index;
-
-            // Compute per-example metrics
-            let result = evaluate_entities(gold, predicted);
-            let summary = result.summary();
-
-            if is_post_cutoff {
-                post_cutoff_scores.push(summary.strict_f1);
-            } else {
-                pre_cutoff_scores.push(summary.strict_f1);
-            }
-        }
-
-        // Compute metrics for each stratum
-        let mut by_temporal = HashMap::new();
-
-        if !pre_cutoff_scores.is_empty() {
-            let n = pre_cutoff_scores.len() as f64;
-            let mean = pre_cutoff_scores.iter().sum::<f64>() / n;
-            // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-            let variance = if n > 1.0 {
-                pre_cutoff_scores
-                    .iter()
-                    .map(|&x| (x - mean).powi(2))
-                    .sum::<f64>()
-                    / (n - 1.0)
-            } else {
-                0.0
-            };
-            let std_dev = variance.sqrt();
-            let z = DEFAULT_Z_SCORE_95;
-            let margin = z * std_dev / n.sqrt();
-
-            by_temporal.insert(
-                "pre_cutoff".to_string(),
-                MetricWithCI {
-                    mean,
-                    std_dev,
-                    ci_95: (
-                        (mean - margin).clamp(0.0, 1.0),
-                        (mean + margin).clamp(0.0, 1.0),
-                    ),
-                    n: pre_cutoff_scores.len(),
-                },
-            );
-        }
-
-        if !post_cutoff_scores.is_empty() {
-            let n = post_cutoff_scores.len() as f64;
-            let mean = post_cutoff_scores.iter().sum::<f64>() / n;
-            // Use sample variance (Bessel's correction: n-1) for unbiased estimate
-            let variance = if n > 1.0 {
-                post_cutoff_scores
-                    .iter()
-                    .map(|&x| (x - mean).powi(2))
-                    .sum::<f64>()
-                    / (n - 1.0)
-            } else {
-                0.0
-            };
-            let std_dev = variance.sqrt();
-            let z = DEFAULT_Z_SCORE_95;
-            let margin = z * std_dev / n.sqrt();
-
-            by_temporal.insert(
-                "post_cutoff".to_string(),
-                MetricWithCI {
-                    mean,
-                    std_dev,
-                    ci_95: (
-                        (mean - margin).clamp(0.0, 1.0),
-                        (mean + margin).clamp(0.0, 1.0),
-                    ),
-                    n: post_cutoff_scores.len(),
-                },
-            );
-        }
-
-        if by_temporal.is_empty() {
-            None
-        } else {
-            Some(by_temporal)
-        }
     }
 
     /// Compute confidence intervals from per-example scores.
@@ -4522,6 +4402,91 @@ mod tests {
         assert!(tasks.contains(&Task::NER));
         assert!(tasks.contains(&Task::RelationExtraction));
         assert!(tasks.contains(&Task::TextClassification));
+    }
+
+    #[test]
+    fn ner_metrics_do_not_match_across_sentences_and_fail_on_inference_errors() {
+        use crate::eval::loader::{
+            AnnotatedSentence, AnnotatedToken, DataSource, DatasetMetadata, LoadedDataset,
+        };
+        let ds = LoadedDataset {
+            id: DatasetId::CoNLL2003Sample,
+            sentences: [("Anna", "B-PER"), ("rain", "O")]
+                .into_iter()
+                .map(|(text, tag)| AnnotatedSentence {
+                    tokens: vec![AnnotatedToken {
+                        text: text.into(),
+                        ner_tag: tag.into(),
+                    }],
+                    source_dataset: DatasetId::CoNLL2003Sample,
+                })
+                .collect(),
+            loaded_at: "test".into(),
+            source_url: "fixture".into(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        };
+        let mut corpus = ds.clone();
+        corpus.sentences = (0..10)
+            .map(|i| ds.sentences[usize::from(i != 0)].clone())
+            .collect();
+        let mut config = TaskEvalConfig {
+            max_examples: Some(4),
+            ..Default::default()
+        };
+        let (sample, count) = TaskEvaluator::sample_dataset_for_task(Task::NER, &corpus, &config);
+        assert_eq!(count, 4);
+        assert_eq!(sample.sentences.len(), 4);
+        assert_eq!(
+            sample
+                .sentences
+                .iter()
+                .filter(|sentence| sentence.entities().is_empty())
+                .count(),
+            3
+        );
+        config.max_examples = Some(0);
+        assert!(
+            TaskEvaluator::sample_dataset_for_task(Task::NER, &corpus, &config)
+                .0
+                .sentences
+                .is_empty()
+        );
+
+        let model = anno::AnyModel::new(
+            "wrong-sentence",
+            "false positive on negative sentence",
+            vec![anno::EntityType::Person],
+            |text, _| {
+                Ok(if text == "rain" {
+                    vec![anno::Entity::new(text, anno::EntityType::Person, 0, 4, 1.0)]
+                } else {
+                    vec![]
+                })
+            },
+        );
+        let eval = TaskEvaluator::new().unwrap();
+        let metrics = eval
+            .evaluate_ner_task(
+                "wrong-sentence",
+                &model,
+                ds.id,
+                &ds,
+                &TaskEvalConfig::default(),
+            )
+            .unwrap();
+        assert_eq!(metrics["f1"], 0.0);
+        assert_eq!(metrics["precision"], 0.0);
+        assert_eq!(metrics["recall"], 0.0);
+        let broken = anno::AnyModel::new("broken", "inference failure", vec![], |_, _| {
+            Err(anno::Error::Inference("fixture failure".into()))
+        });
+        let error = eval
+            .evaluate_ner_task("broken", &broken, ds.id, &ds, &TaskEvalConfig::default())
+            .unwrap_err();
+        assert!(error.to_string().contains("sentence 1"));
+        assert!(error.to_string().contains("fixture failure"));
     }
 
     #[test]
@@ -4900,5 +4865,31 @@ mod tests {
         assert_eq!(summary.successful + summary.failed + summary.skipped, 100);
         assert!(!summary.tasks.is_empty());
         assert!(!summary.backends.is_empty());
+    }
+
+    #[test]
+    fn relation_markdown_discloses_oracle_entity_documents() {
+        let mut result = make_test_result(true, None, None);
+        result.task = Task::RelationExtraction;
+        result.metrics.insert("strict_f1".to_string(), 0.5);
+        result.metrics.insert("boundary_f1".to_string(), 0.75);
+        result.metrics.insert("oracle_docs_used".to_string(), 2.0);
+
+        let report = ComprehensiveEvalResults {
+            results: vec![result],
+            summary: EvalSummary {
+                total_combinations: 1,
+                successful: 1,
+                failed: 0,
+                skipped: 0,
+                tasks: vec![Task::RelationExtraction],
+                datasets: vec![DatasetId::WikiGold],
+                backends: vec!["stacked".to_string()],
+            },
+        }
+        .to_markdown();
+
+        assert!(report.contains("Gold-oracle docs"));
+        assert!(report.contains("| WikiGold | stacked | 50.0 | 75.0 | 2 |"));
     }
 }

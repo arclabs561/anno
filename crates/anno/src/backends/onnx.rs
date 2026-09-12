@@ -393,17 +393,9 @@ impl BertNEROnnx {
             all_entities.extend(chunk_entities);
         }
 
-        // Deduplicate entities from overlapping regions.
-        // Keep the higher-confidence version when (start, end, type) collide.
-        all_entities.sort_by(|a, b| {
-            a.start()
-                .cmp(&b.start())
-                .then(a.end().cmp(&b.end()))
-                .then(a.entity_type.to_string().cmp(&b.entity_type.to_string()))
-        });
-        all_entities.dedup_by(|b, a| {
-            a.start() == b.start() && a.end() == b.end() && a.entity_type == b.entity_type
-        });
+        // Deduplicate entities from overlapping regions, retaining the highest
+        // confidence version when (start, end, type) collide.
+        Self::deduplicate_chunk_entities(&mut all_entities);
         // Also remove entities fully contained within a larger entity (from overlap)
         let mut keep = vec![true; all_entities.len()];
         for i in 0..all_entities.len() {
@@ -428,6 +420,20 @@ impl BertNEROnnx {
             .collect();
 
         Ok(all_entities)
+    }
+
+    fn deduplicate_chunk_entities(entities: &mut Vec<Entity>) {
+        entities.sort_by(|a, b| {
+            a.start()
+                .cmp(&b.start())
+                .then(a.end().cmp(&b.end()))
+                .then(a.entity_type.to_string().cmp(&b.entity_type.to_string()))
+                .then_with(|| b.confidence.value().total_cmp(&a.confidence.value()))
+                .then_with(|| a.text.cmp(&b.text))
+        });
+        entities.dedup_by(|b, a| {
+            a.start() == b.start() && a.end() == b.end() && a.entity_type == b.entity_type
+        });
     }
 
     fn extract_entities_single(
@@ -1035,5 +1041,18 @@ mod tests {
         let config = BertNERConfig::default();
         // Verify defaults are sensible (not checking specific values -- they may change)
         assert!(config.num_threads > 0, "num_threads should be positive");
+    }
+
+    #[test]
+    fn chunk_dedup_retains_highest_confidence_duplicate() {
+        let mut entities = vec![
+            Entity::new("Paris", EntityType::Location, 0, 5, 0.72),
+            Entity::new("Paris", EntityType::Location, 0, 5, 0.94),
+        ];
+
+        BertNEROnnx::deduplicate_chunk_entities(&mut entities);
+
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].confidence.value(), 0.94);
     }
 }
