@@ -8,7 +8,7 @@ As a Rust library:
 
 ```toml
 [dependencies]
-anno = "0.12"
+anno = "0.13"
 ```
 
 Full CLI (recommended):
