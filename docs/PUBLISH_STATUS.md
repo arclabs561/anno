@@ -2,7 +2,7 @@
 
 ## Current packages
 
-The workspace currently assigns version `0.12.0` to its three crates.io
+The workspace currently assigns version `0.13.0` to its three crates.io
 packages. `anno-py` is a separate PyPI wheel and has `publish = false` for
 crates.io.
 
