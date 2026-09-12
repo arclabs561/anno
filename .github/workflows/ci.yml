@@ -1018,6 +1018,9 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1041,6 +1044,7 @@ jobs:
           files: ./lcov.info
           flags: unittests
           name: codecov-anno
+          use_oidc: true
   # ==========================================================================
   # Publish Validation (best-effort; expected to fail while publishing is paused)
   # ==========================================================================
