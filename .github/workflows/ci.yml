@@ -192,6 +192,8 @@ jobs:
       # Skip long-running matrix harness test (runs in matrix-test job with onnx).
       - name: Run library tests
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
+      - name: Test optional bias analysis
+        run: cargo test -p anno-eval --lib --features "eval eval-bias" bias
       - name: Run integration tests
         run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests

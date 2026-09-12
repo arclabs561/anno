@@ -772,7 +772,7 @@ impl EvalSystem {
         // Demographic bias
         let names = create_diverse_name_dataset();
         let demo_evaluator = DemographicBiasEvaluator::with_config(true, config.clone());
-        let demo_results = demo_evaluator.evaluate_ner(model, &names);
+        let demo_results = demo_evaluator.try_evaluate_ner(model, &names)?;
         let demographic = Some(DemographicBiasSummary {
             ethnicity_parity_gap: demo_results.ethnicity_parity_gap,
             script_bias_gap: demo_results.script_bias_gap,
@@ -840,10 +840,11 @@ impl Default for EvalSystem {
     }
 }
 
-#[cfg(all(test, feature = "eval"))]
+#[cfg(all(test, any(feature = "eval", feature = "eval-bias")))]
 mod tests {
     use super::*;
 
+    #[cfg(feature = "eval")]
     #[test]
     fn unsupported_calibration_and_data_quality_do_not_emit_metrics() {
         let system = EvalSystem::new();
@@ -857,5 +858,28 @@ mod tests {
             system.run_data_quality(&mut warnings),
             Err(crate::Error::FeatureNotAvailable(_))
         ));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn bias_evaluation_propagates_demographic_inference_failure() {
+        let model = anno::AnyModel::new("failing", "fails during bias", vec![], |_, _| {
+            Err(anno::Error::Inference(
+                "bias backend unavailable".to_string(),
+            ))
+        });
+        let system = EvalSystem::new()
+            .with_model(Box::new(model), Some("failing".to_string()))
+            .with_bias_analysis(true);
+        let mut warnings = Vec::new();
+
+        let error = system
+            .run_bias_evaluation(&mut warnings)
+            .expect_err("strict demographic bias evaluation must fail");
+
+        assert!(error
+            .to_string()
+            .contains("demographic bias extraction failed for name_index=0"));
+        assert!(error.to_string().contains("bias backend unavailable"));
     }
 }
