@@ -1734,6 +1734,7 @@ mod tests {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
         };
 
         // Append result
@@ -1775,6 +1776,7 @@ mod tests {
                 stratified: None,
                 confidence_intervals: None,
                 kb_version: None,
+                provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
             };
             history.append_result(&result).expect("append failed");
         }
@@ -1818,6 +1820,7 @@ mod tests {
                 stratified: None,
                 confidence_intervals: None,
                 kb_version: None,
+                provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
             };
             history.append_result(&result).expect("append failed");
         }
@@ -1856,6 +1859,7 @@ mod tests {
                 stratified: None,
                 confidence_intervals: None,
                 kb_version: None,
+                provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
             };
             history.append_result(&result).expect("append failed");
         }
@@ -1900,6 +1904,7 @@ mod tests {
                 stratified: None,
                 confidence_intervals: None,
                 kb_version: None,
+                provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
             };
             history.append_result(&result).expect("append failed");
         }
@@ -1940,6 +1945,7 @@ mod tests {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
+            provenance: crate::eval::task_evaluator::EvalRunProvenance::default(),
         };
         history.append_result(&result).expect("append failed");
 

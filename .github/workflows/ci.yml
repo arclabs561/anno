@@ -74,6 +74,8 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
+      - name: Test BERT trace artifact identity (offline fixtures)
+        run: python3 -m unittest discover -s scripts -p test_compare_bert_onnx_traces.py
       - name: Test HuggingFace downloader regression (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_download_hf_datasets.py
       - name: Test external parser adapter contract (no model downloads)
@@ -263,6 +265,19 @@ jobs:
       # a CI run that enables the feature.
       - name: Test gliner2-fastino (unit)
         run: cargo test -p anno --lib --features gliner2-fastino
+      - name: Test Python Fastino conversion
+        run: cargo test -p anno-py --lib --features fastino
+      - name: Test installed Python Fastino binding without models
+        env:
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_PY_TEST_MODELS: "0"
+        run: |
+          python3 -m venv "$RUNNER_TEMP/anno-python-fastino"
+          export VIRTUAL_ENV="$RUNNER_TEMP/anno-python-fastino"
+          export PATH="$VIRTUAL_ENV/bin:$PATH"
+          python -m pip install 'maturin>=1.7,<2' pytest
+          maturin develop --manifest-path crates/anno-py/Cargo.toml --features extension-module,fastino --locked
+          python -m pytest crates/anno-py/tests -q
   # ==========================================================================
   # Candle backend tests (pure Rust)
   # ==========================================================================

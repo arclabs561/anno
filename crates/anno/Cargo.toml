@@ -57,6 +57,7 @@ lattix = { version = "0.6", optional = true }
 # Utilities
 itertools = { workspace = true }
 rayon = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 
 # Observability
 tracing = { workspace = true, optional = true }
@@ -97,6 +98,7 @@ onnx = [
   "dep:hf-hub",
   "dep:lru",
   "dep:safetensors",
+  "dep:sha2",
 ]
 # Apple CoreML / Apple Neural Engine acceleration for ONNX backends.
 # macOS only (the underlying ort/coreml feature requires macOS at link time).

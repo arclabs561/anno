@@ -292,6 +292,7 @@ pub mod modes;
 pub mod ner_metrics;
 pub mod neural_cluster_encoder;
 pub mod prelude;
+pub mod provenance;
 pub mod relation;
 pub mod report;
 pub mod sampling;
@@ -370,6 +371,12 @@ mod property_tests;
 
 // Re-exports
 pub use datasets::GoldEntity;
+pub use provenance::{
+    ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
+    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvaluationScheduling,
+    ExecutionProvenanceStatus, InferenceSettingProvenance, NerInferenceProvenance,
+    NerLabelPolicyReport,
+};
 
 // Dataset loading and registry API
 //

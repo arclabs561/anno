@@ -25,6 +25,7 @@ pub struct Sessions {
     pub count_lstm_fixed: SessionSlot,
     pub scorer: SessionSlot,
     pub classifier: SessionSlot,
+    artifact_paths: Vec<(String, std::path::PathBuf)>,
 }
 
 /// Single session wrapped in Arc<Mutex<>> with a `with_session` closure
@@ -68,6 +69,10 @@ impl std::fmt::Debug for Sessions {
 }
 
 impl Sessions {
+    /// Files selected for the live ONNX sessions, named by pipeline role.
+    pub fn artifact_paths(&self) -> &[(String, std::path::PathBuf)] {
+        &self.artifact_paths
+    }
     /// Load all 8 sessions from a directory with custom ONNX session configuration.
     /// Tries the v2 8-graph layouts (`fp32_v2/`, `fp16_v2/`) first, then v1 5-graph
     /// fallbacks (which will fail the all_present check below — kept for future-proofing).
@@ -136,31 +141,51 @@ impl Sessions {
             if !all_present {
                 continue;
             }
+            let paths: Vec<(String, std::path::PathBuf)> = [
+                "encoder",
+                "token_gather",
+                "span_rep",
+                "schema_gather",
+                "count_pred_argmax",
+                "count_lstm_fixed",
+                "scorer",
+                "classifier",
+            ]
+            .iter()
+            .map(|name| ((*name).to_string(), resolve(name)))
+            .collect();
+            let selected = |name: &str| {
+                paths
+                    .iter()
+                    .find_map(|(role, path)| (role == name).then_some(path.as_path()))
+                    .expect("selected paths include every Fastino graph role")
+            };
             return Ok((
                 Self {
-                    encoder: SessionSlot::from_path_with_cfg(&resolve("encoder"), cfg.clone())?,
+                    encoder: SessionSlot::from_path_with_cfg(selected("encoder"), cfg.clone())?,
                     token_gather: SessionSlot::from_path_with_cfg(
-                        &resolve("token_gather"),
+                        selected("token_gather"),
                         cfg.clone(),
                     )?,
-                    span_rep: SessionSlot::from_path_with_cfg(&resolve("span_rep"), cfg.clone())?,
+                    span_rep: SessionSlot::from_path_with_cfg(selected("span_rep"), cfg.clone())?,
                     schema_gather: SessionSlot::from_path_with_cfg(
-                        &resolve("schema_gather"),
+                        selected("schema_gather"),
                         cfg.clone(),
                     )?,
                     count_pred_argmax: SessionSlot::from_path_with_cfg(
-                        &resolve("count_pred_argmax"),
+                        selected("count_pred_argmax"),
                         cfg.clone(),
                     )?,
                     count_lstm_fixed: SessionSlot::from_path_with_cfg(
-                        &resolve("count_lstm_fixed"),
+                        selected("count_lstm_fixed"),
                         cfg.clone(),
                     )?,
-                    scorer: SessionSlot::from_path_with_cfg(&resolve("scorer"), cfg.clone())?,
+                    scorer: SessionSlot::from_path_with_cfg(selected("scorer"), cfg.clone())?,
                     classifier: SessionSlot::from_path_with_cfg(
-                        &resolve("classifier"),
+                        selected("classifier"),
                         cfg.clone(),
                     )?,
+                    artifact_paths: paths,
                 },
                 try_dir,
             ));

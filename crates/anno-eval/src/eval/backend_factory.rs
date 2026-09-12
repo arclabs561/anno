@@ -11,11 +11,220 @@
 //! - **Trait-based**: Returns trait objects for polymorphic usage
 
 use anno::{Model, Result};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::io::Read;
+use std::path::{Path, PathBuf};
+
+/// A file used by the concrete backend instance that was constructed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelArtifactFileReceipt {
+    /// Semantic role of this selected file.
+    pub role: String,
+    /// Exact local path returned by the constructed backend.
+    pub path: PathBuf,
+    /// Digest outcome after reading the selected file.
+    pub sha256: ArtifactHash,
+}
+
+/// A digest result from reading the exact selected local asset.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ArtifactHash {
+    /// SHA-256 digest was computed from the selected file.
+    Known {
+        /// Hex-encoded SHA-256 digest.
+        value: String,
+    },
+    /// The selected file could not be read for a digest.
+    Unknown {
+        /// Read failure description without exposing file contents.
+        reason: String,
+    },
+}
+
+/// Artifact selection made during a single backend construction.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelArtifactReceipt {
+    /// Backend implementation that selected these assets.
+    pub model_kind: String,
+    /// Model identifier passed to that backend instance.
+    pub model_id: String,
+    /// Pinned model revision when the constructor received one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_revision: Option<String>,
+    /// Files selected by the constructed backend.
+    pub files: Vec<ModelArtifactFileReceipt>,
+}
+
+/// Metadata paired with a backend without adding telemetry to `Model`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BackendConstructionReceipt {
+    /// Assets exposed by the constructed backend, when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_artifacts: Option<ModelArtifactReceipt>,
+}
+
+fn hash_artifact_file(role: &str, path: &Path) -> ModelArtifactFileReceipt {
+    let sha256 = std::fs::File::open(path).ok().and_then(|mut file| {
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let count = file.read(&mut buffer).ok()?;
+            if count == 0 {
+                break;
+            }
+            hasher.update(&buffer[..count]);
+        }
+        Some(
+            hasher
+                .finalize()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        )
+    });
+    let sha256 = sha256.map_or_else(
+        || ArtifactHash::Unknown {
+            reason: "selected file could not be read for hashing".to_string(),
+        },
+        |value| ArtifactHash::Known { value },
+    );
+    ModelArtifactFileReceipt {
+        role: role.to_string(),
+        path: path.to_path_buf(),
+        sha256,
+    }
+}
+
+/// Hash concrete paths retained by an already constructed backend.
+///
+/// Callers must pass paths supplied by that instance; this function does not
+/// search caches or resolve model names.
+pub fn artifact_receipt_from_paths(
+    model_kind: &str,
+    model_id: &str,
+    model_revision: Option<&str>,
+    files: impl IntoIterator<Item = (String, PathBuf)>,
+) -> ModelArtifactReceipt {
+    ModelArtifactReceipt {
+        model_kind: model_kind.to_string(),
+        model_id: model_id.to_string(),
+        model_revision: model_revision.map(str::to_string),
+        files: files
+            .into_iter()
+            .map(|(role, path)| hash_artifact_file(&role, &path))
+            .collect(),
+    }
+}
 
 /// Factory for creating backend instances from names.
 pub struct BackendFactory;
 
 impl BackendFactory {
+    /// Construct a backend and retain only the assets it actually selected.
+    ///
+    /// [`Self::create`] remains the compatibility API. This additive path is
+    /// used by evaluation so it can record artifact hashes without guessing at
+    /// hub-cache layout or loading a second model.
+    pub fn create_with_provenance(
+        backend_name: &str,
+    ) -> Result<(Box<dyn Model>, BackendConstructionReceipt)> {
+        match backend_name.to_lowercase().as_str() {
+            #[cfg(feature = "onnx")]
+            "bert_onnx" | "bertneronnx" => {
+                use crate::DEFAULT_BERT_ONNX_MODEL;
+                use anno::backends::onnx::BertNEROnnx;
+                let model = BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL).map_err(|e| {
+                    anno::Error::FeatureNotAvailable(format!("Failed to create BertNEROnnx: {e}"))
+                })?;
+                let paths = model.artifact_paths();
+                let mut files = vec![
+                    ("graph".to_string(), paths.graph.clone()),
+                    ("tokenizer".to_string(), paths.tokenizer.clone()),
+                ];
+                if let Some(config) = paths.config.as_ref() {
+                    files.push(("config".to_string(), config.clone()));
+                }
+                let receipt =
+                    artifact_receipt_from_paths("bert_onnx", model.model_name(), None, files);
+                Ok((
+                    Box::new(model),
+                    BackendConstructionReceipt {
+                        model_artifacts: Some(receipt),
+                    },
+                ))
+            }
+            #[cfg(feature = "onnx")]
+            "gliner" | "gliner_onnx" | "glineronnx" => {
+                use crate::DEFAULT_GLINER_MODEL;
+                use anno::backends::gliner_onnx::GLiNEROnnx;
+                let model = GLiNEROnnx::new(DEFAULT_GLINER_MODEL).map_err(|e| {
+                    anno::Error::FeatureNotAvailable(format!("Failed to create GLiNEROnnx: {e}"))
+                })?;
+                let paths = model.artifact_paths();
+                let mut files = vec![
+                    ("graph".to_string(), paths.graph.clone()),
+                    ("tokenizer".to_string(), paths.tokenizer.clone()),
+                ];
+                for (role, path) in [
+                    ("config", paths.config.as_ref()),
+                    ("label_encoder", paths.label_encoder.as_ref()),
+                    ("label_tokenizer", paths.label_tokenizer.as_ref()),
+                ] {
+                    if let Some(path) = path {
+                        files.push((role.to_string(), path.clone()));
+                    }
+                }
+                let receipt =
+                    artifact_receipt_from_paths("gliner_onnx", model.model_name(), None, files);
+                Ok((
+                    Box::new(model),
+                    BackendConstructionReceipt {
+                        model_artifacts: Some(receipt),
+                    },
+                ))
+            }
+            #[cfg(feature = "gliner2-fastino")]
+            "gliner2_fastino" | "gliner2-fastino" | "gliner2fastino" => {
+                use anno::backends::gliner2_fastino::{
+                    GLiNER2Fastino, GLiNER2FastinoConfig, SUPPORTED_GLINER2_FASTINO_MODEL,
+                    SUPPORTED_GLINER2_FASTINO_REVISION,
+                };
+                let model = GLiNER2Fastino::from_pretrained_with_config(
+                    SUPPORTED_GLINER2_FASTINO_MODEL,
+                    GLiNER2FastinoConfig::default()
+                        .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
+                )
+                .map_err(|e| {
+                    anno::Error::FeatureNotAvailable(format!(
+                        "Failed to create GLiNER2 Fastino (ONNX): {e}"
+                    ))
+                })?;
+                let paths = model.artifact_paths();
+                let mut files = vec![("tokenizer".to_string(), paths.tokenizer)];
+                if let Some(config) = paths.config {
+                    files.push(("config".to_string(), config));
+                }
+                files.extend(paths.graphs);
+                let receipt = artifact_receipt_from_paths(
+                    "gliner2_fastino",
+                    model.model_id(),
+                    model.model_revision(),
+                    files,
+                );
+                Ok((
+                    Box::new(model),
+                    BackendConstructionReceipt {
+                        model_artifacts: Some(receipt),
+                    },
+                ))
+            }
+            _ => Self::create(backend_name)
+                .map(|model| (model, BackendConstructionReceipt::default())),
+        }
+    }
+
     /// Create a backend instance from a name.
     ///
     /// # Supported Backends
@@ -632,6 +841,31 @@ mod tests {
         assert!(backends.contains(&"pattern"));
         assert!(backends.contains(&"heuristic"));
         assert!(backends.contains(&"stacked"));
+    }
+
+    #[test]
+    fn artifact_receipt_hashes_only_explicit_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let graph = dir.path().join("graph.onnx");
+        std::fs::write(&graph, b"exact selected graph").unwrap();
+
+        let receipt = artifact_receipt_from_paths(
+            "fixture",
+            "fixture-model",
+            None,
+            [("graph".to_string(), graph.clone())],
+        );
+
+        assert_eq!(receipt.model_kind, "fixture");
+        assert_eq!(receipt.model_id, "fixture-model");
+        assert_eq!(receipt.files[0].path, graph);
+        assert_eq!(
+            receipt.files[0].sha256,
+            ArtifactHash::Known {
+                value: "11bedf34610c07047030ef0e76c3bc8d90300db289427755c8c16408d0e28566"
+                    .to_string()
+            }
+        );
     }
 
     #[cfg(feature = "gliner2-fastino")]
