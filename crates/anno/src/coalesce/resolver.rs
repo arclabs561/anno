@@ -598,6 +598,21 @@ mod tests {
     }
 
     #[test]
+    fn corpus_identity_preview_accounts_for_mutable_document_additions() {
+        let mut corpus = Corpus::new();
+        corpus.add_document(GroundedDocument::new("local", "Ada"));
+        let local_id = corpus
+            .get_document_mut("local")
+            .unwrap()
+            .add_identity(Identity::new(0, "local Ada"));
+
+        let preview = corpus.next_identity_id();
+        let allocated = corpus.add_identity(Identity::new(0, "corpus identity"));
+        assert_ne!(preview, local_id);
+        assert_eq!(preview, allocated);
+    }
+
+    #[test]
     fn adding_document_remaps_a_conflicting_local_identity() {
         let mut corpus = Corpus::new();
         let corpus_identity_id = corpus.add_identity(Identity::new(0, "corpus identity"));

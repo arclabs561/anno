@@ -4623,7 +4623,8 @@ impl Corpus {
     /// This is used by coalescing operations to reserve identity IDs.
     #[must_use]
     pub fn next_identity_id(&self) -> IdentityId {
-        self.next_identity_id
+        self.next_unbound_identity_id()
+            .expect("identity IDs must leave room for the next allocation")
     }
 
     /// Get all documents in the corpus.
