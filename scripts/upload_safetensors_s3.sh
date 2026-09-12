@@ -61,7 +61,7 @@ for entry in "${GLINER_MODELS[@]}"; do
         model_dir="$local_path/snapshots/$snapshot_dir"
     else
         echo "SKIP: $model (not in local cache)"
-        ((skipped++))
+        ((skipped++)) || true
         continue
     fi
     
@@ -80,15 +80,15 @@ for entry in "${GLINER_MODELS[@]}"; do
         echo "  Converting: pytorch_model.bin -> model.safetensors"
         if uv run "$CONVERT_SCRIPT" "$pytorch_file" "$safetensors_file"; then
             echo "  Conversion successful"
-            ((converted++))
+            ((converted++)) || true
         else
             echo "  ERROR: Conversion failed"
-            ((failed++))
+            ((failed++)) || true
             continue
         fi
     else
         echo "  SKIP: No pytorch_model.bin or model.safetensors found"
-        ((skipped++))
+        ((skipped++)) || true
         continue
     fi
     
@@ -100,18 +100,18 @@ for entry in "${GLINER_MODELS[@]}"; do
     if [ "$S3_CMD" = "s5cmd" ]; then
         if s5cmd cp "$safetensors_file" "$s3_dest" 2>&1; then
             echo "  OK"
-            ((uploaded++))
+            ((uploaded++)) || true
         else
             echo "  FAILED"
-            ((failed++))
+            ((failed++)) || true
         fi
     else
         if aws s3 cp "$safetensors_file" "$s3_dest" 2>&1; then
             echo "  OK"
-            ((uploaded++))
+            ((uploaded++)) || true
         else
             echo "  FAILED"
-            ((failed++))
+            ((failed++)) || true
         fi
     fi
     
@@ -207,4 +207,3 @@ fi
 
 echo "Manifest uploaded to s3://$S3_BUCKET/manifests/safetensors.json"
 cat "$manifest_file"
-

@@ -200,7 +200,7 @@ impl GLiNERPoly {
         let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
 
         // Download label encoder tokenizer from gliner_config.json.
-        let config_path = repo.get("gliner_config.json").ok();
+        let config_path = hf_loader::download_model_file(&repo, &["gliner_config.json"]).ok();
         let labels_encoder_name = config_path
             .as_ref()
             .and_then(|p| std::fs::read_to_string(p).ok())

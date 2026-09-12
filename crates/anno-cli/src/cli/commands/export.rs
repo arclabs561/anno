@@ -52,8 +52,8 @@ pub struct ExportArgs {
 
     /// Base URI prefix for RDF/KG namespaces (ntriples, jsonld, graph-ntriples).
     /// Use a real namespace for interoperable output, e.g.:
-    ///   --base-uri https://www.gutenberg.org/ebooks/   (Project Gutenberg texts)
-    ///   --base-uri https://dbpedia.org/resource/        (DBpedia-aligned)
+    ///   `--base-uri https://www.gutenberg.org/ebooks/` (Project Gutenberg texts)
+    ///   `--base-uri https://dbpedia.org/resource/` (DBpedia-aligned)
     ///   --base-uri urn:anno:                            (default, stable URN prefix)
     #[arg(long, default_value = "urn:anno:")]
     pub base_uri: String,

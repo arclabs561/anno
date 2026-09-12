@@ -125,8 +125,11 @@ fn test_span_label_matcher_temperature() {
     let l = low_scores.flatten_all().unwrap().to_vec1::<f32>().unwrap()[0];
 
     // Both should be in [0, 1]
-    assert!(h >= 0.0 && h <= 1.0, "high temp score out of range: {h}");
-    assert!(l >= 0.0 && l <= 1.0, "low temp score out of range: {l}");
+    assert!(
+        (0.0..=1.0).contains(&h),
+        "high temp score out of range: {h}"
+    );
+    assert!((0.0..=1.0).contains(&l), "low temp score out of range: {l}");
     // Scores should differ with different temperatures
     assert!(
         (h - l).abs() > 0.01,

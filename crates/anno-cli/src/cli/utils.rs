@@ -46,10 +46,11 @@ pub(crate) fn extract_html_to_text(html: &str, url: Option<&str>) -> String {
     extract_html(html, url).text
 }
 
-/// Get input text from various sources (text arg, file, or stdin)
+/// Get input text from various sources (text arg, file, or stdin).
 ///
-/// Sanitizes input to remove shell command fragments that might leak in
-/// when using verbose flags with positional arguments.
+/// Text is returned unchanged, apart from explicit HTML/PDF extraction for file
+/// input and detected HTML on stdin. Keeping plain source text intact preserves
+/// the character offsets reported by downstream commands.
 pub fn get_input_text(
     text: &Option<String>,
     file: Option<&str>,
@@ -57,7 +58,7 @@ pub fn get_input_text(
 ) -> Result<String, String> {
     // Check explicit text arg
     if let Some(t) = text {
-        return Ok(sanitize_input(t));
+        return Ok(t.clone());
     }
 
     // Check file arg
@@ -67,8 +68,7 @@ pub fn get_input_text(
 
     // Check positional args
     if !positional.is_empty() {
-        let joined = positional.join(" ");
-        return Ok(sanitize_input(&joined));
+        return Ok(positional.join(" "));
     }
 
     // Try stdin
@@ -83,70 +83,25 @@ pub fn get_input_text(
                 eprintln!("note: detected HTML content on stdin, converting to text");
                 return Ok(extract_html_to_text(&buf, None));
             }
-            return Ok(sanitize_input(&buf));
+            return Ok(buf);
         }
     }
 
     Err("No input text provided. Use -t 'text' or -f file or pipe via stdin".to_string())
 }
 
-/// Sanitize input text to remove shell command fragments.
-///
-/// Filters out common patterns that indicate shell command pollution:
-/// - Path-like strings that look like command invocations
-/// - Repeated flag patterns (e.g., "-vv" appearing in text)
-/// - Shell variable references
-fn sanitize_input(input: &str) -> String {
-    let mut result = input.to_string();
+/// Validate a user-supplied name used as one filename component.
+pub(crate) fn validate_path_component<'a>(value: &'a str, kind: &str) -> Result<&'a str, String> {
+    use std::path::{Component, Path};
 
-    // Remove common shell command fragments that might leak in
-    // Pattern: paths that look like command invocations (e.g., "Users/arc/Documents/dev/anno")
-    // We only remove if they appear at word boundaries and look like absolute paths
-    let path_patterns = [
-        r"/Users/[^/]+/Documents/",
-        r"/home/[^/]+/",
-        r"/tmp/[^/]+/",
-        r"cargo run",
-        r"cargo test",
-        r"target/debug/",
-        r"target/release/",
-    ];
-
-    for pattern in &path_patterns {
-        // Only remove if it's a standalone word/phrase, not part of actual text
-        // This is conservative - we only remove obvious command fragments
-        if let Some(pos) = result.find(pattern) {
-            // Check if it's at the start or preceded by whitespace
-            if pos == 0 || result[..pos].trim_end().ends_with(' ') {
-                // Check if it's followed by whitespace or end of string
-                let end_pos = pos + pattern.len();
-                if end_pos >= result.len() || result[end_pos..].starts_with(' ') {
-                    // This looks like a command fragment, remove it
-                    result.replace_range(pos..end_pos, "");
-                }
-            }
-        }
+    let is_single_normal_component = matches!(
+        Path::new(value).components().next(),
+        Some(Component::Normal(_))
+    ) && Path::new(value).components().count() == 1;
+    if value.is_empty() || value.contains(['/', '\\']) || !is_single_normal_component {
+        return Err(format!("{kind} must be a non-empty filename component"));
     }
-
-    // Remove standalone flag patterns that shouldn't be in text (e.g., "-vv", "--verbose")
-    // Only if they appear as separate words
-    let flag_patterns = [
-        (r" -vv ", " "),
-        (r" -vvv ", " "),
-        (r" --verbose ", " "),
-        (r" -v ", " "), // Be careful with single -v as it might be part of words
-    ];
-
-    for (pattern, replacement) in &flag_patterns {
-        result = result.replace(pattern, replacement);
-    }
-
-    // Clean up multiple spaces
-    while result.contains("  ") {
-        result = result.replace("  ", " ");
-    }
-
-    result.trim().to_string()
+    Ok(value)
 }
 
 /// Read a file with consistent error handling.
@@ -791,6 +746,35 @@ mod tests {
         fs::write(&path, "Tim Cook met Sundar Pichai in Seattle.").unwrap();
         let text = read_input_file(path.to_str().unwrap()).unwrap();
         assert_eq!(text, "Tim Cook met Sundar Pichai in Seattle.");
+    }
+
+    #[test]
+    fn get_input_text_preserves_plain_source_text() {
+        let text = " cargo run  --verbose  keeps  spaces ";
+        assert_eq!(
+            get_input_text(&Some(text.to_string()), None, &[]).unwrap(),
+            text
+        );
+
+        let positional = vec!["cargo run".to_string(), "-v".to_string()];
+        assert_eq!(
+            get_input_text(&None, None, &positional).unwrap(),
+            "cargo run -v"
+        );
+    }
+
+    #[test]
+    fn path_component_validation_rejects_directory_escapes() {
+        assert_eq!(
+            validate_path_component("report-01", "document id").unwrap(),
+            "report-01"
+        );
+        for invalid in ["", ".", "..", "../outside", "nested/name", "nested\\name"] {
+            assert!(
+                validate_path_component(invalid, "document id").is_err(),
+                "{invalid:?}"
+            );
+        }
     }
 
     #[test]

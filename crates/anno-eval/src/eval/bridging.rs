@@ -260,27 +260,39 @@ impl BridgingMetrics {
         let mut by_type: std::collections::HashMap<String, (usize, usize, usize)> =
             std::collections::HashMap::new();
 
-        for (pred_doc, gold_doc) in predicted.iter().zip(gold.iter()) {
-            total_pred += pred_doc.links.len();
-            total_gold += gold_doc.links.len();
+        let mut gold_links_by_document: std::collections::HashMap<
+            &str,
+            Vec<(&BridgingLink, bool)>,
+        > = std::collections::HashMap::new();
 
-            // Match links (exact span match)
+        for gold_doc in gold {
+            total_gold += gold_doc.links.len();
+            let document_links = gold_links_by_document.entry(&gold_doc.id).or_default();
+            for gold_link in &gold_doc.links {
+                let type_key = gold_link.bridging_type.as_label().to_string();
+                by_type.entry(type_key).or_insert((0, 0, 0)).1 += 1;
+                document_links.push((gold_link, false));
+            }
+        }
+
+        for pred_doc in predicted {
+            total_pred += pred_doc.links.len();
+
             for pred_link in &pred_doc.links {
                 let type_key = pred_link.bridging_type.as_label().to_string();
                 by_type.entry(type_key.clone()).or_insert((0, 0, 0)).0 += 1;
 
-                for gold_link in &gold_doc.links {
-                    if Self::links_match(pred_link, gold_link) {
+                if let Some(gold_links) = gold_links_by_document.get_mut(pred_doc.id.as_str()) {
+                    if let Some((_, matched)) =
+                        gold_links.iter_mut().find(|(gold_link, matched)| {
+                            !*matched && Self::links_match(pred_link, gold_link)
+                        })
+                    {
                         total_correct += 1;
                         by_type.entry(type_key.clone()).or_insert((0, 0, 0)).2 += 1;
-                        break;
+                        *matched = true;
                     }
                 }
-            }
-
-            for gold_link in &gold_doc.links {
-                let type_key = gold_link.bridging_type.as_label().to_string();
-                by_type.entry(type_key).or_insert((0, 0, 0)).1 += 1;
             }
         }
 
@@ -334,12 +346,15 @@ impl BridgingMetrics {
         }
     }
 
-    /// Check if two links match (exact span match).
+    /// Check whether two links have the same exact endpoints and relation type.
+    ///
+    /// Document identity is checked by the caller before this comparison.
     fn links_match(a: &BridgingLink, b: &BridgingLink) -> bool {
         a.anaphor.start == b.anaphor.start
             && a.anaphor.end == b.anaphor.end
             && a.antecedent.start == b.antecedent.start
             && a.antecedent.end == b.antecedent.end
+            && a.bridging_type == b.bridging_type
     }
 }
 
@@ -407,5 +422,75 @@ mod tests {
         assert_eq!(metrics.precision, 1.0);
         assert_eq!(metrics.recall, 1.0);
         assert_eq!(metrics.f1, 1.0);
+    }
+
+    fn link(
+        anaphor_start: usize,
+        anaphor_end: usize,
+        antecedent_start: usize,
+        antecedent_end: usize,
+        bridging_type: BridgingType,
+    ) -> BridgingLink {
+        BridgingLink::new(
+            BridgingMention::new("anaphor", anaphor_start, anaphor_end),
+            BridgingMention::new("antecedent", antecedent_start, antecedent_end),
+            bridging_type,
+        )
+    }
+
+    #[test]
+    fn bridging_metrics_match_each_gold_link_once() {
+        let bridge = link(20, 30, 0, 7, BridgingType::PartWhole);
+        let mut predicted = BridgingDocument::new("doc", "");
+        predicted.add_link(bridge.clone());
+        predicted.add_link(bridge);
+
+        let mut gold = BridgingDocument::new("doc", "");
+        gold.add_link(link(20, 30, 0, 7, BridgingType::PartWhole));
+
+        let metrics = BridgingMetrics::compute(&[predicted], &[gold]);
+
+        assert_eq!(metrics.correct, 1);
+        assert_eq!(metrics.predicted, 2);
+        assert_eq!(metrics.gold, 1);
+        assert_eq!(metrics.precision, 0.5);
+        assert_eq!(metrics.recall, 1.0);
+        assert!((metrics.f1 - 2.0 / 3.0).abs() < f64::EPSILON);
+        assert_eq!(metrics.by_type["part-whole"], (0.5, 1.0, 2.0 / 3.0));
+    }
+
+    #[test]
+    fn bridging_metrics_match_documents_by_id_not_position() {
+        let mut predicted_a = BridgingDocument::new("doc-a", "");
+        predicted_a.add_link(link(10, 15, 0, 5, BridgingType::PartWhole));
+        let mut predicted_b = BridgingDocument::new("doc-b", "");
+        predicted_b.add_link(link(30, 35, 20, 25, BridgingType::Role));
+
+        let mut gold_a = BridgingDocument::new("doc-a", "");
+        gold_a.add_link(link(10, 15, 0, 5, BridgingType::PartWhole));
+        let mut gold_b = BridgingDocument::new("doc-b", "");
+        gold_b.add_link(link(30, 35, 20, 25, BridgingType::Role));
+
+        let metrics = BridgingMetrics::compute(&[predicted_b, predicted_a], &[gold_a, gold_b]);
+
+        assert_eq!(metrics.correct, 2);
+        assert_eq!(metrics.precision, 1.0);
+        assert_eq!(metrics.recall, 1.0);
+    }
+
+    #[test]
+    fn bridging_metrics_require_relation_type_match() {
+        let mut predicted = BridgingDocument::new("doc", "");
+        predicted.add_link(link(20, 30, 0, 7, BridgingType::Role));
+        let mut gold = BridgingDocument::new("doc", "");
+        gold.add_link(link(20, 30, 0, 7, BridgingType::PartWhole));
+
+        let metrics = BridgingMetrics::compute(&[predicted], &[gold]);
+
+        assert_eq!(metrics.correct, 0);
+        assert_eq!(metrics.precision, 0.0);
+        assert_eq!(metrics.recall, 0.0);
+        assert_eq!(metrics.by_type["role"], (0.0, 0.0, 0.0));
+        assert_eq!(metrics.by_type["part-whole"], (0.0, 0.0, 0.0));
     }
 }

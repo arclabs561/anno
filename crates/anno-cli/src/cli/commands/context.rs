@@ -346,12 +346,17 @@ fn format_markdown(contexts: &[EntityContext]) -> String {
     output.push_str("|--------|------|------|------------|--------|\n");
 
     for c in contexts {
-        let context_preview = format!(
-            "...{}**{}**{}...",
-            &c.left_context[c.left_context.len().saturating_sub(20)..],
-            c.text,
-            &c.right_context[..c.right_context.len().min(20)]
-        );
+        let left_preview: String = c
+            .left_context
+            .chars()
+            .rev()
+            .take(20)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        let right_preview: String = c.right_context.chars().take(20).collect();
+        let context_preview = format!("...{}**{}**{}...", left_preview, c.text, right_preview);
         output.push_str(&format!(
             "| {} | {} | {}:{} | {:.0}% | {} |\n",
             c.text,
@@ -384,4 +389,27 @@ fn format_brat(contexts: &[EntityContext]) -> String {
     }
 
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn markdown_context_preview_clips_unicode_on_character_boundaries() {
+        let context = EntityContext {
+            text: "Paris".to_string(),
+            entity_type: "LOC".to_string(),
+            start: 25,
+            end: 30,
+            confidence: 0.9,
+            left_context: "界".repeat(25),
+            right_context: "é".repeat(25),
+            sentence: None,
+            sentence_start: None,
+        };
+
+        let markdown = format_markdown(&[context]);
+        assert!(markdown.contains(&format!("{}**Paris**{}", "界".repeat(20), "é".repeat(20))));
+    }
 }
