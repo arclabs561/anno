@@ -2,9 +2,13 @@
 
 Run after `maturin develop --uv` in crates/anno-py.
 
-These exercise the offline (pattern + heuristic) path only; email detection
-via RegexNER is deterministic (confidence 0.98), so it anchors the assertions.
+The default path exercises offline pattern + heuristic extraction; email
+detection is deterministic (confidence 0.98), so it anchors the assertions.
+Set ANNO_PY_TEST_MODELS=1 with an ONNX wheel to opt into cached real-model
+coverage without permitting downloads.
 """
+
+import os
 
 import anno_py
 import pytest
@@ -71,9 +75,37 @@ def test_invalid_backend_and_gliner_options():
 
 
 @pytest.mark.parametrize("backend", ["bert", "gliner"])
-def test_model_backends_require_onnx_in_default_wheel(backend):
-    # The default development/wheel feature set is intentionally offline.
-    # An opt-in ONNX build changes this test's branch to construction instead.
+def test_model_backends_require_onnx_in_offline_wheel(backend):
+    if getattr(anno_py, "__onnx_enabled__", False):
+        pytest.skip("feature-unavailable assertion applies only to an offline wheel")
+
+    with pytest.raises(RuntimeError, match="ONNX-enabled wheel"):
+        anno_py.Extractor(backend=backend)
+
+
+@pytest.mark.parametrize(
+    ("backend", "kwargs"),
+    [
+        ("bert", {}),
+        ("gliner", {"labels": ["person", "location"], "threshold": 0.3}),
+    ],
+)
+def test_cached_model_extractors_are_repeatable(monkeypatch, backend, kwargs):
+    """Run only when explicitly opted into cached real-model coverage."""
     if not getattr(anno_py, "__onnx_enabled__", False):
-        with pytest.raises(RuntimeError, match="ONNX-enabled wheel"):
-            anno_py.Extractor(backend=backend)
+        pytest.skip("requires an ONNX-enabled wheel")
+    if os.environ.get("ANNO_PY_TEST_MODELS") != "1":
+        pytest.skip("set ANNO_PY_TEST_MODELS=1 to test cached real models")
+
+    # Constructor and extraction must fail rather than download on a cache miss.
+    monkeypatch.setenv("ANNO_NO_DOWNLOADS", "1")
+    text = "Barack Obama visited Paris."
+    model = anno_py.Extractor(backend=backend, **kwargs)
+    first = model.extract(text)
+    warm = model.extract(text)
+
+    assert first
+    assert all(text[entity.start : entity.end] == entity.text for entity in first)
+    assert [(e.text, e.label, e.start, e.end) for e in first] == [
+        (e.text, e.label, e.start, e.end) for e in warm
+    ]
