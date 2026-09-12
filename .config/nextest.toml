@@ -73,6 +73,18 @@ test-group = 'model-initialization'
 slow-timeout = { period = "60s", terminate-after = 2 }
 
 # =============================================================================
+# Coverage Profile
+# =============================================================================
+
+# LLVM instrumentation makes the quick suite slower, especially for
+# model-backed extraction tests. Inherit quick's selected test set and retry
+# policy, then bound concurrency across the instrumented coverage suite.
+[profile.coverage]
+inherits = "quick"
+slow-timeout = { period = "60s", terminate-after = 2 }
+test-threads = 2
+
+# =============================================================================
 # ML Profile - for ML backend tests
 # =============================================================================
 
