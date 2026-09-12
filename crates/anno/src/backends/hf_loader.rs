@@ -25,39 +25,49 @@ use crate::{Error, Result};
 /// [`download_model_file`]. Backends constructed from local paths bypass
 /// this layer entirely.
 pub fn no_downloads() -> bool {
-    match std::env::var("ANNO_NO_DOWNLOADS") {
-        Ok(v) => matches!(
+    no_downloads_from(std::env::var("ANNO_NO_DOWNLOADS").ok().as_deref())
+}
+
+fn no_downloads_from(value: Option<&str>) -> bool {
+    match value {
+        Some(v) => matches!(
             v.trim().to_ascii_lowercase().as_str(),
             "1" | "true" | "yes" | "y" | "on"
         ),
-        Err(_) => false,
+        None => false,
     }
 }
 
 /// Initialize the HuggingFace API client, loading `.env` and using `HF_TOKEN` if available.
 ///
+/// The client and offline cache both honor `HF_HOME` through `hf-hub`'s
+/// environment-aware builders.
+///
 /// This replaces the duplicated pattern:
 /// ```rust,ignore
 /// crate::env::load_dotenv();
-/// let api = if let Some(token) = crate::env::hf_token() {
-///     ApiBuilder::new().with_token(Some(token)).build()?
+/// let builder = ApiBuilder::from_env();
+/// let builder = if let Some(token) = crate::env::hf_token() {
+///     builder.with_token(Some(token))
 /// } else {
-///     Api::new()?
+///     builder
 /// };
+/// let api = builder.build()?;
 /// ```
 pub fn hf_api() -> Result<hf_hub::api::sync::Api> {
-    use hf_hub::api::sync::{Api, ApiBuilder};
+    use hf_hub::api::sync::ApiBuilder;
 
     crate::env::load_dotenv();
 
-    if let Some(token) = crate::env::hf_token() {
-        ApiBuilder::new()
-            .with_token(Some(token))
-            .build()
-            .map_err(|e| Error::Retrieval(format!("HuggingFace API init with token: {}", e)))
+    let builder = ApiBuilder::from_env();
+    let builder = if let Some(token) = crate::env::hf_token() {
+        builder.with_token(Some(token))
     } else {
-        Api::new().map_err(|e| Error::Retrieval(format!("HuggingFace API init: {}", e)))
-    }
+        builder
+    };
+    builder
+        .build()
+        .map_err(|e| Error::Retrieval(format!("HuggingFace API init: {}", e)))
 }
 
 /// Download a file from a HuggingFace repo, trying multiple candidate paths in order.
@@ -85,8 +95,8 @@ pub fn download_model_file(
 
     if no_downloads() {
         for candidate in candidates {
-            if let Some(path) = hf_hub::Cache::default()
-                .repo(hf_hub::Repo::model(repo_id_of(repo)))
+            if let Some(path) = hf_hub::Cache::from_env()
+                .repo(cache_repo_identity(repo)?)
                 .get(candidate)
             {
                 return Ok(path);
@@ -117,22 +127,36 @@ pub fn download_model_file(
     )))
 }
 
-/// Best-effort repo-id extraction from an `ApiRepo` handle.
-///
-/// `hf_hub::api::sync::ApiRepo` doesn't expose its repo id directly, so we
-/// re-derive it from its Debug output. Used only by the no-downloads path
-/// to query the cache for the same repo.
-fn repo_id_of(repo: &hf_hub::api::sync::ApiRepo) -> String {
-    // Debug looks like: `ApiRepo { api: ..., repo: Repo { repo_id: "owner/name", ... } }`
-    let dbg = format!("{:?}", repo);
-    if let Some(start) = dbg.find("repo_id: \"") {
-        let rest = &dbg[start + "repo_id: \"".len()..];
-        if let Some(end) = rest.find('"') {
-            return rest[..end].to_string();
-        }
+/// Recover repository type and revision from hf-hub's public URL contract.
+/// Offline lookup uses the environment's cache, as does [`hf_api`]. Callers that
+/// construct an API with a custom cache directory must use local-path loading
+/// or set `HF_HOME` consistently; ApiRepo does not expose its cache directory.
+fn cache_repo_identity(repo: &hf_hub::api::sync::ApiRepo) -> Result<hf_hub::Repo> {
+    let url = repo.url("");
+    let path = url
+        .split_once("://")
+        .and_then(|(_, rest)| rest.split_once('/'))
+        .map(|(_, path)| path);
+    let identity = path.and_then(|path| path.rsplit_once("/resolve/"));
+    let Some((path, revision)) = identity else {
+        return Err(Error::Retrieval(
+            "Cannot identify offline HuggingFace repository".into(),
+        ));
+    };
+    let (kind, id) = if let Some(id) = path.strip_prefix("datasets/") {
+        (hf_hub::RepoType::Dataset, id)
+    } else if let Some(id) = path.strip_prefix("spaces/") {
+        (hf_hub::RepoType::Space, id)
+    } else {
+        (hf_hub::RepoType::Model, path)
+    };
+    let revision = revision.trim_end_matches('/').replace("%2F", "/");
+    if id.is_empty() || revision.is_empty() {
+        return Err(Error::Retrieval(
+            "Cannot identify offline HuggingFace revision".into(),
+        ));
     }
-    // Fallback: return empty so cache lookup misses, download_model_file errors.
-    String::new()
+    Ok(hf_hub::Repo::with_revision(id.into(), kind, revision))
 }
 
 /// Try to download a quantized ONNX model, falling back to FP32.
@@ -144,6 +168,7 @@ fn repo_id_of(repo: &hf_hub::api::sync::ApiRepo) -> String {
 ///
 /// * `repo` - HuggingFace repo handle
 /// * `prefer_quantized` - Whether to try quantized variants first
+#[cfg(any(feature = "onnx", test))]
 pub fn download_onnx_model(
     repo: &hf_hub::api::sync::ApiRepo,
     prefer_quantized: bool,
@@ -156,11 +181,9 @@ pub fn download_onnx_model(
             "onnx/model_int8.onnx",
             "model_int8.onnx",
         ];
-        for candidate in &quantized_candidates {
-            if let Ok(path) = repo.get(candidate) {
-                log::info!("[hf_loader] Using quantized model: {}", candidate);
-                return Ok((path, true));
-            }
+        if let Ok(path) = download_model_file(repo, &quantized_candidates) {
+            log::info!("[hf_loader] Using quantized model");
+            return Ok((path, true));
         }
     }
 
@@ -170,6 +193,71 @@ pub fn download_onnx_model(
         log::info!("[hf_loader] Using FP32 model (quantized not available)");
     }
     Ok((path, false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn offline_quantized_lookup_preserves_revision_without_network() {
+        // Isolate environment flags from tests running concurrently in this process.
+        const CHILD: &str = "ANNO_TEST_OFFLINE_HF_CHILD";
+        if std::env::var_os(CHILD).is_none() {
+            let home = tempfile::tempdir().unwrap();
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "backends::hf_loader::tests::offline_quantized_lookup_preserves_revision_without_network", "--nocapture"])
+                .env(CHILD, "1").env("ANNO_NO_DOWNLOADS", "1")
+                .env("HF_HOME", home.path()).status().unwrap();
+            assert!(status.success());
+            return;
+        }
+        // A live local listener makes any unintended network access observable.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let api = hf_hub::api::sync::ApiBuilder::from_env()
+            .with_token(None)
+            .with_progress(false)
+            .with_retries(0)
+            .with_endpoint(format!("http://{}", listener.local_addr().unwrap()))
+            .build()
+            .unwrap();
+        let identity = hf_hub::Repo::with_revision(
+            "anno-tests/offline".into(),
+            hf_hub::RepoType::Model,
+            "refs/pr/7".into(),
+        );
+        let repo = api.repo(identity.clone());
+        // No server is needed: the guarded path must return before any connection.
+        // The child timeout is enforced by nextest's ordinary test timeout.
+        let error = download_onnx_model(&repo, true).unwrap_err();
+        assert!(error.to_string().contains("ANNO_NO_DOWNLOADS"));
+        assert!(listener.accept().is_err());
+        let cache = hf_hub::Cache::from_env();
+        let root = cache.path().join("models--anno-tests--offline");
+        std::fs::create_dir_all(root.join("refs/refs/pr")).unwrap();
+        std::fs::create_dir_all(root.join("snapshots/pinned")).unwrap();
+        std::fs::write(root.join("refs/refs/pr/7"), "pinned").unwrap();
+        let model = root.join("snapshots/pinned/model.onnx");
+        std::fs::write(&model, b"cached model fixture").unwrap();
+        assert_eq!(download_onnx_model(&repo, true).unwrap(), (model, false));
+        assert!(listener.accept().is_err());
+        assert_eq!(
+            cache_repo_identity(&repo).unwrap().revision(),
+            identity.revision()
+        );
+    }
+
+    #[test]
+    fn no_downloads_accepts_only_truthy_values() {
+        for value in ["1", "true", "YES", " y ", "On"] {
+            assert!(no_downloads_from(Some(value)), "{value}");
+        }
+        for value in ["0", "false", "", "maybe"] {
+            assert!(!no_downloads_from(Some(value)), "{value}");
+        }
+        assert!(!no_downloads_from(None));
+    }
 }
 
 /// Configuration for creating an ONNX Runtime session.
@@ -291,6 +379,7 @@ pub fn create_onnx_session(
 }
 
 /// Load a HuggingFace tokenizer from a file path.
+#[cfg(feature = "onnx")]
 pub fn load_tokenizer(path: &std::path::Path) -> Result<tokenizers::Tokenizer> {
     tokenizers::Tokenizer::from_file(path)
         .map_err(|e| Error::Retrieval(format!("Tokenizer load: {}", e)))

@@ -919,7 +919,7 @@ impl SpanConverter {
             byte_start,
             byte_end,
             char_start: self.byte_to_char(byte_start),
-            char_end: self.byte_to_char(byte_end),
+            char_end: self.byte_to_char_ceil(byte_end),
         }
     }
 
@@ -1063,6 +1063,21 @@ mod tests {
         assert!(conv.is_ascii());
         assert_eq!(conv.byte_to_char(5), 5);
         assert_eq!(conv.char_to_byte(5), 5);
+    }
+
+    #[test]
+    fn converter_includes_a_partial_final_codepoint() {
+        let text = "é€🦀";
+        let converter = SpanConverter::new(text);
+        assert_eq!(converter.from_bytes(0, 1).char_end, 1);
+        assert_eq!(converter.from_bytes(0, 3).char_end, 2);
+        assert_eq!(converter.from_bytes(0, 6).char_end, 3);
+        for end in 0..=text.len() {
+            let direct = TextSpan::from_bytes(text, 0, end);
+            let cached = converter.from_bytes(0, end);
+            assert_eq!(cached.char_start, direct.char_start);
+            assert_eq!(cached.char_end, direct.char_end);
+        }
     }
 
     #[test]

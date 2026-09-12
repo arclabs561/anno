@@ -1270,8 +1270,19 @@ struct GroundedDocumentWire {
     identities: HashMap<IdentityId, Identity>,
 }
 
-impl From<GroundedDocumentWire> for GroundedDocument {
-    fn from(wire: GroundedDocumentWire) -> Self {
+impl TryFrom<GroundedDocumentWire> for GroundedDocument {
+    type Error = String;
+
+    fn try_from(wire: GroundedDocumentWire) -> Result<Self, Self::Error> {
+        if wire.signals.iter().any(|s| s.id == SignalId::new(u64::MAX))
+            || wire.tracks.keys().any(|id| *id == TrackId::new(u64::MAX))
+            || wire
+                .identities
+                .keys()
+                .any(|id| *id == IdentityId::new(u64::MAX))
+        {
+            return Err("document IDs must leave room for the next ID".into());
+        }
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
@@ -1285,7 +1296,14 @@ impl From<GroundedDocumentWire> for GroundedDocument {
             next_identity_id: IdentityId::ZERO,
         };
         doc.rebuild_indexes();
-        doc
+        let errors = doc.validate_invariants();
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+        if !doc.is_valid() {
+            return Err("signal locations or surfaces do not match document text".into());
+        }
+        Ok(doc)
     }
 }
 
@@ -1353,7 +1371,7 @@ impl From<GroundedDocumentWire> for GroundedDocument {
 /// Internal indexes (`signal_to_track`, `track_to_identity`, counter fields) are **not**
 /// serialized. They are rebuilt automatically on deserialization via [`rebuild_indexes`](Self::rebuild_indexes).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(from = "GroundedDocumentWire")]
+#[serde(try_from = "GroundedDocumentWire")]
 pub struct GroundedDocument {
     /// Document identifier
     id: String,
@@ -1528,6 +1546,9 @@ impl GroundedDocument {
         for signal_ref in &track.signals {
             self.signal_to_track.insert(signal_ref.signal_id, id);
         }
+        if let Some(identity_id) = track.identity_id {
+            self.track_to_identity.insert(id, identity_id);
+        }
 
         self.tracks.insert(id, track);
         self.next_track_id += 1;
@@ -1549,7 +1570,7 @@ impl GroundedDocument {
     /// Add a signal to an existing track.
     ///
     /// This properly updates the signal_to_track index.
-    /// Returns true if the signal was added, false if track doesn't exist.
+    /// Returns false if either ID is missing or the signal already belongs to a track.
     pub fn add_signal_to_track(
         &mut self,
         signal_id: impl Into<SignalId>,
@@ -1558,6 +1579,9 @@ impl GroundedDocument {
     ) -> bool {
         let signal_id = signal_id.into();
         let track_id = track_id.into();
+        if self.get_signal(signal_id).is_none() || self.signal_to_track.contains_key(&signal_id) {
+            return false;
+        }
         if let Some(track) = self.tracks.get_mut(&track_id) {
             track.add_signal(signal_id, position);
             self.signal_to_track.insert(signal_id, track_id);
@@ -1592,7 +1616,7 @@ impl GroundedDocument {
         id
     }
 
-    /// Link a track to an identity.
+    /// Link a track to an identity. Missing track or identity IDs leave the document unchanged.
     pub fn link_track_to_identity(
         &mut self,
         track_id: impl Into<TrackId>,
@@ -1600,6 +1624,9 @@ impl GroundedDocument {
     ) {
         let track_id = track_id.into();
         let identity_id = identity_id.into();
+        if !self.identities.contains_key(&identity_id) {
+            return;
+        }
         if let Some(track) = self.tracks.get_mut(&track_id) {
             track.identity_id = Some(identity_id);
             self.track_to_identity.insert(track_id, identity_id);
@@ -1993,8 +2020,27 @@ impl GroundedDocument {
         let signal_ids: std::collections::HashSet<_> = self.signals.iter().map(|s| s.id).collect();
 
         // 2. Track signal references point to existing signals
+        let mut assigned_signals = std::collections::HashSet::new();
         for (track_id, track) in &self.tracks {
+            if track.id != *track_id {
+                errors.push(format!(
+                    "Track map key {} differs from its ID {}",
+                    track_id, track.id
+                ));
+            }
             for signal_ref in &track.signals {
+                if !assigned_signals.insert(signal_ref.signal_id) {
+                    errors.push(format!(
+                        "Signal {} has multiple track references",
+                        signal_ref.signal_id
+                    ));
+                }
+                if self.signal_to_track.get(&signal_ref.signal_id) != Some(track_id) {
+                    errors.push(format!(
+                        "Track {} has an unindexed signal {}",
+                        track_id, signal_ref.signal_id
+                    ));
+                }
                 if !signal_ids.contains(&signal_ref.signal_id) {
                     errors.push(format!(
                         "Track {} references non-existent signal {}",
@@ -2050,8 +2096,22 @@ impl GroundedDocument {
         }
 
         // 5. Track identity references point to existing identities
+        for (identity_id, identity) in &self.identities {
+            if identity.id != *identity_id {
+                errors.push(format!(
+                    "Identity map key {} differs from its ID {}",
+                    identity_id, identity.id
+                ));
+            }
+        }
         for (track_id, track) in &self.tracks {
             if let Some(identity_id) = track.identity_id {
+                if self.track_to_identity.get(track_id) != Some(&identity_id) {
+                    errors.push(format!(
+                        "Track {} has an unindexed identity {}",
+                        track_id, identity_id
+                    ));
+                }
                 if !self.identities.contains_key(&identity_id) {
                     errors.push(format!(
                         "Track {} references non-existent identity {}",
@@ -6034,6 +6094,51 @@ mod proptests {
     // =========================================================================
     // TrackStats Tests
     // =========================================================================
+
+    #[test]
+    fn document_import_rejects_invalid_structure_and_source_spans() {
+        let mut doc = GroundedDocument::new("unicode", "Zoë");
+        let signal = doc.add_signal(Signal::new(0, Location::text(0, 3), "Zoë", "PER", 0.9));
+        let track = doc.add_track(Track::new(0, "Zoë"));
+        assert!(doc.add_signal_to_track(signal, track, 0));
+        let wire = serde_json::to_value(&doc).unwrap();
+        let roundtrip: GroundedDocument = serde_json::from_value(wire.clone()).unwrap();
+        assert!(roundtrip.invariants_hold());
+        assert!(roundtrip.is_valid());
+
+        let mut dangling = wire.clone();
+        dangling["tracks"]["0"]["identity_id"] = serde_json::json!(42);
+        assert!(serde_json::from_value::<GroundedDocument>(dangling).is_err());
+
+        let mut duplicate = wire.clone();
+        duplicate["signals"]
+            .as_array_mut()
+            .unwrap()
+            .push(wire["signals"][0].clone());
+        assert!(serde_json::from_value::<GroundedDocument>(duplicate).is_err());
+
+        let mut invalid_span = wire.clone();
+        invalid_span["signals"][0]["location"]["Text"]["end"] = serde_json::json!(4);
+        assert!(serde_json::from_value::<GroundedDocument>(invalid_span).is_err());
+
+        let mut exhausted = wire;
+        exhausted["signals"][0]["id"] = serde_json::json!(u64::MAX);
+        assert!(serde_json::from_value::<GroundedDocument>(exhausted).is_err());
+    }
+
+    #[test]
+    fn invalid_links_leave_document_invariants_intact() {
+        let mut doc = GroundedDocument::new("unicode", "Zoë");
+        let signal = doc.add_signal(Signal::new(0, Location::text(0, 3), "Zoë", "PER", 0.9));
+        let first = doc.add_track(Track::new(0, "Zoë"));
+        let second = doc.add_track(Track::new(0, "Another entity"));
+        assert!(!doc.add_signal_to_track(99, first, 0));
+        assert!(doc.add_signal_to_track(signal, first, 0));
+        assert!(!doc.add_signal_to_track(signal, second, 0));
+        doc.link_track_to_identity(first, 99);
+        assert!(doc.get_track(first).unwrap().identity_id.is_none());
+        assert!(doc.invariants_hold());
+    }
 
     #[test]
     fn test_track_stats_basic() {
