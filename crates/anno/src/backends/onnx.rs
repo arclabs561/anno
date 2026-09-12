@@ -131,7 +131,7 @@ impl BertNEROnnx {
         let tokenizer_path = hf_loader::download_model_file(&repo, &["tokenizer.json"])?;
         let config_path = hf_loader::download_model_file(&repo, &["config.json"])?;
 
-        let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
+        let tokenizer = Self::load_untruncated_tokenizer(&tokenizer_path)?;
 
         // Load config and extract id2label mapping
         let config_str = std::fs::read_to_string(&config_path)
@@ -190,7 +190,7 @@ impl BertNEROnnx {
                 dir.display()
             )));
         }
-        let tokenizer = hf_loader::load_tokenizer(&tokenizer_path)?;
+        let tokenizer = Self::load_untruncated_tokenizer(&tokenizer_path)?;
 
         let config_path = dir.join("config.json");
         let (id_to_label, label_to_entity_type) = if config_path.exists() {
@@ -247,6 +247,30 @@ impl BertNEROnnx {
     #[must_use]
     pub fn tokenizer(&self) -> std::sync::Arc<Tokenizer> {
         std::sync::Arc::clone(&self.tokenizer)
+    }
+
+    /// Load the artifact tokenizer without its serialized model-window limit.
+    ///
+    /// BERT needs the complete tokenized input to select sentence or token
+    /// windows itself. Retaining a tokenizer's serialized 512-token limit
+    /// would truncate that probe before chunking can begin.
+    fn load_untruncated_tokenizer(path: &std::path::Path) -> Result<Tokenizer> {
+        use crate::backends::hf_loader;
+
+        let mut tokenizer = hf_loader::load_tokenizer(path)?;
+        tokenizer.with_truncation(None).map_err(|error| {
+            Error::Parse(format!(
+                "Failed to disable serialized tokenizer truncation for {}: {error}",
+                path.display()
+            ))
+        })?;
+        Ok(tokenizer)
+    }
+
+    fn encode_untruncated(&self, text: &str) -> Result<tokenizers::Encoding> {
+        self.tokenizer
+            .encode(text, true)
+            .map_err(|error| Error::Parse(format!("Failed to tokenize input: {error}")))
     }
 
     /// Build id_to_label mapping from config.
@@ -315,6 +339,8 @@ impl BertNEROnnx {
     /// Vector of NER entities with positions, types, and confidence scores
     /// Maximum tokens per BERT chunk (512 model limit minus [CLS] and [SEP]).
     const MAX_TOKENS: usize = 510;
+    /// Token overlap for a single sentence that exceeds BERT's window.
+    const HARD_CHUNK_OVERLAP_TOKENS: usize = 32;
 
     pub fn extract_entities(&self, text: &str, _language: Option<Language>) -> Result<Vec<Entity>> {
         if text.is_empty() {
@@ -323,10 +349,7 @@ impl BertNEROnnx {
 
         // Check if text exceeds BERT's 512 token limit; if so, split into
         // sentence-boundary chunks and merge results.
-        let probe = self
-            .tokenizer
-            .encode(text, true)
-            .map_err(|e| Error::Parse(format!("Failed to tokenize input: {}", e)))?;
+        let probe = self.encode_untruncated(text)?;
         if probe.get_ids().len() > Self::MAX_TOKENS + 2 {
             return self.extract_entities_chunked(text);
         }
@@ -362,10 +385,7 @@ impl BertNEROnnx {
 
         for (sent_idx, &sent_end) in sentence_ends.iter().enumerate() {
             let candidate = &text[chunk_start_byte..sent_end];
-            let tok = self
-                .tokenizer
-                .encode(candidate, true)
-                .map_err(|e| Error::Parse(format!("Chunking tokenization failed: {}", e)))?;
+            let tok = self.encode_untruncated(candidate)?;
 
             if tok.get_ids().len() > Self::MAX_TOKENS + 2 {
                 // This sentence pushes over the limit. Flush up to the previous boundary.
@@ -394,14 +414,19 @@ impl BertNEROnnx {
             chunks.push((0, text.len()));
         }
 
+        // A sentence can itself exceed the model limit. Split those chunks on
+        // tokenizer boundaries before inference, retaining a small token
+        // overlap so a boundary entity appears in a complete window.
+        let mut model_sized_chunks = Vec::new();
+        for (byte_start, byte_end) in chunks {
+            model_sized_chunks.extend(self.split_oversized_chunk(text, byte_start, byte_end)?);
+        }
+
         // Run each chunk and collect entities with global char offsets.
         let mut all_entities = Vec::new();
-        for (byte_start, byte_end) in &chunks {
+        for (byte_start, byte_end) in &model_sized_chunks {
             let chunk = &text[*byte_start..*byte_end];
-            let encoding = self
-                .tokenizer
-                .encode(chunk, true)
-                .map_err(|e| Error::Parse(format!("Chunk tokenization failed: {}", e)))?;
+            let encoding = self.encode_untruncated(chunk)?;
             let mut chunk_entities = self.extract_entities_single(chunk, &encoding)?;
             // Shift character offsets to global positions
             if *byte_start > 0 {
@@ -440,6 +465,52 @@ impl BertNEROnnx {
             .collect();
 
         Ok(all_entities)
+    }
+
+    /// Split one selected text range into model-sized tokenizer windows.
+    ///
+    /// Sentence boundaries are preferred above. This fallback handles a single
+    /// sentence that exceeds the model window and always advances on a token
+    /// byte boundary.
+    fn split_oversized_chunk(
+        &self,
+        text: &str,
+        byte_start: usize,
+        byte_end: usize,
+    ) -> Result<Vec<(usize, usize)>> {
+        let mut chunks = Vec::new();
+        let mut cursor = byte_start;
+        while cursor < byte_end {
+            let encoding = self.encode_untruncated(&text[cursor..byte_end])?;
+            if encoding.len() <= Self::MAX_TOKENS + 2 {
+                chunks.push((cursor, byte_end));
+                break;
+            }
+
+            let content_offsets: Vec<_> = encoding
+                .get_offsets()
+                .iter()
+                .copied()
+                .filter(|(start, end)| start < end)
+                .collect();
+            if content_offsets.len() <= Self::MAX_TOKENS {
+                return Err(Error::Parse(format!(
+                    "BERT tokenizer produced {} content tokens for an over-limit encoding",
+                    content_offsets.len()
+                )));
+            }
+            let window_end = cursor + content_offsets[Self::MAX_TOKENS - 1].1;
+            let overlap_start =
+                cursor + content_offsets[Self::MAX_TOKENS - Self::HARD_CHUNK_OVERLAP_TOKENS].0;
+            if window_end <= cursor || overlap_start <= cursor {
+                return Err(Error::Parse(
+                    "BERT tokenizer produced a non-advancing oversized chunk boundary".into(),
+                ));
+            }
+            chunks.push((cursor, window_end));
+            cursor = overlap_start;
+        }
+        Ok(chunks)
     }
 
     fn deduplicate_chunk_entities(entities: &mut Vec<Entity>) {
@@ -1169,6 +1240,50 @@ mod tests {
             custom_entities[1].entity_type,
             EntityType::custom("DRUG", EntityCategory::Misc)
         );
+
+        Ok(())
+    }
+
+    /// A tokenizer snapshot may serialize its own 512-token truncation rule.
+    /// BERT must disable that rule before probing and chunking, otherwise long
+    /// inputs appear short and lose their suffix without an error.
+    #[test]
+    #[ignore = "requires cached protectai/bert-base-NER-onnx; run with ANNO_NO_DOWNLOADS=1"]
+    fn long_inputs_are_chunked_without_tokenizer_truncation(
+    ) -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        assert_eq!(
+            std::env::var("ANNO_NO_DOWNLOADS").as_deref(),
+            Ok("1"),
+            "this regression must run cache-only; set ANNO_NO_DOWNLOADS=1"
+        );
+        let model = BertNEROnnx::new("protectai/bert-base-NER-onnx")?;
+
+        for (text, terminal_suffix) in [
+            ("Paris is sunny. ".repeat(200), "Paris is sunny. "),
+            ("Paris ".repeat(600), "Paris "),
+        ] {
+            let terminal_start = text.chars().count() - terminal_suffix.chars().count();
+            let encoding = model.tokenizer().encode(text.as_str(), true)?;
+            assert!(
+                encoding.len() > BertNEROnnx::MAX_TOKENS + 2,
+                "the fixture must exceed BERT's graph window"
+            );
+            let entities = model.extract_entities(&text, None)?;
+            assert!(
+                entities
+                    .iter()
+                    .all(|entity| entity.start() < entity.end()
+                        && entity.end() <= text.chars().count()),
+                "{entities:#?}"
+            );
+            assert!(
+                entities.iter().any(|entity| {
+                    entity.start() <= terminal_start
+                        && entity.end() >= terminal_start + "Paris".chars().count()
+                }),
+                "chunked output must cover the terminal Paris rather than only a prefix location: {entities:#?}"
+            );
+        }
 
         Ok(())
     }
