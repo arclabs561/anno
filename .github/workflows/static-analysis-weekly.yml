@@ -48,7 +48,7 @@ jobs:
           cargo install --locked cargo-deny
           cargo install cargo-machete
           cargo install cargo-geiger
-          cargo install cargo-nextest
+          cargo install --locked cargo-nextest
           cargo install cargo-llvm-cov
 
       - name: Install opengrep
