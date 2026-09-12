@@ -1,109 +1,35 @@
 #!/usr/bin/env bash
-# Validate publish readiness for the `anno` crate.
-# Checks cargo publish --dry-run and version requirements.
+# Validate cargo publish --dry-run for the crates.io workspace packages.
 
 set -euo pipefail
 
-echo "=== Publish Validation ==="
-echo ""
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/anno-publish-validation.XXXXXX")
+trap 'rm -rf "$work_dir"' EXIT
 
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Track results
-ERRORS=0
-WARNINGS=0
-
-# Function to check publish readiness
-check_publish() {
-    local crate=$1
-    local crate_path=$2
-    
-    echo "Checking $crate..."
-    
-    if [ -d "$crate_path" ]; then
-        if cargo publish --dry-run -p "$crate" 2>&1 | grep -q "aborting upload due to dry run"; then
-            echo -e "${GREEN}✅ $crate: Ready to publish${NC}"
-            return 0
-        else
-            echo -e "${RED}❌ $crate: Publish validation failed${NC}"
-            cargo publish --dry-run -p "$crate" 2>&1 | grep -E "(error|warning)" | head -5 || true
-            ((ERRORS++))
-            return 1
-        fi
-    else
-        echo -e "${YELLOW}⚠️  $crate: Directory not found${NC}"
-        ((WARNINGS++))
-        return 1
-    fi
-}
-
-# Function to check version requirements
-check_version_requirement() {
-    local file=$1
-    local dep_name=$2
-    local expected_version=$3
-    
-    if [ ! -f "$file" ]; then
-        echo -e "${YELLOW}⚠️  $file: File not found${NC}"
-        ((WARNINGS++))
-        return 1
-    fi
-    
-    if grep -q "$dep_name.*version.*=.*\"$expected_version\"" "$file" 2>/dev/null || \
-       grep -q "$dep_name.*version.*workspace" "$file" 2>/dev/null; then
-        echo -e "${GREEN}✅ $file: Version requirement for $dep_name present${NC}"
-        return 0
-    else
-        echo -e "${RED}❌ $file: Missing version requirement for $dep_name${NC}"
-        ((ERRORS++))
-        return 1
-    fi
-}
-
-# Check workspace structure
-echo "## Workspace Structure"
+echo '=== Publish Validation ==='
+echo
+echo '## Workspace Structure'
 cargo metadata --format-version 1 | jq -r '.workspace_members[]' | sort
-echo ""
+echo
 
-# Check publish readiness
-echo "## Publish Readiness"
-echo ""
-
-check_publish "anno" "crates/anno"
-
-echo ""
-
-# Check crates.io status
-echo "## Crates.io Status"
-echo ""
-
-for crate in anno; do
-    if curl -s "https://crates.io/api/v1/crates/$crate" 2>/dev/null | jq -r '.crate | "\(.name): v\(.max_version // "not published")"' 2>/dev/null | grep -q "not published"; then
-        echo -e "${YELLOW}⚠️  $crate: Not published${NC}"
-    else
-        version=$(curl -s "https://crates.io/api/v1/crates/$crate" 2>/dev/null | jq -r '.crate.max_version // "unknown"')
-        echo -e "${GREEN}✅ $crate: Published (v$version)${NC}"
-    fi
-done
-
-echo ""
-
-# Summary
-echo "## Summary"
-if [ $ERRORS -eq 0 ] && [ $WARNINGS -eq 0 ]; then
-    echo -e "${GREEN}✅ All checks passed!${NC}"
-    exit 0
-elif [ $ERRORS -eq 0 ]; then
-    echo -e "${YELLOW}⚠️  $WARNINGS warning(s), but no errors${NC}"
-    exit 0
+log_file="$work_dir/publish.log"
+echo '## Publish readiness'
+if cargo publish --dry-run --workspace --exclude anno-py >"$log_file" 2>&1; then
+    echo '[ok] cargo publish --dry-run passed for anno, anno-eval, and anno-cli'
+    cat "$log_file"
 else
-    echo -e "${RED}❌ $ERRORS error(s), $WARNINGS warning(s)${NC}"
-    echo ""
-    echo "See docs/PUBLISH_STATUS.md for details on fixing publish issues."
+    echo '[error] cargo publish --dry-run failed'
+    cat "$log_file"
     exit 1
 fi
 
+echo
+echo '## Crates.io status'
+for crate in anno anno-eval anno-cli; do
+    if version=$(curl --fail --silent --show-error --user-agent 'anno-publish-validation/1.0' \
+        "https://crates.io/api/v1/crates/$crate" | jq -r '.crate.max_version // "not published"'); then
+        echo "[info] $crate latest: $version"
+    else
+        echo "[warning] could not query crates.io for $crate; publish validation still passed"
+    fi
+done

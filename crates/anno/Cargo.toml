@@ -1,7 +1,8 @@
 [package]
 name = "anno"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
+rust-version.workspace = true
 description = "NER, coreference resolution, relation extraction, PII detection, and zero-shot entity types"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/arclabs561/anno"

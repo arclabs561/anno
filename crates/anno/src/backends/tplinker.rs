@@ -589,15 +589,34 @@ mod heuristic_impl {
             relation_types: &[&str],
             threshold: f32,
         ) -> Result<ExtractionWithRelations> {
+            let ner = crate::StackedNER::default();
+            let entities = ner.extract_entities(text, None)?;
+
+            Ok(self.extract_with_supplied_entities(
+                text,
+                entity_types,
+                relation_types,
+                threshold,
+                entities,
+            ))
+        }
+
+        /// Apply TPLinker's entity filtering, provenance, and relation matching
+        /// to entity predictions supplied by the caller.
+        pub(super) fn extract_with_supplied_entities(
+            &self,
+            text: &str,
+            entity_types: &[&str],
+            relation_types: &[&str],
+            threshold: f32,
+            mut entities: Vec<Entity>,
+        ) -> ExtractionWithRelations {
             let rel_threshold = if threshold > 0.0 {
                 threshold
             } else {
                 self.relation_threshold
             };
             let ent_threshold = self.entity_threshold;
-
-            let ner = crate::StackedNER::default();
-            let mut entities = ner.extract_entities(text, None)?;
 
             if !entity_types.is_empty() {
                 let requested: Vec<String> =
@@ -676,10 +695,10 @@ mod heuristic_impl {
 
             let relations = extract_relation_triples_simple(&entities, text, &rels, &rel_config);
 
-            Ok(ExtractionWithRelations {
+            ExtractionWithRelations {
                 entities,
                 relations,
-            })
+            }
         }
     }
 }
@@ -866,26 +885,45 @@ mod tests {
     }
 
     #[test]
-    fn test_tplinker_relation_extraction() {
-        let tplinker = &*TP_STANDARD;
-        let out = tplinker
-            .extract_with_relations(
-                "Steve Jobs founded Apple in 1976.",
-                &["person", "organization"],
-                &["founded"],
-                0.5,
-            )
-            .unwrap();
-        assert!(out.entities.len() >= 2);
-        // In heuristic mode, expect a founded relation from trigger matching.
-        // In ONNX mode, depends on model weights.
-        if !tplinker.is_neural() {
-            assert!(
-                out.relations.iter().any(|r| r.relation_type == "founded"),
-                "expected a founded relation; got: {:?}",
-                out.relations
-            );
+    fn test_tplinker_relation_assembly_preserves_source_spans_and_endpoints() {
+        let text = "Steve Jobs founded Apple in 1976.";
+        let source_entities = vec![
+            Entity::new("Steve Jobs", EntityType::Person, 0, 10, 0.9),
+            Entity::new("Apple", EntityType::Organization, 19, 24, 0.9),
+        ];
+        let out = heuristic_impl::TPLinkerHeuristic {
+            entity_threshold: 0.15,
+            relation_threshold: 0.55,
         }
+        .extract_with_supplied_entities(
+            text,
+            &["person", "organization"],
+            &["founded"],
+            0.5,
+            source_entities,
+        );
+
+        assert_eq!(out.entities.len(), 2);
+        assert_eq!(out.entities[0].text, "Steve Jobs");
+        assert_eq!(out.entities[0].entity_type, EntityType::Person);
+        assert_eq!((out.entities[0].start(), out.entities[0].end()), (0, 10));
+        assert_eq!(out.entities[1].text, "Apple");
+        assert_eq!(out.entities[1].entity_type, EntityType::Organization);
+        assert_eq!((out.entities[1].start(), out.entities[1].end()), (19, 24));
+
+        assert_eq!(out.relations.len(), 1, "{:#?}", out.relations);
+        let relation = &out.relations[0];
+        assert_eq!(relation.relation_type, "founded");
+        let head = &out.entities[relation.head_idx];
+        let tail = &out.entities[relation.tail_idx];
+        assert_eq!(
+            (head.text.as_str(), &head.entity_type),
+            ("Steve Jobs", &EntityType::Person)
+        );
+        assert_eq!(
+            (tail.text.as_str(), &tail.entity_type),
+            ("Apple", &EntityType::Organization)
+        );
     }
 
     #[test]

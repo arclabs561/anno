@@ -2,8 +2,33 @@
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-12
+
+### Added
+
+- Evaluation receipts record selected artifact hashes, observed settings and scheduling, with an explicit all-output scoring policy and separate closed-label diagnostic.
+- Cache-only BERT trace comparison checks exact artifact identity, tokenizer inputs and logits; CoreML/CUDA diagnostic probes retain placement and numerical-gate results.
+- An opt-in Python Fastino source build exposes typed extraction and classification; the standard wheel remains offline-only.
+- Explicit ONNX execution-provider selection with errors for unavailable provider features; accelerator placement still requires runtime validation.
+- Candle GLiNER construction from configuration, tokenizer and safetensors bytes, with a wasm target build check. Browser inference remains experimental and unvalidated.
+- A supported pinned Fastino ONNX export with cached end-to-end NER, classification and structure tests.
+
+### Changed
+
+- Minimum supported Rust version is 1.91, matching the current dependency requirement and a direct CI toolchain check.
+
+### Fixed
+
+- Saved extract/debug configuration is applied before execution, explicit CLI options take precedence, and invalid thresholds fail before input/model work.
+- History rebuild preserves provenance, coordinates concurrent writers and recovers a corrupted index from validated JSONL without discarding external SQLite sidecars.
+- Evaluation uses canonical labels, one-to-one matching and pooled confidence intervals; unavailable observations no longer produce invented uncertainty.
+- Dataset handoff validates source labels and pagination, pins direct artifacts and rejects malformed cached envelopes.
+- BERT decoding preserves adjacent beginning tags and distinct custom labels; robustness scoring retains valid long unchanged inputs.
+- BERT disables serialized tokenizer truncation and splits oversized sentences into overlapping windows so long inputs retain their suffix.
+
 ### Changed (breaking)
 
+- `anno-eval`: `TaskEvalResult` includes a public `provenance` field; Rust struct-literal callers must initialize it. Older serialized results remain readable.
 - `anno-eval`: `ReportBuilder::build` returns `Result<EvalReport>`. Callers must handle inference or requested-analysis failures instead of receiving a successful report with empty predictions.
 
 ### Fixed
