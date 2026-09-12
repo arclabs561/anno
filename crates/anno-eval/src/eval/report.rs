@@ -1155,6 +1155,83 @@ mod tests {
         assert!(message.contains("bias backend unavailable"));
     }
 
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_detects_script_only_demographic_bias() {
+        use crate::eval::demographic_bias::{
+            create_diverse_name_dataset, DemographicBiasEvaluator, NameExample, Script,
+        };
+        use std::collections::BTreeMap;
+
+        let names = create_diverse_name_dataset();
+        let mut names_by_ethnicity: BTreeMap<String, Vec<NameExample>> = BTreeMap::new();
+        for name in &names {
+            names_by_ethnicity
+                .entry(format!("{:?}", name.ethnicity))
+                .or_default()
+                .push(name.clone());
+        }
+
+        // Recognize the same fraction of every ethnicity, choosing Latin-script
+        // names first within each group. This leaves ethnicity parity intact while
+        // creating a measurable script disparity.
+        let mut recognized_names = Vec::new();
+        for mut ethnicity_names in names_by_ethnicity.into_values() {
+            ethnicity_names
+                .sort_by_key(|name| (!matches!(name.script, Script::Latin), name.name.clone()));
+            let selected_count = ethnicity_names.len() / 2;
+            recognized_names.extend(
+                ethnicity_names
+                    .into_iter()
+                    .take(selected_count)
+                    .map(|name| name.name),
+            );
+        }
+
+        let model = anno::AnyModel::new(
+            "latin-biased",
+            "recognizes Latin names first within every ethnicity",
+            vec![anno::EntityType::Person],
+            move |text, _| {
+                let entities = recognized_names
+                    .iter()
+                    .filter_map(|name| {
+                        text.find(name).map(|byte_start| {
+                            let start = text[..byte_start].chars().count();
+                            let end = start + name.chars().count();
+                            Entity::new(name.clone(), anno::EntityType::Person, start, end, 1.0)
+                        })
+                    })
+                    .collect();
+                Ok(entities)
+            },
+        );
+
+        let measurements = DemographicBiasEvaluator::new(true)
+            .try_evaluate_ner(&model, &names)
+            .expect("deterministic demographic evaluation succeeds");
+        assert!(
+            measurements.ethnicity_parity_gap <= 0.1,
+            "selection should keep ethnicity parity: {measurements:?}"
+        );
+        assert!(
+            measurements.script_bias_gap > 0.1,
+            "selection should create a script gap: {measurements:?}"
+        );
+
+        let report = ReportBuilder::new("latin-biased")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect("bias report should use the measured script gap");
+        assert!(
+            report
+                .bias
+                .expect("requested bias analysis is present")
+                .bias_detected
+        );
+    }
+
     #[cfg(feature = "eval")]
     #[test]
     fn report_builder_propagates_calibration_extraction_failure() {
