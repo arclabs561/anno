@@ -43,8 +43,6 @@ use crate::eval::task_mapping::Task;
 #[cfg(feature = "eval-bias")]
 use crate::eval::bias_config::BiasDatasetConfig;
 #[cfg(feature = "eval-bias")]
-use crate::eval::coref_resolver::SimpleCorefResolver;
-#[cfg(feature = "eval-bias")]
 use crate::eval::demographic_bias::{create_diverse_name_dataset, DemographicBiasEvaluator};
 #[cfg(feature = "eval-bias")]
 use crate::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
@@ -498,10 +496,10 @@ impl EvalSystem {
             None
         };
 
-        // Run calibration (if model provided)
+        // Calibration needs gold correctness labels, which this wrapper does not load.
         #[cfg(feature = "eval")]
-        let calibration = if self.include_calibration && self.model.is_some() {
-            match self.run_calibration(&mut warnings) {
+        let calibration = if self.include_calibration {
+            match self.run_calibration() {
                 Ok(results) => Some(results),
                 Err(e) => {
                     warnings.push(format!("Calibration evaluation failed: {}", e));
@@ -614,7 +612,13 @@ impl EvalSystem {
 
         for result in &comprehensive_results.results {
             if !result.success {
-                continue;
+                return Err(crate::Error::InvalidInput(format!(
+                    "standard evaluation failed for task={:?} dataset={:?} backend={}: {}",
+                    result.task,
+                    result.dataset,
+                    result.backend,
+                    result.error.as_deref().unwrap_or("no error detail")
+                )));
             }
 
             let f1 = result.metrics.get("f1").copied().unwrap_or(0.0);
@@ -746,23 +750,24 @@ impl EvalSystem {
                 .with_validation()
         });
 
-        // Gender bias (coreference)
-        // Note: Gender bias requires CoreferenceResolver, not Model.
-        // If the provided model implements CoreferenceResolver, we could use it,
-        // but for now we use a default resolver. This is a known limitation.
-        warnings.push(
-            "Gender bias evaluation uses default SimpleCorefResolver, not the provided model."
-                .to_string(),
-        );
-        let resolver = SimpleCorefResolver::default();
-        let templates = create_winobias_templates();
-        let evaluator = GenderBiasEvaluator::new(true);
-        let gender_results = evaluator.evaluate_resolver(&resolver, &templates);
-        let gender = Some(GenderBiasSummary {
-            bias_gap: gender_results.bias_gap,
-            pro_stereotype_accuracy: gender_results.pro_stereotype_accuracy,
-            anti_stereotype_accuracy: gender_results.anti_stereotype_accuracy,
-        });
+        // Evaluate only a resolver supplied for this system. Do not substitute an
+        // unrelated default resolver and attribute its score to `model`.
+        let gender = if let Some(resolver) = self.coref_resolver.as_deref() {
+            let templates = create_winobias_templates();
+            let evaluator = GenderBiasEvaluator::new(true);
+            let results = evaluator.evaluate_resolver(resolver, &templates);
+            Some(GenderBiasSummary {
+                bias_gap: results.bias_gap,
+                pro_stereotype_accuracy: results.pro_stereotype_accuracy,
+                anti_stereotype_accuracy: results.anti_stereotype_accuracy,
+            })
+        } else {
+            warnings.push(
+                "Gender bias is unavailable because EvalSystem has no supplied coreference resolver."
+                    .to_string(),
+            );
+            None
+        };
 
         // Demographic bias
         let names = create_diverse_name_dataset();
@@ -810,132 +815,47 @@ impl EvalSystem {
         })
     }
 
-    /// Run calibration analysis.
+    /// Calibration requires labeled prediction correctness, which this wrapper does not load.
     #[cfg(feature = "eval")]
-    fn run_calibration(&self, warnings: &mut Vec<String>) -> Result<CalibrationEvalResults> {
-        use crate::eval::calibration::CalibrationEvaluator;
-
-        let model = self.model.as_deref().ok_or_else(|| {
-            crate::Error::InvalidInput(
-                "Calibration analysis requires a model instance. Use with_model()".to_string(),
-            )
-        })?;
-
-        // Try to load a sample dataset for calibration
-        // For now, use a simple synthetic dataset if no datasets are configured
-        let test_texts = if self.datasets.is_empty() {
-            warnings.push(
-                "No datasets configured for calibration. Using synthetic test data.".to_string(),
-            );
-            vec![
-                "John Smith works at Google in New York.".to_string(),
-                "Jane Doe is a professor at MIT.".to_string(),
-                "Microsoft was founded by Bill Gates.".to_string(),
-            ]
-        } else {
-            // Load first dataset for calibration
-            // Note: This is a simplified implementation
-            // A full implementation would load actual test data from the dataset
-            warnings.push(
-                "Calibration using configured datasets requires dataset loading (not yet fully implemented). Using synthetic data.".to_string(),
-            );
-            vec![
-                "John Smith works at Google in New York.".to_string(),
-                "Jane Doe is a professor at MIT.".to_string(),
-                "Microsoft was founded by Bill Gates.".to_string(),
-            ]
-        };
-
-        // Collect predictions with confidence scores
-        let mut predictions = Vec::new();
-        let mut has_calibrated_entities = false;
-
-        for text in &test_texts {
-            let entities = model
-                .extract_entities(text, None)
-                .unwrap_or_else(|_| Vec::new());
-
-            for entity in &entities {
-                // Check if this entity's extraction method is calibrated
-                let is_calibrated = entity
-                    .provenance
-                    .as_ref()
-                    .map(|p| p.method.is_calibrated())
-                    .unwrap_or(false);
-
-                if !is_calibrated {
-                    continue; // Skip uncalibrated entities
-                }
-
-                has_calibrated_entities = true;
-
-                // For calibration, we need gold labels to determine correctness
-                // Since we're using synthetic data, we'll use a simple heuristic:
-                // Assume entities are correct if they have reasonable confidence
-                // Without gold labels, approximate correctness from confidence threshold
-                let is_correct = entity.confidence > 0.5;
-
-                predictions.push((entity.confidence.into(), is_correct));
-            }
-        }
-
-        // If no calibrated entities found, return default (zero) metrics
-        if !has_calibrated_entities || predictions.is_empty() {
-            warnings.push(
-                "No calibrated entities found for calibration analysis. Model may not provide calibrated confidence scores.".to_string(),
-            );
-            return Ok(CalibrationEvalResults {
-                ece: 0.0,
-                mce: 0.0,
-                brier_score: 0.0,
-            });
-        }
-
-        // Compute calibration metrics
-        let results = CalibrationEvaluator::compute(&predictions);
-
-        Ok(CalibrationEvalResults {
-            ece: results.ece,
-            mce: results.mce,
-            brier_score: results.brier_score,
-        })
+    fn run_calibration(&self) -> Result<CalibrationEvalResults> {
+        Err(crate::Error::FeatureNotAvailable(
+            "Calibration requires labeled prediction correctness; EvalSystem does not load it"
+                .to_string(),
+        ))
     }
 
-    /// Run data quality checks.
+    /// Data quality requires dataset split contents, which this wrapper does not load.
     #[cfg(feature = "eval")]
-    fn run_data_quality(&self, warnings: &mut Vec<String>) -> Result<DataQualityEvalResults> {
-        // Try to load datasets for data quality analysis
-        // For now, use a simple check on configured datasets
-        if self.datasets.is_empty() {
-            warnings.push(
-                "No datasets configured for data quality checks. Cannot check for leakage without train/test split.".to_string(),
-            );
-            return Ok(DataQualityEvalResults {
-                leakage_detected: false,
-                redundancy_rate: 0.0,
-                ambiguous_count: 0,
-            });
-        }
-
-        // Note: Full implementation would:
-        // 1. Load train and test splits from datasets
-        // 2. Use DatasetQualityAnalyzer to check for leakage, redundancy, ambiguity
-        // 3. Return comprehensive quality metrics
-        //
-        warnings.push(
-            "Data quality checks require dataset loading (not yet fully implemented). Returning default results.".to_string(),
-        );
-
-        Ok(DataQualityEvalResults {
-            leakage_detected: false, // Cannot determine without actual data
-            redundancy_rate: 0.0,    // Cannot determine without actual data
-            ambiguous_count: 0,      // Cannot determine without actual data
-        })
+    fn run_data_quality(&self, _warnings: &mut Vec<String>) -> Result<DataQualityEvalResults> {
+        Err(crate::Error::FeatureNotAvailable(
+            "Data quality requires loaded train/test splits; EvalSystem does not load them"
+                .to_string(),
+        ))
     }
 }
 
 impl Default for EvalSystem {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(all(test, feature = "eval"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_calibration_and_data_quality_do_not_emit_metrics() {
+        let system = EvalSystem::new();
+        let mut warnings = Vec::new();
+
+        assert!(matches!(
+            system.run_calibration(),
+            Err(crate::Error::FeatureNotAvailable(_))
+        ));
+        assert!(matches!(
+            system.run_data_quality(&mut warnings),
+            Err(crate::Error::FeatureNotAvailable(_))
+        ));
     }
 }

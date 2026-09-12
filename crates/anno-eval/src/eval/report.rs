@@ -14,9 +14,10 @@
 //!     .with_core_metrics(true)
 //!     .with_bias_analysis(false)  // Skip if no PER/ORG support
 //!     .with_error_analysis(true)
-//!     .build(&model);
+//!     .build(&model)?;
 //!
 //! println!("{}", report.summary());
+//! # Ok::<(), anno::Error>(())
 //! ```
 
 use anno::{Entity, Model, Result};
@@ -410,10 +411,13 @@ impl ReportBuilder {
         let mut predictions = Vec::new();
         let mut has_calibrated_entities = false;
 
-        for case in test_cases {
-            let entities = model
-                .extract_entities(&case.text, None)
-                .unwrap_or_else(|_| Vec::new());
+        for (case_index, case) in test_cases.iter().enumerate() {
+            let entities = model.extract_entities(&case.text, None).map_err(|e| {
+                crate::Error::Inference(format!(
+                    "calibration extraction failed for test_case={}: {}",
+                    case_index, e
+                ))
+            })?;
 
             for entity in &entities {
                 // Check if this entity's extraction method is calibrated
@@ -440,14 +444,11 @@ impl ReportBuilder {
             }
         }
 
-        // If no calibrated entities found, return a warning summary
+        // Calibration cannot be measured without calibrated predictions.
         if !has_calibrated_entities || predictions.is_empty() {
-            return Ok(CalibrationSummary {
-                ece: 0.0,
-                mce: 0.0,
-                optimal_threshold: 0.5,
-                grade: '?', // Unknown - no calibrated predictions
-            });
+            return Err(crate::Error::InvalidInput(
+                "calibration requested but no calibrated predictions were produced".to_string(),
+            ));
         }
 
         // Compute calibration metrics
@@ -555,7 +556,7 @@ impl ReportBuilder {
     }
 
     /// Build the report by running the model on test data.
-    pub fn build<M: Model>(self, model: &M) -> EvalReport {
+    pub fn build<M: Model>(self, model: &M) -> Result<EvalReport> {
         let timestamp = chrono_lite_timestamp();
         let mut warnings = Vec::new();
         let mut recommendations = Vec::new();
@@ -573,13 +574,13 @@ impl ReportBuilder {
         let mut per_type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new();
         let mut all_errors = Vec::new();
 
-        for case in &test_cases {
-            let predictions = model
-                .extract_entities(&case.text, None)
-                .unwrap_or_else(|e| {
-                    warnings.push(format!("Failed to extract entities for test case: {}", e));
-                    Vec::new()
-                });
+        for (case_index, case) in test_cases.iter().enumerate() {
+            let predictions = model.extract_entities(&case.text, None).map_err(|e| {
+                crate::Error::Inference(format!(
+                    "report extraction failed for model={} test_case={}: {}",
+                    self.model_name, case_index, e
+                ))
+            })?;
 
             total_gold += case.gold_entities.len();
             total_predicted += predictions.len();
@@ -716,17 +717,13 @@ impl ReportBuilder {
                 // Create a boxed model for EvalSystem
                 // Note: This requires cloning or wrapping the model
                 // For now, we'll use a simplified approach
-                match Self::run_bias_analysis(model) {
-                    Ok(bias_results) => Some(bias_results),
-                    Err(e) => {
-                        warnings.push(format!("Bias analysis failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_bias_analysis(model)?)
             }
             #[cfg(not(feature = "eval-bias"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "bias analysis requires the eval-bias feature".to_string(),
+                ));
             }
         } else {
             None
@@ -736,17 +733,13 @@ impl ReportBuilder {
         let calibration = if self.include_calibration {
             #[cfg(feature = "eval")]
             {
-                match Self::run_calibration_analysis(model, &test_cases) {
-                    Ok(cal_results) => Some(cal_results),
-                    Err(e) => {
-                        warnings.push(format!("Calibration analysis failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_calibration_analysis(model, &test_cases)?)
             }
             #[cfg(not(feature = "eval"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "calibration analysis requires the eval feature".to_string(),
+                ));
             }
         } else {
             None
@@ -756,23 +749,19 @@ impl ReportBuilder {
         let data_quality = if self.include_data_quality {
             #[cfg(feature = "eval")]
             {
-                match Self::run_data_quality_checks(&test_cases) {
-                    Ok(quality_results) => Some(quality_results),
-                    Err(e) => {
-                        warnings.push(format!("Data quality checks failed: {}", e));
-                        None
-                    }
-                }
+                Some(Self::run_data_quality_checks(&test_cases)?)
             }
             #[cfg(not(feature = "eval"))]
             {
-                None
+                return Err(crate::Error::FeatureNotAvailable(
+                    "data quality checks require the eval feature".to_string(),
+                ));
             }
         } else {
             None
         };
 
-        EvalReport {
+        Ok(EvalReport {
             model_name: self.model_name,
             timestamp,
             core,
@@ -783,7 +772,7 @@ impl ReportBuilder {
             calibration,
             recommendations,
             warnings,
-        }
+        })
     }
 }
 
@@ -1007,7 +996,8 @@ mod tests {
                 text: "Alice".into(),
                 gold_entities: vec![gold.clone(), gold],
             }])
-            .build(&model);
+            .build(&model)
+            .unwrap();
         assert_eq!(report.core.total_correct, 1);
         assert_eq!(report.core.total_gold, 2);
         assert_eq!(report.core.precision, 1.0);
@@ -1020,7 +1010,8 @@ mod tests {
         let model = RegexNER::new();
         let report = ReportBuilder::new("RegexNER")
             .with_error_analysis(true)
-            .build(&model);
+            .build(&model)
+            .unwrap();
 
         assert_eq!(report.model_name, "RegexNER");
         assert!(report.core.total_gold > 0);
@@ -1109,7 +1100,8 @@ mod tests {
 
         let report = ReportBuilder::new("RegexNER")
             .with_test_data(test_data)
-            .build(&model);
+            .build(&model)
+            .unwrap();
 
         // RegexNER can't detect PER/ORG, so F1 should be low
         // and recommendations should be generated
@@ -1118,5 +1110,58 @@ mod tests {
                 || !report.recommendations.is_empty()
                 || report.core.total_gold == 0
         );
+    }
+
+    #[test]
+    fn report_builder_propagates_extraction_failure_with_context() {
+        let model = anno::AnyModel::new("failing", "always fails", vec![], |_, _| {
+            Err(anno::Error::Inference("model unavailable".to_string()))
+        });
+        let error = ReportBuilder::new("failing-model")
+            .with_test_data(vec![TestCase {
+                text: "Alice".to_string(),
+                gold_entities: vec![],
+            }])
+            .build(&model)
+            .expect_err("report construction must fail when extraction fails");
+        let message = error.to_string();
+        assert!(message.contains("failing-model"));
+        assert!(message.contains("test_case=0"));
+        assert!(message.contains("model unavailable"));
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn report_builder_propagates_calibration_extraction_failure() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_model = Arc::clone(&calls);
+        let model = anno::AnyModel::new(
+            "stateful",
+            "fails during calibration",
+            vec![],
+            move |_, _| {
+                if calls_for_model.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Ok(vec![])
+                } else {
+                    Err(anno::Error::Inference(
+                        "calibration pass unavailable".to_string(),
+                    ))
+                }
+            },
+        );
+        let error = ReportBuilder::new("stateful")
+            .with_calibration(true)
+            .with_test_data(vec![TestCase {
+                text: "Alice".to_string(),
+                gold_entities: vec![],
+            }])
+            .build(&model)
+            .expect_err("calibration extraction failure must fail the report");
+        assert!(error.to_string().contains("calibration pass unavailable"));
     }
 }
