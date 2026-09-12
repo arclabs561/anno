@@ -365,7 +365,10 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
     let mut matched_preds: Vec<bool> = vec![false; predicted.len()];
 
     for gold_span in gold {
-        let entity_type_str = format!("{:?}", gold_span.entity_type);
+        let entity_type_str = format!(
+            "{:?}",
+            EntityType::from_label(gold_span.entity_type.as_label())
+        );
 
         // Find best matching prediction
         let mut best_match: Option<(usize, MatchType)> = None;
@@ -422,7 +425,10 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
             results.partial.spurious += 1;
             results.ent_type.spurious += 1;
 
-            let entity_type_str = format!("{:?}", predicted[pred_idx].entity_type);
+            let entity_type_str = format!(
+                "{:?}",
+                EntityType::from_label(predicted[pred_idx].entity_type.as_label())
+            );
             results.by_type.entry(entity_type_str).or_default().spurious += 1;
         }
     }
@@ -573,15 +579,22 @@ mod tests {
             0,
             5,
         )];
-        let pred = vec![span(
-            EntityType::custom("misc", anno::EntityCategory::Misc),
-            0,
-            5,
-        )];
+        let pred = vec![
+            span(EntityType::custom("misc", anno::EntityCategory::Misc), 0, 5),
+            span(
+                EntityType::custom("misc", anno::EntityCategory::Misc),
+                10,
+                15,
+            ),
+        ];
 
         let results = evaluate_ner(&gold, &pred);
         assert_eq!(results.strict.correct, 1);
         assert_eq!(results.ent_type.correct, 1);
+        assert_eq!(results.by_type.len(), 1);
+        let counts = results.by_type.values().next().unwrap();
+        assert_eq!(counts.correct, 1);
+        assert_eq!(counts.spurious, 1);
     }
 
     #[test]
