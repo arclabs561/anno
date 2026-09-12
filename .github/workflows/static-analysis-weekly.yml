@@ -82,7 +82,7 @@ jobs:
           ./scripts/generate-analysis-dashboard.sh || true
 
       - name: Generate code coverage
-        run: cargo llvm-cov nextest --profile quick --workspace --features "eval discourse" --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
 
       - name: Upload all reports
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
