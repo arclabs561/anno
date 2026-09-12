@@ -63,8 +63,12 @@ fn main() -> ExitCode {
     crate::cli::output::set_color_mode(cli.color);
 
     let result: Result<(), CliError> = match cli.command {
-        Some(Commands::Extract(args)) => extract::run(args),
-        Some(Commands::Debug(args)) => debug::run(args).map_err(CliError::from),
+        Some(Commands::Extract(args)) => crate::cli::config::apply_to_extract(args)
+            .map_err(CliError::from)
+            .and_then(extract::run),
+        Some(Commands::Debug(args)) => crate::cli::config::apply_to_debug(args)
+            .map_err(CliError::from)
+            .and_then(|args| debug::run(args).map_err(CliError::from)),
         Some(Commands::Eval(args)) => eval::run(args).map_err(CliError::from),
         Some(Commands::Validate(args)) => validate::run(args).map_err(CliError::from),
         Some(Commands::Analyze(args)) => analyze::run(args).map_err(CliError::from),
@@ -112,7 +116,8 @@ fn main() -> ExitCode {
                 export_graph: None,
                 text: Some(text),
                 file: None,
-                model: ModelBackend::default(),
+                model: Some(ModelBackend::default()),
+                config: None,
                 labels: vec![],
                 types: None,
                 extract_types: None,
@@ -122,7 +127,7 @@ fn main() -> ExitCode {
                 relation_max_span_distance: 120,
                 threshold: None,
                 expected_types: None,
-                format: OutputFormat::default(),
+                format: Some(OutputFormat::default()),
                 context_window: None,
                 include_sentence: false,
                 export: None,

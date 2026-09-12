@@ -59,6 +59,8 @@ eval-bias = ["eval", "anno-eval/eval-bias"]
 discourse = ["anno/discourse", "anno-eval/discourse"]
 instrument = []
 onnx = ["anno/onnx", "anno-eval/onnx"]
+# Enable the pinned Fastino backend in evaluation commands.
+gliner2-fastino = ["onnx", "anno-eval/gliner2-fastino"]
 candle = ["anno/candle"]
 heuristic-fr = ["anno/heuristic-fr", "anno-eval/heuristic-fr"]
 llm = ["anno/llm"]
