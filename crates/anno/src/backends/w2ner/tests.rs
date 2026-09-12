@@ -2,6 +2,14 @@ use super::*;
 use crate::backends::inference::HandshakingCell;
 use crate::EntityCategory;
 
+#[cfg(feature = "onnx")]
+#[test]
+fn offline_mode_never_auto_exports_w2ner() {
+    assert!(!w2ner_auto_export_enabled(true, false, Some("true")));
+    assert!(!w2ner_auto_export_enabled(true, false, None));
+    assert!(w2ner_auto_export_enabled(false, false, Some("true")));
+}
+
 #[test]
 fn test_w2ner_relation_conversion() {
     assert_eq!(W2NERRelation::from_index(0), W2NERRelation::None);

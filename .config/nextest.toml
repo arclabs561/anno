@@ -56,9 +56,34 @@ default-filter = "not test(/property/) and not test(/proptest/) and not test(/ev
 # Keep them in the quick gate, but avoid concurrent model-loading contention and
 # allow the normal 120-second budget (the fixture alone takes about 30 seconds).
 [[profile.quick.overrides]]
-filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or test(convenience_tests::) or test(backends::tplinker::tests::) or test(test_default_includes_ml_backend_when_available) or test(test_strategy_default_is_priority) or test(fixture_documents_structure_and_min_counts))'
+filter = 'package(anno) and (test(annotated::tests::) or test(batch_tests::) or test(convenience_tests::) or test(backends::tplinker::tests::) or test(test_default_includes_ml_backend_when_available) or test(test_strategy_default_is_priority) or test(fixture_documents_structure_and_min_counts) or test(enrich_findings::all_backends_))'
 test-group = 'model-initialization'
 slow-timeout = { period = "60s", terminate-after = 2 }
+
+# These metadata tests instantiate production defaults, which may load cached ONNX models.
+# Keep their assertions in quick coverage while applying the existing initialized-model budget.
+[[profile.quick.overrides]]
+filter = 'package(anno) and test(=backends::ensemble::tests::test_new_backend_ids_have_weights)'
+test-group = 'model-initialization'
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+[[profile.quick.overrides]]
+filter = 'package(anno-cli) and test(=cli::parser::tests::test_stacked_default_has_ml_backend_when_available)'
+test-group = 'model-initialization'
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+# =============================================================================
+# Coverage Profile
+# =============================================================================
+
+# LLVM instrumentation makes model-backed extraction tests slower. Coverage
+# intentionally runs the full nonignored suite for its selected workspace and
+# feature set, with a bounded per-test budget and concurrency.
+[profile.coverage]
+retries = 0
+default-filter = "all()"
+slow-timeout = { period = "60s", terminate-after = 2 }
+test-threads = 2
 
 # =============================================================================
 # ML Profile - for ML backend tests

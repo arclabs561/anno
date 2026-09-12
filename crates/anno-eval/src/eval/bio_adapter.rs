@@ -154,8 +154,9 @@ pub fn bio_to_entities<S: AsRef<str>>(
     let mut current_offset = 0;
     for token in tokens {
         let token_str = token.as_ref();
-        offsets.push((current_offset, current_offset + token_str.len()));
-        current_offset += token_str.len() + 1; // +1 for space
+        let token_len = token_str.chars().count();
+        offsets.push((current_offset, current_offset + token_len));
+        current_offset += token_len + 1; // +1 for space
     }
 
     let mut entities = Vec::new();
@@ -846,6 +847,18 @@ mod tests {
         // "John" (4) + space (1) + "Smith" (5) = 10, but text is "John Smith"
         // start of "John" = 0, end of "Smith" = 4 + 1 + 5 = 10
         assert_eq!(entities[0].end(), 10);
+    }
+
+    #[test]
+    fn test_character_offsets_with_non_ascii_token() {
+        let tokens = ["田中", "München"];
+        let tags = ["O", "B-LOC"];
+
+        let entities = bio_to_entities(&tokens, &tags, BioScheme::IOB2).unwrap();
+
+        assert_eq!(entities[0].start(), 3);
+        assert_eq!(entities[0].end(), 10);
+        assert_eq!(entities[0].text, "München");
     }
 
     #[test]
