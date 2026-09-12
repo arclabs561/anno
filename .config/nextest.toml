@@ -76,11 +76,12 @@ slow-timeout = { period = "60s", terminate-after = 2 }
 # Coverage Profile
 # =============================================================================
 
-# LLVM instrumentation makes the quick suite slower, especially for
-# model-backed extraction tests. Inherit quick's selected test set and retry
-# policy, then bound concurrency across the instrumented coverage suite.
+# LLVM instrumentation makes model-backed extraction tests slower. Coverage
+# intentionally runs the full nonignored suite for its selected workspace and
+# feature set, with a bounded per-test budget and concurrency.
 [profile.coverage]
-inherits = "quick"
+retries = 0
+default-filter = "all()"
 slow-timeout = { period = "60s", terminate-after = 2 }
 test-threads = 2
 
