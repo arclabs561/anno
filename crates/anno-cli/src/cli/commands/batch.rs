@@ -17,6 +17,7 @@
 //! Cache entries are never evicted automatically; use `anno cache clear` to flush.
 
 use super::super::parser::{ModelBackend, OutputFormat};
+use super::super::utils::validate_path_component;
 use clap::Parser;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
@@ -759,6 +760,10 @@ fn write_outputs(documents: &[anno::GroundedDocument], args: &BatchArgs) -> Resu
     }
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| format!("Failed to create output dir '{}': {}", out_dir.display(), e))?;
+
+    for doc in documents {
+        validate_path_component(doc.id(), "document id")?;
+    }
 
     for doc in documents {
         match args.format {
