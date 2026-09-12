@@ -619,7 +619,7 @@ test-nextest:
 coverage:
     @which cargo-llvm-cov > /dev/null || (echo "Install: cargo install cargo-llvm-cov" && exit 1)
     @which cargo-nextest > /dev/null || (echo "Install: cargo install cargo-nextest" && exit 1)
-    cargo llvm-cov nextest --profile quick --workspace --features "eval discourse" --lcov --output-path lcov.info
+    cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
     @echo "Coverage report generated: lcov.info"
     @echo "View with: genhtml lcov.info -o coverage-html && open coverage-html/index.html"
 
