@@ -1644,6 +1644,14 @@ impl DatasetLoader {
             )));
         }
         dataset.data_source = DataSource::LocalCache;
+        if let Ok(manifest) = self.manifest.read() {
+            if let Some(entry) = manifest.get(dataset_id.cache_filename()) {
+                if self.compute_sha256(&content) != entry.sha256 {
+                    return Err(Error::InvalidInput("Cached dataset checksum differs from its manifest; refresh the dataset cache".into()));
+                }
+                Self::apply_manifest_provenance(&mut dataset, entry);
+            }
+        }
         Ok(dataset)
     }
 
@@ -1673,6 +1681,12 @@ impl DatasetLoader {
 
                 // Best-effort: if S3 provides a manifest entry, record it locally.
                 if let Some(entry) = manifest_entry {
+                    if self.compute_sha256(&content) != entry.sha256 {
+                        return Err(Error::InvalidInput(
+                            "S3 dataset checksum differs from its manifest".into(),
+                        ));
+                    }
+                    Self::apply_manifest_provenance(&mut dataset, &entry);
                     let _ = self.update_manifest(entry);
                 }
                 return Ok(dataset);
@@ -1694,6 +1708,12 @@ impl DatasetLoader {
         // 5. Parse the content
         let mut dataset = self.parse_content_impl(&content, dataset_id)?;
         dataset.data_source = DataSource::OriginalUrl;
+        // Parsing starts from registry metadata, but an HF fallback may have selected a concrete
+        // held-out split. Preserve the actual artifact rather than reporting the registry page.
+        dataset.source_url = resolved_url.clone();
+        dataset.metadata.original_source = Some(resolved_url.clone());
+        dataset.metadata.split = Self::evaluation_split_from_url(&resolved_url);
+        dataset.metadata.version = Some(format!("sha256:{sha256}"));
 
         // 6. Update manifest with download metadata
         let entry = CacheManifestEntry {
@@ -2257,6 +2277,130 @@ impl DatasetLoader {
         )
     }
 
+    /// Choose a held-out HF split. Training data is never an evaluation fallback.
+    #[cfg(feature = "eval")]
+    fn select_hf_evaluation_split(
+        splits: &[serde_json::Value],
+        preferred_config: Option<&str>,
+    ) -> Result<(String, String)> {
+        fn rank(split: &str) -> Option<u8> {
+            match split.to_ascii_lowercase().as_str() {
+                "test" => Some(0),
+                "validation" | "valid" | "dev" => Some(1),
+                _ => None,
+            }
+        }
+
+        let preferred = preferred_config
+            .map(str::trim)
+            .filter(|config| !config.is_empty());
+        for config_filter in [preferred, None] {
+            let chosen = splits
+                .iter()
+                .filter_map(|entry| {
+                    let config = entry.get("config")?.as_str()?;
+                    let split = entry.get("split")?.as_str()?;
+                    if config_filter.is_some_and(|wanted| config != wanted) {
+                        return None;
+                    }
+                    Some((rank(split)?, config, split))
+                })
+                .min_by_key(|(rank, config, split)| (*rank, *config, *split));
+            if let Some((_, config, split)) = chosen {
+                return Ok((config.to_string(), split.to_string()));
+            }
+        }
+
+        Err(Error::InvalidInput(
+            "HF dataset has no test, validation, or dev split; refusing to evaluate on train data"
+                .to_string(),
+        ))
+    }
+
+    fn evaluation_split_from_url(url: &str) -> Option<String> {
+        let (path, query) = url.split_once('?').unwrap_or((url, ""));
+        if let Some(split) = query
+            .split('&')
+            .find_map(|pair| pair.strip_prefix("split="))
+        {
+            return match split {
+                "test" | "validation" | "valid" | "dev" => Some(split.into()),
+                _ => None,
+            };
+        }
+        // Ignore the hostname and repository name: "test-corpus/train.jsonl" is train.
+        let path = path
+            .split_once("/resolve/")
+            .map(|(_, rest)| rest.split_once('/').map_or("", |(_, file)| file))
+            .unwrap_or_else(|| path.rsplit('/').next().unwrap_or(path));
+        Self::evaluation_split_from_path(path).map(str::to_owned)
+    }
+
+    fn evaluation_split_from_path(path: &str) -> Option<&'static str> {
+        let name = path.to_ascii_lowercase();
+        let parts: Vec<_> = name.split(|c: char| !c.is_ascii_alphanumeric()).collect();
+        if parts
+            .iter()
+            .any(|part| matches!(*part, "train" | "training"))
+        {
+            return None;
+        }
+        ["test", "validation", "valid", "dev"]
+            .into_iter()
+            .find(|split| parts.contains(split))
+    }
+
+    #[cfg(feature = "eval")]
+    fn hf_evaluation_file_rank(filename: &str) -> Option<(u8, u8, usize)> {
+        let split_rank = if Self::evaluation_split_from_path(filename)? == "test" {
+            0
+        } else {
+            1
+        };
+        let name = filename.to_ascii_lowercase();
+        let extension_rank = if name.ends_with(".jsonl") {
+            0
+        } else if [".conll", ".bio", ".iob", ".iob2"]
+            .iter()
+            .any(|ext| name.ends_with(ext))
+        {
+            1
+        } else if name.ends_with(".tsv") {
+            2
+        } else if name.ends_with(".txt") {
+            3
+        } else {
+            return None;
+        };
+        Some((split_rank, extension_rank, filename.len()))
+    }
+
+    fn apply_manifest_provenance(dataset: &mut LoadedDataset, entry: &CacheManifestEntry) {
+        let source = entry.resolved_url.as_ref().unwrap_or(&entry.source_url);
+        dataset.source_url = source.clone();
+        dataset.metadata.original_source = Some(source.clone());
+        dataset.metadata.split = Self::evaluation_split_from_url(source);
+        dataset.metadata.version = Some(format!("sha256:{}", entry.sha256));
+    }
+
+    #[cfg(feature = "eval")]
+    fn select_hf_evaluation_file(siblings: &[serde_json::Value]) -> Result<String> {
+        siblings
+            .iter()
+            .filter_map(|entry| entry.get("rfilename").and_then(|value| value.as_str()))
+            .filter_map(|filename| {
+                Self::hf_evaluation_file_rank(filename).map(|rank| (rank, filename))
+            })
+            .min_by_key(|(rank, filename)| (*rank, *filename))
+            .map(|(_, filename)| filename.to_string())
+            .ok_or_else(|| {
+                Error::InvalidInput(
+                    "HF dataset has no recognizable test, validation, or dev file; refusing to evaluate on train data"
+                        .to_string(),
+                )
+            })
+    }
+
     /// Resolve a usable (config, split) pair for a HF dataset via datasets-server, with an optional
     /// preferred config.
     #[cfg(feature = "eval")]
@@ -2297,48 +2441,8 @@ impl DatasetLoader {
                 Error::InvalidInput("HF splits response missing `splits`".to_string())
             })?;
 
-        // Prefer smaller/eval splits if present, otherwise pick the first split.
-        // If `preferred_config` is provided, try to pick a split within that config first.
-        let mut chosen = None;
-        let prefer = preferred_config.map(|s| s.trim()).filter(|s| !s.is_empty());
-
-        for pass in 0..2 {
-            for s in splits {
-                let config = s.get("config").and_then(|v| v.as_str());
-                let split = s.get("split").and_then(|v| v.as_str());
-                if let (Some(config), Some(split)) = (config, split) {
-                    // Pass 0: only consider preferred config. Pass 1: consider any config.
-                    if pass == 0 {
-                        if let Some(p) = prefer {
-                            if config != p {
-                                continue;
-                            }
-                        } else {
-                            // No preference: skip pass 0.
-                            break;
-                        }
-                    }
-
-                    if split == "test" {
-                        chosen = Some((config.to_string(), split.to_string()));
-                        break;
-                    }
-                    if chosen.is_none() {
-                        chosen = Some((config.to_string(), split.to_string()));
-                    }
-                }
-            }
-            if chosen.is_some() {
-                break;
-            }
-        }
-
-        chosen.ok_or_else(|| {
-            Error::InvalidInput(format!(
-                "HF splits endpoint returned no usable (config, split) for dataset {}",
-                dataset
-            ))
-        })
+        Self::select_hf_evaluation_split(splits, preferred_config)
+            .map_err(|error| Error::InvalidInput(format!("HF dataset {}: {}", dataset, error)))
     }
 
     /// Best-effort fallback: download a raw dataset file from the HuggingFace Hub.
@@ -2386,98 +2490,22 @@ impl DatasetLoader {
                 Error::InvalidInput("HF dataset metadata missing `siblings`".to_string())
             })?;
 
-        // Prefer smaller / eval-friendly splits, but fall back to whatever exists.
-        //
-        // Many HF dataset repos store raw source files (CoNLL/TSV/etc.) instead of JSONL,
-        // often under subdirectories. We handle both.
-        let preferred = [
-            // JSONL (common)
-            "dev.jsonl",
-            "validation.jsonl",
-            "test.jsonl",
-            "train.jsonl",
-        ];
-        let mut chosen: Option<String> = None;
+        // Raw Hub files must name a held-out split. Do not turn a train-only repository into an
+        // evaluation benchmark merely because its file is parseable.
+        let filename = Self::select_hf_evaluation_file(siblings)
+            .map_err(|error| Error::InvalidInput(format!("HF dataset {}: {}", dataset, error)))?;
 
-        for want in preferred {
-            if siblings.iter().any(|s| {
-                s.get("rfilename")
-                    .and_then(|v| v.as_str())
-                    .is_some_and(|f| f == want)
-            }) {
-                chosen = Some(want.to_string());
-                break;
-            }
-        }
-
-        if chosen.is_none() {
-            // Otherwise, pick a file we can plausibly parse (allow subdirectories).
-            //
-            // Priority:
-            // - contains split hint: test > dev/valid > train
-            // - extension: jsonl > conll/bio/iob/tsv/txt
-            //
-            // This is still best-effort; the parser selection is handled elsewhere via the dataset id.
-            fn split_rank(name: &str) -> u8 {
-                let n = name.to_lowercase();
-                if n.contains("test") {
-                    0
-                } else if n.contains("dev") || n.contains("valid") || n.contains("validation") {
-                    1
-                } else if n.contains("train") {
-                    2
-                } else {
-                    3
-                }
-            }
-            fn ext_rank(name: &str) -> u8 {
-                let n = name.to_lowercase();
-                if n.ends_with(".jsonl") {
-                    0
-                } else if n.ends_with(".conll")
-                    || n.ends_with(".bio")
-                    || n.ends_with(".iob")
-                    || n.ends_with(".iob2")
-                {
-                    1
-                } else if n.ends_with(".tsv") {
-                    2
-                } else if n.ends_with(".txt") {
-                    3
-                } else {
-                    9
-                }
-            }
-
-            let mut candidates: Vec<String> = siblings
-                .iter()
-                .filter_map(|s| {
-                    s.get("rfilename")
-                        .and_then(|v| v.as_str())
-                        .map(|f| f.to_string())
-                })
-                .filter(|f| ext_rank(f) < 9)
-                .collect();
-
-            candidates.sort_by(|a, b| {
-                (split_rank(a), ext_rank(a), a.len()).cmp(&(split_rank(b), ext_rank(b), b.len()))
-            });
-
-            chosen = candidates.first().cloned();
-        }
-
-        let Some(filename) = chosen else {
-            return Err(Error::InvalidInput(format!(
-                "No downloadable .jsonl file discovered for HF dataset {}",
-                dataset
-            )));
-        };
-
-        // Download file via resolve (use main; can be made content-addressed later via `sha`).
-        let file_url = format!(
-            "https://huggingface.co/datasets/{}/resolve/main/{}",
-            dataset, filename
-        );
+        // Pin the selected file to the metadata revision, so subsequent fetches cannot
+        // silently change the artifact while this request is in flight.
+        let revision = json
+            .get("sha")
+            .and_then(|sha| sha.as_str())
+            .filter(|sha| !sha.is_empty() && sha.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .ok_or_else(|| {
+                Error::InvalidInput("HF dataset metadata missing revision SHA".into())
+            })?;
+        let file_url =
+            format!("https://huggingface.co/datasets/{dataset}/resolve/{revision}/{filename}");
 
         // Best-effort: avoid downloading huge files if a max byte limit is configured.
         if let Some(limit) = Self::max_download_bytes() {
@@ -2960,36 +2988,17 @@ impl DatasetLoader {
     }
 
     /// Compute SHA256 checksum of content.
-    #[cfg(feature = "eval")]
     fn compute_sha256(&self, content: &str) -> String {
-        #[cfg(feature = "eval")]
-        {
-            use sha2::{Digest, Sha256};
-            let mut hasher = Sha256::new();
-            hasher.update(content.as_bytes());
-            // `sha2` 0.10's GenericArray implements LowerHex, while the
-            // generic-array 1 output used by `sha2` 0.11 does not. Encode
-            // the digest bytes directly so the checksum representation stays
-            // stable across both supported dependency versions.
-            const HEX: &[u8; 16] = b"0123456789abcdef";
-            hasher
-                .finalize()
-                .iter()
-                .fold(String::with_capacity(64), |mut checksum, &byte| {
-                    checksum.push(HEX[usize::from(byte >> 4)] as char);
-                    checksum.push(HEX[usize::from(byte & 0x0f)] as char);
-                    checksum
-                })
-        }
-        #[cfg(not(feature = "eval"))]
-        {
-            // Fallback if sha2 not available
-            use std::collections::hash_map::DefaultHasher;
-            use std::hash::{Hash, Hasher};
-            let mut hasher = DefaultHasher::new();
-            content.hash(&mut hasher);
-            format!("{:x}", hasher.finish())
-        }
+        use sha2::{Digest, Sha256};
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        Sha256::digest(content.as_bytes()).iter().fold(
+            String::with_capacity(64),
+            |mut checksum, &byte| {
+                checksum.push(HEX[usize::from(byte >> 4)] as char);
+                checksum.push(HEX[usize::from(byte & 0x0f)] as char);
+                checksum
+            },
+        )
     }
 
     /// Get temporal metadata for a dataset if available.
@@ -7013,6 +7022,91 @@ fn map_entity_type(original: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_dataset_retains_provenance_and_rejects_modified_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let content = "Alice B-PER\nworks O\n\n";
+        std::fs::write(loader.cache_path(id), content).unwrap();
+        let entry = CacheManifestEntry {
+            dataset_id: id.0.cache_filename().into(),
+            source_url: id.0.download_url().into(),
+            resolved_url: Some(
+                "https://huggingface.co/datasets/owner/corpus/resolve/abcd/dev.conll".into(),
+            ),
+            sha256: loader.compute_sha256(content),
+            file_size: content.len() as u64,
+            downloaded_at: "fixture".into(),
+            sentence_count: 1,
+            entity_count: 1,
+            anno_version: "fixture".into(),
+        };
+        loader.manifest.write().unwrap().update_entry(entry.clone());
+        let loaded = loader.load(id).unwrap();
+        assert_eq!(loaded.source_url, entry.resolved_url.unwrap());
+        assert_eq!(loaded.metadata.split.as_deref(), Some("dev"));
+        assert_eq!(
+            loaded.metadata.version,
+            Some(format!("sha256:{}", entry.sha256))
+        );
+        // Same-size edits evade a size-only check.
+        std::fs::write(loader.cache_path(id), content.replace("Alice", "Bobby")).unwrap();
+        assert!(loader
+            .load(id)
+            .unwrap_err()
+            .to_string()
+            .contains("checksum"));
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn evaluation_fallback_selects_held_out_data_and_records_actual_split() {
+        use serde_json::json;
+        let files = [
+            json!({"rfilename":"train.jsonl"}),
+            json!({"rfilename":"dev.jsonl"}),
+            json!({"rfilename":"en/test.conll"}),
+        ];
+        assert_eq!(
+            DatasetLoader::select_hf_evaluation_file(&files).unwrap(),
+            "en/test.conll"
+        );
+        for name in [
+            "train.jsonl",
+            "latest.jsonl",
+            "contest.txt",
+            "test/train.jsonl",
+        ] {
+            assert!(
+                DatasetLoader::select_hf_evaluation_file(&[json!({"rfilename":name})]).is_err(),
+                "{name}"
+            );
+        }
+        let splits = [
+            json!({"config":"en","split":"train"}),
+            json!({"config":"en","split":"dev"}),
+            json!({"config":"en","split":"test"}),
+        ];
+        assert_eq!(
+            DatasetLoader::select_hf_evaluation_split(&splits, Some("en")).unwrap(),
+            ("en".into(), "test".into())
+        );
+        assert!(DatasetLoader::select_hf_evaluation_split(&splits[..1], None).is_err());
+        assert_eq!(
+            DatasetLoader::evaluation_split_from_url(
+                "https://huggingface.co/datasets/owner/test-corpus/resolve/abcd/en/dev.jsonl"
+            ),
+            Some("dev".into())
+        );
+        assert_eq!(
+            DatasetLoader::evaluation_split_from_url(
+                "https://huggingface.co/datasets/owner/test-corpus/resolve/abcd/train.jsonl"
+            ),
+            None
+        );
+    }
 
     #[cfg(feature = "eval")]
     #[test]

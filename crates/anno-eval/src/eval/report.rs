@@ -19,7 +19,7 @@
 //! println!("{}", report.summary());
 //! ```
 
-use anno::{Model, Result};
+use anno::{Entity, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -584,17 +584,16 @@ impl ReportBuilder {
             total_gold += case.gold_entities.len();
             total_predicted += predictions.len();
 
-            // Match predictions to gold
-            for gold in &case.gold_entities {
+            // Match predictions to gold one-to-one. A model can emit duplicate entities, and a
+            // test set can contain duplicate annotations, so a prediction must not credit more
+            // than one gold entity.
+            let matched_predictions = match_prediction_indices(&case.gold_entities, &predictions);
+            for (gold_index, gold) in case.gold_entities.iter().enumerate() {
                 let type_key = gold.entity_type.clone();
                 let entry = per_type_stats.entry(type_key.clone()).or_insert((0, 0, 0));
                 entry.0 += 1; // gold count
 
-                let matched = predictions.iter().any(|p| {
-                    p.start() == gold.start
-                        && p.end() == gold.end
-                        && p.entity_type.as_label() == gold.entity_type
-                });
+                let matched = matched_predictions[gold_index];
 
                 if matched {
                     total_correct += 1;
@@ -897,6 +896,33 @@ fn chrono_lite_timestamp() -> String {
     format!("{}s since epoch", duration.as_secs())
 }
 
+/// Return the gold entities that can be credited by a distinct exact-match prediction.
+///
+/// Predictions are reserved in gold order, which makes the result deterministic for duplicate
+/// annotations while preserving the report's exact-span, exact-label metric definition.
+fn match_prediction_indices(
+    gold_entities: &[SimpleGoldEntity],
+    predictions: &[Entity],
+) -> Vec<bool> {
+    let mut used_predictions = vec![false; predictions.len()];
+
+    gold_entities
+        .iter()
+        .map(|gold| {
+            let Some((index, _)) = predictions.iter().enumerate().find(|(index, prediction)| {
+                !used_predictions[*index]
+                    && prediction.start() == gold.start
+                    && prediction.end() == gold.end
+                    && prediction.entity_type.as_label() == gold.entity_type
+            }) else {
+                return false;
+            };
+            used_predictions[index] = true;
+            true
+        })
+        .collect()
+}
+
 fn default_synthetic_cases() -> Vec<TestCase> {
     // Minimal synthetic test set for quick evaluation
     vec![
@@ -953,6 +979,40 @@ fn default_synthetic_cases() -> Vec<TestCase> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_gold_cannot_reuse_one_prediction() {
+        let gold = SimpleGoldEntity {
+            text: "Alice".into(),
+            entity_type: "PER".into(),
+            start: 0,
+            end: 5,
+        };
+        let model = anno::AnyModel::new(
+            "one",
+            "one prediction",
+            vec![anno::EntityType::Person],
+            |_, _| {
+                Ok(vec![Entity::new(
+                    "Alice",
+                    anno::EntityType::Person,
+                    0,
+                    5,
+                    1.0,
+                )])
+            },
+        );
+        let report = ReportBuilder::new("one")
+            .with_test_data(vec![TestCase {
+                text: "Alice".into(),
+                gold_entities: vec![gold.clone(), gold],
+            }])
+            .build(&model);
+        assert_eq!(report.core.total_correct, 1);
+        assert_eq!(report.core.total_gold, 2);
+        assert_eq!(report.core.precision, 1.0);
+        assert_eq!(report.core.recall, 0.5);
+    }
 
     #[test]
     fn test_report_builder_basic() {
