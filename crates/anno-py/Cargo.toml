@@ -26,7 +26,8 @@ doctest = false
 # abi3-py39: one wheel per platform covers Python 3.9+.
 pyo3 = { version = "0.29", features = ["abi3-py39"] }
 # default-features = false drops `onnx` (ort C++ runtime + model downloads).
-# StackedNER then stacks RegexNER + HeuristicNER: zero deps, works offline.
+# The Python binding explicitly assembles RegexNER + HeuristicNER for its
+# offline API, including when the optional `onnx` feature is enabled.
 # `heuristic-fr` is pattern-based (no models, no deps), kept to match the
 # crate's default set minus onnx.
 anno = { path = "../anno", default-features = false, features = ["heuristic-fr"] }
@@ -36,6 +37,9 @@ default = []
 # Enabled by maturin (see pyproject.toml). Off by default so
 # `cargo check -p anno-py` and `cargo test` link normally.
 extension-module = ["pyo3/extension-module"]
+# Opt-in model-backed extractors. Keep the wheel default offline: ONNX Runtime
+# and model retrieval are only included when a caller builds with this feature.
+onnx = ["anno/onnx"]
 
 [lints]
 workspace = true
