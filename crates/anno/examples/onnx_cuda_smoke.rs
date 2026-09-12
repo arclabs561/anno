@@ -17,24 +17,26 @@
 //! - `ort/cuda` links cleanly against the host's CUDA runtime (we caught a
 //!   glibc 2.35 vs 2.38 mismatch on Ubuntu 22.04 here -- the AWS smoke uses
 //!   Ubuntu 24.04 / glibc 2.39).
-//! - `OnnxSessionConfig::prefer_cuda = true` flows through `create_onnx_session`
-//!   into ort's `with_execution_providers([CUDAExecutionProvider::default().build()])`
-//!   without erroring -- meaning ort accepts the EP registration request.
+//! - `OnnxExecutionProvider::Cuda` flows through
+//!   `create_onnx_session_with_provider` into ort's
+//!   `CUDAExecutionProvider::default().build().error_on_failure()`. CUDA must
+//!   register or the smoke exits with an error; it cannot silently fall back
+//!   during provider registration.
 //! - The model loads successfully under the resulting session.
 //!
-//! ## What this does NOT validate (deferred)
+//! ## What this does NOT validate
 //!
-//! - **Silent CPU fallback.** ort 2.0's known failure mode: feature compiles,
-//!   EP "loads" without erroring, but actual ops dispatch to CPU because the
-//!   underlying runtime library cannot handle the model. Detecting this needs
-//!   a timing comparison (CUDA-on vs CUDA-off) on the same model -- but doing
-//!   that reliably requires getting model input shapes + types exactly right,
-//!   which is brittle for general models. A future iteration should either
-//!   route through anno's `GLiNEROnnx` backend (which knows the inputs) with
-//!   a `prefer_cuda` toggle, or vendor a tiny known-input ONNX fixture for
-//!   this purpose.
+//! - **Full graph placement.** Successful EP registration proves CUDA was
+//!   available to ONNX Runtime. It does not prove every model node runs on the
+//!   GPU, because ONNX Runtime may assign unsupported nodes to CPU.
 //!
 //! Exit code: 0 on session-creation success, non-zero on any earlier failure.
+//!
+//! ## Model source
+//!
+//! Pass one optional positional path to load a local `.onnx` file without a
+//! network request. With no argument, the smoke retains its default download
+//! of `onnx-community/gliner_small-v2.1`.
 
 #[cfg(not(all(feature = "onnx", feature = "onnx-cuda")))]
 fn main() {
@@ -46,7 +48,7 @@ fn main() {
 
 #[cfg(all(feature = "onnx", feature = "onnx-cuda"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use anno::{create_onnx_session, OnnxSessionConfig};
+    use anno::{create_onnx_session_with_provider, OnnxExecutionProvider, OnnxSessionConfig};
     use hf_hub::api::sync::Api;
 
     // Same model anno's gliner_onnx backend exercises -- if this loads, the
@@ -54,21 +56,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const MODEL_REPO: &str = "onnx-community/gliner_small-v2.1";
     const MODEL_FILE: &str = "onnx/model.onnx";
 
-    eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
-    let api = Api::new()?;
-    let repo = api.model(MODEL_REPO.to_string());
-    let model_path = repo.get(MODEL_FILE)?;
+    let mut args = std::env::args_os();
+    let _program = args.next();
+    let model_path = match (args.next(), args.next()) {
+        (Some(path), None) => {
+            let path = std::path::PathBuf::from(path);
+            if !path.is_file() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("local ONNX model is not a file: {}", path.display()),
+                )
+                .into());
+            }
+            path
+        }
+        (Some(_), Some(_)) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "usage: onnx_cuda_smoke [path/to/model.onnx]",
+            )
+            .into());
+        }
+        (None, _) => {
+            eprintln!("[smoke] downloading {}/{}", MODEL_REPO, MODEL_FILE);
+            let api = Api::new()?;
+            let repo = api.model(MODEL_REPO.to_string());
+            repo.get(MODEL_FILE)?
+        }
+    };
     eprintln!("[smoke] model at {}", model_path.display());
 
-    // OnnxSessionConfig is `#[non_exhaustive]` so struct-literal construction
-    // does not work from outside the `anno` crate. Mutate a default instead --
-    // this is the pattern external users adopt.
-    let mut cfg = OnnxSessionConfig::default();
-    cfg.prefer_cuda = true;
-    cfg.use_cpu_provider = true; // CPU as fallback so session loads even if CUDA op-coverage is incomplete
-
-    eprintln!("[smoke] building session with prefer_cuda=true");
-    let session = create_onnx_session(&model_path, cfg)?;
+    eprintln!("[smoke] building session with CUDA registration required");
+    let session = create_onnx_session_with_provider(
+        &model_path,
+        OnnxSessionConfig::default(),
+        OnnxExecutionProvider::Cuda,
+    )?;
 
     // List input names for visibility -- if these surface, the model graph
     // parsed and the session is ready. Inputs are model-specific; for
@@ -79,6 +102,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!("  - {}", input.name());
     }
 
-    eprintln!("[smoke] PASS (session-creation validated; inference benchmark deferred)");
+    eprintln!("[smoke] PASS (CUDA provider registered; graph placement is model-dependent)");
     Ok(())
 }

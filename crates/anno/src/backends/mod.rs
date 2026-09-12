@@ -131,7 +131,7 @@
 pub(crate) mod macros;
 
 /// Shared HuggingFace model loading and ONNX session construction utilities.
-#[cfg(any(feature = "onnx", feature = "candle"))]
+#[cfg(all(any(feature = "onnx", feature = "candle"), not(target_arch = "wasm32")))]
 pub(crate) mod hf_loader;
 
 /// Coreference resolution backends (trait, neural, heuristic).
@@ -337,7 +337,7 @@ pub mod gliner_onnx;
 pub mod onnx;
 
 // Pure Rust via Candle
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub mod candle;
 
 #[cfg(feature = "candle")]
@@ -347,7 +347,7 @@ pub mod encoder_candle;
 pub mod gliner_candle;
 
 // GLiNER multi-task extraction (ONNX or Candle)
-#[cfg(any(feature = "onnx", feature = "candle"))]
+#[cfg(any(feature = "onnx", all(feature = "candle", not(target_arch = "wasm32"))))]
 pub mod gliner_multitask;
 
 // GLiNER2 fastino-ai backend
@@ -387,7 +387,7 @@ pub use gliner_onnx::GLiNEROnnx;
 #[cfg(feature = "onnx")]
 pub use onnx::BertNEROnnx;
 
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub use candle::CandleNER;
 
 #[cfg(feature = "candle")]
@@ -397,7 +397,7 @@ pub use encoder_candle::{EncoderArchitecture, EncoderConfig};
 pub use gliner_candle::GLiNERCandle;
 
 // GLiNER multi-task model
-#[cfg(any(feature = "onnx", feature = "candle"))]
+#[cfg(any(feature = "onnx", all(feature = "candle", not(target_arch = "wasm32"))))]
 pub use gliner_multitask::{
     ClassificationResult, ClassificationTask, EntityTask, ExtractedStructure, ExtractionResult,
     FieldType, GLiNERMultitask, StructureTask, StructureValue, TaskSchema,
@@ -406,7 +406,7 @@ pub use gliner_multitask::{
 #[cfg(feature = "onnx")]
 pub use gliner_multitask::GLiNERMultitaskOnnx;
 
-#[cfg(feature = "candle")]
+#[cfg(all(feature = "candle", not(target_arch = "wasm32")))]
 pub use gliner_multitask::GLiNERMultitaskCandle;
 
 // CorefCluster is always available (lives in coref::resolve, not feature-gated).
