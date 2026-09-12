@@ -49,7 +49,7 @@ pub struct EvalReport {
     /// Error analysis (if enabled)
     pub errors: Option<ErrorSummary>,
 
-    /// Bias analysis (if enabled and applicable)
+    /// Demographic NER bias analysis (if enabled)
     pub bias: Option<BiasSummary>,
 
     /// Data quality findings (if enabled)
@@ -319,8 +319,10 @@ impl ReportBuilder {
         self
     }
 
-    /// Include bias analysis (default: false).
-    /// Only meaningful for models that detect PER/ORG entities.
+    /// Include demographic NER bias analysis (default: false).
+    ///
+    /// This builder evaluates the supplied [`Model`] on person-name examples.
+    /// It cannot evaluate coreference gender bias because no coreference resolver is supplied.
     pub fn with_bias_analysis(mut self, include: bool) -> Self {
         self.include_bias = include;
         self
@@ -345,29 +347,25 @@ impl ReportBuilder {
         self
     }
 
-    /// Run bias analysis using EvalSystem.
+    /// Run demographic NER bias analysis for the supplied model.
     #[cfg(feature = "eval-bias")]
-    fn run_bias_analysis<M: Model>(model: &M) -> Result<BiasSummary> {
-        use crate::eval::coref_resolver::SimpleCorefResolver;
+    fn run_bias_analysis<M: Model>(model: &M, warnings: &mut Vec<String>) -> Result<BiasSummary> {
         use crate::eval::demographic_bias::{
             create_diverse_name_dataset, DemographicBiasEvaluator,
         };
-        use crate::eval::gender_bias::{create_winobias_templates, GenderBiasEvaluator};
 
-        // Run demographic bias analysis
+        // This API receives a NER model, not a coreference resolver. Do not
+        // substitute a default resolver and attribute its result to `model`.
+        warnings.push(
+            "Gender bias is unavailable because ReportBuilder has no supplied coreference resolver."
+                .to_string(),
+        );
+
         let names = create_diverse_name_dataset();
         let evaluator = DemographicBiasEvaluator::new(true);
-        let demo_results = evaluator.evaluate_ner(model, &names);
+        let demo_results = evaluator.try_evaluate_ner(model, &names)?;
 
-        // Gender bias (coreference)
-        let resolver = SimpleCorefResolver::default();
-        let templates = create_winobias_templates();
-        let gender_evaluator = GenderBiasEvaluator::new(true);
-        let gender_results = gender_evaluator.evaluate_resolver(&resolver, &templates);
-
-        // Determine if bias was detected
-        let bias_detected =
-            gender_results.bias_gap > 0.1 || demo_results.ethnicity_parity_gap > 0.1;
+        let bias_detected = demo_results.ethnicity_parity_gap > 0.1;
 
         // Find underperforming groups
         let mut underperforming_groups = Vec::new();
@@ -379,16 +377,7 @@ impl ReportBuilder {
 
         Ok(BiasSummary {
             bias_detected,
-            gender: Some(GenderBiasMetrics {
-                pro_stereotype_accuracy: gender_results.pro_stereotype_accuracy,
-                anti_stereotype_accuracy: gender_results.anti_stereotype_accuracy,
-                gap: gender_results.bias_gap,
-                verdict: if gender_results.bias_gap > 0.1 {
-                    "Significant gender bias detected".to_string()
-                } else {
-                    "No significant gender bias".to_string()
-                },
-            }),
+            gender: None,
             demographic: Some(DemographicBiasMetrics {
                 max_gap: demo_results
                     .ethnicity_parity_gap
@@ -710,14 +699,11 @@ impl ReportBuilder {
             None
         };
 
-        // Bias analysis (if enabled) - use EvalSystem
+        // Demographic NER bias analysis
         let bias = if self.include_bias {
             #[cfg(feature = "eval-bias")]
             {
-                // Create a boxed model for EvalSystem
-                // Note: This requires cloning or wrapping the model
-                // For now, we'll use a simplified approach
-                Some(Self::run_bias_analysis(model)?)
+                Some(Self::run_bias_analysis(model, &mut warnings)?)
             }
             #[cfg(not(feature = "eval-bias"))]
             {
@@ -1128,6 +1114,44 @@ mod tests {
         assert!(message.contains("failing-model"));
         assert!(message.contains("test_case=0"));
         assert!(message.contains("model unavailable"));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_bias_is_demographic_ner_only() {
+        let model = anno::AnyModel::new("empty", "returns no entities", vec![], |_, _| Ok(vec![]));
+
+        let report = ReportBuilder::new("empty")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect("demographic bias report should succeed");
+
+        let bias = report.bias.expect("requested bias analysis is present");
+        assert!(bias.gender.is_none());
+        assert!(report.warnings.iter().any(|warning| {
+            warning.contains("Gender bias is unavailable because ReportBuilder")
+        }));
+    }
+
+    #[cfg(feature = "eval-bias")]
+    #[test]
+    fn report_builder_propagates_requested_bias_inference_failure() {
+        let model = anno::AnyModel::new("failing", "fails during bias", vec![], |_, _| {
+            Err(anno::Error::Inference(
+                "bias backend unavailable".to_string(),
+            ))
+        });
+
+        let error = ReportBuilder::new("failing")
+            .with_bias_analysis(true)
+            .with_test_data(vec![])
+            .build(&model)
+            .expect_err("requested bias analysis must propagate inference failure");
+
+        let message = error.to_string();
+        assert!(message.contains("demographic bias extraction failed for name_index=0"));
+        assert!(message.contains("bias backend unavailable"));
     }
 
     #[cfg(feature = "eval")]

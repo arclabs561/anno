@@ -16,8 +16,11 @@
 - T5 coreference aligns decoder annotations against the complete source token sequence before returning source spans.
 - CADEC first-token spans and RAMS inclusive multi-token spans parse correctly. Bridging evaluation matches typed links once within their document.
 - Evaluation failures remain errors across report and task paths; relation reports disclose gold-entity oracle use.
+- Demographic bias reports propagate inference failures and omit coreference gender scores without a supplied resolver. `DemographicBiasEvaluator::try_evaluate_ner` exposes checked evaluation while the legacy helper retains its prior behavior.
+- Singleton analysis clusters the extracted entities locally without appending duplicate mentions; corpus identity previews agree with collision-safe allocation.
 - Unavailable calibration, data-quality and temporal analyses no longer emit proxy or invented measurements.
 - Spot workers survive empty queue polls and emit machine-readable benchmark artifacts; test profiling uses one Nextest run with structured output separated from diagnostics.
+- Profiling excludes ignored tests from execution counts and timing averages.
 
 ### Removed
 

@@ -42,7 +42,7 @@
 //! // let results = evaluator.evaluate_ner(&RegexNER::new(), &names);
 //! ```
 
-use crate::{EntityType, Model};
+use crate::{EntityType, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -306,6 +306,12 @@ pub struct DemographicBiasEvaluator {
     pub config: crate::eval::bias_config::BiasDatasetConfig,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum InferenceFailurePolicy {
+    TreatAsMiss,
+    Propagate,
+}
+
 impl DemographicBiasEvaluator {
     /// Create a new evaluator.
     pub fn new(detailed: bool) -> Self {
@@ -324,7 +330,29 @@ impl DemographicBiasEvaluator {
     }
 
     /// Evaluate NER model for demographic bias on names.
+    ///
+    /// This legacy convenience API treats failed inference as an unrecognized
+    /// name. Use [`Self::try_evaluate_ner`] when failures must remain visible.
     pub fn evaluate_ner(&self, model: &dyn Model, names: &[NameExample]) -> DemographicBiasResults {
+        self.evaluate_ner_with_policy(model, names, InferenceFailurePolicy::TreatAsMiss)
+            .expect("TreatAsMiss demographic bias evaluation cannot fail")
+    }
+
+    /// Evaluate NER model for demographic bias while propagating inference failures.
+    pub fn try_evaluate_ner(
+        &self,
+        model: &dyn Model,
+        names: &[NameExample],
+    ) -> Result<DemographicBiasResults> {
+        self.evaluate_ner_with_policy(model, names, InferenceFailurePolicy::Propagate)
+    }
+
+    fn evaluate_ner_with_policy(
+        &self,
+        model: &dyn Model,
+        names: &[NameExample],
+        failure_policy: InferenceFailurePolicy,
+    ) -> Result<DemographicBiasResults> {
         let mut by_ethnicity: HashMap<String, (usize, usize)> = HashMap::new();
         let mut by_script: HashMap<String, (usize, usize)> = HashMap::new();
         let mut by_gender: HashMap<String, (usize, usize)> = HashMap::new();
@@ -336,12 +364,21 @@ impl DemographicBiasEvaluator {
         let mut recognized_flags = Vec::new();
         let mut name_strings = Vec::new();
 
-        for name_example in names {
+        for (name_index, name_example) in names.iter().enumerate() {
             // Create test sentence with realistic context
             let text = create_realistic_sentence(&name_example.name);
 
-            // Extract entities
-            let entities = model.extract_entities(&text, None).unwrap_or_default();
+            let entities = match model.extract_entities(&text, None) {
+                Ok(entities) => entities,
+                Err(error) => match failure_policy {
+                    InferenceFailurePolicy::TreatAsMiss => Vec::new(),
+                    InferenceFailurePolicy::Propagate => {
+                        return Err(crate::Error::Inference(format!(
+                            "demographic bias extraction failed for name_index={name_index}: {error}"
+                        )));
+                    }
+                },
+            };
 
             // Check if name was recognized as PERSON
             let recognized = entities.iter().any(|e| {
@@ -513,7 +550,7 @@ impl DemographicBiasEvaluator {
             None
         };
 
-        DemographicBiasResults {
+        Ok(DemographicBiasResults {
             overall_recognition_rate: if names.is_empty() {
                 0.0
             } else {
@@ -532,7 +569,7 @@ impl DemographicBiasEvaluator {
             statistical,
             frequency_weighted,
             distribution_validation,
-        }
+        })
     }
 
     /// Evaluate NER model for regional bias on locations.
@@ -2792,6 +2829,76 @@ pub fn create_diverse_location_dataset() -> Vec<LocationExample> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_names() -> Vec<NameExample> {
+        vec![
+            NameExample::new(
+                "Ada",
+                "Lovelace",
+                Ethnicity::European,
+                Script::Latin,
+                Some(Gender::Feminine),
+                NameFrequency::Common,
+            ),
+            NameExample::new(
+                "Grace",
+                "Hopper",
+                Ethnicity::European,
+                Script::Latin,
+                Some(Gender::Feminine),
+                NameFrequency::Common,
+            ),
+        ]
+    }
+
+    #[test]
+    fn strict_ner_bias_evaluation_stops_at_first_inference_error() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_model = Arc::clone(&calls);
+        let model = anno::AnyModel::new("failing", "fails", vec![], move |_, _| {
+            calls_for_model.fetch_add(1, Ordering::SeqCst);
+            Err(anno::Error::Inference("backend unavailable".to_string()))
+        });
+
+        let error = DemographicBiasEvaluator::default()
+            .try_evaluate_ner(&model, &test_names())
+            .expect_err("strict evaluation must preserve inference failures");
+
+        assert!(error
+            .to_string()
+            .contains("demographic bias extraction failed for name_index=0"));
+        assert!(error.to_string().contains("backend unavailable"));
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn legacy_ner_bias_evaluation_continues_after_inference_error() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_for_model = Arc::clone(&calls);
+        let model = anno::AnyModel::new("intermittent", "fails once", vec![], move |_, _| {
+            if calls_for_model.fetch_add(1, Ordering::SeqCst) == 0 {
+                Err(anno::Error::Inference("transient failure".to_string()))
+            } else {
+                Ok(vec![])
+            }
+        });
+        let names = test_names();
+
+        let results = DemographicBiasEvaluator::default().evaluate_ner(&model, &names);
+
+        assert_eq!(results.total_tested, names.len());
+        assert_eq!(calls.load(Ordering::SeqCst), names.len());
+    }
 
     #[test]
     fn test_create_diverse_names() {
