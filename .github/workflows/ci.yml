@@ -200,6 +200,17 @@ jobs:
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Test optional bias analysis
         run: cargo test -p anno-eval --lib --features "eval eval-bias" bias
+      # These paths are disabled by default but change evaluator scheduling and
+      # profiling receipts. Keep a focused portable test gate for them.
+      - name: Test parallel and profiling evaluation features
+        run: cargo test -p anno-eval --lib --features "eval eval-parallel eval-profiling"
+      # Test the CLI's portable optional surface together. This includes
+      # the lightweight HTML extractor configuration, whose bin tests are not
+      # reached by the workspace `--lib` cross-platform command below.
+      - name: Test portable CLI feature bundle
+        run: >-
+          cargo test -p anno-cli --all-targets --no-default-features
+          --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
       - name: Run integration tests
         run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
@@ -508,6 +519,9 @@ jobs:
         run: |
           echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
           echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
+          # Keep current-run evidence outside restored cache state so the outcome gate cannot
+          # pass on decision records from an earlier workflow run.
+          echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl" >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
@@ -536,9 +550,9 @@ jobs:
           key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
           restore-keys: |
             anno-datasets-${{ runner.os }}-v3-
-      # Muxer history + eval history in their own cache lineage so MAB learning and
-      # dataset observation counts are never overwritten by test-eval/eval-sanity writes.
-      - name: Cache muxer state and eval history (persistent MAB learning)
+      # Preserve state used by the randomized and worst-first samples when a matching cache is
+      # available. Cache restoration is best-effort and does not prove selector convergence.
+      - name: Cache matrix history for later sampled runs (best effort)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -552,7 +566,7 @@ jobs:
       - name: Build matrix sampler harness (enable ML backends)
         run: cargo build -p anno-eval --features "onnx,eval,discourse"
       - name: Run randomized matrix test (NER)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: ner
           ANNO_SAMPLE_STRATEGY: random
@@ -564,7 +578,7 @@ jobs:
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (RE)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: re
           ANNO_SAMPLE_STRATEGY: random
@@ -574,7 +588,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Coref)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: coref
           ANNO_SAMPLE_STRATEGY: random
@@ -584,7 +598,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Temporal)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
+        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
           ANNO_MATRIX_PERSPECTIVE: temporal
           ANNO_SAMPLE_STRATEGY: random
@@ -595,7 +609,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run worst-first matrix test (+ regression detection)
         run: |
-          cargo test -p anno-eval --lib --features "onnx,eval,discourse" test_randomized_matrix_sample -- --nocapture
+          cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
@@ -606,6 +620,28 @@ jobs:
           # Enable regression detection (emits warnings when Cohen's d >= 2.0 over 20+ obs).
           # Non-fatal: fires on stderr, does not fail the job.
           ANNO_CHECK_REGRESSIONS: "1"
+      - name: Verify matrix decision log
+        if: always()
+        run: |
+          if [ ! -s "$ANNO_MUXER_DECISIONS_FILE" ]; then
+            echo "::error::Matrix sampler produced no decision/outcome JSONL; inspect the matrix test logs."
+            exit 1
+          fi
+          outcome_count="$(grep -c '"record_type":"outcome"' "$ANNO_MUXER_DECISIONS_FILE" || true)"
+          if [ "${outcome_count:-0}" -eq 0 ]; then
+            echo "::error::Matrix sampler produced no non-skipped evaluation outcomes; inspect the matrix test logs."
+            exit 1
+          fi
+          printf 'matrix outcome records: %s\n' "$outcome_count"
+      - name: Upload matrix decision and outcome log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: matrix-muxer-decisions
+          path: |
+            ${{ runner.temp }}/muxer-decisions.jsonl
+            Cargo.lock
+          if-no-files-found: warn
   # ==========================================================================
   # F1 Unit Tests (evaluator math invariants)
   # Note: actual eval-history regression detection runs in matrix-test (worst-first step,
@@ -723,25 +759,17 @@ jobs:
         env:
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
           # Note: cli feature is included in eval via script
-      - name: Ensure sanity report exists
-        if: always()
-        run: |
-          mkdir -p reports
-          if [ ! -f reports/eval-sanity-report.md ]; then
-            printf '%s\n' \
-              '# Eval sanity report' \
-              '' \
-              '_Report was not generated by the script; see job logs._' \
-              > reports/eval-sanity-report.md
-          fi
-      - name: Upload sanity report
+      - name: Upload sanity reports
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: eval-sanity-report
-          path: reports/eval-sanity-report.md
-          if-no-files-found: error
+          path: |
+            reports/eval-sanity-report.md
+            reports/eval-sanity-report.json
+          if-no-files-found: warn
   # ==========================================================================
   # Full Evaluations (only on eval-* branches or manual trigger)
   # ==========================================================================

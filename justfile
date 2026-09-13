@@ -221,12 +221,12 @@ matrix strategy="random" seed="" perspective="ner":
     export ANNO_SAMPLE_STRATEGY={{strategy}}
     export ANNO_MATRIX_PERSPECTIVE={{perspective}}
     if [ -n "{{seed}}" ]; then export ANNO_CI_SEED={{seed}}; fi
-    cargo test -p anno-eval --lib --features "eval discourse" test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
 
 # Run matrix test with ML backends (requires onnx/candle features)
 matrix-ml:
     @echo "Running ML-focused matrix test..."
-    @ANNO_SAMPLE_STRATEGY=ml-only ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --lib --features "eval onnx" test_randomized_matrix_sample -- --nocapture
+    @ANNO_SAMPLE_STRATEGY=ml-only ANNO_ML_IN_MATRIX=1 cargo test -p anno-eval --lib --features "eval onnx" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
 
 # Show backend availability matrix
 matrix-backends:
@@ -1022,7 +1022,7 @@ ci-matrix-local SEED="42" PERSPECTIVE="ner":
     ANNO_MATRIX_PERSPECTIVE="{{PERSPECTIVE}}" \
     ANNO_SAMPLE_STRATEGY=worst-first \
     ANNO_MUXER_PROFILE=fast \
-    cargo test -p anno-eval --lib --features "eval discourse" matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
+    cargo test -p anno-eval --lib --features "eval discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
 
 # Legacy: spot “badness history” export is not wired into the muxer JSON format by default.
 # Detect regressions in the quality matrix.
@@ -1039,7 +1039,7 @@ check-regressions SEED="42":
     ANNO_MUXER_BACKENDS_PER_RUN=4 \
     ANNO_MUXER_FIXED_DATASETS=WikiGold,Wnut17,MasakhaNER \
     cargo test --release -p anno-eval --lib --features "eval onnx" \
-        matrix_muxer_ci::test_randomized_matrix_sample -- --nocapture
+        muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
 
 spot-export-badness:
     @echo "Not implemented: spot -> muxer history export. Run ci-matrix-local to generate muxer_history.json from local runs."

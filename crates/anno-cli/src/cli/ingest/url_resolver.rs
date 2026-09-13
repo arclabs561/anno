@@ -248,6 +248,7 @@ mod tests {
     // Readability extraction
     // =========================================================================
 
+    #[cfg(feature = "extractor-readability")]
     #[test]
     fn readability_extracts_article_text() {
         // dom_smoothie needs a substantial article body to trigger extraction.
@@ -304,6 +305,7 @@ mod tests {
         assert!(title.is_some(), "should extract title");
     }
 
+    #[cfg(feature = "extractor-readability")]
     #[test]
     fn readability_returns_none_for_minimal_html() {
         let html = "<html><body><p>Hi</p></body></html>";
@@ -314,12 +316,14 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "extractor-readability")]
     #[test]
     fn readability_returns_none_for_empty_html() {
         let result = deformat::html::extract_with_readability("", "https://example.com");
         assert!(result.is_none(), "should return None for empty HTML");
     }
 
+    #[cfg(feature = "extractor-readability")]
     #[test]
     fn readability_returns_none_for_nav_only_page() {
         let html = r#"<html><body>

@@ -156,7 +156,7 @@ pub struct TaskEvalConfig {
     pub max_examples: Option<usize>,
     /// Random seed for sampling (for reproducibility and varied testing)
     pub seed: Option<u64>,
-    /// Whether to skip datasets that aren't cached
+    /// Whether to require a local cached dataset and forbid all download fallbacks.
     pub require_cached: bool,
     /// Confidence threshold for relation extraction (default: 0.5)
     pub relation_threshold: f32,
@@ -468,7 +468,7 @@ impl TaskEvaluator {
             .ok();
 
         Ok(Self {
-            loader: DatasetLoader::new()?,
+            loader: DatasetLoader::with_cache_dir(cache_path)?,
             mapping: TaskMapping::build(),
             per_example_scores_cache: Mutex::new(None),
             history,
@@ -834,15 +834,6 @@ impl TaskEvaluator {
                 if !datasets_used.contains(dataset) {
                     datasets_used.push(*dataset);
                 }
-                // Note: `require_cached` is treated as “prefer cache” rather than “never download”.
-                // The loader’s strategy is:
-                // - local cache
-                // - S3 cache (if enabled)
-                // - URL download
-                //
-                // CI uses S3 (when configured) to keep matrix runs stable, but it should still
-                // attempt downloads when caches are cold to avoid a no-op run.
-
                 // Get compatible backends for this task
                 let backends: Vec<String> = if config.backends.is_empty() {
                     get_task_backends(*task)
@@ -915,7 +906,11 @@ impl TaskEvaluator {
                         {
                             let loadable = crate::eval::LoadableDatasetId::try_from(*dataset)
                                 .map_err(|e| crate::Error::InvalidInput(format!("{}", e)))?;
-                            self.loader.load_or_download(loadable)
+                            if config.require_cached {
+                                self.loader.load(loadable)
+                            } else {
+                                self.loader.load_or_download(loadable)
+                            }
                         }
                         #[cfg(not(feature = "eval"))]
                         {
@@ -1064,7 +1059,7 @@ impl TaskEvaluator {
             // Stacked combines pattern+heuristic, so it's compatible with most types
             "stacked" => true,
             // Classical backends in this repo are trained/implemented for CoNLL-style tags.
-            "crf" | "hmm" => {
+            "crf" | "hmm" | "heuristic_crf" => {
                 let supported = [
                     "person",
                     "per",
@@ -2452,7 +2447,14 @@ impl TaskEvaluator {
             match self.loader.load_coref(dataset_data.id) {
                 Ok(docs) => {
                     if docs.is_empty() {
-                        // If load_coref returns empty, try downloading first
+                        // A cached-only run must not refresh an empty cache entry.
+                        if config.require_cached {
+                            return Err(crate::Error::InvalidInput(format!(
+                                "Coreference dataset {:?} has no documents in the local cache; cached-only evaluation forbids downloading",
+                                dataset_data.id
+                            )));
+                        }
+                        // If load_coref returns empty, try downloading first.
                         #[cfg(feature = "eval")]
                         {
                             if let Err(e) = self.loader.load_or_download_coref(dataset_data.id) {
@@ -2476,7 +2478,14 @@ impl TaskEvaluator {
                     }
                 }
                 Err(e) => {
-                    // Try downloading if not cached
+                    // A cached-only run must not refresh a missing or invalid cache entry.
+                    if config.require_cached {
+                        return Err(crate::Error::InvalidInput(format!(
+                            "Coreference dataset {:?} is not usable from the local cache: {}; cached-only evaluation forbids downloading",
+                            dataset_data.id, e
+                        )));
+                    }
+                    // Try downloading if not cached.
                     #[cfg(feature = "eval")]
                     {
                         if let Err(dl_err) = self.loader.load_or_download_coref(dataset_data.id) {
@@ -3003,11 +3012,17 @@ impl TaskEvaluator {
             evaluate_relations, RelationEvalConfig, RelationGold, RelationPrediction,
         };
 
-        // Load gold relations from dataset (try download if not cached)
+        // Load gold relations from cache, with an opt-in download fallback.
         let relation_docs = match self.loader.load_relation(dataset_data.id) {
             Ok(docs) => docs,
-            Err(_) => {
-                // If not cached, try downloading (if eval feature enabled)
+            Err(e) => {
+                if config.require_cached {
+                    return Err(crate::Error::InvalidInput(format!(
+                        "Relations for {:?} are not usable from the local cache: {}; cached-only evaluation forbids downloading",
+                        dataset_data.id, e
+                    )));
+                }
+                // If not cached, try downloading (if eval feature enabled).
                 #[cfg(feature = "eval")]
                 {
                     match self.loader.load_or_download_relation(dataset_data.id) {
@@ -4511,7 +4526,19 @@ impl TaskEvaluator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::loader::DatasetId;
+    use crate::eval::loader::{DataSource, DatasetId, DatasetMetadata, LoadedDataset};
+
+    fn empty_dataset(id: DatasetId) -> LoadedDataset {
+        LoadedDataset {
+            id,
+            sentences: vec![],
+            loaded_at: "test".into(),
+            source_url: "fixture".into(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        }
+    }
 
     #[cfg(feature = "eval-parallel")]
     #[test]
@@ -4555,6 +4582,78 @@ mod tests {
     }
 
     #[test]
+    fn cached_only_uses_the_provided_empty_cache_without_downloading() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        assert_eq!(evaluator.loader.cache_dir(), cache.path());
+
+        let results = evaluator
+            .evaluate_all(TaskEvalConfig {
+                tasks: vec![Task::NER],
+                datasets: vec![DatasetId::WikiGold],
+                backends: vec!["stacked".to_string()],
+                require_cached: true,
+                ..Default::default()
+            })
+            .expect("cached-only evaluation records an unavailable dataset");
+
+        assert_eq!(results.results.len(), 1);
+        let result = &results.results[0];
+        assert!(!result.success);
+        assert!(
+            result
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("not cached")),
+            "cached-only evaluation should fail from the isolated cache before model or network fallback: {result:?}"
+        );
+    }
+
+    #[test]
+    fn cached_only_coref_does_not_refresh_a_missing_cache_entry() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let config = TaskEvalConfig {
+            require_cached: true,
+            ..Default::default()
+        };
+
+        let error = evaluator
+            .evaluate_coref_task(
+                Task::IntraDocCoref,
+                "coref_resolver",
+                &empty_dataset(DatasetId::GAP),
+                &config,
+            )
+            .expect_err("cached-only coreference must not refresh the cache");
+
+        assert!(error.to_string().contains("GAP"));
+        assert!(error
+            .to_string()
+            .contains("cached-only evaluation forbids downloading"));
+    }
+
+    #[test]
+    fn cached_only_relation_does_not_refresh_a_missing_cache_entry() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let config = TaskEvalConfig {
+            require_cached: true,
+            ..Default::default()
+        };
+        let model = anno::AnyModel::new("no-op", "test model", vec![], |_, _| Ok(vec![]));
+
+        let error = evaluator
+            .evaluate_relation_task("no-op", &model, &empty_dataset(DatasetId::DocRED), &config)
+            .expect_err("cached-only relation evaluation must not refresh the cache");
+
+        assert!(error.to_string().contains("DocRED"));
+        assert!(error
+            .to_string()
+            .contains("cached-only evaluation forbids downloading"));
+    }
+
+    #[test]
     fn test_type_mapping_domain_specific() {
         // Test domain-specific type mappings (MIT Movie, MIT Restaurant, etc.)
         use super::TaskEvaluator;
@@ -4590,7 +4689,7 @@ mod tests {
 
     #[test]
     fn test_classical_backend_dataset_compatibility_gate() {
-        // CRF/HMM in this repo are CoNLL-style: they should be compatible with PER/LOC/ORG/MISC
+        // Classical backends are CoNLL-style: they should be compatible with PER/LOC/ORG/MISC
         // datasets, but excluded from datasets with different type inventories (e.g. WNUT-17).
         assert!(TaskEvaluator::is_backend_compatible(
             "crf",
@@ -4600,6 +4699,10 @@ mod tests {
             "hmm",
             DatasetId::CoNLL2003Sample
         ));
+        assert!(TaskEvaluator::is_backend_compatible(
+            "heuristic_crf",
+            DatasetId::CoNLL2003Sample
+        ));
 
         assert!(!TaskEvaluator::is_backend_compatible(
             "crf",
@@ -4607,6 +4710,10 @@ mod tests {
         ));
         assert!(!TaskEvaluator::is_backend_compatible(
             "hmm",
+            DatasetId::Wnut17
+        ));
+        assert!(!TaskEvaluator::is_backend_compatible(
+            "heuristic_crf",
             DatasetId::Wnut17
         ));
     }
