@@ -55,6 +55,30 @@ developers or coding agents; it does not require a particular harness.
    with `anno benchmark --help`, retaining JSON results and source/model hashes.
    Keep datasets and seeds identical when comparing revisions.
 
+   For the tracked fixed, cached-only panel, build the CLI with the features it
+   needs, then let the panel helper invoke that already-built binary. The helper
+   is intentionally a result-contract validator: it does not select models,
+   download datasets, or recalculate scores. Its JSON and Markdown summaries
+   live in the receipt directory.
+
+   Build the required feature set through the active development/CI lane, then
+   select that already-built executable explicitly. Use a fresh receipt
+   directory for every execution: the helper refuses to overwrite stale
+   per-seed artifacts so a failed or minimal binary cannot pass using old JSON.
+
+   ```bash
+   REC="$PWD/.generated/anno-qa/fixed-panel-001"
+   just qa-panel "$PWD/target/debug/anno" smoke "$REC"
+   ```
+
+   Run `--suite ner-baseline`, `classical-ner`, or `coref-diagnostic` only
+   after their caches and optional backends have been prepared. A selected suite
+   requires every listed cell and seed; the manifest records the few expected
+   incompatibilities. Missing output, duplicate cells, an unexpected skip or
+   error, empty success, nonfinite metric, legacy provenance, and non-cached
+   receipt all fail the contract. To re-check retained output without executing
+   a backend, use `--validate-only` with the same manifest and receipt path.
+
 5. Use muxer to allocate the remaining budget according to the question:
 
    | Question | Evidence to seek |
