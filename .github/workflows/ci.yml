@@ -45,7 +45,15 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-all-crates: true
-      - run: cargo check --workspace --all-targets
+      - name: Run portable check command
+        run: ./scripts/ci-portable.sh check
+      - name: Upload portable check receipts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: ci-check-receipts
+          path: reports/ci-check
+          if-no-files-found: warn
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -74,6 +82,8 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
+      - name: Test fixed QA panel contracts (offline fixtures)
+        run: python3 -m unittest discover -s scripts/qa -p 'test_*.py'
       - name: Test BERT trace artifact identity (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_compare_bert_onnx_traces.py
       - name: Test HuggingFace downloader regression (offline fixtures)
@@ -757,6 +767,7 @@ jobs:
       - name: Run sanity check evaluations
         run: ./scripts/eval-sanity.sh
         env:
+          ANNO_ARTIFACT_DIR: reports
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
