@@ -25,6 +25,13 @@ for e in ents:
 
 For repeated calls, reuse an extractor: `ex = anno_py.Extractor()`, then `ex.extract(text)`.
 
+Each entity also exposes optional `source`, `method`, and `model_version`
+fields when its producing backend recorded provenance. `source` identifies the
+layer that produced that entity, which can differ across results from a stacked
+extractor. It does not identify the requested extractor configuration or prove
+model artifact selection or device placement. `model_version` remains `None`
+when the backend did not record one; it is never inferred from a backend name.
+
 ## Optional ONNX models
 
 Model-backed extraction is opt-in. Build the extension with the `onnx` Cargo
