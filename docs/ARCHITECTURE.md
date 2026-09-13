@@ -52,6 +52,8 @@ If you feel pressure to add a dependency "upwards" (e.g. anno -> anno-eval), tha
 - **Evaluation lives in `anno-eval`**
   - Dataset downloading/parsing, metrics aggregation, and muxer selection live here.
   - The eval code should call into `anno` backends via the `anno` API surface.
+  - See [Evaluation sampling](EVALUATION_SAMPLING.md) for fixed-panel checks,
+    adaptive triage, and the limits of selector evidence.
 
 - **UX and I/O live in `anno-cli`**
   - Reading/writing files, rendering tables/HTML, progress bars, and argument parsing live here.

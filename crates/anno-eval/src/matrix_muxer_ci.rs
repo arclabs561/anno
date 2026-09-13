@@ -127,8 +127,10 @@ use std::sync::{Mutex, OnceLock};
 // Local compat types for logging (removed from muxer >= 0.3.12)
 // ---------------------------------------------------------------------------
 
-/// Local version constant for JSONL decision logs.
-const MUXER_VERSION: &str = "0.3.12-local";
+/// The dependency does not expose its resolved package version. Keep the
+/// legacy log field explicit about that gap; a compatibility-shim version is
+/// not the muxer version. Retain Cargo.lock with reproducible run artifacts.
+const MUXER_VERSION: &str = "unrecorded";
 
 /// Score kind tag for MAB scalar scores in decision logs.
 const LOG_SCORE_KIND_MAB_SCALAR: &str = "mab_scalar";

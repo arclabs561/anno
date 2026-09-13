@@ -24,6 +24,7 @@ cargo run --release -p anno-cli --bin anno --features "eval onnx" -- benchmark \
     --datasets CoNLL2003Sample,WikiGold,Wnut17,WikiANN,MasakhaNER \
     --backends heuristic,stacked,bert_onnx,gliner_onnx \
     --max-examples "${MAX_EXAMPLES}" \
+    --seed "${RANDOM_SEED}" \
     --output reports/eval-sanity-report.md \
     --cached-only || {
     echo "Sanity check failed"
@@ -32,4 +33,3 @@ cargo run --release -p anno-cli --bin anno --features "eval onnx" -- benchmark \
 
 echo "Sanity check passed"
 cat reports/eval-sanity-report.md
-
