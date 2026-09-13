@@ -766,6 +766,10 @@ pub fn is_ascii(text: &str) -> bool {
 pub struct SpanConverter {
     byte_to_char: Vec<usize>,
     char_to_byte: Vec<usize>,
+    // ASCII offsets are an identity mapping, but we still retain the boundary
+    // so the allocation-free fast path has the same out-of-bounds behavior as
+    // the Unicode mapping tables.
+    ascii_len: usize,
     is_ascii: bool,
 }
 
@@ -779,12 +783,14 @@ impl SpanConverter {
             Self {
                 byte_to_char: Vec::new(),
                 char_to_byte: Vec::new(),
+                ascii_len: text.len(),
                 is_ascii: true,
             }
         } else {
             Self {
                 byte_to_char: build_byte_to_char_map(text),
                 char_to_byte: build_char_to_byte_map(text),
+                ascii_len: 0,
                 is_ascii: false,
             }
         }
@@ -808,7 +814,17 @@ impl SpanConverter {
     #[must_use]
     pub fn byte_to_char(&self, byte_idx: usize) -> usize {
         if self.is_ascii {
-            byte_idx
+            #[cfg(debug_assertions)]
+            if byte_idx > self.ascii_len {
+                debug_assert!(
+                    byte_idx <= self.ascii_len.saturating_add(1),
+                    "byte_idx {} out of bounds (max valid: {}, ASCII text len: {})",
+                    byte_idx,
+                    self.ascii_len,
+                    self.ascii_len,
+                );
+            }
+            byte_idx.min(self.ascii_len)
         } else {
             self.byte_to_char.get(byte_idx).copied().unwrap_or_else(|| {
                 // Bounds check: byte_idx should be <= text.len() (inclusive end position)
@@ -838,7 +854,7 @@ impl SpanConverter {
     #[must_use]
     pub fn byte_to_char_ceil(&self, byte_idx: usize) -> usize {
         if self.is_ascii {
-            return byte_idx;
+            return self.byte_to_char(byte_idx);
         }
         let floor = self.byte_to_char(byte_idx);
         // If byte_idx is exactly on a character boundary, floor is correct.
@@ -889,7 +905,17 @@ impl SpanConverter {
     #[must_use]
     pub fn char_to_byte(&self, char_idx: usize) -> usize {
         if self.is_ascii {
-            char_idx
+            #[cfg(debug_assertions)]
+            if char_idx > self.ascii_len {
+                debug_assert!(
+                    char_idx <= self.ascii_len.saturating_add(1),
+                    "char_idx {} out of bounds (max valid: {}, ASCII text len: {})",
+                    char_idx,
+                    self.ascii_len,
+                    self.ascii_len,
+                );
+            }
+            char_idx.min(self.ascii_len)
         } else {
             self.char_to_byte.get(char_idx).copied().unwrap_or_else(|| {
                 // Bounds check: char_idx should be <= char_count (inclusive end position)
@@ -1063,6 +1089,56 @@ mod tests {
         assert!(conv.is_ascii());
         assert_eq!(conv.byte_to_char(5), 5);
         assert_eq!(conv.char_to_byte(5), 5);
+    }
+
+    #[test]
+    fn converter_ascii_matches_unicode_end_and_empty_boundaries() {
+        let ascii = SpanConverter::new("hello");
+        let unicode = SpanConverter::new("héllo");
+
+        // Both map the valid exclusive end and the tolerated one-past-end
+        // position to their respective final character/byte boundary.
+        assert_eq!(ascii.byte_to_char(5), 5);
+        assert_eq!(ascii.byte_to_char(6), 5);
+        assert_eq!(ascii.char_to_byte(5), 5);
+        assert_eq!(ascii.char_to_byte(6), 5);
+        assert_eq!(ascii.byte_to_char_ceil(6), 5);
+
+        assert_eq!(unicode.byte_to_char(6), 5);
+        assert_eq!(unicode.byte_to_char(7), 5);
+        assert_eq!(unicode.char_to_byte(5), 6);
+        assert_eq!(unicode.char_to_byte(6), 6);
+        assert_eq!(unicode.byte_to_char_ceil(7), 5);
+
+        let empty = SpanConverter::new("");
+        assert!(empty.is_ascii());
+        assert_eq!(empty.byte_to_char(0), 0);
+        assert_eq!(empty.byte_to_char(1), 0);
+        assert_eq!(empty.char_to_byte(0), 0);
+        assert_eq!(empty.char_to_byte(1), 0);
+        assert_eq!(empty.byte_to_char_ceil(1), 0);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "byte_idx")]
+    fn converter_ascii_rejects_far_out_of_bounds_byte_offset_in_debug() {
+        let _ = SpanConverter::new("hello").byte_to_char(usize::MAX);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "char_idx")]
+    fn converter_ascii_rejects_far_out_of_bounds_char_offset_in_debug() {
+        let _ = SpanConverter::new("").char_to_byte(usize::MAX);
+    }
+
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn converter_ascii_clamps_far_out_of_bounds_offsets_in_release() {
+        let converter = SpanConverter::new("hello");
+        assert_eq!(converter.byte_to_char(usize::MAX), 5);
+        assert_eq!(converter.char_to_byte(usize::MAX), 5);
     }
 
     #[test]
