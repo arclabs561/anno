@@ -85,6 +85,15 @@ pub struct EvalHistoryEntry {
     pub error: Option<String>,
     /// Additional metadata (JSON string for flexibility)
     pub metadata: Option<String>,
+    /// Opaque muxer/evaluation join key, when this observation came from a muxer run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
+    /// Enclosing muxer run ID, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub muxer_run_id: Option<String>,
+    /// Pre-selection muxer cohort; this is not an artifact-controlled quality comparison.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_cohort_key: Option<String>,
 }
 
 /// On-disk JSONL representation of an evaluation entry.
@@ -119,6 +128,9 @@ impl From<&TaskEvalResult> for EvalHistoryEntry {
             duration_ms: result.duration_ms,
             error: result.error.clone(),
             metadata: serde_json::to_string(result).ok(),
+            observation_id: result.provenance.observation_id.clone(),
+            muxer_run_id: result.provenance.muxer_run_id.clone(),
+            policy_cohort_key: result.provenance.policy_cohort_key.clone(),
         }
     }
 }
@@ -400,7 +412,23 @@ impl EvalHistory {
 
         // Schema evolution: add git_commit column if not present.
         // This enables change-point detection tied to specific code versions.
-        let _ = conn.execute("ALTER TABLE eval_results ADD COLUMN git_commit TEXT", []); // Silently ignore if column already exists.
+        let _ = conn.execute("ALTER TABLE eval_results ADD COLUMN git_commit TEXT", []);
+        // Ignore the duplicate-column result for indexes created by earlier versions.
+        // These optional cohort and join columns retain the JSONL receipt's muxer
+        // linkage in the query index. Existing indexes remain readable.
+        let _ = conn.execute(
+            "ALTER TABLE eval_results ADD COLUMN observation_id TEXT",
+            [],
+        );
+        let _ = conn.execute("ALTER TABLE eval_results ADD COLUMN muxer_run_id TEXT", []);
+        let _ = conn.execute(
+            "ALTER TABLE eval_results ADD COLUMN policy_cohort_key TEXT",
+            [],
+        );
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_policy_cohort_cell ON eval_results(policy_cohort_key, backend, dataset)",
+            [],
+        )?;
 
         Ok(())
     }
@@ -427,8 +455,9 @@ impl EvalHistory {
         conn.execute(
             "INSERT INTO eval_results (
                 timestamp, backend, dataset, task, seed,
-                f1, precision, recall, n, duration_ms, error, metadata, git_commit
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                f1, precision, recall, n, duration_ms, error, metadata, git_commit,
+                observation_id, muxer_run_id, policy_cohort_key
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             params![
                 entry.timestamp,
                 entry.backend,
@@ -443,6 +472,9 @@ impl EvalHistory {
                 entry.error,
                 entry.metadata,
                 git_commit,
+                entry.observation_id,
+                entry.muxer_run_id,
+                entry.policy_cohort_key,
             ],
         )
         .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -481,7 +513,8 @@ impl EvalHistory {
             .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
         let mut stmt = conn
             .prepare(
-                "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
              FROM eval_results
              WHERE backend = ?1
              ORDER BY timestamp DESC
@@ -504,6 +537,9 @@ impl EvalHistory {
                     duration_ms: row.get(9)?,
                     error: row.get(10)?,
                     metadata: row.get(11)?,
+                    observation_id: row.get(12)?,
+                    muxer_run_id: row.get(13)?,
+                    policy_cohort_key: row.get(14)?,
                 })
             })
             .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -562,7 +598,8 @@ impl EvalHistory {
         if let Some(ds) = dataset {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE backend = ?1 AND dataset = ?2 AND f1 IS NOT NULL
                      ORDER BY f1 DESC
@@ -584,6 +621,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -595,7 +635,8 @@ impl EvalHistory {
         } else {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE backend = ?1 AND f1 IS NOT NULL
                      ORDER BY f1 DESC
@@ -617,6 +658,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -674,7 +718,8 @@ impl EvalHistory {
         if let Some(b) = backend {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE timestamp >= ?1 AND timestamp <= ?2 AND backend = ?3
                      ORDER BY timestamp DESC",
@@ -695,6 +740,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -706,7 +754,8 @@ impl EvalHistory {
         } else {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE timestamp >= ?1 AND timestamp <= ?2
                      ORDER BY timestamp DESC",
@@ -727,6 +776,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -782,7 +834,8 @@ impl EvalHistory {
         if let Some(ds) = dataset {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE (backend = ?1 OR backend = ?2) AND dataset = ?3
                      ORDER BY timestamp DESC",
@@ -803,6 +856,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -814,7 +870,8 @@ impl EvalHistory {
         } else {
             let mut stmt = conn
                 .prepare(
-                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata
+                    "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE backend = ?1 OR backend = ?2
                      ORDER BY timestamp DESC",
@@ -835,6 +892,9 @@ impl EvalHistory {
                         duration_ms: row.get(9)?,
                         error: row.get(10)?,
                         metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
                     })
                 })
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
@@ -889,6 +949,49 @@ impl EvalHistory {
         Ok(counts)
     }
 
+    /// Return coverage counts only for one pre-selection policy cohort.
+    ///
+    /// Legacy receipts and records without a matching cohort are intentionally
+    /// excluded. The cohort holds task/dataset/sampling/scoring controls fixed,
+    /// but is not an artifact- or provider-controlled quality comparison.
+    pub fn cell_observation_counts_for_policy_cohort(
+        &self,
+        policy_cohort_key: &str,
+    ) -> std::io::Result<HashMap<(String, String), u64>> {
+        if let Some(ref db_path) = self.sqlite_path {
+            if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT backend, dataset, COUNT(*) FROM eval_results \
+                         WHERE policy_cohort_key = ?1 GROUP BY backend, dataset",
+                    )
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                let mut counts = HashMap::new();
+                let rows = stmt
+                    .query_map([policy_cohort_key], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, u64>(2)?,
+                        ))
+                    })
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                for (backend, dataset, count) in rows.flatten() {
+                    counts.insert((backend, dataset), count);
+                }
+                return Ok(counts);
+            }
+        }
+
+        let mut counts = HashMap::new();
+        for entry in self.load_all()? {
+            if entry.policy_cohort_key.as_deref() == Some(policy_cohort_key) {
+                *counts.entry((entry.backend, entry.dataset)).or_insert(0) += 1;
+            }
+        }
+        Ok(counts)
+    }
+
     /// Return total observation counts per dataset across all backends.
     ///
     /// Used by the Estimate strategy to find least-observed datasets.
@@ -916,6 +1019,40 @@ impl EvalHistory {
         let mut counts = HashMap::new();
         for e in entries {
             *counts.entry(e.dataset.clone()).or_insert(0u64) += 1;
+        }
+        Ok(counts)
+    }
+
+    /// Return dataset coverage counts for one pre-selection policy cohort.
+    pub fn dataset_observation_counts_for_policy_cohort(
+        &self,
+        policy_cohort_key: &str,
+    ) -> std::io::Result<HashMap<String, u64>> {
+        if let Some(ref db_path) = self.sqlite_path {
+            if let Ok(conn) = rusqlite::Connection::open(db_path) {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT dataset, COUNT(*) FROM eval_results \
+                         WHERE policy_cohort_key = ?1 GROUP BY dataset",
+                    )
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                let mut counts = HashMap::new();
+                let rows = stmt
+                    .query_map([policy_cohort_key], |row| {
+                        Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
+                    })
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                for (dataset, count) in rows.flatten() {
+                    counts.insert(dataset, count);
+                }
+                return Ok(counts);
+            }
+        }
+        let mut counts = HashMap::new();
+        for entry in self.load_all()? {
+            if entry.policy_cohort_key.as_deref() == Some(policy_cohort_key) {
+                *counts.entry(entry.dataset).or_insert(0) += 1;
+            }
         }
         Ok(counts)
     }
@@ -1146,10 +1283,11 @@ impl EvalHistory {
 
     /// Detect regressions between two git commits.
     ///
-    /// This is the most precise change-point detection: it directly compares F1 scores
-    /// from evaluations tagged with `old_commit` to those tagged with `new_commit`.
-    /// Only works after the git_commit column is populated (evaluations run after this
-    /// code change).
+    /// This directly compares F1 scores from evaluations tagged with `old_commit`
+    /// to those tagged with `new_commit`, but only inside the same recorded
+    /// pre-selection policy cohort. The source revision is intentionally not part
+    /// of that cohort. Receipts without a cohort fail closed rather than being
+    /// treated as comparable.
     pub fn detect_regressions_by_commit(
         &self,
         old_commit: &str,
@@ -1171,15 +1309,15 @@ impl EvalHistory {
 
         let mut stmt = conn
             .prepare(
-                "SELECT backend, dataset, git_commit, f1 FROM eval_results \
+                "SELECT backend, dataset, git_commit, f1, policy_cohort_key FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
-                 AND git_commit IN (?1, ?2) \
-                 ORDER BY backend, dataset",
+                 AND git_commit IN (?1, ?2) AND policy_cohort_key IS NOT NULL \
+                 ORDER BY backend, dataset, policy_cohort_key",
             )
             .map_err(std::io::Error::other)?;
 
-        let mut old_cells: HashMap<(String, String), Vec<f64>> = HashMap::new();
-        let mut new_cells: HashMap<(String, String), Vec<f64>> = HashMap::new();
+        let mut old_cells: HashMap<(String, String, String), Vec<f64>> = HashMap::new();
+        let mut new_cells: HashMap<(String, String, String), Vec<f64>> = HashMap::new();
         let rows = stmt
             .query_map(rusqlite::params![old_commit, new_commit], |row| {
                 Ok((
@@ -1187,21 +1325,23 @@ impl EvalHistory {
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, f64>(3)?,
+                    row.get::<_, String>(4)?,
                 ))
             })
             .map_err(std::io::Error::other)?;
         for row in rows.flatten() {
-            let (b, d, commit, f1) = row;
+            let (b, d, commit, f1, cohort) = row;
             if commit == old_commit {
-                old_cells.entry((b, d)).or_default().push(f1);
+                old_cells.entry((b, d, cohort)).or_default().push(f1);
             } else {
-                new_cells.entry((b, d)).or_default().push(f1);
+                new_cells.entry((b, d, cohort)).or_default().push(f1);
             }
         }
 
         let mut alerts = Vec::new();
-        for ((backend, dataset), old_vals) in &old_cells {
-            let Some(new_vals) = new_cells.get(&(backend.clone(), dataset.clone())) else {
+        for ((backend, dataset, cohort), old_vals) in &old_cells {
+            let Some(new_vals) = new_cells.get(&(backend.clone(), dataset.clone(), cohort.clone()))
+            else {
                 continue;
             };
             if old_vals.is_empty() || new_vals.is_empty() {
@@ -1430,6 +1570,9 @@ mod tests {
             duration_ms: Some(10.0),
             error: None,
             metadata: Some("{}".to_string()),
+            observation_id: None,
+            muxer_run_id: None,
+            policy_cohort_key: None,
         }
     }
 
@@ -1469,6 +1612,73 @@ mod tests {
             .query_recent("test-backend", 1)
             .expect("query failed")
             .is_empty());
+    }
+
+    #[test]
+    fn policy_cohort_counts_exclude_legacy_and_nonmatching_receipts() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+
+        let mut matching = test_entry(1, 10);
+        matching.policy_cohort_key = Some("cohort-a".to_string());
+        matching.observation_id = Some("run-a|one".to_string());
+        let mut other = test_entry(2, 10);
+        other.policy_cohort_key = Some("cohort-b".to_string());
+        let legacy = test_entry(3, 10);
+
+        history.append_entry(&matching).expect("append matching");
+        history.append_entry(&other).expect("append other");
+        history.append_entry(&legacy).expect("append legacy");
+
+        let counts = history
+            .cell_observation_counts_for_policy_cohort("cohort-a")
+            .expect("query cohort counts");
+        assert_eq!(
+            counts.get(&("test-backend".to_string(), "test-dataset".to_string())),
+            Some(&1),
+        );
+
+        let loaded = history.load_all().expect("load JSONL");
+        assert_eq!(loaded[0].observation_id.as_deref(), Some("run-a|one"));
+        assert_eq!(loaded[0].policy_cohort_key.as_deref(), Some("cohort-a"));
+        let indexed = history
+            .query_recent("test-backend", 3)
+            .expect("query indexed history");
+        assert!(indexed.iter().any(|entry| {
+            entry.observation_id.as_deref() == Some("run-a|one")
+                && entry.policy_cohort_key.as_deref() == Some("cohort-a")
+        }));
+    }
+
+    #[test]
+    fn commit_regression_compares_matching_cohort_across_revisions() {
+        let temp = TempDir::new().expect("failed to create temp dir");
+        let history =
+            EvalHistory::new(temp.path().join("history.jsonl")).expect("failed to create history");
+        let db_path = history.sqlite_path.as_ref().expect("SQLite index");
+        let conn = rusqlite::Connection::open(db_path).expect("open index");
+
+        for (commit, f1, cohort) in [
+            ("old", 0.9, "stable-cohort"),
+            ("new", 0.5, "stable-cohort"),
+            // This newer observation differs in its cohort and must not hide
+            // the like-for-like regression above.
+            ("new", 0.95, "different-sample"),
+        ] {
+            conn.execute(
+                "INSERT INTO eval_results (timestamp, backend, dataset, task, seed, f1, n, git_commit, policy_cohort_key)
+                 VALUES ('2026-08-13T20:00:00Z', 'test-backend', 'test-dataset', 'NER', 1, ?1, 10, ?2, ?3)",
+                rusqlite::params![f1, commit, cohort],
+            )
+            .expect("insert fixture");
+        }
+
+        let alerts = history
+            .detect_regressions_by_commit("old", "new", 0.2)
+            .expect("compare commits");
+        assert_eq!(alerts.len(), 1);
+        assert!((alerts[0].drop - 0.4).abs() < 1e-12);
     }
 
     #[cfg(target_pointer_width = "64")]
