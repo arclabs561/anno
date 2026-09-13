@@ -173,6 +173,11 @@ reports/
 
 # QA artifacts (generated; do not track)
 qa/
+# The fixed-panel contract lives with the source. Its generated receipts should
+# still be written below an explicit output directory such as `.generated/`.
+!scripts/qa/
+!scripts/qa/*.json
+!scripts/qa/*.py
 
 .env
 

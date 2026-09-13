@@ -91,6 +91,18 @@ The default CLI model (`--model stacked`) prefers the **best available** ML back
 - To force cached-only / offline behavior: set `ANNO_NO_DOWNLOADS=1` (or `HF_HUB_OFFLINE=1`).
 - To prefetch explicitly: use the **full CLI** (`anno-cli`): `anno models download gliner gliner_multitask bert-onnx` (then `stacked` will pick it up).
 
+## CLI JSON provenance
+
+`anno extract --format json` and `--format jsonl` retain the requested CLI backend in
+top-level `provenance.model`. Each emitted entity that carries library provenance also has a
+nested `provenance` object with its actual `source`, extraction `method`, and available
+pattern, raw-confidence, model-version, and timestamp metadata.
+
+Top-level `provenance.entity_sources`, when present, is a sorted unique list of source names
+from the entities actually emitted after filtering and validation. It is omitted when no emitted
+entity has source metadata. It does not infer a single producing model for stacked output, a
+model artifact version, or provider/device placement.
+
 ## Evaluation (two layers)
 
 `anno` has two eval layers with very different runtimes:

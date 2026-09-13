@@ -27,6 +27,11 @@ def test_extract_email():
     # char offsets index directly into the Python string
     assert text[e.start : e.end] == e.text
     assert 0.0 <= e.confidence <= 1.0
+    # Provenance names the layer that produced this entity. It does not claim
+    # a device placement, and regex extraction has no model artifact version.
+    assert e.source == "pattern"
+    assert e.method == "pattern"
+    assert e.model_version is None
 
 
 def test_char_offsets_with_emoji():

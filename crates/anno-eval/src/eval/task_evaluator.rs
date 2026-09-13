@@ -22,13 +22,13 @@ use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 use crate::eval::profiling;
 use crate::eval::provenance::{
     artifact_status, canonical_entity_type_label, current_build_provenance,
-    legacy_eval_run_provenance,
+    legacy_eval_run_provenance, policy_cohort_key,
 };
 pub use crate::eval::provenance::{
     ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
-    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvaluationScheduling,
-    ExecutionProvenanceStatus, InferenceSettingProvenance, NerInferenceProvenance,
-    NerLabelPolicyReport,
+    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvaluatedSampleProvenance,
+    EvaluatedSampleUnit, EvaluationScheduling, ExecutionProvenanceStatus,
+    InferenceSettingProvenance, NerInferenceProvenance, NerLabelPolicyReport,
 };
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
@@ -37,8 +37,18 @@ use anno::backends::inference::ZeroShotNER;
 use anno::{Entity, EntityType, Model, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
-use std::sync::Mutex;
-use std::time::Instant;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Mutex,
+};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+/// Process-local suffix for muxer observation IDs.
+///
+/// A timestamp alone can collide for multiple results constructed in one clock tick. Combining
+/// this sequence with process and start-time identity keeps independently appended history rows
+/// joinable without making the muxer run ID itself a unique observation.
+static OBSERVATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Lock a std::sync::Mutex, recovering from poisoning.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -284,6 +294,10 @@ pub struct TaskEvalResult {
 #[derive(Debug)]
 struct BackendEvalOk {
     metrics: HashMap<String, f64>,
+    /// Actual task unit count when it differs from the generic loaded sentence sample.
+    actual_example_count: Option<usize>,
+    /// Task-owned scoring receipt, when the generic loader is not the scored input.
+    evaluated_sample: Option<EvaluatedSampleProvenance>,
     backend_display: Option<String>,
     configured_labels: Option<Vec<String>>,
     ner_label_policy: Option<NerLabelPolicyReport>,
@@ -300,7 +314,19 @@ struct NerEvaluationReceipt {
     scheduling: EvaluationScheduling,
 }
 
+/// Result details owned by the relation evaluator.
+///
+/// Relation extraction evaluates documents loaded from the relation corpus, rather than the
+/// generic NER-style `LoadedDataset` supplied to the task dispatcher.
+#[derive(Debug)]
+struct RelationEvaluationReceipt {
+    metrics: HashMap<String, f64>,
+    document_count: usize,
+    gold_relation_count: usize,
+}
+
 struct ProvenanceInput<'a> {
+    task: Task,
     requested_backend_name: &'a str,
     effective_backend_name: &'a str,
     backend_display: Option<String>,
@@ -310,6 +336,7 @@ struct ProvenanceInput<'a> {
     ner_label_policy: Option<NerLabelPolicyReport>,
     construction_receipt: BackendConstructionReceipt,
     scheduling: EvaluationScheduling,
+    evaluated_sample: Option<EvaluatedSampleProvenance>,
 }
 
 #[cfg(not(feature = "eval-parallel"))]
@@ -382,12 +409,22 @@ pub struct TaskEvaluator {
     per_example_scores_cache: Mutex<Option<PerExampleScores>>,
     /// Evaluation history tracker (optional, for persistent result storage)
     history: Option<super::history::EvalHistory>,
+    /// Muxer run that selected this evaluator's cells, when applicable.
+    muxer_run_id: Option<String>,
 }
 
 impl TaskEvaluator {
     /// Access the evaluation history (if initialized).
     pub fn history(&self) -> Option<&super::history::EvalHistory> {
         self.history.as_ref()
+    }
+
+    /// Attach an evaluator-owned muxer run ID without mutating process-wide state.
+    #[must_use]
+    #[allow(dead_code)] // Used by the eval-gated matrix muxer module.
+    pub(crate) fn with_muxer_run_id(mut self, run_id: String) -> Self {
+        self.muxer_run_id = Some(run_id);
+        self
     }
 
     /// True if this task has a real end-to-end evaluation path implemented in `TaskEvaluator`.
@@ -441,6 +478,7 @@ impl TaskEvaluator {
             mapping: TaskMapping::build(),
             per_example_scores_cache: Mutex::new(None),
             history,
+            muxer_run_id: None,
         })
     }
 
@@ -472,6 +510,7 @@ impl TaskEvaluator {
             mapping: TaskMapping::build(),
             per_example_scores_cache: Mutex::new(None),
             history,
+            muxer_run_id: None,
         })
     }
 
@@ -562,6 +601,48 @@ impl TaskEvaluator {
         (sampled_data, sentences_to_use)
     }
 
+    /// Deterministically cap relation evaluation by document, the unit actually scored.
+    ///
+    /// `max_examples = Some(0)` is an explicit empty cap, matching the generic sampler.
+    /// The original document order is restored after selection so scoring and receipts do not
+    /// depend on hash rank.
+    fn sample_relation_documents(
+        relation_docs: Vec<crate::eval::loader::RelationDocument>,
+        config: &TaskEvalConfig,
+    ) -> Vec<crate::eval::loader::RelationDocument> {
+        let Some(max) = config.max_examples else {
+            return relation_docs;
+        };
+        if max >= relation_docs.len() {
+            return relation_docs;
+        }
+
+        let seed = config.seed.unwrap_or(42);
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut indices: Vec<(usize, u64)> = (0..relation_docs.len())
+            .map(|index| {
+                let mut hasher = DefaultHasher::new();
+                seed.hash(&mut hasher);
+                index.hash(&mut hasher);
+                (index, hasher.finish())
+            })
+            .collect();
+        indices.sort_by_key(|(_, hash)| *hash);
+        let selected: std::collections::HashSet<usize> = indices
+            .into_iter()
+            .take(max)
+            .map(|(index, _)| index)
+            .collect();
+
+        relation_docs
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, doc)| selected.contains(&index).then_some(doc))
+            .collect()
+    }
+
     fn evaluate_backend_on_loaded(
         &self,
         task: Task,
@@ -585,15 +666,17 @@ impl TaskEvaluator {
                 let metrics = ok.metrics;
                 let backend_display = ok.backend_display;
                 let duration = start.elapsed().as_secs_f64() * 1000.0;
-                let num_examples = if task.is_coref_family() {
-                    metrics
-                        .get("num_docs")
-                        .copied()
-                        .map(|n| n.max(0.0) as usize)
-                        .unwrap_or(sentences_to_use)
-                } else {
-                    sentences_to_use
-                };
+                let num_examples = ok.actual_example_count.unwrap_or_else(|| {
+                    if task.is_coref_family() {
+                        metrics
+                            .get("num_docs")
+                            .copied()
+                            .map(|n| n.max(0.0) as usize)
+                            .unwrap_or(sentences_to_use)
+                    } else {
+                        sentences_to_use
+                    }
+                });
 
                 // Compute familiarity for zero-shot backends
                 let label_shift = if config.compute_familiarity {
@@ -666,7 +749,8 @@ impl TaskEvaluator {
                     stratified,
                     confidence_intervals,
                     kb_version,
-                    provenance: Self::run_provenance(ProvenanceInput {
+                    provenance: self.run_provenance(ProvenanceInput {
+                        task,
                         requested_backend_name,
                         effective_backend_name: backend_name,
                         backend_display,
@@ -676,16 +760,17 @@ impl TaskEvaluator {
                         ner_label_policy: ok.ner_label_policy,
                         construction_receipt: ok.construction_receipt,
                         scheduling: ok.scheduling,
+                        evaluated_sample: ok.evaluated_sample,
                     }),
                 }
             }
-            Err(e) => Self::failed_task_eval_result(
-                task,
+            Err(e) => self.failed_task_eval_result(
                 dataset,
                 seed,
                 sentences_to_use,
                 start.elapsed().as_secs_f64() * 1000.0,
                 ProvenanceInput {
+                    task,
                     requested_backend_name,
                     effective_backend_name: backend_name,
                     backend_display: None,
@@ -698,6 +783,7 @@ impl TaskEvaluator {
                         reason: "evaluation failed before its scheduling strategy was recorded"
                             .to_string(),
                     },
+                    evaluated_sample: None,
                 },
                 e,
             ),
@@ -705,7 +791,7 @@ impl TaskEvaluator {
     }
 
     fn failed_task_eval_result(
-        task: Task,
+        &self,
         dataset: DatasetId,
         seed: u64,
         sentences_to_use: usize,
@@ -714,7 +800,7 @@ impl TaskEvaluator {
         error: impl std::fmt::Display,
     ) -> TaskEvalResult {
         TaskEvalResult {
-            task,
+            task: provenance.task,
             dataset,
             backend: provenance.effective_backend_name.to_string(),
             backend_display: None,
@@ -732,12 +818,12 @@ impl TaskEvaluator {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
-            provenance: Self::run_provenance(provenance),
+            provenance: self.run_provenance(provenance),
         }
     }
 
-    fn run_provenance(input: ProvenanceInput<'_>) -> EvalRunProvenance {
-        EvalRunProvenance {
+    fn run_provenance(&self, input: ProvenanceInput<'_>) -> EvalRunProvenance {
+        let mut provenance = EvalRunProvenance {
             schema_version: 1,
             build: current_build_provenance(),
             dataset: DatasetRunProvenance {
@@ -768,8 +854,103 @@ impl TaskEvaluator {
                 ner_inference: Self::ner_inference_provenance(input.effective_backend_name),
                 scheduling: input.scheduling,
             },
+            evaluated_sample: input.evaluated_sample,
+            observation_id: None,
+            muxer_run_id: self.muxer_run_id.clone(),
+            policy_cohort_key: policy_cohort_key(
+                input.task,
+                input.dataset.id,
+                input.config.seed.unwrap_or(42),
+                input.config.max_examples,
+                input.config.require_cached,
+            ),
             ner_label_policy: input.ner_label_policy,
+        };
+        self.attach_muxer_identity(
+            &mut provenance,
+            input.task,
+            input.dataset.id,
+            input.effective_backend_name,
+        );
+        provenance
+    }
+
+    /// Stamp an otherwise-valid receipt with the muxer join data known before inference.
+    fn attach_muxer_identity(
+        &self,
+        provenance: &mut EvalRunProvenance,
+        task: Task,
+        dataset: DatasetId,
+        effective_backend_name: &str,
+    ) {
+        if let Some(run_id) = provenance.muxer_run_id.as_deref() {
+            let sequence = OBSERVATION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let started_ns = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or_default();
+            provenance.observation_id = Some(format!(
+                "{run_id}|task={:?}|dataset={:?}|backend={}|pid={}|started_ns={}|seq={sequence}",
+                task,
+                dataset,
+                effective_backend_name,
+                std::process::id(),
+                started_ns,
+            ));
         }
+    }
+
+    /// Receipt for a result that failed before the generic dataset loader produced data.
+    ///
+    /// Only requested configuration is recorded; loader and scoring facts remain explicit
+    /// defaults rather than being reconstructed from cache paths or catalog guesses.
+    fn unavailable_dataset_provenance(
+        &self,
+        task: Task,
+        dataset: DatasetId,
+        backend_name: &str,
+        config: &TaskEvalConfig,
+        reason: &str,
+    ) -> EvalRunProvenance {
+        let mut provenance = EvalRunProvenance {
+            schema_version: 1,
+            build: current_build_provenance(),
+            dataset: DatasetRunProvenance {
+                source_url: dataset.download_url().to_string(),
+                data_source: "unavailable before dataset load".to_string(),
+                ..Default::default()
+            },
+            backend: BackendRunProvenance {
+                requested: backend_name.to_string(),
+                effective: backend_name.to_string(),
+                ..Default::default()
+            },
+            runtime: EvalRuntimeProvenance {
+                seed: config.seed.unwrap_or(42),
+                cached_only: config.require_cached,
+                max_examples: config.max_examples,
+                confidence_intervals: config.confidence_intervals,
+                robustness: config.robustness,
+                relation_threshold: config.relation_threshold,
+                scheduling: EvaluationScheduling::NotRun {
+                    reason: reason.to_string(),
+                },
+                ..Default::default()
+            },
+            evaluated_sample: None,
+            observation_id: None,
+            muxer_run_id: self.muxer_run_id.clone(),
+            policy_cohort_key: policy_cohort_key(
+                task,
+                dataset,
+                config.seed.unwrap_or(42),
+                config.max_examples,
+                config.require_cached,
+            ),
+            ner_label_policy: None,
+        };
+        self.attach_muxer_identity(&mut provenance, task, dataset, backend_name);
+        provenance
     }
 
     fn ner_inference_provenance(backend_name: &str) -> NerInferenceProvenance {
@@ -889,7 +1070,13 @@ impl TaskEvaluator {
                         stratified: None,
                         confidence_intervals: None,
                         kb_version: None,
-                        provenance: EvalRunProvenance::default(),
+                        provenance: self.unavailable_dataset_provenance(
+                            *task,
+                            *dataset,
+                            backend_name,
+                            &config,
+                            "candidate was incompatible before dataset load",
+                        ),
                     });
                 }
 
@@ -947,7 +1134,13 @@ impl TaskEvaluator {
                                     stratified: None,
                                     confidence_intervals: None,
                                     kb_version: None,
-                                    provenance: EvalRunProvenance::default(),
+                                    provenance: self.unavailable_dataset_provenance(
+                                        *task,
+                                        *dataset,
+                                        backend_name,
+                                        &config,
+                                        "dataset load failed before evaluation",
+                                    ),
                                 });
                             }
                             continue;
@@ -984,7 +1177,13 @@ impl TaskEvaluator {
                             stratified: None,
                             confidence_intervals: None,
                             kb_version: None,
-                            provenance: EvalRunProvenance::default(),
+                            provenance: self.unavailable_dataset_provenance(
+                                *task,
+                                *dataset,
+                                backend_name,
+                                &config,
+                                "loaded dataset contained no sentences",
+                            ),
                         });
                     }
                     continue;
@@ -1213,6 +1412,8 @@ impl TaskEvaluator {
                 };
                 Ok(BackendEvalOk {
                     metrics,
+                    actual_example_count: None,
+                    evaluated_sample: None,
                     backend_display,
                     configured_labels,
                     ner_label_policy: Some(label_policy),
@@ -1226,6 +1427,8 @@ impl TaskEvaluator {
                 let metrics = self.evaluate_coref_task(task, backend_name, dataset_data, config)?;
                 Ok(BackendEvalOk {
                     metrics,
+                    actual_example_count: None,
+                    evaluated_sample: None,
                     backend_display: None,
                     configured_labels: None,
                     ner_label_policy: None,
@@ -1252,10 +1455,18 @@ impl TaskEvaluator {
                         backend_name
                     )));
                 }
-                let metrics =
+                let relation =
                     self.evaluate_relation_task(backend_name, &*backend, dataset_data, config)?;
+                let evaluated_sample = EvaluatedSampleProvenance {
+                    schema_version: 1,
+                    unit: EvaluatedSampleUnit::Document,
+                    unit_count: relation.document_count,
+                    gold_item_count: relation.gold_relation_count,
+                };
                 Ok(BackendEvalOk {
-                    metrics,
+                    metrics: relation.metrics,
+                    actual_example_count: Some(relation.document_count),
+                    evaluated_sample: Some(evaluated_sample),
                     backend_display,
                     configured_labels: None,
                     ner_label_policy: None,
@@ -1272,6 +1483,8 @@ impl TaskEvaluator {
                 )?;
                 Ok(BackendEvalOk {
                     metrics,
+                    actual_example_count: None,
+                    evaluated_sample: None,
                     backend_display: None,
                     configured_labels: None,
                     ner_label_policy: None,
@@ -3007,7 +3220,7 @@ impl TaskEvaluator {
         backend: &dyn Model,
         dataset_data: &LoadedDataset,
         config: &TaskEvalConfig,
-    ) -> Result<HashMap<String, f64>> {
+    ) -> Result<RelationEvaluationReceipt> {
         use crate::eval::relation::{
             evaluate_relations, RelationEvalConfig, RelationGold, RelationPrediction,
         };
@@ -3044,6 +3257,7 @@ impl TaskEvaluator {
                 }
             }
         };
+        let relation_docs = Self::sample_relation_documents(relation_docs, config);
 
         // Collect all gold relations
         let mut all_gold_relations: Vec<RelationGold> = Vec::new();
@@ -3416,12 +3630,13 @@ impl TaskEvaluator {
             "oracle_tplinker_docs_used".to_string(),
             oracle_tplinker_docs_used as f64,
         );
-        metrics.insert(
-            "num_sentences".to_string(),
-            dataset_data.sentences.len() as f64,
-        );
+        metrics.insert("num_docs".to_string(), relation_docs.len() as f64);
 
-        Ok(metrics)
+        Ok(RelationEvaluationReceipt {
+            metrics,
+            document_count: relation_docs.len(),
+            gold_relation_count: all_gold_relations.len(),
+        })
     }
 
     /// Evaluate text classification task.
@@ -4582,9 +4797,11 @@ mod tests {
     }
 
     #[test]
-    fn cached_only_uses_the_provided_empty_cache_without_downloading() {
+    fn cached_only_missing_dataset_keeps_muxer_failure_joinable() {
         let cache = tempfile::tempdir().expect("temporary cache directory");
-        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path())
+            .expect("TaskEvaluator")
+            .with_muxer_run_id("missing-cache-muxer-run".to_string());
         assert_eq!(evaluator.loader.cache_dir(), cache.path());
 
         let results = evaluator
@@ -4607,6 +4824,93 @@ mod tests {
                 .is_some_and(|error| error.contains("not cached")),
             "cached-only evaluation should fail from the isolated cache before model or network fallback: {result:?}"
         );
+        let observation_id = result
+            .provenance
+            .observation_id
+            .as_deref()
+            .expect("dataset-load failure retains muxer observation ID");
+        assert_eq!(
+            result.provenance.muxer_run_id.as_deref(),
+            Some("missing-cache-muxer-run")
+        );
+        assert!(
+            result.provenance.policy_cohort_key.is_some(),
+            "candidate coverage must include a pre-load failure cohort"
+        );
+        assert!(matches!(
+            result.provenance.runtime.scheduling,
+            EvaluationScheduling::NotRun { .. }
+        ));
+        let entries = evaluator
+            .history()
+            .expect("history initialized")
+            .load_all()
+            .expect("read persisted history");
+        assert!(entries.iter().any(|entry| {
+            entry.muxer_run_id.as_deref() == Some("missing-cache-muxer-run")
+                && entry.observation_id.as_deref() == Some(observation_id)
+        }));
+    }
+
+    #[test]
+    fn muxer_runs_get_distinct_observations_and_persist_each_history_join() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        std::fs::write(
+            cache.path().join(DatasetId::WikiGold.cache_filename()),
+            "Alice B-PER\nvisited O\nParis B-LOC\n\n",
+        )
+        .expect("write cached NER fixture");
+
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path())
+            .expect("TaskEvaluator")
+            .with_muxer_run_id("test-muxer-run".to_string());
+        let config = || TaskEvalConfig {
+            tasks: vec![Task::NER],
+            datasets: vec![DatasetId::WikiGold],
+            backends: vec!["heuristic".to_string()],
+            max_examples: Some(1),
+            seed: Some(42),
+            require_cached: true,
+            compute_familiarity: false,
+            confidence_intervals: false,
+            ..Default::default()
+        };
+
+        let first = evaluator
+            .evaluate_all(config())
+            .expect("first muxer evaluation");
+        let second = evaluator
+            .evaluate_all(config())
+            .expect("second muxer evaluation");
+        assert_eq!(first.results.len(), 1);
+        assert_eq!(second.results.len(), 1);
+        let first_id = first.results[0]
+            .provenance
+            .observation_id
+            .clone()
+            .expect("muxer result has observation ID");
+        let second_id = second.results[0]
+            .provenance
+            .observation_id
+            .clone()
+            .expect("muxer result has observation ID");
+        assert_ne!(
+            first_id, second_id,
+            "each muxer evaluation is an observation"
+        );
+
+        let entries = evaluator
+            .history()
+            .expect("history initialized")
+            .load_all()
+            .expect("read persisted history");
+        let joined: std::collections::HashSet<_> = entries
+            .iter()
+            .filter(|entry| entry.muxer_run_id.as_deref() == Some("test-muxer-run"))
+            .filter_map(|entry| entry.observation_id.as_deref())
+            .collect();
+        assert!(joined.contains(first_id.as_str()));
+        assert!(joined.contains(second_id.as_str()));
     }
 
     #[test]
@@ -4651,6 +4955,103 @@ mod tests {
         assert!(error
             .to_string()
             .contains("cached-only evaluation forbids downloading"));
+    }
+
+    #[test]
+    fn relation_evaluation_caps_actual_documents_and_reports_that_count() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let fixture = r#"[
+            {"tokens":"甲乙丙","entities":[
+                {"type":"PER","start":0,"end":1,"span":"甲"},
+                {"type":"PER","start":1,"end":2,"span":"乙"},
+                {"type":"LOC","start":2,"end":3,"span":"丙"}
+            ],"relations":[{"type":"r1","head":0,"tail":1}]},
+            {"tokens":"丁戊己","entities":[
+                {"type":"PER","start":0,"end":1,"span":"丁"},
+                {"type":"PER","start":1,"end":2,"span":"戊"},
+                {"type":"LOC","start":2,"end":3,"span":"己"}
+            ],"relations":[{"type":"r2","head":0,"tail":1},{"type":"r3","head":1,"tail":2}]},
+            {"tokens":"庚辛壬","entities":[
+                {"type":"PER","start":0,"end":1,"span":"庚"},
+                {"type":"PER","start":1,"end":2,"span":"辛"},
+                {"type":"LOC","start":2,"end":3,"span":"壬"}
+            ],"relations":[{"type":"r4","head":0,"tail":2},{"type":"r5","head":1,"tail":2},{"type":"r6","head":2,"tail":0}]}
+        ]"#;
+        std::fs::write(
+            cache.path().join(DatasetId::CHisIEC.cache_filename()),
+            fixture,
+        )
+        .expect("write cached relation fixture");
+
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let config = TaskEvalConfig {
+            max_examples: Some(2),
+            seed: Some(73),
+            require_cached: true,
+            ..Default::default()
+        };
+        let loaded = evaluator
+            .loader
+            .load_relation(DatasetId::CHisIEC)
+            .expect("load relation fixture");
+        let expected = TaskEvaluator::sample_relation_documents(loaded, &config);
+        let expected_texts: Vec<_> = expected.iter().map(|doc| doc.text.clone()).collect();
+        let expected_gold = expected
+            .iter()
+            .map(|doc| doc.relations.len())
+            .sum::<usize>();
+        assert_eq!(expected.len(), 2);
+        assert_eq!(
+            expected_texts,
+            TaskEvaluator::sample_relation_documents(
+                evaluator
+                    .loader
+                    .load_relation(DatasetId::CHisIEC)
+                    .expect("reload relation fixture"),
+                &config,
+            )
+            .iter()
+            .map(|doc| doc.text.clone())
+            .collect::<Vec<_>>(),
+            "the same seed must select the same relation documents for every backend"
+        );
+
+        let model = anno::AnyModel::new("no-op", "test model", vec![], |_, _| Ok(vec![]));
+        let receipt = evaluator
+            .evaluate_relation_task("no-op", &model, &empty_dataset(DatasetId::CHisIEC), &config)
+            .expect("evaluate capped relation fixture");
+        assert_eq!(receipt.document_count, expected.len());
+        assert_eq!(
+            receipt.metrics.get("num_docs").copied(),
+            Some(expected.len() as f64)
+        );
+        assert_eq!(
+            receipt.metrics.get("num_gold_relations").copied(),
+            Some(expected_gold as f64)
+        );
+        assert!(
+            !receipt.metrics.contains_key("num_sentences"),
+            "relation evaluation must not report the unrelated NER-style sentence sample"
+        );
+
+        let empty_cap = TaskEvalConfig {
+            max_examples: Some(0),
+            ..config
+        };
+        let receipt = evaluator
+            .evaluate_relation_task(
+                "no-op",
+                &model,
+                &empty_dataset(DatasetId::CHisIEC),
+                &empty_cap,
+            )
+            .expect("evaluate explicit empty relation cap");
+        assert_eq!(receipt.document_count, 0);
+        assert_eq!(receipt.metrics.get("num_docs").copied(), Some(0.0));
+        assert_eq!(
+            receipt.metrics.get("num_gold_relations").copied(),
+            Some(0.0)
+        );
     }
 
     #[test]

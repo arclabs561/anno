@@ -71,14 +71,22 @@ make a small matrix harder to interpret.
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
-eligible fixed-panel cells have been run least often. The current implementation
-adds each backend's historical observation counts across the selected datasets
-and chooses the lowest total. It is a coverage heuristic; it does not estimate
-uncertainty, variance, recency, or a regression probability. Keep the dataset
-panel fixed and inspect the resulting receipt before treating missing cells as
-the next work item. Coverage runs currently record outcomes but not a
-selection-decision row or candidate scores, so their receipt cannot explain why
-a particular backend won beyond the documented count rule.
+eligible fixed-panel cells have been run least often. The implementation adds
+each backend's historical observation counts across the selected datasets and
+chooses the lowest total. Counts are scoped to a recorded policy cohort: task,
+dataset, example cap, cache policy, enabled evaluator features, and the
+primary-score contract. Seed remains in each receipt but does not split coverage
+cohorts, so repeated-seed panels can accumulate coverage. Legacy and nonmatching receipts do not count. Source
+revision deliberately does not define a cohort, so a new revision can fill the
+same panel rather than starting its coverage from zero.
+
+This is a coverage heuristic, not an artifact-controlled quality comparison:
+model-artifact and provider receipts are not available for every candidate at
+selection time. It does not estimate uncertainty, variance, recency, or a
+regression probability. Keep the dataset panel fixed and inspect the resulting
+receipt before treating missing cells as the next work item. Coverage decisions
+now record each candidate's count and deterministic tie-break selection; each
+outcome carries the same opaque observation ID as its evaluation-history row.
 
 ## Interpreting receipts
 

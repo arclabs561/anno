@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "description": "Cached-only fixed evaluation panels. Each selected suite is validated as an exact result contract.",
+  "suites": [
+    {
+      "id": "smoke",
+      "tasks": ["ner"],
+      "datasets": ["WikiGold"],
+      "backends": ["heuristic", "stacked"],
+      "seeds": [42],
+      "max_examples": 20,
+      "allowed_incompatibilities": []
+    },
+    {
+      "id": "ner-baseline",
+      "tasks": ["ner"],
+      "datasets": ["CoNLL2003Sample", "WikiGold", "Wnut17"],
+      "backends": ["heuristic", "stacked", "bert_onnx", "gliner_onnx"],
+      "seeds": [42, 73, 137],
+      "max_examples": 100,
+      "allowed_incompatibilities": [
+        {"task": "NER", "dataset": "Wnut17", "backend": "heuristic"}
+      ]
+    },
+    {
+      "id": "classical-ner",
+      "tasks": ["ner"],
+      "datasets": ["CoNLL2003Sample", "WikiGold", "Wnut17"],
+      "backends": ["crf", "hmm", "heuristic_crf"],
+      "seeds": [42, 73, 137],
+      "max_examples": 100,
+      "allowed_incompatibilities": [
+        {"task": "NER", "dataset": "Wnut17", "backend": "crf"},
+        {"task": "NER", "dataset": "Wnut17", "backend": "hmm"},
+        {"task": "NER", "dataset": "Wnut17", "backend": "heuristic_crf"}
+      ]
+    },
+    {
+      "id": "coref-diagnostic",
+      "tasks": ["coref"],
+      "datasets": ["GAP"],
+      "backends": ["coref_resolver", "mention_ranking"],
+      "seeds": [42],
+      "max_examples": 25,
+      "allowed_incompatibilities": []
+    }
+  ]
+}
