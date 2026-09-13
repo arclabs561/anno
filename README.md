@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/anno-logo-f1.png" alt="anno" width="420">
+</p>
+
 # anno
 
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
