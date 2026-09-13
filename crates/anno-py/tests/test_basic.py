@@ -60,8 +60,9 @@ def test_repr():
 def test_offline_backend_is_explicit_and_rejects_model_options():
     ex = anno_py.Extractor(backend="offline")
     assert any(e.label == "EMAIL" for e in ex.extract("admin@example.org"))
-    with pytest.raises(ValueError, match="does not accept"):
+    with pytest.raises(ValueError, match="does not accept") as error:
         anno_py.Extractor(backend="offline", model="some-model")
+    assert error.type is ValueError
 
 
 def test_invalid_backend_and_gliner_options():
@@ -82,8 +83,9 @@ def test_model_backends_require_onnx_in_offline_wheel(backend):
     if getattr(anno_py, "__onnx_enabled__", False):
         pytest.skip("feature-unavailable assertion applies only to an offline wheel")
 
-    with pytest.raises(RuntimeError, match="ONNX-enabled wheel"):
+    with pytest.raises(RuntimeError, match="ONNX-enabled wheel") as error:
         anno_py.Extractor(backend=backend)
+    assert error.type is RuntimeError
 
 
 def test_fastino_capability_gate():
@@ -121,7 +123,7 @@ def test_cached_model_extractors_are_repeatable(monkeypatch, backend, kwargs):
 
     # Constructor and extraction must fail rather than download on a cache miss.
     monkeypatch.setenv("ANNO_NO_DOWNLOADS", "1")
-    text = "Barack Obama visited Paris."
+    text = "🌍 Barack Obama visited Paris."
     model = anno_py.Extractor(backend=backend, **kwargs)
     first = model.extract(text)
     warm = model.extract(text)

@@ -22,12 +22,11 @@ use pyo3::prelude::*;
 
 /// Convert an `anno::Error` into the closest Python exception.
 ///
-/// Input problems become `ValueError`; everything else (model init,
-/// inference, IO) becomes `RuntimeError`.
+/// `InvalidInput` maps to `ValueError`; other error variants, including
+/// parsing and inference failures, map to `RuntimeError`.
 fn to_py_err(err: anno::Error) -> PyErr {
     match err {
         anno::Error::InvalidInput(msg) => PyValueError::new_err(msg),
-        anno::Error::Parse(msg) => PyValueError::new_err(format!("parse error: {msg}")),
         other => PyRuntimeError::new_err(other.to_string()),
     }
 }

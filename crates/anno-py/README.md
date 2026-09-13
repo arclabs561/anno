@@ -61,7 +61,9 @@ Model construction may download an uncached HuggingFace model. Set
 model directories still work. The `offline` backend always constructs only
 the pattern + heuristic stack, including in an ONNX-enabled wheel. An offline
 wheel raises `RuntimeError` if asked for `bert` or `gliner`; it never silently
-switches backends. Invalid backend options raise `ValueError`.
+switches backends. Invalid backend options raise `ValueError`. Rust
+`InvalidInput` errors map to `ValueError`; other variants, including parsing
+and inference errors, map to `RuntimeError`.
 
 ## Experimental Fastino source build
 
