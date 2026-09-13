@@ -103,6 +103,7 @@
 
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
+use crate::eval::provenance::policy_cohort_key;
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
 use crate::eval::task_mapping::{
     backend_tasks, dataset_tasks, get_task_backends, get_task_datasets, Task,
@@ -134,6 +135,8 @@ const MUXER_VERSION: &str = "unrecorded";
 
 /// Score kind tag for MAB scalar scores in decision logs.
 const LOG_SCORE_KIND_MAB_SCALAR: &str = "mab_scalar";
+/// Candidate score for coverage selection: lower observed count wins.
+const LOG_SCORE_KIND_COVERAGE_COUNT: &str = "coverage_observation_count";
 
 /// Serializable top-candidate row for decision logs.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1028,6 +1031,12 @@ struct DecisionOutcomeLog {
     record_type: String,
     muxer_version: String,
     run_id: String,
+    /// Join key shared with `EvalHistoryEntry` and `TaskEvalResult.provenance`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    observation_id: Option<String>,
+    /// Coverage cohort used for this selection; not a strict quality-comparison key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    policy_cohort_key: Option<String>,
     strategy: String,
     /// Optional: disambiguates the ML-only selection policy (`exp3ix` or `mab`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1457,6 +1466,9 @@ fn select_backends(
     prior: Option<&BackendHistory>,
     candidates_in_order: &[String],
     datasets: Option<&[DatasetId]>,
+    tasks: &[Task],
+    max_examples: Option<usize>,
+    cached_only: bool,
     k: usize,
     prior_calls: u64,
 ) -> Vec<String> {
@@ -2026,13 +2038,41 @@ fn select_backends(
             //
             // Query from SQLite eval-history DB for accurate counts across ALL historical
             // runs, not just the muxer's sliding window.
-            let cell_counts: std::collections::HashMap<(String, String), u64> = {
-                let hist_path = eval_history_jsonl_path();
-                crate::eval::history::EvalHistory::new(&hist_path)
-                    .ok()
-                    .and_then(|h| h.cell_observation_counts().ok())
-                    .unwrap_or_default()
-            };
+            let cohort_counts: Vec<std::collections::HashMap<(String, String), u64>> =
+                {
+                    let hist_path = eval_history_jsonl_path();
+                    crate::eval::history::EvalHistory::new(&hist_path)
+                        .ok()
+                        .map(|h| {
+                            tasks
+                                .iter()
+                                .filter_map(|task| {
+                                    datasets.map(|datasets| {
+                                        datasets
+                                            .iter()
+                                            .filter_map(|dataset| {
+                                                policy_cohort_key(
+                                                    *task,
+                                                    *dataset,
+                                                    seed,
+                                                    max_examples,
+                                                    cached_only,
+                                                )
+                                                .and_then(|key| {
+                                                    h.cell_observation_counts_for_policy_cohort(
+                                                        &key,
+                                                    )
+                                                    .ok()
+                                                })
+                                            })
+                                            .collect::<Vec<_>>()
+                                    })
+                                })
+                                .flatten()
+                                .collect()
+                        })
+                        .unwrap_or_default()
+                };
 
             let mut scored: Vec<(u64, String)> = candidates_in_order
                 .iter()
@@ -2042,7 +2082,10 @@ fn select_backends(
                         .iter()
                         .map(|d| {
                             let key = (b.clone(), d.name().to_string());
-                            cell_counts.get(&key).copied().unwrap_or(0)
+                            cohort_counts
+                                .iter()
+                                .map(|counts| counts.get(&key).copied().unwrap_or(0))
+                                .sum::<u64>()
                         })
                         .sum();
                     (calls, b.clone())
@@ -2056,7 +2099,67 @@ fn select_backends(
                     .then_with(|| mh::stable_hash64(seed, &a.1).cmp(&mh::stable_hash64(seed, &b.1)))
             });
 
-            let chosen: Vec<String> = scored.into_iter().take(k).map(|(_, b)| b).collect();
+            let chosen: Vec<String> = scored.iter().take(k).map(|(_, b)| b.clone()).collect();
+
+            if let Some(path) = decisions_path() {
+                let datasets_for_log = datasets
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(|dataset| format!("{dataset:?}"))
+                    .collect();
+                append_jsonl(
+                    &path,
+                    &DecisionLog {
+                        schema_version: 7,
+                        muxer_version: MUXER_VERSION.to_string(),
+                        run_id: format!("seed={seed} slice={slice_tag} strategy=Estimate"),
+                        strategy: SampleStrategy::Estimate.id_str().to_string(),
+                        ml_only_policy: None,
+                        slice: slice_tag.to_string(),
+                        muxer_profile: std::env::var("ANNO_MUXER_PROFILE").ok(),
+                        latency_guardrail_max_mean_ms: None,
+                        latency_guardrail_allow_fewer: None,
+                        latency_guardrail_require_measured: None,
+                        round: 1,
+                        datasets: datasets_for_log,
+                        remaining: candidates_in_order.to_vec(),
+                        // Coverage can select more than one arm. Keep every selected
+                        // arm visible in this legacy singular field until the decision
+                        // schema gains a dedicated plural field.
+                        chosen: Some(chosen.join(",")),
+                        explore_first: None,
+                        constraints_fallback_used: None,
+                        eligible_arms: None,
+                        top_candidates: Some(LogTopCandidates {
+                            kind: LOG_SCORE_KIND_COVERAGE_COUNT.to_string(),
+                            rows: scored
+                                .iter()
+                                .map(|(calls, arm)| LogTopCandidate {
+                                    arm: arm.clone(),
+                                    score: *calls as f64,
+                                    calls: Some(*calls),
+                                    ok_rate: None,
+                                    junk_rate: None,
+                                    hard_junk_rate: None,
+                                    mean_quality_score: None,
+                                })
+                                .collect(),
+                        }),
+                        control_arms: None,
+                        chosen_fail_kinds_top: None,
+                        mab_k_round: None,
+                        exp3ix_rounds: None,
+                        worst_first_round: None,
+                        monitoring_enabled: None,
+                        monitoring_fallback_used: None,
+                        monitoring_eligible_arms: None,
+                        chosen_drift_score: None,
+                        chosen_catkl_score: None,
+                        chosen_cusum_score: None,
+                        chosen_monitoring_penalty: None,
+                    },
+                );
+            }
 
             if verbose {
                 eprintln!(
@@ -3133,11 +3236,31 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             // historical data).  This is the ground truth for matrix coverage.
             // Path resolution uses ANNO_EVAL_HISTORY → ANNO_CACHE_DIR → platform cache dir
             // so CI writes and reads from the same cached location.
-            let db_counts: std::collections::HashMap<String, u64> = {
+            let cohort_counts: Vec<std::collections::HashMap<String, u64>> = {
                 let hist_path = eval_history_jsonl_path();
                 crate::eval::history::EvalHistory::new(&hist_path)
                     .ok()
-                    .and_then(|h| h.dataset_observation_counts().ok())
+                    .map(|history| {
+                        tasks
+                            .iter()
+                            .flat_map(|task| {
+                                all_ds.iter().filter_map(|dataset| {
+                                    policy_cohort_key(
+                                        *task,
+                                        *dataset,
+                                        seed,
+                                        Some(max_examples_per_dataset()),
+                                        require_cached_for_run,
+                                    )
+                                    .and_then(|key| {
+                                        history
+                                            .dataset_observation_counts_for_policy_cohort(&key)
+                                            .ok()
+                                    })
+                                })
+                            })
+                            .collect()
+                    })
                     .unwrap_or_default()
             };
 
@@ -3145,7 +3268,10 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 .iter()
                 .map(|&d| {
                     let name = d.name().to_string();
-                    let total = db_counts.get(&name).copied().unwrap_or(0);
+                    let total = cohort_counts
+                        .iter()
+                        .map(|counts| counts.get(&name).copied().unwrap_or(0))
+                        .sum::<u64>();
                     (total, d)
                 })
                 .collect();
@@ -3715,6 +3841,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 prior_history.as_ref(),
                 &candidates,
                 Some(&chosen_datasets),
+                &tasks,
+                Some(max_examples_per_dataset()),
+                require_cached_for_run,
                 backends_per_run,
                 prior_calls,
             )
@@ -3727,6 +3856,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 prior_history.as_ref(),
                 &candidates,
                 None,
+                &tasks,
+                Some(max_examples_per_dataset()),
+                require_cached_for_run,
                 backends_per_run,
                 prior_calls,
             )
@@ -3740,6 +3872,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             prior_history.as_ref(),
             &candidates,
             Some(&chosen_datasets),
+            &tasks,
+            Some(max_examples_per_dataset()),
+            require_cached_for_run,
             backends_per_run,
             prior_calls,
         )
@@ -3752,6 +3887,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             prior_history.as_ref(),
             &candidates,
             None,
+            &tasks,
+            Some(max_examples_per_dataset()),
+            require_cached_for_run,
             backends_per_run,
             prior_calls,
         )
@@ -3801,7 +3939,15 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         }
     }
 
-    let eval = TaskEvaluator::new().expect("TaskEvaluator::new");
+    let muxer_run_id = outcome_run_id_override.clone().unwrap_or_else(|| {
+        format!(
+            "seed={} slice={} strategy={:?}",
+            seed, slice_tag_for_muxer, strategy
+        )
+    });
+    let eval = TaskEvaluator::new()
+        .expect("TaskEvaluator::new")
+        .with_muxer_run_id(muxer_run_id);
 
     let config = TaskEvalConfig {
         tasks,
@@ -3993,6 +4139,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     record_type: "outcome".to_string(),
                     muxer_version: MUXER_VERSION.to_string(),
                     run_id,
+                    observation_id: r.provenance.observation_id.clone(),
+                    policy_cohort_key: r.provenance.policy_cohort_key.clone(),
                     strategy: strategy_for_log,
                     ml_only_policy: ml_only_policy_for_log,
                     slice: slice_tag_for_muxer.to_string(),
@@ -4224,11 +4372,12 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             //
             // NOTE: this is a heuristic -- it can't fully distinguish code regressions
             // from sampling variance because different seeds/subsets produce different F1.
-            // The precise mechanism is detect_regressions_by_commit() which compares
-            // identical conditions across git commits.
+            // detect_regressions_by_commit() matches recorded policy cohorts across
+            // revisions. It is also heuristic: model artifacts, providers, and actual
+            // sampled content are not controlled by cohort equality.
             //
-            // Threshold: Cohen's d >= 2.0 (very large).  At this level, false alarms
-            // from sampling noise are rare (requires a ~2 standard deviation shift).
+            // Threshold: Cohen's d >= 2.0. This effect-size threshold does not
+            // establish a false-positive rate; reproduce alerts on fixed panels.
             if let Ok(alerts) = h.detect_regressions_recent(
                 5,   // compare last 5 observations
                 2.0, // Cohen's d >= 2.0 (very large -- only flags severe regressions)
@@ -4587,6 +4736,9 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         Some(&prior),
         &["stacked".to_string()],
         None,
+        &[],
+        None,
+        false,
         1,
         6,
     );
@@ -4673,6 +4825,9 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         Some(&prior),
         &["prior_only".to_string(), "measured_fast".to_string()],
         None,
+        &[],
+        None,
+        false,
         1,
         6,
     );
@@ -4717,6 +4872,9 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         None,
         &arms,
         None,
+        &[],
+        None,
+        false,
         2,
         0,
     );
@@ -4784,6 +4942,9 @@ fn test_novelty_still_triggers_under_priors() {
         Some(&prior),
         &["stacked".to_string()],
         None,
+        &[],
+        None,
+        false,
         1,
         6,
     );
@@ -4856,6 +5017,9 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         None,
         &arms,
         None,
+        &[],
+        None,
+        false,
         1,
         0,
     );
@@ -4865,6 +5029,49 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         s.contains("\"mab_k_round\""),
         "expected an ML decision row (mab_k_round present) for k==1; log={s}"
     );
+    let _ = std::fs::remove_file(&tmp);
+}
+
+#[test]
+fn test_coverage_decision_log_keeps_all_selected_arms() {
+    let _env = env_lock();
+    let tmp = std::env::temp_dir().join("anno-matrix-muxer-test-coverage-k2.jsonl");
+    let _ = std::fs::remove_file(&tmp);
+    let old = std::env::var("ANNO_MUXER_DECISIONS_FILE").ok();
+    struct Restore(Option<String>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            match self.0.as_deref() {
+                Some(value) => std::env::set_var("ANNO_MUXER_DECISIONS_FILE", value),
+                None => std::env::remove_var("ANNO_MUXER_DECISIONS_FILE"),
+            }
+        }
+    }
+    let _restore = Restore(old);
+    std::env::set_var(
+        "ANNO_MUXER_DECISIONS_FILE",
+        tmp.to_string_lossy().to_string(),
+    );
+    let history = BackendHistory::load(&tmp.with_extension("history"), 10);
+    let arms = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let chosen = select_backends(
+        SampleStrategy::Estimate,
+        42,
+        "ner",
+        &history,
+        None,
+        &arms,
+        None,
+        &[],
+        None,
+        false,
+        2,
+        0,
+    );
+    let log = std::fs::read_to_string(&tmp).expect("read decisions log");
+    let record: serde_json::Value = serde_json::from_str(log.trim()).expect("parse decision");
+    let encoded = record["chosen"].as_str().expect("chosen arms");
+    assert_eq!(encoded.split(',').collect::<Vec<_>>(), chosen);
     let _ = std::fs::remove_file(&tmp);
 }
 
@@ -4933,6 +5140,9 @@ fn test_control_only_still_writes_minimal_decision_log_row() {
         None,
         &arms,
         None,
+        &[],
+        None,
+        false,
         2, // n=2: max_control = min(1, 2-1) = 1 → 1 control arm + 1 MAB pick
         0,
     );
