@@ -1670,22 +1670,13 @@ impl DatasetLoader {
         if let Some(ref bucket) = self.s3_bucket {
             if let Ok((content, manifest_entry)) = self.download_from_s3(bucket, dataset_id) {
                 Self::enforce_max_download_bytes(content.len(), "S3")?;
-                // Cache locally for future use
-                let cache_path = self.cache_path(id);
-                fs::write(&cache_path, &content).map_err(|e| {
-                    Error::InvalidInput(format!("Failed to write cache {:?}: {}", cache_path, e))
-                })?;
-
-                let mut dataset = self.parse_content_impl(&content, dataset_id)?;
+                let expected_checksum = manifest_entry.as_ref().map(|entry| entry.sha256.as_str());
+                let mut dataset =
+                    self.validate_and_cache_content(id, &content, expected_checksum)?;
                 dataset.data_source = DataSource::S3Cache;
 
                 // Best-effort: if S3 provides a manifest entry, record it locally.
                 if let Some(entry) = manifest_entry {
-                    if self.compute_sha256(&content) != entry.sha256 {
-                        return Err(Error::InvalidInput(
-                            "S3 dataset checksum differs from its manifest".into(),
-                        ));
-                    }
                     Self::apply_manifest_provenance(&mut dataset, &entry);
                     let _ = self.update_manifest(entry);
                 }
@@ -1699,14 +1690,8 @@ impl DatasetLoader {
         let file_size = content.len() as u64;
         let sha256 = self.compute_sha256(&content);
 
-        // 4. Cache the downloaded content locally
-        let cache_path = self.cache_path(id);
-        fs::write(&cache_path, &content).map_err(|e| {
-            Error::InvalidInput(format!("Failed to write cache {:?}: {}", cache_path, e))
-        })?;
-
-        // 5. Parse the content
-        let mut dataset = self.parse_content_impl(&content, dataset_id)?;
+        // 4. Validate before replacing the canonical cache.
+        let mut dataset = self.validate_and_cache_content(id, &content, None)?;
         dataset.data_source = DataSource::OriginalUrl;
         // Parsing starts from registry metadata, but an HF fallback may have selected a concrete
         // held-out split. Preserve the actual artifact rather than reporting the registry page.
@@ -1715,7 +1700,7 @@ impl DatasetLoader {
         dataset.metadata.split = Self::evaluation_split_from_url(&resolved_url);
         dataset.metadata.version = Some(format!("sha256:{sha256}"));
 
-        // 6. Update manifest with download metadata
+        // 5. Update manifest with download metadata
         let entry = CacheManifestEntry {
             dataset_id: dataset_id.cache_filename().to_string(),
             source_url: dataset_id.download_url().to_string(),
@@ -1729,7 +1714,7 @@ impl DatasetLoader {
         };
         let _ = self.update_manifest(entry); // Best effort
 
-        // 7. Optionally upload to S3 for future use (best effort)
+        // 6. Optionally upload to S3 for future use (best effort)
         if let Some(ref bucket) = self.s3_bucket {
             let entry = CacheManifestEntry {
                 dataset_id: dataset_id.cache_filename().to_string(),
@@ -1778,6 +1763,7 @@ impl DatasetLoader {
         let pointer_uri = format!("s3://{}/{}", bucket, pointer_key);
 
         let mut content: Option<String> = None;
+        let mut pointer_sha256: Option<String> = None;
 
         // Attempt: pointer -> by-sha256 snapshot
         let pointer = Command::new("aws")
@@ -1795,6 +1781,7 @@ impl DatasetLoader {
 
         if let Some(pointer) = pointer {
             if let Some(sha) = pointer.get("sha256").and_then(|v| v.as_str()) {
+                pointer_sha256 = Some(sha.to_string());
                 let by_sha_key = format!("datasets/by-sha256/{}/{}", sha, id.cache_filename());
                 let by_sha_uri = format!("s3://{}/{}", bucket, by_sha_key);
                 let output = Command::new("aws")
@@ -1836,6 +1823,14 @@ impl DatasetLoader {
         let Some(content) = content else {
             return Err(Error::InvalidInput("S3 download failed".to_string()));
         };
+
+        if let Some(expected) = pointer_sha256 {
+            if self.compute_sha256(&content) != expected {
+                return Err(Error::InvalidInput(
+                    "S3 dataset checksum differs from its pointer".into(),
+                ));
+            }
+        }
 
         // Best-effort: attempt to fetch per-dataset manifest entry.
         let manifest = self.download_manifest_entry_from_s3(bucket, id).ok();
@@ -3030,6 +3025,101 @@ impl DatasetLoader {
                 checksum
             },
         )
+    }
+
+    /// Validate a candidate payload before it replaces the canonical cache file.
+    #[cfg(feature = "eval")]
+    fn validate_and_cache_content(
+        &self,
+        id: LoadableDatasetId,
+        content: &str,
+        expected_checksum: Option<&str>,
+    ) -> Result<LoadedDataset> {
+        if let Some(expected_checksum) = expected_checksum {
+            if self.compute_sha256(content) != expected_checksum {
+                return Err(Error::InvalidInput(
+                    "S3 dataset checksum differs from its manifest".into(),
+                ));
+            }
+        }
+
+        let dataset = self.parse_content_impl(content, id.0)?;
+        if dataset.sentences.is_empty() {
+            return Err(Error::InvalidInput(format!(
+                "Dataset '{}' parsed to 0 sentences",
+                id.0.name()
+            )));
+        }
+
+        self.replace_cache_content(&self.cache_path(id), content.as_bytes())?;
+        Ok(dataset)
+    }
+
+    /// Atomically replace a cache file after the caller has validated its payload.
+    #[cfg(feature = "eval")]
+    fn replace_cache_content(&self, cache_path: &std::path::Path, content: &[u8]) -> Result<()> {
+        use std::io::Write;
+
+        let parent = cache_path.parent().ok_or_else(|| {
+            Error::InvalidInput(format!(
+                "Cache path {:?} has no parent directory",
+                cache_path
+            ))
+        })?;
+        let filename = cache_path.file_name().ok_or_else(|| {
+            Error::InvalidInput(format!("Cache path {:?} has no filename", cache_path))
+        })?;
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let pid = std::process::id();
+        let (temp_path, mut temp_file) = (0_u8..8)
+            .find_map(|attempt| {
+                let temp_path = parent.join(format!(
+                    ".{}.{}.{}.{}.tmp",
+                    filename.to_string_lossy(),
+                    pid,
+                    nonce,
+                    attempt
+                ));
+                match fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp_path)
+                {
+                    Ok(file) => Some(Ok((temp_path, file))),
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => None,
+                    Err(error) => Some(Err(Error::InvalidInput(format!(
+                        "Failed to create cache temp file {:?}: {}",
+                        temp_path, error
+                    )))),
+                }
+            })
+            .transpose()?
+            .ok_or_else(|| {
+                Error::InvalidInput(format!(
+                    "Failed to reserve a unique cache temp file beside {:?}",
+                    cache_path
+                ))
+            })?;
+
+        if let Err(error) = temp_file.write_all(content) {
+            drop(temp_file);
+            let _ = fs::remove_file(&temp_path);
+            return Err(Error::InvalidInput(format!(
+                "Failed to write cache {:?}: {}",
+                temp_path, error
+            )));
+        }
+        drop(temp_file);
+        fs::rename(&temp_path, cache_path).map_err(|e| {
+            let _ = fs::remove_file(&temp_path);
+            Error::InvalidInput(format!(
+                "Failed to replace cache {:?} with {:?}: {}",
+                cache_path, temp_path, e
+            ))
+        })
     }
 
     /// Get temporal metadata for a dataset if available.
@@ -5157,13 +5247,34 @@ impl DatasetLoader {
             )));
         }
 
+        if matches!(id, DatasetId::ECBPlus) {
+            let raw_bytes = std::fs::read(&cache_path).map_err(|e| {
+                Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e))
+            })?;
+            if raw_bytes.starts_with(b"PK\x03\x04") {
+                return super::coref_loader::parse_ecb_plus_zip(&raw_bytes);
+            }
+            let content = String::from_utf8(raw_bytes).map_err(|e| {
+                Error::InvalidInput(format!("ECB+ cache is not valid UTF-8 CSV: {}", e))
+            })?;
+            return super::coref_loader::parse_ecb_plus_coref(&content);
+        }
+
         let content = std::fs::read_to_string(&cache_path)
             .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
 
+        self.parse_coref_content(&content, id)
+    }
+
+    fn parse_coref_content(
+        &self,
+        content: &str,
+        id: DatasetId,
+    ) -> Result<Vec<super::coref::CorefDocument>> {
         match id {
-            DatasetId::CorefUD => super::coref_loader::parse_corefud_conllu(&content),
+            DatasetId::CorefUD => super::coref_loader::parse_corefud_conllu(content),
             DatasetId::GAP => {
-                let examples = super::coref_loader::parse_gap_tsv(&content)?;
+                let examples = super::coref_loader::parse_gap_tsv(content)?;
                 Ok(examples
                     .into_iter()
                     .map(|ex| ex.to_coref_document())
@@ -5174,7 +5285,7 @@ impl DatasetLoader {
                 // Try JSONL first (more common), then fall back to JSON array
                 if content.trim().starts_with('[') {
                     // JSON array format
-                    let docs = super::coref_loader::parse_preco_json(&content)?;
+                    let docs = super::coref_loader::parse_preco_json(content)?;
                     Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
                 } else {
                     // JSONL format - parse each line and convert to JSON array format
@@ -5197,24 +5308,11 @@ impl DatasetLoader {
             }
             DatasetId::LitBank => {
                 // LitBank coreference - parse .ann format for chains
-                self.parse_litbank_coref(&content)
-            }
-            DatasetId::ECBPlus => {
-                // ECB+ may be cached as either:
-                // - ZIP binary (new: real XML annotations)
-                // - CSV text (legacy: sentence index)
-                let raw_bytes = std::fs::read(&cache_path).map_err(|e| {
-                    Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e))
-                })?;
-                if raw_bytes.starts_with(b"PK\x03\x04") {
-                    return super::coref_loader::parse_ecb_plus_zip(&raw_bytes);
-                }
-                // Fall back to CSV parser
-                super::coref_loader::parse_ecb_plus_coref(&content)
+                self.parse_litbank_coref(content)
             }
             DatasetId::WikiCoref => {
                 // WikiCoref uses a GAP-compatible TSV format.
-                let examples = super::coref_loader::parse_gap_tsv(&content)?;
+                let examples = super::coref_loader::parse_gap_tsv(content)?;
                 Ok(examples
                     .into_iter()
                     .map(|ex| ex.to_coref_document())
@@ -5233,13 +5331,30 @@ impl DatasetLoader {
                 // Format: OntoNotes-style with character metadata
                 // Note: Actual data requires HuggingFace datasets library to download
                 // from Project Gutenberg. We support pre-downloaded JSONL.
-                super::coref_loader::parse_bookcoref_json(&content)
+                super::coref_loader::parse_bookcoref_json(content)
             }
             _ => Err(Error::InvalidInput(format!(
                 "No coreference parser for {:?}",
                 id
             ))),
         }
+    }
+
+    #[cfg(feature = "eval")]
+    fn validate_and_cache_coref_content(
+        &self,
+        id: DatasetId,
+        content: &str,
+    ) -> Result<Vec<super::coref::CorefDocument>> {
+        let documents = self.parse_coref_content(content, id)?;
+        if documents.is_empty() {
+            return Err(Error::InvalidInput(format!(
+                "Coreference dataset '{}' parsed to 0 documents",
+                id.name()
+            )));
+        }
+        self.replace_cache_content(&self.cache_path_for(id), content.as_bytes())?;
+        Ok(documents)
     }
 
     /// Load coreference dataset, downloading if needed.
@@ -5264,14 +5379,16 @@ impl DatasetLoader {
                 // ECB+ is a ZIP file -- download as raw bytes
                 let url = id.download_url();
                 let bytes = self.download_attempt_bytes(url)?;
-                std::fs::write(&cache_path, &bytes).map_err(|e| {
-                    Error::InvalidInput(format!("Failed to cache {:?}: {}", cache_path, e))
-                })?;
+                let documents = super::coref_loader::parse_ecb_plus_zip(&bytes)?;
+                if documents.is_empty() {
+                    return Err(Error::InvalidInput(
+                        "ECB+ dataset parsed to 0 documents".to_string(),
+                    ));
+                }
+                self.replace_cache_content(&cache_path, &bytes)?;
             } else {
                 let (content, _) = self.download_with_resolved_url(id)?;
-                std::fs::write(&cache_path, &content).map_err(|e| {
-                    Error::InvalidInput(format!("Failed to cache {:?}: {}", cache_path, e))
-                })?;
+                self.validate_and_cache_coref_content(id, &content)?;
             }
         }
         self.load_coref(id)
@@ -5469,6 +5586,14 @@ impl DatasetLoader {
         let content = std::fs::read_to_string(&cache_path)
             .map_err(|e| Error::InvalidInput(format!("Failed to read {:?}: {}", cache_path, e)))?;
 
+        self.parse_relation_content(&content, id)
+    }
+
+    fn parse_relation_content(
+        &self,
+        content: &str,
+        id: DatasetId,
+    ) -> Result<Vec<RelationDocument>> {
         match id {
             DatasetId::DocRED
             | DatasetId::ReTACRED
@@ -5480,11 +5605,11 @@ impl DatasetLoader {
             | DatasetId::MixRED
             | DatasetId::CovEReD => {
                 // All these datasets use the CrossRE format (same as DocRED)
-                self.parse_docred_relations(&content)
+                self.parse_docred_relations(content)
             }
             DatasetId::CHisIEC => {
                 // CHisIEC uses a different JSON format with entity indices
-                self.parse_chisiec_relations(&content)
+                self.parse_chisiec_relations(content)
             }
             DatasetId::CADEC => {
                 // CADEC is NER, not relation extraction
@@ -5499,15 +5624,29 @@ impl DatasetLoader {
         }
     }
 
+    #[cfg(feature = "eval")]
+    fn validate_and_cache_relation_content(
+        &self,
+        id: DatasetId,
+        content: &str,
+    ) -> Result<Vec<RelationDocument>> {
+        let documents = self.parse_relation_content(content, id)?;
+        if documents.is_empty() {
+            return Err(Error::InvalidInput(format!(
+                "Relation dataset '{}' parsed to 0 documents",
+                id.name()
+            )));
+        }
+        self.replace_cache_content(&self.cache_path_for(id), content.as_bytes())?;
+        Ok(documents)
+    }
+
     /// Load relation extraction dataset, downloading if needed.
     #[cfg(feature = "eval")]
     pub fn load_or_download_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if !self.is_cached_for(id) {
             let (content, _) = self.download_with_resolved_url(id)?;
-            let cache_path = self.cache_path_for(id);
-            std::fs::write(&cache_path, &content).map_err(|e| {
-                Error::InvalidInput(format!("Failed to cache {:?}: {}", cache_path, e))
-            })?;
+            self.validate_and_cache_relation_content(id, &content)?;
         }
         self.load_relation(id)
     }
@@ -7168,6 +7307,121 @@ fn map_entity_type(original: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn candidate_payloads_are_validated_before_replacing_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = LoadableDatasetId(DatasetId::WikiGold);
+        let valid = "Alice B-PER\nworks O\n\n";
+        let cache_path = loader.cache_path(id);
+
+        // A parseable payload with the wrong S3 checksum must never become a cache hit.
+        let mismatch = loader
+            .validate_and_cache_content(id, valid, Some("not-the-payload-checksum"))
+            .unwrap_err();
+        assert!(mismatch.to_string().contains("checksum"));
+        assert!(!cache_path.exists());
+        assert!(!dir.path().join("manifest.json").exists());
+        assert!(loader.load(id).is_err());
+
+        // An invalid fresh payload must likewise leave no artifact behind.
+        let invalid = loader.validate_and_cache_content(id, "", None).unwrap_err();
+        assert!(invalid.to_string().contains("empty"));
+        assert!(!cache_path.exists());
+        assert!(!dir.path().join("manifest.json").exists());
+
+        // Valid content is persisted and subsequently loaded from that cache boundary.
+        let expected = loader.compute_sha256(valid);
+        let persisted = loader
+            .validate_and_cache_content(id, valid, Some(&expected))
+            .unwrap();
+        assert_eq!(persisted.sentences.len(), 1);
+        assert_eq!(std::fs::read_to_string(&cache_path).unwrap(), valid);
+        assert_eq!(loader.load(id).unwrap().sentences.len(), 1);
+
+        // A rejected replacement preserves a previously usable cache entry.
+        assert!(loader.validate_and_cache_content(id, "", None).is_err());
+        assert_eq!(std::fs::read_to_string(&cache_path).unwrap(), valid);
+        assert_eq!(loader.load(id).unwrap().sentences.len(), 1);
+
+        // A validated refresh replaces an existing file, including on Windows.
+        let replacement = "Bob B-PER\nleft O\n\n";
+        loader
+            .validate_and_cache_content(id, replacement, None)
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(&cache_path).unwrap(), replacement);
+        assert_eq!(loader.load(id).unwrap().sentences[0].text(), "Bob left");
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn native_coref_and_relation_payloads_validate_before_cache_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+
+        let gap = DatasetId::GAP;
+        let gap_path = loader.cache_path_for(gap);
+        assert!(loader
+            .validate_and_cache_coref_content(gap, "not a GAP TSV")
+            .is_err());
+        assert!(!gap_path.exists());
+        let gap_payload = "ID\tText\tPronoun\tPronoun-offset\tA\tA-offset\tA-coref\tB\tB-offset\tB-coref\tURL\n\
+            1\tJohn saw Mary. He waved.\tHe\t15\tJohn\t0\tTRUE\tMary\t9\tFALSE\thttps://example.com";
+        assert_eq!(
+            loader
+                .validate_and_cache_coref_content(gap, gap_payload)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(std::fs::read_to_string(&gap_path).unwrap(), gap_payload);
+
+        let relation = DatasetId::DocRED;
+        let relation_path = loader.cache_path_for(relation);
+        assert!(loader
+            .validate_and_cache_relation_content(relation, "<html>not a dataset</html>")
+            .is_err());
+        assert!(!relation_path.exists());
+        let relation_payload =
+            r#"{"sentence":["Alice","works"],"ner":[[0,0,"PER"]],"relations":[]}"#;
+        assert_eq!(
+            loader
+                .validate_and_cache_relation_content(relation, relation_payload)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            std::fs::read_to_string(&relation_path).unwrap(),
+            relation_payload
+        );
+    }
+
+    #[test]
+    fn ecb_plus_zip_cache_loads_before_utf8_decoding() {
+        use std::io::{Cursor, Write};
+
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file(
+                "ECB+/1/1_1ecb.xml",
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+        archive
+            .write_all(
+                br#"<Document><token t_id="1" sentence="0" number="0">Alice</token></Document>"#,
+            )
+            .unwrap();
+        let bytes = archive.finish().unwrap().into_inner();
+        std::fs::write(loader.cache_path_for(DatasetId::ECBPlus), bytes).unwrap();
+
+        assert_eq!(loader.load_coref(DatasetId::ECBPlus).unwrap().len(), 1);
+    }
 
     #[test]
     fn cached_dataset_retains_provenance_and_rejects_modified_content() {
