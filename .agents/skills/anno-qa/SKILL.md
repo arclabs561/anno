@@ -47,6 +47,16 @@ developers or coding agents; it does not require a particular harness.
    Choose small compatible panels by task/domain instead of a blind Cartesian
    product. Model aliases are not independent architectures.
 
+   Resolve the dataset cache before interpreting a missing cell: the loader uses
+   `$ANNO_CACHE_DIR/datasets` when configured, otherwise the platform cache under
+   `anno/datasets`. It does not merge alternate anno roots or Hugging Face dataset
+   caches. Inventory configured S3 artifacts separately when relevant; a raw
+   dataset file, a snapshot, and a current loader cache are different artifacts.
+   Reuse and validate existing data before downloading replacements. Perform any
+   S3 restore or raw-data conversion as an explicit preparation step, then run
+   acceptance panels with downloads disabled. Never infer registry coverage from
+   object counts alone.
+
 4. Establish fixed acceptance checks before adaptive exploration. Run
    `bash scripts/eval-sanity.sh` for the bounded WikiGold loader/backend smoke
    check (requires `jq`, permits capped downloads). This is separate from the
