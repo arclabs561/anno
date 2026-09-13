@@ -8,8 +8,8 @@
 //!
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
-//! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
-//! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure`). Used only when
+//! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` | `estimate` (default: `ml-only`)
+//! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure` | `coverage`). Used only when
 //!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
 //! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run in cache-only mode (no fetch); if selection yields
@@ -127,8 +127,10 @@ use std::sync::{Mutex, OnceLock};
 // Local compat types for logging (removed from muxer >= 0.3.12)
 // ---------------------------------------------------------------------------
 
-/// Local version constant for JSONL decision logs.
-const MUXER_VERSION: &str = "0.3.12-local";
+/// The dependency does not expose its resolved package version. Keep the
+/// legacy log field explicit about that gap; a compatibility-shim version is
+/// not the muxer version. Retain Cargo.lock with reproducible run artifacts.
+const MUXER_VERSION: &str = "unrecorded";
 
 /// Score kind tag for MAB scalar scores in decision logs.
 const LOG_SCORE_KIND_MAB_SCALAR: &str = "mab_scalar";
@@ -558,14 +560,12 @@ enum SampleStrategy {
     Random,
     MlOnly,
     WorstFirst,
-    /// **Estimation-first**: select (backend, dataset) cells to maximize information
-    /// about the full quality matrix.  Prioritizes cells with fewest observations or
-    /// highest uncertainty, rather than routing to the "best" arm.
+    /// **Coverage-first**: prioritize backends with the fewest recorded observations
+    /// across the selected dataset panel, rather than routing to the "best" arm.
     ///
-    /// This is the right objective when the goal is measurement (what is the true F1
-    /// of each backend on each dataset?) rather than exploitation (route to the best).
-    /// Detection comes naturally: cells with stale observations or high variance are
-    /// prioritized, so changes are caught as a byproduct of estimation.
+    /// This is a count-based coverage heuristic. It does not model uncertainty,
+    /// variance, recency, or regression risk, and it does not make F1 estimates
+    /// reliable by itself.
     Estimate,
 }
 
@@ -574,7 +574,8 @@ enum MuxerMode {
     /// Regression hunting: prioritize historically broken backends, run regression
     /// detection on the full quality matrix.  Maps to `WorstFirst` strategy.
     Triage,
-    /// Stable measurement: route to the best backends for reliable F1 estimates.
+    /// Quality-prioritized selection: route toward backends with stronger observed
+    /// outcomes. This does not make F1 estimates stable or reliable by itself.
     /// Maps to `MlOnly` strategy.
     Measure,
     /// Matrix coverage: fill the quality matrix by selecting least-observed cells.
@@ -2014,16 +2015,10 @@ fn select_backends(
             chosen
         }
         SampleStrategy::Estimate => {
-            // Estimation-first: pick the backends with fewest observations on the
-            // chosen datasets.  This is A-optimal experimental design applied to the
-            // quality matrix: spread observations to minimize worst-case estimation
-            // error across all cells.
-            //
-            // The key difference from MlOnly/WorstFirst: we don't care about
-            // routing quality or regression hunting.  We care about filling the
-            // matrix uniformly so every (backend, dataset) cell has a reliable F1
-            // estimate.  Detection comes as a byproduct: cells with stale
-            // observations are naturally prioritized.
+            // Coverage-first: pick the backend with the fewest total observations
+            // across the chosen datasets. This spreads runs over a fixed panel, but
+            // is not an optimal-design calculation and does not inspect variance,
+            // recency, or outcome quality.
             let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
 
             // Score each backend by total observation count across the target datasets.

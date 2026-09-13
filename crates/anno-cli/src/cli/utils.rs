@@ -702,7 +702,7 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn read_input_file_html_strips_nav_footer() {
+    fn read_input_file_html_extracts_text() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("test.html");
         fs::write(
@@ -727,16 +727,21 @@ mod tests {
             "should extract location, got: {}",
             text
         );
-        assert!(
-            !text.contains("Menu"),
-            "nav content should be stripped, got: {}",
-            text
-        );
-        assert!(
-            !text.contains("Copyright"),
-            "footer content should be stripped, got: {}",
-            text
-        );
+        // `html2text` is deliberately a tag-strip fallback and retains
+        // boilerplate. Readability extraction promises article isolation.
+        #[cfg(feature = "extractor-readability")]
+        {
+            assert!(
+                !text.contains("Menu"),
+                "nav content should be stripped, got: {}",
+                text
+            );
+            assert!(
+                !text.contains("Copyright"),
+                "footer content should be stripped, got: {}",
+                text
+            );
+        }
     }
 
     #[test]

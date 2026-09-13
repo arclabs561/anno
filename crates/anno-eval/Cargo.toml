@@ -74,7 +74,7 @@ quick-xml = "0.41"
 unicode-normalization = { workspace = true }
 rayon = { workspace = true, optional = true }
 
-muxer = { version = "0.5", default-features = false, features = [
+muxer = { version = "0.5.3", default-features = false, features = [
   "serde",
   "stochastic",
   "contextual",
