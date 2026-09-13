@@ -541,33 +541,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             let entities_out: Vec<serde_json::Value> = doc
                 .signals()
                 .iter()
-                .map(|s| {
-                    let (start, end) = s.text_offsets().unwrap_or((0, 0));
-                    let mut obj = serde_json::json!({
-                        "id": compute_entity_id(&text, s.surface(), s.label(), start, end),
-                        "text": s.surface(),
-                        "type": s.label(),
-                        "start": start,
-                        "end": end,
-                        "confidence": s.confidence,
-                        "negated": s.negated,
-                        "quantifier": s.quantifier.map(|q| format!("{:?}", q)),
-                    });
-
-                    if let Some(window) = args.context_window {
-                        let (before, after) = get_context_window(&text, start, end, window);
-                        obj["context_before"] = serde_json::Value::String(before);
-                        obj["context_after"] = serde_json::Value::String(after);
-                    }
-
-                    if args.include_sentence {
-                        let sent = get_sentence_for_span(&text, start, end);
-                        obj["sentence"] = serde_json::Value::String(sent);
-                    }
-
-                    obj
+                .map(|signal| {
+                    entity_json(&text, signal, args.context_window, args.include_sentence)
                 })
-                .collect();
+                .collect::<Result<_, _>>()?;
 
             let provenance = build_provenance(
                 &text,
@@ -591,33 +568,10 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             let entities_out: Vec<serde_json::Value> = doc
                 .signals()
                 .iter()
-                .map(|s| {
-                    let (start, end) = s.text_offsets().unwrap_or((0, 0));
-                    let mut obj = serde_json::json!({
-                        "id": compute_entity_id(&text, s.surface(), s.label(), start, end),
-                        "text": s.surface(),
-                        "type": s.label(),
-                        "start": start,
-                        "end": end,
-                        "confidence": s.confidence,
-                        "negated": s.negated,
-                        "quantifier": s.quantifier.map(|q| format!("{:?}", q)),
-                    });
-
-                    if let Some(window) = args.context_window {
-                        let (before, after) = get_context_window(&text, start, end, window);
-                        obj["context_before"] = serde_json::Value::String(before);
-                        obj["context_after"] = serde_json::Value::String(after);
-                    }
-
-                    if args.include_sentence {
-                        let sent = get_sentence_for_span(&text, start, end);
-                        obj["sentence"] = serde_json::Value::String(sent);
-                    }
-
-                    obj
+                .map(|signal| {
+                    entity_json(&text, signal, args.context_window, args.include_sentence)
                 })
-                .collect();
+                .collect::<Result<_, _>>()?;
 
             let provenance = build_provenance(
                 &text,
@@ -1038,6 +992,45 @@ fn compute_entity_id(text: &str, surface: &str, label: &str, start: usize, end: 
     format!("xxh3:{:016x}", xxh3_64(&data))
 }
 
+/// Render one emitted signal for JSON and JSONL output.
+///
+/// `Signal::from(&Entity)` preserves entity provenance, so taking it from the
+/// emitted signal keeps this metadata aligned with filtering and validation.
+fn entity_json(
+    text: &str,
+    signal: &Signal<Location>,
+    context_window: Option<usize>,
+    include_sentence: bool,
+) -> Result<serde_json::Value, CliError> {
+    let (start, end) = signal.text_offsets().unwrap_or((0, 0));
+    let mut obj = serde_json::json!({
+        "id": compute_entity_id(text, signal.surface(), signal.label(), start, end),
+        "text": signal.surface(),
+        "type": signal.label(),
+        "start": start,
+        "end": end,
+        "confidence": signal.confidence,
+        "negated": signal.negated,
+        "quantifier": signal.quantifier.map(|q| format!("{:?}", q)),
+    });
+
+    if let Some(provenance) = &signal.provenance {
+        obj["provenance"] = serde_json::to_value(provenance).map_err(CliError::from)?;
+    }
+
+    if let Some(window) = context_window {
+        let (before, after) = get_context_window(text, start, end, window);
+        obj["context_before"] = serde_json::Value::String(before);
+        obj["context_after"] = serde_json::Value::String(after);
+    }
+
+    if include_sentence {
+        obj["sentence"] = serde_json::Value::String(get_sentence_for_span(text, start, end));
+    }
+
+    Ok(obj)
+}
+
 fn build_provenance(
     text: &str,
     model: &str,
@@ -1100,6 +1093,17 @@ fn build_provenance(
     });
     if let Some(lang) = language {
         prov["language"] = serde_json::Value::String(lang.to_string());
+    }
+    let entity_sources: std::collections::BTreeSet<&str> = entities
+        .iter()
+        .filter_map(|entity| {
+            entity
+                .pointer("/provenance/source")
+                .and_then(|value| value.as_str())
+        })
+        .collect();
+    if !entity_sources.is_empty() {
+        prov["entity_sources"] = serde_json::json!(entity_sources);
     }
     prov
 }

@@ -5,6 +5,8 @@
 //! loader, evaluator, and constructed backend; unavailable facts are explicit.
 
 use crate::eval::backend_factory::{BackendConstructionReceipt, ModelArtifactFileReceipt};
+use crate::eval::loader::DatasetId;
+use crate::eval::task_mapping::Task;
 use anno::EntityType;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +30,29 @@ pub struct EvalRunProvenance {
     pub backend: BackendRunProvenance,
     /// Sampling and evaluator settings that affect this result.
     pub runtime: EvalRuntimeProvenance,
+    /// Task-owned account of the units and gold items actually scored.
+    ///
+    /// This is absent for older receipts and tasks that only use the generic sentence loader.
+    /// It is distinct from `dataset.sentence_count`, which describes that loader's material and
+    /// can differ from a document-oriented task's scored input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evaluated_sample: Option<EvaluatedSampleProvenance>,
+    /// Opaque ID shared by a muxer selection outcome and its evaluation receipt.
+    ///
+    /// This is absent for ordinary evaluations and historical records. It is an
+    /// observation join key, not a comparison key and not a source revision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub observation_id: Option<String>,
+    /// ID for the enclosing muxer run when an observation was selected by it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub muxer_run_id: Option<String>,
+    /// Conditions usable by the muxer before a backend is constructed.
+    ///
+    /// This intentionally excludes model-artifact and execution receipts: those
+    /// are not available at selection time for every candidate. It is suitable
+    /// for coverage counts, not a claim of artifact-controlled quality parity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_cohort_key: Option<String>,
     /// Present for NER-style tasks. The primary metrics always use this policy.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ner_label_policy: Option<NerLabelPolicyReport>,
@@ -41,6 +66,10 @@ impl Default for EvalRunProvenance {
             dataset: DatasetRunProvenance::default(),
             backend: BackendRunProvenance::default(),
             runtime: EvalRuntimeProvenance::default(),
+            evaluated_sample: None,
+            observation_id: None,
+            muxer_run_id: None,
+            policy_cohort_key: None,
             ner_label_policy: None,
         }
     }
@@ -66,7 +95,86 @@ pub(crate) fn legacy_eval_run_provenance() -> EvalRunProvenance {
             },
             ..Default::default()
         },
+        evaluated_sample: None,
+        observation_id: None,
+        muxer_run_id: None,
+        policy_cohort_key: None,
         ner_label_policy: None,
+    }
+}
+
+/// The unit a task evaluator actually scores.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvaluatedSampleUnit {
+    /// One annotated sentence.
+    Sentence,
+    /// One relation or coreference document.
+    Document,
+}
+
+/// Counts observed at the task's actual scoring boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvaluatedSampleProvenance {
+    /// Format version for these task-owned counts.
+    pub schema_version: u32,
+    /// Unit passed through the task evaluator.
+    pub unit: EvaluatedSampleUnit,
+    /// Number of units actually scored after task-specific sampling.
+    pub unit_count: usize,
+    /// Number of task gold items in those units (relations for relation extraction).
+    pub gold_item_count: usize,
+}
+
+#[derive(Serialize)]
+struct PolicyCohortConditions<'a> {
+    schema: &'static str,
+    task: String,
+    dataset: String,
+    max_examples: Option<usize>,
+    cached_only: bool,
+    enabled_features: &'a [String],
+    scorer: &'static str,
+}
+
+/// Produce the pre-selection cohort used by muxer coverage accounting.
+///
+/// A cohort is deliberately narrower than quality comparison: it holds stable
+/// task/dataset/sampling/scoring controls fixed while leaving selected model
+/// artifacts and provider placement to the post-run receipt.
+pub(crate) fn policy_cohort_key(
+    task: Task,
+    dataset: DatasetId,
+    _seed: u64,
+    max_examples: Option<usize>,
+    cached_only: bool,
+) -> Option<String> {
+    let build = current_build_provenance();
+    serde_json::to_string(&PolicyCohortConditions {
+        schema: "anno-eval-policy-cohort-v1",
+        task: format!("{task:?}"),
+        dataset: dataset.name().to_string(),
+        max_examples,
+        cached_only,
+        enabled_features: &build.enabled_features,
+        // TaskEvalResult primary scoring keys and label policy are versioned as
+        // one contract until a dedicated scorer version is introduced.
+        scorer: "anno-eval-primary-score-v1",
+    })
+    .ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::policy_cohort_key;
+    use crate::eval::loader::DatasetId;
+    use crate::eval::task_mapping::Task;
+
+    #[test]
+    fn policy_cohort_allows_repeated_seed_coverage() {
+        let first = policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(20), true);
+        let replay = policy_cohort_key(Task::NER, DatasetId::WikiGold, 73, Some(20), true);
+        assert_eq!(first, replay);
     }
 }
 
@@ -131,9 +239,15 @@ pub struct DatasetRunProvenance {
     /// Dataset domain when declared by its metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
-    /// Number of sampled sentences in this result.
+    /// Number of generic-loader sentences observed for this result.
+    ///
+    /// For document-oriented tasks this is loader metadata, not the actual scored document
+    /// count; use [`EvalRunProvenance::evaluated_sample`] when it is present.
     pub sentence_count: usize,
-    /// Number of gold entities in the sampled sentences.
+    /// Number of gold entities decoded by the generic sentence loader.
+    ///
+    /// This is not a relation/coreference gold-item count. Use
+    /// [`EvalRunProvenance::evaluated_sample`] for a task-owned count.
     pub entity_count: usize,
 }
 

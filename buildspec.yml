@@ -1,0 +1,43 @@
+# Generic CodeBuild pilot preparation. Infrastructure selects the build image,
+# source integration, IAM role, artifact bucket, cache namespace, budget, and
+# retention. This file intentionally contains none of those account-specific
+# settings and does not provision or change GitHub's required checks.
+---
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    # A prepared image must provide Cargo/Rust 1.91+, Python 3.10+, just, and
+    # sccache. A stock AWS image is not assumed to include these prerequisites.
+    CARGO_INCREMENTAL: "0"
+    RUSTC_WRAPPER: sccache
+    SCCACHE_DIR: /root/.cache/sccache
+    ANNO_ARTIFACT_DIR: reports/ci-blocking
+
+phases:
+  install:
+    commands:
+      - command -v cargo
+      - command -v rustc
+      - command -v just
+      - command -v python3
+      - command -v sccache
+      - sccache --start-server
+  build:
+    commands:
+      - ./scripts/ci-portable.sh blocking
+
+artifacts:
+  base-directory: reports/ci-blocking
+  files:
+    - '**/*'
+
+# Configure a distinct, untrusted cache namespace in the CodeBuild project/IaC.
+# No target directory is cached: clean-target builds plus sccache produce a
+# smaller, compiler-version-aware cache surface.
+cache:
+  paths:
+    - '/root/.cache/sccache/**/*'
+    - '/root/.cargo/git/**/*'
+    - '/root/.cargo/registry/**/*'

@@ -17,6 +17,7 @@ check:
         cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
     else
         cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
+        cargo test --manifest-path Cargo.toml -p anno-cli --test extract_provenance --features "eval discourse"
     fi
 
 # Run standard checks with sccache-friendly compilation settings.
@@ -262,6 +263,15 @@ eval-wide MAX_EXAMPLES="50":
 # Used in CI on push
 eval-sanity:
     ./scripts/eval-sanity.sh
+
+# Validate a fixed cached panel using an explicitly selected, already-built binary.
+# Build once with: cargo build -p anno-cli --features "eval onnx discourse"
+qa-panel ANNO_BIN SUITE="smoke" OUT=".generated/anno-qa/fixed-panel":
+    python3 scripts/qa/run_panel.py --anno-bin {{quote(ANNO_BIN)}} --suite {{quote(SUITE)}} --output-dir {{quote(OUT)}}
+
+# Exercise the fixed-panel failure gates without models or network access.
+qa-panel-test:
+    python3 scripts/qa/test_run_panel.py
 
 # Regenerate dataset registry exports and derived tooling files.
 regenerate-datasets:

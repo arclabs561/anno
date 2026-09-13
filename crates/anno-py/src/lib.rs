@@ -53,6 +53,21 @@ pub struct Entity {
     /// Confidence score in [0.0, 1.0].
     #[pyo3(get)]
     confidence: f64,
+    /// Backend that produced this entity, when the extractor recorded it.
+    ///
+    /// This identifies the producing layer, not the requested extractor
+    /// configuration or device placement.
+    #[pyo3(get)]
+    source: Option<String>,
+    /// Extraction method recorded by the producing backend, when available.
+    #[pyo3(get)]
+    method: Option<String>,
+    /// Backend-recorded model or artifact version, when available.
+    ///
+    /// This is absent when the backend did not record a version; it is not
+    /// inferred from the extractor name.
+    #[pyo3(get)]
+    model_version: Option<String>,
 }
 
 #[pymethods]
@@ -67,12 +82,28 @@ impl Entity {
 
 impl From<anno::Entity> for Entity {
     fn from(e: anno::Entity) -> Self {
+        let source = e
+            .provenance
+            .as_ref()
+            .map(|provenance| provenance.source.to_string());
+        let method = e
+            .provenance
+            .as_ref()
+            .map(|provenance| provenance.method.to_string());
+        let model_version = e
+            .provenance
+            .as_ref()
+            .and_then(|provenance| provenance.model_version.as_ref())
+            .map(ToString::to_string);
         Entity {
             label: e.entity_type.to_string(),
             start: e.start(),
             end: e.end(),
             confidence: e.confidence.value(),
             text: e.text,
+            source,
+            method,
+            model_version,
         }
     }
 }

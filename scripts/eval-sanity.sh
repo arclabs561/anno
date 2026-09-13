@@ -4,13 +4,25 @@
 
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly script_dir
+repo_root="$(cd -- "${script_dir}/.." && pwd)"
+readonly repo_root
+
 # Bounded, deterministic loader smoke settings.
 MAX_EXAMPLES=${MAX_EXAMPLES:-20}
 RANDOM_SEED=${RANDOM_SEED:-42}
 ANNO_MAX_DOWNLOAD_BYTES=${ANNO_MAX_DOWNLOAD_BYTES:-8000000}
 export ANNO_MAX_DOWNLOAD_BYTES
-REPORT_MD=reports/eval-sanity-report.md
-REPORT_JSON=reports/eval-sanity-report.json
+artifact_dir=${ANNO_ARTIFACT_DIR:-"${repo_root}/reports"}
+if [[ "${artifact_dir}" != /* ]]; then
+    artifact_dir="${repo_root}/${artifact_dir}"
+fi
+readonly artifact_dir
+REPORT_MD="${artifact_dir}/eval-sanity-report.md"
+REPORT_JSON="${artifact_dir}/eval-sanity-report.json"
+
+cd "${repo_root}"
 
 printf 'Running WikiGold sanity evaluation (max %s examples, seed %s, max download %s bytes)\n' \
     "${MAX_EXAMPLES}" "${RANDOM_SEED}" "${ANNO_MAX_DOWNLOAD_BYTES}"
@@ -22,8 +34,9 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 2
 fi
 
-# Keep repo root clean: write reports under ./reports/
-mkdir -p reports
+# Keep repo root clean: by default write reports under ./reports/. Providers
+# may choose an absolute receipt directory with ANNO_ARTIFACT_DIR.
+mkdir -p "${artifact_dir}"
 
 # Run benchmark with small samples.
 #
