@@ -8,8 +8,8 @@
 //!
 //! Environment variables:
 //! - `ANNO_CI_SEED`: u64 seed (default: 0)
-//! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` (default: `ml-only`)
-//! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure`). Used only when
+//! - `ANNO_SAMPLE_STRATEGY`: `random` | `ml-only` | `worst-first` | `estimate` (default: `ml-only`)
+//! - `ANNO_MUXER_MODE`: optional mode default (`triage` | `measure` | `coverage`). Used only when
 //!   `ANNO_SAMPLE_STRATEGY` is unset.
 //! - `ANNO_MATRIX_TASK`: optional task override (e.g. `discontinuous-ner`, `re`, `intra-coref`)
 //! - `ANNO_MATRIX_REQUIRE_CACHED`: if true, run in cache-only mode (no fetch); if selection yields

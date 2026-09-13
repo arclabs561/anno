@@ -684,12 +684,7 @@ pub enum MuxerMode {
     )]
     Measure,
     /// Prioritize backends with fewer observations across a fixed evaluation panel.
-    #[value(
-        alias = "estimate",
-        alias = "benchmark",
-        alias = "fill",
-        alias = "sweep"
-    )]
+    #[value(alias = "benchmark", alias = "fill", alias = "sweep")]
     Coverage,
 }
 
@@ -718,6 +713,30 @@ fn mode_env_str(mode: MuxerMode) -> &'static str {
         MuxerMode::Measure => "measure",
         MuxerMode::Coverage => "coverage",
     }
+}
+
+fn strategy_from_env(value: Option<&str>) -> MuxerStrategy {
+    match value
+        .unwrap_or("ml-only")
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "random" => MuxerStrategy::Random,
+        "worst-first" | "worstfirst" => MuxerStrategy::WorstFirst,
+        "estimate" | "estimation" | "measure-all" | "coverage" => MuxerStrategy::Estimate,
+        _ => MuxerStrategy::MlOnly,
+    }
+}
+
+fn effective_strategy(
+    explicit_strategy: Option<MuxerStrategy>,
+    mode: Option<MuxerMode>,
+    inherited_strategy: Option<&str>,
+) -> MuxerStrategy {
+    explicit_strategy
+        .or_else(|| mode.map(mode_default_strategy))
+        .unwrap_or_else(|| strategy_from_env(inherited_strategy))
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1342,6 +1361,26 @@ mod decisions_tests {
     }
 
     #[test]
+    fn explicit_cli_mode_or_strategy_beats_inherited_strategy() {
+        assert!(matches!(
+            effective_strategy(None, Some(MuxerMode::Coverage), Some("ml-only")),
+            MuxerStrategy::Estimate
+        ));
+        assert!(matches!(
+            effective_strategy(
+                Some(MuxerStrategy::Random),
+                Some(MuxerMode::Coverage),
+                Some("ml-only")
+            ),
+            MuxerStrategy::Random
+        ));
+        assert!(matches!(
+            effective_strategy(None, None, Some("worst-first")),
+            MuxerStrategy::WorstFirst
+        ));
+    }
+
+    #[test]
     fn test_control_arms_tag_outcomes_when_present() {
         let jsonl = r#"
 {"schema_version":6,"run_id":"r1","strategy":"ml-only","slice":"ner","datasets":["D1"],"round":1,"chosen":"a","control_arms":["a"]}
@@ -1539,23 +1578,9 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
 /// Execute the muxer command.
 pub fn run(args: MuxerArgs) -> Result<(), String> {
     let perspective = args.perspective.unwrap_or(MuxerPerspective::Ner);
-    let strategy = args.strategy.unwrap_or_else(|| {
-        // Explicit mode chooses the default strategy, otherwise mirror harness defaults.
-        if let Some(m) = args.mode {
-            return mode_default_strategy(m);
-        }
-        match std::env::var("ANNO_SAMPLE_STRATEGY")
-            .ok()
-            .unwrap_or_else(|| "ml-only".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "random" => MuxerStrategy::Random,
-            "worst-first" | "worstfirst" => MuxerStrategy::WorstFirst,
-            "estimate" | "estimation" | "measure-all" | "coverage" => MuxerStrategy::Estimate,
-            _ => MuxerStrategy::MlOnly,
-        }
-    });
+    let inherited_strategy = std::env::var("ANNO_SAMPLE_STRATEGY").ok();
+    // Explicit strategy wins, then the explicit mode default, then inherited harness state.
+    let strategy = effective_strategy(args.strategy, args.mode, inherited_strategy.as_deref());
 
     // Slice tag + tasks (prefer explicit slice to avoid the legacy “perspective” limitation).
     let (slice_tag_base, tasks) = match args.slice.as_deref() {
@@ -1671,20 +1696,13 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
                 std::env::set_var("ANNO_HISTORY_FILE", p.to_string_lossy().to_string());
             }
 
-            // Strategy/mode: explicit `--strategy` wins; otherwise mode chooses the harness default.
+            // An explicit CLI mode or strategy must override inherited harness state.
+            // When neither is supplied, preserve the environment-only behavior.
             if let Some(m) = args.mode {
                 std::env::set_var("ANNO_MUXER_MODE", mode_env_str(m));
             }
-            if let Some(s) = args.strategy {
-                std::env::set_var(
-                    "ANNO_SAMPLE_STRATEGY",
-                    match s {
-                        MuxerStrategy::Random => "random",
-                        MuxerStrategy::MlOnly => "ml-only",
-                        MuxerStrategy::WorstFirst => "worst-first",
-                        MuxerStrategy::Estimate => "estimate",
-                    },
-                );
+            if args.strategy.is_some() || args.mode.is_some() {
+                std::env::set_var("ANNO_SAMPLE_STRATEGY", strategy.to_env_str());
             }
 
             if args.include_ml {
@@ -2841,6 +2859,9 @@ mod run_cli_tests {
     fn parse_coverage_mode_and_estimate_strategy() {
         let coverage = MuxerArgs::parse_from(["sampler", "--mode", "coverage", "run"]);
         assert!(matches!(coverage.mode, Some(MuxerMode::Coverage)));
+
+        let legacy_measure = MuxerArgs::parse_from(["sampler", "--mode", "estimate", "run"]);
+        assert!(matches!(legacy_measure.mode, Some(MuxerMode::Measure)));
 
         let estimate = MuxerArgs::parse_from(["sampler", "--strategy", "estimate", "run"]);
         assert!(matches!(estimate.strategy, Some(MuxerStrategy::Estimate)));
