@@ -236,7 +236,7 @@ impl std::iter::Sum<Confidence> for f64 {
 impl std::ops::MulAssign<f64> for Confidence {
     #[inline]
     fn mul_assign(&mut self, rhs: f64) {
-        self.0 = (self.0 * rhs).clamp(0.0, 1.0);
+        *self = Self::new(self.0 * rhs);
     }
 }
 
@@ -345,6 +345,7 @@ impl fmt::Display for Confidence {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     #[test]
     fn clamps_to_unit_interval() {
@@ -404,6 +405,31 @@ mod tests {
         assert_eq!(Confidence::new(f64::NAN).value(), 0.0);
         assert_eq!(Confidence::new(f64::INFINITY).value(), 1.0);
         assert_eq!(Confidence::new(f64::NEG_INFINITY).value(), 0.0);
+    }
+
+    #[test]
+    fn multiplication_assignment_normalizes_non_finite_products() {
+        let mut confidence = Confidence::new(0.5);
+        confidence *= f64::NAN;
+        assert_eq!(confidence, Confidence::ZERO);
+
+        let mut confidence = Confidence::ZERO;
+        confidence *= f64::INFINITY;
+        assert_eq!(confidence, Confidence::ZERO);
+    }
+
+    proptest! {
+        #[test]
+        fn multiplication_assignment_preserves_confidence_invariant(
+            confidence_bits in any::<u64>(),
+            factor_bits in any::<u64>(),
+        ) {
+            let mut confidence = Confidence::new(f64::from_bits(confidence_bits));
+            confidence *= f64::from_bits(factor_bits);
+
+            prop_assert!(confidence.value().is_finite());
+            prop_assert!((0.0..=1.0).contains(&confidence.value()));
+        }
     }
 
     #[test]
