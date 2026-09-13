@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/anno-logo-f1.png" alt="anno" width="420">
+  <img src="docs/assets/anno-logo-f1.png" alt="" width="360">
 </p>
 
-# anno
+<h1 align="center">anno</h1>
 
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
