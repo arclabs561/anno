@@ -200,6 +200,17 @@ jobs:
         run: cargo test --workspace --lib --features "eval discourse" -- --skip test_randomized_matrix_sample
       - name: Test optional bias analysis
         run: cargo test -p anno-eval --lib --features "eval eval-bias" bias
+      # These paths are disabled by default but change evaluator scheduling and
+      # profiling receipts. Keep a focused portable test gate for them.
+      - name: Test parallel and profiling evaluation features
+        run: cargo test -p anno-eval --lib --features "eval eval-parallel eval-profiling"
+      # Test the CLI's portable optional surface together. This includes
+      # the lightweight HTML extractor configuration, whose bin tests are not
+      # reached by the workspace `--lib` cross-platform command below.
+      - name: Test portable CLI feature bundle
+        run: >-
+          cargo test -p anno-cli --all-targets --no-default-features
+          --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
       - name: Run integration tests
         run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
