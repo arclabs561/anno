@@ -23,6 +23,7 @@ use crate::MentionType;
 use std::collections::{HashMap, HashSet};
 
 type SpanId = (usize, usize);
+type SpanPair = (SpanId, SpanId);
 
 /// Span mode for mention matching: full span or head span.
 ///
@@ -64,20 +65,6 @@ fn all_mention_spans_mode(chains: &[CorefChain], mode: SpanMode) -> HashSet<Span
         .iter()
         .flat_map(|c| c.mentions.iter().map(move |m| span_for(m, mode)))
         .collect()
-}
-
-fn common_mentions(pred: &[CorefChain], gold: &[CorefChain]) -> HashSet<SpanId> {
-    common_mentions_mode(pred, gold, SpanMode::Full)
-}
-
-fn common_mentions_mode(
-    pred: &[CorefChain],
-    gold: &[CorefChain],
-    mode: SpanMode,
-) -> HashSet<SpanId> {
-    let pred_spans = all_mention_spans_mode(pred, mode);
-    let gold_spans = all_mention_spans_mode(gold, mode);
-    pred_spans.intersection(&gold_spans).copied().collect()
 }
 
 /// Filter out singleton chains (chains with exactly one mention).
@@ -361,59 +348,35 @@ impl std::fmt::Display for CorefEvaluation {
 /// ```
 #[must_use]
 pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let common = common_mentions(predicted, gold);
-    if common.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
+    fn directional_score(input: &[CorefChain], output: &[CorefChain]) -> (f64, f64) {
+        let output_index = build_mention_index(output);
+        let (mut numerator, mut denominator) = (0.0, 0.0);
 
-    let pred_index = build_mention_index(predicted);
-
-    let (mut recall_num, mut recall_den) = (0.0, 0.0);
-    for gold_chain in gold {
-        let gold_mentions: Vec<SpanId> = gold_chain
-            .mentions
-            .iter()
-            .map(|m| m.span_id())
-            .filter(|s| common.contains(s))
-            .collect();
-        if gold_mentions.len() <= 1 {
-            continue;
-        }
-
-        let mut pred_partitions: HashSet<usize> = HashSet::new();
-        for span in &gold_mentions {
-            if let Some(&chain_idx) = pred_index.get(span) {
-                pred_partitions.insert(chain_idx);
+        for input_chain in input {
+            let mention_count = input_chain.mentions.len();
+            if mention_count == 0 {
+                continue;
             }
-        }
 
-        recall_num += (gold_mentions.len() - pred_partitions.len().max(1)) as f64;
-        recall_den += (gold_mentions.len() - 1) as f64;
-    }
-
-    let gold_index = build_mention_index(gold);
-    let (mut prec_num, mut prec_den) = (0.0, 0.0);
-    for pred_chain in predicted {
-        let pred_mentions: Vec<SpanId> = pred_chain
-            .mentions
-            .iter()
-            .map(|m| m.span_id())
-            .filter(|s| common.contains(s))
-            .collect();
-        if pred_mentions.len() <= 1 {
-            continue;
-        }
-
-        let mut gold_partitions: HashSet<usize> = HashSet::new();
-        for span in &pred_mentions {
-            if let Some(&chain_idx) = gold_index.get(span) {
-                gold_partitions.insert(chain_idx);
+            let mut output_partitions = HashSet::new();
+            let mut unmatched_mentions = 0usize;
+            for mention in &input_chain.mentions {
+                if let Some(&output_chain_idx) = output_index.get(&mention.span_id()) {
+                    output_partitions.insert(output_chain_idx);
+                } else {
+                    unmatched_mentions += 1;
+                }
             }
+
+            numerator += (mention_count - unmatched_mentions - output_partitions.len()) as f64;
+            denominator += (mention_count - 1) as f64;
         }
 
-        prec_num += (pred_mentions.len() - gold_partitions.len().max(1)) as f64;
-        prec_den += (pred_mentions.len() - 1) as f64;
+        (numerator, denominator)
     }
+
+    let (prec_num, prec_den) = directional_score(predicted, gold);
+    let (recall_num, recall_den) = directional_score(gold, predicted);
 
     let precision = if prec_den > 0.0 {
         prec_num / prec_den
@@ -463,66 +426,56 @@ pub fn muc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// ```
 #[must_use]
 pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let common = common_mentions(predicted, gold);
-    if common.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
+    b_cubed_score_mode(predicted, gold, SpanMode::Full)
+}
 
-    let pred_index = build_mention_index(predicted);
-    let gold_index = build_mention_index(gold);
+fn b_cubed_score_mode(
+    predicted: &[CorefChain],
+    gold: &[CorefChain],
+    mode: SpanMode,
+) -> (f64, f64, f64) {
+    fn directional_score(
+        input: &[CorefChain],
+        output: &[CorefChain],
+        mode: SpanMode,
+    ) -> (f64, f64) {
+        let output_index = build_mention_index_mode(output, mode);
+        let (mut numerator, mut denominator) = (0.0, 0.0);
 
-    let mut precision_sum = 0.0;
-    let mut recall_sum = 0.0;
-    let mut pred_count = 0usize;
-    let mut gold_count = 0usize;
-
-    for gold_chain in gold {
-        for mention in &gold_chain.mentions {
-            let span = mention.span_id();
-            if !common.contains(&span) {
+        for input_chain in input {
+            let mention_count = input_chain.mentions.len();
+            if mention_count == 0 {
                 continue;
             }
-            gold_count += 1;
 
-            if let Some(&pred_chain_idx) = pred_index.get(&span) {
-                let pred_chain = &predicted[pred_chain_idx];
-                let pred_spans: HashSet<SpanId> =
-                    pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let gold_spans: HashSet<SpanId> =
-                    gold_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let overlap = pred_spans.intersection(&gold_spans).count();
-                recall_sum += overlap as f64 / gold_chain.mentions.len().max(1) as f64;
+            let mut output_counts: HashMap<usize, usize> = HashMap::new();
+            for mention in &input_chain.mentions {
+                if let Some(&output_chain_idx) = output_index.get(&span_for(mention, mode)) {
+                    *output_counts.entry(output_chain_idx).or_default() += 1;
+                }
             }
+
+            let correct = output_counts
+                .values()
+                .map(|count| count * count)
+                .sum::<usize>();
+            numerator += correct as f64 / mention_count as f64;
+            denominator += mention_count as f64;
         }
+
+        (numerator, denominator)
     }
 
-    for pred_chain in predicted {
-        for mention in &pred_chain.mentions {
-            let span = mention.span_id();
-            if !common.contains(&span) {
-                continue;
-            }
-            pred_count += 1;
+    let (precision_sum, pred_count) = directional_score(predicted, gold, mode);
+    let (recall_sum, gold_count) = directional_score(gold, predicted, mode);
 
-            if let Some(&gold_chain_idx) = gold_index.get(&span) {
-                let gold_chain = &gold[gold_chain_idx];
-                let pred_spans: HashSet<SpanId> =
-                    pred_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let gold_spans: HashSet<SpanId> =
-                    gold_chain.mentions.iter().map(|m| m.span_id()).collect();
-                let overlap = pred_spans.intersection(&gold_spans).count();
-                precision_sum += overlap as f64 / pred_chain.mentions.len().max(1) as f64;
-            }
-        }
-    }
-
-    let precision = if pred_count > 0 {
-        precision_sum / pred_count as f64
+    let precision = if pred_count > 0.0 {
+        precision_sum / pred_count
     } else {
         0.0
     };
-    let recall = if gold_count > 0 {
-        recall_sum / gold_count as f64
+    let recall = if gold_count > 0.0 {
+        recall_sum / gold_count
     } else {
         0.0
     };
@@ -558,85 +511,7 @@ pub fn b_cubed_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64
 /// ```
 #[must_use]
 pub fn b_cubed_score_head(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let mode = SpanMode::Head;
-    let common = common_mentions_mode(predicted, gold, mode);
-    if common.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
-
-    let pred_index = build_mention_index_mode(predicted, mode);
-    let gold_index = build_mention_index_mode(gold, mode);
-
-    let mut precision_sum = 0.0;
-    let mut recall_sum = 0.0;
-    let mut pred_count = 0usize;
-    let mut gold_count = 0usize;
-
-    for gold_chain in gold {
-        for mention in &gold_chain.mentions {
-            let span = span_for(mention, mode);
-            if !common.contains(&span) {
-                continue;
-            }
-            gold_count += 1;
-
-            if let Some(&pred_chain_idx) = pred_index.get(&span) {
-                let pred_chain = &predicted[pred_chain_idx];
-                let pred_spans: HashSet<SpanId> = pred_chain
-                    .mentions
-                    .iter()
-                    .map(|m| span_for(m, mode))
-                    .collect();
-                let gold_spans: HashSet<SpanId> = gold_chain
-                    .mentions
-                    .iter()
-                    .map(|m| span_for(m, mode))
-                    .collect();
-                let overlap = pred_spans.intersection(&gold_spans).count();
-                recall_sum += overlap as f64 / gold_chain.mentions.len().max(1) as f64;
-            }
-        }
-    }
-
-    for pred_chain in predicted {
-        for mention in &pred_chain.mentions {
-            let span = span_for(mention, mode);
-            if !common.contains(&span) {
-                continue;
-            }
-            pred_count += 1;
-
-            if let Some(&gold_chain_idx) = gold_index.get(&span) {
-                let gold_chain = &gold[gold_chain_idx];
-                let pred_spans: HashSet<SpanId> = pred_chain
-                    .mentions
-                    .iter()
-                    .map(|m| span_for(m, mode))
-                    .collect();
-                let gold_spans: HashSet<SpanId> = gold_chain
-                    .mentions
-                    .iter()
-                    .map(|m| span_for(m, mode))
-                    .collect();
-                let overlap = pred_spans.intersection(&gold_spans).count();
-                precision_sum += overlap as f64 / pred_chain.mentions.len().max(1) as f64;
-            }
-        }
-    }
-
-    let precision = if pred_count > 0 {
-        precision_sum / pred_count as f64
-    } else {
-        0.0
-    };
-    let recall = if gold_count > 0 {
-        recall_sum / gold_count as f64
-    } else {
-        0.0
-    };
-    let f1 = prf1(precision, recall);
-
-    (precision, recall, f1)
+    b_cubed_score_mode(predicted, gold, SpanMode::Head)
 }
 
 // =============================================================================
@@ -808,6 +683,11 @@ pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// LEA is designed to give larger entities proportionally more weight,
 /// addressing a limitation of B3 where small entities dominate the score.
 ///
+/// Full predicted and gold entities remain in the denominators. An unmatched
+/// mention therefore reduces the resolution score instead of disappearing from
+/// the evaluation. A singleton earns credit only when its matching entity is
+/// also a singleton.
+///
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
@@ -823,119 +703,55 @@ pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// ```
 #[must_use]
 pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let common = common_mentions(predicted, gold);
-    if common.is_empty() {
-        return (0.0, 0.0, 0.0);
-    }
+    fn directional_score(input: &[CorefChain], output: &[CorefChain]) -> (f64, f64) {
+        let output_index = build_mention_index(output);
+        let (mut numerator, mut denominator) = (0.0, 0.0);
 
-    let pred_index = build_mention_index(predicted);
-    let gold_index = build_mention_index(gold);
-
-    let (mut recall_num, mut recall_den) = (0.0, 0.0);
-    for gold_chain in gold {
-        let gold_mentions: Vec<SpanId> = gold_chain
-            .mentions
-            .iter()
-            .map(|m| m.span_id())
-            .filter(|s| common.contains(s))
-            .collect();
-        if gold_mentions.is_empty() {
-            continue;
-        }
-        let importance = gold_mentions.len() as f64;
-        recall_den += importance;
-
-        if gold_mentions.len() == 1 {
-            let span = gold_mentions[0];
-            if let Some(&pred_chain_idx) = pred_index.get(&span) {
-                let pred_chain = &predicted[pred_chain_idx];
-                let pred_in_common: Vec<SpanId> = pred_chain
-                    .mentions
-                    .iter()
-                    .map(|m| m.span_id())
-                    .filter(|s| common.contains(s))
-                    .collect();
-                if pred_in_common.len() == 1 {
-                    recall_num += importance;
-                }
+        for input_chain in input {
+            let mention_count = input_chain.mentions.len();
+            if mention_count == 0 {
+                continue;
             }
-        } else {
-            let mut correct_links = 0usize;
-            let total_links = gold_mentions.len() * (gold_mentions.len() - 1) / 2;
-            for i in 0..gold_mentions.len() {
-                for j in (i + 1)..gold_mentions.len() {
-                    let span_i = gold_mentions[i];
-                    let span_j = gold_mentions[j];
-                    if let (Some(&pred_i), Some(&pred_j)) =
-                        (pred_index.get(&span_i), pred_index.get(&span_j))
-                    {
-                        if pred_i == pred_j {
-                            correct_links += 1;
+
+            let importance = mention_count as f64;
+            let correct_links = if mention_count == 1 {
+                let span = input_chain.mentions[0].span_id();
+                output_index
+                    .get(&span)
+                    .is_some_and(|&output_chain_idx| output[output_chain_idx].mentions.len() == 1)
+                    as usize
+            } else {
+                let mut correct = 0usize;
+                for i in 0..mention_count {
+                    for j in (i + 1)..mention_count {
+                        let left = input_chain.mentions[i].span_id();
+                        let right = input_chain.mentions[j].span_id();
+                        if let (Some(&left_chain), Some(&right_chain)) =
+                            (output_index.get(&left), output_index.get(&right))
+                        {
+                            if left_chain == right_chain {
+                                correct += 1;
+                            }
                         }
                     }
                 }
-            }
-            let resolution = if total_links > 0 {
-                correct_links as f64 / total_links as f64
-            } else {
-                0.0
+                correct
             };
-            recall_num += importance * resolution;
+            let possible_links = if mention_count == 1 {
+                1.0
+            } else {
+                (mention_count * (mention_count - 1) / 2) as f64
+            };
+
+            numerator += importance * correct_links as f64 / possible_links;
+            denominator += importance;
         }
+
+        (numerator, denominator)
     }
 
-    let (mut prec_num, mut prec_den) = (0.0, 0.0);
-    for pred_chain in predicted {
-        let pred_mentions: Vec<SpanId> = pred_chain
-            .mentions
-            .iter()
-            .map(|m| m.span_id())
-            .filter(|s| common.contains(s))
-            .collect();
-        if pred_mentions.is_empty() {
-            continue;
-        }
-        let importance = pred_mentions.len() as f64;
-        prec_den += importance;
-
-        if pred_mentions.len() == 1 {
-            let span = pred_mentions[0];
-            if let Some(&gold_chain_idx) = gold_index.get(&span) {
-                let gold_chain = &gold[gold_chain_idx];
-                let gold_in_common: Vec<SpanId> = gold_chain
-                    .mentions
-                    .iter()
-                    .map(|m| m.span_id())
-                    .filter(|s| common.contains(s))
-                    .collect();
-                if gold_in_common.len() == 1 {
-                    prec_num += importance;
-                }
-            }
-        } else {
-            let mut correct_links = 0usize;
-            let total_links = pred_mentions.len() * (pred_mentions.len() - 1) / 2;
-            for i in 0..pred_mentions.len() {
-                for j in (i + 1)..pred_mentions.len() {
-                    let span_i = pred_mentions[i];
-                    let span_j = pred_mentions[j];
-                    if let (Some(&gold_i), Some(&gold_j)) =
-                        (gold_index.get(&span_i), gold_index.get(&span_j))
-                    {
-                        if gold_i == gold_j {
-                            correct_links += 1;
-                        }
-                    }
-                }
-            }
-            let resolution = if total_links > 0 {
-                correct_links as f64 / total_links as f64
-            } else {
-                0.0
-            };
-            prec_num += importance * resolution;
-        }
-    }
+    let (prec_num, prec_den) = directional_score(predicted, gold);
+    let (recall_num, recall_den) = directional_score(gold, predicted);
 
     let precision = if prec_den > 0.0 {
         prec_num / prec_den
@@ -974,6 +790,10 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// A false positive coreferent pair is simultaneously a false negative
 /// non-coreferent pair, and vice versa.
 ///
+/// Each clustering contributes all of its own mention pairs. When gold has
+/// both pair classes, their scores are averaged; when it has only one class,
+/// only that class is reported. A gold clustering with no pairs scores zero.
+///
 /// Returns `(precision, recall, f1)`.
 ///
 /// ```
@@ -995,86 +815,79 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// ```
 #[must_use]
 pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let common: Vec<SpanId> = common_mentions(predicted, gold).into_iter().collect();
-    if common.len() < 2 {
-        return (1.0, 1.0, 1.0);
-    }
-
-    let pred_index = build_mention_index(predicted);
-    let gold_index = build_mention_index(gold);
-
-    let mut coref_tp = 0usize;
-    let mut coref_fp = 0usize;
-    let mut coref_fn = 0usize;
-    let mut non_coref_tp = 0usize;
-    let mut non_coref_fp = 0usize;
-    let mut non_coref_fn = 0usize;
-
-    for i in 0..common.len() {
-        for j in (i + 1)..common.len() {
-            let span_i = common[i];
-            let span_j = common[j];
-
-            let pred_same = match (pred_index.get(&span_i), pred_index.get(&span_j)) {
-                (Some(&pi), Some(&pj)) => pi == pj,
-                _ => false,
-            };
-            let gold_same = match (gold_index.get(&span_i), gold_index.get(&span_j)) {
-                (Some(&gi), Some(&gj)) => gi == gj,
-                _ => false,
-            };
-
-            match (pred_same, gold_same) {
-                (true, true) => coref_tp += 1,
-                (true, false) => {
-                    coref_fp += 1;
-                    non_coref_fn += 1;
-                }
-                (false, true) => {
-                    coref_fn += 1;
-                    non_coref_fp += 1;
-                }
-                (false, false) => non_coref_tp += 1,
+    fn pair_sets(chains: &[CorefChain]) -> (HashSet<SpanPair>, HashSet<SpanPair>) {
+        let mentions: Vec<SpanId> = all_mention_spans_mode(chains, SpanMode::Full)
+            .into_iter()
+            .collect();
+        let mut all_pairs = HashSet::new();
+        for i in 0..mentions.len() {
+            for j in (i + 1)..mentions.len() {
+                let pair = if mentions[i] < mentions[j] {
+                    (mentions[i], mentions[j])
+                } else {
+                    (mentions[j], mentions[i])
+                };
+                all_pairs.insert(pair);
             }
         }
+
+        let mut coref_pairs = HashSet::new();
+        for chain in chains {
+            for i in 0..chain.mentions.len() {
+                for j in (i + 1)..chain.mentions.len() {
+                    let left = chain.mentions[i].span_id();
+                    let right = chain.mentions[j].span_id();
+                    if left == right {
+                        continue;
+                    }
+                    let pair = if left < right {
+                        (left, right)
+                    } else {
+                        (right, left)
+                    };
+                    coref_pairs.insert(pair);
+                }
+            }
+        }
+        let non_coref_pairs = all_pairs.difference(&coref_pairs).copied().collect();
+        (coref_pairs, non_coref_pairs)
     }
 
-    let coref_precision = if coref_tp + coref_fp > 0 {
-        coref_tp as f64 / (coref_tp + coref_fp) as f64
-    } else {
-        0.0
-    };
-    let coref_recall = if coref_tp + coref_fn > 0 {
-        coref_tp as f64 / (coref_tp + coref_fn) as f64
-    } else {
-        0.0
-    };
-    let coref_f1 = if coref_precision + coref_recall > 0.0 {
-        2.0 * coref_precision * coref_recall / (coref_precision + coref_recall)
-    } else {
-        0.0
-    };
+    fn class_score(predicted: &HashSet<SpanPair>, gold: &HashSet<SpanPair>) -> (f64, f64, f64) {
+        let true_positive = predicted.intersection(gold).count() as f64;
+        let precision = if predicted.is_empty() {
+            0.0
+        } else {
+            true_positive / predicted.len() as f64
+        };
+        let recall = if gold.is_empty() {
+            0.0
+        } else {
+            true_positive / gold.len() as f64
+        };
+        (precision, recall, prf1(precision, recall))
+    }
 
-    let non_coref_precision = if non_coref_tp + non_coref_fp > 0 {
-        non_coref_tp as f64 / (non_coref_tp + non_coref_fp) as f64
-    } else {
-        0.0
-    };
-    let non_coref_recall = if non_coref_tp + non_coref_fn > 0 {
-        non_coref_tp as f64 / (non_coref_tp + non_coref_fn) as f64
-    } else {
-        0.0
-    };
-    let non_coref_f1 = if non_coref_precision + non_coref_recall > 0.0 {
-        2.0 * non_coref_precision * non_coref_recall / (non_coref_precision + non_coref_recall)
-    } else {
-        0.0
-    };
+    let (pred_coref, pred_non_coref) = pair_sets(predicted);
+    let (gold_coref, gold_non_coref) = pair_sets(gold);
+    let mut class_scores = Vec::with_capacity(2);
 
-    let precision = (coref_precision + non_coref_precision) / 2.0;
-    let recall = (coref_recall + non_coref_recall) / 2.0;
-    let f1 = (coref_f1 + non_coref_f1) / 2.0;
-    (precision, recall, f1)
+    if !gold_coref.is_empty() {
+        class_scores.push(class_score(&pred_coref, &gold_coref));
+    }
+    if !gold_non_coref.is_empty() {
+        class_scores.push(class_score(&pred_non_coref, &gold_non_coref));
+    }
+    if class_scores.is_empty() {
+        return (0.0, 0.0, 0.0);
+    }
+
+    let divisor = class_scores.len() as f64;
+    (
+        class_scores.iter().map(|(p, _, _)| p).sum::<f64>() / divisor,
+        class_scores.iter().map(|(_, r, _)| r).sum::<f64>() / divisor,
+        class_scores.iter().map(|(_, _, f1)| f1).sum::<f64>() / divisor,
+    )
 }
 
 // =============================================================================
@@ -1839,6 +1652,42 @@ mod tests {
         assert!(f1 > 0.0 && f1 < 1.0, "f1={f1} should be partial");
     }
 
+    #[test]
+    fn muc_entirely_missed_gold_chain_counts_toward_recall() {
+        let gold = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (p, r, f1) = muc_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn muc_spurious_chain_counts_toward_precision() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let pred = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let (p, r, f1) = muc_score(&pred, &gold);
+        assert!(approx_eq(p, 0.5), "p={p}");
+        assert!(approx_eq(r, 1.0), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn muc_partially_missing_pair_counts_as_unresolved() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3), ("C", 4, 5)]]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (p, r, f1) = muc_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
     // =========================================================================
     // 4. b_cubed_score
     // =========================================================================
@@ -1911,6 +1760,42 @@ mod tests {
         assert!(f1 < 1.0 && f1 > 0.0, "f1={f1}");
     }
 
+    #[test]
+    fn b_cubed_entirely_missed_gold_chain_counts_toward_recall() {
+        let gold = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (p, r, f1) = b_cubed_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn b_cubed_spurious_chain_counts_toward_precision() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let pred = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let (p, r, f1) = b_cubed_score(&pred, &gold);
+        assert!(approx_eq(p, 0.5), "p={p}");
+        assert!(approx_eq(r, 1.0), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn b_cubed_partially_missing_pair_counts_as_unresolved() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3), ("C", 4, 5)]]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (p, r, f1) = b_cubed_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 4.0 / 9.0), "r={r}");
+        assert!(approx_eq(f1, 8.0 / 13.0), "f1={f1}");
+    }
+
     // =========================================================================
     // 5. ceaf_e_score
     // =========================================================================
@@ -1975,9 +1860,43 @@ mod tests {
     fn lea_partial_overlap() {
         let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3), ("C", 4, 5)]]);
         let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)], vec![("C", 4, 5)]]);
-        let (_p, r, f1) = lea_score(&pred, &gold);
-        assert!(r < 1.0 && r > 0.0, "r={r}");
-        assert!(f1 < 1.0 && f1 > 0.0, "f1={f1}");
+        let (p, r, f1) = lea_score(&pred, &gold);
+        assert!(approx_eq(p, 2.0 / 3.0), "p={p}");
+        assert!(approx_eq(r, 1.0 / 3.0), "r={r}");
+        assert!(approx_eq(f1, 4.0 / 9.0), "f1={f1}");
+    }
+
+    #[test]
+    fn lea_omitted_mention_does_not_become_a_correct_singleton() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let pred = chains(vec![vec![("A", 0, 1)]]);
+        let (p, r, f1) = lea_score(&pred, &gold);
+        assert!(approx_eq(p, 0.0), "p={p}");
+        assert!(approx_eq(r, 0.0), "r={r}");
+        assert!(approx_eq(f1, 0.0), "f1={f1}");
+    }
+
+    #[test]
+    fn lea_entirely_missed_gold_chain_still_counts_toward_recall() {
+        let gold = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (p, r, f1) = lea_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn lea_spurious_mention_does_not_become_a_correct_singleton() {
+        let gold = chains(vec![vec![("A", 0, 1)]]);
+        let pred = chains(vec![vec![("A", 0, 1), ("X", 2, 3)]]);
+        let (p, r, f1) = lea_score(&pred, &gold);
+        assert!(approx_eq(p, 0.0), "p={p}");
+        assert!(approx_eq(r, 0.0), "r={r}");
+        assert!(approx_eq(f1, 0.0), "f1={f1}");
     }
 
     // =========================================================================
@@ -2203,6 +2122,81 @@ mod tests {
         assert!(approx_eq(f1, 1.0), "f1={f1}");
     }
 
+    #[test]
+    fn blanc_official_a2_oracle() {
+        // Gold: {a} {b,c} {d,e,f}; prediction: {a} {d,e}.
+        // Official BLANC: coref F1=2/5, non-coref F1=4/13, average=23/65.
+        let gold = chains(vec![
+            vec![("a", 0, 1)],
+            vec![("b", 2, 3), ("c", 4, 5)],
+            vec![("d", 6, 7), ("e", 8, 9), ("f", 10, 11)],
+        ]);
+        let pred = chains(vec![vec![("a", 0, 1)], vec![("d", 6, 7), ("e", 8, 9)]]);
+        let (p, r, f1) = blanc_score(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 19.0 / 88.0), "r={r}");
+        assert!(approx_eq(f1, 23.0 / 65.0), "f1={f1}");
+    }
+
+    #[test]
+    fn blanc_missed_gold_chain_is_not_dropped() {
+        let gold = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let pred = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let (_p, _r, f1) = blanc_score(&pred, &gold);
+        assert!(approx_eq(f1, 1.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn blanc_spurious_chain_reduces_coreference_precision() {
+        let gold = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let pred = chains(vec![
+            vec![("A", 0, 1), ("B", 2, 3)],
+            vec![("C", 4, 5), ("D", 6, 7)],
+        ]);
+        let (p, r, f1) = blanc_score(&pred, &gold);
+        assert!(approx_eq(p, 0.5), "p={p}");
+        assert!(approx_eq(r, 1.0), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+    }
+
+    #[test]
+    fn blanc_degenerate_gold_pair_classes_follow_official_conventions() {
+        let one_chain = chains(vec![vec![("A", 0, 1), ("B", 2, 3), ("C", 4, 5)]]);
+        let singletons = chains(vec![
+            vec![("A", 0, 1)],
+            vec![("B", 2, 3)],
+            vec![("C", 4, 5)],
+        ]);
+        let lone_singleton = chains(vec![vec![("A", 0, 1)]]);
+
+        assert!(approx_eq(blanc_score(&one_chain, &one_chain).2, 1.0));
+        assert!(approx_eq(blanc_score(&singletons, &singletons).2, 1.0));
+        assert!(approx_eq(
+            blanc_score(&lone_singleton, &lone_singleton).2,
+            0.0
+        ));
+    }
+
+    #[test]
+    fn blanc_duplicate_spans_do_not_create_self_pairs() {
+        let valid_pair = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        let duplicate_pair = chains(vec![vec![("A", 0, 1), ("A", 0, 1), ("B", 2, 3)]]);
+        let singleton = chains(vec![vec![("A", 0, 1)]]);
+        let duplicate_singleton = chains(vec![vec![("A", 0, 1), ("A", 0, 1)]]);
+
+        let (p, r, f1) = blanc_score(&duplicate_pair, &valid_pair);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 1.0), "r={r}");
+        assert!(approx_eq(f1, 1.0), "f1={f1}");
+        assert!(approx_eq(
+            blanc_score(&duplicate_singleton, &singleton).2,
+            blanc_score(&singleton, &singleton).2
+        ));
+    }
+
     /// Discriminating test: verify CEAF-e uses Dice (phi4) with entity denominators,
     /// and CEAF-m uses raw count (phi3) with mention denominators.
     ///
@@ -2411,6 +2405,28 @@ mod tests {
             approx_eq(head_f1, 1.0),
             "head-match B3 should be 1.0, got {head_f1}"
         );
+    }
+
+    #[test]
+    fn head_match_b_cubed_retains_missed_gold_chain_in_recall() {
+        let gold = vec![
+            CorefChain::new(vec![
+                Mention::with_head("the president", 0, 13, 4, 13),
+                Mention::with_head("he", 20, 22, 20, 22),
+            ]),
+            CorefChain::new(vec![
+                Mention::with_head("Mary", 30, 34, 30, 34),
+                Mention::with_head("she", 40, 43, 40, 43),
+            ]),
+        ];
+        let pred = vec![CorefChain::new(vec![
+            Mention::with_head("the former president", 0, 20, 4, 13),
+            Mention::with_head("he", 20, 22, 20, 22),
+        ])];
+        let (p, r, f1) = b_cubed_score_head(&pred, &gold);
+        assert!(approx_eq(p, 1.0), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
     }
 
     // =========================================================================
