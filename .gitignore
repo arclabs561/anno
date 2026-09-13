@@ -58,7 +58,10 @@ crates/anno/target/
 
 # Claude Code (local settings, commands, artifacts)
 .claude/
-.agents/
+!.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**/
 .firecrawl/
 
 # Cargo crates.io packaging (local scratch)
@@ -163,6 +166,7 @@ REVIEW_ISSUES.md
 !CONTRIBUTING.md
 !SECURITY.md
 !docs/**/*.md
+!.agents/skills/**/SKILL.md
 
 # Reports directory (generated; do not track)
 reports/
