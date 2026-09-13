@@ -4,11 +4,12 @@ The muxer integration schedules a bounded evaluation slice. It does not choose
 the backend used by `anno` at annotation time. Runtime backend selection remains
 an application-level choice.
 
-The sampler is useful for two separate jobs:
+The sampler is useful for three separate jobs:
 
 - a fixed-panel smoke run that proves selected dataset/backend cells still run;
 - an adaptive triage run that spends a small budget on recently poor or failing
   cells after there is history to learn from.
+- a coverage run that fills the least-observed parts of a fixed panel.
 
 Start with the fixed panel. It makes missing model features, incompatible
 datasets, and cold caches visible before interpreting adaptive choices.
@@ -66,6 +67,18 @@ Muxer 0.5.3 is enabled for evaluation with `serde`, `stochastic`, and
 `contextual`. The sampler uses its bounded outcome history, candidate summaries,
 and policy helpers. It does not need every muxer policy or feature: extra knobs
 make a small matrix harder to interpret.
+
+## Coverage
+
+Use `--mode coverage` or `--strategy estimate` when the question is which
+eligible fixed-panel cells have been run least often. The current implementation
+adds each backend's historical observation counts across the selected datasets
+and chooses the lowest total. It is a coverage heuristic; it does not estimate
+uncertainty, variance, recency, or a regression probability. Keep the dataset
+panel fixed and inspect the resulting receipt before treating missing cells as
+the next work item. Coverage runs currently record outcomes but not a
+selection-decision row or candidate scores, so their receipt cannot explain why
+a particular backend won beyond the documented count rule.
 
 ## Interpreting receipts
 
