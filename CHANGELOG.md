@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- CLI JSON/JSONL and Python entities retain optional extraction provenance.
+- Fixed cached QA panels validate exact dataset/backend/seed cells and emit JSON and Markdown receipts.
+- Portable CI commands retain failure receipts; a generic CodeBuild entrypoint prepares for a separately configured pilot.
+
+### Changed (breaking, planned for 0.14.0)
+
+- `anno-eval`: `EvalHistoryEntry` and `EvalRunProvenance` add public observation, muxer-run, and coverage-cohort fields; provenance also records the actual evaluated document sample. Rust struct-literal callers must initialize the new optional fields (or use `..Default::default()` for `EvalRunProvenance`). Historical JSON remains readable.
+
+### Fixed
+
+- Relation evaluation honors the requested document limit and reports the units and gold relations actually scored.
+- Muxer outcomes and history share observation IDs, including cache-load failures; coverage selection filters history by recorded evaluation conditions.
+
 ## [0.13.0] - 2026-09-12
 
 ### Added
