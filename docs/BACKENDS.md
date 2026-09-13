@@ -2,6 +2,34 @@
 
 This page avoids benchmark numbers and "working set" claims that drift. Use `anno benchmark` for measurements.
 
+## Choosing a backend
+
+Start with the labels and domain you need, then compare explicit backends on
+your own annotated text. `bert_onnx` is a candidate for conventional named
+entities; GLiNER supports configurable labels. `pattern` is useful for structured
+values such as emails and URLs. Capability matching determines which evaluations
+are meaningful; it does not establish accuracy.
+
+`stacked` combines outputs and is convenient for mixed extraction, but is not a
+fixed model or a guarantee of higher F1. With the `onnx` feature, its default
+construction attempts BERT and NuNER, then GLiNER if neither loads, alongside
+patterns and heuristics. Without an available ML layer it falls back to patterns
+and heuristics. `ANNO_NO_DOWNLOADS=1` still permits already-cached models, so
+record the entity provenance and available model artifacts when comparing runs.
+
+For a repeatable starting comparison, use the tracked
+[QA procedure](../.agents/skills/anno-qa/SKILL.md) and
+[fixed panel](../scripts/qa/core-panel.json). The `ner-baseline` suite compares
+four backends on news, Wikipedia, and social-media data; `classical-ner` adds
+the classical implementations. Both use fixed seeds and example budgets, and
+produce validated JSON plus a Markdown table. Prepare datasets and models first;
+the panel itself disables downloads. Do not interpret a successful run, a
+declared incompatibility, or a small sampled score as broad benchmark coverage.
+
+Evaluation backend IDs and extraction CLI names differ: use `bert_onnx` and
+`gliner_onnx` in the evaluation panel, versus `--model bert-onnx` and
+`--model gliner` with `anno extract`.
+
 ## Model Families
 
 ### Neural: ONNX (feature `onnx`)
@@ -146,11 +174,11 @@ Pointers (for “what good looks like” in classical NER):
 - The McCallum CRF tutorial discusses the relationship between **HMMs** and **CRFs** in NLP. See: `https://people.cs.umass.edu/~mccallum/papers/crf-tutorial.pdf`
 - The CoNLL-2003 shared task paper summarizes baseline behavior and the variety of systems used at the time. See: `https://ar5iv.labs.arxiv.org/html/cs/0306050`
 
-### Rule-based (no feature gate)
+### Patterns, heuristics, and composed defaults
 
 | Backend | Method | Entity Types |
 |---------|--------|--------------|
-| `stacked` (default) | Pattern + heuristic combined | PER, ORG, LOC, DATE, MONEY, etc. |
+| `stacked` (default) | Pattern + heuristic, plus available ML layers with `onnx` | PER, ORG, LOC, DATE, MONEY, etc. |
 | `pattern` | Regex | DATE, MONEY, EMAIL, URL, PHONE |
 | `heuristic` | Capitalization + context | PER, ORG, LOC |
 
