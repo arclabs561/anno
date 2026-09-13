@@ -4526,7 +4526,19 @@ impl TaskEvaluator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::loader::DatasetId;
+    use crate::eval::loader::{DataSource, DatasetId, DatasetMetadata, LoadedDataset};
+
+    fn empty_dataset(id: DatasetId) -> LoadedDataset {
+        LoadedDataset {
+            id,
+            sentences: vec![],
+            loaded_at: "test".into(),
+            source_url: "fixture".into(),
+            data_source: DataSource::Embedded,
+            temporal_metadata: None,
+            metadata: DatasetMetadata::default(),
+        }
+    }
 
     #[cfg(feature = "eval-parallel")]
     #[test]
@@ -4595,6 +4607,50 @@ mod tests {
                 .is_some_and(|error| error.contains("not cached")),
             "cached-only evaluation should fail from the isolated cache before model or network fallback: {result:?}"
         );
+    }
+
+    #[test]
+    fn cached_only_coref_does_not_refresh_a_missing_cache_entry() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let config = TaskEvalConfig {
+            require_cached: true,
+            ..Default::default()
+        };
+
+        let error = evaluator
+            .evaluate_coref_task(
+                Task::IntraDocCoref,
+                "coref_resolver",
+                &empty_dataset(DatasetId::GAP),
+                &config,
+            )
+            .expect_err("cached-only coreference must not refresh the cache");
+
+        assert!(error.to_string().contains("GAP"));
+        assert!(error
+            .to_string()
+            .contains("cached-only evaluation forbids downloading"));
+    }
+
+    #[test]
+    fn cached_only_relation_does_not_refresh_a_missing_cache_entry() {
+        let cache = tempfile::tempdir().expect("temporary cache directory");
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).expect("TaskEvaluator");
+        let config = TaskEvalConfig {
+            require_cached: true,
+            ..Default::default()
+        };
+        let model = anno::AnyModel::new("no-op", "test model", vec![], |_, _| Ok(vec![]));
+
+        let error = evaluator
+            .evaluate_relation_task("no-op", &model, &empty_dataset(DatasetId::DocRED), &config)
+            .expect_err("cached-only relation evaluation must not refresh the cache");
+
+        assert!(error.to_string().contains("DocRED"));
+        assert!(error
+            .to_string()
+            .contains("cached-only evaluation forbids downloading"));
     }
 
     #[test]
