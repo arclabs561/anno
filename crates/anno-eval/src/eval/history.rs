@@ -1607,7 +1607,10 @@ mod tests {
             .append_entry(&entry)
             .expect_err("oversized seed must not be truncated");
 
-        assert!(error.to_string().contains("out of range"));
+        assert_eq!(error.kind(), std::io::ErrorKind::Other);
+        let persisted = history.load_all().expect("load durable source");
+        assert_eq!(persisted.len(), 1);
+        assert_eq!(persisted[0].seed, entry.seed);
         assert!(history
             .query_recent("test-backend", 1)
             .expect("query failed")
@@ -1693,7 +1696,10 @@ mod tests {
             .append_entry(&entry)
             .expect_err("oversized count must not be truncated");
 
-        assert!(error.to_string().contains("out of range"));
+        assert_eq!(error.kind(), std::io::ErrorKind::Other);
+        let persisted = history.load_all().expect("load durable source");
+        assert_eq!(persisted.len(), 1);
+        assert_eq!(persisted[0].n, entry.n);
         assert!(history
             .query_recent("test-backend", 1)
             .expect("query failed")
@@ -1748,12 +1754,18 @@ mod tests {
         let error = history
             .rebuild_index()
             .expect_err("rebuild must reject an unindexable JSONL entry");
-        assert!(error.to_string().contains("out of range"));
+        assert_eq!(error.kind(), std::io::ErrorKind::Other);
         let indexed = history
             .query_recent("test-backend", 10)
             .expect("failed to query preserved index");
         assert_eq!(indexed.len(), 1);
         assert_eq!(indexed[0].seed, 1);
+        assert_eq!(indexed[0].n, 100);
+        let persisted = history
+            .load_all()
+            .expect("load durable source after failed rebuild");
+        assert_eq!(persisted.len(), 2);
+        assert_eq!(persisted[1].n, oversized.n);
     }
 
     #[test]
