@@ -7,12 +7,12 @@ Run with: uv run python scripts/apply_registry_enrichment.py
 """
 
 import json
+import os
 import re
 from pathlib import Path
 
 REGISTRY_FILE = Path(__file__).parent.parent / "crates/anno-eval/src/eval/dataset_registry.rs"
 ENRICHMENT_FILE = Path(__file__).parent / "registry_enrichment.json"
-S3_BUCKET = "arc-anno-data"
 
 def load_enrichment():
     """Load enrichment data from JSON."""
@@ -22,12 +22,16 @@ def load_enrichment():
 def update_registry(content: str, s3_matches: dict, hf_additions: dict) -> tuple[str, int]:
     """Update registry content with enrichment data."""
     
+    s3_bucket = os.environ.get("ANNO_S3_BUCKET", "").removeprefix("s3://").rstrip("/")
+    if s3_matches and not s3_bucket:
+        raise ValueError("Set ANNO_S3_BUCKET to your dataset cache bucket")
+
     updates_applied = 0
     
     # Process each dataset block - add s3_path for datasets with cache files
     for variant, match in s3_matches.items():
         s3_path = match["s3_path"]
-        s3_url = f"s3://{S3_BUCKET}/{s3_path}"
+        s3_url = f"s3://{s3_bucket}/{s3_path}"
         
         # Find the dataset block - look for the categories line
         pattern = rf'(\s+{variant}\s*\{{[^}}]*?)(categories:\s*\[[^\]]+\])'

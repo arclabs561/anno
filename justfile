@@ -10,6 +10,7 @@ default:
 check:
     #!/usr/bin/env bash
     set -e
+    python3 scripts/qa/test_s3_destinations.py
     just docs-audit
     cargo fmt --manifest-path Cargo.toml --all -- --check
     cargo clippy --manifest-path Cargo.toml --workspace --all-targets --features "eval discourse" -- -D warnings
@@ -1018,9 +1019,15 @@ spot-cache-status:
 
 # Upload current source code to S3 (required before launching spot instances)
 spot-upload-src:
-    @git archive --format=tar.gz HEAD -o /tmp/anno-src.tar.gz
-    @aws s3 cp /tmp/anno-src.tar.gz s3://arc-anno-data/src/anno-src.tar.gz
-    @echo "Source uploaded to s3://arc-anno-data/src/anno-src.tar.gz"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bucket="${ANNO_S3_BUCKET:?Set ANNO_S3_BUCKET to your source upload bucket}"
+    bucket="${bucket#s3://}"
+    bucket="${bucket%/}"
+    test -n "$bucket"
+    git archive --format=tar.gz HEAD -o /tmp/anno-src.tar.gz
+    aws s3 cp /tmp/anno-src.tar.gz "s3://$bucket/src/anno-src.tar.gz"
+    echo "Source uploaded to s3://$bucket/src/anno-src.tar.gz"
 
 # Run CI-style muxer-backed sampler locally.
 # Uses ~/.anno_cache to match the CI actions/cache path for both muxer state and eval history.
