@@ -21,8 +21,10 @@ providing test cases that written-text corpora simply don't contain.
 
 ## Source
 
-From Rudaz, Broth & Mlynář (2025) "Everything counts: the managed omnirelevance
-of speech in human-voice agent interaction" (submitted to ACM TOCHI).
+From Rudaz, Broth & Mlynář (2026) "Everything Counts: The Managed Omnirelevance
+of Speech in Human–Voice Agent Interaction", ACM Transactions on
+Computer-Human Interaction, https://doi.org/10.1145/3820655 (preprint:
+arXiv:2510.22610).
 
 Ethnomethodological conversation analysis of:
 
@@ -95,12 +97,13 @@ ROB: "bonjour"    [hello - wrong response, starts new interaction]
 ## Citation
 
 ```bibtex
-@unpublished{rudaz2025omnirelevance,
-  title={Everything counts: the managed omnirelevance of speech in 
-         human-voice agent interaction},
+@article{rudaz2026omnirelevance,
+  title={Everything Counts: The Managed Omnirelevance of Speech in
+         Human--Voice Agent Interaction},
   author={Rudaz, Damien and Broth, Mathias and Mlyn{\'a}{\v{r}}, Jakub},
-  year={2025},
-  note={Submitted to ACM TOCHI}
+  journal={ACM Transactions on Computer-Human Interaction},
+  year={2026},
+  doi={10.1145/3820655}
 }
 ```
 
@@ -133,5 +136,9 @@ let tokens: Vec<ResponseToken> = load_jsonl("testdata/human_voice_agent/response
 
 ## License
 
-This dataset is derived from published academic work for research purposes.
+The transcript excerpts are adapted from the article above, which ACM publishes
+under the Creative Commons Attribution 4.0 International license
+(https://creativecommons.org/licenses/by/4.0/). The annotations added here are
+distributed under the same license; attribute the original article when reusing
+them. `discourse_deixis.jsonl` records are synthetic.
 The transcription conventions follow Jefferson (2004) and Mondada (2018).
