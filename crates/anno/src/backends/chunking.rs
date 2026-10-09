@@ -202,9 +202,10 @@ pub enum OverlapStrategy {
     /// when two same-type entities overlap, keep the longer span.
     /// Different-type overlaps are preserved (union behavior).
     KeepLongerSameType,
-    /// Prefer shorter / contained spans over supersets (GLiNER-style).
-    /// Sorted shortest-first; supersets of already-kept entities are dropped,
-    /// and partially-overlapping entities are also dropped.
+    /// Prefer shorter / contained spans over supersets, regardless of
+    /// confidence. Sorted shortest-first; supersets of already-kept entities
+    /// are dropped, and partially-overlapping entities are also dropped.
+    /// GLiNER's own flat decoder corresponds to `KeepHighestConfidence`.
     KeepShortest,
 }
 

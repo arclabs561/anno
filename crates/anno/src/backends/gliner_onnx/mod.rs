@@ -257,17 +257,16 @@ crate::backends::macros::define_feature_stub! {
 // Overlap Removal
 // =============================================================================
 
-/// Remove overlapping entity spans intelligently.
+/// Remove overlapping entity spans the way GLiNER's flat-NER decoder does.
 ///
-/// Strategy:
-/// 1. Prefer shorter spans when they have similar or higher confidence
-///    (e.g., prefer "Department of Defense" over "The Department of Defense")
-/// 2. For truly overlapping spans of similar length, keep highest confidence
-/// 3. Handle comma-separated entities (e.g., "IBM, NASA" should become "IBM" + "NASA")
+/// GLiNER's `greedy_search` visits spans by descending score and drops any
+/// span that overlaps one already kept, so "New York City" (0.95) beats a
+/// weaker nested "York" (0.51), and "Department of Defense" beats
+/// "The Department of Defense" only when it scores higher.
 fn remove_overlapping_spans(mut entities: Vec<Entity>) -> Vec<Entity> {
     super::chunking::deduplicate_overlapping(
         &mut entities,
-        super::chunking::OverlapStrategy::KeepShortest,
+        super::chunking::OverlapStrategy::KeepHighestConfidence,
     );
     entities
 }

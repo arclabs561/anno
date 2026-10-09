@@ -153,3 +153,39 @@ fn test_gliner_onnx_from_nonexistent() {
     let result = GLiNEROnnx::new("nonexistent/model-does-not-exist-xyz-12345");
     assert!(result.is_err());
 }
+
+#[test]
+fn overlap_removal_keeps_highest_scoring_span() {
+    // GLiNER's flat-NER decoder (`greedy_search`) visits spans by descending
+    // score and drops any span overlapping one already kept, so a confident
+    // multi-word span wins over a weak nested fragment.
+    use crate::{Entity, EntityType};
+    let entities = vec![
+        Entity::new("York", EntityType::Location, 4, 8, 0.51),
+        Entity::new("New York City", EntityType::Location, 0, 13, 0.95),
+    ];
+    let kept = super::remove_overlapping_spans(entities);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].text, "New York City");
+
+    // The same rule keeps the shorter span when it is the more confident one.
+    let entities = vec![
+        Entity::new(
+            "The Department of Defense",
+            EntityType::Organization,
+            0,
+            25,
+            0.7,
+        ),
+        Entity::new(
+            "Department of Defense",
+            EntityType::Organization,
+            4,
+            25,
+            0.8,
+        ),
+    ];
+    let kept = super::remove_overlapping_spans(entities);
+    assert_eq!(kept.len(), 1);
+    assert_eq!(kept[0].text, "Department of Defense");
+}

@@ -537,7 +537,15 @@ fn ceaf_phi4(pred_chain: &CorefChain, gold_chain: &CorefChain) -> f64 {
     }
 }
 
-fn greedy_assignment(
+/// Total similarity of the best one-to-one alignment between predicted and
+/// gold entities, as CEAF requires (Luo, 2005).
+///
+/// Entity pairs with zero similarity cannot add to the total, so the
+/// bipartite graph of nonzero pairs is split into connected components and
+/// each component is solved exactly with the Hungarian (Kuhn-Munkres)
+/// algorithm. That keeps large documents, where most entities overlap with
+/// only a few others, far below the dense `O(n^3)` cost.
+fn optimal_assignment(
     pred: &[CorefChain],
     gold: &[CorefChain],
     sim_fn: fn(&CorefChain, &CorefChain) -> f64,
@@ -546,37 +554,136 @@ fn greedy_assignment(
         return 0.0;
     }
 
-    let mut similarities: Vec<(usize, usize, f64)> = Vec::new();
+    // Nonzero similarity edges, and adjacency over nodes 0..n_pred (pred)
+    // followed by n_pred..n_pred+n_gold (gold).
+    let n_pred = pred.len();
+    let mut sims: HashMap<(usize, usize), f64> = HashMap::new();
+    let mut adjacency: Vec<Vec<usize>> = vec![Vec::new(); n_pred + gold.len()];
     for (i, p) in pred.iter().enumerate() {
         for (j, g) in gold.iter().enumerate() {
             let sim = sim_fn(p, g);
             if sim > 0.0 {
-                similarities.push((i, j, sim));
+                sims.insert((i, j), sim);
+                adjacency[i].push(n_pred + j);
+                adjacency[n_pred + j].push(i);
             }
         }
     }
 
-    similarities.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+    let mut seen = vec![false; adjacency.len()];
+    let mut total = 0.0;
+    for root in 0..n_pred {
+        if seen[root] || adjacency[root].is_empty() {
+            continue;
+        }
+        let mut rows = Vec::new();
+        let mut cols = Vec::new();
+        let mut stack = vec![root];
+        seen[root] = true;
+        while let Some(node) = stack.pop() {
+            if node < n_pred {
+                rows.push(node);
+            } else {
+                cols.push(node - n_pred);
+            }
+            for &next in &adjacency[node] {
+                if !seen[next] {
+                    seen[next] = true;
+                    stack.push(next);
+                }
+            }
+        }
+        let weights: Vec<Vec<f64>> = rows
+            .iter()
+            .map(|&i| {
+                cols.iter()
+                    .map(|&j| sims.get(&(i, j)).copied().unwrap_or(0.0))
+                    .collect()
+            })
+            .collect();
+        total += max_weight_matching(&weights);
+    }
+    total
+}
 
-    let mut used_pred: HashSet<usize> = HashSet::new();
-    let mut used_gold: HashSet<usize> = HashSet::new();
-    let mut total_sim = 0.0;
+/// Maximum total weight of a one-to-one matching in a dense `rows x cols`
+/// weight matrix (Hungarian algorithm with potentials, `O(n^2 m)`).
+fn max_weight_matching(weights: &[Vec<f64>]) -> f64 {
+    let n_rows = weights.len();
+    let n_cols = weights.first().map_or(0, Vec::len);
+    if n_rows == 0 || n_cols == 0 {
+        return 0.0;
+    }
+    // The solver below needs rows <= cols; transpose otherwise.
+    if n_rows > n_cols {
+        let transposed: Vec<Vec<f64>> = (0..n_cols)
+            .map(|j| (0..n_rows).map(|i| weights[i][j]).collect())
+            .collect();
+        return max_weight_matching(&transposed);
+    }
 
-    for (pred_idx, gold_idx, sim) in similarities {
-        if !used_pred.contains(&pred_idx) && !used_gold.contains(&gold_idx) {
-            total_sim += sim;
-            used_pred.insert(pred_idx);
-            used_gold.insert(gold_idx);
+    // Minimize cost = -weight. Index 0 is a sentinel in `col_match`/`way`.
+    let (n, m) = (n_rows, n_cols);
+    let mut u = vec![0.0; n + 1];
+    let mut v = vec![0.0; m + 1];
+    let mut col_match = vec![0usize; m + 1];
+    let mut way = vec![0usize; m + 1];
+    for row in 1..=n {
+        col_match[0] = row;
+        let mut j0 = 0;
+        let mut min_slack = vec![f64::INFINITY; m + 1];
+        let mut used = vec![false; m + 1];
+        loop {
+            used[j0] = true;
+            let i0 = col_match[j0];
+            let mut delta = f64::INFINITY;
+            let mut j1 = 0;
+            for j in 1..=m {
+                if !used[j] {
+                    let reduced = -weights[i0 - 1][j - 1] - u[i0] - v[j];
+                    if reduced < min_slack[j] {
+                        min_slack[j] = reduced;
+                        way[j] = j0;
+                    }
+                    if min_slack[j] < delta {
+                        delta = min_slack[j];
+                        j1 = j;
+                    }
+                }
+            }
+            for j in 0..=m {
+                if used[j] {
+                    u[col_match[j]] += delta;
+                    v[j] -= delta;
+                } else {
+                    min_slack[j] -= delta;
+                }
+            }
+            j0 = j1;
+            if col_match[j0] == 0 {
+                break;
+            }
+        }
+        loop {
+            let j1 = way[j0];
+            col_match[j0] = col_match[j1];
+            j0 = j1;
+            if j0 == 0 {
+                break;
+            }
         }
     }
 
-    total_sim
+    (1..=m)
+        .filter(|&j| col_match[j] != 0)
+        .map(|j| weights[col_match[j] - 1][j - 1])
+        .sum()
 }
 
 /// CEAF entity-based metric (Luo, 2005), using the phi4 (Dice) similarity.
 ///
-/// Finds a one-to-one alignment between predicted and gold entities
-/// using a greedy approximation (not the Kuhn-Munkres / Hungarian algorithm).
+/// Finds the optimal one-to-one alignment between predicted and gold
+/// entities (Kuhn-Munkres / Hungarian algorithm), as in the reference scorer.
 /// The entity similarity function phi4 is the Dice coefficient:
 ///
 /// ```text
@@ -603,7 +710,7 @@ fn greedy_assignment(
 /// ```
 #[must_use]
 pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let similarity = greedy_assignment(predicted, gold, ceaf_phi4);
+    let similarity = optimal_assignment(predicted, gold, ceaf_phi4);
     let precision = if !predicted.is_empty() {
         similarity / predicted.len() as f64
     } else {
@@ -643,7 +750,7 @@ pub fn ceaf_e_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64,
 /// ```
 #[must_use]
 pub fn ceaf_m_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    let similarity = greedy_assignment(predicted, gold, ceaf_phi3);
+    let similarity = optimal_assignment(predicted, gold, ceaf_phi3);
     let pred_mentions: usize = predicted.iter().map(|c| c.len()).sum();
     let gold_mentions: usize = gold.iter().map(|c| c.len()).sum();
 
@@ -1830,6 +1937,109 @@ mod tests {
         assert!(approx_eq(f1, 0.0), "f1={f1}");
     }
 
+    /// Mentions a..g where the highest-similarity pair (P1, G1) is not part of
+    /// the best one-to-one alignment: phi3 gives P1-G1 = 3, P1-G2 = 2,
+    /// P2-G1 = 2, P2-G2 = 0, so greedy reaches 3 while the optimum is 4.
+    fn greedy_trap() -> (Vec<CorefChain>, Vec<CorefChain>) {
+        let pred = chains(vec![
+            vec![
+                ("a", 0, 1),
+                ("b", 2, 3),
+                ("c", 4, 5),
+                ("d", 6, 7),
+                ("e", 8, 9),
+            ],
+            vec![("f", 10, 11), ("g", 12, 13)],
+        ]);
+        let gold = chains(vec![
+            vec![
+                ("a", 0, 1),
+                ("b", 2, 3),
+                ("c", 4, 5),
+                ("f", 10, 11),
+                ("g", 12, 13),
+            ],
+            vec![("d", 6, 7), ("e", 8, 9)],
+        ]);
+        (pred, gold)
+    }
+
+    #[test]
+    fn ceaf_e_uses_optimal_alignment() {
+        // Luo (2005) defines CEAF on the best one-to-one entity alignment.
+        // Optimal: phi4(P1,G2) + phi4(P2,G1) = 4/7 + 4/7 = 8/7, over 2 entities.
+        let (pred, gold) = greedy_trap();
+        let (p, r, f1) = ceaf_e_score(&pred, &gold);
+        assert!(approx_eq(p, 4.0 / 7.0), "p={p}");
+        assert!(approx_eq(r, 4.0 / 7.0), "r={r}");
+        assert!(approx_eq(f1, 4.0 / 7.0), "f1={f1}");
+    }
+
+    #[test]
+    fn ceaf_m_uses_optimal_alignment() {
+        // Optimal phi3 total is 2 + 2 = 4 over 7 mentions on each side.
+        let (pred, gold) = greedy_trap();
+        let (p, r, _) = ceaf_m_score(&pred, &gold);
+        assert!(approx_eq(p, 4.0 / 7.0), "p={p}");
+        assert!(approx_eq(r, 4.0 / 7.0), "r={r}");
+    }
+
+    #[test]
+    fn max_weight_matching_agrees_with_brute_force() {
+        // Exhaustive search over injective row->column maps is the oracle.
+        fn brute(w: &[Vec<f64>], row: usize, used: &mut Vec<bool>) -> f64 {
+            if row == w.len() {
+                return 0.0;
+            }
+            let mut best = brute(w, row + 1, used); // leave this row unmatched
+            for j in 0..used.len() {
+                if !used[j] {
+                    used[j] = true;
+                    best = best.max(w[row][j] + brute(w, row + 1, used));
+                    used[j] = false;
+                }
+            }
+            best
+        }
+        let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+            // Mix in exact zeros, since CEAF similarity matrices are sparse.
+            let x = (state >> 33) % 5;
+            if x < 2 {
+                0.0
+            } else {
+                x as f64 / 4.0 + ((state >> 13) % 97) as f64 / 1000.0
+            }
+        };
+        for rows in 1..=5 {
+            for cols in 1..=5 {
+                for _ in 0..20 {
+                    let w: Vec<Vec<f64>> = (0..rows)
+                        .map(|_| (0..cols).map(|_| next()).collect())
+                        .collect();
+                    let expected = brute(&w, 0, &mut vec![false; cols]);
+                    let got = max_weight_matching(&w);
+                    assert!(
+                        approx_eq(got, expected),
+                        "{w:?}: got {got}, want {expected}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn ceaf_e_optimal_alignment_handles_unequal_entity_counts() {
+        // Three predicted entities against two gold: the extra one stays
+        // unaligned and only lowers precision.
+        let (mut pred, gold) = greedy_trap();
+        pred.extend(chains(vec![vec![("z", 20, 21)]]));
+        let (p, r, _) = ceaf_e_score(&pred, &gold);
+        assert!(approx_eq(p, (8.0 / 7.0) / 3.0), "p={p}");
+        assert!(approx_eq(r, 4.0 / 7.0), "r={r}");
+    }
+
     // =========================================================================
     // 6. lea_score
     // =========================================================================
@@ -2204,12 +2414,12 @@ mod tests {
     /// Pred: {A,B} {C,D,E}  (5 mentions, 2 entities)
     ///
     /// CEAF-e (phi4 = Dice, denom = #entities):
-    ///   greedy aligns gold{A,B,C,D}<->pred{A,B}: phi4 = 2*2/(4+2) = 2/3
+    ///   optimal alignment pairs gold{A,B,C,D}<->pred{A,B}: phi4 = 2*2/(4+2) = 2/3
     ///   then gold{E}<->pred{C,D,E}: phi4 = 2*1/(1+3) = 1/2
     ///   total = 7/6, P = R = 7/12 ~ 0.583
     ///
     /// CEAF-m (phi3 = raw count, denom = #mentions):
-    ///   greedy aligns gold{A,B,C,D}<->pred{A,B}: phi3 = 2
+    ///   optimal alignment pairs gold{A,B,C,D}<->pred{A,B}: phi3 = 2
     ///   then gold{E}<->pred{C,D,E}: phi3 = 1
     ///   total = 3, P = R = 3/5 = 0.6
     #[test]
