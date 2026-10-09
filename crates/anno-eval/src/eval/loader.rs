@@ -2409,19 +2409,22 @@ impl DatasetLoader {
             Self::url_encode_component(dataset)
         );
         let response = ureq::get(&url)
-            .timeout(std::time::Duration::from_secs(30))
+            .config()
+            .timeout_global(Some(std::time::Duration::from_secs(30)))
+            .http_status_as_error(false)
+            .build()
             .call()
             .map_err(|e| Error::InvalidInput(format!("Failed to query HF splits: {}", e)))?;
 
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
                 "HF splits query returned HTTP {} for dataset {}",
-                response.status(),
+                response.status().as_u16(),
                 dataset
             )));
         }
 
-        let body = response.into_string().map_err(|e| {
+        let body = response.into_body().read_to_string().map_err(|e| {
             Error::InvalidInput(format!("Failed to read HF splits response: {}", e))
         })?;
 
@@ -2448,7 +2451,10 @@ impl DatasetLoader {
         // Example API: https://huggingface.co/api/datasets/coref-data/preco_raw
         let api_url = format!("https://huggingface.co/api/datasets/{}", dataset);
         let response = ureq::get(&api_url)
-            .timeout(std::time::Duration::from_secs(30))
+            .config()
+            .timeout_global(Some(std::time::Duration::from_secs(30)))
+            .http_status_as_error(false)
+            .build()
             .call()
             .map_err(|e| {
                 Error::InvalidInput(format!(
@@ -2460,12 +2466,12 @@ impl DatasetLoader {
         if response.status() != 200 {
             return Err(Error::InvalidInput(format!(
                 "HuggingFace dataset metadata request returned HTTP {} for {}",
-                response.status(),
+                response.status().as_u16(),
                 dataset
             )));
         }
 
-        let body = response.into_string().map_err(|e| {
+        let body = response.into_body().read_to_string().map_err(|e| {
             Error::InvalidInput(format!(
                 "Failed to read HuggingFace dataset metadata: {}",
                 e
@@ -2505,12 +2511,17 @@ impl DatasetLoader {
         // Best-effort: avoid downloading huge files if a max byte limit is configured.
         if let Some(limit) = Self::max_download_bytes() {
             if let Ok(resp) = ureq::head(&file_url)
-                .timeout(std::time::Duration::from_secs(30))
+                .config()
+                .timeout_global(Some(std::time::Duration::from_secs(30)))
+                .http_status_as_error(false)
+                .build()
                 .call()
             {
                 if resp.status() == 200 {
                     if let Some(len) = resp
-                        .header("Content-Length")
+                        .headers()
+                        .get("Content-Length")
+                        .and_then(|v| v.to_str().ok())
                         .and_then(|s| s.parse::<u64>().ok())
                     {
                         if len > limit {
@@ -2795,13 +2806,16 @@ impl DatasetLoader {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
             match ureq::get(url)
-                .timeout(std::time::Duration::from_secs(timeout_secs))
+                .config()
+                .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
+                .http_status_as_error(false)
+                .build()
                 .call()
             {
                 Ok(response) => {
                     if response.status() == 200 {
                         // Success - read content
-                        let content = response.into_string().map_err(|e| {
+                        let content = response.into_body().read_to_string().map_err(|e| {
                             Error::InvalidInput(format!(
                                 "Failed to read response from {}: {}. \
                                  Response may be too large or corrupted.",
@@ -2827,8 +2841,8 @@ impl DatasetLoader {
                         return Ok(content);
                     }
 
-                    let status = response.status();
-                    let body = response.into_string().unwrap_or_default();
+                    let status = response.status().as_u16();
+                    let body = response.into_body().read_to_string().unwrap_or_default();
                     let body = body.trim();
                     let body_preview = if body.len() > 800 {
                         format!("{}…", &body[..800])
@@ -2877,11 +2891,17 @@ impl DatasetLoader {
                         body_preview
                     )));
                 }
-                Err(ureq::Error::Transport(e)) => {
+                Err(
+                    e @ (ureq::Error::Timeout(_)
+                    | ureq::Error::Io(_)
+                    | ureq::Error::ConnectionFailed
+                    | ureq::Error::HostNotFound),
+                ) => {
                     // Network errors (timeouts, connection failures) - retry
                     let error_msg = format!("{}", e);
-                    let is_timeout =
-                        error_msg.contains("timeout") || error_msg.contains("timed out");
+                    let is_timeout = matches!(e, ureq::Error::Timeout(_))
+                        || error_msg.contains("timeout")
+                        || error_msg.contains("timed out");
 
                     if is_timeout && attempt < MAX_RETRIES {
                         let wait_ms = 1000 * (1 << attempt); // Exponential backoff
@@ -2948,7 +2968,10 @@ impl DatasetLoader {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
             match ureq::get(url)
-                .timeout(std::time::Duration::from_secs(timeout_secs))
+                .config()
+                .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
+                .http_status_as_error(false)
+                .build()
                 .call()
             {
                 Ok(response) => {
@@ -2956,6 +2979,7 @@ impl DatasetLoader {
                         use std::io::Read as _;
                         let mut bytes = Vec::new();
                         response
+                            .into_body()
                             .into_reader()
                             .take(MAX_BYTES as u64)
                             .read_to_end(&mut bytes)
@@ -2968,7 +2992,7 @@ impl DatasetLoader {
                         return Ok(bytes);
                     }
 
-                    let status = response.status();
+                    let status = response.status().as_u16();
                     if (500..600).contains(&status) && attempt < MAX_RETRIES {
                         let wait_ms = 1000 * (1 << attempt);
                         std::thread::sleep(std::time::Duration::from_millis(wait_ms));
@@ -2981,11 +3005,17 @@ impl DatasetLoader {
                         status, url
                     )));
                 }
-                Err(ureq::Error::Transport(e)) => {
+                Err(
+                    e @ (ureq::Error::Timeout(_)
+                    | ureq::Error::Io(_)
+                    | ureq::Error::ConnectionFailed
+                    | ureq::Error::HostNotFound),
+                ) => {
                     let msg = format!("{}", e);
-                    if (msg.contains("timeout") || msg.contains("timed out"))
-                        && attempt < MAX_RETRIES
-                    {
+                    let is_timeout = matches!(e, ureq::Error::Timeout(_))
+                        || msg.contains("timeout")
+                        || msg.contains("timed out");
+                    if is_timeout && attempt < MAX_RETRIES {
                         let wait_ms = 1000 * (1 << attempt);
                         std::thread::sleep(std::time::Duration::from_millis(wait_ms));
                         last_error = Some(msg);

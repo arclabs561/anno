@@ -58,6 +58,11 @@
 // matching integration-test style imports.
 extern crate self as anno;
 
+// Compile and run the README's Rust examples as doctests.
+#[cfg(doctest)]
+#[doc = include_str!("../../../README.md")]
+pub struct ReadmeDoctests;
+
 // Module declarations (standard Cargo layout under `src/`)
 /// Active learning utilities for annotation prioritization.
 ///

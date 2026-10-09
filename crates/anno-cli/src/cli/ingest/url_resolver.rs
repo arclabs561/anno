@@ -47,7 +47,10 @@ impl UrlResolver for HttpResolver {
 
     fn resolve(&self, url: &str) -> Result<ResolvedContent, String> {
         let response = ureq::get(url)
-            .timeout(std::time::Duration::from_secs(60))
+            .config()
+            .timeout_global(Some(std::time::Duration::from_secs(60)))
+            .http_status_as_error(false)
+            .build()
             .call()
             .map_err(|e| {
                 format!(
@@ -62,12 +65,12 @@ impl UrlResolver for HttpResolver {
                 "HTTP {} fetching {}. \
                  Server returned error status. \
                  URL may be temporarily unavailable or changed.",
-                response.status(),
+                response.status().as_u16(),
                 url
             ));
         }
 
-        let content = response.into_string().map_err(|e| {
+        let content = response.into_body().read_to_string().map_err(|e| {
             format!(
                 "Failed to read response from {}: {}. \
                  Response may be too large or corrupted.",

@@ -508,9 +508,9 @@ Output:"#
         };
 
         let mut req = ureq::post(&url);
-        req = req.set("content-type", "application/json");
+        req = req.header("content-type", "application/json");
         for (key, value) in &headers {
-            req = req.set(key, value);
+            req = req.header(*key, value.as_str());
         }
 
         let response = req
@@ -518,7 +518,8 @@ Output:"#
             .map_err(|e| crate::Error::Inference(format!("LLM API error: {}", e)))?;
 
         let json: serde_json::Value = response
-            .into_json()
+            .into_body()
+            .read_json()
             .map_err(|e| crate::Error::Parse(format!("LLM response parse error: {}", e)))?;
 
         // Extract content from response
@@ -615,9 +616,9 @@ Return ONLY the JSON array:"#,
         };
 
         let mut req = ureq::post(url);
-        req = req.set("content-type", "application/json");
+        req = req.header("content-type", "application/json");
         for (key, value) in headers {
-            req = req.set(key, value);
+            req = req.header(*key, value.as_str());
         }
 
         let response = match req.send_json(body) {
@@ -625,7 +626,7 @@ Return ONLY the JSON array:"#,
             Err(_) => return Ok(entities), // Verification failure -> keep originals
         };
 
-        let json: serde_json::Value = match response.into_json() {
+        let json: serde_json::Value = match response.into_body().read_json() {
             Ok(j) => j,
             Err(_) => return Ok(entities),
         };

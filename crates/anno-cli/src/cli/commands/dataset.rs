@@ -789,9 +789,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                         Some((i, ev.conll_f1))
                                     })
                                     .collect();
-                                scored.sort_by(|a, b| {
-                                    a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
-                                });
+                                scored.sort_by(|a, b| a.1.total_cmp(&b.1));
                                 let selected: Vec<usize> =
                                     scored.into_iter().take(max_cases).map(|(i, _)| i).collect();
 
@@ -1199,9 +1197,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     })
                                     .collect();
                                 scored.sort_by(|a, b| {
-                                    a.1.partial_cmp(&b.1)
-                                        .unwrap_or(std::cmp::Ordering::Equal)
-                                        .then_with(|| b.2.cmp(&a.2))
+                                    a.1.total_cmp(&b.1).then_with(|| b.2.cmp(&a.2))
                                 });
                                 let selected: Vec<usize> = scored
                                     .into_iter()
@@ -3498,15 +3494,16 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
         };
     }
 
-    // Use ureq for simple HTTP checking (already a dependency)
-    match ureq::AgentBuilder::new()
-        .timeout(std::time::Duration::from_secs(timeout_secs))
+    // Use ureq for simple HTTP checking (already a dependency). Error statuses
+    // come back as responses so a 405 can fall back to GET.
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
+        .http_status_as_error(false)
         .build()
-        .head(url)
-        .call()
-    {
+        .into();
+    match agent.head(url).call() {
         Ok(response) => {
-            let status = response.status();
+            let status = response.status().as_u16();
             if status == 200 {
                 URLHealthResult {
                     status: "ok".to_string(),
@@ -3519,18 +3516,19 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
                     code: Some(status),
                     message: format!(
                         "Redirects to {}",
-                        response.header("Location").unwrap_or("unknown")
+                        response
+                            .headers()
+                            .get("Location")
+                            .and_then(|v| v.to_str().ok())
+                            .unwrap_or("unknown")
                     ),
                 }
             } else if status == 405 {
                 // HEAD not allowed, try GET
-                match ureq::get(url)
-                    .timeout(std::time::Duration::from_secs(timeout_secs))
-                    .call()
-                {
+                match agent.get(url).call() {
                     Ok(resp) => URLHealthResult {
                         status: "ok".to_string(),
-                        code: Some(resp.status()),
+                        code: Some(resp.status().as_u16()),
                         message: "OK (HEAD not allowed)".to_string(),
                     },
                     Err(e) => URLHealthResult {
@@ -3547,12 +3545,12 @@ fn check_single_url(_name: &str, url: &str, timeout_secs: u64) -> URLHealthResul
                 }
             }
         }
-        Err(ureq::Error::Status(code, _)) => URLHealthResult {
+        Err(ureq::Error::StatusCode(code)) => URLHealthResult {
             status: "error".to_string(),
             code: Some(code),
             message: format!("HTTP {}", code),
         },
-        Err(ureq::Error::Transport(e)) => URLHealthResult {
+        Err(e) => URLHealthResult {
             status: "error".to_string(),
             code: None,
             message: format!("Connection error: {}", e),
@@ -3755,7 +3753,7 @@ fn run_facets(touched_report: Option<&str>, gaps: bool) -> Result<(), String> {
                     pt * 100.0,
                 ));
             }
-            rows.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+            rows.sort_by(|a, b| a.0.total_cmp(&b.0));
             for (gap_pp, k, na, nt, pa, pt) in rows.into_iter().take(12) {
                 outln!(
                     out,
