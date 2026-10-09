@@ -897,9 +897,11 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// A false positive coreferent pair is simultaneously a false negative
 /// non-coreferent pair, and vice versa.
 ///
-/// Each clustering contributes all of its own mention pairs. When gold has
-/// both pair classes, their scores are averaged; when it has only one class,
-/// only that class is reported. A gold clustering with no pairs scores zero.
+/// Each clustering contributes all of its own mention pairs. Boundary cases
+/// follow Luo et al. (2014), Sec. 4.1: a pair class is left out only when
+/// neither the key nor the response has a link of that class, and when
+/// neither side has any link the score is 1 if the mention sets are equal,
+/// else 0.
 ///
 /// Returns `(precision, recall, f1)`.
 ///
@@ -979,14 +981,20 @@ pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, 
     let (gold_coref, gold_non_coref) = pair_sets(gold);
     let mut class_scores = Vec::with_capacity(2);
 
-    if !gold_coref.is_empty() {
+    // Boundary cases (Luo et al. 2014, Sec. 4.1) are decided by key *and*
+    // response links: a class is dropped only when both sides lack it.
+    if !gold_coref.is_empty() || !pred_coref.is_empty() {
         class_scores.push(class_score(&pred_coref, &gold_coref));
     }
-    if !gold_non_coref.is_empty() {
+    if !gold_non_coref.is_empty() || !pred_non_coref.is_empty() {
         class_scores.push(class_score(&pred_non_coref, &gold_non_coref));
     }
     if class_scores.is_empty() {
-        return (0.0, 0.0, 0.0);
+        // No links on either side: BLANC = I(M_k = M_r).
+        let same = all_mention_spans_mode(predicted, SpanMode::Full)
+            == all_mention_spans_mode(gold, SpanMode::Full);
+        let v = if same { 1.0 } else { 0.0 };
+        return (v, v, v);
     }
 
     let divisor = class_scores.len() as f64;
@@ -2367,9 +2375,13 @@ mod tests {
             vec![("C", 4, 5), ("D", 6, 7)],
         ]);
         let (p, r, f1) = blanc_score(&pred, &gold);
-        assert!(approx_eq(p, 0.5), "p={p}");
-        assert!(approx_eq(r, 1.0), "r={r}");
-        assert!(approx_eq(f1, 2.0 / 3.0), "f1={f1}");
+        // Coreference class: P_c = 1/2, R_c = 1, F_c = 2/3. The response also
+        // has non-coreference links (A-C, A-D, B-C, B-D) that the key lacks,
+        // so by Luo et al. (2014) Sec. 4.1 the non-coreference class is kept
+        // with F_n = 0, and BLANC averages the two classes.
+        assert!(approx_eq(p, 0.25), "p={p}");
+        assert!(approx_eq(r, 0.5), "r={r}");
+        assert!(approx_eq(f1, 1.0 / 3.0), "f1={f1}");
     }
 
     #[test]
@@ -2384,10 +2396,35 @@ mod tests {
 
         assert!(approx_eq(blanc_score(&one_chain, &one_chain).2, 1.0));
         assert!(approx_eq(blanc_score(&singletons, &singletons).2, 1.0));
+        // Luo et al. 2014, Sec. 4.1 case (1): no links on either side, so
+        // BLANC = I(M_k = M_r).
         assert!(approx_eq(
             blanc_score(&lone_singleton, &lone_singleton).2,
-            0.0
+            1.0
         ));
+    }
+
+    /// Luo et al. (2014) Sec. 4.1: the boundary cases are decided by key
+    /// *and* response links, so spurious links on all-singleton gold count.
+    #[test]
+    fn blanc_boundary_cases_use_key_and_response_links() {
+        // Key {a} {b} {c}, response {a, b} {c}: C_k is empty but C_r is not,
+        // so BLANC = (F_c + F_n) / 2 = (0 + 0.8) / 2.
+        let key = chains(vec![
+            vec![("a", 0, 1)],
+            vec![("b", 2, 3)],
+            vec![("c", 4, 5)],
+        ]);
+        let response = chains(vec![vec![("a", 0, 1), ("b", 2, 3)], vec![("c", 4, 5)]]);
+        let (p, r, f1) = blanc_score(&response, &key);
+        assert!(approx_eq(f1, 0.4), "f1={f1}");
+        assert!(approx_eq(p, 0.5), "p={p}");
+        assert!(approx_eq(r, 1.0 / 3.0), "r={r}");
+
+        // Case (1) with different mention sets: no links anywhere, M_k != M_r.
+        let other = chains(vec![vec![("z", 9, 10)]]);
+        let lone = chains(vec![vec![("a", 0, 1)]]);
+        assert!(approx_eq(blanc_score(&other, &lone).2, 0.0));
     }
 
     #[test]
