@@ -103,11 +103,7 @@ impl EntitySliceExt for [Entity] {
 
     fn sorted_by_confidence(&self) -> Vec<&Entity> {
         let mut sorted: Vec<_> = self.iter().collect();
-        sorted.sort_by(|a, b| {
-            b.confidence
-                .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        sorted.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
         sorted
     }
 
@@ -118,11 +114,8 @@ impl EntitySliceExt for [Entity] {
     }
 
     fn highest_confidence(&self) -> Option<&Entity> {
-        self.iter().max_by(|a, b| {
-            a.confidence
-                .partial_cmp(&b.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })
+        self.iter()
+            .max_by(|a, b| a.confidence.total_cmp(&b.confidence))
     }
 
     fn mean_confidence(&self) -> Option<f64> {

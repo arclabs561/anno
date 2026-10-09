@@ -282,7 +282,7 @@ pub trait MergeScorer: Send + Sync {
             }
         }
 
-        merges.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        merges.sort_by(|a, b| b.2.total_cmp(&a.2));
         merges
     }
 }
@@ -410,7 +410,7 @@ impl<E: ClusterEncoder, S: MergeScorer> CrossContextResolver<E, S> {
                 }
             }
         }
-        merge_decisions.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        merge_decisions.sort_by(|a, b| b.2.total_cmp(&a.2));
 
         // 3) Union-find.
         let mut uf = UnionFind::new(all_embeddings.len());

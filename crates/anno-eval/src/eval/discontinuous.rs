@@ -289,7 +289,7 @@ pub fn evaluate_discontinuous_ner(
             .iter()
             .filter(|g| !config.require_type_match || p.entity_type == g.entity_type)
             .map(|g| calculate_multi_span_overlap(&p.spans, &g.spans))
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| a.total_cmp(b))
             .unwrap_or(0.0);
         partial_precision_sum += best_overlap;
     }
@@ -299,7 +299,7 @@ pub fn evaluate_discontinuous_ner(
             .iter()
             .filter(|p| !config.require_type_match || p.entity_type == g.entity_type)
             .map(|p| calculate_multi_span_overlap(&p.spans, &g.spans))
-            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| a.total_cmp(b))
             .unwrap_or(0.0);
         partial_recall_sum += best_overlap;
     }

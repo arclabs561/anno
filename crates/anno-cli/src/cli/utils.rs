@@ -498,7 +498,7 @@ pub fn find_similar_models(query: &str, candidates: &[&str]) -> Vec<String> {
         })
         .collect();
 
-    matches.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    matches.sort_by(|a, b| b.0.total_cmp(&a.0));
     matches
         .into_iter()
         .take(3)

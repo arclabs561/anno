@@ -794,8 +794,7 @@ impl StackedNER {
                                     }
                                     ConflictStrategy::HighestConf => entities[a]
                                         .confidence
-                                        .partial_cmp(&entities[b].confidence)
-                                        .unwrap_or(std::cmp::Ordering::Equal)
+                                        .total_cmp(&entities[b].confidence)
                                         .then_with(|| b.cmp(&a)),
                                     ConflictStrategy::Union => {
                                         // For union, we'll keep all, so just pick first

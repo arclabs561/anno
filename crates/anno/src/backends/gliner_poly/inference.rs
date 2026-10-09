@@ -648,11 +648,7 @@ impl GLiNERPoly {
             a.start()
                 .cmp(&b.start())
                 .then_with(|| b.end().cmp(&a.end()))
-                .then_with(|| {
-                    b.confidence
-                        .partial_cmp(&a.confidence)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+                .then_with(|| b.confidence.total_cmp(&a.confidence))
         });
         entities.dedup_by(|a, b| a.start() == b.start() && a.end() == b.end());
 

@@ -842,8 +842,7 @@ pub(super) fn annotate_text_html(
                     .then_with(|| {
                         metas[*b]
                             .conf
-                            .partial_cmp(&metas[*a].conf)
-                            .unwrap_or(std::cmp::Ordering::Equal)
+                            .total_cmp(&metas[*a].conf)
                     })
             })
             .unwrap_or(active[0]);

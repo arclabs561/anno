@@ -224,7 +224,7 @@ impl CountPredictor {
         let (max_idx, _) = logits_vec
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| a.1.total_cmp(b.1))
             .unwrap_or((1, &0.0));
 
         Ok(max_idx.max(1)) // At least 1 instance
@@ -478,11 +478,7 @@ impl GLiNERMultitaskCandle {
         }
 
         if !multi_label {
-            if let Some((idx, _)) = probs
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-            {
+            if let Some((idx, _)) = probs.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) {
                 if let Some(label) = labels.get(idx) {
                     result_labels.push(label.clone());
                 }

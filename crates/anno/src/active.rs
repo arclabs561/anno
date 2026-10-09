@@ -65,7 +65,7 @@ pub fn rank_for_annotation<S: AsRef<str>>(texts: &[(S, Vec<Entity>)]) -> Vec<(us
         .enumerate()
         .map(|(i, (_, entities))| (i, annotation_priority(entities)))
         .collect();
-    ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
     ranked
 }
 

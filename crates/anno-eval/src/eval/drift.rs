@@ -430,8 +430,8 @@ impl DriftDetector {
             }
         }
 
-        increased.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        decreased.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        increased.sort_by(|a, b| b.1.total_cmp(&a.1));
+        decreased.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         let is_significant =
             kl_div > self.config.distribution_drift_threshold || !new_types.is_empty();

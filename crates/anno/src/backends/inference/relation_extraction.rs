@@ -1294,11 +1294,7 @@ pub fn extract_relation_triples_simple(
     triples.retain(|r| entities[r.head_idx].text != entities[r.tail_idx].text);
 
     // Sort by confidence descending, then deduplicate per undirected pair.
-    triples.sort_by(|a, b| {
-        b.confidence
-            .partial_cmp(&a.confidence)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    triples.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
 
     let mut seen_pairs = std::collections::HashSet::new();
     triples.retain(|r| {

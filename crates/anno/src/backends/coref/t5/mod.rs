@@ -420,7 +420,7 @@ impl T5Coref {
             last_logits
                 .iter()
                 .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .max_by(|a, b| a.1.total_cmp(b.1))
                 .map(|(i, _)| i as i64)
                 .unwrap_or(1) // EOS as fallback
         }; // dec guard drops here

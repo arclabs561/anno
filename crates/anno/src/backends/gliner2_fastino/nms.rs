@@ -10,7 +10,7 @@ pub(crate) fn greedy_nms(mut candidates: Vec<Entity>, flat_ner: bool) -> Vec<Ent
     candidates.sort_by(|a, b| {
         let ac: f32 = a.confidence.into();
         let bc: f32 = b.confidence.into();
-        bc.partial_cmp(&ac).unwrap_or(std::cmp::Ordering::Equal)
+        bc.total_cmp(&ac)
     });
     let mut selected: Vec<Entity> = Vec::with_capacity(candidates.len());
     for c in candidates {

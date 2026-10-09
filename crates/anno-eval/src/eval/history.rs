@@ -576,7 +576,7 @@ impl EvalHistory {
         entries.sort_by(|a, b| {
             let a_f1 = a.f1.unwrap_or(0.0);
             let b_f1 = b.f1.unwrap_or(0.0);
-            b_f1.partial_cmp(&a_f1).unwrap_or(std::cmp::Ordering::Equal)
+            b_f1.total_cmp(&a_f1)
         });
         entries.truncate(limit);
         Ok(entries)

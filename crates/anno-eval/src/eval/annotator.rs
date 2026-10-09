@@ -317,11 +317,7 @@ impl<'a> AnnotatorAnalyzer<'a> {
         }
 
         // Sort contentious by disagreement
-        contentious.sort_by(|a, b| {
-            b.disagreement
-                .partial_cmp(&a.disagreement)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        contentious.sort_by(|a, b| b.disagreement.total_cmp(&a.disagreement));
 
         // Compute Fleiss' kappa
         let fleiss_kappa = self.compute_fleiss_kappa();

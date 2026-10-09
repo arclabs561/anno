@@ -221,11 +221,9 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
         OverlapStrategy::KeepFirst => {
             // Sort by start, then by confidence (desc)
             entities.sort_by(|a, b| {
-                a.start().cmp(&b.start()).then(
-                    b.confidence
-                        .partial_cmp(&a.confidence)
-                        .expect("confidence values should be comparable"),
-                )
+                a.start()
+                    .cmp(&b.start())
+                    .then(b.confidence.total_cmp(&a.confidence))
             });
 
             let mut out = Vec::new();
@@ -242,11 +240,7 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
 
         OverlapStrategy::KeepHighestConfidence => {
             // Sort by confidence descending
-            entities.sort_by(|a, b| {
-                b.confidence
-                    .partial_cmp(&a.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            entities.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
 
             let mut out = Vec::with_capacity(entities.len());
             for entity in entities.drain(..) {
@@ -294,11 +288,9 @@ pub fn deduplicate_overlapping(entities: &mut Vec<Entity>, strategy: OverlapStra
             entities.sort_unstable_by(|a, b| {
                 let len_a = a.end() - a.start();
                 let len_b = b.end() - b.start();
-                len_a.cmp(&len_b).then_with(|| {
-                    b.confidence
-                        .partial_cmp(&a.confidence)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+                len_a
+                    .cmp(&len_b)
+                    .then_with(|| b.confidence.total_cmp(&a.confidence))
             });
 
             let mut out: Vec<Entity> = Vec::with_capacity(entities.len());

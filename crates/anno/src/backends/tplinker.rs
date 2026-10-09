@@ -390,11 +390,7 @@ mod onnx_impl {
             }
 
             // Deduplicate overlapping entities, keeping highest confidence
-            entities.sort_by(|a, b| {
-                b.confidence
-                    .partial_cmp(&a.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            entities.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
             let mut seen_spans = std::collections::HashSet::new();
             entities.retain(|e| seen_spans.insert((e.start(), e.end())));
 
@@ -497,11 +493,7 @@ mod onnx_impl {
             // appears at multiple positions).
             relations.retain(|r| entities[r.head_idx].text != entities[r.tail_idx].text);
 
-            relations.sort_by(|a, b| {
-                b.confidence
-                    .partial_cmp(&a.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
+            relations.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
             let mut seen = std::collections::HashSet::new();
             relations.retain(|r| seen.insert((r.head_idx, r.tail_idx)));
 

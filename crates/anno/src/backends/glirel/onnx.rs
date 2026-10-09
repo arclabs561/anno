@@ -334,11 +334,7 @@ impl GLiREL {
         }
 
         // Sort by confidence descending
-        relations.sort_by(|a, b| {
-            b.confidence
-                .partial_cmp(&a.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        relations.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
 
         // Deduplicate: keep top relation per directed pair
         let mut seen = std::collections::HashSet::new();

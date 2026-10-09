@@ -3897,9 +3897,7 @@ impl ComprehensiveEvalResults {
 
                 // Sort by task name, then avg descending.
                 entries.sort_by(|a, b| match a.0.name().cmp(b.0.name()) {
-                    std::cmp::Ordering::Equal => {
-                        b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal)
-                    }
+                    std::cmp::Ordering::Equal => b.2.total_cmp(&a.2),
                     other => other,
                 });
 
@@ -4036,7 +4034,7 @@ impl ComprehensiveEvalResults {
                 (true, true) => {
                     let a_f1 = a.primary_f1().unwrap_or(0.0);
                     let b_f1 = b.primary_f1().unwrap_or(0.0);
-                    b_f1.partial_cmp(&a_f1).unwrap_or(std::cmp::Ordering::Equal)
+                    b_f1.total_cmp(&a_f1)
                 }
                 (true, false) => std::cmp::Ordering::Less,
                 (false, true) => std::cmp::Ordering::Greater,

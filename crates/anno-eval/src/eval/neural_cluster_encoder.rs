@@ -594,7 +594,7 @@ impl<E: ClusterEncoder, S: MergeScorer> UnifiedCrossContextResolver<E, S> {
         }
 
         // Sort by score descending
-        merge_pairs.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
+        merge_pairs.sort_by(|a, b| b.2.total_cmp(&a.2));
 
         // Union-Find merge
         let n = embeddings.len();

@@ -1045,11 +1045,11 @@ impl EvalResults {
         }
 
         // Per-type metrics for best backend
-        if let Some(best) = self.backends.iter().max_by(|a, b| {
-            a.f1.mean
-                .partial_cmp(&b.f1.mean)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) {
+        if let Some(best) = self
+            .backends
+            .iter()
+            .max_by(|a, b| a.f1.mean.total_cmp(&b.f1.mean))
+        {
             if !best.per_dataset.is_empty() {
                 html.push_str(&format!(
                     "<h2>Per-Type Metrics ({})</h2>\n",
@@ -1075,9 +1075,7 @@ impl EvalResults {
                 sorted_types.sort_by(|a, b| {
                     let avg_f1_a = a.1.iter().map(|m| m.f1).sum::<f64>() / a.1.len() as f64;
                     let avg_f1_b = b.1.iter().map(|m| m.f1).sum::<f64>() / b.1.len() as f64;
-                    avg_f1_b
-                        .partial_cmp(&avg_f1_a)
-                        .unwrap_or(std::cmp::Ordering::Equal)
+                    avg_f1_b.total_cmp(&avg_f1_a)
                 });
 
                 for (type_name, metrics_list) in sorted_types {

@@ -123,7 +123,7 @@ impl HandshakingMatrix {
             a.0.start
                 .cmp(&b.0.start)
                 .then_with(|| a.0.end.cmp(&b.0.end))
-                .then_with(|| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| b.2.total_cmp(&a.2))
         });
 
         // Performance: Pre-allocate kept vec with estimated capacity
@@ -225,5 +225,47 @@ mod tests {
         assert_eq!(entities[0].0.start, 0);
         assert_eq!(entities[0].0.end, 3);
         assert!((entities[0].2 - 0.9).abs() < 1e-6);
+    }
+
+    /// Raw scores can be NaN (cells are public); the decode sort must not
+    /// panic and must still return a well-formed, non-overlapping result.
+    #[test]
+    fn handshaking_decode_with_nan_scores_does_not_panic() {
+        let registry = SemanticRegistry {
+            embeddings: vec![0.0; 4],
+            hidden_dim: 4,
+            labels: vec![LabelDefinition {
+                slug: "PER".to_string(),
+                description: "Person".to_string(),
+                category: LabelCategory::Entity,
+                modality: ModalityHint::TextOnly,
+                threshold: Confidence::ZERO,
+            }],
+            label_index: HashMap::from([("PER".to_string(), 0)]),
+        };
+        // 60 cells sharing a few (start, end) keys so the score tie-break
+        // is exercised, a third of them NaN.
+        let cells = (0..60u32)
+            .map(|k| HandshakingCell {
+                i: 3 + k % 3,
+                j: k % 2,
+                label_idx: 0,
+                score: if k.is_multiple_of(3) {
+                    f32::NAN
+                } else {
+                    (k % 7) as f32 / 7.0
+                },
+            })
+            .collect();
+        let matrix = HandshakingMatrix {
+            cells,
+            seq_len: 8,
+            num_labels: 1,
+        };
+        let entities = matrix.decode_entities(&registry);
+        assert!(!entities.is_empty());
+        for (a, b) in entities.iter().zip(entities.iter().skip(1)) {
+            assert!(a.0.end <= b.0.start || b.0.end <= a.0.start, "overlap kept");
+        }
     }
 }

@@ -449,11 +449,7 @@ impl ReportBuilder {
             .threshold_accuracy
             .iter()
             .filter(|(_, metrics)| metrics.coverage >= 0.1) // At least 10% coverage
-            .max_by(|(_, a), (_, b)| {
-                a.accuracy
-                    .partial_cmp(&b.accuracy)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .max_by(|(_, a), (_, b)| a.accuracy.total_cmp(&b.accuracy))
             .and_then(|(thresh_str, _)| thresh_str.parse::<f64>().ok())
             .unwrap_or(0.5);
 

@@ -422,11 +422,7 @@ impl UncertainReference {
     #[must_use]
     pub fn ranked_candidates(&self) -> Vec<&ReferenceCandidate> {
         let mut sorted: Vec<_> = self.candidates.iter().collect();
-        sorted.sort_by(|a, b| {
-            b.weight
-                .partial_cmp(&a.weight)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        sorted.sort_by(|a, b| b.weight.total_cmp(&a.weight));
         sorted
     }
 

@@ -374,12 +374,9 @@ impl EnsembleNER {
 
         // Build merged entity
         // Use the candidate with highest individual confidence as base
-        let best_candidate = winning_candidates.iter().max_by(|a, b| {
-            a.entity
-                .confidence
-                .partial_cmp(&b.entity.confidence)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        })?;
+        let best_candidate = winning_candidates
+            .iter()
+            .max_by(|a, b| a.entity.confidence.total_cmp(&b.entity.confidence))?;
 
         let sources: Vec<String> = winning_candidates
             .iter()

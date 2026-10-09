@@ -210,7 +210,7 @@ impl ActiveLearner {
         let scores = self.compute_scores_with_strategy(candidates, actual_strategy);
 
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
-        indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| b.1.total_cmp(&a.1));
 
         let k = k.min(candidates.len());
         let selected: Vec<(String, f64)> = indexed
@@ -396,7 +396,7 @@ impl ActiveLearner {
             .collect();
 
         // Sort by confidence ascending (lowest = most uncertain)
-        indexed.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| a.1.total_cmp(&b.1));
 
         indexed
             .iter()
@@ -422,11 +422,7 @@ impl ActiveLearner {
         let first_idx = candidates
             .iter()
             .enumerate()
-            .min_by(|a, b| {
-                a.1.confidence
-                    .partial_cmp(&b.1.confidence)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .min_by(|a, b| a.1.confidence.total_cmp(&b.1.confidence))
             .map(|(i, _)| i)
             .unwrap_or(0);
 
@@ -451,7 +447,7 @@ impl ActiveLearner {
                         let emb_sel = candidates[sel_idx].embedding.as_ref()?;
                         Some(self.embedding_distance(emb_idx, emb_sel))
                     })
-                    .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                    .min_by(|a, b| a.total_cmp(b))
                     .unwrap_or(0.0);
 
                 if min_dist > best_min_dist {
@@ -475,7 +471,7 @@ impl ActiveLearner {
             .collect();
 
         // Sort by disagreement descending
-        indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| b.1.total_cmp(&a.1));
 
         indexed
             .iter()
@@ -487,7 +483,7 @@ impl ActiveLearner {
     fn select_hybrid<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
         let scores = self.compute_scores_with_strategy(candidates, SamplingStrategy::Hybrid);
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
-        indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| b.1.total_cmp(&a.1));
         indexed
             .iter()
             .take(k)
@@ -498,7 +494,7 @@ impl ActiveLearner {
     fn select_random<'a>(&self, candidates: &'a [Candidate], k: usize) -> Vec<&'a Candidate> {
         let scores = self.compute_scores_with_strategy(candidates, SamplingStrategy::Random);
         let mut indexed: Vec<(usize, f64)> = scores.into_iter().enumerate().collect();
-        indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        indexed.sort_by(|a, b| b.1.total_cmp(&a.1));
         indexed
             .iter()
             .take(k)
@@ -615,7 +611,7 @@ pub fn rank_for_annotation(entities: &[anno::Entity], k: usize) -> Vec<(usize, f
         .enumerate()
         .map(|(i, e)| (i, 1.0 - e.confidence.value()))
         .collect();
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    scored.sort_by(|a, b| b.1.total_cmp(&a.1));
     scored.truncate(k);
     scored
 }

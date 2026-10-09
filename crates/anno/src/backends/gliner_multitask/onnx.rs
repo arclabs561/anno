@@ -545,11 +545,7 @@ impl GLiNERMultitaskOnnx {
         }
 
         if !multi_label {
-            if let Some((idx, _)) = probs
-                .iter()
-                .enumerate()
-                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-            {
+            if let Some((idx, _)) = probs.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) {
                 if let Some(label) = labels.get(idx) {
                     selected_labels.push((*label).to_string());
                 }

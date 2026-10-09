@@ -361,11 +361,7 @@ fn analyze_features(text: &str, entity: &anno::Entity) -> Vec<FeatureContributio
     }
 
     // Sort by weight descending
-    features.sort_by(|a, b| {
-        b.weight
-            .partial_cmp(&a.weight)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    features.sort_by(|a, b| b.weight.total_cmp(&a.weight));
 
     features
 }

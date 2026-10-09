@@ -511,22 +511,14 @@ impl RobustnessEvaluator {
         let (worst, _) = aggregated
             .iter()
             .filter(|(k, metrics)| k.as_str() != "None" && metrics.count > 0)
-            .min_by(|a, b| {
-                a.1.f1
-                    .partial_cmp(&b.1.f1)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .min_by(|a, b| a.1.f1.total_cmp(&b.1.f1))
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 
         let (best, _) = aggregated
             .iter()
             .filter(|(_, metrics)| metrics.count > 0)
-            .max_by(|a, b| {
-                a.1.f1
-                    .partial_cmp(&b.1.f1)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .max_by(|a, b| a.1.f1.total_cmp(&b.1.f1))
             .map(|(k, v)| (k.clone(), v.f1))
             .unwrap_or(("None".to_string(), baseline_f1));
 

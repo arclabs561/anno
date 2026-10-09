@@ -3613,12 +3613,7 @@ fn annotate_text_html(
                 metas[*a]
                     .covered_len
                     .cmp(&metas[*b].covered_len)
-                    .then_with(|| {
-                        metas[*b]
-                            .conf
-                            .partial_cmp(&metas[*a].conf)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    })
+                    .then_with(|| metas[*b].conf.total_cmp(&metas[*a].conf))
             })
             .unwrap_or(active[0]);
         let primary = &metas[primary_idx];

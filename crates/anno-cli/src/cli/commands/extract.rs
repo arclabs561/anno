@@ -1121,7 +1121,7 @@ fn compute_confidence_stats(confs: &[f64]) -> serde_json::Value {
     }
 
     let mut sorted = confs.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted.sort_by(|a, b| a.total_cmp(b));
     let count = sorted.len();
     let sum: f64 = sorted.iter().sum();
     let mean = sum / count as f64;

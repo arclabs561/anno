@@ -1135,11 +1135,7 @@ impl GLiNEROnnx {
             a.start()
                 .cmp(&b.start())
                 .then_with(|| b.end().cmp(&a.end()))
-                .then_with(|| {
-                    b.confidence
-                        .partial_cmp(&a.confidence)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+                .then_with(|| b.confidence.total_cmp(&a.confidence))
         });
 
         // Remove exact duplicates

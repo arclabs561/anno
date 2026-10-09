@@ -827,11 +827,7 @@ impl MentionRankingCoref {
         }
 
         // Step 2: Sort by confidence (highest first)
-        scored_pairs.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        scored_pairs.sort_by(|a, b| b.score.total_cmp(&a.score));
 
         // Step 3: Process in confidence order, respecting constraints
         let mut mention_to_cluster: HashMap<usize, usize> = HashMap::new();

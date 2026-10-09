@@ -519,11 +519,8 @@ impl CenteringState {
     pub fn with_cf(mut self, cf: Vec<ForwardCenter>) -> Self {
         // Sort by effective salience, descending
         self.cf = cf;
-        self.cf.sort_by(|a, b| {
-            b.effective_salience()
-                .partial_cmp(&a.effective_salience())
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        self.cf
+            .sort_by(|a, b| b.effective_salience().total_cmp(&a.effective_salience()));
 
         // Update Cp (preferred center)
         self.cp = self.cf.first().map(|fc| fc.entity_id);
