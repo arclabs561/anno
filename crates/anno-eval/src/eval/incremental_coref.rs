@@ -53,7 +53,7 @@
 //! |----------|---------------|----------|---------|
 //! | **Heuristic** (this) | String match + discrete ops | None | Anno EntityMemory |
 //! | **Referential Reader** | GRU gates | End-to-end | Liu et al. 2019 |
-//! | **SpanEIT** | GRU per coref cluster | Supervised | Hossain et al. 2025 |
+//! | **SpanEIT** | GRU per coref cluster | Supervised (sentiment labels) | Hossain et al. 2025 |
 //!
 //! **Why heuristic?**
 //! - No training data required
@@ -68,7 +68,10 @@
 //!
 //! References:
 //! - Liu, Zettlemoyer & Eisenstein (2019): "The Referential Reader" - ACL 2019
-//! - Hossain et al. (2025): "SpanEIT" - arXiv:2509.11604
+//! - Hossain et al. (2025): "Dynamic Span Interaction and Graph-Aware Memory for
+//!   Entity-Level Sentiment Classification" (SpanEIT) - arXiv:2509.11604. An
+//!   entity-level sentiment model with a coreference-aware memory module, not a
+//!   coreference resolver.
 //!
 //! # Example
 //!

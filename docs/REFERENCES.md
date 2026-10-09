@@ -24,11 +24,11 @@ Academic papers, datasets, and software cited across the anno codebase.
   [[arXiv:2507.18546]](https://arxiv.org/abs/2507.18546)
   — Distinct architecture (fastino-ai). Different special tokens (`[P]/[E]/[C]/[L]/[SEP]`) and head structure (count-predictor + occurrence ID embeddings). Implemented as the feature-gated `gliner2_fastino` backend.
 
-- D. Bogdanov, A. Mokhov, et al. "NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data." 2024.
+- S. Bogdanov, A. Constantin, T. Bernard, B. Crabbé, and E. Bernard. "NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data." 2024.
   [[arXiv:2402.15343]](https://arxiv.org/abs/2402.15343)
   — Basis for the `nuner` zero-shot token-classification backend.
 
-- J. Li, Y. Fei, et al. "Unified Named Entity Recognition as Word-Word Relation Classification." *AAAI*, 2022.
+- J. Li, H. Fei, et al. "Unified Named Entity Recognition as Word-Word Relation Classification." *AAAI*, 2022.
   [[arXiv:2112.10070]](https://arxiv.org/abs/2112.10070)
   — Basis for the `w2ner` backend (nested and discontinuous entities via handshaking matrix).
 
@@ -83,7 +83,8 @@ Academic papers, datasets, and software cited across the anno codebase.
   [[arXiv:2209.04280]](https://arxiv.org/abs/2209.04280)
   — Basis for the `FCoref` neural coreference backend. LingMess mention detection with DistilRoBERTa.
 
-- O. Bourgois and T. Poibeau. "Coreference Resolution for Machine Reading: A Survey." 2025.
+- A. Bourgois and T. Poibeau. "The Elephant in the Coreference Room: Resolving Coreference in Full-Length French Fiction Works." *CRAC*, 2025.
+  [[arXiv:2510.15594]](https://arxiv.org/abs/2510.15594)
   — Contemporary reference for the coreference approach in anno.
 
 - D. Jurafsky and J. H. Martin. *Speech and Language Processing*, Ch. 21 (Coreference Resolution), 3rd ed. draft, 2024.
@@ -98,7 +99,7 @@ Academic papers, datasets, and software cited across the anno codebase.
 
 ## Relation Extraction
 
-- Y. Wang, Y. Yu, et al. "TPLinker: Single-stage Joint Extraction of Entities and Relations Through Token Pair Linking." *COLING*, 2020.
+- Y. Wang, B. Yu, et al. "TPLinker: Single-stage Joint Extraction of Entities and Relations Through Token Pair Linking." *COLING*, 2020.
   [[arXiv:2010.13415]](https://arxiv.org/abs/2010.13415)
   — Architecture basis for the `tplinker` backend.
 

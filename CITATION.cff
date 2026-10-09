@@ -59,7 +59,15 @@ references:
     title: "NuNER: Entity Recognition Encoder Pre-training via LLM-Annotated Data"
     authors:
       - family-names: Bogdanov
-        given-names: Dmitri
+        given-names: Sergei
+      - family-names: Constantin
+        given-names: Alexandre
+      - family-names: Bernard
+        given-names: Timothée
+      - family-names: Crabbé
+        given-names: Benoit
+      - family-names: Bernard
+        given-names: Etienne
     journal: "arXiv:2402.15343"
     year: 2024
 
