@@ -52,9 +52,18 @@ jobs:
           cargo install cargo-llvm-cov
 
       - name: Install opengrep
+        # Pinned release binary, checked against the SHA-256 GitHub reports
+        # for the release asset, instead of running install.sh from main.
+        env:
+          OPENGREP_VERSION: v1.30.2
+          OPENGREP_SHA256: a66aa3278457f02b287b985a45b6762aebcaba5000f2689245fd1ed86d1456c7
         run: |
-          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/opengrep" \
+            "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86"
+          echo "${OPENGREP_SHA256}  $HOME/.local/bin/opengrep" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/opengrep"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run comprehensive safety report
         run: |

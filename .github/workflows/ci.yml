@@ -4,6 +4,8 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  schedule:
+    - cron: "17 6 * * 1"
   workflow_dispatch: # Manual trigger
     inputs:
       max_examples:
@@ -880,9 +882,6 @@ jobs:
   semver-checks:
     name: Cargo Semver Checks
     runs-on: ubuntu-latest
-    # Non-blocking while we baseline; promote to required once it's been
-    # green for one release cycle.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -929,7 +928,6 @@ jobs:
   unused-deps:
     name: Unused Dependencies
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -987,9 +985,18 @@ jobs:
         with:
           persist-credentials: false
       - name: Install OpenGrep
+        # Pinned release binary, checked against the SHA-256 GitHub reports
+        # for the release asset, instead of running install.sh from main.
+        env:
+          OPENGREP_VERSION: v1.30.2
+          OPENGREP_SHA256: a66aa3278457f02b287b985a45b6762aebcaba5000f2689245fd1ed86d1456c7
         run: |
-          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/opengrep" \
+            "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86"
+          echo "${OPENGREP_SHA256}  $HOME/.local/bin/opengrep" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/opengrep"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run OpenGrep (default rules)
         run: |
           opengrep scan \
