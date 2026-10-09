@@ -9,6 +9,10 @@ Extract entity spans, coreference links, and common forms of personally
 identifiable information from text. Model-backed extractors are optional; the
 rule-based extractors work offline.
 
+In Python, spaCy and GLiNER are the usual choices for NER and Microsoft Presidio
+for PII detection; use `anno` for these tasks from Rust, with character offsets
+and offline fallbacks.
+
 ## Library
 
 ```toml
@@ -16,7 +20,7 @@ rule-based extractors work offline.
 anno = "0.13"
 ```
 
-```rust
+```rust,no_run
 fn main() -> anno::Result<()> {
     let entities = anno::extract("Sophie Wilson designed the ARM processor.")?;
     for entity in entities {
@@ -38,7 +42,10 @@ offsets. Confidence scores are backend-local and are not calibrated across
 backends.
 
 Pattern-based PII redaction covers values such as email addresses, phone
-numbers, and identification numbers:
+numbers, and identification numbers. The ID patterns are US-centric: US Social
+Security numbers (structure-checked), 16-digit card numbers (Luhn-checked) and
+IBANs (mod-97-checked); phone and address patterns follow US formats, and other
+national ID numbers are not covered.
 
 ```rust
 use anno::pii;

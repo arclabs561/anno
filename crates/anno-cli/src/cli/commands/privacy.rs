@@ -283,63 +283,19 @@ fn looks_like_dob(text: &str) -> bool {
 /// Pre-NER scan for structured PII patterns directly on input text.
 ///
 /// Catches SSN, credit card, phone, and IBAN even when no NER entity covers them.
+/// Delegates to [`anno::pii::scan_patterns`], which also validates SSN
+/// structure, card Luhn digits and IBAN mod-97 checksums.
 fn scan_structured_pii(text: &str) -> Vec<PIIEntity> {
-    let mut results = Vec::new();
-
-    let patterns: &[(&str, &str, &str)] = &[
-        (r"\b\d{3}-\d{2}-\d{4}\b", "ID_NUMBER", "CRITICAL"),
-        (
-            r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
-            "ID_NUMBER",
-            "CRITICAL",
-        ),
-        (
-            r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?\b",
-            "ID_NUMBER",
-            "CRITICAL",
-        ),
-        (
-            r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b",
-            "CONTACT",
-            "HIGH",
-        ),
-        (
-            r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
-            "CONTACT",
-            "HIGH",
-        ),
-        // US street address: house number + street name + suffix, optionally
-        // followed by city, state abbreviation, and ZIP code.
-        (
-            r"\b\d{1,5}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl|Circle|Cir|Terrace|Ter)\.?(?:,\s*[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
-            "ADDRESS",
-            "HIGH",
-        ),
-    ];
-
-    for &(pat, pii_type, risk) in patterns {
-        if let Ok(re) = Regex::new(pat) {
-            for m in re.find_iter(text) {
-                // Avoid overlaps with already-found PII
-                let start = text[..m.start()].chars().count();
-                let end = text[..m.end()].chars().count();
-                let overlaps = results
-                    .iter()
-                    .any(|e: &PIIEntity| !(end <= e.start || start >= e.end));
-                if !overlaps {
-                    results.push(PIIEntity {
-                        text: m.as_str().to_string(),
-                        pii_type: pii_type.to_string(),
-                        start,
-                        end,
-                        risk_level: risk.to_string(),
-                    });
-                }
-            }
-        }
-    }
-
-    results
+    anno::pii::scan_patterns(text)
+        .into_iter()
+        .map(|p| PIIEntity {
+            text: p.text,
+            pii_type: p.pii_type,
+            start: p.start,
+            end: p.end,
+            risk_level: p.risk_level,
+        })
+        .collect()
 }
 
 /// Convert a character-offset span to byte offsets suitable for string slicing.

@@ -30,6 +30,78 @@ use crate::Entity;
 use regex::Regex;
 use std::collections::HashMap;
 
+/// US SSN structure check: the SSA never issues area 000, 666 or 900-999,
+/// group 00, or serial 0000. Expects `AAA-GG-SSSS`.
+fn ssn_valid(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('-').collect();
+    let [area, group, serial] = parts.as_slice() else {
+        return false;
+    };
+    let (Ok(area), Ok(group), Ok(serial)) = (
+        area.parse::<u32>(),
+        group.parse::<u32>(),
+        serial.parse::<u32>(),
+    ) else {
+        return false;
+    };
+    area != 0 && area != 666 && area < 900 && group != 0 && serial != 0
+}
+
+/// Luhn check digit over the ASCII digits of `s` (separators ignored).
+fn luhn_valid(s: &str) -> bool {
+    let digits: Vec<u32> = s.chars().filter_map(|c| c.to_digit(10)).collect();
+    if digits.len() < 12 {
+        return false;
+    }
+    let sum: u32 = digits
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, &d)| {
+            if i % 2 == 1 {
+                let d2 = d * 2;
+                if d2 > 9 {
+                    d2 - 9
+                } else {
+                    d2
+                }
+            } else {
+                d
+            }
+        })
+        .sum();
+    sum.is_multiple_of(10)
+}
+
+/// ISO 13616 IBAN check: 15 to 34 alphanumerics (whitespace ignored) whose
+/// rearranged numeric form is 1 mod 97.
+pub(crate) fn iban_mod97_valid(raw: &str) -> bool {
+    let s: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+    if s.len() < 15 || s.len() > 34 {
+        return false;
+    }
+    let s = s.to_ascii_uppercase();
+    if !s.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return false;
+    }
+    let (head, tail) = s.split_at(4);
+    let mut r: u32 = 0;
+    for c in tail.chars().chain(head.chars()) {
+        // Letters expand to two digits (A = 10 .. Z = 35).
+        let v = c.to_digit(36).unwrap_or(0);
+        r = if v >= 10 {
+            (r * 100 + v) % 97
+        } else {
+            (r * 10 + v) % 97
+        };
+    }
+    r == 1
+}
+
+const SSN_PATTERN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
+const CARD_PATTERN: &str = r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b";
+const IBAN_PATTERN: &str = r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?\b";
+
 /// A detected PII entity.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PiiEntity {
@@ -115,38 +187,42 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
 pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
     let mut results = Vec::new();
 
-    let patterns: &[(&str, &str, &str)] = &[
-        (r"\b\d{3}-\d{2}-\d{4}\b", "ID_NUMBER", "CRITICAL"),
+    type Check = Option<fn(&str) -> bool>;
+    let patterns: &[(&str, &str, &str, Check)] = &[
+        (SSN_PATTERN, "ID_NUMBER", "CRITICAL", Some(ssn_valid)),
+        (CARD_PATTERN, "ID_NUMBER", "CRITICAL", Some(luhn_valid)),
         (
-            r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b",
+            IBAN_PATTERN,
             "ID_NUMBER",
             "CRITICAL",
-        ),
-        (
-            r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?\b",
-            "ID_NUMBER",
-            "CRITICAL",
+            Some(iban_mod97_valid),
         ),
         (
             r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b",
             "CONTACT",
             "HIGH",
+            None,
         ),
         (
             r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
             "CONTACT",
             "HIGH",
+            None,
         ),
         (
             r"\b\d{1,5}\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl|Circle|Cir|Terrace|Ter)\.?(?:,\s*[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*,\s*[A-Z]{2}\s+\d{5}(?:-\d{4})?)?\b",
             "ADDRESS",
             "HIGH",
+            None,
         ),
     ];
 
-    for &(pat, pii_type, risk) in patterns {
+    for &(pat, pii_type, risk, check) in patterns {
         if let Ok(re) = Regex::new(pat) {
             for m in re.find_iter(text) {
+                if check.is_some_and(|valid| !valid(m.as_str())) {
+                    continue;
+                }
                 // Convert byte offsets from regex to character offsets
                 let start = text[..m.start()].chars().count();
                 let end = text[..m.end()].chars().count();
@@ -535,19 +611,20 @@ pub fn looks_like_address(text: &str) -> bool {
 
 /// Check if text looks like an ID number (SSN, credit card, IBAN, MRN).
 pub fn looks_like_id_number(text: &str) -> bool {
-    if let Ok(re) = Regex::new(r"\d{3}-\d{2}-\d{4}") {
-        if re.is_match(text) {
-            return true;
-        }
-    }
-    if let Ok(re) = Regex::new(r"\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}") {
-        if re.is_match(text) {
-            return true;
-        }
-    }
-    if let Ok(re) = Regex::new(r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?") {
-        if re.is_match(text) {
-            return true;
+    type Checked = (&'static str, fn(&str) -> bool);
+    let checked: [Checked; 3] = [
+        (r"\d{3}-\d{2}-\d{4}", ssn_valid),
+        (r"\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}", luhn_valid),
+        (
+            r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?",
+            iban_mod97_valid,
+        ),
+    ];
+    for (pat, valid) in checked {
+        if let Ok(re) = Regex::new(pat) {
+            if re.find_iter(text).any(|m| valid(m.as_str())) {
+                return true;
+            }
         }
     }
     // Alphanumeric catch-all for short ID-like tokens (e.g. MRNs, short codes).
@@ -858,5 +935,59 @@ mod tests {
         }];
         let replaced = replace(text, &entities, |e| format!("<{}>", e.pii_type));
         assert_eq!(replaced, "SSN <ID_NUMBER> recorded.");
+    }
+
+    fn ids(text: &str) -> Vec<String> {
+        scan_patterns(text)
+            .into_iter()
+            .filter(|p| p.pii_type == "ID_NUMBER")
+            .map(|p| p.text)
+            .collect()
+    }
+
+    /// SSA never issues area 000, 666 or 900-999, group 00, or serial 0000.
+    #[test]
+    fn scan_rejects_ssns_with_unissued_area_group_or_serial() {
+        for bad in [
+            "000-12-3456",
+            "666-12-3456",
+            "912-12-3456",
+            "123-00-4567",
+            "123-45-0000",
+        ] {
+            assert!(ids(&format!("SSN {bad} here")).is_empty(), "{bad} accepted");
+            assert!(!looks_like_id_number(bad), "{bad} accepted");
+        }
+        assert_eq!(ids("SSN 123-45-6789 here"), vec!["123-45-6789"]);
+    }
+
+    /// Card numbers must pass the Luhn check digit.
+    #[test]
+    fn scan_requires_luhn_valid_card_numbers() {
+        assert!(ids("Card 4111 1111 1111 1112 on file").is_empty());
+        assert!(!looks_like_id_number("4111-1111-1111-1112"));
+        assert_eq!(
+            ids("Card 4111 1111 1111 1111 on file"),
+            vec!["4111 1111 1111 1111"]
+        );
+        assert_eq!(
+            ids("Card 5500005555555559 on file"),
+            vec!["5500005555555559"]
+        );
+    }
+
+    /// IBANs must pass the ISO 13616 mod-97 check, as in the French backend.
+    #[test]
+    fn scan_requires_mod97_valid_ibans() {
+        assert!(ids("IBAN DE89370400440532013001 x").is_empty());
+        assert!(!looks_like_id_number("DE89370400440532013001"));
+        assert_eq!(
+            ids("IBAN DE89370400440532013000 x"),
+            vec!["DE89370400440532013000"]
+        );
+        assert_eq!(
+            ids("IBAN GB82WEST12345698765432 x"),
+            vec!["GB82WEST12345698765432"]
+        );
     }
 }

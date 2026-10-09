@@ -12,7 +12,7 @@ fn candidate_re() -> &'static Regex {
 pub fn extract_iban_intl(text: &str) -> Vec<Entity> {
     candidate_re()
         .find_iter(text)
-        .filter(|m| iban_mod97(m.as_str()))
+        .filter(|m| crate::pii::iban_mod97_valid(m.as_str()))
         .map(|m| {
             let start = text[..m.start()].chars().count();
             let end = text[..m.end()].chars().count();
@@ -28,32 +28,6 @@ pub fn extract_iban_intl(text: &str) -> Vec<Entity> {
             .build()
         })
         .collect()
-}
-
-fn iban_mod97(raw: &str) -> bool {
-    let s: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
-    if s.len() < 15 || s.len() > 34 {
-        return false;
-    }
-    let s = s.to_ascii_uppercase();
-    if !s.chars().all(|c| c.is_ascii_alphanumeric()) {
-        return false;
-    }
-    let (head, tail) = s.split_at(4);
-    let rearranged = format!("{tail}{head}");
-    let mut numeric = String::with_capacity(rearranged.len() * 2);
-    for c in rearranged.chars() {
-        if c.is_ascii_digit() {
-            numeric.push(c);
-        } else {
-            numeric.push_str(&((c as u32 - 'A' as u32 + 10).to_string()));
-        }
-    }
-    let mut r: u32 = 0;
-    for d in numeric.chars() {
-        r = (r * 10 + d.to_digit(10).unwrap()) % 97;
-    }
-    r == 1
 }
 
 #[cfg(test)]
