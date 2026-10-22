@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- PII scanning and NER classification recognize uppercase, ASCII-space-grouped IBANs at registered country lengths, preserving original character spans and adjacent text during redaction. Compact recognition is unchanged.
+
 - Fresh dataset payloads are validated before replacing cache files; rejected downloads preserve existing caches, S3 snapshot hashes are checked, and cached ECB+ ZIP files load as binary data.
 - Relation evaluation honors the requested document limit and reports the units and gold relations actually scored.
 - Muxer outcomes and history share observation IDs, including cache-load failures; coverage selection filters history by recorded evaluation conditions.
