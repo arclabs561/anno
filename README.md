@@ -45,7 +45,12 @@ Pattern-based PII redaction covers values such as email addresses, phone
 numbers, and identification numbers. The ID patterns are US-centric: US Social
 Security numbers (structure-checked), 16-digit card numbers (Luhn-checked) and
 IBANs (mod-97-checked); phone and address patterns follow US formats, and other
-national ID numbers are not covered.
+national ID numbers are not covered. Printed IBANs use uppercase groups of four
+separated by single ASCII spaces (with a shorter final group), bounded by the
+registered country length. Text after a space at that endpoint is separate,
+including numeric text. This checks the checksum and format, not account
+existence or country-specific bank/account rules; compact recognition retains
+its existing format coverage.
 
 ```rust
 use anno::pii;
