@@ -1037,9 +1037,14 @@ jobs:
             printf '%s\n' '{"version":"2.1.0","runs":[]}' > opengrep-results.sarif
           fi
       - name: Run OpenGrep (custom rules - general)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1047,9 +1052,14 @@ jobs:
             --json --output opengrep-security-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - NLP/ML patterns)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1057,9 +1067,14 @@ jobs:
             --json --output opengrep-nlp-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - evaluation framework)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1067,9 +1082,14 @@ jobs:
             --json --output opengrep-eval-results.json \
             crates/anno-eval/
       - name: Run OpenGrep (custom rules - anno-specific)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1077,9 +1097,14 @@ jobs:
             --json --output opengrep-anno-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - error handling)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1087,9 +1112,14 @@ jobs:
             --json --output opengrep-error-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - memory patterns)
-        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
-        # `|| true` masked it, so these rules have never actually run. Keep the
-        # scan non-fatal until the failing rule is identified on Linux.
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
