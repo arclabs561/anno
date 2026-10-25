@@ -108,43 +108,37 @@ impl CandidateRanking {
 impl NedMetrics {
     /// Compute all NED metrics for a single ranking.
     pub fn compute(ranking: &CandidateRanking, _max_k: usize) -> Self {
-        // Simple fallback implementation
-        let mut mrr = 0.0;
+        // Map the candidate ranking to the inputs expected by `rankops`:
+        // 1-indexed ranks of the first occurrence of each gold candidate, and
+        // the per-position relevance vector used for NDCG.
+        let mut all_ranks: Vec<usize> = Vec::new();
+        let mut relevance: Vec<f64> = Vec::with_capacity(ranking.candidates.len());
+        let mut seen_gold: HashSet<&str> = HashSet::new();
+
         for (i, (id, _)) in ranking.candidates.iter().enumerate() {
-            if ranking.is_correct(id) {
-                mrr = 1.0 / (i + 1) as f64;
-                break;
+            if ranking.is_correct(id) && seen_gold.insert(id.as_str()) {
+                all_ranks.push(i + 1);
+                relevance.push(1.0);
+            } else {
+                relevance.push(0.0);
             }
         }
 
-        let hits_at_5 = if ranking
-            .candidates
-            .iter()
-            .take(5)
-            .any(|(id, _)| ranking.is_correct(id))
-        {
-            1.0
-        } else {
-            0.0
-        };
+        let n_relevant = ranking.gold_ids.len();
+        let first_rank = all_ranks.iter().copied().min().unwrap_or(0);
+        // NDCG gain policy: linear (`rel` rather than `2^rel - 1`). The NED
+        // doc comment does not specify a gain curve and `rankops` defaults to
+        // linear, so we keep the standard binary-relevance NDCG definition.
+        let ideal: Vec<f64> = vec![1.0; n_relevant];
 
         Self {
-            mrr,
-            precision_at_1: if ranking
-                .candidates
-                .first()
-                .map(|(id, _)| ranking.is_correct(id))
-                .unwrap_or(false)
-            {
-                1.0
-            } else {
-                0.0
-            },
-            precision_at_5: 0.0, // Simplified
-            recall_at_5: 0.0,    // Simplified
-            hits_at_5,
-            ndcg_at_5: 0.0, // Requires full computation
-            ndcg_at_10: 0.0,
+            mrr: rankops::metrics::mrr(&[first_rank]),
+            precision_at_1: rankops::metrics::precision_at_k(&all_ranks, 1),
+            precision_at_5: rankops::metrics::precision_at_k(&all_ranks, 5),
+            recall_at_5: rankops::metrics::recall_at_k(&all_ranks, n_relevant, 5),
+            hits_at_5: rankops::metrics::hits_at_k(&[first_rank], 5),
+            ndcg_at_5: rankops::metrics::ndcg_at_k(&relevance, &ideal, 5),
+            ndcg_at_10: rankops::metrics::ndcg_at_k(&relevance, &ideal, 10),
         }
     }
 
@@ -189,9 +183,13 @@ mod tests {
         );
         let metrics = NedMetrics::compute(&ranking, 10);
 
-        assert!((metrics.mrr - 1.0).abs() < 0.01);
-        assert!((metrics.precision_at_1 - 1.0).abs() < 0.01);
-        assert!((metrics.hits_at_5 - 1.0).abs() < 0.01);
+        assert!((metrics.mrr - 1.0).abs() < 1e-12);
+        assert!((metrics.precision_at_1 - 1.0).abs() < 1e-12);
+        assert!((metrics.precision_at_5 - 0.2).abs() < 1e-12);
+        assert!((metrics.recall_at_5 - 1.0).abs() < 1e-12);
+        assert!((metrics.hits_at_5 - 1.0).abs() < 1e-12);
+        assert!((metrics.ndcg_at_5 - 1.0).abs() < 1e-12);
+        assert!((metrics.ndcg_at_10 - 1.0).abs() < 1e-12);
     }
 
     #[test]
@@ -207,9 +205,14 @@ mod tests {
         let metrics = NedMetrics::compute(&ranking, 10);
 
         // MRR = 1/3 = 0.333...
-        assert!((metrics.mrr - 1.0 / 3.0).abs() < 0.01);
-        assert!((metrics.precision_at_1 - 0.0).abs() < 0.01);
-        assert!((metrics.hits_at_5 - 1.0).abs() < 0.01);
+        assert!((metrics.mrr - 1.0 / 3.0).abs() < 1e-12);
+        assert!((metrics.precision_at_1 - 0.0).abs() < 1e-12);
+        assert!((metrics.precision_at_5 - 0.2).abs() < 1e-12);
+        assert!((metrics.recall_at_5 - 1.0).abs() < 1e-12);
+        assert!((metrics.hits_at_5 - 1.0).abs() < 1e-12);
+        // DCG@5 = 1/log2(4) = 0.5; IDCG@5 = 1/log2(2) = 1.0
+        assert!((metrics.ndcg_at_5 - 0.5).abs() < 1e-12);
+        assert!((metrics.ndcg_at_10 - 0.5).abs() < 1e-12);
     }
 
     #[test]
@@ -228,9 +231,14 @@ mod tests {
         let metrics = NedMetrics::compute(&ranking, 10);
 
         // Not in top 5
-        assert!((metrics.hits_at_5 - 0.0).abs() < 0.01);
+        assert!((metrics.hits_at_5 - 0.0).abs() < 1e-12);
         // MRR = 1/6
-        assert!((metrics.mrr - 1.0 / 6.0).abs() < 0.01);
+        assert!((metrics.mrr - 1.0 / 6.0).abs() < 1e-12);
+        assert!((metrics.precision_at_5 - 0.0).abs() < 1e-12);
+        assert!((metrics.recall_at_5 - 0.0).abs() < 1e-12);
+        assert!((metrics.ndcg_at_5 - 0.0).abs() < 1e-12);
+        // Gold is at rank 6: DCG@10 = 1/log2(7), IDCG@10 = 1.0
+        assert!((metrics.ndcg_at_10 - 1.0 / 7.0_f64.log2()).abs() < 1e-12);
     }
 
     #[test]
@@ -263,6 +271,75 @@ mod tests {
         let metrics = NedMetrics::compute(&ranking, 10);
 
         // Q1 is at position 2
-        assert!((metrics.mrr - 0.5).abs() < 0.01);
+        assert!((metrics.mrr - 0.5).abs() < 1e-12);
+        assert!((metrics.precision_at_1 - 0.0).abs() < 1e-12);
+        assert!((metrics.precision_at_5 - 0.2).abs() < 1e-12);
+        assert!((metrics.recall_at_5 - 0.5).abs() < 1e-12);
+        assert!((metrics.hits_at_5 - 1.0).abs() < 1e-12);
+        // DCG@5 = 1/log2(3), IDCG@5 = 1/log2(2) + 1/log2(3)
+        let expected_ndcg = (1.0 / 3.0_f64.log2()) / (1.0 + 1.0 / 3.0_f64.log2());
+        assert!((metrics.ndcg_at_5 - expected_ndcg).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_candidate_ranking_rank_3_of_10_with_2_relevant() {
+        // 10 candidates; two gold entities at ranks 3 and 7.
+        let candidates = vec![
+            ("Q1", 0.99),
+            ("Q2", 0.98),
+            ("Q3", 0.97), // gold #1 at rank 3
+            ("Q4", 0.96),
+            ("Q5", 0.95),
+            ("Q6", 0.94),
+            ("Q7", 0.93), // gold #2 at rank 7
+            ("Q8", 0.92),
+            ("Q9", 0.91),
+            ("Q10", 0.90),
+        ];
+        let ranking = CandidateRanking::with_multiple_gold(
+            candidates,
+            vec!["Q3".to_string(), "Q7".to_string()],
+        );
+        let metrics = NedMetrics::compute(&ranking, 10);
+
+        assert!((metrics.mrr - 1.0 / 3.0).abs() < 1e-12);
+        assert!((metrics.precision_at_1 - 0.0).abs() < 1e-12);
+        assert!((metrics.precision_at_5 - 0.2).abs() < 1e-12);
+        assert!((metrics.recall_at_5 - 0.5).abs() < 1e-12);
+        assert!((metrics.hits_at_5 - 1.0).abs() < 1e-12);
+        // DCG@5 = 1/log2(4) = 0.5; IDCG@5 = 1/log2(2) + 1/log2(3)
+        let expected_ndcg_5 = 0.5 / (1.0 + 1.0 / 3.0_f64.log2());
+        assert!((metrics.ndcg_at_5 - expected_ndcg_5).abs() < 1e-12);
+        // DCG@10 = 1/log2(4) + 1/log2(8) = 0.5 + 1/3
+        let expected_ndcg_10 = (0.5 + 1.0 / 3.0) / (1.0 + 1.0 / 3.0_f64.log2());
+        assert!((metrics.ndcg_at_10 - expected_ndcg_10).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_gold_not_found() {
+        let ranking = CandidateRanking::new(vec![("Q1", 0.9), ("Q2", 0.8), ("Q3", 0.7)], "Q76");
+        let metrics = NedMetrics::compute(&ranking, 10);
+
+        assert_eq!(metrics.mrr, 0.0);
+        assert_eq!(metrics.precision_at_1, 0.0);
+        assert_eq!(metrics.precision_at_5, 0.0);
+        assert_eq!(metrics.recall_at_5, 0.0);
+        assert_eq!(metrics.hits_at_5, 0.0);
+        assert_eq!(metrics.ndcg_at_5, 0.0);
+        assert_eq!(metrics.ndcg_at_10, 0.0);
+    }
+
+    #[test]
+    fn test_empty_prediction() {
+        let ranking = CandidateRanking::new(Vec::<(String, f64)>::new(), "Q76");
+        let metrics = NedMetrics::compute(&ranking, 10);
+
+        assert_eq!(metrics.mrr, 0.0);
+        assert_eq!(metrics.precision_at_1, 0.0);
+        assert_eq!(metrics.precision_at_5, 0.0);
+        assert_eq!(metrics.recall_at_5, 0.0);
+        assert_eq!(metrics.hits_at_5, 0.0);
+        assert_eq!(metrics.ndcg_at_5, 0.0);
+        assert_eq!(metrics.ndcg_at_10, 0.0);
     }
 }
