@@ -1315,7 +1315,9 @@ pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
     let file_names: Vec<String> = (0..archive.len())
         .filter_map(|i| {
             let f = archive.by_index(i).ok()?;
-            let name = f.name().to_string();
+            // zip 9 returns `Result<Cow<str>, ZipError>` from `name()`; skip
+            // entries whose name cannot be decoded instead of aborting.
+            let name = f.name().ok()?.into_owned();
             if name.ends_with(".xml") {
                 Some(name)
             } else {
