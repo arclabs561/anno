@@ -164,6 +164,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "statskit",
  "tempfile",
  "textprep",
  "thiserror 2.0.18",
@@ -4683,6 +4684,16 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "statskit"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40d4d0613371a7fe585cda11097f016e3ab8940613091f5d6749998900e64ff7"
+dependencies = [
+ "rand",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "string_cache"
