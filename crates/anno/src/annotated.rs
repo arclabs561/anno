@@ -199,7 +199,13 @@ mod tests {
     #[test]
     fn annotate_returns_entities() {
         let doc = annotate("Marie Curie won the Nobel Prize.").unwrap();
-        assert!(!doc.entities.is_empty(), "should find at least one entity");
+        let marie = doc
+            .entities
+            .iter()
+            .find(|entity| entity.text == "Marie Curie")
+            .expect("should find 'Marie Curie'");
+        assert_eq!(marie.entity_type, EntityType::Person);
+        assert_eq!((marie.start(), marie.end()), (0, 11));
         assert!(doc.relations.is_empty());
         assert!(doc.coref_chains.is_empty());
     }
