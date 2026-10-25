@@ -43,7 +43,10 @@ const TOKEN_END: u32 = 2;
 const DEFAULT_TOKEN_ENT: u32 = 128002;
 const DEFAULT_TOKEN_SEP: u32 = 128003;
 
-/// Default max span width from GLiNER config
+/// Span width requested at inference and used as a fallback when the output
+/// tensor does not reveal the export's width. The decoder reads the actual
+/// width from the output shape, so an export built with a different
+/// `max_width` is decoded faithfully; `1` means single-word spans only.
 const MAX_SPAN_WIDTH: usize = 12;
 
 /// Configuration for GLiNER model loading.

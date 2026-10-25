@@ -21,6 +21,11 @@ test = false
 path = "src/bin/classical_e2e.rs"
 
 [[bin]]
+name = "pii_char_eval"
+test = false
+path = "src/bin/pii_char_eval.rs"
+
+[[bin]]
 name = "muxer_agg"
 test = false
 path = "src/bin/muxer_agg.rs"
@@ -55,6 +60,9 @@ required-features = ["eval"]
 anno = { path = "../anno", version = "0.14.0", default-features = false, features = [
   "analysis",
 ] }
+
+rankops = { version = "0.2.0", default-features = false }
+statskit = { version = "0.3.0", default-features = false }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

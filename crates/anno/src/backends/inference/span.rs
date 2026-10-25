@@ -1,10 +1,146 @@
 //! Span representation types and the handshaking matrix for joint extraction.
 //!
 //! - `Span`, `SpanCandidate`, `SpanWindow`: character-offset span types
+//! - `decode_span_logits_*`: GLiNER-style word-span decoding from flat logits
 //! - `HandshakingMatrix`, `HandshakingCell`: sparse grid for W2NER / TPLinker
 
 use super::registry::{LabelCategory, LabelDefinition, SemanticRegistry};
 use crate::SpanCandidate;
+
+// Span Scoring (GLiNER-style Span Heads)
+// =============================================================================
+
+/// A word-level span candidate scored by a GLiNER-style span head.
+///
+/// Word indices are inclusive: `start_word..=end_word`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ScoredSpan {
+    pub(crate) start_word: usize,
+    pub(crate) end_word: usize,
+    pub(crate) class_idx: usize,
+    pub(crate) score: f32,
+}
+
+/// Derive the span width (`max_width`) encoded in a flattened span tensor.
+///
+/// GLiNER-style span heads enumerate `num_words * max_width` candidates in
+/// row-major order (`start * max_width + width`). `max_width` is a property of
+/// the **export**, not a runtime constant: a graph exported with
+/// `max_width = 1` can only score single-word spans, while `max_width = 12`
+/// scores spans up to 12 words long.
+///
+/// Returns `None` when the span count cannot be explained by a uniform width
+/// (for example an export that omits padded spans).
+pub(crate) fn span_width_from_flat_len(num_spans: usize, num_words: usize) -> Option<usize> {
+    if num_words == 0 || num_spans < num_words || !num_spans.is_multiple_of(num_words) {
+        return None;
+    }
+    Some(num_spans / num_words)
+}
+
+/// Decode span logits shaped `[1, num_words, max_width, num_classes]`.
+///
+/// The width is read from the tensor shape, so exports wider (or narrower)
+/// than any compile-time default decode faithfully.
+pub(crate) fn decode_span_logits_4d(
+    shape: &[usize],
+    logits: &[f32],
+    num_words: usize,
+    max_classes: usize,
+    threshold: f32,
+) -> Vec<ScoredSpan> {
+    if shape.len() != 4 || shape[0] != 1 {
+        return Vec::new();
+    }
+    let (out_words, out_width, out_classes) = (shape[1], shape[2], shape[3]);
+    let num_classes = out_classes.min(max_classes);
+    if out_width == 0 || num_classes == 0 {
+        return Vec::new();
+    }
+
+    let mut spans = Vec::new();
+    for word_idx in 0..out_words.min(num_words) {
+        for width in 0..out_width {
+            let end_word = word_idx + width;
+            if end_word >= num_words {
+                continue;
+            }
+            for class_idx in 0..num_classes {
+                let idx = word_idx * out_width * out_classes + width * out_classes + class_idx;
+                let Some(&logit) = logits.get(idx) else {
+                    continue;
+                };
+                let score = sigmoid(logit);
+                if score >= threshold {
+                    spans.push(ScoredSpan {
+                        start_word: word_idx,
+                        end_word,
+                        class_idx,
+                        score,
+                    });
+                }
+            }
+        }
+    }
+    spans
+}
+
+/// Decode flattened span logits shaped `[1, num_spans, num_classes]`.
+///
+/// `fallback_width` is used only when the span count does not imply a uniform
+/// width (`num_spans % num_words != 0`). Callers should prefer a width derived
+/// from model metadata; the fallback preserves the historical layout.
+pub(crate) fn decode_span_logits_3d(
+    shape: &[usize],
+    logits: &[f32],
+    num_words: usize,
+    max_classes: usize,
+    threshold: f32,
+    fallback_width: usize,
+) -> Vec<ScoredSpan> {
+    if shape.len() != 3 || shape[0] != 1 {
+        return Vec::new();
+    }
+    let (num_spans, out_classes) = (shape[1], shape[2]);
+    let num_classes = out_classes.min(max_classes);
+    if num_classes == 0 {
+        return Vec::new();
+    }
+    let width = span_width_from_flat_len(num_spans, num_words).unwrap_or(fallback_width);
+    if width == 0 {
+        return Vec::new();
+    }
+
+    let mut spans = Vec::new();
+    for span_idx in 0..num_spans {
+        let word_idx = span_idx / width;
+        let span_width = span_idx % width;
+        let end_word = word_idx + span_width;
+        if word_idx >= num_words || end_word >= num_words {
+            continue;
+        }
+        for class_idx in 0..num_classes {
+            let idx = span_idx * out_classes + class_idx;
+            let Some(&logit) = logits.get(idx) else {
+                continue;
+            };
+            let score = sigmoid(logit);
+            if score >= threshold {
+                spans.push(ScoredSpan {
+                    start_word: word_idx,
+                    end_word,
+                    class_idx,
+                    score,
+                });
+            }
+        }
+    }
+    spans
+}
+
+fn sigmoid(logit: f32) -> f32 {
+    1.0 / (1.0 + (-logit).exp())
+}
 
 // Handshaking Matrix (TPLinker-style Joint Extraction)
 // =============================================================================
@@ -267,5 +403,85 @@ mod tests {
         for (a, b) in entities.iter().zip(entities.iter().skip(1)) {
             assert!(a.0.end <= b.0.start || b.0.end <= a.0.start, "overlap kept");
         }
+    }
+
+    // --- GLiNER span-head decoding -----------------------------------------
+
+    fn span_words(spans: &[ScoredSpan]) -> Vec<(usize, usize)> {
+        spans.iter().map(|s| (s.start_word, s.end_word)).collect()
+    }
+
+    #[test]
+    fn span_width_is_derived_from_export_span_count() {
+        assert_eq!(span_width_from_flat_len(36, 3), Some(12));
+        assert_eq!(span_width_from_flat_len(3, 3), Some(1));
+        assert_eq!(span_width_from_flat_len(8, 8), Some(1));
+        assert_eq!(span_width_from_flat_len(4, 3), None);
+    }
+
+    #[test]
+    fn decode_4d_keeps_two_word_entity() {
+        // "New York City" with a 12-wide export: the span [0, 2] is scored.
+        let num_words = 3;
+        let width = 12;
+        let mut logits = vec![-10.0f32; num_words * width];
+        // start 0, width 2 -> "New York City".
+        logits[2] = 10.0;
+        let spans = decode_span_logits_4d(&[1, num_words, width, 1], &logits, num_words, 1, 0.5);
+        assert_eq!(span_words(&spans), vec![(0, 2)]);
+    }
+
+    #[test]
+    fn decode_4d_width_one_cannot_represent_multi_word_span() {
+        // A `max_width=1` export has one span slot per word, so
+        // "New York City" can only come back as three separate words. This is
+        // the reported degradation; the decoder cannot recover a span the
+        // graph never scored, hence the export requirement in docs/BACKENDS.md.
+        let num_words = 3;
+        let logits = vec![10.0f32; num_words];
+        let spans = decode_span_logits_4d(&[1, num_words, 1, 1], &logits, num_words, 1, 0.5);
+        assert_eq!(span_words(&spans), vec![(0, 0), (1, 1), (2, 2)]);
+        assert!(
+            !spans.iter().any(|s| s.end_word > s.start_word),
+            "no multi-word span can exist in a max_width=1 export"
+        );
+    }
+
+    #[test]
+    fn decode_4d_honours_width_beyond_the_runtime_default() {
+        // A 16-wide export scores a 14-word span; clamping enumeration to the
+        // 12-wide runtime default would silently drop it.
+        let num_words = 16;
+        let width = 16;
+        let mut logits = vec![-10.0f32; num_words * width];
+        logits[13] = 10.0;
+        let spans = decode_span_logits_4d(&[1, num_words, width, 1], &logits, num_words, 1, 0.5);
+        assert_eq!(span_words(&spans), vec![(0, 13)]);
+    }
+
+    #[test]
+    fn decode_3d_derives_width_instead_of_dividing_by_a_constant() {
+        // Flat `max_width=1` export: `num_spans == num_words`. The old decoder
+        // divided the flat index by the compile-time 12, so the confidently
+        // scored span 6 ("New") was reported as words [0, 6] and every span
+        // beyond word 0 was effectively lost. Deriving width = 8/8 = 1 maps it
+        // back to [6, 6].
+        let num_words = 8;
+        let mut logits = vec![-10.0f32; num_words];
+        logits[6] = 10.0;
+        let spans = decode_span_logits_3d(&[1, num_words, 1], &logits, num_words, 1, 0.5, 12);
+        assert_eq!(span_words(&spans), vec![(6, 6)]);
+    }
+
+    #[test]
+    fn decode_3d_width_twelve_keeps_two_word_entity() {
+        let num_words = 3;
+        let width = 12;
+        let num_spans = num_words * width;
+        let mut logits = vec![-10.0f32; num_spans];
+        // start * width + span_width = 0 * 12 + 2 -> "New York City".
+        logits[2] = 10.0;
+        let spans = decode_span_logits_3d(&[1, num_spans, 1], &logits, num_words, 1, 0.5, width);
+        assert_eq!(span_words(&spans), vec![(0, 2)]);
     }
 }

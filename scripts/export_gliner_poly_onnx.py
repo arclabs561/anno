@@ -586,6 +586,7 @@ def save_metadata(
     output_dir: Path,
     entity_types: list[str],
     label_embed_shape: tuple,
+    max_width: int = 12,
 ) -> None:
     """Save model metadata to gliner_config.json."""
     log("Saving model metadata...")
@@ -593,7 +594,7 @@ def save_metadata(
     metadata: dict = {
         "model_id": model_id,
         "architecture": "poly-encoder",
-        "max_width": 12,
+        "max_width": max_width,
         "label_embed_dim": int(label_embed_shape[-1]) if len(label_embed_shape) > 1 else None,
         "default_entity_types": entity_types,
         "onnx_files": {
@@ -624,7 +625,6 @@ def save_metadata(
     if hasattr(gliner_model, "config"):
         cfg = gliner_model.config
         for attr in [
-            "max_width",
             "max_length",
             "labels_encoder",
             "class_token_index",
@@ -636,10 +636,59 @@ def save_metadata(
             if val is not None:
                 metadata[attr] = val
 
+    # Record the width the export was built with, not the source model's
+    # config: the graph is what the decoder will see.
+    metadata["max_width"] = max_width
+
     config_path = output_dir / "gliner_config.json"
     with open(config_path, "w") as f:
         json.dump(metadata, f, indent=2)
     log(f"Config saved to {config_path}")
+
+
+def _check_runtime_span_width(logits, dummy_inputs: dict, expected_width: int) -> None:
+    """Reject an export whose scored span width collapsed to one word."""
+    import numpy as np
+
+    shape = tuple(logits.shape)
+    actual = None
+    if len(shape) == 4:
+        actual = shape[2]
+    elif len(shape) == 3:
+        text_lengths = dummy_inputs.get("text_lengths")
+        if text_lengths is not None:
+            num_words = int(np.asarray(text_lengths).reshape(-1)[0])
+            if num_words > 0:
+                actual = shape[1] // num_words
+    if actual is None:
+        log(f"  Span width check skipped: logits shape {shape}")
+        return
+    if actual < 2:
+        raise RuntimeError(
+            f"Exported graph has max_width={actual} (logits {shape}); it can only "
+            f"score single-word spans. Re-export with --strategy manual "
+            f"--max-width {expected_width}."
+        )
+    log(f"  Span width check passed: max_width={actual}")
+
+
+def check_config_max_width(output_dir: Path, min_width: int = 12) -> None:
+    """Fail if the written gliner_config.json advertises a narrow span head.
+
+    The graph's span width is the property that matters; this check catches
+    exports (notably the library strategy) that silently used ``max_width=1``.
+    """
+    config_path = output_dir / "gliner_config.json"
+    if not config_path.exists():
+        return
+    config = json.loads(config_path.read_text())
+    width = config.get("max_width")
+    if isinstance(width, int) and width < min_width:
+        raise RuntimeError(
+            f"{config_path} records max_width={width}; spans wider than one word "
+            f"cannot be scored. Re-export with `--strategy manual "
+            f"--max-width {min_width}`."
+        )
 
 
 def try_manual_export(
@@ -648,6 +697,7 @@ def try_manual_export(
     quantize: bool,
     entity_types: list[str],
     opset: int = 17,
+    max_width: int = 12,
 ) -> bool:
     """
     Strategy 2: manual torch.onnx.export with correct bi-encoder inputs.
@@ -674,7 +724,7 @@ def try_manual_export(
     log(f"Label embeddings shape: {labels_embeddings.shape}")
 
     # 2. Prepare dummy inputs for the main model
-    dummy_inputs = make_dummy_inputs(model, entity_types)
+    dummy_inputs = make_dummy_inputs(model, entity_types, max_width=max_width)
     log(f"Dummy inputs prepared: {list(dummy_inputs.keys())}")
     for k, v in dummy_inputs.items():
         if isinstance(v, torch.Tensor):
@@ -690,10 +740,13 @@ def try_manual_export(
     save_tokenizer(model, output_dir)
 
     # 6. Save model metadata
-    save_metadata(model, model_id, output_dir, entity_types, labels_embeddings.shape)
+    save_metadata(
+        model, model_id, output_dir, entity_types, labels_embeddings.shape, max_width
+    )
 
     # 7. Verify with ONNX Runtime
     log("Verifying exports with ONNX Runtime...")
+    width_error: Exception | None = None
     try:
         # Verify label encoder
         label_input_np = {
@@ -711,9 +764,18 @@ def try_manual_export(
         main_input_np["labels_embeddings"] = labels_embeddings.numpy()
         main_outputs = verify_with_onnxruntime(main_onnx, main_input_np)
         log(f"Main model output shape: {main_outputs[0].shape}")
+        try:
+            _check_runtime_span_width(main_outputs[0], dummy_inputs, max_width)
+        except RuntimeError as error:
+            width_error = error
     except Exception as e:
         log(f"ONNX Runtime verification failed (non-fatal): {e}")
         traceback.print_exc(file=sys.stderr)
+
+    # A graph that only scores single-word spans is worse than a regex
+    # baseline; refuse to ship it when verification had the evidence.
+    if width_error is not None:
+        raise width_error
 
     # 8. Optional quantization
     if quantize:
@@ -755,6 +817,16 @@ def main():
         help="ONNX opset version (default: 17)",
     )
     parser.add_argument(
+        "--max-width",
+        type=int,
+        default=12,
+        help=(
+            "Maximum span width baked into the export (default: 12). "
+            "Values below 2 produce single-word spans only, which can make the "
+            "neural path worse than a regex baseline."
+        ),
+    )
+    parser.add_argument(
         "--entity-types",
         nargs="+",
         default=DEFAULT_ENTITY_TYPES,
@@ -775,9 +847,16 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.max_width < 12:
+        log(
+            f"Warning: --max-width {args.max_width} < 12; entities longer than "
+            f"{args.max_width} words cannot be scored."
+        )
+
     log(f"Model:  {args.model}")
     log(f"Output: {output_dir}")
     log(f"Opset:  {args.opset}")
+    log(f"Width:  {args.max_width}")
     log(f"Labels: {args.entity_types}")
 
     success = False
@@ -793,6 +872,7 @@ def main():
                 args.quantize,
                 args.entity_types,
                 opset=args.opset,
+                max_width=args.max_width,
             )
         except Exception as e:
             log(f"Strategy 2 (manual) failed: {e}")
@@ -800,6 +880,11 @@ def main():
             success = False
 
     if success:
+        try:
+            check_config_max_width(output_dir, min_width=args.max_width)
+        except RuntimeError as error:
+            print(f"\nExport rejected: {error}", file=sys.stderr)
+            sys.exit(1)
         print("\n" + "=" * 60)
         print("Export complete.")
         print(f"Output directory: {output_dir}")
