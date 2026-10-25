@@ -17,7 +17,7 @@ and offline fallbacks.
 
 ```toml
 [dependencies]
-anno = "0.13"
+anno = "0.14"
 ```
 
 ```rust,no_run

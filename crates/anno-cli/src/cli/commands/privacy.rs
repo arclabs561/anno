@@ -11,7 +11,9 @@ use std::path::PathBuf;
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
-use anno::pii::{looks_like_address, looks_like_id_number};
+use anno::pii::{
+    looks_like_address, looks_like_id_number, PiiEntity as PIIEntity, PiiReport as PIIReport,
+};
 use anno::Entity;
 
 /// Privacy analysis and redaction
@@ -60,42 +62,6 @@ pub enum PrivacyAction {
     Redact,
     /// Replace with consistent fake values
     Pseudonymize,
-}
-
-/// PII detection result.
-///
-/// Summary of personally identifiable information found in text.
-#[derive(Debug, Clone)]
-pub struct PIIReport {
-    /// Count of person name entities
-    pub person_count: usize,
-    /// Count of date/time entities
-    pub date_count: usize,
-    /// Count of location entities
-    pub location_count: usize,
-    /// Count of contact info (email, phone, etc.)
-    pub contact_count: usize,
-    /// Count of ID numbers (SSN, passport, etc.)
-    pub id_number_count: usize,
-    /// Detailed list of PII entities
-    pub entities: Vec<PIIEntity>,
-    /// Assessment of re-identification risk
-    pub k_anonymity_risk: String,
-}
-
-/// A detected PII entity.
-#[derive(Debug, Clone)]
-pub struct PIIEntity {
-    /// The PII text
-    pub text: String,
-    /// Type of PII (PERSON, DATE, EMAIL, etc.)
-    pub pii_type: String,
-    /// Start character offset
-    pub start: usize,
-    /// End character offset (exclusive)
-    pub end: usize,
-    /// Risk level (low, medium, high)
-    pub risk_level: String,
 }
 
 /// Run the privacy command.
@@ -151,7 +117,7 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
         .collect();
 
     // Generate report
-    let report = generate_pii_report(&pii_entities);
+    let report = anno::pii::report(&pii_entities);
 
     match args.action {
         PrivacyAction::Report => {
@@ -303,59 +269,12 @@ fn char_span_to_byte_range(text: &str, start: usize, end: usize) -> Option<(usiz
     if start > end {
         return None;
     }
-
-    let mut boundaries = text
-        .char_indices()
-        .map(|(byte, _)| byte)
-        .collect::<Vec<_>>();
-    boundaries.push(text.len());
-    Some((*boundaries.get(start)?, *boundaries.get(end)?))
-}
-
-fn generate_pii_report(entities: &[PIIEntity]) -> PIIReport {
-    let mut person_count = 0;
-    let mut date_count = 0;
-    let mut location_count = 0;
-    let mut contact_count = 0;
-    let mut id_number_count = 0;
-
-    for e in entities {
-        match e.pii_type.as_str() {
-            "PERSON" => person_count += 1,
-            "DOB" => date_count += 1,
-            "ADDRESS" => location_count += 1,
-            "CONTACT" => contact_count += 1,
-            "ID_NUMBER" => id_number_count += 1,
-            _ => {}
-        }
+    let char_count = text.chars().count();
+    if end > char_count {
+        return None;
     }
-
-    // Simple k-anonymity risk assessment
-    let unique_names: std::collections::HashSet<_> = entities
-        .iter()
-        .filter(|e| e.pii_type == "PERSON")
-        .map(|e| e.text.to_lowercase())
-        .collect();
-
-    let k_anonymity_risk = if id_number_count > 0 {
-        "CRITICAL (direct identifiers present)"
-    } else if unique_names.len() > 5 && date_count > 0 && location_count > 0 {
-        "HIGH (quasi-identifier combination)"
-    } else if unique_names.len() > 3 {
-        "MEDIUM (multiple names)"
-    } else {
-        "LOW"
-    };
-
-    PIIReport {
-        person_count,
-        date_count,
-        location_count,
-        contact_count,
-        id_number_count,
-        entities: entities.to_vec(),
-        k_anonymity_risk: k_anonymity_risk.to_string(),
-    }
+    let converter = anno::offset::SpanConverter::new(text);
+    Some((converter.char_to_byte(start), converter.char_to_byte(end)))
 }
 
 fn print_pii_report(report: &PIIReport, quiet: bool) {
@@ -367,7 +286,7 @@ fn print_pii_report(report: &PIIReport, quiet: bool) {
             report.location_count,
             report.contact_count,
             report.id_number_count,
-            report.k_anonymity_risk
+            report.identifier_risk
         );
         return;
     }
@@ -383,17 +302,17 @@ fn print_pii_report(report: &PIIReport, quiet: bool) {
     println!("  ID_NUMBER:  {} identifiers", report.id_number_count);
     println!();
 
-    let risk_color = if report.k_anonymity_risk.starts_with("CRITICAL") {
+    let risk_color = if report.identifier_risk.starts_with("CRITICAL") {
         "31"
-    } else if report.k_anonymity_risk.starts_with("HIGH") {
+    } else if report.identifier_risk.starts_with("HIGH") {
         "33"
     } else {
         "32"
     };
     println!(
         "{}: {}",
-        color("1;33", "k-Anonymity Risk"),
-        color(risk_color, &report.k_anonymity_risk)
+        color("1;33", "Identifier Risk"),
+        color(risk_color, &report.identifier_risk)
     );
     println!();
 

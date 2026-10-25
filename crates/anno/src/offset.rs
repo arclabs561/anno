@@ -1321,6 +1321,66 @@ mod proptests {
             prop_assert!(is_ascii(&text));
         }
 
+        /// Arbitrary mid-string character range: chars -> bytes -> chars round-trips.
+        ///
+        /// The whole-text tests above cannot catch an off-by-one in the middle of a
+        /// multi-byte string; this picks both boundaries independently.
+        #[test]
+        fn mid_string_char_byte_roundtrip(
+            text in "\\PC{0,40}",
+            first in 0usize..100,
+            width in 0usize..100,
+        ) {
+            let chars = text.chars().count();
+            let start = first % (chars + 1);
+            let end = start + width % (chars + 1 - start);
+
+            let (byte_start, byte_end) = chars_to_bytes(&text, start, end);
+            prop_assert!(text.is_char_boundary(byte_start));
+            prop_assert!(text.is_char_boundary(byte_end));
+
+            let (char_start2, char_end2) = bytes_to_chars(&text, byte_start, byte_end);
+            prop_assert_eq!(char_start2, start);
+            prop_assert_eq!(char_end2, end);
+        }
+
+        /// A mid-string span extracts exactly the requested characters.
+        #[test]
+        fn mid_string_span_extract(
+            text in "\\PC{0,40}",
+            first in 0usize..100,
+            width in 0usize..100,
+        ) {
+            let chars = text.chars().count();
+            let start = first % (chars + 1);
+            let end = start + width % (chars + 1 - start);
+
+            let span = TextSpan::from_chars(&text, start, end);
+            let expected: String = text.chars().skip(start).take(end - start).collect();
+            prop_assert_eq!(span.extract(&text), expected.as_str());
+        }
+
+        /// SpanConverter agrees with direct construction for mid-string ranges.
+        #[test]
+        fn mid_string_converter_matches_direct(
+            text in "\\PC{0,40}",
+            first in 0usize..100,
+            width in 0usize..100,
+        ) {
+            let chars = text.chars().count();
+            let start = first % (chars + 1);
+            let end = start + width % (chars + 1 - start);
+
+            let conv = SpanConverter::new(&text);
+            let direct = TextSpan::from_chars(&text, start, end);
+            let converted = conv.from_chars(start, end);
+
+            prop_assert_eq!(direct.byte_start, converted.byte_start);
+            prop_assert_eq!(direct.byte_end, converted.byte_end);
+            prop_assert_eq!(direct.char_start, converted.char_start);
+            prop_assert_eq!(direct.char_end, converted.char_end);
+        }
+
         /// CharOffset preserves value through conversions.
         #[test]
         fn char_offset_roundtrip(val in 0usize..1_000_000) {
