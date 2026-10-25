@@ -873,7 +873,14 @@ jobs:
           toolchain: "stable"
       # Library crates gitignore Cargo.lock; generate one for the audit scan.
       - run: cargo generate-lockfile
+      - name: Cache cargo-audit
+        id: cache-audit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-0.22.2
       - name: Install cargo-audit
+        if: steps.cache-audit.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-audit --version 0.22.2
       - name: Check RustSec advisories
         # Vulnerabilities fail; informational advisories remain visible warnings.
@@ -920,7 +927,14 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-deny
+        id: cache-deny
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-0.19.0
       - name: Install cargo-deny
+        if: steps.cache-deny.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-deny --version 0.19.0
       - name: Check dependencies
         run: cargo deny check
@@ -938,7 +952,14 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-machete
+        id: cache-machete
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-machete
+          key: cargo-machete-${{ runner.os }}-v1
       - name: Install cargo-machete
+        if: steps.cache-machete.outputs.cache-hit != 'true'
         run: cargo install cargo-machete
       - name: Check unused dependencies
         run: ./scripts/static-analysis-common.sh machete
@@ -957,7 +978,14 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-geiger
+        id: cache-geiger
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-geiger
+          key: cargo-geiger-${{ runner.os }}-v1
       - name: Install cargo-geiger
+        if: steps.cache-geiger.outputs.cache-hit != 'true'
         run: cargo install cargo-geiger
       - name: Generate safety report
         run: |
@@ -1102,9 +1130,23 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-llvm-cov
+        id: cache-llvm-cov
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: cargo-llvm-cov-${{ runner.os }}-v1
       - name: Install cargo-llvm-cov
+        if: steps.cache-llvm-cov.outputs.cache-hit != 'true'
         run: cargo install cargo-llvm-cov
+      - name: Cache cargo-nextest
+        id: cache-nextest
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: cargo-nextest-${{ runner.os }}-v1
       - name: Install cargo-nextest
+        if: steps.cache-nextest.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-nextest
       - name: Generate coverage
         run: cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
