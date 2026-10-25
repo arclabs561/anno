@@ -63,7 +63,6 @@ check-feature-matrix:
         "gliner2-fastino"
         "gliner2-fastino-candle"
         "llm"
-        "production"
         "bundled-crf-weights"
         "bundled-hmm-params"
         "chunking"

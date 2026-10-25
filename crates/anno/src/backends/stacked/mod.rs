@@ -9,7 +9,6 @@
 use super::heuristic::HeuristicNER;
 use super::regex::RegexNER;
 use crate::{Entity, EntityType, Language, Model, Result};
-use itertools::Itertools;
 use std::borrow::Cow;
 use std::sync::Arc;
 
@@ -372,10 +371,7 @@ impl StackedNER {
     /// Get layer names in priority order.
     #[must_use]
     pub fn layer_names(&self) -> Vec<String> {
-        self.layers
-            .iter()
-            .map(|l| l.name().to_string())
-            .collect_vec()
+        self.layers.iter().map(|l| l.name().to_string()).collect()
     }
 
     /// Get the conflict strategy.
@@ -625,7 +621,6 @@ impl StackedNER {
     /// [`StackedExtractionPolicy::Strict`] returns an error when an attempted
     /// layer fails. In either rejected case, the returned
     /// [`StackedExtractionError`] retains the completed report.
-    #[cfg_attr(feature = "production", tracing::instrument(skip(self, text), fields(text_len = text.len(), num_layers = self.layers.len())))]
     pub fn extract_entities_with_report(
         &self,
         text: &str,
@@ -963,6 +958,7 @@ impl StackedNER {
                 layer_errors
                     .iter()
                     .map(|(name, error)| format!("{name}: {error}"))
+                    .collect::<Vec<_>>()
                     .join("; ")
             ));
             return Err(StackedExtractionError {
@@ -976,7 +972,6 @@ impl StackedNER {
 }
 
 impl Model for StackedNER {
-    #[cfg_attr(feature = "production", tracing::instrument(skip(self, text), fields(text_len = text.len(), num_layers = self.layers.len())))]
     fn extract_entities(&self, text: &str, language: Option<Language>) -> Result<Vec<Entity>> {
         self.extract_entities_with_report(text, language, StackedExtractionPolicy::BestEffort)
             .map(StackedExtractionReport::into_entities)
@@ -984,13 +979,14 @@ impl Model for StackedNER {
     }
 
     fn supported_types(&self) -> Vec<EntityType> {
-        // Use itertools for efficient deduplication
-        self.layers
+        let mut types: Vec<EntityType> = self
+            .layers
             .iter()
             .flat_map(|layer| layer.supported_types())
-            .sorted_by(|a, b| format!("{:?}", a).cmp(&format!("{:?}", b)))
-            .dedup()
-            .collect_vec()
+            .collect();
+        types.sort_by_key(|t| format!("{:?}", t));
+        types.dedup();
+        types
     }
 
     fn is_available(&self) -> bool {
