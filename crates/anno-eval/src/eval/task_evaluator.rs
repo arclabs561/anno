@@ -64,7 +64,7 @@ fn observe_construction_receipt(
 }
 
 /// Deterministically choose one sentence for a bootstrap replicate.
-fn bootstrap_index(state: &mut u64, sample_count: usize) -> usize {
+pub(crate) fn bootstrap_index(state: &mut u64, sample_count: usize) -> usize {
     debug_assert!(sample_count > 0);
     *state ^= *state << 13;
     *state ^= *state >> 7;
@@ -73,7 +73,7 @@ fn bootstrap_index(state: &mut u64, sample_count: usize) -> usize {
 }
 
 /// Return the equal-tailed 95% percentile interval for bootstrap samples.
-fn bootstrap_ci_95(samples: &mut [f64]) -> (f64, f64) {
+pub(crate) fn bootstrap_ci_95(samples: &mut [f64]) -> (f64, f64) {
     debug_assert!(!samples.is_empty());
     samples.sort_by(f64::total_cmp);
     let lower = ((samples.len() - 1) as f64 * 0.025).round() as usize;
@@ -88,9 +88,9 @@ type PerExampleScores = Vec<(Vec<anno::Entity>, Vec<anno::Entity>, String)>;
 /// 95% confidence interval z-score (normal distribution)
 const DEFAULT_Z_SCORE_95: f64 = 1.96;
 /// Number of deterministic sentence-bootstrap replicates for NER confidence intervals.
-const CI_BOOTSTRAP_REPLICATES: usize = 1_000;
+pub(crate) const CI_BOOTSTRAP_REPLICATES: usize = 1_000;
 /// Fixed seed makes scorecards reproducible for an unchanged evaluation sample.
-const CI_BOOTSTRAP_SEED: u64 = 0xC195_5EED;
+pub(crate) const CI_BOOTSTRAP_SEED: u64 = 0xC195_5EED;
 /// Maximum number of examples for robustness testing (performance limit)
 ///
 /// Used in `compute_robustness()` to limit the number of test cases processed.
