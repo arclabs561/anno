@@ -56,12 +56,8 @@ text-splitter = { version = "0.32", optional = true }
 lattix = { version = "0.6", optional = true }
 
 # Utilities
-itertools = { workspace = true }
 rayon = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
-
-# Observability
-tracing = { workspace = true, optional = true }
 
 # The synchronous Hugging Face client owns a native filesystem cache and native
 # HTTP stack. Browser builds receive model bytes from their JS host instead.
@@ -136,10 +132,6 @@ candle = [
 metal = ["candle", "candle-core/metal"]
 cuda = ["candle", "candle-core/cuda"]
 llm = ["dep:ureq"]
-# Runtime-oriented infra toggles are intentionally collapsed to one feature to keep
-# the public feature surface smaller and avoid "splintered" combinatorics.
-production = ["dep:tracing"]
-
 # Bundled classical assets (opt-in).
 #
 # These features exist to prevent model assets from being embedded into binaries unless the
@@ -191,7 +183,6 @@ features = [
   "gliner2-fastino-candle",
   "candle",
   "llm",
-  "production",
   "bundled-crf-weights",
   "bundled-hmm-params",
   "chunking",
