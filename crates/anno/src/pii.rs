@@ -26,6 +26,8 @@
 //! # Ok::<(), anno::Error>(())
 //! ```
 
+mod grouped_iban;
+
 use crate::Entity;
 use regex::Regex;
 use std::collections::HashMap;
@@ -182,10 +184,24 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
 
 /// Scan text for structured PII patterns (SSN, credit card, IBAN, email, phone, address).
 ///
-/// This is independent of NER -- it catches structured PII via regex.
+/// This is independent of NER -- it catches structured PII via patterns.
+/// Printed IBANs use uppercase groups of four separated by single ASCII spaces,
+/// with a final one-to-four-character group and a registered country length.
+/// A space after that endpoint starts separate text, even if it is numeric.
+/// Length and checksum checks do not establish account existence or BBAN validity.
 /// Offsets are character offsets (Unicode scalar values), consistent with [`classify_entity`].
 pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
-    let mut results = Vec::new();
+    // Recognize complete grouped IBANs before shorter numeric patterns can
+    // claim a portion of the account number.
+    let mut results: Vec<PiiEntity> = grouped_iban::candidates(text)
+        .map(|span| PiiEntity {
+            text: text[span.clone()].to_string(),
+            pii_type: "ID_NUMBER".to_string(),
+            start: text[..span.start].chars().count(),
+            end: text[..span.end].chars().count(),
+            risk_level: "CRITICAL".to_string(),
+        })
+        .collect();
 
     type Check = Option<fn(&str) -> bool>;
     let patterns: &[(&str, &str, &str, Check)] = &[
@@ -611,6 +627,9 @@ pub fn looks_like_address(text: &str) -> bool {
 
 /// Check if text looks like an ID number (SSN, credit card, IBAN, MRN).
 pub fn looks_like_id_number(text: &str) -> bool {
+    if grouped_iban::candidates(text).next().is_some() {
+        return true;
+    }
     type Checked = (&'static str, fn(&str) -> bool);
     let checked: [Checked; 3] = [
         (r"\d{3}-\d{2}-\d{4}", ssn_valid),
@@ -989,5 +1008,102 @@ mod tests {
             ids("IBAN GB82WEST12345698765432 x"),
             vec!["GB82WEST12345698765432"]
         );
+    }
+
+    #[test]
+    fn grouped_iban_public_spans_and_redaction() {
+        for token in [
+            "DE89 3704 0044 0532 0130 00",
+            "GB82 WEST 1234 5698 7654 32",
+            "FR14 2004 1010 0505 0001 3M02 606",
+        ] {
+            for suffix in [".", " SEND NOW.", " 1234"] {
+                let text = format!("☎ café e\u{301} {token}{suffix}");
+                let entities = scan_patterns(&text);
+                assert_eq!(entities.len(), 1, "{text}: {entities:?}");
+                let entity = &entities[0];
+                assert_eq!(entity.text, token);
+                assert_eq!(entity.pii_type, "ID_NUMBER");
+                assert_eq!((entity.start, entity.end), (10, 10 + token.len()));
+                assert_eq!(
+                    text.chars()
+                        .skip(entity.start)
+                        .take(entity.end - entity.start)
+                        .collect::<String>(),
+                    token
+                );
+                assert!(looks_like_id_number(token));
+                assert_eq!(
+                    redact_patterns(&text),
+                    format!("☎ café e\u{301} [ID_NUMBER_1]{suffix}")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn grouped_iban_rejects_malformed_candidates() {
+        for token in [
+            "DE89 3704 0044 0532 0130 01",  // wrong checksum
+            "ZZ66 0000 0000 0000 0000 00",  // checksum-valid unknown country
+            "DE89  3704 0044 0532 0130 00", // double space
+            "DE89\t3704 0044 0532 0130 00",
+            "DE89\n3704 0044 0532 0130 00",
+            "DE89\u{a0}3704 0044 0532 0130 00",
+            "DE89 370 0044 0532 0130 00",   // short interior group
+            "DE89 3704 0044 0532 0130 0",   // short final group
+            "DE89 3704 0044 0532 0130 000", // long final group
+            "DE89 3704 0044 0532 0130 00X",
+            "DE89 3704 0044 0532 0130 00_",
+            "DE89 3704 0044 0532 0130 00\u{301}",
+            "DE89 3704 0044 0532 0130 00α",
+            "αDE89 3704 0044 0532 0130 00",
+            "_DE89 3704 0044 0532 0130 00",
+            "de89 3704 0044 0532 0130 00",
+            "GB82 west 1234 5698 7654 32",
+        ] {
+            assert!(grouped_iban::candidates(token).next().is_none(), "{token}");
+            assert!(
+                scan_patterns(token)
+                    .iter()
+                    .all(|entity| entity.text != token),
+                "malformed grouped token was classified whole: {token}"
+            );
+            // A rejected grouped candidate may still contain independently
+            // recognized PII (for example, a Luhn-valid run of zeroes).
+        }
+    }
+
+    #[test]
+    fn grouped_iban_preserves_compact_acceptance() {
+        for token in [
+            "DE89370400440532013000",
+            "GB82WEST12345698765432",
+            "ZZ66000000000000000000",
+        ] {
+            let text = format!("{token} SEND NOW.");
+            assert_eq!(ids(&text), vec![token]);
+            assert!(looks_like_id_number(token));
+            assert_eq!(redact_patterns(&text), "[ID_NUMBER_1] SEND NOW.");
+        }
+    }
+
+    #[cfg(feature = "heuristic-fr")]
+    #[test]
+    fn grouped_iban_ner_classification_and_redaction() {
+        use crate::backends::heuristic_fr::{iban_intl::extract_iban_intl, HeuristicFrNer};
+        let text = "café DE89 3704 0044 0532 0130 00.";
+        let entities = extract_iban_intl(text);
+        assert_eq!(entities.len(), 1);
+        let classified = classify_entity(&entities[0]).expect("extracted IBAN is PII");
+        assert_eq!((classified.start, classified.end), (5, 32));
+        assert_eq!(classified.text, "DE89 3704 0044 0532 0130 00");
+        for suffix in [".", " SEND NOW.", " 1234"] {
+            let text = format!("café DE89 3704 0044 0532 0130 00{suffix}");
+            assert_eq!(
+                scan_and_redact(&text, &HeuristicFrNer::new()).unwrap(),
+                format!("café [ID_NUMBER_1]{suffix}")
+            );
+        }
     }
 }
