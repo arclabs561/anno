@@ -507,8 +507,11 @@ impl GLiNERPoly {
         let num_words = text_words.len();
         let mut entities = Vec::with_capacity(32);
 
-        // Span-level output: [batch, num_words, max_width, num_entity_types]
-        if shape.len() == 4 && shape[0] == 1 && shape[1] > 0 && shape[2] > 1 {
+        // Span-level output: [batch, num_words, max_width, num_entity_types].
+        // `max_width` is an export property: accept `1` (single-word spans)
+        // here instead of falling through to the BIO branch, which expects a
+        // leading dimension of 3 and would misread span logits as BIO logits.
+        if shape.len() == 4 && shape[0] == 1 && shape[1] > 0 && shape[2] > 0 {
             let out_num_words = shape[1] as usize;
             let out_max_width = shape[2] as usize;
             let num_classes = shape[3] as usize;
@@ -518,9 +521,15 @@ impl GLiNERPoly {
                     "GLiNERPoly model produced num_classes=0.".to_string(),
                 ));
             }
+            if out_max_width == 1 {
+                log::warn!(
+                    "[GLiNERPoly] Span export has max_width=1: only single-word entities \
+                     can be produced. Re-export with max_width>=12 (see docs/BACKENDS.md)."
+                );
+            }
 
             for word_idx in 0..out_num_words.min(num_words) {
-                for width in 0..out_max_width.min(MAX_SPAN_WIDTH) {
+                for width in 0..out_max_width {
                     let end_word = word_idx + width;
                     if end_word >= num_words {
                         continue;
