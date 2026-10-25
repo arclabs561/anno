@@ -21,6 +21,11 @@ test = false
 path = "src/bin/classical_e2e.rs"
 
 [[bin]]
+name = "pii_char_eval"
+test = false
+path = "src/bin/pii_char_eval.rs"
+
+[[bin]]
 name = "muxer_agg"
 test = false
 path = "src/bin/muxer_agg.rs"
