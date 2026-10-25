@@ -224,6 +224,76 @@ fn test_create_entity_first_word() {
     assert_eq!((e.start(), e.end()), (0, 9));
 }
 
+/// Build the entity spanning every whitespace-delimited word in `text`.
+///
+/// This mirrors what the tokenizer/word-boundary path hands to
+/// `NuNER::create_entity` and keeps the byte offsets honest for non-ASCII
+/// input.
+#[cfg(feature = "onnx")]
+fn create_entity_for_whole_span(text: &str) -> Entity {
+    let ner = NuNER::new();
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut word_positions = Vec::new();
+    let mut pos = 0;
+    for word in &words {
+        let start = text[pos..].find(word).unwrap() + pos;
+        word_positions.push((start, start + word.len()));
+        pos = start + word.len();
+    }
+    let span_converter = crate::offset::SpanConverter::new(text);
+
+    ner.create_entity(
+        text,
+        &span_converter,
+        &word_positions,
+        0,
+        words.len(),
+        0,
+        0.9,
+        &["organization"],
+    )
+    .expect("expected entity")
+}
+
+/// "thrive capital." -> "thrive capital": word-boundary tokenization leaks the
+/// sentence period into the span, so `create_entity` must trim it and adjust
+/// the char end offset to match.
+#[test]
+#[cfg(feature = "onnx")]
+fn test_create_entity_strips_trailing_period() {
+    let e = create_entity_for_whole_span("thrive capital.");
+    assert_eq!(e.text, "thrive capital");
+    // The char span must follow the trimmed text, not the raw token span.
+    assert_eq!((e.start(), e.end()), (0, 14));
+}
+
+/// "Google," -> "Google".
+#[test]
+#[cfg(feature = "onnx")]
+fn test_create_entity_strips_trailing_comma() {
+    let e = create_entity_for_whole_span("Google,");
+    assert_eq!(e.text, "Google");
+    assert_eq!((e.start(), e.end()), (0, 6));
+}
+
+/// "marie curie's" -> "marie curie".
+#[test]
+#[cfg(feature = "onnx")]
+fn test_create_entity_strips_possessive() {
+    let e = create_entity_for_whole_span("marie curie's");
+    assert_eq!(e.text, "marie curie");
+    assert_eq!((e.start(), e.end()), (0, 11));
+}
+
+/// "musk’s" -> "musk" (Unicode right single quote possessive).
+#[test]
+#[cfg(feature = "onnx")]
+fn test_create_entity_strips_smart_quote_possessive() {
+    let e = create_entity_for_whole_span("musk\u{2019}s");
+    assert_eq!(e.text, "musk");
+    assert_eq!((e.start(), e.end()), (0, 4));
+}
+
 #[test]
 #[cfg(feature = "onnx")]
 fn test_create_entity_out_of_bounds() {

@@ -925,14 +925,19 @@ mod tests {
     fn test_similarity_cjk_partial() {
         let sim = Similarity::new();
         let score = sim.compute("中华人民共和国", "中华民国");
-        assert!(score > 0.0 && score < 1.0, "CJK partial: {}", score);
+        // CJK routes to bigram Jaccard. The first string has six distinct
+        // bigrams, the second has three, and they share only "中华":
+        // |intersection| / |union| = 1 / 8.
+        assert_eq!(score, 0.125, "CJK partial: {}", score);
     }
 
     #[test]
     fn test_similarity_english_words() {
         let sim = Similarity::new();
         let score = sim.compute("Marie Curie", "Curie");
-        assert!(score > 0.0 && score < 1.0, "English partial: {}", score);
+        // Latin text routes to word Jaccard: {marie, curie} vs {curie},
+        // |intersection| / |union| = 1 / 2.
+        assert_eq!(score, 0.5, "English partial: {}", score);
     }
 
     #[test]
