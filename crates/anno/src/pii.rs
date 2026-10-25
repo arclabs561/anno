@@ -75,10 +75,13 @@ fn luhn_valid(s: &str) -> bool {
     sum.is_multiple_of(10)
 }
 
-/// ISO 13616 IBAN check: 15 to 34 alphanumerics (whitespace ignored) whose
-/// rearranged numeric form is 1 mod 97.
+/// ISO 13616 IBAN check: 15 to 34 alphanumerics (whitespace and hyphens
+/// ignored) whose rearranged numeric form is 1 mod 97.
 pub(crate) fn iban_mod97_valid(raw: &str) -> bool {
-    let s: String = raw.chars().filter(|c| !c.is_whitespace()).collect();
+    let s: String = raw
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != '-')
+        .collect();
     if s.len() < 15 || s.len() > 34 {
         return false;
     }
@@ -185,9 +188,10 @@ pub fn classify_entity(entity: &Entity) -> Option<PiiEntity> {
 /// Scan text for structured PII patterns (SSN, credit card, IBAN, email, phone, address).
 ///
 /// This is independent of NER -- it catches structured PII via patterns.
-/// Printed IBANs use uppercase groups of four separated by single ASCII spaces,
-/// with a final one-to-four-character group and a registered country length.
-/// A space after that endpoint starts separate text, even if it is numeric.
+/// Printed IBANs use uppercase groups separated by a single ASCII space or
+/// hyphen at a registered country length. Group widths follow registry print
+/// formats and may exceed four (BI, LY, SV). A separator after that endpoint
+/// starts separate text, even if it is numeric.
 /// Length and checksum checks do not establish account existence or BBAN validity.
 /// Offsets are character offsets (Unicode scalar values), consistent with [`classify_entity`].
 pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
@@ -628,6 +632,13 @@ pub fn looks_like_address(text: &str) -> bool {
 /// Check if text looks like an ID number (SSN, credit card, IBAN, MRN).
 pub fn looks_like_id_number(text: &str) -> bool {
     if grouped_iban::candidates(text).next().is_some() {
+        return true;
+    }
+    // The heuristic extractor accepts a registered IBAN with a single space
+    // at any position ("DE89 370400440532013000"), which the grouped layout
+    // above rejects. Fall back to the checksum so classification agrees with
+    // extraction instead of letting a shorter numeric pattern claim the tail.
+    if iban_mod97_valid(text) {
         return true;
     }
     type Checked = (&'static str, fn(&str) -> bool);
@@ -1105,5 +1116,130 @@ mod tests {
                 format!("café [ID_NUMBER_1]{suffix}")
             );
         }
+    }
+
+    /// Registry print formats group by account component, not in fours. The
+    /// whole registered span must be redacted, not just a numeric tail.
+    #[test]
+    fn grouped_iban_registry_component_groupings() {
+        for token in [
+            "BI13 20001 10001 00001234567 89",
+            "LY83 002 048 000020100120361",
+            "SV62 CENR 0000 0000 0000 0070 0025",
+            "SV43 ACAT 00000000000000123123",
+        ] {
+            let text = format!("cafe {token} END");
+            let entities = scan_patterns(&text);
+            assert_eq!(entities.len(), 1, "{text}: {entities:?}");
+            assert_eq!(entities[0].text, token);
+            assert_eq!((entities[0].start, entities[0].end), (5, 5 + token.len()));
+            assert!(looks_like_id_number(token));
+            assert_eq!(ids(token), vec![token]);
+            assert_eq!(redact_patterns(&text), "cafe [ID_NUMBER_1] END");
+        }
+    }
+
+    /// AT's 16-digit BBAN run is Luhn-valid, so the card pattern used to claim
+    /// it and leave the `AT61 ` prefix in cleartext. It is one IBAN span.
+    #[test]
+    fn grouped_iban_at_luhn_inner_run_is_one_span() {
+        let token = "AT61 1904 3002 3457 3201";
+        let text = format!("{token} SEND NOW.");
+        assert_eq!(ids(&text), vec![token]);
+        assert_eq!(redact_patterns(&text), "[ID_NUMBER_1] SEND NOW.");
+    }
+
+    /// Country lengths divisible by four exercise the four-group fast path.
+    #[test]
+    fn grouped_iban_lengths_divisible_by_four() {
+        for token in ["AT61 1904 3002 3457 3201", "BE68 5390 0754 7034"] {
+            let text = format!("x {token} y");
+            let entities = scan_patterns(&text);
+            assert_eq!(entities.len(), 1, "{text}: {entities:?}");
+            assert_eq!(entities[0].text, token);
+            assert_eq!((entities[0].start, entities[0].end), (2, 2 + token.len()));
+            assert!(looks_like_id_number(token));
+            assert_eq!(redact_patterns(&text), "x [ID_NUMBER_1] y");
+        }
+    }
+
+    /// Hyphens are printed separators, accepted exactly like single spaces.
+    #[test]
+    fn grouped_iban_hyphenated_form() {
+        let token = "DE89-3704-0044-0532-0130-00";
+        assert!(looks_like_id_number(token));
+        assert_eq!(ids(token), vec![token]);
+        assert_eq!(redact_patterns(token), "[ID_NUMBER_1]");
+        assert_eq!(
+            redact_patterns(&format!("{token} SEND")),
+            "[ID_NUMBER_1] SEND"
+        );
+        let text = format!("cafe {token} END");
+        assert_eq!(redact_patterns(&text), "cafe [ID_NUMBER_1] END");
+    }
+
+    /// Two complete grouped IBANs separated by one space are distinct spans.
+    #[test]
+    fn grouped_iban_adjacent_tokens() {
+        let text = "DE89 3704 0044 0532 0130 00 GB82 WEST 1234 5698 7654 32";
+        let entities = scan_patterns(text);
+        assert_eq!(entities.len(), 2, "{entities:?}");
+        assert_eq!(entities[0].text, "DE89 3704 0044 0532 0130 00");
+        assert_eq!((entities[0].start, entities[0].end), (0, 27));
+        assert_eq!(entities[1].text, "GB82 WEST 1234 5698 7654 32");
+        assert_eq!((entities[1].start, entities[1].end), (28, 55));
+        let redacted = redact_patterns(text);
+        assert_eq!(redacted.matches("[ID_NUMBER_").count(), 2);
+        assert!(!redacted.contains("DE89"));
+        assert!(!redacted.contains("GB82"));
+    }
+
+    /// `mask` preserves character count, including the grouping separators.
+    #[test]
+    fn grouped_iban_mask_preserves_span_length() {
+        for token in [
+            "DE89 3704 0044 0532 0130 00",
+            "BI13 20001 10001 00001234567 89",
+        ] {
+            let text = format!("x {token} y");
+            let masked = mask(&text, &scan_patterns(&text), '*');
+            assert_eq!(masked, format!("x {} y", "*".repeat(token.len())));
+            assert_eq!(masked.chars().count(), text.chars().count());
+        }
+    }
+
+    /// Lower-case grouped prints stay outside the grouped pattern route (the
+    /// documented gap). The checksum fallback still classifies the token when
+    /// a caller passes it directly to `looks_like_id_number`.
+    #[test]
+    fn grouped_iban_lowercase_form_remains_ungrouped() {
+        let token = "de89 3704 0044 0532 0130 00";
+        assert!(grouped_iban::candidates(token).next().is_none());
+        assert!(scan_patterns(token)
+            .iter()
+            .all(|entity| entity.text != token));
+        assert_eq!(redact_patterns(token), token);
+        assert!(looks_like_id_number(token));
+    }
+
+    /// The heuristic extractor accepts a single space at any position inside a
+    /// registered IBAN. Classification must agree, otherwise the bank-account
+    /// tail is handed to the phone pattern and survives redaction.
+    #[cfg(feature = "heuristic-fr")]
+    #[test]
+    fn grouped_iban_extractor_classifier_agree_on_split_layout() {
+        use crate::backends::heuristic_fr::{iban_intl::extract_iban_intl, HeuristicFrNer};
+        let token = "DE89 370400440532013000";
+        assert!(looks_like_id_number(token));
+        let text = format!("cafe {token}");
+        let entities = extract_iban_intl(&text);
+        assert_eq!(entities.len(), 1, "{entities:?}");
+        let classified = classify_entity(&entities[0]).expect("split IBAN is PII");
+        assert_eq!(classified.text, token);
+        assert_eq!(classified.pii_type, "ID_NUMBER");
+        assert_eq!(
+            scan_and_redact(&text, &HeuristicFrNer::new()).unwrap(),
+            "cafe [ID_NUMBER_1]"
+        );
     }
 }
