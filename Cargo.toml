@@ -88,6 +88,17 @@ missing_docs = "warn"
 [workspace.lints.clippy]
 unwrap_used = "warn"
 
+# Line tables only, instead of the implicit full debug info (2).
+# Measured 2026-10-25, aarch64-apple-darwin / 16 cores, interleaved paired A/B
+# (4 rounds, wiped target dir per arm): cold `cargo build -p anno-cli`
+# 23.4s -> 21.7s paired median (-7%), peak RSS -5%, target artifacts
+# 2024MB -> 1709MB (-16%). Cold `cargo test -p anno --lib --no-run` was -9%
+# on 2 of 3 pairs (within noise on the third); warm rebuilds unchanged.
+# Backtraces keep file:line; debugger variables are unavailable. Re-measure
+# before raising this: full debug info costs ~7% of every cold dev build here.
+[profile.dev]
+debug = 1
+
 # This is a virtual workspace. The published `anno` crate lives at `crates/anno/`.
 # Local development overrides (path patches) live in `.cargo/config.toml`.
 # See `.cargo/config.toml.example` for the super-workspace setup.
