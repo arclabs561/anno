@@ -157,6 +157,7 @@ dependencies = [
  "muxer",
  "proptest",
  "quick-xml 0.41.0",
+ "rankops",
  "rayon",
  "regex",
  "rusqlite",
@@ -3404,7 +3405,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "rand",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -3417,7 +3418,7 @@ dependencies = [
  "oxilangtag",
  "oxiri",
  "oxrdf",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4009,6 +4010,12 @@ checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
  "rand_core",
 ]
+
+[[package]]
+name = "rankops"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e49350b53edce9a775afd93a4a0b36701e6c4edfcb0279a77dc9c14e624ab8f"
 
 [[package]]
 name = "raw-cpuid"
