@@ -674,6 +674,16 @@ pub fn looks_like_id_number(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{EntityCategory, EntityType};
+
+    /// Character offsets of the first occurrence of `needle` in `text`.
+    fn char_span_of(text: &str, needle: &str) -> (usize, usize) {
+        let byte_start = text
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle:?} not found in {text:?}"));
+        let start = text[..byte_start].chars().count();
+        (start, start + needle.chars().count())
+    }
 
     #[test]
     fn ssn_detected_by_scan() {
@@ -1245,5 +1255,407 @@ mod tests {
             scan_and_redact(&text, &HeuristicFrNer::new()).unwrap(),
             "cafe [ID_NUMBER_1]"
         );
+    }
+
+    /// PHONE is wired into `scan_patterns` but every existing test exercised a
+    /// different pattern. Assert the whole returned span for each US/NANP form
+    /// the pattern claims, then assert the invalid shapes produce no match.
+    #[test]
+    fn scan_patterns_phone_exact_spans() {
+        let valid = [
+            ("call +1 555-867-5309 now", "+1 555-867-5309"),
+            ("call +1 (555) 867-5309 now", "+1 (555) 867-5309"),
+            ("call (555) 867-5309 now", "(555) 867-5309"),
+            ("call 555.867.5309 now", "555.867.5309"),
+            ("call 555 867 5309 now", "555 867 5309"),
+            ("call 5558675309 now", "5558675309"),
+        ];
+        for (text, expected) in valid {
+            let entities = scan_patterns(text);
+            let phones: Vec<&PiiEntity> = entities
+                .iter()
+                .filter(|e| e.pii_type == "CONTACT")
+                .collect();
+            assert_eq!(phones.len(), 1, "{text}: {entities:?}");
+            assert_eq!(phones[0].text, expected, "{text}");
+            assert_eq!(
+                (phones[0].start, phones[0].end),
+                char_span_of(text, expected),
+                "{text}"
+            );
+        }
+
+        for text in [
+            "call 555-8675 now",         // too short
+            "call ABC-DEF-GHIJ now",     // letters
+            "call +44 20 7946 0958 now", // non-NANP prefix is not claimed
+        ] {
+            let entities = scan_patterns(text);
+            assert!(
+                entities.iter().all(|e| e.pii_type != "CONTACT"),
+                "{text}: {entities:?}"
+            );
+        }
+    }
+
+    /// ADDRESS requires a street number plus a capitalized street name and a
+    /// recognized suffix. Number-only and street-name-only text must not match.
+    #[test]
+    fn scan_patterns_address_exact_spans() {
+        let valid = [
+            ("at 742 Evergreen Terrace today", "742 Evergreen Terrace"),
+            (
+                "at 1234 Elm Street, Springfield, IL 62704 today",
+                "1234 Elm Street, Springfield, IL 62704",
+            ),
+            ("1234 Elm Street", "1234 Elm Street"),
+        ];
+        for (text, expected) in valid {
+            let entities = scan_patterns(text);
+            let addresses: Vec<&PiiEntity> = entities
+                .iter()
+                .filter(|e| e.pii_type == "ADDRESS")
+                .collect();
+            assert_eq!(addresses.len(), 1, "{text}: {entities:?}");
+            assert_eq!(addresses[0].text, expected, "{text}");
+            assert_eq!(
+                (addresses[0].start, addresses[0].end),
+                char_span_of(text, expected),
+                "{text}"
+            );
+        }
+
+        for text in [
+            "at 1234 today",
+            "at Elm Street today",
+            "at 1234 elm street today",
+            "at 1234 Elm today",
+            "The White House",
+        ] {
+            let entities = scan_patterns(text);
+            assert!(
+                entities.iter().all(|e| e.pii_type != "ADDRESS"),
+                "{text}: {entities:?}"
+            );
+        }
+    }
+
+    /// `looks_like_address` is the NER location gate. It previously had only a
+    /// positive test, so a rule that accepted any text containing a digit or a
+    /// state abbreviation would have gone unnoticed.
+    #[test]
+    fn looks_like_address_requires_number_and_street() {
+        for text in ["1234", "Elm Street", "Main Street", "Springfield"] {
+            assert!(!looks_like_address(text), "{text}");
+        }
+        for text in ["1234 Elm Street", "1234 Elm Street, Springfield, IL 62704"] {
+            assert!(looks_like_address(text), "{text}");
+        }
+    }
+
+    /// The scanner's ADDRESS pattern accepts "Terrace", but the NER location
+    /// gate's street list does not. Text that `scan_patterns` reports as one
+    /// ADDRESS span must also classify, or `classify_entity` silently drops an
+    /// address that the pattern path redacts.
+    #[test]
+    fn looks_like_address_agrees_with_scanner_on_terrace() {
+        let text = "at 742 Evergreen Terrace today";
+        let entities = scan_patterns(text);
+        let addresses: Vec<&PiiEntity> = entities
+            .iter()
+            .filter(|e| e.pii_type == "ADDRESS")
+            .collect();
+        assert_eq!(addresses.len(), 1, "scanner must report the address");
+        assert!(
+            looks_like_address("742 Evergreen Terrace"),
+            "classifier street list disagrees with the scanner's Terrace suffix"
+        );
+    }
+
+    /// NER-to-PII mapping for a person. Offsets must be the entity's character
+    /// offsets, not a re-scan of the text.
+    #[test]
+    fn classify_person_entity() {
+        let entity = Entity::new("John Smith", EntityType::Person, 4, 14, 0.95);
+        let pii = classify_entity(&entity).expect("person entity is PII");
+        assert_eq!(pii.pii_type, "PERSON");
+        assert_eq!(pii.text, "John Smith");
+        assert_eq!((pii.start, pii.end), (4, 14));
+        assert_eq!(pii.risk_level, "MEDIUM");
+    }
+
+    /// Email- and phone-valued entities map to CONTACT rather than falling
+    /// through to the ID-number heuristic.
+    #[test]
+    fn classify_contact_entities() {
+        let email_text = "bob@example.com";
+        let email = Entity::new(
+            email_text,
+            EntityType::Email,
+            10,
+            10 + email_text.chars().count(),
+            0.99,
+        );
+        let pii = classify_entity(&email).expect("email entity is PII");
+        assert_eq!(pii.pii_type, "CONTACT");
+        assert_eq!(pii.risk_level, "HIGH");
+        assert_eq!((pii.start, pii.end), (10, 10 + email_text.chars().count()));
+
+        let phone_text = "+1 555-867-5309";
+        let phone = Entity::new(
+            phone_text,
+            EntityType::Phone,
+            3,
+            3 + phone_text.chars().count(),
+            0.9,
+        );
+        let pii = classify_entity(&phone).expect("phone entity is PII");
+        assert_eq!(pii.pii_type, "CONTACT");
+        assert_eq!((pii.start, pii.end), (3, 3 + phone_text.chars().count()));
+    }
+
+    /// An IBAN-valued extractor entity maps to one ID_NUMBER span.
+    #[test]
+    fn classify_iban_entity() {
+        for text in ["DE89370400440532013000", "GB82WEST12345698765432"] {
+            let entity = Entity::new(
+                text,
+                EntityType::Custom {
+                    name: "iban".into(),
+                    category: EntityCategory::Numeric,
+                },
+                0,
+                text.chars().count(),
+                1.0,
+            );
+            let pii = classify_entity(&entity).expect("compact IBAN is PII");
+            assert_eq!(pii.pii_type, "ID_NUMBER", "{text}");
+            assert_eq!(pii.risk_level, "CRITICAL", "{text}");
+            assert_eq!((pii.start, pii.end), (0, text.chars().count()), "{text}");
+        }
+    }
+
+    /// The heuristic extractor accepts a registered IBAN split after the
+    /// country code ("DE89 370400440532013000"). That text passes the mod-97
+    /// checksum but is not the four-character print layout. It must classify as
+    /// one ID_NUMBER, otherwise the numeric tail is handed to the phone pattern
+    /// and survives redaction. The lowercase form can only be recognized by the
+    /// checksum fallback, which pins that path independently of the grouped
+    /// parser.
+    #[test]
+    fn classify_split_layout_iban_entity() {
+        let split = "DE89 370400440532013000";
+        assert!(iban_mod97_valid(split));
+        let lowercase = "de89 370400440532013000";
+        assert!(iban_mod97_valid(lowercase));
+        assert!(grouped_iban::candidates(lowercase).next().is_none());
+
+        for text in [split, lowercase] {
+            let entity = Entity::new(
+                text,
+                EntityType::Custom {
+                    name: "iban".into(),
+                    category: EntityCategory::Numeric,
+                },
+                0,
+                text.chars().count(),
+                1.0,
+            );
+            let pii = classify_entity(&entity).expect("split IBAN is PII");
+            assert_eq!(pii.pii_type, "ID_NUMBER", "{text}");
+            assert_eq!((pii.start, pii.end), (0, text.chars().count()), "{text}");
+        }
+    }
+
+    /// Non-PII NER entities return `None` instead of a low-confidence guess.
+    #[test]
+    fn classify_non_pii_entities_return_none() {
+        let cases = [
+            ("Acme Corp", EntityType::Organization),
+            ("January 5", EntityType::Date),
+            ("https://example.com", EntityType::Url),
+            ("$500", EntityType::Money),
+            ("Paris", EntityType::Location),
+        ];
+        for (text, entity_type) in cases {
+            let entity = Entity::new(text, entity_type, 0, text.chars().count(), 0.9);
+            assert!(classify_entity(&entity).is_none(), "{text}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    /// Turn a span seed list into disjoint spans by walking a cursor. Every
+    /// returned range is non-empty and inside `0..text_len`.
+    fn disjoint_spans(text_len: usize, raw: &[(usize, usize)]) -> Vec<(usize, usize)> {
+        let mut spans = Vec::new();
+        let mut cursor = 0;
+        for &(gap_seed, len_seed) in raw {
+            if cursor >= text_len {
+                break;
+            }
+            let start = cursor + gap_seed % 5;
+            if start >= text_len {
+                break;
+            }
+            let end = (start + 1 + len_seed % 6).min(text_len);
+            spans.push((start, end));
+            cursor = end;
+        }
+        spans
+    }
+
+    /// Turn a span seed list into arbitrary, possibly overlapping spans.
+    fn arbitrary_spans(text_len: usize, raw: &[(usize, usize)]) -> Vec<(usize, usize)> {
+        if text_len == 0 {
+            return Vec::new();
+        }
+        raw.iter()
+            .map(|&(start_seed, len_seed)| {
+                let start = start_seed % text_len;
+                let end = (start + 1 + len_seed % 6).min(text_len);
+                (start, end)
+            })
+            .collect()
+    }
+
+    fn entities_from_spans(text: &str, spans: &[(usize, usize)]) -> Vec<PiiEntity> {
+        const TYPES: [&str; 3] = ["PERSON", "CONTACT", "ID_NUMBER"];
+        spans
+            .iter()
+            .enumerate()
+            .map(|(i, &(start, end))| PiiEntity {
+                text: text.chars().skip(start).take(end - start).collect(),
+                pii_type: TYPES[i % TYPES.len()].to_string(),
+                start,
+                end,
+                risk_level: "HIGH".to_string(),
+            })
+            .collect()
+    }
+
+    fn covered(text_len: usize, spans: &[(usize, usize)]) -> Vec<bool> {
+        let mut covered = vec![false; text_len];
+        for &(start, end) in spans {
+            for flag in covered.iter_mut().take(end).skip(start) {
+                *flag = true;
+            }
+        }
+        covered
+    }
+
+    /// Oracle: keep exactly the characters the spans do not cover, in order.
+    fn survivors(text: &str, covered: &[bool]) -> String {
+        text.chars()
+            .zip(covered.iter().copied())
+            .filter(|&(_, is_covered)| !is_covered)
+            .map(|(ch, _)| ch)
+            .collect()
+    }
+
+    fn is_placeholder(token: &str) -> bool {
+        let Some((kind, number)) = token.rsplit_once('_') else {
+            return false;
+        };
+        !kind.is_empty()
+            && kind.chars().all(|c| c.is_ascii_uppercase() || c == '_')
+            && !number.is_empty()
+            && number.chars().all(|c| c.is_ascii_digit())
+    }
+
+    /// Remove the `[TYPE_n]` tokens `redact` inserts, leaving only source text.
+    fn strip_placeholders(output: &str) -> String {
+        let mut survivors = String::with_capacity(output.len());
+        let mut rest = output;
+        while let Some(open) = rest.find('[') {
+            survivors.push_str(&rest[..open]);
+            let after_open = &rest[open + 1..];
+            match after_open.find(']') {
+                Some(close) if is_placeholder(&after_open[..close]) => {
+                    rest = &after_open[close + 1..];
+                }
+                _ => {
+                    survivors.push('[');
+                    rest = after_open;
+                }
+            }
+        }
+        survivors.push_str(rest);
+        survivors
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(128))]
+
+        /// Non-overlapping spans: every chosen range is replaced, and the text
+        /// outside those ranges is preserved character-for-character. The
+        /// expected survivors come from the span list, not from `redact`.
+        #[test]
+        fn redact_disjoint_spans_never_leaks_span_text(
+            text in "[a-zA-Z0-9 .@_-]{0,48}",
+            raw in proptest::collection::vec((0usize..8, 0usize..6), 0..=5),
+        ) {
+            let text_len = text.chars().count();
+            let spans = disjoint_spans(text_len, &raw);
+            let entities = entities_from_spans(&text, &spans);
+            let output = redact(&text, &entities);
+
+            let covered = covered(text_len, &spans);
+            let expected_survivors = survivors(&text, &covered);
+            let actual_survivors = strip_placeholders(&output);
+            prop_assert_eq!(
+                &actual_survivors,
+                &expected_survivors,
+                "text={:?} spans={:?} output={:?}",
+                text,
+                spans,
+                output
+            );
+
+            // The generated alphabet has no brackets, so every '[' is a token.
+            prop_assert_eq!(
+                output.matches('[').count(),
+                spans.len(),
+                "text={:?} spans={:?} output={:?}",
+                text,
+                spans,
+                output
+            );
+        }
+
+        /// Overlapping spans: `redact` must not panic, and no character in the
+        /// union of the chosen spans may survive. A resolver that keeps only the
+        /// first span of a partial overlap leaves the longer span's tail in the
+        /// output and fails this property.
+        #[test]
+        fn redact_overlapping_spans_remove_union_without_panic(
+            text in "[a-zA-Z0-9 .@_-]{0,48}",
+            raw in proptest::collection::vec((0usize..48, 0usize..6), 1..=5),
+        ) {
+            let text_len = text.chars().count();
+            if text_len == 0 {
+                return Ok(());
+            }
+            let spans = arbitrary_spans(text_len, &raw);
+            let entities = entities_from_spans(&text, &spans);
+
+            let output = redact(&text, &entities);
+
+            let covered = covered(text_len, &spans);
+            let expected_survivors = survivors(&text, &covered);
+            let actual_survivors = strip_placeholders(&output);
+            prop_assert_eq!(
+                &actual_survivors,
+                &expected_survivors,
+                "text={:?} spans={:?} output={:?}",
+                text,
+                spans,
+                output
+            );
+        }
     }
 }
