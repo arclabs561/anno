@@ -52,7 +52,7 @@ dirs = "5"
 # TODO: upgrade to stable ort 2.0 when released (still RC as of 2026-03)
 ort = "=2.0.0-rc.12"
 tokenizers = "0.22"
-hf-hub = "0.5"
+hf-hub = "1.0"
 ndarray = "0.17"
 lru = "0.18.2"
 candle-core = "0.11"
