@@ -389,10 +389,9 @@ mod tests {
     #[test]
     fn test_string_similarity_partial() {
         let sim = string_similarity("hello world", "hello");
-        assert!(sim > 0.0 && sim < 1.0);
-        // "hello" is 1 word, "hello world" has 2 words
-        // intersection = 1, union = 2, sim = 0.5
-        assert!((sim - 0.5).abs() < 0.001);
+        // Jaccard over normalized word sets: {"hello", "world"} vs {"hello"}.
+        // intersection = 1, union = 2, sim = 1 / 2 exactly.
+        assert_eq!(sim, 0.5);
     }
 
     #[test]
