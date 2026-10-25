@@ -57,6 +57,49 @@ want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
 or `gliner_candle` explicitly to force one backend and fail at
 construction time if its feature isn't enabled.
 
+#### Span-width exports (`max_width`)
+
+`gliner`, `gliner_poly`, and `gliner_multitask` score a fixed grid of word
+spans per position. The grid width is an **export property**, not a runtime
+knob: the decoder reads it from the output tensor (`[1, words, max_width,
+classes]`, or derives it from `[1, words * max_width, classes]`). An export
+built with `max_width = 1` can only score single-word spans; multi-word
+entities come back as separate words, and a downstream evaluation has
+reported mention-F1 around 0.22 for that path versus 0.75 for the offline
+regex path.
+
+Requirement: export with `max_width >= 12`. The default
+`onnx-community/gliner_small-v2.1` export satisfies this (its
+`gliner_config.json` records `max_width: 12`). Check any other model
+directory before benchmarking:
+
+```sh
+python3 - <<'PY'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path("<model-dir>/gliner_config.json").read_text())
+width = cfg.get("max_width")
+sys.exit(0 if isinstance(width, int) and width >= 12 else f"max_width={width} < 12")
+PY
+```
+
+To regenerate a local poly/bi-encoder export at the required width:
+
+```sh
+uv run scripts/export_gliner_poly_onnx.py \
+  --model knowledgator/gliner-bi-large-v2.0 \
+  --output ~/.cache/anno/models/gliner-poly \
+  --strategy manual --max-width 12 --quantize
+```
+
+`--strategy manual` is required for a specific width: the GLiNER library's
+`export_to_onnx` path takes no width override. The script now rejects an
+export whose `gliner_config.json` records a width below the requested
+`--max-width`, and the decoder logs a warning when it sees a one-word span
+grid. A narrow graph cannot be widened at load time; rebuild the export.
+`gliner2_fastino` is separate: its eight-graph pipeline bakes
+`MAX_WIDTH = 8` into the export (see `gliner2_fastino/pipeline.rs`), and its
+decoder is consistent with that value.
+
 ### Neural: Candle (feature `candle`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
