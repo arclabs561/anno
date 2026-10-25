@@ -2,6 +2,9 @@
 
 use super::config::*;
 use super::*;
+use crate::backends::inference::{
+    decode_span_logits_3d, decode_span_logits_4d, span_width_from_flat_len,
+};
 
 #[cfg(feature = "onnx")]
 impl GLiNEROnnx {
@@ -1006,126 +1009,88 @@ impl GLiNEROnnx {
         let mut entities = Vec::with_capacity(32);
         let num_text_words = text_words.len();
 
-        // Expected shape: [batch, num_words, max_width, num_classes]
-        if shape.len() == 4 && shape[0] == 1 {
-            let out_num_words = shape[1] as usize;
-            let out_max_width = shape[2] as usize;
-            let num_classes = shape[3] as usize;
+        // Expected shape: [batch, num_words, max_width, num_classes] or
+        // [batch, num_spans, num_classes]. The span width is an export
+        // property, so decode it from the tensor shape rather than assuming
+        // MAX_SPAN_WIDTH; wider and narrower exports then decode faithfully.
+        let shape_usize: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+        let flat_width = if shape_usize.len() == 3 {
+            span_width_from_flat_len(shape_usize[1], num_text_words)
+        } else {
+            None
+        };
+        let out_max_width = if shape_usize.len() == 4 {
+            shape_usize.get(2).copied()
+        } else {
+            flat_width
+        };
+        if out_max_width == Some(1) {
+            log::warn!(
+                "[GLiNER] Span export has max_width=1: only single-word entities can be \
+                 produced. Re-export the model with max_width>=12 (see docs/BACKENDS.md)."
+            );
+        }
 
+        let spans = if shape_usize.len() == 4 && shape_usize[0] == 1 {
+            if shape_usize[3] == 0 {
+                return Err(Error::Inference(
+                    "GLiNER ONNX model produced num_classes=0. This export likely does not support dynamic entity types for the requested schema.".to_string(),
+                ));
+            }
             log::debug!(
                 "[GLiNER] Decoding: num_words={}, max_width={}, num_classes={}",
-                out_num_words,
-                out_max_width,
-                num_classes
+                shape_usize[1],
+                shape_usize[2],
+                shape_usize[3]
             );
-
-            if num_classes == 0 {
+            decode_span_logits_4d(
+                &shape_usize,
+                &output_data,
+                num_text_words,
+                entity_types.len(),
+                threshold,
+            )
+        } else if shape_usize.len() == 3 && shape_usize[0] == 1 {
+            if shape_usize[2] == 0 {
                 return Err(Error::Inference(
                     "GLiNER ONNX model produced num_classes=0. This export likely does not support dynamic entity types for the requested schema.".to_string(),
                 ));
             }
-
-            // Iterate over spans and apply sigmoid threshold
-            for word_idx in 0..out_num_words.min(num_text_words) {
-                for width in 0..out_max_width.min(MAX_SPAN_WIDTH) {
-                    let end_word = word_idx + width;
-                    if end_word >= num_text_words {
-                        continue;
-                    }
-
-                    for class_idx in 0..num_classes.min(entity_types.len()) {
-                        let idx = (word_idx * out_max_width * num_classes)
-                            + (width * num_classes)
-                            + class_idx;
-
-                        if idx < output_data.len() {
-                            let logit = output_data[idx];
-                            // Apply sigmoid
-                            let score = 1.0 / (1.0 + (-logit).exp());
-
-                            if score >= threshold {
-                                let (char_start, char_end) = self.word_span_to_char_offsets(
-                                    text, text_words, word_idx, end_word,
-                                );
-
-                                // Extract actual text from source to preserve original whitespace
-                                // Performance: Use optimized extraction with cached length
-                                let span_text = extract_char_slice_with_len(
-                                    text,
-                                    char_start,
-                                    char_end,
-                                    text_char_count,
-                                );
-
-                                let entity_type_str =
-                                    entity_types.get(class_idx).unwrap_or(&"OTHER");
-                                let entity_type = Self::map_entity_type(entity_type_str);
-
-                                entities.push(Entity::new(
-                                    span_text,
-                                    entity_type,
-                                    char_start,
-                                    char_end,
-                                    score as f64,
-                                ));
-                            }
-                        }
-                    }
-                }
+            if flat_width.is_none() {
+                log::warn!(
+                    "[GLiNER] Flat span output has {} spans for {} words; max_width is not \
+                     derivable, assuming {}.",
+                    shape_usize[1],
+                    num_text_words,
+                    MAX_SPAN_WIDTH
+                );
             }
-        } else if shape.len() == 3 && shape[0] == 1 {
-            // Alternative shape: [batch, num_spans, num_classes]
-            let num_spans = shape[1] as usize;
-            let num_classes = shape[2] as usize;
+            decode_span_logits_3d(
+                &shape_usize,
+                &output_data,
+                num_text_words,
+                entity_types.len(),
+                threshold,
+                MAX_SPAN_WIDTH,
+            )
+        } else {
+            Vec::new()
+        };
 
-            if num_classes == 0 {
-                return Err(Error::Inference(
-                    "GLiNER ONNX model produced num_classes=0. This export likely does not support dynamic entity types for the requested schema.".to_string(),
-                ));
-            }
-
-            for span_idx in 0..num_spans {
-                let word_idx = span_idx / MAX_SPAN_WIDTH;
-                let width = span_idx % MAX_SPAN_WIDTH;
-                let end_word = word_idx + width;
-
-                if word_idx >= num_text_words || end_word >= num_text_words {
-                    continue;
-                }
-
-                for class_idx in 0..num_classes.min(entity_types.len()) {
-                    let idx = span_idx * num_classes + class_idx;
-                    if idx < output_data.len() {
-                        let logit = output_data[idx];
-                        let score = 1.0 / (1.0 + (-logit).exp());
-
-                        if score >= threshold {
-                            let (char_start, char_end) = self
-                                .word_span_to_char_offsets(text, text_words, word_idx, end_word);
-
-                            // Extract actual text from source to preserve original whitespace
-                            // Performance: Use optimized extraction with cached length
-                            let span_text = extract_char_slice_with_len(
-                                text,
-                                char_start,
-                                char_end,
-                                text_char_count,
-                            );
-
-                            let entity_type_str = entity_types.get(class_idx).unwrap_or(&"OTHER");
-                            let entity_type = Self::map_entity_type(entity_type_str);
-
-                            entities.push(Entity::new(
-                                span_text,
-                                entity_type,
-                                char_start,
-                                char_end,
-                                score as f64,
-                            ));
-                        }
-                    }
-                }
-            }
+        for span in spans {
+            let (char_start, char_end) =
+                self.word_span_to_char_offsets(text, text_words, span.start_word, span.end_word);
+            // Extract actual text from source to preserve original whitespace.
+            let span_text =
+                extract_char_slice_with_len(text, char_start, char_end, text_char_count);
+            let entity_type_str = entity_types.get(span.class_idx).unwrap_or(&"OTHER");
+            entities.push(Entity::new(
+                span_text,
+                Self::map_entity_type(entity_type_str),
+                char_start,
+                char_end,
+                span.score as f64,
+            ));
         }
 
         // Performance: Use unstable sort (we don't need stable sort here)

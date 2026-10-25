@@ -154,7 +154,16 @@ impl CalibrationEvaluator {
     ///
     /// Reference: Guo et al. (2017) "On Calibration of Modern Neural Networks" (arXiv:1706.04599)
     pub fn evaluate(&self, predictions: &[(f64, bool)]) -> CalibrationResults {
-        if predictions.is_empty() {
+        // `statskit` asserts that probabilities are finite and within [0, 1].
+        // The previous implementation silently accepted invalid confidences, so
+        // filter them out to preserve the permissive (non-panicking) behaviour.
+        let valid: Vec<(f64, bool)> = predictions
+            .iter()
+            .copied()
+            .filter(|(conf, _)| conf.is_finite() && (0.0..=1.0).contains(conf))
+            .collect();
+
+        if valid.is_empty() {
             return CalibrationResults {
                 ece: 0.0,
                 mce: 0.0,
@@ -168,64 +177,38 @@ impl CalibrationEvaluator {
             };
         }
 
-        // Build reliability bins
+        let y_true: Vec<usize> = valid.iter().map(|&(_, c)| usize::from(c)).collect();
+        let y_prob: Vec<f64> = valid.iter().map(|&(c, _)| c).collect();
+
+        let ece =
+            statskit::calibration::expected_calibration_error(&y_true, &y_prob, self.num_bins);
+        let mce = statskit::calibration::maximum_calibration_error(&y_true, &y_prob, self.num_bins);
+        let brier_score = statskit::calibration::brier_score(&y_true, &y_prob);
+        let bins = statskit::calibration::reliability_diagram(&y_true, &y_prob, self.num_bins);
+
         let bin_width = 1.0 / self.num_bins as f64;
-        let mut bins: Vec<Vec<(f64, bool)>> = vec![Vec::new(); self.num_bins];
-
-        for &(conf, correct) in predictions {
-            let bin_idx = ((conf * self.num_bins as f64) as usize).min(self.num_bins - 1);
-            bins[bin_idx].push((conf, correct));
-        }
-
-        // Compute per-bin metrics
-        let mut reliability_bins = Vec::new();
-        let mut ece_sum = 0.0;
-        let mut mce: f64 = 0.0;
-
-        for (i, bin) in bins.iter().enumerate() {
-            if bin.is_empty() {
-                continue;
-            }
-
-            let range_start = i as f64 * bin_width;
-            let range_end = (i + 1) as f64 * bin_width;
-
-            let avg_confidence = bin.iter().map(|(c, _)| c).sum::<f64>() / bin.len() as f64;
-            let accuracy =
-                bin.iter().filter(|(_, correct)| *correct).count() as f64 / bin.len() as f64;
-            let calibration_error = (accuracy - avg_confidence).abs();
-
-            // Weighted contribution to ECE
-            let weight = bin.len() as f64 / predictions.len() as f64;
-            ece_sum += weight * calibration_error;
-            mce = mce.max(calibration_error);
-
-            reliability_bins.push(ReliabilityBin {
-                range: (range_start, range_end),
-                avg_confidence,
-                accuracy,
-                count: bin.len(),
-                calibration_error,
-            });
-        }
-
-        // Compute Brier score
-        let brier_score = predictions
-            .iter()
-            .map(|(conf, correct)| {
-                let target = if *correct { 1.0 } else { 0.0 };
-                (conf - target).powi(2)
+        let reliability_bins = bins
+            .into_iter()
+            .map(|bin| {
+                let idx =
+                    ((bin.mean_predicted * self.num_bins as f64) as usize).min(self.num_bins - 1);
+                ReliabilityBin {
+                    range: (idx as f64 * bin_width, (idx + 1) as f64 * bin_width),
+                    avg_confidence: bin.mean_predicted,
+                    accuracy: bin.fraction_positive,
+                    count: bin.count,
+                    calibration_error: (bin.fraction_positive - bin.mean_predicted).abs(),
+                }
             })
-            .sum::<f64>()
-            / predictions.len() as f64;
+            .collect();
 
         // Compute confidence statistics
-        let correct_confs: Vec<f64> = predictions
+        let correct_confs: Vec<f64> = valid
             .iter()
             .filter(|(_, c)| *c)
             .map(|(conf, _)| *conf)
             .collect();
-        let incorrect_confs: Vec<f64> = predictions
+        let incorrect_confs: Vec<f64> = valid
             .iter()
             .filter(|(_, c)| !*c)
             .map(|(conf, _)| *conf)
@@ -246,10 +229,7 @@ impl CalibrationEvaluator {
         // Compute threshold metrics
         let mut threshold_accuracy = HashMap::new();
         for &threshold in &self.thresholds {
-            let above: Vec<_> = predictions
-                .iter()
-                .filter(|(c, _)| *c >= threshold)
-                .collect();
+            let above: Vec<_> = valid.iter().filter(|(c, _)| *c >= threshold).collect();
 
             if above.is_empty() {
                 threshold_accuracy.insert(
@@ -263,7 +243,7 @@ impl CalibrationEvaluator {
             } else {
                 let acc = above.iter().filter(|(_, correct)| *correct).count() as f64
                     / above.len() as f64;
-                let cov = above.len() as f64 / predictions.len() as f64;
+                let cov = above.len() as f64 / valid.len() as f64;
                 threshold_accuracy.insert(
                     format!("{:.2}", threshold),
                     ThresholdMetrics {
@@ -276,14 +256,14 @@ impl CalibrationEvaluator {
         }
 
         CalibrationResults {
-            ece: ece_sum,
+            ece,
             mce,
             brier_score,
             avg_confidence_correct,
             avg_confidence_incorrect,
             confidence_gap: avg_confidence_correct - avg_confidence_incorrect,
             reliability_bins,
-            total_predictions: predictions.len(),
+            total_predictions: valid.len(),
             threshold_accuracy,
         }
     }
@@ -497,6 +477,111 @@ mod tests {
         assert!(
             !filtered.contains(&"Apple"),
             "Conflicting 'Apple' should be filtered"
+        );
+    }
+
+    #[test]
+    fn test_bit_identical_to_previous_implementation() {
+        // Fixed input set whose previous manual implementation produced these
+        // exact numbers. Pinned so future statskit changes are intentional.
+        let predictions = vec![
+            (0.95, true),
+            (0.90, true),
+            (0.85, false),
+            (0.80, true),
+            (0.75, false),
+            (0.60, true),
+            (0.55, false),
+            (0.40, false),
+            (0.25, true),
+            (0.10, false),
+        ];
+        let results = CalibrationEvaluator::compute(&predictions);
+
+        assert!((results.ece - 0.375).abs() < 1e-12);
+        assert!((results.mce - 0.75).abs() < 1e-12);
+        assert!((results.brier_score - 0.25325).abs() < 1e-12);
+        assert!((results.avg_confidence_correct - 0.70).abs() < 1e-12);
+        assert!((results.avg_confidence_incorrect - 0.53).abs() < 1e-12);
+        assert!((results.confidence_gap - 0.17).abs() < 1e-12);
+        assert_eq!(results.total_predictions, 10);
+
+        // Reliability bins, in ascending bin-index order.
+        assert_eq!(results.reliability_bins.len(), 8);
+        let expected_bins = [
+            ((0.1, 0.2), 0.10, 0.0, 1, 0.10),
+            ((0.2, 0.3), 0.25, 1.0, 1, 0.75),
+            ((0.4, 0.5), 0.40, 0.0, 1, 0.40),
+            ((0.5, 0.6), 0.55, 0.0, 1, 0.55),
+            ((0.6, 0.7), 0.60, 1.0, 1, 0.40),
+            ((0.7, 0.8), 0.75, 0.0, 1, 0.75),
+            ((0.8, 0.9), 0.825, 0.5, 2, 0.325),
+            ((0.9, 1.0), 0.925, 1.0, 2, 0.075),
+        ];
+        for (bin, expected) in results.reliability_bins.iter().zip(expected_bins.iter()) {
+            assert!((bin.range.0 - expected.0 .0).abs() < 1e-12);
+            assert!((bin.range.1 - expected.0 .1).abs() < 1e-12);
+            assert!((bin.avg_confidence - expected.1).abs() < 1e-12);
+            assert!((bin.accuracy - expected.2).abs() < 1e-12);
+            assert_eq!(bin.count, expected.3);
+            assert!((bin.calibration_error - expected.4).abs() < 1e-12);
+        }
+
+        // Threshold metrics.
+        let t50 = results.threshold_accuracy.get("0.50").unwrap();
+        assert!((t50.accuracy - 4.0 / 7.0).abs() < 1e-12);
+        assert!((t50.coverage - 0.7).abs() < 1e-12);
+        assert_eq!(t50.count, 7);
+
+        let t70 = results.threshold_accuracy.get("0.70").unwrap();
+        assert!((t70.accuracy - 0.6).abs() < 1e-12);
+        assert!((t70.coverage - 0.5).abs() < 1e-12);
+        assert_eq!(t70.count, 5);
+
+        let t80 = results.threshold_accuracy.get("0.80").unwrap();
+        assert!((t80.accuracy - 0.75).abs() < 1e-12);
+        assert!((t80.coverage - 0.4).abs() < 1e-12);
+        assert_eq!(t80.count, 4);
+
+        let t90 = results.threshold_accuracy.get("0.90").unwrap();
+        assert!((t90.accuracy - 1.0).abs() < 1e-12);
+        assert!((t90.coverage - 0.2).abs() < 1e-12);
+        assert_eq!(t90.count, 2);
+
+        let t95 = results.threshold_accuracy.get("0.95").unwrap();
+        assert!((t95.accuracy - 1.0).abs() < 1e-12);
+        assert!((t95.coverage - 0.1).abs() < 1e-12);
+        assert_eq!(t95.count, 1);
+    }
+
+    #[test]
+    fn test_non_finite_input_is_filtered() {
+        let predictions = vec![
+            (0.9, true),
+            (f64::NAN, false),
+            (0.8, true),
+            (f64::INFINITY, false),
+            (0.7, false),
+        ];
+        let results = CalibrationEvaluator::compute(&predictions);
+        let expected = CalibrationEvaluator::compute(&[(0.9, true), (0.8, true), (0.7, false)]);
+
+        assert_eq!(results.total_predictions, 3);
+        assert!((results.ece - expected.ece).abs() < 1e-12);
+        assert!((results.mce - expected.mce).abs() < 1e-12);
+        assert!((results.brier_score - expected.brier_score).abs() < 1e-12);
+        assert!((results.avg_confidence_correct - expected.avg_confidence_correct).abs() < 1e-12);
+        assert!(
+            (results.avg_confidence_incorrect - expected.avg_confidence_incorrect).abs() < 1e-12
+        );
+        assert!((results.confidence_gap - expected.confidence_gap).abs() < 1e-12);
+        assert_eq!(
+            results.reliability_bins.len(),
+            expected.reliability_bins.len()
+        );
+        assert_eq!(
+            results.threshold_accuracy.len(),
+            expected.threshold_accuracy.len()
         );
     }
 }

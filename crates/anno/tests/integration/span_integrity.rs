@@ -1,15 +1,15 @@
-//! Span integrity tests for BERT BIO decoder and trailing punctuation trimming.
+//! Span integrity tests for the BERT BIO decoder.
 //!
-//! These tests verify that subword tokenization does not truncate entity spans
-//! and that trailing punctuation is properly stripped from word-boundary entities.
+//! These tests verify that subword tokenization does not truncate entity spans.
+//! Trailing-punctuation trimming for word-boundary backends is covered by unit
+//! tests next to the production code (`backends/nuner/tests.rs`).
 
 // =============================================================================
 // BERT BIO decoder: subword continuation
 // =============================================================================
 // These tests require the `onnx` feature and actual model weights, so they
 // are guarded behind `#[cfg(feature = "onnx")]` and `#[ignore]` (run with
-// `cargo test --features onnx -- --ignored`).  The unit-level logic is tested
-// below without model weights.
+// `cargo test --features onnx -- --ignored`).
 
 #[cfg(feature = "onnx")]
 mod bert_subword {
@@ -145,63 +145,5 @@ mod pattern_percent {
             .collect();
 
         assert!(pct.contains(&"5%"), "Expected '5%', got: {:?}", pct,);
-    }
-}
-
-// =============================================================================
-// NuNER trailing punctuation trimming (unit-level, no model needed)
-// =============================================================================
-
-mod nuner_trim {
-    /// Verify the trimming logic that strips trailing punctuation
-    /// from NuNER entity text.
-    #[test]
-    fn trailing_period_stripped() {
-        let input = "thrive capital.";
-        let trimmed = input
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .trim_end_matches("'s")
-            .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "thrive capital");
-    }
-
-    #[test]
-    fn trailing_possessive_stripped() {
-        let input = "marie curie's";
-        let trimmed = input
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .trim_end_matches("'s")
-            .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "marie curie");
-    }
-
-    #[test]
-    fn clean_text_unchanged() {
-        let input = "Apple Inc";
-        let trimmed = input
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .trim_end_matches("'s")
-            .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "Apple Inc");
-    }
-
-    #[test]
-    fn trailing_comma_stripped() {
-        let input = "Google,";
-        let trimmed = input
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .trim_end_matches("'s")
-            .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "Google");
-    }
-
-    #[test]
-    fn smart_quote_possessive_stripped() {
-        let input = "musk\u{2019}s";
-        let trimmed = input
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .trim_end_matches("'s")
-            .trim_end_matches("\u{2019}s");
-        assert_eq!(trimmed, "musk");
     }
 }

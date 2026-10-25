@@ -369,8 +369,19 @@ impl GLiNERMultitaskOnnx {
             let out_max_width = shape[2] as usize;
             let num_classes = shape[3] as usize;
 
+            if out_max_width == 1 {
+                log::warn!(
+                    "[GLiNERMultitask] Span export has max_width=1: only single-word \
+                     entities can be produced. Re-export with max_width>={} \
+                     (see docs/BACKENDS.md).",
+                    MAX_SPAN_WIDTH
+                );
+            }
+
             for word_idx in 0..out_num_words.min(num_words) {
-                for width in 0..out_max_width.min(MAX_SPAN_WIDTH) {
+                // `out_max_width` is the export's span width; do not clamp it
+                // to the runtime default or wider exports lose spans.
+                for width in 0..out_max_width {
                     let end_word = word_idx + width;
                     if end_word >= num_words {
                         continue;
