@@ -132,8 +132,8 @@ pub struct PiiReport {
     pub id_number_count: usize,
     /// All detected PII entities.
     pub entities: Vec<PiiEntity>,
-    /// k-anonymity risk assessment.
-    pub k_anonymity_risk: String,
+    /// Identifier risk assessment.
+    pub identifier_risk: String,
 }
 
 /// Classify an NER entity as PII.
@@ -270,7 +270,7 @@ pub fn report(entities: &[PiiEntity]) -> PiiReport {
         .map(|e| e.text.to_lowercase())
         .collect();
 
-    let k_anonymity_risk = if id_number_count > 0 {
+    let identifier_risk = if id_number_count > 0 {
         "CRITICAL (direct identifiers present)"
     } else if unique_names.len() > 5 && date_count > 0 && location_count > 0 {
         "HIGH (quasi-identifier combination)"
@@ -287,7 +287,7 @@ pub fn report(entities: &[PiiEntity]) -> PiiReport {
         contact_count,
         id_number_count,
         entities: entities.to_vec(),
-        k_anonymity_risk: k_anonymity_risk.to_string(),
+        identifier_risk: identifier_risk.to_string(),
     }
 }
 
@@ -845,7 +845,7 @@ mod tests {
         let r = report(&entities);
         assert_eq!(r.person_count, 1);
         assert_eq!(r.id_number_count, 1);
-        assert!(r.k_anonymity_risk.starts_with("CRITICAL"));
+        assert!(r.identifier_risk.starts_with("CRITICAL"));
     }
 
     #[test]

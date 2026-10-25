@@ -34,7 +34,7 @@ textprep = "0.1"
 
 ## Clustering / stratification
 #
-# Hierarchical clustering has been archived out of this workspace (see `archive/anno-tier/`).
+# Hierarchical clustering is not part of this workspace.
 
 # CLI dependencies
 clap = { version = "4", features = ["derive", "env", "wrap_help"] }
