@@ -1,6 +1,6 @@
 //! Eval command - Evaluate predictions against gold annotations
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::fs;
 use std::time::Instant;
 
@@ -13,6 +13,27 @@ use super::super::utils::{get_input_text, load_gold_from_file, parse_gold_spec};
 use anno::core::grounded::{
     render_eval_html, EvalComparison, EvalMatch, Location, Signal, SignalId,
 };
+
+/// Metric family used for the evaluation report.
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum MetricKind {
+    /// Entity/span precision, recall and F1 (default).
+    #[default]
+    Entity,
+    /// Character-level masking precision, recall, F1, F2 and FPR.
+    CharMasking,
+}
+
+impl MetricKind {
+    /// Stable name used in machine-readable output.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Entity => "entity",
+            Self::CharMasking => "char-masking",
+        }
+    }
+}
 
 /// Evaluate predictions against gold annotations
 #[derive(Parser, Debug)]
@@ -28,6 +49,10 @@ pub struct EvalArgs {
     /// Model backend to use
     #[arg(short, long, default_value = "stacked")]
     pub model: ModelBackend,
+
+    /// Metric family to report (default: entity)
+    #[arg(long, value_enum, default_value = "entity")]
+    pub metric: MetricKind,
 
     /// Gold annotation: "text:label:start:end" (repeatable)
     #[arg(short, long = "gold", value_name = "SPEC")]
@@ -120,6 +145,30 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
 
     let cmp = EvalComparison::compare(&text, gold_signals, pred_signals);
 
+    // Character-level masking metrics are opt-in: they are meaningful for redaction
+    // evaluation, but they are not a replacement for entity/span F1.
+    let char_masking = if matches!(args.metric, MetricKind::CharMasking) {
+        let gold_entities: Vec<anno::Entity> = gold
+            .iter()
+            .map(|g| {
+                anno::Entity::new(
+                    g.text.clone(),
+                    anno::EntityType::from_label(&g.label),
+                    g.start,
+                    g.end,
+                    1.0,
+                )
+            })
+            .collect();
+        Some(anno_eval::eval::metrics::evaluate_char_masking(
+            &text,
+            &gold_entities,
+            &entities,
+        ))
+    } else {
+        None
+    };
+
     // Detailed analysis with eval feature
     #[cfg(feature = "eval")]
     let detailed_analysis = {
@@ -147,6 +196,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
     if args.json {
         let mut output = serde_json::json!({
             "model": args.model.name(),
+            "metric": args.metric.name(),
             "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
             "gold_count": cmp.gold.len(),
             "predicted_count": cmp.predicted.len(),
@@ -199,6 +249,10 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             })
             .collect();
         output["matches"] = serde_json::Value::Array(matches);
+        if let Some(char_metrics) = &char_masking {
+            output["char_masking"] =
+                serde_json::to_value(char_metrics).unwrap_or(serde_json::Value::Null);
+        }
 
         println!(
             "{}",
@@ -253,6 +307,60 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         println!("  Precision: {}%", metric_colored(p));
         println!("  Recall:    {}%", metric_colored(r));
         println!("  F1:        {}%", metric_colored(f1));
+
+        if let Some(char_metrics) = &char_masking {
+            println!();
+            println!(
+                "  {}",
+                color("1;33", "Character-level masking (char-masking)")
+            );
+            println!(
+                "  Char precision: {}%",
+                metric_colored(char_metrics.precision * 100.0)
+            );
+            println!(
+                "  Char recall:    {}%",
+                metric_colored(char_metrics.recall * 100.0)
+            );
+            println!(
+                "  Char F1:        {}%",
+                metric_colored(char_metrics.f1 * 100.0)
+            );
+            println!(
+                "  Char F2:        {}%",
+                metric_colored(char_metrics.f2 * 100.0)
+            );
+            println!(
+                "  FPR (non-PII):  {}%",
+                metric_colored(char_metrics.false_positive_rate * 100.0)
+            );
+            println!(
+                "  Strict span F1: {}%",
+                metric_colored(char_metrics.strict_span_f1 * 100.0)
+            );
+
+            let mut types: Vec<_> = char_metrics.by_entity_type.values().collect();
+            types.sort_by(|a, b| a.entity_type.cmp(&b.entity_type));
+            if !types.is_empty() {
+                println!();
+                println!(
+                    "  {:<12} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
+                    "Type", "Gold", "Pred", "P%", "R%", "F1%", "F2%"
+                );
+                for type_metrics in types {
+                    println!(
+                        "  {:<12} {:>8} {:>8} {:>8} {:>8} {:>8} {:>8}",
+                        type_metrics.entity_type,
+                        type_metrics.gold_chars,
+                        type_metrics.predicted_chars,
+                        format!("{:.1}", type_metrics.precision * 100.0),
+                        format!("{:.1}", type_metrics.recall * 100.0),
+                        format!("{:.1}", type_metrics.f1 * 100.0),
+                        format!("{:.1}", type_metrics.f2 * 100.0),
+                    );
+                }
+            }
+        }
         println!();
 
         #[cfg(feature = "eval")]
