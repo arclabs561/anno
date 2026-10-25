@@ -388,28 +388,7 @@ jobs:
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
         run: cargo test --workspace --lib --features "candle,eval,discourse"
-  test-production:
-    name: Test (production features)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-        with:
-          cache-all-crates: true
-      - name: Cache HF models
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
-      - name: Build production
-        run: cargo build --workspace --features "production"
-      - name: Test production
-        run: cargo test --workspace --lib --features "production"
+
   test-metal:
     name: Test (Metal on macOS)
     runs-on: macos-latest
@@ -512,7 +491,7 @@ jobs:
       - run: >-
           cargo doc -p anno --no-deps --no-default-features
           --features "heuristic-fr analysis discourse schema graph onnx
-          gliner2-fastino gliner2-fastino-candle candle llm production
+          gliner2-fastino gliner2-fastino-candle candle llm
           bundled-crf-weights bundled-hmm-params chunking parallel"
         env:
           RUSTDOCFLAGS: -D warnings

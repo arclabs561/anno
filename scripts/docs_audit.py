@@ -151,6 +151,45 @@ def check_banned_strings(repo_root: Path) -> int:
     return 1
 
 
+def check_readme_version(repo_root: Path) -> int:
+    """Assert the README's annotated `anno = "..."` version matches the workspace."""
+    cargo_toml = repo_root / "Cargo.toml"
+    readme = repo_root / "README.md"
+    if not cargo_toml.exists() or not readme.exists():
+        print("FAIL: Cargo.toml or README.md not found.", file=sys.stderr)
+        return 2
+
+    cargo_text = cargo_toml.read_text(encoding="utf-8", errors="replace")
+    cargo_match = re.search(r'^version\s*=\s*"([^"]+)"', cargo_text, re.MULTILINE)
+    if not cargo_match:
+        print(
+            "FAIL: could not find the workspace version in Cargo.toml.", file=sys.stderr
+        )
+        return 2
+    workspace_version = cargo_match.group(1)
+
+    readme_text = readme.read_text(encoding="utf-8", errors="replace")
+    readme_match = re.search(r'^anno\s*=\s*"([^"]+)"', readme_text, re.MULTILINE)
+    if not readme_match:
+        print('FAIL: could not find `anno = "..."` in README.md.', file=sys.stderr)
+        return 2
+    readme_version = readme_match.group(1)
+
+    if workspace_version == readme_version or workspace_version.startswith(
+        f"{readme_version}."
+    ):
+        print(
+            f"OK: README version {readme_version} matches workspace version {workspace_version}."
+        )
+        return 0
+
+    print(
+        f"FAIL: README version {readme_version!r} does not match workspace version {workspace_version!r}.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def run_docs_links(repo_root: Path) -> int:
     script = repo_root / "scripts" / "check_docs_links.py"
     if not script.exists():
@@ -178,6 +217,7 @@ def main() -> int:
         rc = max(rc, run_docs_links(repo_root))
     rc = max(rc, check_stale_doc_path_mentions(repo_root))
     rc = max(rc, check_banned_strings(repo_root))
+    rc = max(rc, check_readme_version(repo_root))
 
     if rc == 0:
         print("OK: docs audit passed.")
@@ -186,5 +226,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
