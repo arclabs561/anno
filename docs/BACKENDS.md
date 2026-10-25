@@ -57,6 +57,49 @@ want GLiNER and don't mind which backend serves it. Pick `gliner_onnx`
 or `gliner_candle` explicitly to force one backend and fail at
 construction time if its feature isn't enabled.
 
+#### Span-width exports (`max_width`)
+
+`gliner`, `gliner_poly`, and `gliner_multitask` score a fixed grid of word
+spans per position. The grid width is an **export property**, not a runtime
+knob: the decoder reads it from the output tensor (`[1, words, max_width,
+classes]`, or derives it from `[1, words * max_width, classes]`). An export
+built with `max_width = 1` can only score single-word spans; multi-word
+entities come back as separate words, and a downstream evaluation has
+reported mention-F1 around 0.22 for that path versus 0.75 for the offline
+regex path.
+
+Requirement: export with `max_width >= 12`. The default
+`onnx-community/gliner_small-v2.1` export satisfies this (its
+`gliner_config.json` records `max_width: 12`). Check any other model
+directory before benchmarking:
+
+```sh
+python3 - <<'PY'
+import json, pathlib, sys
+cfg = json.loads(pathlib.Path("<model-dir>/gliner_config.json").read_text())
+width = cfg.get("max_width")
+sys.exit(0 if isinstance(width, int) and width >= 12 else f"max_width={width} < 12")
+PY
+```
+
+To regenerate a local poly/bi-encoder export at the required width:
+
+```sh
+uv run scripts/export_gliner_poly_onnx.py \
+  --model knowledgator/gliner-bi-large-v2.0 \
+  --output ~/.cache/anno/models/gliner-poly \
+  --strategy manual --max-width 12 --quantize
+```
+
+`--strategy manual` is required for a specific width: the GLiNER library's
+`export_to_onnx` path takes no width override. The script now rejects an
+export whose `gliner_config.json` records a width below the requested
+`--max-width`, and the decoder logs a warning when it sees a one-word span
+grid. A narrow graph cannot be widened at load time; rebuild the export.
+`gliner2_fastino` is separate: its eight-graph pipeline bakes
+`MAX_WIDTH = 8` into the export (see `gliner2_fastino/pipeline.rs`), and its
+decoder is consistent with that value.
+
 ### Neural: Candle (feature `candle`)
 
 | Backend | Architecture | Zero-shot | Status | Default model |
@@ -135,6 +178,27 @@ optional Candle implementation is behind `gliner2-fastino-candle`; see
 The ONNX evaluator uses the pinned `jugaadsrl/gliner2-multi-v1-onnx`
 snapshot `4241d7c66b648e618c89c150bf4cf418d2f83159`; it requires about
 1.25 GB for the selected `fp32_v2` files on first use.
+
+### Features not validated in CI
+
+CI compile-checks the hardware-gated features a GitHub-hosted runner can build:
+`onnx-coreml`, `gliner2-fastino-coreml`, `gliner2-fastino-candle-metal`,
+`onnx-cuda`, `onnx-rocm`, and `gliner2-fastino-cuda` (the `test-metal` job in
+`.github/workflows/ci.yml`). They are checked on macOS because all six were
+verified to compile there when the checks were added. A green check means the
+gated code and its dependency features build; it does not mean a provider
+registers, places nodes on a GPU, or produces CPU-matching logits. `onnx-rocm`
+deserves a second caveat: see the legacy-binding note above.
+
+Unvalidated features: not compiled or exercised by CI at all.
+
+| Feature | Why CI does not validate it |
+|---------|-----------------------------|
+| `gliner2-fastino-candle-cuda` | `cudarc`'s build script runs `nvcc --version`, so the build requires a CUDA toolkit. Hosted runners ship none; installing one would add a multi-GB toolchain to the PR path. A local `cargo check --features gliner2-fastino-candle-cuda` fails the same way. |
+
+Do not read a compile check, a declared feature, or a listed backend as runtime
+coverage. Provider behaviour needs evidence from the host you intend to run on;
+use `onnx_cuda_smoke`, `onnx_coreml_smoke`, and the provider probes for that.
 
 ### Neural: LLM (feature `llm`)
 

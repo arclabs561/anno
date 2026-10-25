@@ -1,0 +1,847 @@
+{
+  "artifact_kind": "synthetic-fixture",
+  "metric": "char-masking",
+  "title": "PII character-masking evaluation",
+  "description": "Deterministic pattern + heuristic evaluation over a local fixture. Not a benchmark: no neural/ML model backends were exercised and no public PII dataset split was used.",
+  "command": "CARGO_TARGET_DIR=/Users/arc/.agents/state/cargo-target/anno-eval-masking cargo run -p anno-eval --bin pii_char_eval -- --metric char-masking --fixture crates/anno-eval/fixtures/pii_masking_fixture.jsonl --out-json docs/eval/pii-char-masking.json --out-md docs/eval/pii-char-masking.md --bootstrap",
+  "commit_sha": "fd28a2fe96f9c9847b2c80a75467b17f5f3e7b94",
+  "commit_sha_source": "git rev-parse HEAD at generation time (the artifact is committed in a later local commit on the same branch)",
+  "working_tree_dirty_at_generation": true,
+  "generated_at_utc": "2026-10-25T17:14:59Z",
+  "dataset": {
+    "kind": "synthetic-fixture",
+    "name": "repo testdata + synthetic PII documents",
+    "fixture_path": "crates/anno-eval/fixtures/pii_masking_fixture.jsonl",
+    "fixture_sha256": "55ec74ec71bbb4ab5d282226e1866dd01818356044dce78c473fa324828a06b0",
+    "documents": 8,
+    "public_dataset": "ai4privacy/pii-masking-200k",
+    "public_split": "train (the registry declares only train; no dev/test split is declared)",
+    "note": "Small hand-assembled fixture. A credible public benchmark requires the ai4privacy/pii-masking-200k train split with a documented held-out carve-out (or an equivalent PII corpus with a declared held-out split), plus one or more neural/ML backends."
+  },
+  "model_backends_exercised": false,
+  "backend_scope": "deterministic pattern + heuristic layers only; no neural/ML backends",
+  "deterministic_paths": [
+    "pattern (regex PII scan)",
+    "heuristic NER (StackedNER)"
+  ],
+  "metric_definitions": {
+    "precision": "correctly masked characters / all masked characters",
+    "recall": "correctly masked characters / all gold PII characters",
+    "f1": "harmonic mean of character precision and recall",
+    "f2": "5PR / (4P + R); recall-weighted, beta = 2",
+    "false_positive_rate": "over-masked non-PII characters / all non-PII characters",
+    "strict_span_f1": "exact-boundary span F1 (SemEval exact schema; type ignored)",
+    "overlap_resolution": "overlapping predicted spans are merged into the union of masked characters; the same union is applied to gold spans",
+    "per_entity_type": "each predicted span is attributed to the gold type with the largest character overlap; unattributed over-masks appear only in the overall FPR"
+  },
+  "results": {
+    "counts": {
+      "true_positive_chars": 284,
+      "predicted_chars": 288,
+      "gold_chars": 305,
+      "non_pii_chars": 294,
+      "total_chars": 599
+    },
+    "precision": 0.9861111111111112,
+    "recall": 0.9311475409836065,
+    "f1": 0.9578414839797639,
+    "f2": 0.9416445623342174,
+    "false_positive_rate": 0.013605442176870748,
+    "strict_span_f1": 0.6976744186046512,
+    "gold_span_count": 19,
+    "predicted_span_count": 24,
+    "by_entity_type": {
+      "PHONE": {
+        "entity_type": "PHONE",
+        "true_positive_chars": 32,
+        "predicted_chars": 32,
+        "gold_chars": 32,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0
+      },
+      "EMAIL": {
+        "entity_type": "EMAIL",
+        "true_positive_chars": 68,
+        "predicted_chars": 68,
+        "gold_chars": 68,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0
+      },
+      "DOB": {
+        "entity_type": "DOB",
+        "true_positive_chars": 10,
+        "predicted_chars": 10,
+        "gold_chars": 10,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0
+      },
+      "ADDRESS": {
+        "entity_type": "ADDRESS",
+        "true_positive_chars": 38,
+        "predicted_chars": 38,
+        "gold_chars": 38,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0
+      },
+      "ID_NUMBER": {
+        "entity_type": "ID_NUMBER",
+        "true_positive_chars": 62,
+        "predicted_chars": 62,
+        "gold_chars": 81,
+        "precision": 1.0,
+        "recall": 0.7654320987654321,
+        "f1": 0.8671328671328672,
+        "f2": 0.8031088082901554,
+        "false_positive_rate": 0.0
+      },
+      "PER": {
+        "entity_type": "PER",
+        "true_positive_chars": 74,
+        "predicted_chars": 78,
+        "gold_chars": 76,
+        "precision": 0.9487179487179487,
+        "recall": 0.9736842105263158,
+        "f1": 0.9610389610389611,
+        "f2": 0.968586387434555,
+        "false_positive_rate": 0.013605442176870748
+      }
+    },
+    "ci_95": {
+      "precision": [
+        0.9609120521172638,
+        1.0
+      ],
+      "recall": [
+        0.8508771929824561,
+        1.0
+      ],
+      "f1": [
+        0.906937394247039,
+        1.0
+      ],
+      "f2": [
+        0.8725099601593624,
+        1.0
+      ],
+      "false_positive_rate": [
+        0.0,
+        0.045112781954887216
+      ]
+    }
+  },
+  "documents": [
+    {
+      "id": "repo-doc1",
+      "source": "repo:testdata/fixtures/cross_doc/doc1.txt",
+      "text_chars": 73,
+      "gold_spans": [
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 12,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 12,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 12,
+          "predicted_chars": 12,
+          "gold_chars": 12,
+          "non_pii_chars": 61,
+          "total_chars": 73
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 1.0,
+        "gold_span_count": 1,
+        "predicted_span_count": 1,
+        "by_entity_type": {
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 12,
+            "predicted_chars": 12,
+            "gold_chars": 12,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "repo-doc2",
+      "source": "repo:testdata/fixtures/cross_doc/doc2.txt",
+      "text_chars": 55,
+      "gold_spans": [
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 12,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 12,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 12,
+          "predicted_chars": 12,
+          "gold_chars": 12,
+          "non_pii_chars": 43,
+          "total_chars": 55
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 1.0,
+        "gold_span_count": 1,
+        "predicted_span_count": 1,
+        "by_entity_type": {
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 12,
+            "predicted_chars": 12,
+            "gold_chars": 12,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "repo-doc3",
+      "source": "repo:testdata/fixtures/cross_doc/doc3.txt",
+      "text_chars": 84,
+      "gold_spans": [
+        {
+          "text": "Sundar Pichai",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 13,
+          "confidence": 1.0
+        },
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 18,
+          "end": 30,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "Sundar Pichai",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 13,
+          "confidence": 1.0
+        },
+        {
+          "text": "Jensen Huang",
+          "entity_type": "PER",
+          "start": 18,
+          "end": 30,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 25,
+          "predicted_chars": 25,
+          "gold_chars": 25,
+          "non_pii_chars": 59,
+          "total_chars": 84
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 1.0,
+        "gold_span_count": 2,
+        "predicted_span_count": 2,
+        "by_entity_type": {
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 25,
+            "predicted_chars": 25,
+            "gold_chars": 25,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "synthetic-name-contact",
+      "source": "synthetic",
+      "text_chars": 79,
+      "gold_spans": [
+        {
+          "text": "Alice Johnson",
+          "entity_type": "PER",
+          "start": 9,
+          "end": 22,
+          "confidence": 1.0
+        },
+        {
+          "text": "alice.johnson@example.com",
+          "entity_type": "EMAIL",
+          "start": 30,
+          "end": 55,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1-415-555-0132",
+          "entity_type": "PHONE",
+          "start": 63,
+          "end": 78,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "Alice Johnson",
+          "entity_type": "PER",
+          "start": 9,
+          "end": 22,
+          "confidence": 1.0
+        },
+        {
+          "text": "alice.johnson@example.com",
+          "entity_type": "CONTACT",
+          "start": 30,
+          "end": 55,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1-415-555-0132",
+          "entity_type": "CONTACT",
+          "start": 63,
+          "end": 78,
+          "confidence": 1.0
+        },
+        {
+          "text": "alice.johnson@example.com",
+          "entity_type": "CONTACT",
+          "start": 30,
+          "end": 55,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1-415-555-0132",
+          "entity_type": "CONTACT",
+          "start": 63,
+          "end": 78,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 53,
+          "predicted_chars": 53,
+          "gold_chars": 53,
+          "non_pii_chars": 26,
+          "total_chars": 79
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 0.7499999999999999,
+        "gold_span_count": 3,
+        "predicted_span_count": 5,
+        "by_entity_type": {
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 13,
+            "predicted_chars": 13,
+            "gold_chars": 13,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          },
+          "PHONE": {
+            "entity_type": "PHONE",
+            "true_positive_chars": 15,
+            "predicted_chars": 15,
+            "gold_chars": 15,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          },
+          "EMAIL": {
+            "entity_type": "EMAIL",
+            "true_positive_chars": 25,
+            "predicted_chars": 25,
+            "gold_chars": 25,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "synthetic-identifiers",
+      "source": "synthetic",
+      "text_chars": 71,
+      "gold_spans": [
+        {
+          "text": "123-45-6789",
+          "entity_type": "ID_NUMBER",
+          "start": 4,
+          "end": 15,
+          "confidence": 1.0
+        },
+        {
+          "text": "4111 1111 1111 1111",
+          "entity_type": "ID_NUMBER",
+          "start": 22,
+          "end": 41,
+          "confidence": 1.0
+        },
+        {
+          "text": "GB82WEST12345698765432",
+          "entity_type": "ID_NUMBER",
+          "start": 48,
+          "end": 70,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "5698765432",
+          "entity_type": "CONTACT",
+          "start": 60,
+          "end": 70,
+          "confidence": 1.0
+        },
+        {
+          "text": "123-45-6789",
+          "entity_type": "ID_NUMBER",
+          "start": 4,
+          "end": 15,
+          "confidence": 1.0
+        },
+        {
+          "text": "4111 1111 1111 1111",
+          "entity_type": "ID_NUMBER",
+          "start": 22,
+          "end": 41,
+          "confidence": 1.0
+        },
+        {
+          "text": "GB82WEST12345698765432",
+          "entity_type": "ID_NUMBER",
+          "start": 48,
+          "end": 70,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 52,
+          "predicted_chars": 52,
+          "gold_chars": 52,
+          "non_pii_chars": 19,
+          "total_chars": 71
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 0.8571428571428571,
+        "gold_span_count": 3,
+        "predicted_span_count": 4,
+        "by_entity_type": {
+          "ID_NUMBER": {
+            "entity_type": "ID_NUMBER",
+            "true_positive_chars": 52,
+            "predicted_chars": 52,
+            "gold_chars": 52,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "synthetic-utf8",
+      "source": "synthetic (multi-byte UTF-8)",
+      "text_chars": 52,
+      "gold_spans": [
+        {
+          "text": "李雷",
+          "entity_type": "PER",
+          "start": 5,
+          "end": 7,
+          "confidence": 1.0
+        },
+        {
+          "text": "lilei@example.cn",
+          "entity_type": "EMAIL",
+          "start": 11,
+          "end": 27,
+          "confidence": 1.0
+        },
+        {
+          "text": "110101199001011234",
+          "entity_type": "ID_NUMBER",
+          "start": 33,
+          "end": 51,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "lilei@example.cn",
+          "entity_type": "CONTACT",
+          "start": 11,
+          "end": 27,
+          "confidence": 1.0
+        },
+        {
+          "text": "9001011234",
+          "entity_type": "CONTACT",
+          "start": 41,
+          "end": 51,
+          "confidence": 1.0
+        },
+        {
+          "text": "lilei@example.cn",
+          "entity_type": "CONTACT",
+          "start": 11,
+          "end": 27,
+          "confidence": 1.0
+        },
+        {
+          "text": "9001011234",
+          "entity_type": "CONTACT",
+          "start": 41,
+          "end": 51,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 26,
+          "predicted_chars": 26,
+          "gold_chars": 36,
+          "non_pii_chars": 16,
+          "total_chars": 52
+        },
+        "precision": 1.0,
+        "recall": 0.7222222222222222,
+        "f1": 0.8387096774193548,
+        "f2": 0.7647058823529411,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 0.28571428571428575,
+        "gold_span_count": 3,
+        "predicted_span_count": 4,
+        "by_entity_type": {
+          "EMAIL": {
+            "entity_type": "EMAIL",
+            "true_positive_chars": 16,
+            "predicted_chars": 16,
+            "gold_chars": 16,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          },
+          "ID_NUMBER": {
+            "entity_type": "ID_NUMBER",
+            "true_positive_chars": 10,
+            "predicted_chars": 10,
+            "gold_chars": 18,
+            "precision": 1.0,
+            "recall": 0.5555555555555556,
+            "f1": 0.7142857142857143,
+            "f2": 0.6097560975609756,
+            "false_positive_rate": 0.0
+          },
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 0,
+            "predicted_chars": 0,
+            "gold_chars": 2,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "f2": 0.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "synthetic-dob-address",
+      "source": "synthetic",
+      "text_chars": 75,
+      "gold_spans": [
+        {
+          "text": "1990-01-01",
+          "entity_type": "DOB",
+          "start": 15,
+          "end": 25,
+          "confidence": 1.0
+        },
+        {
+          "text": "123 Main Street, Springfield, IL 62704",
+          "entity_type": "ADDRESS",
+          "start": 36,
+          "end": 74,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "1990-01-01",
+          "entity_type": "DOB",
+          "start": 15,
+          "end": 25,
+          "confidence": 1.0
+        },
+        {
+          "text": "123 Main Street, Springfield, IL 62704",
+          "entity_type": "ADDRESS",
+          "start": 36,
+          "end": 74,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 48,
+          "predicted_chars": 48,
+          "gold_chars": 48,
+          "non_pii_chars": 27,
+          "total_chars": 75
+        },
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "f2": 1.0,
+        "false_positive_rate": 0.0,
+        "strict_span_f1": 1.0,
+        "gold_span_count": 2,
+        "predicted_span_count": 2,
+        "by_entity_type": {
+          "ADDRESS": {
+            "entity_type": "ADDRESS",
+            "true_positive_chars": 38,
+            "predicted_chars": 38,
+            "gold_chars": 38,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          },
+          "DOB": {
+            "entity_type": "DOB",
+            "true_positive_chars": 10,
+            "predicted_chars": 10,
+            "gold_chars": 10,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    },
+    {
+      "id": "synthetic-mixed",
+      "source": "synthetic",
+      "text_chars": 110,
+      "gold_spans": [
+        {
+          "text": "Maria Garcia",
+          "entity_type": "PER",
+          "start": 4,
+          "end": 16,
+          "confidence": 1.0
+        },
+        {
+          "text": "maria.garcia@clinic.example",
+          "entity_type": "EMAIL",
+          "start": 18,
+          "end": 45,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1 (212) 555-0198",
+          "entity_type": "PHONE",
+          "start": 59,
+          "end": 76,
+          "confidence": 1.0
+        },
+        {
+          "text": "987-65-4321",
+          "entity_type": "ID_NUMBER",
+          "start": 98,
+          "end": 109,
+          "confidence": 1.0
+        }
+      ],
+      "predicted_spans": [
+        {
+          "text": "Dr. Maria Garcia",
+          "entity_type": "PER",
+          "start": 0,
+          "end": 16,
+          "confidence": 1.0
+        },
+        {
+          "text": "maria.garcia@clinic.example",
+          "entity_type": "CONTACT",
+          "start": 18,
+          "end": 45,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1 (212) 555-0198",
+          "entity_type": "CONTACT",
+          "start": 59,
+          "end": 76,
+          "confidence": 1.0
+        },
+        {
+          "text": "maria.garcia@clinic.example",
+          "entity_type": "CONTACT",
+          "start": 18,
+          "end": 45,
+          "confidence": 1.0
+        },
+        {
+          "text": "+1 (212) 555-0198",
+          "entity_type": "CONTACT",
+          "start": 59,
+          "end": 76,
+          "confidence": 1.0
+        }
+      ],
+      "metrics": {
+        "counts": {
+          "true_positive_chars": 56,
+          "predicted_chars": 60,
+          "gold_chars": 67,
+          "non_pii_chars": 43,
+          "total_chars": 110
+        },
+        "precision": 0.9333333333333333,
+        "recall": 0.835820895522388,
+        "f1": 0.8818897637795275,
+        "f2": 0.853658536585366,
+        "false_positive_rate": 0.09302325581395349,
+        "strict_span_f1": 0.4444444444444445,
+        "gold_span_count": 4,
+        "predicted_span_count": 5,
+        "by_entity_type": {
+          "PHONE": {
+            "entity_type": "PHONE",
+            "true_positive_chars": 17,
+            "predicted_chars": 17,
+            "gold_chars": 17,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          },
+          "PER": {
+            "entity_type": "PER",
+            "true_positive_chars": 12,
+            "predicted_chars": 16,
+            "gold_chars": 12,
+            "precision": 0.75,
+            "recall": 1.0,
+            "f1": 0.8571428571428571,
+            "f2": 0.9375,
+            "false_positive_rate": 0.09302325581395349
+          },
+          "ID_NUMBER": {
+            "entity_type": "ID_NUMBER",
+            "true_positive_chars": 0,
+            "predicted_chars": 0,
+            "gold_chars": 11,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "f2": 0.0,
+            "false_positive_rate": 0.0
+          },
+          "EMAIL": {
+            "entity_type": "EMAIL",
+            "true_positive_chars": 27,
+            "predicted_chars": 27,
+            "gold_chars": 27,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "f2": 1.0,
+            "false_positive_rate": 0.0
+          }
+        }
+      }
+    }
+  ]
+}
