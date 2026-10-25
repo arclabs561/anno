@@ -1,0 +1,20 @@
+## cargo-audit configuration for anno
+#
+# Run: cargo audit
+#
+# CI runs `cargo generate-lockfile && cargo audit` (.github/workflows/ci.yml),
+# so the resolved lockfile is scanned as a whole, including optional
+# dependencies that the default feature set never builds.
+
+[advisories]
+ignore = [
+    # zip 8.6.0 is pinned by candle-core 0.11.0 (current release, declared as
+    # `zip = "^8.6.0"`, non-optional) and cannot reach the patched zip 9.
+    # candle-core only reads archives with `ZipArchive::new`/`by_index`/
+    # `by_name` and writes them with `ZipWriter` (src/npy.rs, src/pickle.rs);
+    # it never calls the `extract()` entry points these advisories describe.
+    # Remove these ignores once candle-core accepts zip 9.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]
