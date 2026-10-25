@@ -842,16 +842,20 @@ mod tests {
             },
         ];
         let text = "John Smith called.";
-        // Should not panic and should produce valid UTF-8 output
         let result = redact(text, &entities);
+        // Assert the exact output, not just the absence of the original string. A resolver
+        // that kept the inner span would emit "[PERSON_1] Smith called.", which still
+        // satisfies a "does not contain 'John Smith'" check while leaking "Smith".
+        assert_eq!(result, "[PERSON_1] called.");
         assert!(
-            !result.contains("John Smith"),
-            "original text should be redacted"
+            !result.contains("Smith"),
+            "no part of the overlapping span may survive redaction"
         );
-        assert!(
-            result.contains("called"),
-            "non-PII text should be preserved"
-        );
+
+        // The resolver sorts spans itself, so the input order must not change the result.
+        let mut reversed = entities.clone();
+        reversed.reverse();
+        assert_eq!(redact(text, &reversed), "[PERSON_1] called.");
     }
 
     #[test]
