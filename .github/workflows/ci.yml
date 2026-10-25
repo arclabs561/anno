@@ -1039,36 +1039,60 @@ jobs:
             printf '%s\n' '{"version":"2.1.0","runs":[]}' > opengrep-results.sarif
           fi
       - name: Run OpenGrep (custom rules - general)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-security.yaml \
             --json --output opengrep-security-results.json \
             crates/anno/ || true
       - name: Run OpenGrep (custom rules - NLP/ML patterns)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-nlp-ml-patterns.yaml \
             --json --output opengrep-nlp-results.json \
             crates/anno/ || true
       - name: Run OpenGrep (custom rules - evaluation framework)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-evaluation-framework.yaml \
             --json --output opengrep-eval-results.json \
             crates/anno-eval/ || true
       - name: Run OpenGrep (custom rules - anno-specific)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-anno-specific.yaml \
             --json --output opengrep-anno-results.json \
             crates/anno/ || true
       - name: Run OpenGrep (custom rules - error handling)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-error-handling.yaml \
             --json --output opengrep-error-results.json \
             crates/anno/ || true
       - name: Run OpenGrep (custom rules - memory patterns)
+        # Observed exit 7 (config/rule load failure) on v1.30.2; the previous
+        # `|| true` masked it, so these rules have never actually run. Keep the
+        # scan non-fatal until the failing rule is identified on Linux.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-memory-patterns.yaml \
