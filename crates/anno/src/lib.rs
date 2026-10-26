@@ -1242,3 +1242,9 @@ mod batch_tests {
         }
     }
 }
+
+/// Compiles the README's Rust examples in doctest builds so the quick-start
+/// cannot drift from the API. Never part of the public docs.
+#[cfg(doctest)]
+#[doc = include_str!("../../../README.md")]
+pub struct ReadmeExamples;
