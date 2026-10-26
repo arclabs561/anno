@@ -978,6 +978,15 @@ jobs:
   opengrep:
     name: OpenGrep Static Analysis
     runs-on: ubuntu-latest
+    # Advisory job: the custom rule set cannot be validated yet. Reproduced on
+    # Linux with the pinned v1.30.2 binary -- every rules file is rejected
+    # before scanning: (`not:` is not a semgrep operator, 41 uses across 6
+    # files; after converting those, some rules still use unparseable Rust
+    # patterns such as `/// ...`). scripts/validate-rules.sh therefore fails,
+    # and it is the real gate that a bulk rule rewrite must satisfy. Keep the
+    # job non-fatal (SARIF/JSON artifacts still upload) until the rule set is
+    # repaired and its precision measured per rule.
+    continue-on-error: true
     permissions:
       contents: read
       security-events: write
