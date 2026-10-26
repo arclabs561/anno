@@ -157,6 +157,13 @@ jobs:
           cache-all-crates: true
       - run: cargo test --package anno --no-default-features --lib
       - run: cargo test --package anno --lib
+      # `anno::metrics`/coref helpers and the JSON-schema unit tests exist only
+      # under the `analysis` and `schema` features. `clippy-extra` type-checks
+      # those modules but never builds their unit tests, and `coverage` does not
+      # run on pull requests, so these tests otherwise execute nowhere in CI.
+      # Cost: one recompile of the `anno` crate; `analysis` is a zero-dependency
+      # flag and `schema` adds only the small optional `schemars` dependency.
+      - run: cargo test --package anno --lib --features "analysis schema"
   # ==========================================================================
   # Evaluation framework tests
   # ==========================================================================
@@ -404,6 +411,28 @@ jobs:
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
         run: cargo test --workspace --lib --features "metal"
+      # Compile-only coverage for hardware-gated features no other job enables.
+      # These paths (`#[cfg(feature = "onnx-cuda")]` provider registration in
+      # crates/anno/src/backends/hf_loader.rs, Candle/CoreML deps) were previously
+      # never compiled at all on any runner. `cargo check` proves the gated code and
+      # its dependency features still build; it does not prove GPU placement or
+      # execution. `gliner2-fastino-candle-cuda` is the exception: its `cudarc`
+      # build script runs `nvcc --version`, so it cannot compile without a CUDA
+      # toolkit and is documented as unvalidated in docs/BACKENDS.md instead of
+      # checked here. Verify locally with:
+      #   RUSTC_WRAPPER= cargo check -p anno --features <feature>
+      - name: Check feature onnx-coreml
+        run: cargo check -p anno --features onnx-coreml
+      - name: Check feature gliner2-fastino-coreml
+        run: cargo check -p anno --features gliner2-fastino-coreml
+      - name: Check feature gliner2-fastino-candle-metal
+        run: cargo check -p anno --features gliner2-fastino-candle-metal
+      - name: Check feature onnx-cuda
+        run: cargo check -p anno --features onnx-cuda
+      - name: Check feature onnx-rocm
+        run: cargo check -p anno --features onnx-rocm
+      - name: Check feature gliner2-fastino-cuda
+        run: cargo check -p anno --features gliner2-fastino-cuda
   # ==========================================================================
   # Minimum supported Rust version
   # ==========================================================================
@@ -508,11 +537,13 @@ jobs:
           cache-all-crates: true
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
-          echo "ANNO_CACHE_DIR=$HOME/.anno_cache" >> "$GITHUB_ENV"
-          echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl" >> "$GITHUB_ENV"
-          # Keep current-run evidence outside restored cache state so the outcome gate cannot
-          # pass on decision records from an earlier workflow run.
-          echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl" >> "$GITHUB_ENV"
+          {
+            echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
+            echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
+            # Keep current-run evidence outside restored cache state so the outcome gate cannot
+            # pass on decision records from an earlier workflow run.
+            echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
+          } >> "$GITHUB_ENV"
       - name: Configure AWS credentials (OIDC) for dataset cache
         if: ${{ vars.ANNO_AWS_ROLE_ARN != '' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') }}
         uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
@@ -608,8 +639,14 @@ jobs:
           ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-          # Enable regression detection (emits warnings when Cohen's d >= 2.0 over 20+ obs).
-          # Non-fatal: fires on stderr, does not fail the job.
+          # Enable eval-history regression detection. It compares each cell's last 5
+          # observations against its pre-existing mean and alerts when Cohen's d >= 2.0
+          # (requires >= 20 historical observations per cell).
+          # ADVISORY ONLY: alerts are printed to stderr and the step does not fail.
+          # The history is cache-restored across runs and seeds/subsets vary per run, so
+          # the detector is a heuristic without an established false-positive rate;
+          # failing on it would gate PRs on noise. Promote to a failing check only after
+          # alerts are reproduced on a fixed panel. See docs/EVALUATION_SAMPLING.md.
           ANNO_CHECK_REGRESSIONS: "1"
       - name: Verify matrix decision log
         if: always()
@@ -633,26 +670,6 @@ jobs:
             ${{ runner.temp }}/muxer-decisions.jsonl
             Cargo.lock
           if-no-files-found: warn
-  # ==========================================================================
-  # F1 Unit Tests (evaluator math invariants)
-  # Note: actual eval-history regression detection runs in matrix-test (worst-first step,
-  # ANNO_CHECK_REGRESSIONS=1) once sufficient history has accumulated (≥20 obs per cell).
-  # ==========================================================================
-  regression:
-    name: F1 Evaluator Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-        with:
-          cache-all-crates: true
-      - name: Run evaluator unit tests
-        run: cargo test -p anno-eval --lib --features "eval discourse" test_comprehensive_eval_results_average_f1 -- --nocapture
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
@@ -852,7 +869,14 @@ jobs:
           toolchain: "stable"
       # Library crates gitignore Cargo.lock; generate one for the audit scan.
       - run: cargo generate-lockfile
+      - name: Cache cargo-audit
+        id: cache-audit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-0.22.2
       - name: Install cargo-audit
+        if: steps.cache-audit.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-audit --version 0.22.2
       - name: Check RustSec advisories
         # Vulnerabilities fail; informational advisories remain visible warnings.
@@ -899,7 +923,14 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-deny
+        id: cache-deny
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-0.19.0
       - name: Install cargo-deny
+        if: steps.cache-deny.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-deny --version 0.19.0
       - name: Check dependencies
         run: cargo deny check
@@ -917,44 +948,44 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-machete
+        id: cache-machete
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-machete
+          key: cargo-machete-${{ runner.os }}-v1
       - name: Install cargo-machete
+        if: steps.cache-machete.outputs.cache-hit != 'true'
         run: cargo install cargo-machete
       - name: Check unused dependencies
         run: ./scripts/static-analysis-common.sh machete
-  # Unsafe code statistics (creative: generate report)
-  safety-report:
-    name: Safety Report (Unsafe Code Stats)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-        with:
-          cache-all-crates: true
-      - name: Install cargo-geiger
-        run: cargo install cargo-geiger
-      - name: Generate safety report
-        run: |
-          cargo geiger --output-format json > safety-report.json 2>/dev/null || echo "{}" > safety-report.json
-          echo "## Unsafe Code Statistics" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat safety-report.json | jq -r '.packages[] | select(.geiger.unsafe_used > 0) | "\(.name): \(.geiger.unsafe_used) unsafe uses"' >> $GITHUB_STEP_SUMMARY || echo "No unsafe code found" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-      - name: Upload safety report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: safety-report
-          path: safety-report.json
-  # OpenGrep: Custom security pattern detection
+  # Unsafe-code statistics are not generated here. The former `safety-report` job
+  # ran an unpinned `cargo geiger` behind `continue-on-error: true` and
+  # `|| echo "{}"`, so it could never fail and asserted nothing. The same geiger
+  # report and unsafe-code trends are produced by the weekly workflow
+  # (.github/workflows/static-analysis-weekly.yml):
+  #   `./scripts/generate-safety-report.sh`
+  #   `./scripts/track-unsafe-code-trends.sh`
+  # A per-PR gate was rejected rather than pinned: an unsafe-use count is a
+  # statistic, and this repo defines no acceptable threshold or baseline for it.
+  # OpenGrep: Custom security pattern detection.
+  # Gate semantics: the pinned binary must install, the in-repo rule files must
+  # validate, and every custom-rule scan must complete. Findings themselves stay
+  # advisory (counts in the step summary, full results in SARIF and artifacts):
+  # no baseline exists for these heuristic rules, so finding-fatal would block
+  # PRs on unmeasured signal. `opengrep scan` exits 0 on findings by default and
+  # non-zero on config/rule errors, which is exactly the split we want.
   opengrep:
     name: OpenGrep Static Analysis
     runs-on: ubuntu-latest
+    # Advisory job: the custom rule set cannot be validated yet. Reproduced on
+    # Linux with the pinned v1.30.2 binary -- every rules file is rejected
+    # before scanning: (`not:` is not a semgrep operator, 41 uses across 6
+    # files; after converting those, some rules still use unparseable Rust
+    # patterns such as `/// ...`). scripts/validate-rules.sh therefore fails,
+    # and it is the real gate that a bulk rule rewrite must satisfy. Keep the
+    # job non-fatal (SARIF/JSON artifacts still upload) until the rule set is
+    # repaired and its precision measured per rule.
     continue-on-error: true
     permissions:
       contents: read
@@ -976,13 +1007,17 @@ jobs:
           echo "${OPENGREP_SHA256}  $HOME/.local/bin/opengrep" | sha256sum -c -
           chmod +x "$HOME/.local/bin/opengrep"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Run OpenGrep (default rules)
+      - name: Run OpenGrep (registry rules, advisory)
+        # `--config auto` fetches the semgrep registry rule set at run time: the
+        # effective rules are unpinned and need network access. Kept advisory so
+        # a registry outage or rule churn cannot fail the build.
+        continue-on-error: true
         run: |
           opengrep scan \
             --config auto \
             --json --output opengrep-results.json \
             --sarif-output opengrep-results.sarif \
-            crates/anno/ || true
+            crates/anno/
       - name: Ensure SARIF output exists
         if: always()
         run: |
@@ -990,45 +1025,127 @@ jobs:
             printf '%s\n' '{"version":"2.1.0","runs":[]}' > opengrep-results.sarif
           fi
       - name: Run OpenGrep (custom rules - general)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-security.yaml \
             --json --output opengrep-security-results.json \
-            crates/anno/ || true
+            crates/anno/
       - name: Run OpenGrep (custom rules - NLP/ML patterns)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-nlp-ml-patterns.yaml \
             --json --output opengrep-nlp-results.json \
-            crates/anno/ || true
+            crates/anno/
       - name: Run OpenGrep (custom rules - evaluation framework)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-evaluation-framework.yaml \
             --json --output opengrep-eval-results.json \
-            crates/anno-eval/ || true
+            crates/anno-eval/
       - name: Run OpenGrep (custom rules - anno-specific)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-anno-specific.yaml \
             --json --output opengrep-anno-results.json \
-            crates/anno/ || true
+            crates/anno/
       - name: Run OpenGrep (custom rules - error handling)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-error-handling.yaml \
             --json --output opengrep-error-results.json \
-            crates/anno/ || true
+            crates/anno/
       - name: Run OpenGrep (custom rules - memory patterns)
+        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
+        # scans. Reproduced on Linux (amd64 container, same pinned binary):
+        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
+        #       across 6 files (`pattern-not:` is the equivalent);
+        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
+        #       such as `unsafe-function-without-docs` (`/// ...`).
+        # The rules have therefore never run. Keep the scan non-fatal and fix the
+        # rule set before gating it.
+        continue-on-error: true
         run: |
           opengrep scan \
             -f .opengrep/rules/rust-memory-patterns.yaml \
             --json --output opengrep-memory-results.json \
-            crates/anno/ || true
+            crates/anno/
       - name: Validate rules
+        # Exits non-zero on a rule regression. Skips its opengrep/jq checks with a
+        # WARNING (exit 0) when either tool is missing, so this cannot fail spuriously.
         run: |
           chmod +x scripts/*.sh
-          ./scripts/validate-rules.sh || true
+          ./scripts/validate-rules.sh
+      - name: Report finding counts (advisory)
+        if: always()
+        run: |
+          total=0
+          for f in \
+            opengrep-results.json \
+            opengrep-security-results.json \
+            opengrep-nlp-results.json \
+            opengrep-eval-results.json \
+            opengrep-anno-results.json \
+            opengrep-error-results.json \
+            opengrep-memory-results.json
+          do
+            if [ -s "$f" ]; then
+              n="$(jq -r 'if type == "array" then length else (.results // [] | length) end' "$f" 2>/dev/null || echo 0)"
+              total=$((total + n))
+              printf 'OpenGrep %s: %s finding(s)\n' "$f" "$n"
+            else
+              printf 'OpenGrep %s: no output file\n' "$f"
+            fi
+          done
+          {
+            echo "## OpenGrep findings (advisory)"
+            echo ""
+            echo "Total: ${total}. Advisory only; see the SARIF upload and artifacts."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         if: always()
@@ -1066,7 +1183,8 @@ jobs:
             opengrep-memory-results.json
           if-no-files-found: error
   # Code coverage (optional, runs on schedule or manual trigger)
-  # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs)
+  # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs).
+  # PR coverage for the `analysis`/`schema` features runs in test-minimal instead.
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -1081,9 +1199,23 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Cache cargo-llvm-cov
+        id: cache-llvm-cov
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-llvm-cov
+          key: cargo-llvm-cov-${{ runner.os }}-v1
       - name: Install cargo-llvm-cov
+        if: steps.cache-llvm-cov.outputs.cache-hit != 'true'
         run: cargo install cargo-llvm-cov
+      - name: Cache cargo-nextest
+        id: cache-nextest
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-nextest
+          key: cargo-nextest-${{ runner.os }}-v1
       - name: Install cargo-nextest
+        if: steps.cache-nextest.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-nextest
       - name: Generate coverage
         run: cargo llvm-cov nextest --profile coverage --workspace --features "eval discourse" --lcov --output-path lcov.info
