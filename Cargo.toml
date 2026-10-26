@@ -51,14 +51,14 @@ dirs = "5"
 # ML backends (not optional in workspace - individual crates can make them optional)
 # TODO: upgrade to stable ort 2.0 when released (still RC as of 2026-03)
 ort = "=2.0.0-rc.12"
-tokenizers = "0.22"
+tokenizers = "0.23"
 hf-hub = "0.5"
 ndarray = "0.17"
 lru = "0.18.2"
 candle-core = "0.11"
 candle-nn = "0.11"
 candle-transformers = "0.11"
-safetensors = "0.4"
+safetensors = "0.8"
 half = "2"
 
 # Document-to-text extraction
