@@ -13,16 +13,6 @@ rules:
             let $CLONED = $VAR.clone();
             // ... use $CLONED ...
           }
-      - not:
-          - pattern-either:
-              - pattern: |
-                  // Clone needed for ownership
-              - pattern: |
-                  // Clone necessary for parallel processing
-              - pattern: |
-                  // API requirement
-              - pattern: |
-                  // Ownership transfer
     message: "Cloning in loop. Consider cloning once before loop or using Arc/Rc for shared ownership. If clone is necessary (ownership transfer, API requirement, parallel processing), add a comment explaining why."
     languages: [rust]
     severity: INFO
@@ -59,10 +49,6 @@ rules:
           let $SESSION = $POOL.acquire()?;
           // ... use session ...
           // No explicit release or drop
-      - not:
-          - pattern: |
-              drop($SESSION);
-              // or RAII pattern
     message: "Session acquired but not explicitly released. Ensure proper cleanup or use RAII pattern."
     languages: [rust]
     severity: WARNING
@@ -79,9 +65,6 @@ rules:
           let $ARC1 = Arc::new($DATA);
           let $ARC2 = $ARC1.clone();
           // ... use $ARC2 but could use $ARC1 ...
-      - not:
-          - pattern: |
-              // Arc clone needed for ownership transfer
     message: "Unnecessary Arc clone. Consider using Arc::clone only when ownership transfer is needed."
     languages: [rust]
     severity: INFO
@@ -100,9 +83,6 @@ rules:
     patterns:
       - pattern: |
           let $CLONED = $LARGE_VEC.clone();
-      - not:
-          - pattern: |
-              // Clone needed for ownership
     message: "Cloning large Vec. Consider using Arc<Vec<T>> or Rc<Vec<T>> for shared ownership if appropriate."
     languages: [rust]
     severity: INFO

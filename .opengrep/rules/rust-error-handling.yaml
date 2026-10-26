@@ -10,12 +10,6 @@ rules:
     patterns:
       - pattern: |
           let $VAR = $MUTEX.lock();
-      - not:
-          - pattern-either:
-              - pattern: .unwrap_or_else(|e| e.into_inner())
-              - pattern: .map_err
-              - pattern: match $MUTEX.lock()
-              - pattern: if let Ok
     message: "Mutex lock without poison handling. Use unwrap_or_else(|e| e.into_inner()) to handle poisoning, or match/if-let for explicit handling. See BUGS_FIXED.md for deadlock bug example."
     languages: [rust]
     severity: WARNING
@@ -35,9 +29,6 @@ rules:
     patterns:
       - pattern: |
           $MUTEX.lock().unwrap()
-      - not:
-          - pattern: |
-              use crate::sync::lock
     message: "Direct mutex lock bypasses sync::lock helper. Use lock(&mutex) for proper poison handling. The sync::lock helper handles poisoning gracefully."
     languages: [rust]
     severity: WARNING
@@ -75,30 +66,10 @@ rules:
   # Error Context and Propagation
   # ============================================================================
   
-  - id: error-conversion-without-context
-    patterns:
-      - pattern: |
-          .map_err(|e| Error::$TYPE(format!("{}", e)))
-      - not:
-          - pattern: |
-              .map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))
-    message: "Error conversion without context. Add context about what operation failed (e.g., 'Failed to download model: {}')."
-    languages: [rust]
-    severity: INFO
-    metadata:
-      category: developer-experience
-    paths:
-      include:
-        - "**/backends/**"
-        - "**/eval/**"
-
   - id: result-propagation-without-context
     patterns:
       - pattern: |
           $FUNC()?;
-      - not:
-          - pattern: |
-              $FUNC().map_err(|e| Error::$TYPE(format!("$CONTEXT: {}", e)))?;
     message: "Result propagation without context. Consider adding context with map_err for better error messages."
     languages: [rust]
     severity: INFO
@@ -119,9 +90,6 @@ rules:
           enum $ERROR {
             // backend-specific errors
           }
-      - not:
-          - pattern: |
-              impl From<$ERROR> for crate::Error
     message: "Backend-specific error type without conversion to crate::Error. Consider implementing From trait for consistency."
     languages: [rust]
     severity: INFO

@@ -35,10 +35,6 @@ rules:
   - id: panic-in-library
     patterns:
       - pattern: panic!(...)
-      - not:
-          - pattern: |
-              #[cfg(test)]
-              ...
     message: "Panic in library code. Libraries should return Result types instead of panicking."
     languages: [rust]
     severity: ERROR
@@ -59,10 +55,6 @@ rules:
           unsafe {
             $BODY
           }
-      - not:
-          - pattern: |
-              // SAFETY:
-              ...
     message: "Unsafe block without safety comment. Document why this is safe."
     languages: [rust]
     severity: WARNING
@@ -75,10 +67,6 @@ rules:
           unsafe fn $F(...) {
             $BODY
           }
-      - not:
-          - pattern: |
-              /// ...
-              unsafe fn $F
     message: "Unsafe function without documentation. Document safety requirements."
     languages: [rust]
     severity: WARNING
@@ -93,11 +81,6 @@ rules:
     patterns:
       - pattern: |
           let $VAR = $MUTEX.lock();
-      - not:
-          - pattern-either:
-              - pattern: .unwrap_or_else
-              - pattern: .map_err
-              - pattern: match $MUTEX.lock()
     message: "Mutex lock without poison handling. Consider unwrap_or_else or proper error handling."
     languages: [rust]
     severity: WARNING
@@ -116,13 +99,6 @@ rules:
   - id: unchecked-array-access
     patterns:
       - pattern: $ARR[$INDEX]
-      - not:
-          - pattern-either:
-              - pattern: $ARR.get($INDEX)
-              - pattern: |
-                  if $INDEX < $ARR.len() {
-                    $ARR[$INDEX]
-                  }
     message: "Unchecked array access. Consider using get() or bounds checking."
     languages: [rust]
     severity: WARNING
@@ -155,17 +131,6 @@ rules:
   - id: division-without-zero-check
     patterns:
       - pattern: $NUM / $DENOM
-      - not:
-          - pattern-either:
-              - pattern: |
-                  if $DENOM != 0 {
-                    $NUM / $DENOM
-                  }
-              - pattern: |
-                  if $DENOM == 0 {
-                    return Err(...);
-                  }
-              - pattern: $DENOM.checked_div
     message: "Division without zero check. Could panic on zero denominator."
     languages: [rust]
     severity: WARNING

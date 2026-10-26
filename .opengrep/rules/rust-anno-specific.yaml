@@ -6,33 +6,6 @@ rules:
   # Entity Extraction Patterns
   # ============================================================================
   
-  - id: entity-offset-validation-missing
-    patterns:
-      - pattern: |
-          Entity {
-            start: $START,
-            end: $END,
-            ...
-          }
-      - not:
-          - pattern: |
-              if $START > $END {
-                return Err(...);
-              }
-    message: "Entity created without offset validation. Ensure start <= end."
-    languages: [rust]
-    severity: WARNING
-    metadata:
-      category: correctness
-    paths:
-      include:
-        - "**/entity.rs"
-        - "**/grounded.rs"
-
-  # ============================================================================
-  # Graph Export Patterns
-  # ============================================================================
-  
   - id: graph-node-empty-id
     pattern-either:
       - pattern: GraphNode::new("", $TYPE, $NAME)

@@ -10,12 +10,6 @@ rules:
     patterns:
       - pattern: |
           Entity::new($TEXT, $TYPE, $START, $END, $CONF)
-      - not:
-          - pattern-either:
-              - pattern: |
-                  // Validated in Entity::new
-              - pattern: |
-                  Entity::new_validated
     message: "Entity created via Entity::new. Consider using validation methods or ensure offsets are validated elsewhere."
     languages: [rust]
     severity: INFO
@@ -33,13 +27,6 @@ rules:
       - pattern: |
           let $ENTITY = Entity::new(...);
           // ... use $ENTITY without validation ...
-      - not:
-          - pattern: |
-              $ENTITY.validate(...)
-              // or
-              if !$ENTITY.is_valid(...) {
-                return Err(...);
-              }
     message: "Entity created but not validated before use. Call entity.validate(text) or entity.is_valid(text) to check offset bounds and text matching."
     languages: [rust]
     severity: INFO
@@ -59,11 +46,6 @@ rules:
             // ... overlap calculation ...
             $NUM / $DENOM
           }
-      - not:
-          - pattern: |
-              if $DENOM == 0.0 {
-                return 0.0;
-              }
     message: "Span overlap calculation without zero-check. Division by zero possible."
     languages: [rust]
     severity: WARNING
@@ -108,9 +90,6 @@ rules:
       - pattern: |
           let $MODEL = $REPO.get($PATH)
             .map_err(|e| Error::Retrieval(format!("Failed: {}", e)))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to download $MODEL_NAME: {}. Hint: {}", e, $HINT)))
     message: "Model download error without helpful context. Add hints about authentication, model ID, or alternatives."
     languages: [rust]
     severity: INFO
@@ -126,11 +105,6 @@ rules:
           let $REPO = $API.model($MODEL_ID);
           let $FILE = $REPO.get($PATH)
             .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              if $ERROR.contains("401") || $ERROR.contains("Unauthorized") {
-                // authentication hint
-              }
     message: "HuggingFace download without authentication error handling. Check for 401 errors and provide helpful hints."
     languages: [rust]
     severity: INFO
@@ -148,9 +122,6 @@ rules:
           Session::builder()
             .commit_from_file($PATH)
             .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to load ONNX model from {}: {}. Check model format and ONNX Runtime installation.", $PATH, e)))
     message: "ONNX session creation without detailed error context. Add model path and troubleshooting hints."
     languages: [rust]
     severity: INFO
@@ -169,9 +140,6 @@ rules:
     patterns:
       - pattern: |
           let variance = $SCORES.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / $N;
-      - not:
-          - pattern: |
-              / ($N - 1.0)
     message: "Variance calculation using population variance (n) instead of sample variance (n-1). Use Bessel's correction for unbiased estimates."
     languages: [rust]
     severity: ERROR
@@ -206,9 +174,6 @@ rules:
           // ... use as Model ...
       - pattern: |
           $BACKEND.extract_entities(...)
-      - not:
-          - pattern: |
-              // Backend is a Model trait
     message: "BackendFactory::create() returns Model, but some backends (e.g., coref_resolver) use different traits. Check backend type compatibility."
     languages: [rust]
     severity: WARNING
@@ -224,9 +189,6 @@ rules:
       - pattern: |
           #[cfg(feature = "eval-parallel")]
           $BACKEND.extract_entities(...)
-      - not:
-          - pattern: |
-              // Thread-local backend or thread-safe
     message: "Parallel evaluation using backend. Ensure backend is thread-safe or use thread-local storage."
     languages: [rust]
     severity: WARNING
@@ -244,11 +206,6 @@ rules:
     patterns:
       - pattern: |
           let $METRIC = $TP / ($TP + $FP);
-      - not:
-          - pattern: |
-              if $TP + $FP == 0 {
-                return 0.0; // or handle division by zero
-              }
     message: "Precision/recall/F1 calculation without zero-check. Handle division by zero for edge cases."
     languages: [rust]
     severity: WARNING
@@ -303,9 +260,6 @@ rules:
       - pattern: |
           Tokenizer::from_file($PATH)
             .map_err(|e| Error::Retrieval(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Retrieval(format!("Failed to load tokenizer from {}: {}. Ensure tokenizer.json exists.", $PATH, e)))
     message: "Tokenizer loading without detailed error context. Add file path and format hints."
     languages: [rust]
     severity: INFO
@@ -321,11 +275,6 @@ rules:
           let $ENCODED = $TOKENIZER.encode($TEXT, ...)?;
           let $IDS = $ENCODED.get_ids();
           // ... use $IDS without length check ...
-      - not:
-          - pattern: |
-              if $IDS.len() > $MAX_LEN {
-                return Err(...);
-              }
     message: "Token encoding without max length check. Long texts may exceed model max sequence length."
     languages: [rust]
     severity: WARNING
@@ -344,11 +293,6 @@ rules:
       - pattern: |
           let $DATASET = load_dataset($ID)?;
           // ... use dataset ...
-      - not:
-          - pattern: |
-              if $DATASET.is_empty() {
-                return Err(...);
-              }
     message: "Dataset loaded without empty check. Empty datasets may cause evaluation errors."
     languages: [rust]
     severity: WARNING
@@ -364,9 +308,6 @@ rules:
       - pattern: |
           serde_json::from_str($JSON)
             .map_err(|e| Error::Parse(...))?;
-      - not:
-          - pattern: |
-              .map_err(|e| Error::Parse(format!("Failed to parse JSON: {}. Input: {}...", e, &$JSON[..100.min($JSON.len())])))
     message: "JSON parsing without input context in error. Add truncated input to error message for debugging."
     languages: [rust]
     severity: INFO
