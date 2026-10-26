@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `chunk_text` no longer panics on a long run without whitespace (base64,
+  minified code) after the first chunk; it cuts at the chunk size instead.
+
+### Changed
+
+- Library constructors (`UniversalNER::new`, `with_config`, the Hugging Face
+  loader) no longer read `.env` files from the working directory or its
+  parents. They read only the process environment. The CLI still loads `.env`
+  at startup; library and Python callers that relied on implicit `.env`
+  loading should call `anno::env::load_dotenv()` or export the variables.
+
 ### Added
 
 - CLI JSON/JSONL and Python entities retain optional extraction provenance.
