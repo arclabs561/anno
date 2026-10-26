@@ -1,0 +1,24 @@
+# Standalone cargo-fuzz crate. It is intentionally not a member of the root
+# workspace; the empty `[workspace]` table keeps cargo from walking up to it.
+
+[package]
+name = "anno-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+anno = { path = "../crates/anno", default-features = false }
+
+[[bin]]
+name = "pii"
+path = "fuzz_targets/pii.rs"
+test = false
+doc = false
+bench = false
