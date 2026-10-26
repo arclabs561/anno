@@ -603,12 +603,16 @@ pub mod candle_impl {
                 let mut tokenizer_impl = TokenizerImpl::new(model);
                 // Use cased normalizer for NER - case is important for detecting names!
                 // BertNormalizer::default() lowercases which breaks NER
-                tokenizer_impl.with_normalizer(Some(BertNormalizer::new(
-                    false, // clean_text
-                    true,  // handle_chinese_chars
-                    None,  // strip_accents - None means don't strip
-                    false, // lowercase - CRITICAL: keep case for NER!
-                )));
+                tokenizer_impl
+                    .with_normalizer(Some(BertNormalizer::new(
+                        false, // clean_text
+                        true,  // handle_chinese_chars
+                        None,  // strip_accents - None means don't strip
+                        false, // lowercase - CRITICAL: keep case for NER!
+                    )))
+                    .map_err(|e| {
+                        Error::Retrieval(format!("Failed to set the BERT normalizer: {e}"))
+                    })?;
                 tokenizer_impl.with_pre_tokenizer(Some(BertPreTokenizer));
                 tokenizer_impl.with_post_processor(Some(BertProcessing::default()));
 
