@@ -174,12 +174,10 @@ pub struct UniversalNER {
 impl UniversalNER {
     /// Create a new UniversalNER instance.
     ///
-    /// Opportunistically loads `.env` file to check for API keys.
+    /// API keys come from the process environment; call
+    /// [`crate::env::load_dotenv`] first to use a `.env` file.
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        // Load .env if present (idempotent)
-        crate::env::load_dotenv();
-
         let llm_available = llm_provider_available();
 
         Ok(Self {
@@ -195,7 +193,6 @@ impl UniversalNER {
 
     /// Create with a specific LLM configuration.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        crate::env::load_dotenv();
         let llm_available = llm_provider_available();
         Ok(Self {
             llm_available,

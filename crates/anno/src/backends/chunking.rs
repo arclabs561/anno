@@ -119,6 +119,13 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Vec<TextChunk> {
         } else {
             find_word_boundary(&chars, chunk_end)
         };
+        // A run with no boundary after `position` (e.g. base64 or minified
+        // code) sends the backward search past the chunk start; cut hard.
+        let actual_end = if actual_end <= position {
+            chunk_end
+        } else {
+            actual_end
+        };
 
         let chunk_str: String = chars[position..actual_end].iter().collect();
         chunks.push(TextChunk {
@@ -418,6 +425,27 @@ pub fn chunk_text_semantic(text: &str, chunk_capacity: usize) -> Vec<TextChunk> 
 mod tests {
     use super::*;
     use crate::EntityType;
+
+    #[test]
+    fn chunk_text_handles_long_runs_without_whitespace() {
+        // The only whitespace sits before the chunk start, so the backward
+        // boundary search lands at or before `position`.
+        let text = format!("a {}", "x".repeat(2000));
+        for respect_sentences in [false, true] {
+            let config = ChunkConfig {
+                chunk_size: 500,
+                overlap: 50,
+                respect_sentences,
+                ..ChunkConfig::default()
+            };
+            let chunks = chunk_text(&text, &config);
+            let last = chunks.last().unwrap();
+            assert_eq!(last.char_offset + last.text.chars().count(), 2002);
+            for chunk in &chunks {
+                assert!(!chunk.text.is_empty());
+            }
+        }
+    }
 
     #[test]
     fn test_chunk_config_presets() {

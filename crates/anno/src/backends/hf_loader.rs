@@ -38,14 +38,18 @@ fn no_downloads_from(value: Option<&str>) -> bool {
     }
 }
 
-/// Initialize the HuggingFace API client, loading `.env` and using `HF_TOKEN` if available.
+/// Initialize the HuggingFace API client, using `HF_TOKEN` from the process
+/// environment if set.
+///
+/// It does not read `.env` files: library code importing every key from the
+/// working directory or its parents is a credential and configuration leak.
+/// The CLI loads `.env` at startup.
 ///
 /// The client and offline cache both honor `HF_HOME` through `hf-hub`'s
 /// environment-aware builders.
 ///
 /// This replaces the duplicated pattern:
 /// ```rust,ignore
-/// crate::env::load_dotenv();
 /// let builder = ApiBuilder::from_env();
 /// let builder = if let Some(token) = crate::env::hf_token() {
 ///     builder.with_token(Some(token))
@@ -56,8 +60,6 @@ fn no_downloads_from(value: Option<&str>) -> bool {
 /// ```
 pub fn hf_api() -> Result<hf_hub::api::sync::Api> {
     use hf_hub::api::sync::ApiBuilder;
-
-    crate::env::load_dotenv();
 
     let builder = ApiBuilder::from_env();
     let builder = if let Some(token) = crate::env::hf_token() {
