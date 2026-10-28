@@ -1,6 +1,8 @@
 # Contract
 
-This document is the **interface contract** for `anno`: what it does, what it guarantees, and what it intentionally does *not* do.
+This contract describes the input text, offsets, and feature flags that callers
+must account for when using `anno`. Start with the [quickstart](QUICKSTART.md)
+for runnable examples.
 
 ## What `anno` is
 
@@ -14,7 +16,9 @@ This document is the **interface contract** for `anno`: what it does, what it gu
 ## Primary interoperability contract
 
 - **Offsets are character offsets** (Unicode scalar values), not byte offsets.
-- **Core types are the interface**: downstream code should integrate against the stable shapes re-exported by `anno` (prefer `anno::core::*`) (`Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`, `Corpus`) and treat them as the stable "shape".
+- **Core types are the interface**: use the types re-exported through
+  `anno::core::*`: `Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`,
+  and `Corpus`.
 
 ## Input text contract (what backends expect)
 
@@ -52,14 +56,14 @@ exact string you pass in.
 
 The published `anno` crate is the main library. Feature flags select optional capabilities.
 
-- `anno` has `default = ["onnx", "heuristic-fr"]` — ONNX ML backends and French heuristics are on by default.
+- `anno` has `default = ["onnx", "heuristic-fr"]`. ONNX ML backends and French heuristics are on by default.
 - Use `default-features = false` in your `Cargo.toml` to opt out of ONNX and pull only what you need.
 
 Major feature flags:
 
 - `onnx`: ONNX Runtime backends (GLiNER, BERT-NER, etc.)
 - `candle`: pure-Rust transformer backend (GPU via platform support)
-- `analysis`: lightweight analysis primitives (metrics, encoders) — available at inference time, safe to include in production
+- `analysis`: lightweight analysis primitives (metrics, encoders), available at inference time for production use
 - `eval` on `anno-cli` / `anno-eval`: evaluation harnesses (dataset loading, benchmarking); this is not a feature of the main `anno` library.
 - `discourse`: discourse-level utilities
 - `graph`: graph/KG export surface
@@ -68,7 +72,9 @@ Treat feature flags as **capability toggles**: depend on the narrowest set you n
 
 ## CLI
 
-The full CLI lives in `anno-cli` (`crates/anno-cli/`). Install with `cargo install anno-cli`. Includes extraction, batch, eval, and dataset tooling.
+The CLI lives in `anno-cli` (`crates/anno-cli/`). Install with
+`cargo install anno-cli` for extraction and batch processing. Add
+`--features eval` for evaluation, datasets, and cross-document clustering.
 
 ## Integration posture
 
@@ -80,12 +86,35 @@ The full CLI lives in `anno-cli` (`crates/anno-cli/`). Install with `cargo insta
 
 ## Minimal usage obligations
 
-- If you persist results, persist both the **source text identity** (doc id / provenance) and the **character-offset spans**.
+- If you persist results, keep the document ID and provenance of the source text
+  alongside the spans and their character offsets.
 - Don't reinterpret spans as byte offsets.
 
-## CLI default (best available)
+## PII pattern limits
 
-The default CLI model (`--model stacked`) prefers the **best available** ML backend.
+Pattern-based redaction recognizes these formats:
+
+| Format | Validation |
+| --- | --- |
+| Email addresses | Pattern match |
+| US phone numbers and addresses | Pattern match |
+| US Social Security numbers | Structure check |
+| Card numbers with 16 digits | Luhn checksum |
+| IBANs | Mod-97 checksum |
+
+Other national ID formats are not covered.
+
+Printed IBANs use uppercase groups of four separated by single ASCII spaces,
+with a shorter final group when needed. Recognition stops at the registered
+country length. Text after a space at that endpoint is separate, including
+numeric text. Compact IBANs use the existing compact-format recognizer.
+These checks validate format and checksum, not account existence or
+country-specific bank and account rules.
+
+## CLI default
+
+With `--model stacked`, the CLI tries available model backends before falling
+back to patterns and heuristics.
 
 - By default, model downloads are allowed (so first run may be slower).
 - To force cached-only / offline behavior: set `ANNO_NO_DOWNLOADS=1` (or `HF_HUB_OFFLINE=1`).
@@ -108,4 +137,6 @@ model artifact version, or provider/device placement.
 `anno` has two eval layers with very different runtimes:
 
 - **Single-text eval** (`anno eval`): inline gold spans against one text; typically milliseconds–seconds.
-- **Benchmark matrix** (`anno benchmark`): many backends × datasets × seeds; can take minutes to hours. See `docs/QUICKSTART.md` for bounded `just eval-*` profiles and artifact paths.
+- **Benchmark matrix** (`anno benchmark`): many backends × datasets × seeds;
+  can take minutes to hours. See [evaluation sampling](EVALUATION_SAMPLING.md)
+  for bounded runs and the records needed to interpret them.

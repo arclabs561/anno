@@ -378,7 +378,7 @@ Notes:
 
 - **No ML deps**: `--model pattern`, `heuristic`, or `stacked` with `default-features = false`
 - **Zero-shot custom types**: `--model gliner --extract-types "TYPE1,TYPE2"` (requires `onnx`)
-- **Relations (best-effort)**: `--model gliner_multitask --extract-relations` (requires `onnx`) or `--model tplinker --extract-relations` (heuristic baseline). Use `--relation-types "FOUNDED,WORKS_FOR"` to constrain labels.
+- **Relations (best-effort)**: `--model gliner-multitask --extract-relations` (requires `onnx`) or `--model tplinker --extract-relations` (heuristic baseline). Use `--relation-types "FOUNDED,WORKS_FOR"` to constrain labels.
 - **Nested entities**: `--model w2ner` (requires `onnx`)
 - **Pure Rust inference**: Candle backends (requires `candle`)
 - **Offline**: set `ANNO_NO_DOWNLOADS=1` after prefetching with `anno models download`
