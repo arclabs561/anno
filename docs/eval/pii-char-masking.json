@@ -3,7 +3,7 @@
   "metric": "char-masking",
   "title": "PII character-masking evaluation",
   "description": "Deterministic pattern + heuristic evaluation over a local fixture. Not a benchmark: no neural/ML model backends were exercised and no public PII dataset split was used.",
-  "command": "CARGO_TARGET_DIR=/Users/arc/.agents/state/cargo-target/anno-eval-masking cargo run -p anno-eval --bin pii_char_eval -- --metric char-masking --fixture crates/anno-eval/fixtures/pii_masking_fixture.jsonl --out-json docs/eval/pii-char-masking.json --out-md docs/eval/pii-char-masking.md --bootstrap",
+  "command": "cargo run -p anno-eval --bin pii_char_eval -- --metric char-masking --fixture crates/anno-eval/fixtures/pii_masking_fixture.jsonl --out-json docs/eval/pii-char-masking.json --out-md docs/eval/pii-char-masking.md --bootstrap",
   "commit_sha": "fd28a2fe96f9c9847b2c80a75467b17f5f3e7b94",
   "commit_sha_source": "git rev-parse HEAD at generation time (the artifact is committed in a later local commit on the same branch)",
   "working_tree_dirty_at_generation": true,

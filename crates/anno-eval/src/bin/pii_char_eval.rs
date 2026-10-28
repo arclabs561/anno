@@ -268,11 +268,7 @@ fn run() -> Result<(), String> {
 
     let results = evaluate_char_masking_documents(&evaluation_documents, args.bootstrap);
     let mut command = String::new();
-    if let Ok(target_dir) = std::env::var("CARGO_TARGET_DIR") {
-        if !target_dir.is_empty() {
-            let _ = write!(command, "CARGO_TARGET_DIR={target_dir} ");
-        }
-    }
+    // Cargo cache placement does not affect evaluation; omit host-local build paths.
     let _ = write!(
         command,
         "cargo run -p anno-eval --bin pii_char_eval -- {}",
@@ -373,7 +369,7 @@ fn markdown(artifact: &Artifact) -> String {
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "| Field | Value |\n|---|---|\n| Metric | `{}` |\n| Command | `{}` |\n| \
+        "| Field | Value |\n|---|---|\n| Metric | `{}` |\n| Command | `{}` |\n| Command note | Reproduction command; host-local CARGO_TARGET_DIR cache placement is omitted. |\n| \
          Commit | `{}` |\n| Generated (UTC) | {} |\n| Fixture | `{}` |\n| \
          Fixture SHA-256 | `{}` |\n| Documents | {} |\n| Neural/ML model backends | not exercised |\n| \
          Backend scope | {} |\n| Deterministic paths | {} |\n| Public dataset | `{}` |\n| \

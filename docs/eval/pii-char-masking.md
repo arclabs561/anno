@@ -5,7 +5,8 @@
 | Field | Value |
 |---|---|
 | Metric | `char-masking` |
-| Command | `CARGO_TARGET_DIR=/Users/arc/.agents/state/cargo-target/anno-eval-masking cargo run -p anno-eval --bin pii_char_eval -- --metric char-masking --fixture crates/anno-eval/fixtures/pii_masking_fixture.jsonl --out-json docs/eval/pii-char-masking.json --out-md docs/eval/pii-char-masking.md --bootstrap` |
+| Command | `cargo run -p anno-eval --bin pii_char_eval -- --metric char-masking --fixture crates/anno-eval/fixtures/pii_masking_fixture.jsonl --out-json docs/eval/pii-char-masking.json --out-md docs/eval/pii-char-masking.md --bootstrap` |
+| Command note | Reproduction command; host-local CARGO_TARGET_DIR cache placement is omitted. |
 | Commit | `fd28a2fe96f9c9847b2c80a75467b17f5f3e7b94` |
 | Generated (UTC) | 2026-10-25T17:14:59Z |
 | Fixture | `crates/anno-eval/fixtures/pii_masking_fixture.jsonl` |
