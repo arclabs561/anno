@@ -418,7 +418,9 @@ pub fn fingerprint(text: &str, entities: &[PiiEntity]) -> String {
 ///
 /// Generic version of [`redact`] / [`mask`] / [`fingerprint`] — use this when
 /// the built-in operators don't fit. `replacement_fn` is called once per
-/// entity after dedup+sort; the return value replaces that span.
+/// non-overlapping span after merging overlaps; the return value replaces that
+/// span. A merged span uses the complete source text and the type and risk level
+/// of the earliest-starting entity (the longest entity when starts are equal).
 ///
 /// Entity offsets are character offsets; internal byte-offset conversion is
 /// handled here.
@@ -429,9 +431,9 @@ where
     apply_per_entity(text, entities, |e| replacement_fn(e))
 }
 
-/// Shared core for `redact` / `mask` / `fingerprint` / `replace`.
+/// Shared core for `mask` / `fingerprint` / `replace` / `pseudonymize`.
 ///
-/// Deduplicates overlapping spans greedily (keeps longest-at-start), then
+/// Merges overlapping spans into their union, then
 /// walks them back-to-front so earlier char offsets remain valid during
 /// `replace_range` calls.
 fn apply_per_entity<F>(text: &str, entities: &[PiiEntity], mut replacement_fn: F) -> String
@@ -440,18 +442,8 @@ where
 {
     let mut result = text.to_string();
 
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
-    sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
-    let mut max_end = 0;
-    sorted.retain(|e| {
-        if e.start < max_end {
-            false
-        } else {
-            max_end = e.end;
-            true
-        }
-    });
+    let mut sorted = entities.to_vec();
+    dedup_overlapping(text, &mut sorted);
     sorted.reverse();
 
     for entity in sorted {
@@ -461,7 +453,7 @@ where
             .map(|c| c.len_utf8())
             .sum();
         let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
-        let replacement = replacement_fn(entity);
+        let replacement = replacement_fn(&entity);
         result.replace_range(byte_start..byte_end, &replacement);
     }
 
@@ -473,7 +465,6 @@ where
 /// Returns `(pseudonymized_text, mapping)` where mapping maps original -> fake
 /// for audit/re-identification purposes.
 pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<String, String>) {
-    let mut result = text.to_string();
     let mut mapping: HashMap<String, String> = HashMap::new();
     let mut name_counter = 0;
     let mut date_counter = 0;
@@ -492,11 +483,8 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
         "Casey Martinez",
     ];
 
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
-
-    for entity in sorted {
-        let fake = if let Some(existing) = mapping.get(&entity.text) {
+    let result = apply_per_entity(text, entities, |entity| {
+        if let Some(existing) = mapping.get(&entity.text) {
             existing.clone()
         } else {
             let fake = match entity.pii_type.as_str() {
@@ -525,17 +513,8 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
             };
             mapping.insert(entity.text.clone(), fake.clone());
             fake
-        };
-
-        // Convert char offsets to byte offsets for replace_range
-        let byte_start: usize = result
-            .chars()
-            .take(entity.start)
-            .map(|c| c.len_utf8())
-            .sum();
-        let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
-        result.replace_range(byte_start..byte_end, &fake);
-    }
+        }
+    });
 
     (result, mapping)
 }
@@ -558,17 +537,17 @@ pub fn scan_and_redact(text: &str, model: &dyn crate::Model) -> crate::Result<St
     let entities = model.extract_entities(text, None)?;
     let mut pii_entities: Vec<PiiEntity> = entities.iter().filter_map(classify_entity).collect();
     pii_entities.extend(scan_patterns(text));
-    dedup_overlapping(&mut pii_entities);
+    dedup_overlapping(text, &mut pii_entities);
     Ok(redact(text, &pii_entities))
 }
 
-/// Remove duplicate and overlapping PII entities, keeping the longest span.
+/// Remove duplicate PII entities and merge overlaps into their union.
 ///
 /// After merging NER-based and regex-based detections, duplicates and overlaps
 /// are common (e.g., NER finds "John Smith" and regex finds "123-45-6789" within
 /// a span the NER also matched). This function sorts by start offset, then
-/// greedily keeps the longest non-overlapping spans.
-fn dedup_overlapping(entities: &mut Vec<PiiEntity>) {
+/// merges overlapping spans, retaining the earliest entity's type and risk.
+fn dedup_overlapping(text: &str, entities: &mut Vec<PiiEntity>) {
     // Sort by start, then longest span first for ties
     entities.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
     // Dedup exact duplicates
@@ -582,6 +561,11 @@ fn dedup_overlapping(entities: &mut Vec<PiiEntity>) {
             Some(last) if entity.start < last.end => {
                 if entity.end > last.end {
                     last.end = entity.end;
+                    last.text = text
+                        .chars()
+                        .skip(last.start)
+                        .take(last.end - last.start)
+                        .collect();
                 }
             }
             _ => merged.push(entity),
