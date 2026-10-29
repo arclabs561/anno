@@ -214,3 +214,7 @@ docs/generated/
 # (per ~/.claude/references/publish-and-push.md: "libraries gitignore it,
 # binaries track it"). The workspace shares one Cargo.lock at root.
 /semver-checks/
+
+# Tracked documentation that would otherwise match the generated-docs rule.
+!.github/COMMIT_CHECKLIST.md
+!crates/anno/src/backends/gliner2_fastino/PORT_NOTES.md
