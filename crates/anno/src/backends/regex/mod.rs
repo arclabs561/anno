@@ -178,8 +178,12 @@ static TIME_SIMPLE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static MONEY_SYMBOL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"[$€£¥][\d,]+(?:[.,]\d{1,2})?(?:\s*(?:billion|million|thousand|B|M|K|bn|mn))?")
-        .expect("valid regex")
+    // Spelled-out magnitudes match in any case; the single-letter forms stay
+    // uppercase-only. The trailing `\b` keeps "$20 Kits" from becoming "$20 K".
+    Regex::new(
+        r"[$€£¥][\d,]+(?:[.,]\d{1,2})?(?:\s*(?:(?i:billion|million|thousand|bn|mn)|B|M|K)\b)?",
+    )
+    .expect("valid regex")
 });
 
 static MONEY_WRITTEN: LazyLock<Regex> = LazyLock::new(|| {
@@ -218,7 +222,8 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b").expect("valid regex")
+    Regex::new(r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+        .expect("valid regex")
 });
 
 static PHONE_INTL: LazyLock<Regex> = LazyLock::new(|| {
@@ -466,6 +471,40 @@ fn overlaps(entities: &[Entity], start: usize, end: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn labeled_entities(text: &str) -> Vec<(String, String)> {
+        RegexNER::new()
+            .extract_entities(text, None)
+            .unwrap()
+            .into_iter()
+            .map(|e| (e.entity_type.as_label().to_string(), e.text))
+            .collect()
+    }
+
+    /// A magnitude word matches in any case and only as a whole word, so
+    /// "$5 Billion" is not cut to "$5 B" and "$20 Kits" is not "$20 K".
+    #[test]
+    fn money_magnitude_suffix_is_not_truncated() {
+        let ents = labeled_entities("The deal is worth $5 Billion today.");
+        assert!(
+            ents.iter().any(|(t, s)| t == "MONEY" && s == "$5 Billion"),
+            "{ents:?}"
+        );
+        let ents = labeled_entities("We sold $20 Kits yesterday.");
+        assert!(!ents.iter().any(|(_, s)| s == "$20 K"), "{ents:?}");
+        assert!(
+            ents.iter().any(|(t, s)| t == "MONEY" && s == "$20"),
+            "{ents:?}"
+        );
+    }
+
+    /// PHONE_US needs a word boundary before a leading digit, so it does not
+    /// match the last ten digits of a longer digit run.
+    #[test]
+    fn phone_not_matched_inside_long_digit_run() {
+        let ents = labeled_entities("Order 12345678901234 shipped, ts=1700000000000.");
+        assert!(!ents.iter().any(|(t, _)| t == "PHONE"), "{ents:?}");
+    }
 
     fn ner() -> RegexNER {
         RegexNER::new()

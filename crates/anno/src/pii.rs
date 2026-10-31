@@ -228,7 +228,7 @@ pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
             None,
         ),
         (
-            r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+            r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
             "CONTACT",
             "HIGH",
             None,
@@ -684,6 +684,20 @@ pub fn looks_like_id_number(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::{EntityCategory, EntityType};
+
+    /// The phone pattern needs a word boundary before a leading digit, so it
+    /// does not match the tail of a longer digit run (order ids, timestamps).
+    #[test]
+    fn phone_pattern_does_not_match_inside_long_digit_runs() {
+        for text in ["Order 12345678901234 shipped", "ts=1700000000000"] {
+            let hits = scan_patterns(text);
+            assert!(
+                hits.is_empty(),
+                "{text}: {:?}",
+                hits.iter().map(|h| &h.text).collect::<Vec<_>>()
+            );
+        }
+    }
 
     /// Character offsets of the first occurrence of `needle` in `text`.
     fn char_span_of(text: &str, needle: &str) -> (usize, usize) {

@@ -275,7 +275,7 @@ fn entity_uri(base_uri: &str, entity_type: &str, idx: usize, text: &str, start: 
     format!(
         "<{}/entity/{}/{}_{}_{}>",
         base,
-        entity_type.to_lowercase(),
+        uri_safe(&entity_type.to_lowercase()),
         idx,
         uri_safe(text),
         start,
@@ -338,7 +338,11 @@ pub fn to_ntriples(
 
     for (idx, entity) in entities.iter().enumerate() {
         let ent = &ent_uri[idx];
-        let type_uri = format!("<{}{}Type>", anno_ns, entity.entity_type.as_label());
+        let type_uri = format!(
+            "<{}{}Type>",
+            anno_ns,
+            uri_safe(entity.entity_type.as_label())
+        );
         lines.push(format!("{} {} {} .", ent, rdf_type, type_uri));
         lines.push(format!(
             "{} {} \"{}\" .",
@@ -401,7 +405,7 @@ pub fn to_jsonld(
             format!(
                 "{}/{}/{}_{}_{}",
                 entity_ns,
-                e.entity_type.as_label().to_lowercase(),
+                uri_safe(&e.entity_type.as_label().to_lowercase()),
                 i,
                 uri_safe(&e.text),
                 e.start(),
@@ -432,7 +436,7 @@ pub fn to_jsonld(
             let id = &entity_ids[i];
             let mut node = serde_json::json!({
                 "@id": id,
-                "@type": format!("{}{}Type", anno_ns, e.entity_type.as_label()),
+                "@type": format!("{}{}Type", anno_ns, uri_safe(e.entity_type.as_label())),
                 "rdfs:label": e.text,
                 "anno:startOffset": e.start(),
                 "anno:endOffset": e.end(),
@@ -481,7 +485,7 @@ pub fn to_graph_csv(
         .map(|(i, e)| {
             format!(
                 "{}:{}_{}",
-                e.entity_type.as_label().to_lowercase(),
+                uri_safe(&e.entity_type.as_label().to_lowercase()),
                 i,
                 uri_safe(&e.text)
             )
@@ -556,6 +560,33 @@ pub fn to_graph_csv(
 mod tests {
     use super::*;
     use crate::EntityType;
+
+    /// Custom type labels can contain characters that IRIREF forbids, such
+    /// as spaces; the N-Triples output must still use valid IRIs.
+    #[test]
+    fn ntriples_iris_are_valid_for_custom_types_with_spaces() {
+        let e = Entity::new(
+            "aspirin allergy",
+            EntityType::custom("Medical Condition", crate::EntityCategory::Misc),
+            0,
+            15,
+            0.9,
+        );
+        let nt = to_ntriples(&[e], &[], "doc", "http://example.org");
+        let mut iris = 0;
+        for line in nt.lines() {
+            let mut rest = line;
+            while let Some(i) = rest.find('<') {
+                let Some(j) = rest[i..].find('>') else { break };
+                let iri = &rest[i + 1..i + j];
+                assert!(!iri.contains(' '), "invalid IRI <{iri}> in line: {line}");
+                iris += 1;
+                rest = &rest[i + j + 1..];
+            }
+        }
+        assert!(iris > 0, "{nt}");
+        assert!(nt.contains("Medical_ConditionType>"), "{nt}");
+    }
 
     #[test]
     fn brat_basic() {
