@@ -269,8 +269,21 @@ impl MentionRankingCoref {
         //
 
         // Find pronouns in text
-        let text_lower = text.to_lowercase();
+        // Lowercase one char at a time and keep the original char when its
+        // lowercase form is several chars ('İ' -> "i\u{307}"), so char indices
+        // in `text_lower` and `text` agree. Byte offsets still differ, so
+        // positions found in `text_lower` are converted through its own chars.
         let text_chars: Vec<char> = text.chars().collect();
+        let text_lower: String = text_chars
+            .iter()
+            .map(|&c| {
+                let mut lower = c.to_lowercase();
+                match (lower.next(), lower.next()) {
+                    (Some(l), None) => l,
+                    _ => c,
+                }
+            })
+            .collect();
         for (pronoun, gender, number) in pronoun_patterns {
             let mut search_start_byte = 0;
             while let Some(pos) = text_lower[search_start_byte..].find(pronoun) {
@@ -278,7 +291,7 @@ impl MentionRankingCoref {
                 let end_byte_pos = abs_byte_pos + pronoun.len();
 
                 // Convert byte positions to character positions for boundary checks
-                let char_pos = text[..abs_byte_pos].chars().count();
+                let char_pos = text_lower[..abs_byte_pos].chars().count();
                 let end_char_pos = char_pos + pronoun.chars().count();
 
                 // Check word boundaries using character positions
@@ -308,7 +321,7 @@ impl MentionRankingCoref {
                     mentions.push(RankedMention {
                         start: char_start,
                         end: char_end,
-                        text: text[abs_byte_pos..end_byte_pos].to_string(),
+                        text: text_chars[char_start..char_end].iter().collect(),
                         mention_type: MentionType::Pronominal,
                         gender: Some(gender),
                         number: Some(number),
@@ -347,16 +360,16 @@ impl MentionRankingCoref {
             "our",
             "ours",
         ];
-        let words: Vec<_> = text.split_whitespace().collect();
-        let mut search_byte_pos = 0; // Byte position for searching
+        for word in text.split_whitespace() {
+            // Byte offset of this occurrence (`word` is a subslice of `text`).
+            let abs_byte_pos = word.as_ptr() as usize - text.as_ptr() as usize;
 
-        for (i, word) in words.iter().enumerate() {
-            // Skip if at sentence start
-            let at_sentence_start = i == 0
-                || match text[..text.find(word).unwrap_or(0)].chars().last() {
-                    None => true,
-                    Some(c) => c == '.' || c == '!' || c == '?',
-                };
+            // Skip if at sentence start: the last non-space char before the word
+            // ends a sentence, or there is none.
+            let at_sentence_start = match text[..abs_byte_pos].trim_end().chars().last() {
+                None => true,
+                Some(c) => c == '.' || c == '!' || c == '?',
+            };
 
             if !at_sentence_start
                 && word.chars().next().is_some_and(|c| c.is_uppercase())
@@ -371,32 +384,25 @@ impl MentionRankingCoref {
                 // Strip trailing punctuation from proper noun text
                 let clean_word = word.trim_end_matches(|c: char| c.is_ascii_punctuation());
                 if clean_word.is_empty() {
-                    search_byte_pos += word.len() + 1;
                     continue;
                 }
 
-                // Find byte position of word
-                if let Some(rel_byte_pos) = text[search_byte_pos..].find(word) {
-                    let abs_byte_pos = search_byte_pos + rel_byte_pos;
-                    // Convert byte offset to character offset for Entity
-                    let char_start = text[..abs_byte_pos].chars().count();
-                    let char_end = char_start + clean_word.chars().count();
+                // Convert byte offset to character offset for Entity
+                let char_start = text[..abs_byte_pos].chars().count();
+                let char_end = char_start + clean_word.chars().count();
 
-                    mentions.push(RankedMention {
-                        start: char_start,
-                        end: char_end,
-                        text: clean_word.to_string(),
-                        mention_type: MentionType::Proper,
-                        gender: None,
-                        number: Some(Number::Singular),
-                        animacy: Animacy::Unknown,
-                        head: clean_word.to_string(),
-                        entity_type: None,
-                    });
-                }
+                mentions.push(RankedMention {
+                    start: char_start,
+                    end: char_end,
+                    text: clean_word.to_string(),
+                    mention_type: MentionType::Proper,
+                    gender: None,
+                    number: Some(Number::Singular),
+                    animacy: Animacy::Unknown,
+                    head: clean_word.to_string(),
+                    entity_type: None,
+                });
             }
-
-            search_byte_pos += word.len() + 1; // +1 for space (byte-based)
         }
 
         // Detect nominal adjectives (J2N: arXiv:2409.14374)
@@ -560,7 +566,7 @@ impl MentionRankingCoref {
                     let mut search_start = 0;
                     while let Some(rel_pos) = text_lower[search_start..].find(&pattern_lower) {
                         let abs_byte_pos = search_start + rel_pos;
-                        let end_byte_pos = abs_byte_pos + pattern.len();
+                        let end_byte_pos = abs_byte_pos + pattern_lower.len();
 
                         // Check that the adjective isn't modifying a following noun.
                         // "the poor performance" should NOT match because "poor" modifies "performance".
@@ -654,13 +660,13 @@ impl MentionRankingCoref {
 
                         if is_valid_nominal {
                             // Convert byte positions to character positions
-                            let char_start = text[..abs_byte_pos].chars().count();
-                            let char_end = char_start + pattern.chars().count();
+                            let char_start = text_lower[..abs_byte_pos].chars().count();
+                            let char_end = char_start + pattern_lower.chars().count();
 
                             mentions.push(RankedMention {
                                 start: char_start,
                                 end: char_end,
-                                text: text[abs_byte_pos..end_byte_pos].to_string(),
+                                text: text_chars[char_start..char_end].iter().collect(),
                                 mention_type: MentionType::Nominal,
                                 gender: Some(Gender::Unknown), // Groups are gender-neutral
                                 number: Some(Number::Plural),  // Grammatically plural
@@ -1335,6 +1341,80 @@ impl CoreferenceResolver for MentionRankingCoref {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 'İ' (2 bytes) lowercases to "i\u{307}" (3 bytes), so offsets found in
+    /// a lowercased copy of the text cannot slice the original.
+    #[test]
+    fn pronoun_detection_survives_case_folding_that_changes_byte_length() {
+        let r = std::panic::catch_unwind(|| {
+            MentionRankingCoref::new()
+                .resolve("İ saw him")
+                .map(|c| c.len())
+        });
+        assert!(r.is_ok(), "resolve panicked on 'İ saw him'");
+    }
+
+    #[test]
+    fn pronoun_mentions_unaffected_by_dotted_capital_i_earlier_in_text() {
+        let coref = MentionRankingCoref::new();
+        let summarize = |text: &str| {
+            let mut v: Vec<(usize, String)> = coref
+                .resolve(text)
+                .unwrap()
+                .iter()
+                .flat_map(|c| c.mentions.iter().map(|m| (m.start, m.text.clone())))
+                .collect();
+            v.sort();
+            v
+        };
+        let plain = summarize("Yesterday Mary Ince said she was tired and she left.");
+        let dotted = summarize("Yesterday Mary İnce said she was tired and she left.");
+        assert!(!plain.is_empty());
+        assert_eq!(dotted, plain);
+    }
+
+    /// A capitalised word after ". " is sentence-initial and is not a proper
+    /// noun mention, so two sentence-initial "The"s do not form a cluster.
+    #[test]
+    fn sentence_initial_determiners_are_not_clustered_as_proper_nouns() {
+        let coref = MentionRankingCoref::new();
+        let clusters = coref
+            .resolve("We met Ann. The dog barked. The cat sat.")
+            .unwrap();
+        for c in &clusters {
+            assert!(
+                !c.mentions.iter().any(|m| m.text == "The"),
+                "determiner clustered as a proper noun: {:?}",
+                c.mentions
+                    .iter()
+                    .map(|m| (m.start, m.text.clone()))
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// The sentence-start check must look at each occurrence of a word, not
+    /// its first occurrence in the text.
+    #[test]
+    fn repeated_name_is_detected_after_its_first_occurrence_opens_the_text() {
+        let coref = MentionRankingCoref::new();
+        let text = "Alice met Bob. Later, Bob thanked Alice and Carol hugged Alice.";
+        let clusters = coref.resolve(text).unwrap();
+        assert!(
+            clusters
+                .iter()
+                .any(|c| c.mentions.iter().filter(|m| m.text == "Alice").count() >= 2),
+            "the two non-initial 'Alice' mentions were not clustered: {:?}",
+            clusters
+                .iter()
+                .map(|c| c
+                    .mentions
+                    .iter()
+                    .map(|m| (m.start, m.text.clone()))
+                    .collect::<Vec<_>>())
+                .collect::<Vec<_>>()
+        );
+    }
 
     #[test]
     fn test_basic_resolution() {

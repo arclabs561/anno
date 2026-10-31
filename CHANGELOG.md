@@ -27,6 +27,14 @@
 - Fresh dataset payloads are validated before replacing cache files; rejected downloads preserve existing caches, S3 snapshot hashes are checked, and cached ECB+ ZIP files load as binary data.
 - Relation evaluation honors the requested document limit and reports the units and gold relations actually scored.
 - Muxer outcomes and history share observation IDs, including cache-load failures; coverage selection filters history by recorded evaluation conditions.
+- US phone patterns in PII scanning and `RegexNER` need a word boundary before a leading digit; they matched the last ten digits of longer digit runs such as order IDs and millisecond timestamps.
+- `RegexNER` money amounts accept spelled-out magnitudes in any case and only as whole words: "$5 Billion" was cut to "$5 B" and "$20 Kits" became "$20 K".
+- N-Triples, JSON-LD and knowledge-graph export make entity type labels IRI-safe; a custom type such as "Medical Condition" produced IRIs with spaces that RDF parsers reject.
+- Mention-ranking coreference finds pronouns and nominal adjectives in a per-character lowercase copy of the text, so case folding that changes byte length ("İ") no longer panics or shifts later mentions; the sentence-initial check now looks at each word occurrence, so sentence-initial "The" is not a proper-noun mention and a name that opens the text is still found later.
+- Sieve coreference acronym and fuzzy matching visit earlier mentions most recent first instead of in hash order, so the same input always gives the same clusters.
+- `anno-eval` IOBES and IOE decoding split entities at a type change and start an entity at an orphan `I-`/`E-` tag, as seqeval does: "B-PER I-LOC E-LOC" gave one PER span.
+- `anno-eval` `evaluate_ner` assigns exact matches before partial ones across all gold spans, as nervaluate does; an outer nested gold span could take the inner span's exact prediction.
+- `anno-eval` GAP mentions end at offset plus the name's character count (non-ASCII names got byte lengths), and DocRED/CrossRE relation gold spans use character offsets (a non-ASCII token shifted every later span).
 
 ## [0.13.0] - 2026-09-12
 
