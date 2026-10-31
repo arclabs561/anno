@@ -3367,6 +3367,9 @@ impl DatasetLoader {
 
         // Detect format: MIT datasets use TAB separator with TAG first
         let is_mit_format = matches!(id, DatasetId::MitMovie | DatasetId::MitRestaurant);
+        // GermEval 2014 is TSV: index, token, outer NE, embedded NE, with `#`
+        // source-comment lines. Its columns do not follow CoNLL-2003.
+        let is_germeval_format = matches!(id, DatasetId::GermEval2014);
 
         for line in content.lines() {
             let line = line.trim();
@@ -3388,7 +3391,17 @@ impl DatasetLoader {
             }
 
             // Parse based on format
-            let (text, ner_tag) = if is_mit_format {
+            let (text, ner_tag) = if is_germeval_format {
+                if line.starts_with('#') {
+                    continue;
+                }
+                let parts: Vec<&str> = line.split('\t').collect();
+                if parts.len() >= 3 {
+                    (parts[1].to_string(), parts[2].to_string())
+                } else {
+                    continue;
+                }
+            } else if is_mit_format {
                 // MIT format: TAG\tword (tab-separated)
                 let parts: Vec<&str> = line.split('\t').collect();
                 if parts.len() >= 2 {
@@ -3888,6 +3901,56 @@ impl DatasetLoader {
             .into_iter()
             .map(str::to_string)
             .collect();
+        }
+
+        if tag_names.is_empty() {
+            // Other `tner/*` Dataset Viewer envelopes also type `tags` as plain
+            // `int32`. Index order is each repo's dataset/label.json.
+            let tner_names: &[&str] = match id.hf_id() {
+                Some("tner/bc5cdr") => &["O", "B-Chemical", "B-Disease", "I-Disease", "I-Chemical"],
+                Some("tner/btc") => &["B-LOC", "B-ORG", "B-PER", "I-LOC", "I-ORG", "I-PER", "O"],
+                Some("tner/ontonotes5") => &[
+                    "O",
+                    "B-CARDINAL",
+                    "B-DATE",
+                    "I-DATE",
+                    "B-PERSON",
+                    "I-PERSON",
+                    "B-NORP",
+                    "B-GPE",
+                    "I-GPE",
+                    "B-LAW",
+                    "I-LAW",
+                    "B-ORG",
+                    "I-ORG",
+                    "B-PERCENT",
+                    "I-PERCENT",
+                    "B-ORDINAL",
+                    "B-MONEY",
+                    "I-MONEY",
+                    "B-WORK_OF_ART",
+                    "I-WORK_OF_ART",
+                    "B-FAC",
+                    "B-TIME",
+                    "I-CARDINAL",
+                    "B-LOC",
+                    "B-QUANTITY",
+                    "I-QUANTITY",
+                    "I-NORP",
+                    "I-LOC",
+                    "B-PRODUCT",
+                    "I-TIME",
+                    "B-EVENT",
+                    "I-EVENT",
+                    "I-FAC",
+                    "B-LANGUAGE",
+                    "I-PRODUCT",
+                    "I-ORDINAL",
+                    "I-LANGUAGE",
+                ],
+                _ => &[],
+            };
+            tag_names = tner_names.iter().map(|s| s.to_string()).collect();
         }
 
         tag_names
@@ -4440,7 +4503,9 @@ impl DatasetLoader {
     /// Parse CADEC from HuggingFace datasets-server API.
     ///
     /// CADEC HF API format: {"text": "...", "ade": "...", "term_PT": "..."}
-    /// Each row is a text-ADE pair (one sentence per ADE mention).
+    /// Each row is a text-ADE pair; a text with k ADEs appears in k rows.
+    /// Rows are grouped by text so each text yields one sentence with all of
+    /// its ADEs tagged.
     /// The `ade` field contains the adverse drug event mention within `text`.
     fn parse_cadec_hf_api(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let parsed: serde_json::Value = serde_json::from_str(content).map_err(|e| {
@@ -4455,6 +4520,10 @@ impl DatasetLoader {
             .ok_or_else(|| {
                 Error::InvalidInput("No 'rows' array in CADEC HF API response".to_string())
             })?;
+
+        // Group ADE byte spans by text, keeping first-seen text order.
+        let mut texts: Vec<(&str, Vec<(usize, usize)>)> = Vec::new();
+        let mut text_index: HashMap<&str, usize> = HashMap::new();
 
         for row_obj in rows {
             let row = match row_obj.get("row") {
@@ -4498,47 +4567,68 @@ impl DatasetLoader {
             let Some(ade_start_byte) = ade_start_byte else {
                 continue; // ADE not found in text
             };
-            let ade_end_byte = ade_start_byte + ade_text.len();
+            if ade_text.is_empty() {
+                continue;
+            }
+            let span = (ade_start_byte, ade_start_byte + ade_text.len());
 
-            // Tokenize text preserving byte offsets.
-            let mut tokens: Vec<AnnotatedToken> = Vec::new();
-            let mut byte_idx = 0;
-            let words: Vec<&str> = text.split_whitespace().collect();
+            let idx = *text_index.entry(text).or_insert_with(|| {
+                texts.push((text, Vec::new()));
+                texts.len() - 1
+            });
+            if !texts[idx].1.contains(&span) {
+                texts[idx].1.push(span);
+            }
+        }
 
-            for word in words {
-                let word_start =
-                    text.get(byte_idx..).and_then(|s| s.find(word)).unwrap_or(0) + byte_idx;
-                let word_end = word_start + word.len();
-
-                // Check if this word overlaps with ADE span (byte spans)
-                let ner_tag = if word_start >= ade_start_byte && word_end <= ade_end_byte {
-                    // Check if this is the first word of the ADE
-                    if word_start == ade_start_byte
-                        || tokens.is_empty()
-                        || !tokens
-                            .last()
-                            .expect("tokens.is_empty() checked above")
-                            .ner_tag
-                            .starts_with("I-")
-                    {
-                        "B-adverse_drug_event".to_string()
-                    } else {
-                        "I-adverse_drug_event".to_string()
-                    }
-                } else {
-                    "O".to_string()
-                };
-
-                tokens.push(AnnotatedToken {
-                    text: word.to_string(),
-                    ner_tag,
-                });
-
-                // Update byte position to after this word (including trailing space)
-                byte_idx = word_end;
-                if byte_idx < text.len() && text.as_bytes().get(byte_idx) == Some(&b' ') {
-                    byte_idx += 1;
+        for (text, mut spans) in texts {
+            // BIO cannot express overlapping mentions: keep the earliest, then
+            // longest, span and drop any span overlapping one already kept.
+            spans.sort_by_key(|&(s, e)| (s, std::cmp::Reverse(e)));
+            let mut kept: Vec<(usize, usize)> = Vec::new();
+            for (s, e) in spans {
+                if kept.iter().all(|&(ks, ke)| e <= ks || s >= ke) {
+                    kept.push((s, e));
                 }
+            }
+
+            // Whitespace tokens, split further at ADE boundaries so attached
+            // punctuation ("fatigue.") does not hide an ADE edge.
+            let mut cuts: Vec<usize> = kept.iter().flat_map(|&(s, e)| [s, e]).collect();
+            cuts.sort_unstable();
+            cuts.dedup();
+            let mut pieces: Vec<(usize, usize)> = Vec::new();
+            let mut word_start: Option<usize> = None;
+            for (b, c) in text
+                .char_indices()
+                .chain(std::iter::once((text.len(), ' ')))
+            {
+                match (c.is_whitespace(), word_start) {
+                    (false, None) => word_start = Some(b),
+                    (true, Some(ws)) => {
+                        let mut start = ws;
+                        for &cut in cuts.iter().filter(|&&cut| cut > ws && cut < b) {
+                            pieces.push((start, cut));
+                            start = cut;
+                        }
+                        pieces.push((start, b));
+                        word_start = None;
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut tokens: Vec<AnnotatedToken> = Vec::new();
+            for (ps, pe) in pieces {
+                let ner_tag = match kept.iter().find(|&&(s, e)| ps >= s && pe <= e) {
+                    Some(&(s, _)) if ps == s => "B-adverse_drug_event",
+                    Some(_) => "I-adverse_drug_event",
+                    None => "O",
+                };
+                tokens.push(AnnotatedToken {
+                    text: text[ps..pe].to_string(),
+                    ner_tag: ner_tag.to_string(),
+                });
             }
 
             if !tokens.is_empty() {
@@ -5426,9 +5516,11 @@ impl DatasetLoader {
 
     /// Parse LitBank for coreference chains.
     ///
-    /// LitBank format: .ann files with T lines (mentions) and R lines (coreference relations).
-    /// T lines: T<id>\t<Type> <start> <end>\t<text>
-    /// R lines: R<id>\tCoref Arg1:T<id1> Arg2:T<id2>
+    /// LitBank coref brat files (`coref/brat/*.ann`) list each mention twice:
+    /// once with its type label (`T1\tPROP_PER 0 4\tJohn`) and once with an
+    /// entity-id label (`T2\tjohn-1 0 4\tJohn`). Mentions sharing an entity-id
+    /// label corefer. The only R lines are `cop`/`appos`, not chains.
+    /// Files with no entity-id labels fall back to `R<id>\tCoref Arg1:T<a> Arg2:T<b>` links.
     ///
     /// Note: LitBank .ann files reference character offsets in corresponding .txt files.
     /// This parser reconstructs text from mentions, but ideally should read .txt file.
@@ -5440,6 +5532,7 @@ impl DatasetLoader {
         // R1\tCoref Arg1:T1 Arg2:T2
         let mut mentions: HashMap<String, Mention> = HashMap::new();
         let mut coref_links: Vec<(String, String)> = Vec::new();
+        let mut entity_labels: HashMap<String, String> = HashMap::new();
         let mut max_end = 0usize;
 
         for line in content.lines() {
@@ -5459,6 +5552,16 @@ impl DatasetLoader {
                         let text = parts[2];
                         max_end = max_end.max(end);
                         mentions.insert(id.to_string(), Mention::new(text, start, end));
+                        // Entity-id labels end in `-<digits>` (`jarndyce_2-73`);
+                        // type labels (`PROP_PER`) do not.
+                        let label = type_span[0];
+                        if label.rsplit_once('-').is_some_and(|(name, n)| {
+                            !name.is_empty()
+                                && !n.is_empty()
+                                && n.bytes().all(|b| b.is_ascii_digit())
+                        }) {
+                            entity_labels.insert(id.to_string(), label.to_string());
+                        }
                     }
                 }
             } else if line.starts_with('R') && line.contains("Coref") {
@@ -5507,13 +5610,29 @@ impl DatasetLoader {
         let mut chains: Vec<Vec<Mention>> = Vec::new();
         let mut mention_to_chain: HashMap<String, usize> = HashMap::new();
 
-        // First, add all mentions as singletons if they're not in any chain
-        for (id, mention) in &mentions {
-            if !mention_to_chain.contains_key(id) {
-                let idx = chains.len();
-                chains.push(vec![mention.clone()]);
-                mention_to_chain.insert(id.clone(), idx);
-            }
+        // With entity-id labels, each span is listed once under its id label
+        // and once under its type label: keep only the id-labelled copies and
+        // group them by label.
+        if !entity_labels.is_empty() {
+            mentions.retain(|id, _| entity_labels.contains_key(id));
+        }
+        let mut ids: Vec<&String> = mentions.keys().collect();
+        ids.sort_by_key(|id| (mentions[*id].start, mentions[*id].end, (*id).clone()));
+        let mut label_to_chain: HashMap<&str, usize> = HashMap::new();
+        for id in ids {
+            let mention = &mentions[id];
+            let idx = match entity_labels.get(id) {
+                Some(label) => *label_to_chain.entry(label.as_str()).or_insert_with(|| {
+                    chains.push(Vec::new());
+                    chains.len() - 1
+                }),
+                None => {
+                    chains.push(Vec::new());
+                    chains.len() - 1
+                }
+            };
+            chains[idx].push(mention.clone());
+            mention_to_chain.insert(id.clone(), idx);
         }
 
         // Then merge chains based on coref links
@@ -10507,6 +10626,143 @@ CEO,O
 
             // Description should exist for most
             // (not asserting as some may legitimately have no description)
+        }
+    }
+
+    /// Regression tests for High-severity loader bugs from the Oct 2026 bug hunt.
+    mod bughunt_high {
+        use super::*;
+
+        /// LitBank coref brat files (dbamman/litbank coref/brat/*.ann) encode chains in
+        /// the T-line label: `T12\tjarndyce_2-73 0 12\ttext` — mentions sharing the
+        /// `-73` suffix corefer. The only R lines are `cop`/`appos`. The parser looks
+        /// for R lines containing "Coref", finds none, and returns every T line
+        /// (each span appears twice: once as PROP_PER etc., once as name-ID) as its
+        /// own singleton chain. Gold therefore has zero coreference links.
+        #[test]
+        fn litbank_coref_chains_come_from_entity_id_labels() {
+            let ann = "T1\tPROP_PER 0 4\tJohn\n\
+                       T2\tJohn-1 0 4\tJohn\n\
+                       T3\tPRON_PER 10 12\the\n\
+                       T4\tJohn-1 10 12\the\n\
+                       T5\tPROP_PER 20 24\tMary\n\
+                       T6\tMary-2 20 24\tMary\n\
+                       R1\tappos Arg1:T1 Arg2:T3\n";
+            let dir = tempfile::tempdir().unwrap();
+            let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            std::fs::write(dir.path().join(DatasetId::LitBank.cache_filename()), ann).unwrap();
+            let docs = loader.load_coref(DatasetId::LitBank).unwrap();
+            let chains: Vec<Vec<(usize, usize)>> = docs[0]
+                .chains
+                .iter()
+                .map(|c| c.mentions.iter().map(|m| (m.start, m.end)).collect())
+                .collect();
+            let mention_count: usize = chains.iter().map(|c| c.len()).sum();
+            assert_eq!(mention_count, 3, "each span must appear once: {chains:?}");
+            assert!(
+                chains.iter().any(|c| c.len() == 2),
+                "John/he chain (label suffix -1) missing: {chains:?}"
+            );
+        }
+
+        /// GermEval 2014 (registry format "CoNLL") is a 4-column TSV:
+        /// `index \t token \t outer-NE \t embedded-NE`, with `#` source comments.
+        /// parse_conll treats any 4+ column line as CoNLL-2003 `word POS chunk NER`,
+        /// so the token becomes the index ("1") and the tag the *embedded* level, and
+        /// comment lines become tokens.
+        #[test]
+        fn germeval2014_tsv_tokens_and_outer_tags() {
+            let content = "#\thttp://de.wikipedia.org/wiki/Test [2009-10-17]\n\
+                           1\tAngela\tB-PER\tO\n\
+                           2\tMerkel\tI-PER\tO\n\
+                           3\tbesucht\tO\tO\n\
+                           4\tBerlin\tB-LOC\tO\n\n";
+            let loader =
+                DatasetLoader::with_cache_dir(tempfile::tempdir().unwrap().path()).unwrap();
+            let ds = loader
+                .parse_content_str(content, DatasetId::GermEval2014)
+                .unwrap();
+            let toks: Vec<(String, String)> = ds.sentences[0]
+                .tokens
+                .iter()
+                .map(|t| (t.text.clone(), t.ner_tag.clone()))
+                .collect();
+            assert_eq!(
+                toks,
+                vec![
+                    ("Angela".to_string(), "B-PER".to_string()),
+                    ("Merkel".to_string(), "I-PER".to_string()),
+                    ("besucht".to_string(), "O".to_string()),
+                    ("Berlin".to_string(), "B-LOC".to_string()),
+                ]
+            );
+        }
+
+        /// Same two tner/bc5cdr test rows (0 and 11, checked against the live
+        /// Dataset Viewer on 2026-10-30). Row 0 has Famotidine (Chemical) and
+        /// delirium (Disease); row 11 has "scleroderma renal crisis" (Disease),
+        /// tacrolimus and prednisolone (Chemical): 5 entities.
+        #[test]
+        fn bc5cdr_dataset_viewer_tags_use_tner_label_ids() {
+            let sample = r#"{"dataset":"tner/bc5cdr","config":"bc5cdr","split":"test","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"Sequence"}},{"feature_idx":1,"name":"tags","type":{"feature":{"dtype":"int32","_type":"Value"},"_type":"Sequence"}}],"rows":[{"row_idx":0,"row":{"tokens":["Famotidine","-","associated","delirium","."],"tags":[1,0,0,2,0]},"truncated_cells":[]},{"row_idx":11,"row":{"tokens":["Late","-","onset","scleroderma","renal","crisis","induced","by","tacrolimus","and","prednisolone",":","a","case","report","."],"tags":[0,0,0,2,3,3,0,0,1,0,1,0,0,0,0,0]},"truncated_cells":[]}],"truncated":true}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::BC5CDR).unwrap();
+            let tags: Vec<&str> = ds.sentences[1]
+                .tokens
+                .iter()
+                .map(|t| t.ner_tag.as_str())
+                .collect();
+            assert_eq!(&tags[3..6], ["B-Disease", "I-Disease", "I-Disease"]);
+            assert_eq!(tags[8], "B-Chemical");
+            let n: usize = ds.sentences.iter().map(|s| s.entities().len()).sum();
+            assert_eq!(n, 5);
+        }
+
+        /// CADEC via the HF Dataset Viewer (KevinSpaghetti/cadec; fetched first-rows):
+        /// one row per (text, ade). The parser makes one sentence per row and tags a
+        /// whitespace token only if it lies wholly inside the ADE span, so an ADE
+        /// followed by punctuation ("dizzy." / "fatigue.") is dropped or truncated,
+        /// and a text with k ADEs becomes k sentences each with one ADE tagged.
+        #[test]
+        fn cadec_dataset_viewer_ades_are_not_dropped_at_punctuation() {
+            let sample = r#"{"features": [{"feature_idx": 0, "name": "text", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 1, "name": "ade", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 2, "name": "term_PT", "type": {"dtype": "string", "_type": "Value"}}], "num_rows_total": 4, "rows": [{"row_idx": 0, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "could barely walk across the room", "term_PT": "gait disturbance"}, "truncated_cells": []}, {"row_idx": 1, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "fatigue", "term_PT": "fatigue"}, "truncated_cells": []}, {"row_idx": 2, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "extreme weakness", "term_PT": "asthenia"}, "truncated_cells": []}, {"row_idx": 3, "row": {"text": "dizzy. lowered the cholesterol.", "ade": "dizzy", "term_PT": "dizziness"}, "truncated_cells": []}]}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::CADEC).unwrap();
+            let per_sentence: Vec<(String, Vec<String>)> = ds
+                .sentences
+                .iter()
+                .map(|s| (s.text(), s.entities().into_iter().map(|e| e.text).collect()))
+                .collect();
+            // Each source text should appear once with all of its ADEs.
+            let mut texts: Vec<&String> = per_sentence.iter().map(|(t, _)| t).collect();
+            texts.sort();
+            texts.dedup();
+            assert_eq!(
+                texts.len(),
+                per_sentence.len(),
+                "same text emitted as several sentences, each with one ADE: {per_sentence:#?}"
+            );
+        }
+
+        #[test]
+        fn cadec_single_word_ade_before_period_is_kept() {
+            let sample = r#"{"features": [{"feature_idx": 0, "name": "text", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 1, "name": "ade", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 2, "name": "term_PT", "type": {"dtype": "string", "_type": "Value"}}], "num_rows_total": 4, "rows": [{"row_idx": 0, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "could barely walk across the room", "term_PT": "gait disturbance"}, "truncated_cells": []}, {"row_idx": 1, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "fatigue", "term_PT": "fatigue"}, "truncated_cells": []}, {"row_idx": 2, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "extreme weakness", "term_PT": "asthenia"}, "truncated_cells": []}, {"row_idx": 3, "row": {"text": "dizzy. lowered the cholesterol.", "ade": "dizzy", "term_PT": "dizziness"}, "truncated_cells": []}]}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::CADEC).unwrap();
+            let dizzy = ds
+                .sentences
+                .iter()
+                .find(|s| s.text().starts_with("dizzy"))
+                .expect("dizzy row parsed");
+            assert!(
+                !dizzy.entities().is_empty(),
+                "ADE 'dizzy' in 'dizzy. lowered the cholesterol.' produced no gold entity: {:?}",
+                dizzy
+                    .tokens
+                    .iter()
+                    .map(|t| (&t.text, &t.ner_tag))
+                    .collect::<Vec<_>>()
+            );
         }
     }
 }
