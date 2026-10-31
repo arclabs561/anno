@@ -14,6 +14,8 @@
 
 ### Fixed
 
+- Compact IBANs match by ISO 13616 length (15 to 34 characters) before the mod-97 check; the BBAN pattern `[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?` rejected valid IBANs whose BBAN has letters after the fourth character.
+- Easy-first mention-ranking coreference merges clusters when a mention already sits in a cluster as an earlier antecedent, so the output is a partition; it previously could place one mention in two clusters.
 - Lockfile advisories are cleared for `zip` (anno-eval), `rustls`, `rustls-webpki`, `webpki-roots`, `webpki-root-certs` and `office_oxide`; the `zip` 8 copy that `candle-core` still pins is documented as a `cargo audit` ignore because `candle-core` never calls the affected extraction APIs.
 - PII scanning and NER classification recognize uppercase, ASCII-space-grouped IBANs at registered country lengths, preserving original character spans and adjacent text during redaction. Compact recognition is unchanged.
 - Fresh dataset payloads are validated before replacing cache files; rejected downloads preserve existing caches, S3 snapshot hashes are checked, and cached ECB+ ZIP files load as binary data.

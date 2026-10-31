@@ -105,7 +105,11 @@ pub(crate) fn iban_mod97_valid(raw: &str) -> bool {
 
 const SSN_PATTERN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
 const CARD_PATTERN: &str = r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b";
-const IBAN_PATTERN: &str = r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?\b";
+// ISO 13616: country code, check digits, then an 11-30 character
+// alphanumeric BBAN (15-34 total). BBAN layouts vary by country (RO and KZ
+// put letters after the bank code; LC and RU exceed 31 characters), so the
+// shape stays generic and `iban_mod97_valid` does the filtering.
+const IBAN_PATTERN: &str = r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b";
 
 /// A detected PII entity.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -653,10 +657,7 @@ pub fn looks_like_id_number(text: &str) -> bool {
     let checked: [Checked; 3] = [
         (r"\d{3}-\d{2}-\d{4}", ssn_valid),
         (r"\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}", luhn_valid),
-        (
-            r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?",
-            iban_mod97_valid,
-        ),
+        (r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban_mod97_valid),
     ];
     for (pat, valid) in checked {
         if let Ok(re) = Regex::new(pat) {

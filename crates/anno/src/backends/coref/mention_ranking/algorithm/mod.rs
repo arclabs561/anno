@@ -869,16 +869,40 @@ impl MentionRankingCoref {
             // Link mention to antecedent's cluster
             processed.insert(pair.mention_idx);
 
-            if let Some(&cluster_id) = mention_to_cluster.get(&pair.antecedent_idx) {
-                clusters[cluster_id].push(pair.mention_idx);
-                mention_to_cluster.insert(pair.mention_idx, cluster_id);
-            } else {
-                let cluster_id = clusters.len();
-                clusters.push(vec![pair.antecedent_idx, pair.mention_idx]);
-                mention_to_cluster.insert(pair.antecedent_idx, cluster_id);
-                mention_to_cluster.insert(pair.mention_idx, cluster_id);
+            // Either side may already be in a cluster: the mention can have
+            // been linked earlier as someone else's antecedent. Merge clusters
+            // so every mention belongs to exactly one (Clark & Manning 2016).
+            match (
+                mention_to_cluster.get(&pair.antecedent_idx).copied(),
+                mention_to_cluster.get(&pair.mention_idx).copied(),
+            ) {
+                (Some(a), Some(m)) if a == m => {}
+                (Some(a), Some(m)) => {
+                    let moved = std::mem::take(&mut clusters[m]);
+                    for &idx in &moved {
+                        mention_to_cluster.insert(idx, a);
+                    }
+                    clusters[a].extend(moved);
+                    clusters[a].sort_unstable();
+                }
+                (Some(a), None) => {
+                    clusters[a].push(pair.mention_idx);
+                    mention_to_cluster.insert(pair.mention_idx, a);
+                }
+                (None, Some(m)) => {
+                    clusters[m].push(pair.antecedent_idx);
+                    clusters[m].sort_unstable();
+                    mention_to_cluster.insert(pair.antecedent_idx, m);
+                }
+                (None, None) => {
+                    let cluster_id = clusters.len();
+                    clusters.push(vec![pair.antecedent_idx, pair.mention_idx]);
+                    mention_to_cluster.insert(pair.antecedent_idx, cluster_id);
+                    mention_to_cluster.insert(pair.mention_idx, cluster_id);
+                }
             }
         }
+        clusters.retain(|c| !c.is_empty());
 
         // Apply global proper noun coreference if enabled
         let clusters = if self.config.enable_global_proper_coref {
@@ -908,12 +932,15 @@ impl MentionRankingCoref {
         non_coref_pairs: &HashSet<(usize, usize)>,
     ) -> bool {
         // Get cluster members that would be merged
-        let mut members = vec![mention_idx];
-        if let Some(&cluster_id) = mention_to_cluster.get(&antecedent_idx) {
-            members.extend(clusters[cluster_id].iter().copied());
-        } else {
-            members.push(antecedent_idx);
+        let mut members = Vec::new();
+        for idx in [mention_idx, antecedent_idx] {
+            match mention_to_cluster.get(&idx) {
+                Some(&cluster_id) => members.extend(clusters[cluster_id].iter().copied()),
+                None => members.push(idx),
+            }
         }
+        members.sort_unstable();
+        members.dedup();
 
         // Check all pairs in merged cluster for violations
         for i in 0..members.len() {
