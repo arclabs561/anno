@@ -534,14 +534,11 @@ impl W2NER {
             .map(|(_, v)| v)
             .ok_or_else(|| Error::Parse("No output".to_string()))?;
 
-        let (_, data) = output
+        let (shape, data) = output
             .try_extract_tensor::<f32>()
             .map_err(|e| Error::Parse(format!("Extract failed: {}", e)))?;
+        let num_relations = grid_label_count(shape, seq_len)?;
         let grid: Vec<f32> = data.to_vec();
-
-        // Convert grid to matrix and decode
-        let num_relations = 3; // None, NNW, THW
-        let matrix = Self::grid_to_matrix(&grid, seq_len, num_relations, threshold);
 
         // Calculate word positions
         // Note: This assumes words appear in order and don't overlap.
@@ -591,14 +588,25 @@ impl W2NER {
             )));
         }
 
+        // The grid is over tokenizer positions; decode over words.
+        let word_grid =
+            token_grid_to_word_grid(&grid, seq_len, num_relations, &encoding, &word_positions);
+        let matrix = Self::grid_to_matrix(&word_grid, words.len(), num_relations, threshold);
+
         // Word positions are byte offsets; `Entity` requires character offsets.
         let span_converter = crate::offset::SpanConverter::new(text);
 
-        // Performance: Pre-allocate entities vec with estimated capacity
-        // Decode entities for each type
+        // Labels are None, NNW, then one THW label per entity type.
+        let num_types = num_relations.saturating_sub(2);
         let mut entities = Vec::with_capacity(16);
-        for (type_idx, label) in self.config.entity_labels.iter().enumerate() {
-            let spans = self.decode_from_matrix(&matrix, &words.to_vec(), type_idx);
+        for type_idx in 0..num_types {
+            let label = self
+                .config
+                .entity_labels
+                .get(type_idx)
+                .map(String::as_str)
+                .unwrap_or("ENTITY");
+            let spans = self.decode_from_matrix(&matrix, &words, type_idx);
 
             for (start_word, end_word, score) in spans {
                 if let (Some(&(start_pos, _)), Some(&(_, end_pos))) = (
@@ -667,7 +675,7 @@ impl W2NER {
         let attention_t = super::ort_compat::tensor_from_ndarray(attention_arr)
             .map_err(|e| Error::Parse(format!("Tensor error: {}", e)))?;
 
-        let grid: Vec<f32> = {
+        let (num_relations, grid): (usize, Vec<f32>) = {
             let mut session_guard = session.lock().unwrap_or_else(|e| e.into_inner());
             let outputs = session_guard
                 .run(ort::inputs![
@@ -680,14 +688,11 @@ impl W2NER {
                 .next()
                 .map(|(_, v)| v)
                 .ok_or_else(|| Error::Parse("No output".to_string()))?;
-            let (_, data) = output
+            let (shape, data) = output
                 .try_extract_tensor::<f32>()
                 .map_err(|e| Error::Parse(format!("Extract failed: {}", e)))?;
-            data.to_vec()
+            (grid_label_count(shape, seq_len)?, data.to_vec())
         }; // session_guard + outputs dropped here
-
-        let num_relations = 3; // None, NNW, THW
-        let matrix = Self::grid_to_matrix(&grid, seq_len, num_relations, threshold);
 
         // Compute word → byte position map
         let word_positions: Vec<(usize, usize)> = {
@@ -705,6 +710,11 @@ impl W2NER {
             }
             positions
         };
+
+        // The grid is over tokenizer positions; decode over words.
+        let word_grid =
+            token_grid_to_word_grid(&grid, seq_len, num_relations, &encoding, &word_positions);
+        let matrix = Self::grid_to_matrix(&word_grid, words.len(), num_relations, threshold);
 
         let span_converter = crate::offset::SpanConverter::new(text);
 
@@ -756,6 +766,63 @@ impl W2NER {
 
         Ok(entities)
     }
+}
+
+/// Number of labels in a `[1, seq_len, seq_len, num_labels]` grid output.
+#[cfg(feature = "onnx")]
+fn grid_label_count(shape: &[i64], seq_len: usize) -> Result<usize> {
+    match shape {
+        [_, a, b, labels] if *a as usize == seq_len && *b as usize == seq_len && *labels >= 3 => {
+            Ok(*labels as usize)
+        }
+        _ => Err(Error::Parse(format!(
+            "W2NER grid output has shape {shape:?}; expected [1, {seq_len}, {seq_len}, labels >= 3]"
+        ))),
+    }
+}
+
+/// Re-index a grid over tokenizer positions as a grid over whitespace words.
+///
+/// The exported model scores every pair of tokenizer positions (including
+/// special tokens and subword pieces). Word `w` is represented by the first
+/// non-special token whose span starts inside it; word pairs with no such
+/// token keep all-zero logits, whose argmax is the None label.
+#[cfg(feature = "onnx")]
+fn token_grid_to_word_grid(
+    grid: &[f32],
+    seq_len: usize,
+    num_labels: usize,
+    encoding: &tokenizers::Encoding,
+    word_positions: &[(usize, usize)],
+) -> Vec<f32> {
+    let special = encoding.get_special_tokens_mask();
+    let mut first_token: Vec<Option<usize>> = vec![None; word_positions.len()];
+    for (tok, &(start, end)) in encoding.get_offsets().iter().enumerate().take(seq_len) {
+        if special.get(tok).copied().unwrap_or(0) != 0 || start >= end {
+            continue;
+        }
+        if let Some(w) = word_positions
+            .iter()
+            .position(|&(ws, we)| ws <= start && start < we)
+        {
+            first_token[w].get_or_insert(tok);
+        }
+    }
+
+    let n = word_positions.len();
+    let mut out = vec![0.0f32; n * n * num_labels];
+    for (wi, ti) in first_token.iter().enumerate() {
+        let Some(ti) = *ti else { continue };
+        for (wj, tj) in first_token.iter().enumerate() {
+            let Some(tj) = *tj else { continue };
+            let src = (ti * seq_len + tj) * num_labels;
+            let dst = (wi * n + wj) * num_labels;
+            if let Some(cell) = grid.get(src..src + num_labels) {
+                out[dst..dst + num_labels].copy_from_slice(cell);
+            }
+        }
+    }
+    out
 }
 
 #[cfg(feature = "onnx")]

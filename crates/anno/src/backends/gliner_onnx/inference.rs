@@ -3,7 +3,7 @@
 use super::config::*;
 use super::*;
 use crate::backends::inference::{
-    decode_span_logits_3d, decode_span_logits_4d, span_width_from_flat_len,
+    decode_span_logits_3d, decode_span_logits_4d, decode_token_logits_4d, span_width_from_flat_len,
 };
 
 #[cfg(feature = "onnx")]
@@ -1031,7 +1031,22 @@ impl GLiNEROnnx {
             );
         }
 
-        let spans = if shape_usize.len() == 4 && shape_usize[0] == 1 {
+        let spans = if !self.has_span_inputs && shape_usize.len() == 4 && shape_usize[0] == 1 {
+            // Token-level model: [1, num_words, num_classes, 3] holding
+            // (start, end, inside) logits, not a span grid.
+            if shape_usize[3] != 3 {
+                return Err(Error::Inference(format!(
+                    "GLiNER token-level ONNX output has shape {shape_usize:?}; expected [1, words, classes, 3]"
+                )));
+            }
+            decode_token_logits_4d(
+                &shape_usize,
+                &output_data,
+                num_text_words,
+                entity_types.len(),
+                threshold,
+            )
+        } else if shape_usize.len() == 4 && shape_usize[0] == 1 {
             if shape_usize[3] == 0 {
                 return Err(Error::Inference(
                     "GLiNER ONNX model produced num_classes=0. This export likely does not support dynamic entity types for the requested schema.".to_string(),
