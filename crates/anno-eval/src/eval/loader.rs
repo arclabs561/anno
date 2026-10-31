@@ -394,13 +394,14 @@ impl LoadableDatasetId {
             // Relation extraction datasets use JSON format with entity pairs and relations.
             // Common structure: {entities: [...], relations: [...], text: "..."}
             //
-            // The DocredJson parser handles DocRED, ReTACRED, and similar formats.
+            // The DocredJson parser handles the CrossRE sentence format (CrossREAI),
+            // ReTACRED, and similar formats. It does not parse DocRED itself.
             // Some datasets (SciERC, PolyIE, EnzChemRED) are auto-detected via
             // registry_hint_plan() but listed here for explicit control.
             //
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
-            DatasetId::DocRED
+            DatasetId::CrossREAI
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -4366,10 +4367,9 @@ impl DatasetLoader {
         })
     }
 
-    /// Parse DocRED document-level relation extraction JSON format.
     ///
-    /// DocRED is primarily for relation extraction but includes NER annotations.
-    /// Parse DocRED/CrossRE JSON format for relation extraction.
+    /// Parse CrossRE-style sentence JSON (`sentence`, `ner`, `relations`) for
+    /// relation extraction. The NER annotations become token tags.
     ///
     /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
@@ -4439,7 +4439,7 @@ impl DatasetLoader {
 
         if sentences.is_empty() {
             return Err(Error::InvalidInput(format!(
-                "DocRED/CrossRE JSON for {:?} contains no valid sentences",
+                "CrossRE-style JSON for {:?} contains no valid sentences",
                 id
             )));
         }
@@ -5741,7 +5741,7 @@ impl DatasetLoader {
 
     /// Load relation extraction dataset, returning documents with relations.
     ///
-    /// Use this for DocRED and ReTACRED datasets.
+    /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if !id.is_relation_extraction() {
             return Err(Error::InvalidInput(format!(
@@ -5772,7 +5772,7 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<Vec<RelationDocument>> {
         match id {
-            DatasetId::DocRED
+            DatasetId::CrossREAI
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -5781,7 +5781,7 @@ impl DatasetLoader {
             | DatasetId::SciER
             | DatasetId::MixRED
             | DatasetId::CovEReD => {
-                // All these datasets use the CrossRE format (same as DocRED)
+                // All these datasets use the CrossRE sentence format
                 self.parse_docred_relations(content)
             }
             DatasetId::CHisIEC => {
@@ -5828,7 +5828,7 @@ impl DatasetLoader {
         self.load_relation(id)
     }
 
-    /// Parse DocRED/CrossRE format for relation extraction.
+    /// Parse CrossRE-style sentence JSON for relation extraction.
     ///
     /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
     fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
@@ -6150,14 +6150,14 @@ impl DatasetLoader {
     /// - **Spatial**: 到達 (arrival), 出生於某地 (birthplace), 管理 (governance)
     /// - **Identity**: 別名 (alias/alternative name)
     ///
-    /// # Format Difference from CrossRE/DocRED
+    /// # Format Difference from CrossRE
     ///
     /// **CHisIEC** uses entity indices:
     /// ```json
     /// "relations": [{"type": "上下級", "head": 0, "tail": 1, ...}]
     /// ```
     ///
-    /// **CrossRE/DocRED** uses token spans:
+    /// **CrossRE** uses token spans:
     /// ```json
     /// "relations": [[0, 2, 3, 5, "relation_type"]]
     /// ```
@@ -7521,8 +7521,8 @@ mod tests {
         let line = r#"{"doc_key":"t-1","sentence":["Björk","toured","with","Sugarcubes","."],"ner":[[0,0,"musicalartist"],[3,3,"band"]],"relations":[[0,0,3,3,"part-of","",false,false]]}"#;
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
-        std::fs::write(dir.path().join(DatasetId::DocRED.cache_filename()), line).unwrap();
-        let docs = loader.load_relation(DatasetId::DocRED).unwrap();
+        std::fs::write(dir.path().join(DatasetId::CrossREAI.cache_filename()), line).unwrap();
+        let docs = loader.load_relation(DatasetId::CrossREAI).unwrap();
         let r = &docs[0].relations[0];
         let text = &docs[0].text;
         let slice = |(s, e): (usize, usize)| text.chars().skip(s).take(e - s).collect::<String>();
@@ -7605,7 +7605,7 @@ mod tests {
         );
         assert_eq!(std::fs::read_to_string(&gap_path).unwrap(), gap_payload);
 
-        let relation = DatasetId::DocRED;
+        let relation = DatasetId::CrossREAI;
         let relation_path = loader.cache_path_for(relation);
         assert!(loader
             .validate_and_cache_relation_content(relation, "<html>not a dataset</html>")
@@ -9322,11 +9322,31 @@ Blackburn NNP I-NP I-PER
         }
     }
 
+    /// `DocRED` named the CrossRE AI test file. That file is `CrossREAI`; DocRED
+    /// itself has no parser for its document-level format, so it must not be
+    /// loadable or parse CrossRE content as if it were DocRED.
+    #[test]
+    fn docred_is_not_crossre_and_crossre_ai_is_loadable() {
+        let crossre_ai_url =
+            "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json";
+        assert_eq!(DatasetId::CrossREAI.download_url(), crossre_ai_url);
+        assert!(LoadableDatasetId::is_loadable_dataset(DatasetId::CrossREAI));
+        assert!(DatasetId::CrossREAI.is_relation_extraction());
+
+        assert_ne!(DatasetId::DocRED.download_url(), crossre_ai_url);
+        assert!(!LoadableDatasetId::is_loadable_dataset(DatasetId::DocRED));
+        let line = r#"{"doc_key":"t-1","sentence":["Ada","wrote","code","."],"ner":[[0,0,"researcher"]],"relations":[]}"#;
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        std::fs::write(dir.path().join(DatasetId::DocRED.cache_filename()), line).unwrap();
+        assert!(loader.load_relation(DatasetId::DocRED).is_err());
+    }
+
     #[test]
     fn test_parse_docred_smoke() {
         let sample = r#"{"doc_key":"d1","sentence":["John","met","Mary","in","Paris","."],"ner":[[0,0,"PER"],[2,2,"PER"],[4,4,"LOC"]],"relations":[]}"#;
         let loader = DatasetLoader::new().unwrap();
-        let ds = loader.parse_docred(sample, DatasetId::DocRED).unwrap();
+        let ds = loader.parse_docred(sample, DatasetId::CrossREAI).unwrap();
         assert!(!ds.sentences.is_empty());
         assert!(ds.sentences[0]
             .tokens

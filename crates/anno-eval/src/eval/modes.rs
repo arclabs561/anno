@@ -41,7 +41,10 @@
 //!
 //! ## Partial Mode (Lenient Boundaries)
 //!
-//! "Did you find something that OVERLAPS the gold span with the RIGHT type?"
+//! "Did you find something that OVERLAPS the gold span?" Type is ignored.
+//! An exact boundary earns full credit and an overlapping boundary half
+//! credit (SemEval-2013 partial, Segura-Bedmar et al. 2013):
+//! `P = (COR + 0.5 PAR) / ACT`, `R = (COR + 0.5 PAR) / POS`.
 //!
 //! ```text
 //! Gold:     [====New York====]
@@ -54,8 +57,8 @@
 //!           Chars 0-8 are shared
 //!
 //! Overlap?  ✓ Yes (8 chars)
-//! Type?     ✓ Both LOC
-//! Result:   ✓ TRUE POSITIVE in Partial mode
+//! Boundary? Not exact
+//! Result:   PARTIAL match in Partial mode (half credit)
 //! ```
 //!
 //! ## Exact Mode (Boundary Detection)
@@ -122,7 +125,7 @@
 //! |------|----------|------|----------|
 //! | **Strict** | Exact | Exact | Production benchmarks (CoNLL standard) |
 //! | **Exact** | Exact | Any | Boundary detection evaluation |
-//! | **Partial** | Overlap | Exact | Lenient type evaluation |
+//! | **Partial** | Overlap (half credit) | Any | Lenient boundary evaluation |
 //! | **Type** | Any | Exact | Type classification evaluation |
 //!
 //! # Example
@@ -143,7 +146,7 @@
 //! let strict = evaluate_with_mode(&predicted, &gold, EvalMode::Strict);
 //! println!("Strict F1: {:.1}%", strict.f1 * 100.0);
 //!
-//! // Partial mode - allows boundary overlap
+//! // Partial mode - half credit for overlapping boundaries, type ignored
 //! let partial = evaluate_with_mode(&predicted, &gold, EvalMode::Partial);
 //! println!("Partial F1: {:.1}%", partial.f1 * 100.0);
 //!
@@ -236,8 +239,13 @@ pub enum EvalMode {
     /// Useful for evaluating span detection separately from classification.
     Exact,
 
-    /// Partial boundary overlap with exact type.
-    /// More lenient than strict; gives credit for overlapping predictions.
+    /// SemEval-2013 partial: type is ignored, an exact boundary earns full
+    /// credit and an overlapping boundary half credit.
+    ///
+    /// Precision is `(COR + 0.5 PAR) / ACT` and recall `(COR + 0.5 PAR) / POS`,
+    /// where COR counts exact-boundary matches, PAR overlapping ones, ACT the
+    /// predictions and POS the gold entities. In [`ModeResults`],
+    /// `true_positives` counts the matched pairs (COR + PAR).
     Partial,
 
     /// Any overlap with exact type.
@@ -273,7 +281,9 @@ impl EvalMode {
         match self {
             EvalMode::Strict => "Exact boundary + exact type (CoNLL standard)",
             EvalMode::Exact => "Exact boundary only (type can differ)",
-            EvalMode::Partial => "Partial boundary overlap + exact type",
+            EvalMode::Partial => {
+                "Overlapping boundary for half credit, type ignored (SemEval partial)"
+            }
             EvalMode::Type => "Any overlap + exact type",
         }
     }
@@ -313,6 +323,9 @@ impl ModeResults {
     /// Reference: Manning et al. (2008) [Introduction to Information Retrieval](https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-in-information-retrieval-1.html)
     #[must_use]
     pub fn compute(predicted: &[Entity], gold: &[GoldEntity], mode: EvalMode) -> Self {
+        if mode == EvalMode::Partial {
+            return semeval_partial_results(predicted, gold, 0.0);
+        }
         let (tp, fp, fn_count) = count_matches(predicted, gold, mode);
 
         let precision = if tp + fp > 0 {
@@ -352,7 +365,7 @@ pub struct MultiModeResults {
     pub strict: ModeResults,
     /// Exact mode (exact boundary only)
     pub exact: ModeResults,
-    /// Partial mode (partial boundary + exact type)
+    /// Partial mode (SemEval partial: half credit for overlap, type ignored)
     pub partial: ModeResults,
     /// Type mode (any overlap + exact type)
     pub type_mode: ModeResults,
@@ -420,9 +433,9 @@ fn entities_match(pred: &Entity, gold: &GoldEntity, mode: EvalMode) -> bool {
             pred.start() == gold.start && pred.end() == gold.end
         }
         EvalMode::Partial => {
-            // Partial overlap AND exact type
+            // Any overlap, type ignored. Scoring (half credit for inexact
+            // boundaries) happens in `semeval_partial_results`.
             has_overlap(pred.start(), pred.end(), gold.start, gold.end)
-                && types_match(&pred.entity_type, &gold.entity_type)
         }
         EvalMode::Type => {
             // Any overlap AND exact type
@@ -522,6 +535,74 @@ fn count_matches(
     (tp, fp, fn_count)
 }
 
+/// SemEval-2013 partial scoring (Segura-Bedmar et al. 2013).
+///
+/// Type is ignored. Pairs are assigned best match first across all gold
+/// spans: exact-boundary pairs (COR) before overlapping ones (PAR), then
+/// gold order, then prediction order, each span used at most once. An
+/// overlapping pair must also reach `min_overlap` IoU.
+fn semeval_partial_results(
+    predicted: &[Entity],
+    gold: &[GoldEntity],
+    min_overlap: f64,
+) -> ModeResults {
+    let mut candidates: Vec<(bool, usize, usize)> = Vec::new();
+    for (gold_idx, g) in gold.iter().enumerate() {
+        for (pred_idx, p) in predicted.iter().enumerate() {
+            if has_sufficient_overlap(p.start(), p.end(), g.start, g.end, min_overlap) {
+                let exact = p.start() == g.start && p.end() == g.end;
+                candidates.push((exact, gold_idx, pred_idx));
+            }
+        }
+    }
+    // Stable sort keeps gold order, then prediction order, within each class.
+    candidates.sort_by_key(|&(exact, _, _)| std::cmp::Reverse(exact));
+
+    let mut gold_matched = vec![false; gold.len()];
+    let mut pred_matched = vec![false; predicted.len()];
+    let (mut correct, mut partial) = (0usize, 0usize);
+    for (exact, gold_idx, pred_idx) in candidates {
+        if gold_matched[gold_idx] || pred_matched[pred_idx] {
+            continue;
+        }
+        gold_matched[gold_idx] = true;
+        pred_matched[pred_idx] = true;
+        if exact {
+            correct += 1;
+        } else {
+            partial += 1;
+        }
+    }
+
+    let matched = correct + partial;
+    let credit = correct as f64 + 0.5 * partial as f64;
+    let precision = if predicted.is_empty() {
+        0.0
+    } else {
+        credit / predicted.len() as f64
+    };
+    let recall = if gold.is_empty() {
+        0.0
+    } else {
+        credit / gold.len() as f64
+    };
+    let f1 = if precision + recall > 0.0 {
+        2.0 * precision * recall / (precision + recall)
+    } else {
+        0.0
+    };
+
+    ModeResults {
+        mode: EvalMode::Partial,
+        precision,
+        recall,
+        f1,
+        true_positives: matched,
+        false_positives: predicted.len() - matched,
+        false_negatives: gold.len() - matched,
+    }
+}
+
 /// Evaluate with a specific mode.
 #[must_use]
 pub fn evaluate_with_mode(
@@ -557,6 +638,9 @@ pub fn evaluate_with_config(
     mode: EvalMode,
     config: &EvalConfig,
 ) -> ModeResults {
+    if mode == EvalMode::Partial {
+        return semeval_partial_results(predicted, gold, config.min_overlap);
+    }
     let (tp, fp, fn_count) = count_matches_with_config(predicted, gold, mode, config);
 
     let precision = if tp + fp > 0 {
@@ -639,7 +723,14 @@ fn entities_match_with_config(
                 && types_match(&pred.entity_type, &gold.entity_type)
         }
         EvalMode::Exact => pred.start() == gold.start && pred.end() == gold.end,
-        EvalMode::Partial | EvalMode::Type => {
+        EvalMode::Partial => has_sufficient_overlap(
+            pred.start(),
+            pred.end(),
+            gold.start,
+            gold.end,
+            config.min_overlap,
+        ),
+        EvalMode::Type => {
             has_sufficient_overlap(
                 pred.start(),
                 pred.end(),
@@ -684,9 +775,9 @@ mod tests {
         let results = ModeResults::compute(&predicted, &gold_entities, EvalMode::Strict);
         assert_eq!(results.f1, 0.0); // Strict mode fails
 
-        // But partial mode should match
+        // Partial mode gives the overlapping boundary half credit
         let partial = ModeResults::compute(&predicted, &gold_entities, EvalMode::Partial);
-        assert!((partial.f1 - 1.0).abs() < 0.001);
+        assert!((partial.f1 - 0.5).abs() < 0.001); // one PAR pair: half credit
     }
 
     #[test]
@@ -712,9 +803,9 @@ mod tests {
         let strict = ModeResults::compute(&predicted, &gold_entities, EvalMode::Strict);
         assert_eq!(strict.f1, 0.0);
 
-        // Partial: pass (overlap + same type)
+        // Partial: overlapping boundary earns half credit
         let partial = ModeResults::compute(&predicted, &gold_entities, EvalMode::Partial);
-        assert!((partial.f1 - 1.0).abs() < 0.001);
+        assert!((partial.f1 - 0.5).abs() < 0.001); // one PAR pair: half credit
     }
 
     #[test]
@@ -748,8 +839,8 @@ mod tests {
         // Strict: 1/2 (John matches, NYC doesn't)
         assert!((all.strict.precision - 0.5).abs() < 0.001);
 
-        // Partial: 2/2 (both overlap)
-        assert!((all.partial.f1 - 1.0).abs() < 0.001);
+        // Partial: John exact (COR), NYC overlapping (PAR)
+        assert!((all.partial.f1 - 0.75).abs() < 0.001); // (1 COR + 0.5 PAR) / 2
     }
 
     #[test]
@@ -818,7 +909,7 @@ mod tests {
         let results = evaluate_with_config(&predicted, &gold_entities, EvalMode::Partial, &config);
 
         // Should match (overlap exists)
-        assert!((results.f1 - 1.0).abs() < 0.001);
+        assert!((results.f1 - 0.5).abs() < 0.001); // one PAR pair: half credit
     }
 
     #[test]
@@ -833,8 +924,8 @@ mod tests {
         let config = EvalConfig::new().with_min_overlap(0.5);
         let results = evaluate_with_config(&predicted, &gold_entities, EvalMode::Partial, &config);
         assert!(
-            (results.f1 - 1.0).abs() < 0.001,
-            "0.5 threshold should pass"
+            (results.f1 - 0.5).abs() < 0.001,
+            "0.5 threshold should pass as a PAR pair"
         );
 
         // 70% threshold - should fail (0.615 < 0.7)
@@ -854,7 +945,7 @@ mod tests {
         // Default (0%) should match
         let config = EvalConfig::default();
         let results = evaluate_with_config(&predicted, &gold_entities, EvalMode::Partial, &config);
-        assert!((results.f1 - 1.0).abs() < 0.001);
+        assert!((results.f1 - 0.5).abs() < 0.001); // one PAR pair: half credit
 
         // 20% threshold should fail (0.1 < 0.2)
         let config = EvalConfig::new().with_min_overlap(0.2);
@@ -873,6 +964,79 @@ mod tests {
 
         // Should still pass (exact match)
         assert!((results.f1 - 1.0).abs() < 0.001);
+    }
+
+    /// SemEval-2013 partial scheme (Segura-Bedmar et al. 2013): type is
+    /// ignored, an exact boundary is correct (COR), an overlapping boundary
+    /// is partial (PAR) worth half credit, and
+    /// P = (COR + 0.5 PAR) / ACT, R = (COR + 0.5 PAR) / POS.
+    ///
+    /// Gold: "John" PER [0,4), "New York" LOC [10,18), "Apple" ORG [30,35),
+    /// "Paris" LOC [40,45). Predictions: "John" PER (COR), "New" LOC [10,13)
+    /// (PAR), "Apple" PER (exact boundary, wrong type: COR), and a spurious
+    /// "Rome" [50,54). "Paris" is missed.
+    /// COR = 2, PAR = 1, ACT = 4, POS = 4, so P = R = F1 = 2.5 / 4 = 0.625.
+    #[test]
+    fn partial_mode_is_semeval_partial() {
+        let gold_entities = vec![
+            gold("John", EntityType::Person, 0),
+            gold("New York", EntityType::Location, 10),
+            gold("Apple", EntityType::Organization, 30),
+            gold("Paris", EntityType::Location, 40),
+        ];
+        let predicted = vec![
+            pred("John", EntityType::Person, 0, 4),
+            pred("New", EntityType::Location, 10, 13),
+            pred("Apple", EntityType::Person, 30, 35),
+            pred("Rome", EntityType::Location, 50, 54),
+        ];
+        for r in [
+            ModeResults::compute(&predicted, &gold_entities, EvalMode::Partial),
+            evaluate_with_config(
+                &predicted,
+                &gold_entities,
+                EvalMode::Partial,
+                &EvalConfig::default(),
+            ),
+        ] {
+            assert!((r.precision - 0.625).abs() < 1e-12, "{r:?}");
+            assert!((r.recall - 0.625).abs() < 1e-12, "{r:?}");
+            assert!((r.f1 - 0.625).abs() < 1e-12, "{r:?}");
+            // Matched pairs (COR + PAR), unmatched predictions, unmatched gold.
+            assert_eq!(
+                (r.true_positives, r.false_positives, r.false_negatives),
+                (3, 1, 1)
+            );
+        }
+
+        // Type mode is unchanged: overlap and matching type required.
+        let t = ModeResults::compute(&predicted, &gold_entities, EvalMode::Type);
+        assert_eq!((t.true_positives, t.false_positives), (2, 2));
+    }
+
+    /// An overlapping prediction with the wrong type is still PAR, and an
+    /// exact-boundary match is preferred over an earlier overlapping one.
+    /// Gold "New York" [0,8) and "York" [4,8); predictions "New York" ORG
+    /// [0,8) and "York" LOC [4,8). Matching "New York" pred to "York" gold
+    /// first would leave a PAR pair; the best assignment is two COR pairs.
+    #[test]
+    fn partial_mode_ignores_type_and_prefers_exact_boundaries() {
+        let gold_entities = vec![gold("York", EntityType::Location, 4)];
+        let predicted = vec![pred("New York", EntityType::Organization, 0, 8)];
+        let r = ModeResults::compute(&predicted, &gold_entities, EvalMode::Partial);
+        // COR = 0, PAR = 1, ACT = POS = 1: P = R = F1 = 0.5.
+        assert!((r.f1 - 0.5).abs() < 1e-12, "{r:?}");
+
+        let gold_entities = vec![
+            gold("York", EntityType::Location, 4),
+            gold("New York", EntityType::Location, 0),
+        ];
+        let predicted = vec![
+            pred("New York", EntityType::Organization, 0, 8),
+            pred("York", EntityType::Location, 4, 8),
+        ];
+        let r = ModeResults::compute(&predicted, &gold_entities, EvalMode::Partial);
+        assert!((r.f1 - 1.0).abs() < 1e-12, "{r:?}");
     }
 
     #[test]

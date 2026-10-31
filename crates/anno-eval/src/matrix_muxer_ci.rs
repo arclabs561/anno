@@ -4595,7 +4595,7 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
     // Relation uses strict_f1 as its primary F1.
     let rel_ok = mk(
         Task::RelationExtraction,
-        DatasetId::DocRED,
+        DatasetId::CrossREAI,
         true,
         &[("strict_f1", 0.9)],
     );

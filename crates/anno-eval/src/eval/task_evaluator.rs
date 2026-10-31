@@ -3326,7 +3326,7 @@ impl TaskEvaluator {
             })
             .unwrap_or(true);
         // TPLinker uses ONNX neural inference when the `onnx` feature is enabled,
-        // with a heuristic fallback otherwise. For relation datasets like DocRED/CHisIEC
+        // with a heuristic fallback otherwise. For relation datasets like CrossREAI/CHisIEC
         // that provide gold entity spans/types, allow an optional “oracle entities” mode
         // so the eval is not dominated by mention detection mismatch.
         let tplinker_oracle_entities = std::env::var("ANNO_RELATION_TPLINKER_ORACLE_ENTITIES")
@@ -3591,7 +3591,7 @@ impl TaskEvaluator {
         }
 
         // Evaluate relations
-        // Relation datasets in `anno` (e.g. DocRED/CHisIEC) commonly use a richer entity-type
+        // Relation datasets in `anno` (e.g. CrossREAI/CHisIEC) commonly use a richer entity-type
         // schema than our `EntityType` enum. Require span + relation-type agreement, but do not
         // hard-require entity-type string equality by default.
         let config = RelationEvalConfig {
@@ -4946,10 +4946,15 @@ mod tests {
         let model = anno::AnyModel::new("no-op", "test model", vec![], |_, _| Ok(vec![]));
 
         let error = evaluator
-            .evaluate_relation_task("no-op", &model, &empty_dataset(DatasetId::DocRED), &config)
+            .evaluate_relation_task(
+                "no-op",
+                &model,
+                &empty_dataset(DatasetId::CrossREAI),
+                &config,
+            )
             .expect_err("cached-only relation evaluation must not refresh the cache");
 
-        assert!(error.to_string().contains("DocRED"));
+        assert!(error.to_string().contains("CrossRE"));
         assert!(error
             .to_string()
             .contains("cached-only evaluation forbids downloading"));
