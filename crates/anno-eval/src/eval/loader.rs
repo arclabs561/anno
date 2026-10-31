@@ -5869,7 +5869,7 @@ impl DatasetLoader {
                 if let Some(tok_str) = token.as_str() {
                     token_to_char.push(char_pos);
                     // Add token length + 1 for space (except last token)
-                    char_pos += tok_str.len();
+                    char_pos += tok_str.chars().count();
                     if i < tokens_arr.len() - 1 {
                         char_pos += 1; // Space between tokens
                     }
@@ -5911,12 +5911,12 @@ impl DatasetLoader {
                                 if let Some(last_token) =
                                     tokens_arr.get(token_end).and_then(|t| t.as_str())
                                 {
-                                    last_token_char_start + last_token.len()
+                                    last_token_char_start + last_token.chars().count()
                                 } else {
-                                    char_start + entity_text.len()
+                                    char_start + entity_text.chars().count()
                                 }
                             } else {
-                                char_start + entity_text.len()
+                                char_start + entity_text.chars().count()
                             };
 
                             entity_map.insert(
@@ -5955,7 +5955,7 @@ impl DatasetLoader {
                                         if let Some(last_tok) =
                                             tokens_arr.get(head_token_end).and_then(|t| t.as_str())
                                         {
-                                            last_start + last_tok.len()
+                                            last_start + last_tok.chars().count()
                                         } else {
                                             char_start
                                         }
@@ -5977,7 +5977,7 @@ impl DatasetLoader {
                                         if let Some(last_tok) =
                                             tokens_arr.get(tail_token_end).and_then(|t| t.as_str())
                                         {
-                                            last_start + last_tok.len()
+                                            last_start + last_tok.chars().count()
                                         } else {
                                             char_start
                                         }
@@ -7513,6 +7513,27 @@ fn map_entity_type(original: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Relation gold spans are character offsets: a non-ASCII token before an
+    /// entity must not shift later spans.
+    #[test]
+    fn crossre_relation_gold_offsets_are_characters() {
+        let line = r#"{"doc_key":"t-1","sentence":["Björk","toured","with","Sugarcubes","."],"ner":[[0,0,"musicalartist"],[3,3,"band"]],"relations":[[0,0,3,3,"part-of","",false,false]]}"#;
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        std::fs::write(dir.path().join(DatasetId::DocRED.cache_filename()), line).unwrap();
+        let docs = loader.load_relation(DatasetId::DocRED).unwrap();
+        let r = &docs[0].relations[0];
+        let text = &docs[0].text;
+        let slice = |(s, e): (usize, usize)| text.chars().skip(s).take(e - s).collect::<String>();
+        assert_eq!(slice(r.head_span), "Björk", "head span {:?}", r.head_span);
+        assert_eq!(
+            slice(r.tail_span),
+            "Sugarcubes",
+            "tail span {:?}",
+            r.tail_span
+        );
+    }
 
     #[cfg(feature = "eval")]
     #[test]

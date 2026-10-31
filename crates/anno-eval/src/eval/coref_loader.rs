@@ -492,7 +492,7 @@ impl GapExample {
         let pronoun_mention = Mention::with_type(
             &self.pronoun,
             self.pronoun_offset,
-            self.pronoun_offset + self.pronoun.len(),
+            self.pronoun_offset + self.pronoun.chars().count(),
             MentionType::Pronominal,
         );
 
@@ -500,14 +500,14 @@ impl GapExample {
         let mention_a = Mention::with_type(
             &self.name_a,
             self.offset_a,
-            self.offset_a + self.name_a.len(),
+            self.offset_a + self.name_a.chars().count(),
             MentionType::Proper,
         );
 
         let mention_b = Mention::with_type(
             &self.name_b,
             self.offset_b,
-            self.offset_b + self.name_b.len(),
+            self.offset_b + self.name_b.chars().count(),
             MentionType::Proper,
         );
 
@@ -1824,6 +1824,33 @@ mod ecb_plus_acc {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GAP offsets are character offsets, so a mention ends at offset plus the
+    /// name's character count, not its byte length.
+    #[test]
+    fn gap_mention_end_uses_character_length() {
+        let ex = GapExample {
+            id: "t".into(),
+            text: "Zoë met Ana. She smiled.".into(),
+            pronoun: "She".into(),
+            pronoun_offset: 13,
+            name_a: "Zoë".into(),
+            offset_a: 0,
+            coref_a: true,
+            name_b: "Ana".into(),
+            offset_b: 8,
+            coref_b: false,
+            url: None,
+        };
+        let doc = ex.to_coref_document();
+        let zoe = doc
+            .chains
+            .iter()
+            .flat_map(|c| c.mentions.iter())
+            .find(|m| m.text == "Zoë")
+            .unwrap();
+        assert_eq!((zoe.start, zoe.end), (0, 3));
+    }
 
     #[test]
     fn test_gap_example_to_coref() {
