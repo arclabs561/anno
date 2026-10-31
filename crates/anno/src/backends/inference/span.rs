@@ -138,6 +138,61 @@ pub(crate) fn decode_span_logits_3d(
     spans
 }
 
+/// Decode token-level GLiNER logits shaped `[1, num_words, num_classes, 3]`.
+///
+/// Token-level models (`span_mode: "token_level"`, no `span_idx` input) score
+/// each word as the start, end, and inside of an entity of each class. As in
+/// the reference `TokenDecoder` (urchade/GLiNER, `gliner/decoding/decoder.py`),
+/// a span `start..=end` of class `c` is kept when the start and end
+/// probabilities exceed `threshold` and every inside probability in the span
+/// is at least `threshold`; its score is the minimum of those probabilities.
+pub(crate) fn decode_token_logits_4d(
+    shape: &[usize],
+    logits: &[f32],
+    num_words: usize,
+    max_classes: usize,
+    threshold: f32,
+) -> Vec<ScoredSpan> {
+    if shape.len() != 4 || shape[0] != 1 || shape[3] != 3 {
+        return Vec::new();
+    }
+    let (out_words, out_classes) = (shape[1], shape[2]);
+    let num_classes = out_classes.min(max_classes);
+    let words = out_words.min(num_words);
+    let prob = |word: usize, class_idx: usize, kind: usize| -> Option<f32> {
+        logits
+            .get((word * out_classes + class_idx) * 3 + kind)
+            .map(|&l| sigmoid(l))
+    };
+
+    let mut spans = Vec::new();
+    for class_idx in 0..num_classes {
+        for start in 0..words {
+            let Some(p_start) = prob(start, class_idx, 0).filter(|&p| p > threshold) else {
+                continue;
+            };
+            let mut min_inside = f32::INFINITY;
+            for end in start..words {
+                match prob(end, class_idx, 2) {
+                    Some(p) if p >= threshold => min_inside = min_inside.min(p),
+                    // Every later end would include this word too.
+                    _ => break,
+                }
+                let Some(p_end) = prob(end, class_idx, 1).filter(|&p| p > threshold) else {
+                    continue;
+                };
+                spans.push(ScoredSpan {
+                    start_word: start,
+                    end_word: end,
+                    class_idx,
+                    score: p_start.min(p_end).min(min_inside),
+                });
+            }
+        }
+    }
+    spans
+}
+
 fn sigmoid(logit: f32) -> f32 {
     1.0 / (1.0 + (-logit).exp())
 }
@@ -429,6 +484,25 @@ mod tests {
         logits[2] = 10.0;
         let spans = decode_span_logits_4d(&[1, num_words, width, 1], &logits, num_words, 1, 0.5);
         assert_eq!(span_words(&spans), vec![(0, 2)]);
+    }
+
+    #[test]
+    fn decode_token_level_joins_start_inside_end() {
+        // "Call John Smith now", one class, layout [1, words, classes, 3] =
+        // (start, end, inside): start at John, end at Smith, inside on both.
+        let num_words = 4;
+        let mut logits = vec![-10.0f32; num_words * 3];
+        logits[3] = 10.0; // word 1 start
+        logits[3 + 2] = 10.0; // word 1 inside
+        logits[6 + 1] = 10.0; // word 2 end
+        logits[6 + 2] = 10.0; // word 2 inside
+        let spans = decode_token_logits_4d(&[1, num_words, 1, 3], &logits, num_words, 1, 0.5);
+        assert_eq!(span_words(&spans), vec![(1, 2)]);
+
+        // A gap in the inside scores breaks the span.
+        logits[3 + 2] = -10.0;
+        let spans = decode_token_logits_4d(&[1, num_words, 1, 3], &logits, num_words, 1, 0.5);
+        assert!(spans.is_empty(), "{spans:?}");
     }
 
     #[test]
