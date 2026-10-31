@@ -10,6 +10,7 @@
 
 ### Changed (breaking, planned for 0.14.0)
 
+- `anno-eval`: `EvalMode::Partial` is the SemEval-2013 partial scheme (Segura-Bedmar et al. 2013), as `ner_metrics` computes it: entity type is ignored, an exact boundary earns full credit and an overlapping boundary half credit, with precision `(COR + 0.5 PAR) / ACT` and recall `(COR + 0.5 PAR) / POS`. It was overlap plus exact type, identical to `EvalMode::Type`. Reported Partial precision, recall and F1 change; `true_positives` counts matched pairs (exact or overlapping).
 - `anno-eval`: `EvalHistoryEntry` and `EvalRunProvenance` add public observation, muxer-run, and coverage-cohort fields; provenance also records the actual evaluated document sample. Rust struct-literal callers must initialize the new optional fields (or use `..Default::default()` for `EvalRunProvenance`). Historical JSON remains readable.
 
 ### Fixed
