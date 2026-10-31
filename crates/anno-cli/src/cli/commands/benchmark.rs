@@ -127,7 +127,7 @@ fn profile_defaults(profile: BenchmarkProfile) -> (Vec<String>, Vec<String>, Vec
         ),
         BenchmarkProfile::RelationStandard => (
             vec!["relation".to_string()],
-            vec!["DocRED".to_string()],
+            vec!["CrossREAI".to_string()],
             vec!["tplinker".to_string()],
         ),
     }

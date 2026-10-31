@@ -54,7 +54,7 @@ pub enum CacheAction {
 
         /// Optional comma-separated list of dataset IDs to upload.
         ///
-        /// Examples: `--datasets Wnut17` or `--datasets Wnut17,DocRED`
+        /// Examples: `--datasets Wnut17` or `--datasets Wnut17,CrossREAI`
         #[arg(long, value_delimiter = ',')]
         datasets: Vec<String>,
 

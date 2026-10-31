@@ -11,6 +11,7 @@
 ### Changed (breaking, planned for 0.14.0)
 
 - `anno-eval`: `EvalMode::Partial` is the SemEval-2013 partial scheme (Segura-Bedmar et al. 2013), as `ner_metrics` computes it: entity type is ignored, an exact boundary earns full credit and an overlapping boundary half credit, with precision `(COR + 0.5 PAR) / ACT` and recall `(COR + 0.5 PAR) / POS`. It was overlap plus exact type, identical to `EvalMode::Type`. Reported Partial precision, recall and F1 change; `true_positives` counts matched pairs (exact or overlapping).
+- `anno-eval`: `DatasetId::DocRED` no longer downloads the CrossRE AI test file. That file is the new `DatasetId::CrossREAI` (431 sentences, 1,811 entities, 1,164 relations), which the relation-extraction task list, the `relation-standard` benchmark profile and CLI help now use. `DocRED` keeps its metadata but is not loadable until a parser for the DocRED format exists; cached `DocRED.cache` files are not migrated.
 - `anno-eval`: `EvalHistoryEntry` and `EvalRunProvenance` add public observation, muxer-run, and coverage-cohort fields; provenance also records the actual evaluated document sample. Rust struct-literal callers must initialize the new optional fields (or use `..Default::default()` for `EvalRunProvenance`). Historical JSON remains readable.
 
 ### Fixed
