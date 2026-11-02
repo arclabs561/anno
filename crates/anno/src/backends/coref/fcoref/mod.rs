@@ -13,7 +13,7 @@
 //! Tokenizer (DistilRoBERTa)
 //!   |
 //!   v
-//! Encoder (ONNX) -> hidden_states [1, T, 768]
+//! Encoder (ONNX, sequential segments) -> document hidden_states [T, 768]
 //!   |
 //!   v
 //! Mention Scorer (ndarray) -> top-k mention spans
@@ -68,11 +68,17 @@ pub struct FCorefConfig {
     pub max_span_length: usize,
     /// Fraction of tokens to keep as candidate mentions.
     pub top_lambda: f32,
-    /// Maximum input length in tokens.
+    /// maximum encoder segment length, not a whole-document limit.
     pub max_segment_len: usize,
+    /// maximum document tokens, including special tokens. default: `Some(512)`.
+    ///
+    /// larger documents return an error, never truncated annotations. raise this
+    /// budget to encode more segments, or use `None` to remove the document cap.
+    /// document-level scoring uses quadratic memory; bound untrusted inputs.
+    pub max_doc_tokens: Option<usize>,
     /// ONNX optimization level (1-3, default 3).
     pub optimization_level: u8,
-    /// Number of threads for inference (0 = auto).
+    /// ONNX encoder threads (0 = auto). does not control the Rust scorer.
     pub num_threads: usize,
 }
 
@@ -82,9 +88,21 @@ impl Default for FCorefConfig {
             max_span_length: 30,
             top_lambda: 0.25,
             max_segment_len: 512,
+            max_doc_tokens: Some(512),
             optimization_level: 3,
             num_threads: 4,
         }
+    }
+}
+
+impl FCorefConfig {
+    fn validate_limits(&self) -> Result<()> {
+        if self.max_segment_len == 0 || self.max_doc_tokens == Some(0) {
+            return Err(Error::InvalidInput(
+                "coreference segment and document limits must be positive".into(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -114,6 +132,7 @@ impl FCoref {
 
     /// Load with custom configuration.
     pub fn from_path_with_config(model_path: &str, mut config: FCorefConfig) -> Result<Self> {
+        config.validate_limits()?;
         let base = std::path::Path::new(model_path);
 
         // Load config.json if present (override defaults)
@@ -135,6 +154,8 @@ impl FCoref {
                 }
             }
         }
+
+        config.validate_limits()?;
 
         // Load encoder ONNX session (prefer quantized)
         let encoder_path = if base.join("encoder_quantized.onnx").exists() {
@@ -193,6 +214,7 @@ impl FCoref {
 
     /// Load from HuggingFace with custom config.
     pub fn from_pretrained_with_config(model_id: &str, mut config: FCorefConfig) -> Result<Self> {
+        config.validate_limits()?;
         use crate::backends::hf_loader;
 
         let api = hf_loader::hf_api()?;
@@ -241,6 +263,8 @@ impl FCoref {
             }
         }
 
+        config.validate_limits()?;
+
         // Load encoder session
         let session = hf_loader::create_onnx_session(
             &encoder_path,
@@ -271,16 +295,19 @@ impl FCoref {
     /// Resolve coreference in text.
     ///
     /// Returns clusters of co-referring mentions with character offsets.
+    ///
+    /// the full document is encoded in sequential, non-overlapping segments,
+    /// then scored together. raising `max_doc_tokens` does not change the
+    /// encoder's segment size or add independent coreference windows.
+    /// inputs exceeding the document budget or using tokenizer truncation fail
+    /// before encoder inference, rather than silently dropping their tail.
     pub fn resolve(&self, text: &str) -> Result<Vec<CorefCluster>> {
         if text.is_empty() {
             return Ok(vec![]);
         }
 
         // 1. Tokenize
-        let encoding = self
-            .tokenizer
-            .encode(text, true)
-            .map_err(|e| Error::Parse(format!("Tokenizer encode: {}", e)))?;
+        let encoding = encode_input(&self.tokenizer, text, &self.config)?;
 
         let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
         let attention_mask: Vec<i64> = encoding
@@ -289,14 +316,15 @@ impl FCoref {
             .map(|&m| m as i64)
             .collect();
 
-        let seq_len = input_ids.len().min(self.config.max_segment_len);
-        let input_ids = &input_ids[..seq_len];
-        let attention_mask = &attention_mask[..seq_len];
+        // 2. Encode all segments before document-level mention/antecedent scoring.
+        let hidden = encode_segments(
+            &input_ids,
+            &attention_mask,
+            self.config.max_segment_len,
+            |ids, mask| self.run_encoder(ids, mask),
+        )?;
 
-        // 2. Run encoder
-        let hidden = self.run_encoder(input_ids, attention_mask)?;
-
-        // 3. Score mentions (skip special tokens: positions 1..seq_len-1)
+        // 3. Score mentions over the complete document.
         let mentions_result = scoring::score_mentions(
             &hidden,
             &self.scorer,
@@ -444,6 +472,71 @@ impl FCoref {
     }
 }
 
+fn encode_input(
+    tokenizer: &Tokenizer,
+    text: &str,
+    config: &FCorefConfig,
+) -> Result<tokenizers::Encoding> {
+    config.validate_limits()?;
+    if tokenizer.get_truncation().is_some() {
+        return Err(Error::InvalidInput(
+            "coreference tokenizer must not truncate input".into(),
+        ));
+    }
+    let encoding = tokenizer
+        .encode(text, true)
+        .map_err(|e| Error::Parse(format!("Tokenizer encode: {e}")))?;
+    if let Some(limit) = config.max_doc_tokens {
+        if encoding.len() > limit {
+            return Err(Error::InvalidInput(format!(
+                "coreference document has {} tokens, exceeding max_doc_tokens {limit}",
+                encoding.len()
+            )));
+        }
+    }
+    Ok(encoding)
+}
+
+fn encode_segments(
+    ids: &[i64],
+    mask: &[i64],
+    segment_len: usize,
+    mut encode: impl FnMut(&[i64], &[i64]) -> Result<Array2<f32>>,
+) -> Result<Array2<f32>> {
+    if segment_len == 0 || ids.is_empty() || ids.len() != mask.len() {
+        return Err(Error::InvalidInput("invalid encoder segment input".into()));
+    }
+    let first_end = segment_len.min(ids.len());
+    let first = encode(&ids[..first_end], &mask[..first_end])?;
+    let width = first.ncols();
+    if first.nrows() != first_end || width == 0 {
+        return Err(Error::Parse(
+            "encoder returned an invalid segment shape".into(),
+        ));
+    }
+    if first_end == ids.len() {
+        return Ok(first);
+    }
+    let mut hidden = Array2::zeros((ids.len(), width));
+    hidden
+        .slice_mut(ndarray::s![..first_end, ..])
+        .assign(&first);
+    drop(first);
+    // offsets still refer to the original tokenization: do not insert new
+    // special tokens or independently resolve/reconcile segment clusters.
+    for start in (first_end..ids.len()).step_by(segment_len) {
+        let end = (start + segment_len).min(ids.len());
+        let part = encode(&ids[start..end], &mask[start..end])?;
+        if part.dim() != (end - start, width) {
+            return Err(Error::Parse(
+                "encoder returned an inconsistent segment shape".into(),
+            ));
+        }
+        hidden.slice_mut(ndarray::s![start..end, ..]).assign(&part);
+    }
+    Ok(hidden)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,6 +547,7 @@ mod tests {
         assert_eq!(config.max_span_length, 30);
         assert!((config.top_lambda - 0.25).abs() < 1e-6);
         assert_eq!(config.max_segment_len, 512);
+        assert_eq!(config.max_doc_tokens, Some(512));
         assert_eq!(config.optimization_level, 3);
         assert_eq!(config.num_threads, 4);
     }
@@ -464,11 +558,199 @@ mod tests {
             max_span_length: 15,
             top_lambda: 0.4,
             max_segment_len: 256,
+            max_doc_tokens: Some(4096),
             optimization_level: 1,
             num_threads: 2,
         };
         assert_eq!(config.max_span_length, 15);
         assert!((config.top_lambda - 0.4).abs() < 1e-6);
+        assert_eq!(config.max_doc_tokens, Some(4096));
+    }
+
+    fn test_tokenizer() -> Tokenizer {
+        use tokenizers::models::wordlevel::WordLevel;
+        use tokenizers::pre_tokenizers::whitespace::WhitespaceSplit;
+        use tokenizers::processors::template::TemplateProcessing;
+        let model = WordLevel::builder()
+            .vocab(
+                [("[UNK]".into(), 0), ("<s>".into(), 1), ("</s>".into(), 2)]
+                    .into_iter()
+                    .collect(),
+            )
+            .unk_token("[UNK]".into())
+            .build()
+            .unwrap();
+        let mut tokenizer = Tokenizer::new(model);
+        tokenizer.with_pre_tokenizer(Some(WhitespaceSplit));
+        tokenizer.with_post_processor(Some(
+            TemplateProcessing::builder()
+                .try_single("<s> $A </s>")
+                .unwrap()
+                .special_tokens(vec![("<s>", 1), ("</s>", 2)])
+                .build()
+                .unwrap(),
+        ));
+        tokenizer
+    }
+
+    #[test]
+    fn document_budget_counts_special_tokens_and_can_be_disabled() {
+        let tokenizer = test_tokenizer();
+        let config = FCorefConfig {
+            max_doc_tokens: Some(4),
+            ..Default::default()
+        };
+        assert_eq!(
+            encode_input(&tokenizer, "one two", &config).unwrap().len(),
+            4
+        );
+        assert!(matches!(
+            encode_input(&tokenizer, "one two three", &config),
+            Err(Error::InvalidInput(_))
+        ));
+        let text = "word ".repeat(600);
+        assert!(encode_input(&tokenizer, &text, &FCorefConfig::default()).is_err());
+        let larger = FCorefConfig {
+            max_doc_tokens: Some(1024),
+            ..Default::default()
+        };
+        assert_eq!(encode_input(&tokenizer, &text, &larger).unwrap().len(), 602);
+        let unlimited = FCorefConfig {
+            max_doc_tokens: None,
+            ..Default::default()
+        };
+        assert_eq!(
+            encode_input(&tokenizer, &text, &unlimited).unwrap().len(),
+            602
+        );
+    }
+
+    #[test]
+    fn tokenizer_truncation_is_rejected_instead_of_hiding_the_tail() {
+        let mut tokenizer = test_tokenizer();
+        tokenizer
+            .with_truncation(Some(tokenizers::TruncationParams {
+                max_length: 4,
+                ..Default::default()
+            }))
+            .unwrap();
+        let config = FCorefConfig {
+            max_doc_tokens: None,
+            ..Default::default()
+        };
+        assert!(matches!(
+            encode_input(&tokenizer, "one two three four", &config),
+            Err(Error::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn zero_limits_fail_before_loading_or_downloading_artifacts() {
+        let configs = [
+            FCorefConfig {
+                max_doc_tokens: Some(0),
+                ..Default::default()
+            },
+            FCorefConfig {
+                max_segment_len: 0,
+                ..Default::default()
+            },
+        ];
+        for config in configs {
+            assert!(matches!(
+                FCoref::from_path_with_config("missing-model", config.clone()),
+                Err(Error::InvalidInput(_))
+            ));
+            assert!(matches!(
+                FCoref::from_pretrained_with_config("unused-model", config),
+                Err(Error::InvalidInput(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn segments_reconstruct_global_token_order_without_inserting_special_tokens() {
+        let ids = [101, 10, 20, 30, 40, 50, 60, 102];
+        let mask = [1, 1, 1, 0, 1, 1, 1, 1];
+        let mut calls = Vec::new();
+        let hidden = encode_segments(&ids, &mask, 3, |part, attention| {
+            calls.push((part.to_vec(), attention.to_vec()));
+            Ok(Array2::from_shape_fn((part.len(), 2), |(row, col)| {
+                if col == 0 {
+                    part[row] as f32
+                } else {
+                    attention[row] as f32
+                }
+            }))
+        })
+        .unwrap();
+        assert_eq!(
+            calls.iter().map(|(ids, _)| ids.len()).collect::<Vec<_>>(),
+            vec![3, 3, 2]
+        );
+        assert_eq!(
+            calls
+                .iter()
+                .flat_map(|(ids, _)| ids.iter().copied())
+                .collect::<Vec<_>>(),
+            ids
+        );
+        assert_eq!(
+            calls
+                .iter()
+                .flat_map(|(_, mask)| mask.iter().copied())
+                .collect::<Vec<_>>(),
+            mask
+        );
+        assert_eq!(hidden.dim(), (8, 2));
+        for row in 0..ids.len() {
+            assert_eq!(hidden[[row, 0]], ids[row] as f32);
+            assert_eq!(hidden[[row, 1]], mask[row] as f32);
+        }
+    }
+
+    #[test]
+    fn short_input_uses_one_encoder_call() {
+        let mut calls = 0;
+        let hidden = encode_segments(&[1, 2], &[1, 1], 512, |ids, _| {
+            calls += 1;
+            Ok(Array2::zeros((ids.len(), 3)))
+        })
+        .unwrap();
+        assert_eq!(calls, 1);
+        assert_eq!(hidden.dim(), (2, 3));
+    }
+
+    #[test]
+    fn encoder_failures_stop_without_a_partial_document_result() {
+        let mut calls = 0;
+        let result = encode_segments(&[1; 10], &[1; 10], 4, |ids, _| {
+            calls += 1;
+            if calls == 2 {
+                return Err(Error::Parse("encoder failed".into()));
+            }
+            Ok(Array2::zeros((ids.len(), 2)))
+        });
+        assert!(matches!(result, Err(Error::Parse(_))));
+        assert_eq!(calls, 2);
+    }
+
+    #[test]
+    fn malformed_segment_inputs_and_outputs_are_rejected() {
+        for (ids, mask, width) in [
+            (&[][..], &[][..], 4),
+            (&[1][..], &[][..], 4),
+            (&[1][..], &[1][..], 0),
+        ] {
+            assert!(encode_segments(ids, mask, width, |_, _| panic!("must not encode")).is_err());
+        }
+        assert!(encode_segments(&[1; 4], &[1; 4], 2, |_, _| Ok(Array2::zeros((1, 2)))).is_err());
+        let mut calls = 0;
+        assert!(encode_segments(&[1; 4], &[1; 4], 2, |ids, _| {
+            calls += 1;
+            Ok(Array2::zeros((ids.len(), calls)))
+        })
+        .is_err());
     }
 
     // Integration tests require model download -- mark as #[ignore].
