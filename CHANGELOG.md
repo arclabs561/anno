@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-02
+
 ### Added
 
 - CLI JSON/JSONL and Python entities retain optional extraction provenance.
