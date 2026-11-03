@@ -608,7 +608,11 @@ pub fn preprocess(
     config: Option<RagPreprocessConfig>,
 ) -> crate::Result<Vec<RagChunk>> {
     let config = config.unwrap_or_default();
-    let chunks = crate::backends::chunking::chunk_text(text, &config.chunk_config);
+    let chunks = crate::backends::chunking::chunk_text_with_hints(
+        text,
+        &config.chunk_config,
+        &config.breakpoint_hints,
+    )?;
 
     let mut result = Vec::with_capacity(chunks.len());
     for chunk in &chunks {
@@ -635,6 +639,12 @@ pub fn preprocess(
 pub struct RagPreprocessConfig {
     /// Chunking configuration.
     pub chunk_config: crate::backends::chunking::ChunkConfig,
+    /// preferred chunk ends from boundary detection performed before calling anno.
+    ///
+    /// values are UTF-8 byte offsets into the original input. empty (the default)
+    /// preserves existing chunking. hints do not force cuts or override chunk size;
+    /// anno can split a hinted section further. invalid byte positions are errors.
+    pub breakpoint_hints: Vec<usize>,
     /// Coreference resolution configuration.
     pub coref: RagCorefConfig,
 }
@@ -643,6 +653,7 @@ impl Default for RagPreprocessConfig {
     fn default() -> Self {
         Self {
             chunk_config: crate::backends::chunking::ChunkConfig::long_document(),
+            breakpoint_hints: Vec::new(),
             coref: RagCorefConfig::default(),
         }
     }
@@ -767,6 +778,46 @@ fn is_pronoun_for_language(text: &str, lang: Language) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preprocess_reuses_upstream_breakpoints_with_defaultable_options() {
+        assert!(RagPreprocessConfig::default().breakpoint_hints.is_empty());
+        let text = "alpha beta gamma delta";
+        let model = crate::backends::regex::RegexNER;
+        let config = RagPreprocessConfig {
+            chunk_config: crate::backends::chunking::ChunkConfig {
+                chunk_size: 12,
+                overlap: 2,
+                respect_sentences: false,
+                ..Default::default()
+            },
+            breakpoint_hints: vec![6],
+            ..Default::default()
+        };
+        let chunks = preprocess(text, &model, Some(config)).unwrap();
+        assert_eq!(chunks[0].original_text, "alpha ");
+        assert_eq!(chunks[0].char_start, 0);
+        assert_eq!(chunks[0].char_end, 6);
+        assert_eq!(chunks[1].char_start, 4);
+        for chunk in chunks {
+            assert_eq!(
+                chunk.original_text,
+                text.chars()
+                    .skip(chunk.char_start)
+                    .take(chunk.char_end - chunk.char_start)
+                    .collect::<String>()
+            );
+        }
+    }
+
+    #[test]
+    fn preprocess_rejects_invalid_breakpoint_bytes() {
+        let config = RagPreprocessConfig {
+            breakpoint_hints: vec![1],
+            ..Default::default()
+        };
+        assert!(preprocess("Éva", &crate::backends::regex::RegexNER, Some(config)).is_err());
+    }
 
     #[test]
     fn test_empty_entities() {
