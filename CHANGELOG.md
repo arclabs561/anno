@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `anno-eval`: `AgreementStats::fleiss_kappa` computes chance agreement from the pooled category frequencies. It was fixed at 0.5, which overstates agreement when one type dominates: nine spans agreed and one split gave 0.8 where Fleiss' kappa is -0.05. Reported kappa values change. The module's doc table no longer lists Krippendorff's alpha, which was never implemented.
+
 ## [0.14.0] - 2026-11-02
 
 ### Added
