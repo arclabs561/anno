@@ -15,8 +15,7 @@
 //! | Metric | Description |
 //! |--------|-------------|
 //! | **Agreement Rate** | % of tokens/spans all annotators agree on |
-//! | **Fleiss' Kappa** | Chance-corrected agreement for multiple annotators |
-//! | **Krippendorff's Alpha** | Agreement metric that handles missing data |
+//! | **Fleiss' Kappa** | Chance-corrected agreement on type, over spans that two or more annotators marked |
 //! | **Soft F1** | F1 weighted by annotator agreement |
 //!
 //! # Example
@@ -196,7 +195,7 @@ pub struct AgreementStats {
     pub span_agreement: f64,
     /// Proportion of spans where all annotators agree on type
     pub type_agreement: f64,
-    /// Fleiss' kappa for span identification
+    /// Chance-corrected type agreement on spans rated by at least two annotators.
     pub fleiss_kappa: f64,
     /// Per-type agreement rates
     pub type_specific_agreement: HashMap<String, f64>,
@@ -356,41 +355,55 @@ impl<'a> AnnotatorAnalyzer<'a> {
         }
     }
 
-    /// Compute Fleiss' kappa for inter-annotator agreement.
+    /// Compute Fleiss' kappa over the spans that two or more annotators marked.
+    ///
+    /// An item is a span; its votes are the types the annotators gave it.
+    /// Chance agreement is the sum of squared category proportions pooled
+    /// over those items, which is Fleiss' formula when every item has the
+    /// same number of votes. With unequal counts each span contributes equally
+    /// to observed agreement, while each vote contributes equally to chance agreement.
+    /// Each annotator supplies at most one type for a span. Conflicting labels
+    /// from one annotator leave that vote unspecified.
+    /// Spans marked by one annotator carry no agreement information and are
+    /// left out, so this measures agreement on type, not on span boundaries.
     fn compute_fleiss_kappa(&self) -> f64 {
-        // Simplified Fleiss' kappa computation
-        // Full implementation would need token-level annotation matrix
-
         let mut total_agreement = 0.0;
         let mut count = 0;
+        let mut category_votes: HashMap<&str, usize> = HashMap::new();
+        let mut all_votes = 0usize;
 
         for doc in self.corpus.documents.values() {
-            let spans = doc.unique_spans();
-            let n_annotators = doc.annotators().len();
-            if n_annotators < 2 {
-                continue;
-            }
-
-            for (start, end) in spans {
-                let mut votes: HashMap<String, usize> = HashMap::new();
-                let mut n_votes = 0;
-
-                for anns in doc.annotations.values() {
-                    for ann in anns {
-                        if ann.start == start && ann.end == end {
-                            *votes.entry(ann.entity_type.clone()).or_insert(0) += 1;
-                            n_votes += 1;
-                        }
+            let mut votes_by_span: HashMap<_, Vec<&str>> = HashMap::new();
+            for annotations in doc.annotations.values() {
+                let mut labels = HashMap::new();
+                for ann in annotations {
+                    let label = Some(ann.entity_type.as_str());
+                    let vote = labels.entry((ann.start, ann.end)).or_insert(label);
+                    if *vote != label {
+                        *vote = None;
                     }
                 }
-
-                if n_votes >= 2 {
-                    // Agreement for this item
-                    let sum_sq: usize = votes.values().map(|v| v * v).sum();
-                    let p_i = (sum_sq - n_votes) as f64 / (n_votes * (n_votes - 1)) as f64;
-                    total_agreement += p_i;
-                    count += 1;
+                for (span, label) in labels {
+                    if let Some(label) = label {
+                        votes_by_span.entry(span).or_default().push(label);
+                    }
                 }
+            }
+
+            for votes in votes_by_span.values() {
+                let n = votes.len();
+                if n < 2 {
+                    continue;
+                }
+                let mut counts = HashMap::new();
+                for &label in votes {
+                    *counts.entry(label).or_insert(0usize) += 1;
+                    *category_votes.entry(label).or_insert(0) += 1;
+                }
+                let agreeing_pairs: f64 = counts.values().map(|&v| v as f64 * (v - 1) as f64).sum();
+                total_agreement += agreeing_pairs / (n as f64 * (n - 1) as f64);
+                count += 1;
+                all_votes += n;
             }
         }
 
@@ -399,10 +412,17 @@ impl<'a> AnnotatorAnalyzer<'a> {
         }
 
         let p_bar = total_agreement / count as f64;
-        // Simplified: assume uniform category distribution for P_e
-        let p_e = 0.5; // This should be computed from category frequencies
+        let p_e: f64 = category_votes
+            .values()
+            .map(|&v| {
+                let p = v as f64 / all_votes as f64;
+                p * p
+            })
+            .sum();
 
-        if (1.0_f64 - p_e).abs() < 1e-7 {
+        if category_votes.len() == 1 {
+            // Every vote is in one category: agreement is complete, and
+            // kappa is undefined; report it as full agreement.
             return 1.0;
         }
 
@@ -682,5 +702,79 @@ mod tests {
         let metrics = evaluator.evaluate(&predictions, &gold_with_conf);
 
         assert!(metrics.f1 > 0.8); // Should be close to 1.0 weighted by confidence
+    }
+
+    fn corpus_of(a: &[&'static str], b: &[&'static str]) -> MultiAnnotatorCorpus {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        let spans = |types: &[&'static str]| -> Vec<(&'static str, usize, usize, &'static str)> {
+            types
+                .iter()
+                .enumerate()
+                .map(|(k, t)| ("x", 10 * k, 10 * k + 1, *t))
+                .collect()
+        };
+        corpus.add_annotation("doc", "A", spans(a));
+        corpus.add_annotation("doc", "B", spans(b));
+        corpus
+    }
+
+    #[test]
+    fn fleiss_kappa_uses_category_frequencies_for_chance_agreement() {
+        // Observed agreement 0.75; PER has 5 of 8 votes and LOC 3, so chance
+        // agreement is 34/64 and kappa is (0.75 - 0.53125) / 0.46875.
+        let corpus = corpus_of(&["PER", "PER", "PER", "LOC"], &["PER", "PER", "LOC", "LOC"]);
+        let kappa = AnnotatorAnalyzer::new(&corpus)
+            .compute_agreement()
+            .fleiss_kappa;
+        assert!((kappa - 0.466_666_7).abs() < 1e-6, "kappa = {kappa}");
+    }
+
+    #[test]
+    fn fleiss_kappa_is_near_zero_when_one_category_dominates() {
+        // Nine spans agreed as PER and one split: 90% observed agreement, but
+        // 90.5% is expected by chance. A fixed chance of 0.5 reported 0.8.
+        let mut a = vec!["PER"; 10];
+        let b = vec!["PER"; 10];
+        a[9] = "LOC";
+        let corpus = corpus_of(&a, &b);
+        let kappa = AnnotatorAnalyzer::new(&corpus)
+            .compute_agreement()
+            .fleiss_kappa;
+        assert!(
+            (kappa - (0.9 - 0.905) / 0.095).abs() < 1e-9,
+            "kappa = {kappa}"
+        );
+    }
+    #[test]
+    fn fleiss_kappa_counts_each_annotator_once_per_span() {
+        let mut corpus = corpus_of(&["PER", "LOC"], &["PER", "PER"]);
+        let expected = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        let a = corpus
+            .documents
+            .get_mut("doc")
+            .unwrap()
+            .annotations
+            .get_mut("A")
+            .unwrap();
+        a.push(a[1].clone());
+        // A span seen by A alone supplies no pair, even when A marks it twice.
+        a.extend(vec![Annotation::new("y", 30, 31, "ORG", "A"); 2]);
+        let actual = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        assert!((expected - actual).abs() < 1e-10, "{actual} vs {expected}");
+    }
+
+    #[test]
+    fn fleiss_kappa_omits_a_raters_conflicting_labels_regardless_of_order() {
+        let mut corpus = corpus_of(&["PER", "LOC"], &["PER", "PER"]);
+        let expected = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        for labels in [["PER", "LOC"], ["LOC", "PER"]] {
+            corpus.add_annotation(
+                "doc",
+                "C",
+                vec![("x", 0, 1, labels[0]), ("x", 0, 1, labels[1])],
+            );
+            let actual = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+            assert!((expected - actual).abs() < 1e-10, "{actual} vs {expected}");
+        }
     }
 }
