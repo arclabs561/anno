@@ -30,7 +30,7 @@ pub struct FCorefAnalysis {
 impl FCoref {
     /// Analyze text using caller-supplied word boundaries. Ranges are nonempty,
     /// ordered, disjoint UTF-8 byte intervals. Gaps may contain whitespace.
-    /// The encoded document, including special tokens, must fit one encoder segment.
+    /// The encoded document, including special tokens, must fit the configured document budget.
     /// As in FastCoref, the candidate count is the non-padding token count times
     /// `top_lambda`, rounded down. Short inputs can produce no mentions.
     /// Candidate endpoints map to the full words containing them. Candidates
@@ -40,15 +40,7 @@ impl FCoref {
         if surfaces.is_empty() {
             return Ok(FCorefAnalysis::default());
         }
-        let encoding = self
-            .tokenizer
-            .encode(surfaces, true)
-            .map_err(|e| Error::Parse(format!("Word tokenizer encode: {e}")))?;
-        if encoding.len() > self.config.max_segment_len || !encoding.get_overflowing().is_empty() {
-            return Err(Error::Parse(
-                "word input exceeds a single encoder segment".into(),
-            ));
-        }
+        let encoding = super::encode_input(&self.tokenizer, surfaces, &self.config)?;
         let max_candidates =
             candidate_budget(encoding.get_attention_mask(), self.config.top_lambda);
         if max_candidates == 0 {
