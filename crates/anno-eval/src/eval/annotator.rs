@@ -136,6 +136,49 @@ impl AnnotatedDocument {
     }
 }
 
+// The document's grouping key identifies the rater, including for imported annotations.
+struct SpanRatings<'a> {
+    text: &'a str,
+    labels: HashMap<&'a str, HashSet<&'a str>>,
+}
+
+impl<'a> SpanRatings<'a> {
+    fn type_counts(&self) -> HashMap<&'a str, usize> {
+        let mut counts = HashMap::new();
+        for &label in self
+            .labels
+            .values()
+            .filter(|labels| labels.len() == 1)
+            .flatten()
+        {
+            *counts.entry(label).or_default() += 1;
+        }
+        counts
+    }
+}
+
+impl AnnotatedDocument {
+    fn span_ratings(&self) -> HashMap<(usize, usize), SpanRatings<'_>> {
+        let mut spans = HashMap::new();
+        for (rater, annotations) in &self.annotations {
+            for ann in annotations {
+                let ratings = spans
+                    .entry((ann.start, ann.end))
+                    .or_insert_with(|| SpanRatings {
+                        text: &ann.text,
+                        labels: HashMap::new(),
+                    });
+                ratings
+                    .labels
+                    .entry(rater.as_str())
+                    .or_default()
+                    .insert(&ann.entity_type);
+            }
+        }
+        spans
+    }
+}
+
 /// Corpus with multi-annotator annotations.
 #[derive(Debug, Clone, Default)]
 pub struct MultiAnnotatorCorpus {
@@ -218,7 +261,7 @@ pub struct ContentiousSpan {
     pub end: usize,
     /// Text
     pub text: String,
-    /// Types assigned by different annotators
+    /// All reported types, with each annotator listed once for each distinct label.
     pub types_assigned: HashMap<String, Vec<String>>, // type -> [annotators]
     /// Disagreement score (0 = full agreement, 1 = no agreement)
     pub disagreement: f64,
@@ -245,70 +288,48 @@ impl<'a> AnnotatorAnalyzer<'a> {
         let mut contentious: Vec<ContentiousSpan> = Vec::new();
 
         for (doc_id, doc) in &self.corpus.documents {
-            let spans = doc.unique_spans();
-            let annotators: Vec<_> = doc.annotators();
-
-            for (start, end) in spans {
+            let n_annotators = doc.annotations.len();
+            for ((start, end), ratings) in doc.span_ratings() {
                 span_total += 1;
-
-                // Collect annotations for this span
-                let mut types_for_span: HashMap<String, Vec<String>> = HashMap::new();
-                let mut annotators_with_span = 0;
-
-                for annotator in &annotators {
-                    if let Some(anns) = doc.annotations.get(*annotator) {
-                        for ann in anns {
-                            if ann.start == start && ann.end == end {
-                                types_for_span
-                                    .entry(ann.entity_type.clone())
-                                    .or_default()
-                                    .push((*annotator).to_string());
-                                annotators_with_span += 1;
-                            }
-                        }
-                    }
-                }
-
-                // Check span agreement (all annotators marked this span)
-                if annotators_with_span == annotators.len() {
+                if ratings.labels.len() == n_annotators {
                     span_agree_count += 1;
                 }
 
-                // Check type agreement
+                let votes = ratings.type_counts();
+                let best_count = votes.values().max().copied().unwrap_or(0);
+                let unanimous = best_count == n_annotators;
                 type_total += 1;
-                let all_same_type = types_for_span.len() == 1;
-                if all_same_type && annotators_with_span == annotators.len() {
+                if unanimous {
                     type_agree_count += 1;
                 }
 
-                // Track per-type agreement
-                for (etype, ann_list) in &types_for_span {
-                    let entry = type_counts.entry(etype.clone()).or_insert((0, 0));
+                // Each reported type has one denominator entry for this span, even
+                // if it was reported only by a rater with conflicting labels.
+                let mut types_for_span: HashMap<String, Vec<String>> = HashMap::new();
+                for (rater, labels) in &ratings.labels {
+                    for &label in labels {
+                        types_for_span
+                            .entry(label.to_owned())
+                            .or_default()
+                            .push((*rater).to_owned());
+                    }
+                }
+                for label in types_for_span.keys() {
+                    let entry = type_counts.entry(label.clone()).or_default();
                     entry.1 += 1;
-                    if ann_list.len() == annotators.len() {
+                    if unanimous {
                         entry.0 += 1;
                     }
                 }
 
-                // Track contentious spans
-                if types_for_span.len() > 1 || annotators_with_span < annotators.len() {
-                    let disagreement = 1.0
-                        - (types_for_span.values().map(|v| v.len()).max().unwrap_or(0) as f64
-                            / annotators.len() as f64);
-                    let text = doc
-                        .annotations
-                        .values()
-                        .flat_map(|anns| anns.iter())
-                        .find(|a| a.start == start && a.end == end)
-                        .map(|a| a.text.clone())
-                        .unwrap_or_default();
-
+                if !unanimous {
+                    let disagreement = 1.0 - best_count as f64 / n_annotators as f64;
                     contentious.push(ContentiousSpan {
                         doc_id: doc_id.clone(),
                         start,
                         end,
-                        text,
-                        types_assigned: types_for_span.clone(),
+                        text: ratings.text.to_owned(),
+                        types_assigned: types_for_span,
                         disagreement,
                     });
                 }
@@ -373,32 +394,14 @@ impl<'a> AnnotatorAnalyzer<'a> {
         let mut all_votes = 0usize;
 
         for doc in self.corpus.documents.values() {
-            let mut votes_by_span: HashMap<_, Vec<&str>> = HashMap::new();
-            for annotations in doc.annotations.values() {
-                let mut labels = HashMap::new();
-                for ann in annotations {
-                    let label = Some(ann.entity_type.as_str());
-                    let vote = labels.entry((ann.start, ann.end)).or_insert(label);
-                    if *vote != label {
-                        *vote = None;
-                    }
-                }
-                for (span, label) in labels {
-                    if let Some(label) = label {
-                        votes_by_span.entry(span).or_default().push(label);
-                    }
-                }
-            }
-
-            for votes in votes_by_span.values() {
-                let n = votes.len();
+            for ratings in doc.span_ratings().values() {
+                let counts = ratings.type_counts();
+                let n: usize = counts.values().sum();
                 if n < 2 {
                     continue;
                 }
-                let mut counts = HashMap::new();
-                for &label in votes {
-                    *counts.entry(label).or_insert(0usize) += 1;
-                    *category_votes.entry(label).or_insert(0) += 1;
+                for (&label, &votes) in &counts {
+                    *category_votes.entry(label).or_insert(0) += votes;
                 }
                 let agreeing_pairs: f64 = counts.values().map(|&v| v as f64 * (v - 1) as f64).sum();
                 total_agreement += agreeing_pairs / (n as f64 * (n - 1) as f64);
@@ -431,48 +434,23 @@ impl<'a> AnnotatorAnalyzer<'a> {
 
     /// Create a "soft" gold standard by aggregating annotations.
     ///
-    /// Returns annotations with confidence based on annotator agreement.
+    /// Confidence is the number of distinct raters voting for the selected type
+    /// divided by the number of raters on the document. A rater who gives a span
+    /// conflicting types supplies no type vote. A span with no type votes is omitted.
     pub fn aggregate_gold(&self, doc_id: &str) -> Vec<(Annotation, f64)> {
         let doc = match self.corpus.documents.get(doc_id) {
             Some(d) => d,
             None => return Vec::new(),
         };
 
-        let spans = doc.unique_spans();
-        let n_annotators = doc.annotators().len();
+        let n_annotators = doc.annotations.len();
         let mut result = Vec::new();
-
-        for (start, end) in spans {
-            let mut type_votes: HashMap<String, usize> = HashMap::new();
-            let mut text = String::new();
-            let mut total_votes = 0;
-
-            for anns in doc.annotations.values() {
-                for ann in anns {
-                    if ann.start == start && ann.end == end {
-                        *type_votes.entry(ann.entity_type.clone()).or_insert(0) += 1;
-                        text = ann.text.clone();
-                        total_votes += 1;
-                    }
-                }
-            }
-
-            if total_votes > 0 {
-                // Majority vote for type
-                let (best_type, best_count) = type_votes
-                    .iter()
-                    .max_by_key(|(_, c)| *c)
-                    .map(|(t, c)| (t.clone(), *c))
-                    .expect("type_votes should not be empty");
-
-                // Confidence based on agreement
-                let span_confidence = total_votes as f64 / n_annotators as f64;
-                let type_confidence = best_count as f64 / total_votes as f64;
-                let confidence = span_confidence * type_confidence;
-
+        for ((start, end), ratings) in doc.span_ratings() {
+            let votes = ratings.type_counts();
+            if let Some((best_type, best_count)) = votes.into_iter().max_by_key(|&(_, n)| n) {
                 result.push((
-                    Annotation::new(&text, start, end, &best_type, "aggregated"),
-                    confidence,
+                    Annotation::new(ratings.text, start, end, best_type, "aggregated"),
+                    best_count as f64 / n_annotators as f64,
                 ));
             }
         }
@@ -691,6 +669,67 @@ mod tests {
         assert_eq!(gold.len(), 1);
         assert_eq!(gold[0].0.entity_type, "ORG"); // Majority vote
         assert!(gold[0].1 > 0.5); // > 50% agreement
+    }
+
+    #[test]
+    fn repeated_labels_do_not_replace_a_missing_rater() {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        corpus.add_annotation("doc", "B", vec![]);
+        for copies in [1, 2, 3] {
+            corpus.add_annotation("doc", "A", vec![("x", 0, 1, "PER"); copies]);
+            let analyzer = AnnotatorAnalyzer::new(&corpus);
+            let stats = analyzer.compute_agreement();
+            assert_eq!((stats.span_agreement, stats.type_agreement), (0.0, 0.0));
+            assert_eq!(stats.type_specific_agreement["PER"], 0.0);
+            let span = &stats.contentious_spans[0];
+            assert_eq!(span.disagreement, 0.5);
+            assert_eq!(span.types_assigned["PER"], ["A"]);
+            let gold = analyzer.aggregate_gold("doc");
+            assert_eq!(gold.len(), 1);
+            assert_eq!(gold[0].1, 0.5);
+        }
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "PER"); 2]);
+        let analyzer = AnnotatorAnalyzer::new(&corpus);
+        let stats = analyzer.compute_agreement();
+        assert_eq!((stats.span_agreement, stats.type_agreement), (1.0, 1.0));
+        assert!(stats.contentious_spans.is_empty());
+        assert_eq!(stats.type_specific_agreement["PER"], 1.0);
+        assert_eq!(analyzer.aggregate_gold("doc")[0].1, 1.0);
+    }
+
+    #[test]
+    fn conflicting_labels_mark_presence_and_remain_in_diagnostics() {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "LOC"); 2]);
+        for labels in [["PER", "LOC", "PER"], ["LOC", "PER", "PER"]] {
+            corpus.add_annotation(
+                "doc",
+                "A",
+                labels.iter().map(|label| ("x", 0, 1, *label)).collect(),
+            );
+            let analyzer = AnnotatorAnalyzer::new(&corpus);
+            let stats = analyzer.compute_agreement();
+            assert_eq!((stats.span_agreement, stats.type_agreement), (1.0, 0.0));
+            assert_eq!(stats.type_specific_agreement["PER"], 0.0);
+            assert_eq!(stats.type_specific_agreement["LOC"], 0.0);
+            let span = &stats.contentious_spans[0];
+            assert_eq!(span.disagreement, 0.5);
+            assert_eq!(span.types_assigned["PER"], ["A"]);
+            let mut loc = span.types_assigned["LOC"].clone();
+            loc.sort();
+            assert_eq!(loc, ["A", "B"]);
+            let gold = analyzer.aggregate_gold("doc");
+            assert_eq!(gold.len(), 1);
+            assert_eq!(gold[0].0.entity_type, "LOC");
+            assert_eq!(gold[0].1, 0.5);
+        }
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "LOC"), ("x", 0, 1, "ORG")]);
+        let analyzer = AnnotatorAnalyzer::new(&corpus);
+        assert!(analyzer.aggregate_gold("doc").is_empty());
+        assert_eq!(
+            analyzer.compute_agreement().contentious_spans[0].disagreement,
+            1.0
+        );
     }
 
     #[test]
