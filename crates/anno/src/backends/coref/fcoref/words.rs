@@ -31,7 +31,7 @@ impl FCoref {
     /// Analyze text using caller-supplied word boundaries. Ranges are nonempty,
     /// ordered, disjoint UTF-8 byte intervals. Gaps may contain whitespace.
     /// The encoded document, including special tokens, must fit one encoder segment.
-    /// As in FastCoref, the candidate count is the encoded length times
+    /// As in FastCoref, the candidate count is the non-padding token count times
     /// `top_lambda`, rounded down. Short inputs can produce no mentions.
     /// Candidate endpoints map to the full words containing them. Candidates
     /// with the same source span share one mention and contribute all their links.
@@ -49,7 +49,8 @@ impl FCoref {
                 "word input exceeds a single encoder segment".into(),
             ));
         }
-        let max_candidates = (encoding.len() as f32 * self.config.top_lambda) as usize;
+        let max_candidates =
+            candidate_budget(encoding.get_attention_mask(), self.config.top_lambda);
         if max_candidates == 0 {
             return Ok(FCorefAnalysis::default());
         }
@@ -68,6 +69,11 @@ impl FCoref {
             &antecedents,
         ))
     }
+}
+
+fn candidate_budget(attention_mask: &[u32], top_lambda: f32) -> usize {
+    let active_tokens = attention_mask.iter().filter(|&&mask| mask != 0).count();
+    (active_tokens as f32 * top_lambda) as usize
 }
 
 fn word_surfaces<'a>(text: &'a str, words: &[(usize, usize)]) -> Result<Vec<&'a str>> {
@@ -153,6 +159,16 @@ fn project_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn padding_does_not_create_word_candidates() {
+        // A single word plus two special tokens, padded to twelve positions.
+        assert_eq!(
+            candidate_budget(&[1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0.25),
+            0
+        );
+        assert_eq!(candidate_budget(&[1; 13], 0.25), 3);
+    }
 
     #[test]
     #[ignore = "requires exported biu-nlp/f-coref model artifacts"]
