@@ -31,6 +31,8 @@ impl FCoref {
     /// Analyze text using caller-supplied word boundaries. Ranges are nonempty,
     /// ordered, disjoint UTF-8 byte intervals. Gaps may contain whitespace.
     /// The encoded document, including special tokens, must fit one encoder segment.
+    /// As in FastCoref, the candidate count is the encoded length times
+    /// `top_lambda`, rounded down. Short inputs can produce no mentions.
     /// Candidate endpoints map to the full words containing them. Candidates
     /// with the same source span share one mention and contribute all their links.
     pub fn analyze_words(&self, text: &str, words: &[(usize, usize)]) -> Result<FCorefAnalysis> {
@@ -47,7 +49,11 @@ impl FCoref {
                 "word input exceeds a single encoder segment".into(),
             ));
         }
-        let (top, antecedents) = self.score_encoding(&encoding)?;
+        let max_candidates = (encoding.len() as f32 * self.config.top_lambda) as usize;
+        if max_candidates == 0 {
+            return Ok(FCorefAnalysis::default());
+        }
+        let (top, antecedents) = self.score_encoding(&encoding, max_candidates)?;
         let candidates = top
             .top_k_starts
             .into_iter()
@@ -147,6 +153,44 @@ fn project_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires exported biu-nlp/f-coref model artifacts"]
+    fn word_candidates_match_pretrained_fastcoref() {
+        let model = FCoref::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/fcoref_onnx")).unwrap();
+        // Three encoded tokens * 0.25 yields no candidates.
+        assert!(model
+            .analyze_words("Alice", &[(0, 5)])
+            .unwrap()
+            .mentions
+            .is_empty());
+        // Thirteen encoded tokens yield three candidates. Rounding up adds
+        // Émilie and changes the cluster count on this downstream fixture.
+        let text = "Émilie reviewed the proposal. She approved it.";
+        let words = [
+            (0, 7),
+            (8, 16),
+            (17, 20),
+            (21, 29),
+            (29, 30),
+            (31, 34),
+            (35, 43),
+            (44, 46),
+            (46, 47),
+        ];
+        let result = model.analyze_words(text, &words).unwrap();
+        let mentions: Vec<_> = result
+            .mentions
+            .iter()
+            .map(|m| (m.text.as_str(), m.character_start, m.character_end))
+            .collect();
+        assert_eq!(
+            mentions,
+            [("the proposal", 16, 28), ("She", 30, 33), ("it", 43, 45)]
+        );
+        assert_eq!(result.clusters.len(), 1);
+        assert_eq!(result.clusters[0].spans, [(16, 28), (43, 45)]);
+    }
 
     #[test]
     fn validates_utf8_boundaries_order_and_coverage() {

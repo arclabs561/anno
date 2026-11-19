@@ -285,7 +285,10 @@ impl FCoref {
             .encode(text, true)
             .map_err(|e| Error::Parse(format!("Tokenizer encode: {}", e)))?;
 
-        let (mentions_result, antecedents) = self.score_encoding(&encoding)?;
+        // Keep the existing raw-text candidate budget for resolve callers.
+        let seq_len = encoding.len().min(self.config.max_segment_len);
+        let max_candidates = ((seq_len as f32 * self.config.top_lambda).ceil() as usize).max(1);
+        let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
 
         // 5. Map token indices to character offsets
         let offsets = encoding.get_offsets();
@@ -361,6 +364,7 @@ impl FCoref {
     fn score_encoding(
         &self,
         encoding: &tokenizers::Encoding,
+        max_candidates: usize,
     ) -> Result<(scoring::MentionScoringResult, Vec<usize>)> {
         let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
         let attention_mask: Vec<i64> = encoding
@@ -381,7 +385,7 @@ impl FCoref {
             &hidden,
             &self.scorer,
             self.config.max_span_length,
-            self.config.top_lambda,
+            max_candidates,
         );
 
         // 4. Score antecedents
