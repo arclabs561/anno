@@ -23,7 +23,8 @@ pub struct FCorefMention {
 pub struct FCorefAnalysis {
     /// Unique source spans in document order, including singletons.
     pub mentions: Vec<FCorefMention>,
-    /// Co-referring source mentions in the document.
+    /// Model clusters projected onto the source. A coarse input range may
+    /// occur in more than one cluster if it covers distinct model mentions.
     pub clusters: Vec<CorefCluster>,
 }
 
@@ -34,7 +35,8 @@ impl FCoref {
     /// As in FastCoref, the candidate count is the non-padding token count times
     /// `top_lambda`, rounded down. Short inputs can produce no mentions.
     /// Candidate endpoints map to the full words containing them. Candidates
-    /// with the same source span share one mention and contribute all their links.
+    /// with the same source span share one mention score. Their antecedent links
+    /// are resolved before projection so unrelated clusters stay separate.
     pub fn analyze_words(&self, text: &str, words: &[(usize, usize)]) -> Result<FCorefAnalysis> {
         let surfaces = word_surfaces(text, words)?;
         if surfaces.is_empty() {
@@ -134,14 +136,24 @@ fn project_candidates(
         });
     }
 
-    let mut groups = UnionFind::new(mentions.len());
-    for (candidate, &antecedent) in candidate_ranges.iter().zip(antecedents) {
-        if let (Some(current), Some(Some(previous))) = (candidate, candidate_ranges.get(antecedent))
-        {
-            groups.union(indices[current], indices[previous]);
+    // FastCoref clusters model candidates before aligning them to the source.
+    // A coarse input span can cover candidates that refer to different people.
+    let mut groups = UnionFind::new(candidate_ranges.len());
+    for (i, &antecedent) in antecedents.iter().take(candidate_ranges.len()).enumerate() {
+        if antecedent < candidate_ranges.len() {
+            groups.union(i, antecedent);
         }
     }
-    let clusters = clusters_from_groups(mentions.len(), groups, |i| {
+    let projected = groups.into_groups().map(|group| {
+        let mut members: Vec<_> = group
+            .into_iter()
+            .filter_map(|i| candidate_ranges[i].map(|range| indices[&range]))
+            .collect();
+        members.sort_unstable();
+        members.dedup();
+        members
+    });
+    let clusters = clusters_from_groups(projected, |i| {
         let m = &mentions[i];
         (m.text.as_str(), (m.character_start, m.character_end))
     });
@@ -198,6 +210,30 @@ mod tests {
         );
         assert_eq!(result.clusters.len(), 1);
         assert_eq!(result.clusters[0].spans, [(16, 28), (43, 45)]);
+    }
+
+    #[test]
+    #[ignore = "requires exported biu-nlp/f-coref model artifacts"]
+    fn coarse_word_span_preserves_pretrained_clusters() {
+        let model = FCoref::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/fcoref_onnx")).unwrap();
+        let text = concat!(
+            "Alice and Bob met. Alice smiled at Bob. She thanked him. He waved at her. ",
+            "The stone pavement stretched for miles into the distance."
+        );
+        let words: Vec<_> = regex::Regex::new(r"Alice and Bob|\w+|[^\w\s]")
+            .unwrap()
+            .find_iter(text)
+            .map(|m| (m.start(), m.end()))
+            .collect();
+        let result = model.analyze_words(text, &words).unwrap();
+        // FastCoref clusters Alice and Bob separately before mapping their
+        // first mentions to the same caller-supplied span.
+        assert_eq!(result.clusters.len(), 2);
+        assert_eq!(
+            result.clusters[0].spans,
+            [(0, 13), (19, 24), (40, 43), (69, 72)]
+        );
+        assert_eq!(result.clusters[1].spans, [(0, 13), (35, 38), (57, 59)]);
     }
 
     #[test]
@@ -310,5 +346,36 @@ mod tests {
         );
         assert_eq!(result.clusters.len(), 1);
         assert_eq!(result.clusters[0].mentions, ["Zoë", "E\u{301}milie", "she"]);
+    }
+
+    #[test]
+    fn a_shared_word_span_does_not_join_distinct_model_clusters() {
+        let text = "Alice/Bob she he";
+        let result = project_candidates(
+            text,
+            &[(0, 9), (10, 13), (14, 16)],
+            &[Some(0), Some(0), Some(0), Some(1), Some(2)],
+            [(0, 0, 2.), (2, 2, 7.), (3, 3, 1.), (4, 4, 1.)],
+            &[0, 1, 0, 1],
+        );
+        assert_eq!(result.mentions.len(), 3);
+        assert_eq!(result.mentions[0].raw_mention_score, 7.);
+        assert_eq!(result.clusters.len(), 2);
+        assert_eq!(result.clusters[0].mentions, ["Alice/Bob", "she"]);
+        assert_eq!(result.clusters[1].mentions, ["Alice/Bob", "he"]);
+    }
+
+    #[test]
+    fn two_linked_candidates_in_one_word_project_to_a_singleton() {
+        let result = project_candidates(
+            "Alice/Bob",
+            &[(0, 9)],
+            &[Some(0), Some(0)],
+            [(0, 0, 1.), (1, 1, 4.)],
+            &[0, 0],
+        );
+        assert_eq!(result.mentions.len(), 1);
+        assert_eq!(result.mentions[0].raw_mention_score, 4.);
+        assert!(result.clusters.is_empty());
     }
 }
