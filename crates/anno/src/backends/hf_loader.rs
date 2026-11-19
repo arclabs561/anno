@@ -1,7 +1,7 @@
 //! Shared HuggingFace model loading utilities.
 //!
 //! Centralizes the duplicated pattern of:
-//! 1. Initializing the HF API (with optional token from `.env`)
+//! 1. Initializing the HF API (with an optional token from the process environment)
 //! 2. Downloading model files from a HuggingFace repo
 //! 3. Creating ONNX Runtime sessions with standard configuration
 //!
@@ -38,26 +38,9 @@ fn no_downloads_from(value: Option<&str>) -> bool {
     }
 }
 
-/// Initialize the HuggingFace API client, loading `.env` and using `HF_TOKEN` if available.
-///
-/// The client and offline cache both honor `HF_HOME` through `hf-hub`'s
-/// environment-aware builders.
-///
-/// This replaces the duplicated pattern:
-/// ```rust,ignore
-/// crate::env::load_dotenv();
-/// let builder = ApiBuilder::from_env();
-/// let builder = if let Some(token) = crate::env::hf_token() {
-///     builder.with_token(Some(token))
-/// } else {
-///     builder
-/// };
-/// let api = builder.build()?;
-/// ```
+/// Initialize the Hugging Face client with the process environment's token and cache.
 pub fn hf_api() -> Result<hf_hub::api::sync::Api> {
     use hf_hub::api::sync::ApiBuilder;
-
-    crate::env::load_dotenv();
 
     let builder = ApiBuilder::from_env();
     let builder = if let Some(token) = crate::env::hf_token() {
