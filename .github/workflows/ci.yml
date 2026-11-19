@@ -268,6 +268,10 @@ jobs:
       # representative DirectML GPU execution evidence.
       - name: Check DirectML session configuration
         if: runner.os == 'Windows'
+        env:
+          # ort-sys rc.12 locates DLL destinations using Cargo's pre-1.100 layout.
+          # Remove after upgrading to the fix in https://github.com/pykeio/ort/issues/619.
+          __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT: "1"
         run: cargo clippy -p anno --features onnx-directml -- -D warnings
   # ==========================================================================
   # ONNX backend tests (Linux only)
