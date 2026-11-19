@@ -20,7 +20,7 @@ use text_splitter::TextSplitter;
 /// Configuration for chunked text processing.
 #[derive(Debug, Clone)]
 pub struct ChunkConfig {
-    /// Target chunk size in characters (actual may vary to avoid splitting words)
+    /// Maximum chunk size in characters. A size of zero is treated as one.
     pub chunk_size: usize,
     /// Overlap between chunks (characters) to catch entities at boundaries
     pub overlap: usize,
@@ -98,8 +98,9 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Vec<TextChunk> {
         return Vec::new();
     }
 
+    let chunk_size = config.chunk_size.max(1);
     // If text fits in one chunk, return it directly.
-    if text_len <= config.chunk_size {
+    if text_len <= chunk_size {
         return vec![TextChunk {
             text: text.to_string(),
             char_offset: 0,
@@ -108,17 +109,26 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Vec<TextChunk> {
 
     let mut chunks = Vec::new();
     let mut position = 0;
+    let mut previous_end = 0;
 
     while position < text_len {
-        let chunk_end = (position + config.chunk_size).min(text_len);
+        let chunk_end = position.saturating_add(chunk_size).min(text_len);
 
         let actual_end = if chunk_end >= text_len {
             text_len
-        } else if config.respect_sentences {
-            find_sentence_boundary(&chars, position, chunk_end)
         } else {
-            find_word_boundary(&chars, chunk_end)
+            // Search only new text. Include one lookahead character so the
+            // sentence detector can distinguish "end. " from "e.g." at the cut.
+            let window = &chars[previous_end..=chunk_end];
+            let limit = chunk_end - previous_end;
+            let boundary = if config.respect_sentences {
+                find_sentence_boundary(window, 0, limit)
+            } else {
+                find_word_boundary(window, limit)
+            };
+            previous_end + boundary.min(limit)
         };
+        previous_end = actual_end;
 
         let chunk_str: String = chars[position..actual_end].iter().collect();
         chunks.push(TextChunk {
@@ -418,6 +428,65 @@ pub fn chunk_text_semantic(text: &str, chunk_capacity: usize) -> Vec<TextChunk> 
 mod tests {
     use super::*;
     use crate::EntityType;
+
+    #[test]
+    fn chunk_text_keeps_every_character_after_a_boundary() {
+        for respect_sentences in [false, true] {
+            for chunk_size in [0, 1] {
+                let config = ChunkConfig {
+                    chunk_size,
+                    overlap: 0,
+                    respect_sentences,
+                    ..Default::default()
+                };
+                let chunks = chunk_text(" ÉÉ", &config);
+                let parts: Vec<_> = chunks
+                    .iter()
+                    .map(|c| (c.char_offset, c.text.as_str()))
+                    .collect();
+                assert_eq!(parts, [(0, " "), (1, "É"), (2, "É")]);
+            }
+        }
+    }
+
+    #[test]
+    fn chunk_text_overlaps_a_long_word_without_reusing_old_boundaries() {
+        for respect_sentences in [false, true] {
+            let config = ChunkConfig {
+                chunk_size: 6,
+                overlap: 2,
+                respect_sentences,
+                ..Default::default()
+            };
+            let chunks = chunk_text("É abcdefghijklmnop", &config);
+            let parts: Vec<_> = chunks
+                .iter()
+                .map(|c| (c.char_offset, c.text.as_str()))
+                .collect();
+            assert_eq!(
+                parts,
+                [
+                    (0, "É "),
+                    (1, " abcde"),
+                    (5, "defghi"),
+                    (9, "hijklm"),
+                    (13, "lmnop")
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn chunk_text_bounds_trailing_sentence_whitespace() {
+        let config = ChunkConfig {
+            chunk_size: 4,
+            overlap: 0,
+            ..Default::default()
+        };
+        let chunks = chunk_text("A.       B", &config);
+        let parts: Vec<_> = chunks.iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(parts, ["A.  ", "    ", " B"]);
+    }
 
     #[test]
     fn test_chunk_config_presets() {
