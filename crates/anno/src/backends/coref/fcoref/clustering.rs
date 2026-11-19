@@ -41,6 +41,14 @@ impl UnionFind {
             }
         }
     }
+
+    pub(super) fn into_groups(mut self) -> impl Iterator<Item = Vec<usize>> {
+        let mut groups = std::collections::HashMap::<_, Vec<_>>::new();
+        for i in 0..self.parent.len() {
+            groups.entry(self.find(i)).or_default().push(i);
+        }
+        groups.into_values()
+    }
 }
 
 /// A mention with its character span in the original text.
@@ -83,28 +91,17 @@ pub(crate) fn build_clusters(mentions: &[MentionSpan], antecedents: &[usize]) ->
         }
     }
 
-    clusters_from_groups(n, uf, |i| {
+    clusters_from_groups(uf.into_groups(), |i| {
         let m = &mentions[i];
         (m.text.as_str(), (m.char_start, m.char_end))
     })
 }
 
 pub(super) fn clusters_from_groups<'a>(
-    count: usize,
-    mut groups: UnionFind,
+    groups: impl Iterator<Item = Vec<usize>>,
     mention: impl Fn(usize) -> (&'a str, (usize, usize)),
 ) -> Vec<CorefCluster> {
-    // Group mentions by cluster root
-    let mut cluster_map: std::collections::HashMap<usize, Vec<usize>> =
-        std::collections::HashMap::new();
-    for i in 0..count {
-        let root = groups.find(i);
-        cluster_map.entry(root).or_default().push(i);
-    }
-
-    // Build CorefCluster objects, filtering singletons
-    let mut clusters: Vec<CorefCluster> = cluster_map
-        .into_values()
+    let mut clusters: Vec<CorefCluster> = groups
         .filter(|members| members.len() > 1)
         .enumerate()
         .map(|(id, member_indices)| {
@@ -132,7 +129,7 @@ pub(super) fn clusters_from_groups<'a>(
         })
         .collect();
 
-    clusters.sort_by_key(|c| c.spans.first().map(|s| s.0).unwrap_or(0));
+    clusters.sort_by(|a, b| a.spans.cmp(&b.spans));
     // Re-assign IDs after sorting
     for (i, c) in clusters.iter_mut().enumerate() {
         c.id = i as u32;
