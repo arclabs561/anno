@@ -70,7 +70,8 @@ rayon = "1"
 # Utilities
 itertools = "0.14"
 unicode-normalization = "0.1.25"
-rusqlite = { version = "0.43.0", features = ["bundled", "fallible_uint"] }
+# Only anno-eval uses SQLite. Its file locks require Unix or Windows.
+rusqlite = { version = "0.43.0", default-features = false, features = ["bundled", "cache", "fallible_uint"] }
 
 # Observability
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
