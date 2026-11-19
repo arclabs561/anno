@@ -1,119 +1,91 @@
-"""Remove AI attribution footers and session links from pull request text.
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["markdown-it-py==4.2.0"]
+# ///
+"""Filter a local Markdown draft: uv run .github/scripts/strip_attribution.py < draft.md
 
-Run by .github/workflows/strip-attribution.yml. Agent tooling appends a
-footer to pull request descriptions after the agent writes them, and
-repository settings do not stop it (anthropics/claude-code#107892). An edit
-made outside the agent's session stays, so this job makes that edit.
-
-- pull_request_target (opened, edited, reopened): the description of that pull request.
-- pull_request_review (submitted, edited): that review.
-- workflow_dispatch: every pull request in the repository and its reviews.
-
-Only whole lines that are a footer, a bare session link or a session trailer
-are removed, then any trailing "---" separator and blank lines.
+--check-event emits a read-only Actions warning for the owner's PR or review.
 """
 
-from __future__ import annotations
-
+import argparse
+import io
 import json
 import os
 import re
 import sys
-import urllib.error
-import urllib.request
 
-LINE = re.compile(
-    r"^\s*(?:"
-    r"_?(?:\U0001f916\s*)?generated (?:by|with) \[?claude code\]?(?:\([^)]*\))?\.?_?"
-    r"|<?https://claude\.ai/code/session_\S+?>?"
-    r"|claude-session:\s*\S+"
-    r")\s*$",
-    re.IGNORECASE)
+from markdown_it import MarkdownIt
 
-
-def strip(body: str | None) -> str | None:
-    """The body without attribution lines; None when nothing changes."""
-    if not body:
-        return None
-    lines = body.replace("\r\n", "\n").split("\n")
-    kept = [ln for ln in lines if not LINE.match(ln)]
-    if len(kept) == len(lines):
-        return None
-    while kept and kept[-1].strip() in ("", "---", "***", "___"):
-        kept.pop()
-    return "\n".join(kept) + "\n"
+SESSION = r"https://claude\.ai/code/session_[A-Za-z0-9_-]+"
+FOOTER = re.compile(
+    r"_?(?:🤖 )?Generated (?:by|with) (?:Claude Code|\[Claude Code\]"
+    r"\(https://(?:claude\.ai/code|www\.anthropic\.com/claude-code)/?\))\.?_?"
+    rf"|{SESSION}|<{SESSION}>|Claude-Session: {SESSION}",
+    re.IGNORECASE,
+)
 
 
-class GitHub:
-    def __init__(self, repo: str, token: str):
-        self.repo, self.token = repo, token
+def strip_footer(body: str) -> str:
+    """Remove only trailing top-level paragraphs made entirely of known footer lines."""
+    lines = io.StringIO(body, newline="").readlines()
+    blocks = MarkdownIt("commonmark").enable("table").parse(body)
+    # Raw HTML can contain Markdown blocks, e.g. inside an unclosed <blockquote>.
+    # Keep those drafts intact. Closed HTML comments are common in PR templates.
+    for block in blocks:
+        for token in [block, *(block.children or [])]:
+            if token.type in ("html_block", "html_inline") and not re.fullmatch(
+                r"\s*<!--(?:(?!-->).)*-->\s*", token.content, re.DOTALL
+            ):
+                return body
 
-    def call(self, method: str, path: str, data: dict | None = None):
-        req = urllib.request.Request(
-            f"https://api.github.com/repos/{self.repo}/{path}", method=method,
-            data=None if data is None else json.dumps(data).encode(),
-            headers={"Authorization": f"Bearer {self.token}", "Accept": "application/vnd.github+json",
-                     "X-GitHub-Api-Version": "2022-11-28"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read() or b"null")
+    start = len(lines)
+    found = False
+    for block in reversed(blocks):
+        if block.level != 0 or block.map is None:
+            continue
+        first, end = block.map
+        if any(line.strip(" \t\r\n") for line in lines[end:start]):
+            break  # Reference definitions, for example, have no block token.
+        source = [line.rstrip("\r\n") for line in lines[first:end]]
+        if block.type == "paragraph_open" and all(FOOTER.fullmatch(line) for line in source):
+            start = first
+            found = True
+        elif found and block.type == "hr" and source == ["---"]:
+            start = first
+            break
+        else:
+            break
 
-    def pages(self, path: str):
-        page = 1
-        while True:
-            sep = "&" if "?" in path else "?"
-            items = self.call("GET", f"{path}{sep}per_page=100&page={page}")
-            if not items:
-                return
-            yield from items
-            page += 1
-
-
-def fix_pr(gh, number: int, body: str | None) -> bool:
-    new = strip(body)
-    if new is None:
-        return False
-    gh.call("PATCH", f"pulls/{number}", {"body": new})
-    print(f"pull request #{number}: removed attribution")
-    return True
-
-
-def fix_review(gh, number: int, review: dict) -> bool:
-    new = strip(review.get("body"))
-    if new is None:
-        return False
-    try:
-        gh.call("PUT", f"pulls/{number}/reviews/{review['id']}", {"body": new})
-    except urllib.error.HTTPError as exc:
-        # Only a review's author can edit it; GitHub refuses the repository token.
-        print(f"::warning::review {review['id']} on #{number}: could not edit ({exc.code}); edit it by hand")
-        return False
-    print(f"review {review['id']} on #{number}: removed attribution")
-    return True
+    if not found:
+        return body
+    while start and not lines[start - 1].strip(" \t\r\n"):
+        start -= 1
+    return "".join(lines[:start])
 
 
-def run(gh, event_name: str, event: dict) -> int:
-    changed = 0
-    if event_name in ("pull_request_target", "pull_request"):
-        pr = event["pull_request"]
-        changed += fix_pr(gh, pr["number"], pr.get("body"))
-    elif event_name == "pull_request_review":
-        changed += fix_review(gh, event["pull_request"]["number"], event["review"])
-    elif event_name == "workflow_dispatch":
-        for pr in gh.pages("pulls?state=all"):
-            changed += fix_pr(gh, pr["number"], pr.get("body"))
-            for review in gh.pages(f"pulls/{pr['number']}/reviews"):
-                changed += fix_review(gh, pr["number"], review)
-    print(f"{changed} item(s) changed")
-    return changed
+def owner_body(event_name: str, event: dict) -> str:
+    owner = event.get("repository", {}).get("owner", {}).get("id")
+    if not owner or event.get("sender", {}).get("id") != owner:
+        return ""
+    key = {"pull_request_target": "pull_request", "pull_request_review": "review"}.get(event_name)
+    item = event.get(key, {})
+    if item.get("user", {}).get("id") == owner:
+        return item.get("body") or ""
+    return ""
 
 
-def main() -> int:
-    event_name = os.environ["GITHUB_EVENT_NAME"]
-    with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as fh:
-        event = json.load(fh)
-    run(GitHub(os.environ["GITHUB_REPOSITORY"], os.environ["GH_TOKEN"]), event_name, event)
-    return 0
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check-event", action="store_true")
+    if parser.parse_args().check_event:
+        with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
+            body = owner_body(os.environ["GITHUB_EVENT_NAME"], json.load(stream))
+        if body and strip_footer(body) != body:
+            print("::warning::This draft ends with an attribution footer. Review the current text before editing.")
+    else:
+        body = sys.stdin.buffer.read().decode("utf-8")
+        sys.stdout.buffer.write(strip_footer(body).encode("utf-8"))
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
