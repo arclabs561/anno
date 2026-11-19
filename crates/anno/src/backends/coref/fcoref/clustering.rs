@@ -83,11 +83,22 @@ pub(crate) fn build_clusters(mentions: &[MentionSpan], antecedents: &[usize]) ->
         }
     }
 
+    clusters_from_groups(n, uf, |i| {
+        let m = &mentions[i];
+        (m.text.as_str(), (m.char_start, m.char_end))
+    })
+}
+
+pub(super) fn clusters_from_groups<'a>(
+    count: usize,
+    mut groups: UnionFind,
+    mention: impl Fn(usize) -> (&'a str, (usize, usize)),
+) -> Vec<CorefCluster> {
     // Group mentions by cluster root
     let mut cluster_map: std::collections::HashMap<usize, Vec<usize>> =
         std::collections::HashMap::new();
-    for i in 0..n {
-        let root = uf.find(i);
+    for i in 0..count {
+        let root = groups.find(i);
         cluster_map.entry(root).or_default().push(i);
     }
 
@@ -97,14 +108,13 @@ pub(crate) fn build_clusters(mentions: &[MentionSpan], antecedents: &[usize]) ->
         .filter(|members| members.len() > 1)
         .enumerate()
         .map(|(id, member_indices)| {
-            let mention_texts: Vec<String> = member_indices
+            let (mention_texts, spans): (Vec<String>, Vec<_>) = member_indices
                 .iter()
-                .map(|&i| mentions[i].text.clone())
-                .collect();
-            let spans: Vec<(usize, usize)> = member_indices
-                .iter()
-                .map(|&i| (mentions[i].char_start, mentions[i].char_end))
-                .collect();
+                .map(|&i| {
+                    let (surface, span) = mention(i);
+                    (surface.to_owned(), span)
+                })
+                .unzip();
 
             // Canonical = longest mention
             let canonical = mention_texts
