@@ -184,7 +184,7 @@ pub fn entities_to_knowledge_graph(
             format!(
                 "{}{}/{}_{}_{}/",
                 entity_ns,
-                e.entity_type.as_label().to_lowercase(),
+                uri_safe(&e.entity_type.as_label().to_lowercase()),
                 i,
                 uri_safe(&e.text),
                 e.start(),
@@ -194,7 +194,7 @@ pub fn entities_to_knowledge_graph(
 
     for (idx, entity) in entities.iter().enumerate() {
         let iri = &entity_iris[idx];
-        let type_iri = format!("{}{}Type", anno_ns, entity.entity_type.as_label());
+        let type_iri = format!("{}{}Type", anno_ns, uri_safe(entity.entity_type.as_label()));
 
         kg.add_triple(Triple::new(iri.as_str(), RDF_TYPE, type_iri.as_str()));
         kg.add_triple(Triple::new(

@@ -394,13 +394,14 @@ impl LoadableDatasetId {
             // Relation extraction datasets use JSON format with entity pairs and relations.
             // Common structure: {entities: [...], relations: [...], text: "..."}
             //
-            // The DocredJson parser handles DocRED, ReTACRED, and similar formats.
+            // The DocredJson parser handles the CrossRE sentence format (CrossREAI),
+            // ReTACRED, and similar formats. It does not parse DocRED itself.
             // Some datasets (SciERC, PolyIE, EnzChemRED) are auto-detected via
             // registry_hint_plan() but listed here for explicit control.
             //
             // To add more: RE datasets with format="JSON" or format="JSONL" and is_re=true
             // should be auto-detected. Add here only for special cases.
-            DatasetId::DocRED
+            DatasetId::CrossREAI
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -3367,6 +3368,9 @@ impl DatasetLoader {
 
         // Detect format: MIT datasets use TAB separator with TAG first
         let is_mit_format = matches!(id, DatasetId::MitMovie | DatasetId::MitRestaurant);
+        // GermEval 2014 is TSV: index, token, outer NE, embedded NE, with `#`
+        // source-comment lines. Its columns do not follow CoNLL-2003.
+        let is_germeval_format = matches!(id, DatasetId::GermEval2014);
 
         for line in content.lines() {
             let line = line.trim();
@@ -3388,7 +3392,17 @@ impl DatasetLoader {
             }
 
             // Parse based on format
-            let (text, ner_tag) = if is_mit_format {
+            let (text, ner_tag) = if is_germeval_format {
+                if line.starts_with('#') {
+                    continue;
+                }
+                let parts: Vec<&str> = line.split('\t').collect();
+                if parts.len() >= 3 {
+                    (parts[1].to_string(), parts[2].to_string())
+                } else {
+                    continue;
+                }
+            } else if is_mit_format {
                 // MIT format: TAG\tword (tab-separated)
                 let parts: Vec<&str> = line.split('\t').collect();
                 if parts.len() >= 2 {
@@ -3469,12 +3483,15 @@ impl DatasetLoader {
 
     /// Parse JSONL NER format (HuggingFace style, e.g., MultiNERD).
     ///
-    /// Expected format: `{"tokens": ["word1", "word2"], "ner_tags": [0, 1, 0]}`
+    /// Expected format: `{"tokens": ["word1", "word2"], "ner_tags": ["B-PER", "O"]}`.
+    /// String tags are used as given. Integer tags are decoded only for
+    /// MultiNERD, whose label ids are known; for other datasets an integer tag
+    /// becomes `TAG_<n>`, since another dataset's ids would give wrong labels.
     fn parse_jsonl_ner(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
 
         // MultiNERD tag mapping (index -> label)
-        let tag_labels = [
+        let multinerd_labels = [
             "O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-ANIM", "I-ANIM", "B-BIO",
             "I-BIO", "B-CEL", "I-CEL", "B-DIS", "I-DIS", "B-EVE", "I-EVE", "B-FOOD", "I-FOOD",
             "B-INST", "I-INST", "B-MEDIA", "I-MEDIA", "B-MYTH", "I-MYTH", "B-PLANT", "I-PLANT",
@@ -3510,8 +3527,14 @@ impl DatasetLoader {
             let mut annotated_tokens = Vec::new();
             for (token, tag) in tokens.iter().zip(ner_tags.iter()) {
                 let text = token.as_str().unwrap_or("").to_string();
-                let tag_idx = tag.as_u64().unwrap_or(0) as usize;
-                let ner_tag = tag_labels.get(tag_idx).unwrap_or(&"O").to_string();
+                let ner_tag = match (tag.as_str(), tag.as_u64()) {
+                    (Some(label), _) => label.to_string(),
+                    (None, Some(idx)) if id == DatasetId::MultiNERD => multinerd_labels
+                        .get(idx as usize)
+                        .map_or_else(|| format!("TAG_{idx}"), |l| l.to_string()),
+                    (None, Some(idx)) => format!("TAG_{idx}"),
+                    (None, None) => "O".to_string(),
+                };
                 annotated_tokens.push(AnnotatedToken { text, ner_tag });
             }
 
@@ -3888,6 +3911,75 @@ impl DatasetLoader {
             .into_iter()
             .map(str::to_string)
             .collect();
+        }
+
+        if tag_names.is_empty() {
+            // Other `tner/*` Dataset Viewer envelopes also type `tags` as plain
+            // `int32`. Index order is each repo's dataset/label.json;
+            // Babelscape/wikineural (`ner_tags` int64) documents its tagset in
+            // the dataset README.
+            let tner_names: &[&str] = match id.hf_id() {
+                Some("tner/bc5cdr") => &["O", "B-Chemical", "B-Disease", "I-Disease", "I-Chemical"],
+                Some("tner/btc") => &["B-LOC", "B-ORG", "B-PER", "I-LOC", "I-ORG", "I-PER", "O"],
+                Some("tner/ontonotes5") => &[
+                    "O",
+                    "B-CARDINAL",
+                    "B-DATE",
+                    "I-DATE",
+                    "B-PERSON",
+                    "I-PERSON",
+                    "B-NORP",
+                    "B-GPE",
+                    "I-GPE",
+                    "B-LAW",
+                    "I-LAW",
+                    "B-ORG",
+                    "I-ORG",
+                    "B-PERCENT",
+                    "I-PERCENT",
+                    "B-ORDINAL",
+                    "B-MONEY",
+                    "I-MONEY",
+                    "B-WORK_OF_ART",
+                    "I-WORK_OF_ART",
+                    "B-FAC",
+                    "B-TIME",
+                    "I-CARDINAL",
+                    "B-LOC",
+                    "B-QUANTITY",
+                    "I-QUANTITY",
+                    "I-NORP",
+                    "I-LOC",
+                    "B-PRODUCT",
+                    "I-TIME",
+                    "B-EVENT",
+                    "I-EVENT",
+                    "I-FAC",
+                    "B-LANGUAGE",
+                    "I-PRODUCT",
+                    "I-ORDINAL",
+                    "I-LANGUAGE",
+                ],
+                Some("Babelscape/wikineural") => &[
+                    "O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC", "B-MISC", "I-MISC",
+                ],
+                // BioMNER downloads tner/bionlp2004 but has no `hf_id`.
+                _ if id == DatasetId::BioMNER => &[
+                    "O",
+                    "B-DNA",
+                    "I-DNA",
+                    "B-protein",
+                    "I-protein",
+                    "B-cell_type",
+                    "I-cell_type",
+                    "B-cell_line",
+                    "I-cell_line",
+                    "B-RNA",
+                    "I-RNA",
+                ],
+                _ => &[],
+            };
+            tag_names = tner_names.iter().map(|s| s.to_string()).collect();
         }
 
         tag_names
@@ -4275,10 +4367,9 @@ impl DatasetLoader {
         })
     }
 
-    /// Parse DocRED document-level relation extraction JSON format.
     ///
-    /// DocRED is primarily for relation extraction but includes NER annotations.
-    /// Parse DocRED/CrossRE JSON format for relation extraction.
+    /// Parse CrossRE-style sentence JSON (`sentence`, `ner`, `relations`) for
+    /// relation extraction. The NER annotations become token tags.
     ///
     /// CrossRE format: {"doc_key": "...", "sentence": [...], "ner": [[start, end, type], ...], "relations": [...]}
     fn parse_docred(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
@@ -4348,7 +4439,7 @@ impl DatasetLoader {
 
         if sentences.is_empty() {
             return Err(Error::InvalidInput(format!(
-                "DocRED/CrossRE JSON for {:?} contains no valid sentences",
+                "CrossRE-style JSON for {:?} contains no valid sentences",
                 id
             )));
         }
@@ -4440,7 +4531,9 @@ impl DatasetLoader {
     /// Parse CADEC from HuggingFace datasets-server API.
     ///
     /// CADEC HF API format: {"text": "...", "ade": "...", "term_PT": "..."}
-    /// Each row is a text-ADE pair (one sentence per ADE mention).
+    /// Each row is a text-ADE pair; a text with k ADEs appears in k rows.
+    /// Rows are grouped by text so each text yields one sentence with all of
+    /// its ADEs tagged.
     /// The `ade` field contains the adverse drug event mention within `text`.
     fn parse_cadec_hf_api(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let parsed: serde_json::Value = serde_json::from_str(content).map_err(|e| {
@@ -4455,6 +4548,10 @@ impl DatasetLoader {
             .ok_or_else(|| {
                 Error::InvalidInput("No 'rows' array in CADEC HF API response".to_string())
             })?;
+
+        // Group ADE byte spans by text, keeping first-seen text order.
+        let mut texts: Vec<(&str, Vec<(usize, usize)>)> = Vec::new();
+        let mut text_index: HashMap<&str, usize> = HashMap::new();
 
         for row_obj in rows {
             let row = match row_obj.get("row") {
@@ -4498,47 +4595,68 @@ impl DatasetLoader {
             let Some(ade_start_byte) = ade_start_byte else {
                 continue; // ADE not found in text
             };
-            let ade_end_byte = ade_start_byte + ade_text.len();
+            if ade_text.is_empty() {
+                continue;
+            }
+            let span = (ade_start_byte, ade_start_byte + ade_text.len());
 
-            // Tokenize text preserving byte offsets.
-            let mut tokens: Vec<AnnotatedToken> = Vec::new();
-            let mut byte_idx = 0;
-            let words: Vec<&str> = text.split_whitespace().collect();
+            let idx = *text_index.entry(text).or_insert_with(|| {
+                texts.push((text, Vec::new()));
+                texts.len() - 1
+            });
+            if !texts[idx].1.contains(&span) {
+                texts[idx].1.push(span);
+            }
+        }
 
-            for word in words {
-                let word_start =
-                    text.get(byte_idx..).and_then(|s| s.find(word)).unwrap_or(0) + byte_idx;
-                let word_end = word_start + word.len();
-
-                // Check if this word overlaps with ADE span (byte spans)
-                let ner_tag = if word_start >= ade_start_byte && word_end <= ade_end_byte {
-                    // Check if this is the first word of the ADE
-                    if word_start == ade_start_byte
-                        || tokens.is_empty()
-                        || !tokens
-                            .last()
-                            .expect("tokens.is_empty() checked above")
-                            .ner_tag
-                            .starts_with("I-")
-                    {
-                        "B-adverse_drug_event".to_string()
-                    } else {
-                        "I-adverse_drug_event".to_string()
-                    }
-                } else {
-                    "O".to_string()
-                };
-
-                tokens.push(AnnotatedToken {
-                    text: word.to_string(),
-                    ner_tag,
-                });
-
-                // Update byte position to after this word (including trailing space)
-                byte_idx = word_end;
-                if byte_idx < text.len() && text.as_bytes().get(byte_idx) == Some(&b' ') {
-                    byte_idx += 1;
+        for (text, mut spans) in texts {
+            // BIO cannot express overlapping mentions: keep the earliest, then
+            // longest, span and drop any span overlapping one already kept.
+            spans.sort_by_key(|&(s, e)| (s, std::cmp::Reverse(e)));
+            let mut kept: Vec<(usize, usize)> = Vec::new();
+            for (s, e) in spans {
+                if kept.iter().all(|&(ks, ke)| e <= ks || s >= ke) {
+                    kept.push((s, e));
                 }
+            }
+
+            // Whitespace tokens, split further at ADE boundaries so attached
+            // punctuation ("fatigue.") does not hide an ADE edge.
+            let mut cuts: Vec<usize> = kept.iter().flat_map(|&(s, e)| [s, e]).collect();
+            cuts.sort_unstable();
+            cuts.dedup();
+            let mut pieces: Vec<(usize, usize)> = Vec::new();
+            let mut word_start: Option<usize> = None;
+            for (b, c) in text
+                .char_indices()
+                .chain(std::iter::once((text.len(), ' ')))
+            {
+                match (c.is_whitespace(), word_start) {
+                    (false, None) => word_start = Some(b),
+                    (true, Some(ws)) => {
+                        let mut start = ws;
+                        for &cut in cuts.iter().filter(|&&cut| cut > ws && cut < b) {
+                            pieces.push((start, cut));
+                            start = cut;
+                        }
+                        pieces.push((start, b));
+                        word_start = None;
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut tokens: Vec<AnnotatedToken> = Vec::new();
+            for (ps, pe) in pieces {
+                let ner_tag = match kept.iter().find(|&&(s, e)| ps >= s && pe <= e) {
+                    Some(&(s, _)) if ps == s => "B-adverse_drug_event",
+                    Some(_) => "I-adverse_drug_event",
+                    None => "O",
+                };
+                tokens.push(AnnotatedToken {
+                    text: text[ps..pe].to_string(),
+                    ner_tag: ner_tag.to_string(),
+                });
             }
 
             if !tokens.is_empty() {
@@ -5426,9 +5544,11 @@ impl DatasetLoader {
 
     /// Parse LitBank for coreference chains.
     ///
-    /// LitBank format: .ann files with T lines (mentions) and R lines (coreference relations).
-    /// T lines: T<id>\t<Type> <start> <end>\t<text>
-    /// R lines: R<id>\tCoref Arg1:T<id1> Arg2:T<id2>
+    /// LitBank coref brat files (`coref/brat/*.ann`) list each mention twice:
+    /// once with its type label (`T1\tPROP_PER 0 4\tJohn`) and once with an
+    /// entity-id label (`T2\tjohn-1 0 4\tJohn`). Mentions sharing an entity-id
+    /// label corefer. The only R lines are `cop`/`appos`, not chains.
+    /// Files with no entity-id labels fall back to `R<id>\tCoref Arg1:T<a> Arg2:T<b>` links.
     ///
     /// Note: LitBank .ann files reference character offsets in corresponding .txt files.
     /// This parser reconstructs text from mentions, but ideally should read .txt file.
@@ -5440,6 +5560,7 @@ impl DatasetLoader {
         // R1\tCoref Arg1:T1 Arg2:T2
         let mut mentions: HashMap<String, Mention> = HashMap::new();
         let mut coref_links: Vec<(String, String)> = Vec::new();
+        let mut entity_labels: HashMap<String, String> = HashMap::new();
         let mut max_end = 0usize;
 
         for line in content.lines() {
@@ -5459,6 +5580,16 @@ impl DatasetLoader {
                         let text = parts[2];
                         max_end = max_end.max(end);
                         mentions.insert(id.to_string(), Mention::new(text, start, end));
+                        // Entity-id labels end in `-<digits>` (`jarndyce_2-73`);
+                        // type labels (`PROP_PER`) do not.
+                        let label = type_span[0];
+                        if label.rsplit_once('-').is_some_and(|(name, n)| {
+                            !name.is_empty()
+                                && !n.is_empty()
+                                && n.bytes().all(|b| b.is_ascii_digit())
+                        }) {
+                            entity_labels.insert(id.to_string(), label.to_string());
+                        }
                     }
                 }
             } else if line.starts_with('R') && line.contains("Coref") {
@@ -5507,13 +5638,29 @@ impl DatasetLoader {
         let mut chains: Vec<Vec<Mention>> = Vec::new();
         let mut mention_to_chain: HashMap<String, usize> = HashMap::new();
 
-        // First, add all mentions as singletons if they're not in any chain
-        for (id, mention) in &mentions {
-            if !mention_to_chain.contains_key(id) {
-                let idx = chains.len();
-                chains.push(vec![mention.clone()]);
-                mention_to_chain.insert(id.clone(), idx);
-            }
+        // With entity-id labels, each span is listed once under its id label
+        // and once under its type label: keep only the id-labelled copies and
+        // group them by label.
+        if !entity_labels.is_empty() {
+            mentions.retain(|id, _| entity_labels.contains_key(id));
+        }
+        let mut ids: Vec<&String> = mentions.keys().collect();
+        ids.sort_by_key(|id| (mentions[*id].start, mentions[*id].end, (*id).clone()));
+        let mut label_to_chain: HashMap<&str, usize> = HashMap::new();
+        for id in ids {
+            let mention = &mentions[id];
+            let idx = match entity_labels.get(id) {
+                Some(label) => *label_to_chain.entry(label.as_str()).or_insert_with(|| {
+                    chains.push(Vec::new());
+                    chains.len() - 1
+                }),
+                None => {
+                    chains.push(Vec::new());
+                    chains.len() - 1
+                }
+            };
+            chains[idx].push(mention.clone());
+            mention_to_chain.insert(id.clone(), idx);
         }
 
         // Then merge chains based on coref links
@@ -5594,7 +5741,7 @@ impl DatasetLoader {
 
     /// Load relation extraction dataset, returning documents with relations.
     ///
-    /// Use this for DocRED and ReTACRED datasets.
+    /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
         if !id.is_relation_extraction() {
             return Err(Error::InvalidInput(format!(
@@ -5625,7 +5772,7 @@ impl DatasetLoader {
         id: DatasetId,
     ) -> Result<Vec<RelationDocument>> {
         match id {
-            DatasetId::DocRED
+            DatasetId::CrossREAI
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
@@ -5634,7 +5781,7 @@ impl DatasetLoader {
             | DatasetId::SciER
             | DatasetId::MixRED
             | DatasetId::CovEReD => {
-                // All these datasets use the CrossRE format (same as DocRED)
+                // All these datasets use the CrossRE sentence format
                 self.parse_docred_relations(content)
             }
             DatasetId::CHisIEC => {
@@ -5681,7 +5828,7 @@ impl DatasetLoader {
         self.load_relation(id)
     }
 
-    /// Parse DocRED/CrossRE format for relation extraction.
+    /// Parse CrossRE-style sentence JSON for relation extraction.
     ///
     /// Format: JSONL with {"sentence": [...], "ner": [[start, end, type], ...], "relations": [[id1-start, id1-end, id2-start, id2-end, rel-type, ...], ...]}
     fn parse_docred_relations(&self, content: &str) -> Result<Vec<RelationDocument>> {
@@ -5722,7 +5869,7 @@ impl DatasetLoader {
                 if let Some(tok_str) = token.as_str() {
                     token_to_char.push(char_pos);
                     // Add token length + 1 for space (except last token)
-                    char_pos += tok_str.len();
+                    char_pos += tok_str.chars().count();
                     if i < tokens_arr.len() - 1 {
                         char_pos += 1; // Space between tokens
                     }
@@ -5764,12 +5911,12 @@ impl DatasetLoader {
                                 if let Some(last_token) =
                                     tokens_arr.get(token_end).and_then(|t| t.as_str())
                                 {
-                                    last_token_char_start + last_token.len()
+                                    last_token_char_start + last_token.chars().count()
                                 } else {
-                                    char_start + entity_text.len()
+                                    char_start + entity_text.chars().count()
                                 }
                             } else {
-                                char_start + entity_text.len()
+                                char_start + entity_text.chars().count()
                             };
 
                             entity_map.insert(
@@ -5808,7 +5955,7 @@ impl DatasetLoader {
                                         if let Some(last_tok) =
                                             tokens_arr.get(head_token_end).and_then(|t| t.as_str())
                                         {
-                                            last_start + last_tok.len()
+                                            last_start + last_tok.chars().count()
                                         } else {
                                             char_start
                                         }
@@ -5830,7 +5977,7 @@ impl DatasetLoader {
                                         if let Some(last_tok) =
                                             tokens_arr.get(tail_token_end).and_then(|t| t.as_str())
                                         {
-                                            last_start + last_tok.len()
+                                            last_start + last_tok.chars().count()
                                         } else {
                                             char_start
                                         }
@@ -6003,14 +6150,14 @@ impl DatasetLoader {
     /// - **Spatial**: 到達 (arrival), 出生於某地 (birthplace), 管理 (governance)
     /// - **Identity**: 別名 (alias/alternative name)
     ///
-    /// # Format Difference from CrossRE/DocRED
+    /// # Format Difference from CrossRE
     ///
     /// **CHisIEC** uses entity indices:
     /// ```json
     /// "relations": [{"type": "上下級", "head": 0, "tail": 1, ...}]
     /// ```
     ///
-    /// **CrossRE/DocRED** uses token spans:
+    /// **CrossRE** uses token spans:
     /// ```json
     /// "relations": [[0, 2, 3, 5, "relation_type"]]
     /// ```
@@ -6641,54 +6788,83 @@ impl DatasetLoader {
                 if let Some(events) = doc.get("events").and_then(|e| e.as_array()) {
                     is_jsonl = true;
 
-                    // Get document content for context
-                    let doc_content: Vec<String> = doc
+                    // One sentence per `content` entry, tokenized as MAVEN ships it;
+                    // each mention's trigger is tagged at its token `offset`
+                    // ([start, end) within sentence `sent_id`).
+                    let mut doc_sentences: Vec<Vec<AnnotatedToken>> = doc
                         .get("content")
                         .and_then(|c| c.as_array())
                         .map(|sents| {
                             sents
                                 .iter()
-                                .filter_map(|s| s.get("sentence").and_then(|v| v.as_str()))
-                                .map(|s| s.to_string())
+                                .map(|s| {
+                                    let words: Vec<String> =
+                                        match s.get("tokens").and_then(|t| t.as_array()) {
+                                            Some(toks) => toks
+                                                .iter()
+                                                .map(|t| t.as_str().unwrap_or("").to_string())
+                                                .collect(),
+                                            None => s
+                                                .get("sentence")
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or("")
+                                                .split_whitespace()
+                                                .map(str::to_string)
+                                                .collect(),
+                                        };
+                                    words
+                                        .into_iter()
+                                        .map(|text| AnnotatedToken {
+                                            text,
+                                            ner_tag: "O".to_string(),
+                                        })
+                                        .collect()
+                                })
                                 .collect()
                         })
                         .unwrap_or_default();
 
-                    // Process each event
                     for event in events {
                         let event_type = event
                             .get("type")
                             .and_then(|t| t.as_str())
                             .unwrap_or("EVENT");
 
-                        // Process each mention of this event
-                        if let Some(mentions) = event.get("mention").and_then(|m| m.as_array()) {
-                            for mention in mentions {
-                                let trigger_word = mention
-                                    .get("trigger_word")
-                                    .and_then(|t| t.as_str())
-                                    .unwrap_or("");
-
-                                let sent_id =
-                                    mention.get("sent_id").and_then(|s| s.as_u64()).unwrap_or(0)
-                                        as usize;
-
-                                // Get sentence context if available
-                                let context = doc_content
-                                    .get(sent_id)
-                                    .cloned()
-                                    .unwrap_or_else(|| trigger_word.to_string());
-
-                                let tokens = vec![AnnotatedToken {
-                                    text: context,
-                                    ner_tag: format!("B-{}", event_type),
-                                }];
-
-                                sentences.push(AnnotatedSentence {
-                                    tokens,
-                                    source_dataset: id,
-                                });
+                        let Some(mentions) = event.get("mention").and_then(|m| m.as_array()) else {
+                            continue;
+                        };
+                        for mention in mentions {
+                            let sent_id = mention.get("sent_id").and_then(|s| s.as_u64());
+                            let offset = mention
+                                .get("offset")
+                                .and_then(|o| o.as_array())
+                                .and_then(|o| Some((o.first()?.as_u64()?, o.get(1)?.as_u64()?)));
+                            let (Some(sent_id), Some((start, end))) = (sent_id, offset) else {
+                                continue;
+                            };
+                            let Some(tokens) = doc_sentences.get_mut(sent_id as usize) else {
+                                continue;
+                            };
+                            let (start, end) = (start as usize, end as usize);
+                            if start >= end
+                                || end > tokens.len()
+                                || tokens[start..end].iter().any(|t| t.ner_tag != "O")
+                            {
+                                continue;
                             }
+                            for (k, tok) in tokens[start..end].iter_mut().enumerate() {
+                                let prefix = if k == 0 { "B" } else { "I" };
+                                tok.ner_tag = format!("{prefix}-{event_type}");
+                            }
+                        }
+                    }
+
+                    for tokens in doc_sentences.drain(..) {
+                        if !tokens.is_empty() {
+                            sentences.push(AnnotatedSentence {
+                                tokens,
+                                source_dataset: id,
+                            });
                         }
                     }
                 }
@@ -7338,6 +7514,27 @@ fn map_entity_type(original: &str) -> EntityType {
 mod tests {
     use super::*;
 
+    /// Relation gold spans are character offsets: a non-ASCII token before an
+    /// entity must not shift later spans.
+    #[test]
+    fn crossre_relation_gold_offsets_are_characters() {
+        let line = r#"{"doc_key":"t-1","sentence":["Björk","toured","with","Sugarcubes","."],"ner":[[0,0,"musicalartist"],[3,3,"band"]],"relations":[[0,0,3,3,"part-of","",false,false]]}"#;
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        std::fs::write(dir.path().join(DatasetId::CrossREAI.cache_filename()), line).unwrap();
+        let docs = loader.load_relation(DatasetId::CrossREAI).unwrap();
+        let r = &docs[0].relations[0];
+        let text = &docs[0].text;
+        let slice = |(s, e): (usize, usize)| text.chars().skip(s).take(e - s).collect::<String>();
+        assert_eq!(slice(r.head_span), "Björk", "head span {:?}", r.head_span);
+        assert_eq!(
+            slice(r.tail_span),
+            "Sugarcubes",
+            "tail span {:?}",
+            r.tail_span
+        );
+    }
+
     #[cfg(feature = "eval")]
     #[test]
     fn candidate_payloads_are_validated_before_replacing_cache() {
@@ -7408,7 +7605,7 @@ mod tests {
         );
         assert_eq!(std::fs::read_to_string(&gap_path).unwrap(), gap_payload);
 
-        let relation = DatasetId::DocRED;
+        let relation = DatasetId::CrossREAI;
         let relation_path = loader.cache_path_for(relation);
         assert!(loader
             .validate_and_cache_relation_content(relation, "<html>not a dataset</html>")
@@ -9125,11 +9322,31 @@ Blackburn NNP I-NP I-PER
         }
     }
 
+    /// `DocRED` named the CrossRE AI test file. That file is `CrossREAI`; DocRED
+    /// itself has no parser for its document-level format, so it must not be
+    /// loadable or parse CrossRE content as if it were DocRED.
+    #[test]
+    fn docred_is_not_crossre_and_crossre_ai_is_loadable() {
+        let crossre_ai_url =
+            "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json";
+        assert_eq!(DatasetId::CrossREAI.download_url(), crossre_ai_url);
+        assert!(LoadableDatasetId::is_loadable_dataset(DatasetId::CrossREAI));
+        assert!(DatasetId::CrossREAI.is_relation_extraction());
+
+        assert_ne!(DatasetId::DocRED.download_url(), crossre_ai_url);
+        assert!(!LoadableDatasetId::is_loadable_dataset(DatasetId::DocRED));
+        let line = r#"{"doc_key":"t-1","sentence":["Ada","wrote","code","."],"ner":[[0,0,"researcher"]],"relations":[]}"#;
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        std::fs::write(dir.path().join(DatasetId::DocRED.cache_filename()), line).unwrap();
+        assert!(loader.load_relation(DatasetId::DocRED).is_err());
+    }
+
     #[test]
     fn test_parse_docred_smoke() {
         let sample = r#"{"doc_key":"d1","sentence":["John","met","Mary","in","Paris","."],"ner":[[0,0,"PER"],[2,2,"PER"],[4,4,"LOC"]],"relations":[]}"#;
         let loader = DatasetLoader::new().unwrap();
-        let ds = loader.parse_docred(sample, DatasetId::DocRED).unwrap();
+        let ds = loader.parse_docred(sample, DatasetId::CrossREAI).unwrap();
         assert!(!ds.sentences.is_empty());
         assert!(ds.sentences[0]
             .tokens
@@ -9750,11 +9967,10 @@ CEO,O
 
     #[test]
     fn test_fewrel_jsonl_parse() {
-        // FewRel has relation extraction in JSONL format
-        // The parser expects integer tags mapping to MultiNERD labels:
-        // 0=O, 1=B-PER, 3=B-ORG
-        let fewrel_sample =
-            r#"{"tokens":["John","works","at","Google","."],"ner_tags":[1,0,0,3,0]}"#;
+        // FewRel has relation extraction in JSONL format. Tags use the
+        // documented JsonlNer shape (BIO strings); integer ids are only known
+        // for MultiNERD.
+        let fewrel_sample = r#"{"tokens":["John","works","at","Google","."],"ner_tags":["B-PER","O","O","B-ORG","O"]}"#;
 
         let loader = DatasetLoader::new().unwrap();
         let result = loader.parse_jsonl_ner(fewrel_sample, DatasetId::FewRel);
@@ -9770,9 +9986,7 @@ CEO,O
     #[test]
     fn test_b2nerd_business_entities_parse() {
         // B2NERD focuses on business/financial entity types
-        // Using standard MultiNERD indices: 3=B-ORG (closest to COMPANY), 0=O
-        let b2nerd_sample =
-            r#"{"tokens":["Apple","Inc",".","reports","Q4","earnings"],"ner_tags":[3,4,4,0,0,0]}"#;
+        let b2nerd_sample = r#"{"tokens":["Apple","Inc",".","reports","Q4","earnings"],"ner_tags":["B-ORG","I-ORG","I-ORG","O","O","O"]}"#;
 
         let loader = DatasetLoader::new().unwrap();
         let result = loader.parse_jsonl_ner(b2nerd_sample, DatasetId::B2NERD);
@@ -10507,6 +10721,297 @@ CEO,O
 
             // Description should exist for most
             // (not asserting as some may legitimately have no description)
+        }
+    }
+
+    /// Regression tests for High-severity loader bugs from the Oct 2026 bug hunt.
+    mod bughunt_high {
+        use super::*;
+
+        /// LitBank coref brat files (dbamman/litbank coref/brat/*.ann) encode chains in
+        /// the T-line label: `T12\tjarndyce_2-73 0 12\ttext` — mentions sharing the
+        /// `-73` suffix corefer. The only R lines are `cop`/`appos`. The parser looks
+        /// for R lines containing "Coref", finds none, and returns every T line
+        /// (each span appears twice: once as PROP_PER etc., once as name-ID) as its
+        /// own singleton chain. Gold therefore has zero coreference links.
+        #[test]
+        fn litbank_coref_chains_come_from_entity_id_labels() {
+            let ann = "T1\tPROP_PER 0 4\tJohn\n\
+                       T2\tJohn-1 0 4\tJohn\n\
+                       T3\tPRON_PER 10 12\the\n\
+                       T4\tJohn-1 10 12\the\n\
+                       T5\tPROP_PER 20 24\tMary\n\
+                       T6\tMary-2 20 24\tMary\n\
+                       R1\tappos Arg1:T1 Arg2:T3\n";
+            let dir = tempfile::tempdir().unwrap();
+            let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+            std::fs::write(dir.path().join(DatasetId::LitBank.cache_filename()), ann).unwrap();
+            let docs = loader.load_coref(DatasetId::LitBank).unwrap();
+            let chains: Vec<Vec<(usize, usize)>> = docs[0]
+                .chains
+                .iter()
+                .map(|c| c.mentions.iter().map(|m| (m.start, m.end)).collect())
+                .collect();
+            let mention_count: usize = chains.iter().map(|c| c.len()).sum();
+            assert_eq!(mention_count, 3, "each span must appear once: {chains:?}");
+            assert!(
+                chains.iter().any(|c| c.len() == 2),
+                "John/he chain (label suffix -1) missing: {chains:?}"
+            );
+        }
+
+        /// GermEval 2014 (registry format "CoNLL") is a 4-column TSV:
+        /// `index \t token \t outer-NE \t embedded-NE`, with `#` source comments.
+        /// parse_conll treats any 4+ column line as CoNLL-2003 `word POS chunk NER`,
+        /// so the token becomes the index ("1") and the tag the *embedded* level, and
+        /// comment lines become tokens.
+        #[test]
+        fn germeval2014_tsv_tokens_and_outer_tags() {
+            let content = "#\thttp://de.wikipedia.org/wiki/Test [2009-10-17]\n\
+                           1\tAngela\tB-PER\tO\n\
+                           2\tMerkel\tI-PER\tO\n\
+                           3\tbesucht\tO\tO\n\
+                           4\tBerlin\tB-LOC\tO\n\n";
+            let loader =
+                DatasetLoader::with_cache_dir(tempfile::tempdir().unwrap().path()).unwrap();
+            let ds = loader
+                .parse_content_str(content, DatasetId::GermEval2014)
+                .unwrap();
+            let toks: Vec<(String, String)> = ds.sentences[0]
+                .tokens
+                .iter()
+                .map(|t| (t.text.clone(), t.ner_tag.clone()))
+                .collect();
+            assert_eq!(
+                toks,
+                vec![
+                    ("Angela".to_string(), "B-PER".to_string()),
+                    ("Merkel".to_string(), "I-PER".to_string()),
+                    ("besucht".to_string(), "O".to_string()),
+                    ("Berlin".to_string(), "B-LOC".to_string()),
+                ]
+            );
+        }
+
+        /// Same two tner/bc5cdr test rows (0 and 11, checked against the live
+        /// Dataset Viewer on 2026-10-30). Row 0 has Famotidine (Chemical) and
+        /// delirium (Disease); row 11 has "scleroderma renal crisis" (Disease),
+        /// tacrolimus and prednisolone (Chemical): 5 entities.
+        #[test]
+        fn bc5cdr_dataset_viewer_tags_use_tner_label_ids() {
+            let sample = r#"{"dataset":"tner/bc5cdr","config":"bc5cdr","split":"test","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"Sequence"}},{"feature_idx":1,"name":"tags","type":{"feature":{"dtype":"int32","_type":"Value"},"_type":"Sequence"}}],"rows":[{"row_idx":0,"row":{"tokens":["Famotidine","-","associated","delirium","."],"tags":[1,0,0,2,0]},"truncated_cells":[]},{"row_idx":11,"row":{"tokens":["Late","-","onset","scleroderma","renal","crisis","induced","by","tacrolimus","and","prednisolone",":","a","case","report","."],"tags":[0,0,0,2,3,3,0,0,1,0,1,0,0,0,0,0]},"truncated_cells":[]}],"truncated":true}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::BC5CDR).unwrap();
+            let tags: Vec<&str> = ds.sentences[1]
+                .tokens
+                .iter()
+                .map(|t| t.ner_tag.as_str())
+                .collect();
+            assert_eq!(&tags[3..6], ["B-Disease", "I-Disease", "I-Disease"]);
+            assert_eq!(tags[8], "B-Chemical");
+            let n: usize = ds.sentences.iter().map(|s| s.entities().len()).sum();
+            assert_eq!(n, 5);
+        }
+
+        /// CADEC via the HF Dataset Viewer (KevinSpaghetti/cadec; fetched first-rows):
+        /// one row per (text, ade). The parser makes one sentence per row and tags a
+        /// whitespace token only if it lies wholly inside the ADE span, so an ADE
+        /// followed by punctuation ("dizzy." / "fatigue.") is dropped or truncated,
+        /// and a text with k ADEs becomes k sentences each with one ADE tagged.
+        #[test]
+        fn cadec_dataset_viewer_ades_are_not_dropped_at_punctuation() {
+            let sample = r#"{"features": [{"feature_idx": 0, "name": "text", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 1, "name": "ade", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 2, "name": "term_PT", "type": {"dtype": "string", "_type": "Value"}}], "num_rows_total": 4, "rows": [{"row_idx": 0, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "could barely walk across the room", "term_PT": "gait disturbance"}, "truncated_cells": []}, {"row_idx": 1, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "fatigue", "term_PT": "fatigue"}, "truncated_cells": []}, {"row_idx": 2, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "extreme weakness", "term_PT": "asthenia"}, "truncated_cells": []}, {"row_idx": 3, "row": {"text": "dizzy. lowered the cholesterol.", "ade": "dizzy", "term_PT": "dizziness"}, "truncated_cells": []}]}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::CADEC).unwrap();
+            let per_sentence: Vec<(String, Vec<String>)> = ds
+                .sentences
+                .iter()
+                .map(|s| (s.text(), s.entities().into_iter().map(|e| e.text).collect()))
+                .collect();
+            // Each source text should appear once with all of its ADEs.
+            let mut texts: Vec<&String> = per_sentence.iter().map(|(t, _)| t).collect();
+            texts.sort();
+            texts.dedup();
+            assert_eq!(
+                texts.len(),
+                per_sentence.len(),
+                "same text emitted as several sentences, each with one ADE: {per_sentence:#?}"
+            );
+        }
+
+        #[test]
+        fn cadec_single_word_ade_before_period_is_kept() {
+            let sample = r#"{"features": [{"feature_idx": 0, "name": "text", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 1, "name": "ade", "type": {"dtype": "string", "_type": "Value"}}, {"feature_idx": 2, "name": "term_PT", "type": {"dtype": "string", "_type": "Value"}}], "num_rows_total": 4, "rows": [{"row_idx": 0, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "could barely walk across the room", "term_PT": "gait disturbance"}, "truncated_cells": []}, {"row_idx": 1, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "fatigue", "term_PT": "fatigue"}, "truncated_cells": []}, {"row_idx": 2, "row": {"text": "sudden onset of extreme weakness and fatigue. i got up one morning and could barely walk across the room. i stopped taking the drug and the symptoms disappeared.", "ade": "extreme weakness", "term_PT": "asthenia"}, "truncated_cells": []}, {"row_idx": 3, "row": {"text": "dizzy. lowered the cholesterol.", "ade": "dizzy", "term_PT": "dizziness"}, "truncated_cells": []}]}"#;
+            let loader = DatasetLoader::new().unwrap();
+            let ds = loader.parse_content_str(sample, DatasetId::CADEC).unwrap();
+            let dizzy = ds
+                .sentences
+                .iter()
+                .find(|s| s.text().starts_with("dizzy"))
+                .expect("dizzy row parsed");
+            assert!(
+                !dizzy.entities().is_empty(),
+                "ADE 'dizzy' in 'dizzy. lowered the cholesterol.' produced no gold entity: {:?}",
+                dizzy
+                    .tokens
+                    .iter()
+                    .map(|t| (&t.text, &t.ner_tag))
+                    .collect::<Vec<_>>()
+            );
+        }
+
+        fn gold(ds: &LoadedDataset) -> Vec<(String, String)> {
+            ds.sentences
+                .iter()
+                .flat_map(|s| s.entities())
+                .map(|e| (e.text.clone(), e.original_label.clone()))
+                .collect()
+        }
+
+        /// tner/ontonotes5 test rows through the HF Dataset Viewer: `tags` is plain int32
+        /// with no ClassLabel names. tner label.json: O=0, B-DATE=2, I-DATE=3, B-ORG=11,
+        /// I-ORG=12, B-PERCENT=13, I-PERCENT=14, B-MONEY=16, I-MONEY=17.
+        #[test]
+        fn ontonotes5_dataset_viewer_rows_yield_entities() {
+            let sample = r#"{"dataset":"tner/ontonotes5","config":"ontonotes5","split":"test","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"List"}},{"feature_idx":1,"name":"tags","type":{"feature":{"dtype":"int32","_type":"Value"},"_type":"List"}}],"rows":[{"row_idx":0,"row":{"tokens":["Dow","Chemical","Co.","--"],"tags":[11,12,12,12]},"truncated_cells":[]},{"row_idx":1,"row":{"tokens":["$","150","million","of","8.55","%","senior","notes","due","Oct.","15",",","2009",",","priced","at","par","."],"tags":[16,17,17,0,13,14,0,0,0,2,3,3,3,0,0,0,0,0]},"truncated_cells":[]}],"num_rows_total":2,"num_rows_per_page":100,"partial":false}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(sample, DatasetId::OntoNotesSample)
+                .unwrap();
+            let ents = gold(&ds);
+            assert_eq!(
+                ents.len(),
+                4,
+                "expected ORG, MONEY, PERCENT, DATE; got {ents:?}"
+            );
+        }
+
+        /// Babelscape/wikineural test_en rows: `ner_tags` is int64 with no ClassLabel
+        /// names. The dataset README gives the tagset O=0, B-PER=1, I-PER=2, B-ORG=3,
+        /// I-ORG=4, B-LOC=5, I-LOC=6, B-MISC=7, I-MISC=8.
+        #[test]
+        fn wikineural_dataset_viewer_rows_yield_entities() {
+            let sample = r#"{"dataset":"Babelscape/wikineural","config":"default","split":"test_en","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"List"}},{"feature_idx":1,"name":"ner_tags","type":{"feature":{"dtype":"int64","_type":"Value"},"_type":"List"}},{"feature_idx":2,"name":"lang","type":{"dtype":"string","_type":"Value"}}],"rows":[{"row_idx":0,"row":{"tokens":["On","this","occasion","he","failed","to","gain","the","support","of","the","South","Wales","Miners","'","Federation","and","had","to","stand","down","."],"ner_tags":[0,0,0,0,0,0,0,0,0,0,0,3,4,4,4,4,0,0,0,0,0,0],"lang":"en"},"truncated_cells":[]},{"row_idx":1,"row":{"tokens":["On","both","these","occasions","he","was","backed","by","the","South","Wales","Miners","'","Federation",",","but","he","was","not","successful","."],"ner_tags":[0,0,0,0,0,0,0,0,0,3,4,4,4,4,0,0,0,0,0,0,0],"lang":"en"},"truncated_cells":[]},{"row_idx":2,"row":{"tokens":["He","also","appeared","as","himself","in","the","1996","film","\"","Eddie","\"","."],"ner_tags":[0,0,0,0,0,0,0,0,0,0,7,0,0],"lang":"en"},"truncated_cells":[]}],"num_rows_total":3,"num_rows_per_page":100,"partial":false}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(sample, DatasetId::WikiNeural)
+                .unwrap();
+            let ents = gold(&ds);
+            assert_eq!(ents.len(), 3, "WikiNeural gold entities lost; got {ents:?}");
+            assert_eq!(ents[2], ("Eddie".to_string(), "MISC".to_string()));
+        }
+
+        /// tner/btc publishes ClassLabel names (B-LOC..O, O = 6); control for the
+        /// int32 cases above.
+        #[test]
+        fn btc_dataset_viewer_rows_yield_entities() {
+            let sample = r#"{"dataset":"tner/btc","config":"btc","split":"test","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"List"}},{"feature_idx":1,"name":"tags","type":{"feature":{"names":["B-LOC","B-ORG","B-PER","I-LOC","I-ORG","I-PER","O"],"_type":"ClassLabel"},"_type":"List"}}],"rows":[{"row_idx":0,"row":{"tokens":["This","morning","I","met","with","Senators","Inabo","and","Senior","from","Palau","to","discuss","my","role","as","Chair","of","the","Public","Works",".",".",".","http://t.co/McYNwpzHmt"],"tags":[6,6,6,6,6,6,2,6,2,6,0,6,6,6,6,6,6,6,6,6,6,6,6,6,6]},"truncated_cells":[]},{"row_idx":1,"row":{"tokens":["Enjoying","the","Chinese","Assoc","of","Vic","annual","dinner","right","here","in","Aston","!","http://t.co/6geIkKyEiS"],"tags":[6,6,1,4,4,4,6,6,6,6,6,0,6,6]},"truncated_cells":[]}],"num_rows_total":2,"num_rows_per_page":100,"partial":false}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(sample, DatasetId::BroadTwitterCorpus)
+                .unwrap();
+            // Inabo PER, Senior PER, Palau LOC, "Chinese Assoc of Vic" ORG, Aston LOC.
+            assert_eq!(gold(&ds).len(), 5, "BTC entities: {:?}", gold(&ds));
+        }
+
+        /// BioMNER downloads tner/bionlp2004 (JNLPBA), whose `tags` are int32 without
+        /// names. tner label.json: O=0, B-DNA=1, I-DNA=2, B-protein=3, I-protein=4,
+        /// B-cell_type=5, I-cell_type=6, B-cell_line=7, I-cell_line=8, B-RNA=9, I-RNA=10.
+        #[test]
+        fn biomner_rows_yield_bionlp2004_entities() {
+            let sample = r#"{"dataset":"tner/bionlp2004","config":"bionlp2004","split":"test","features":[{"feature_idx":0,"name":"tokens","type":{"feature":{"dtype":"string","_type":"Value"},"_type":"List"}},{"feature_idx":1,"name":"tags","type":{"feature":{"dtype":"int32","_type":"Value"},"_type":"List"}}],"rows":[{"row_idx":0,"row":{"tokens":["Number","of","glucocorticoid","receptors","in","lymphocytes","and","their","sensitivity","to","hormone","action","."],"tags":[0,0,3,4,0,5,0,0,0,0,0,0,0]},"truncated_cells":[]},{"row_idx":1,"row":{"tokens":["The","study","demonstrated","a","decreased","level","of","glucocorticoid","receptors","(","GR",")","in","peripheral","blood","lymphocytes","from","hypercholesterolemic","subjects",",","and","an","elevated","level","in","patients","with","acute","myocardial","infarction","."],"tags":[0,0,0,0,0,0,0,3,4,0,3,0,0,5,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},"truncated_cells":[]}],"num_rows_total":2,"num_rows_per_page":100,"partial":false}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(sample, DatasetId::BioMNER)
+                .unwrap();
+            let ents = gold(&ds);
+            let s = |t: &str, l: &str| (t.to_string(), l.to_string());
+            assert_eq!(
+                ents,
+                vec![
+                    s("glucocorticoid receptors", "protein"),
+                    s("lymphocytes", "cell_type"),
+                    s("glucocorticoid receptors", "protein"),
+                    s("GR", "protein"),
+                    s("peripheral blood lymphocytes", "cell_type"),
+                ]
+            );
+        }
+
+        /// JsonlNer rows with string BIO tags (the documented `ner_tags` shape;
+        /// WIESP2022-NER files carry string `ner_tags` and integer `ner_ids`) keep
+        /// their labels instead of collapsing to "O".
+        #[test]
+        fn jsonl_ner_string_bio_tags_are_kept() {
+            let content = concat!(
+                r#"{"bibcode":"x","tokens":["We","used","the","Hubble","Space","Telescope","."],"ner_tags":["O","O","O","B-Telescope","I-Telescope","I-Telescope","O"]}"#,
+                "\n",
+                r#"{"bibcode":"y","tokens":["Data","from","Gaia","DR2","."],"ner_tags":["O","O","B-Dataset","I-Dataset","O"]}"#,
+                "\n"
+            );
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(content, DatasetId::WIESP2022NER)
+                .unwrap();
+            let ents = gold(&ds);
+            assert_eq!(
+                ents,
+                vec![
+                    (
+                        "Hubble Space Telescope".to_string(),
+                        "Telescope".to_string()
+                    ),
+                    ("Gaia DR2".to_string(), "Dataset".to_string()),
+                ]
+            );
+        }
+
+        /// Integer tags of a JsonlNer dataset other than MultiNERD are not decoded with
+        /// MultiNERD's table (where 15 = B-EVE).
+        #[test]
+        fn jsonl_ner_integer_tags_do_not_use_multinerd_table_for_other_datasets() {
+            let content = r#"{"tokens":["We","used","HST","."],"ner_ids":[62,62,15,62],"ner_tags":[62,62,15,62]}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(content, DatasetId::WIESP2022NER)
+                .unwrap();
+            let tags: Vec<&str> = ds.sentences[0]
+                .tokens
+                .iter()
+                .map(|t| t.ner_tag.as_str())
+                .collect();
+            assert_ne!(
+                tags[2], "B-EVE",
+                "decoded with the MultiNERD table: {tags:?}"
+            );
+            assert_eq!(tags, vec!["TAG_62", "TAG_62", "TAG_15", "TAG_62"]);
+
+            let multinerd = r#"{"tokens":["Battle","of","Hastings"],"ner_tags":[15,16,16]}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(multinerd, DatasetId::MultiNERD)
+                .unwrap();
+            assert_eq!(
+                gold(&ds),
+                vec![("Battle of Hastings".to_string(), "EVE".to_string())]
+            );
+        }
+
+        /// MAVEN (Wang et al. 2020) documents: content[i].tokens plus events[].mention[]
+        /// with sent_id and token `offset` [start, end). The gold span is the trigger.
+        #[test]
+        fn maven_gold_span_is_the_trigger_not_the_sentence() {
+            let line = r#"{"id":"d1","title":"t","content":[{"sentence":"The army attacked the city .","tokens":["The","army","attacked","the","city","."]}],"events":[{"id":"e1","type":"Attack","type_id":1,"mention":[{"id":"m1","trigger_word":"attacked","sent_id":0,"offset":[2,3]}]}],"negative_triggers":[]}"#;
+            let ds = DatasetLoader::new()
+                .unwrap()
+                .parse_content_str(line, DatasetId::MAVEN)
+                .unwrap();
+            let texts: Vec<String> = ds.sentences.iter().map(|s| s.text()).collect();
+            assert_eq!(
+                gold(&ds),
+                vec![("attacked".to_string(), "Attack".to_string())],
+                "MAVEN gold: sentences = {texts:?}"
+            );
         }
     }
 }

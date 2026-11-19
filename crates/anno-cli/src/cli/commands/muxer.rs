@@ -147,7 +147,7 @@ pub enum MuxerAction {
 
         /// Optional comma-separated dataset ids to scope selection to (matches `DatasetId` debug strings).
         ///
-        /// Example: `--datasets CHisIEC,DocRED`
+        /// Example: `--datasets CHisIEC,CrossREAI`
         #[arg(long)]
         datasets: Option<String>,
 

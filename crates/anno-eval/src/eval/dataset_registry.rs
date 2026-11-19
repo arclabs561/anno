@@ -2133,7 +2133,10 @@ define_datasets! {
     DocRED {
         name: "DocRED",
         description: "Document-level relation extraction. 96 relation types from Wikipedia.",
-        url: "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json",
+        // NOTE: The loader has no parser for DocRED's document-level format
+        // (`vertexSet`, `labels`, `sents`), so this entry is metadata only until
+        // one exists. The CrossRE AI test split is `CrossREAI`.
+        url: "",
         entity_types: ["PER", "LOC", "ORG", "TIME", "NUM"],
         language: "en",
         domain: "wikipedia",
@@ -2141,13 +2144,15 @@ define_datasets! {
         citation: "Yao et al. (2019)",
         paper_url: "https://aclanthology.org/P19-1074/",
         year: 2019,
-        format: "JSONL",
+        format: "JSON",
         size_hint: "5,053 docs, 132k entities, 56k relations",
+        notes: "Source: https://github.com/thunlp/DocRED (Hugging Face `docred`). Not loadable: no parser for the DocRED format yet.",
         splits: ["train", "dev", "test"],
-        tasks: ["re"],
-        expected_docs: 5053,
+        tasks: ["blocked"],
         hf_id: "docred",
-        access_status: HuggingFace,
+        // `HuggingFace` would make the loader fetch it through the Hub API,
+        // which needs a parser this crate does not have.
+        access_status: Public,
         categories: [relation_extraction],
     },
     ReTACRED {
@@ -4740,6 +4745,26 @@ define_datasets! {
         notes: "Cross-domain RE evaluation; tests transfer across domains",
         splits: ["train", "dev", "test"],
         tasks: ["re", "relation_extraction"],
+        categories: [relation_extraction],
+    },
+    CrossREAI {
+        name: "CrossRE AI",
+        description: "Artificial-intelligence domain test split of CrossRE: sentence-level relation extraction, 17 relation types.",
+        url: "https://raw.githubusercontent.com/mainlp/CrossRE/main/crossre_data/ai-test.json",
+        entity_types: ["task", "field", "product", "metrics", "misc", "algorithm", "researcher", "organisation", "conference", "person", "programlang", "country", "location", "university"],
+        language: "en",
+        domain: "scientific",
+        license: "CC-BY-4.0",
+        citation: "Bassignana & Plank (2022)",
+        paper_url: "https://aclanthology.org/2022.findings-emnlp.263/",
+        year: 2022,
+        format: "JSONL",
+        size_hint: "431 sentences, 1,811 entities, 1,164 relations",
+        notes: "Test split of the AI domain only; one JSON object per sentence with token-span `ner` and `relations`.",
+        splits: ["test"],
+        tasks: ["re"],
+        expected_docs: 431,
+        access_status: Public,
         categories: [relation_extraction],
     },
 

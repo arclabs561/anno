@@ -1,0 +1,23 @@
+{
+ "dataset": "bughunt7",
+ "encoder": "none",
+ "num_entity_tags": 5,
+ "num_relation_types": 1,
+ "hidden_size": 4,
+ "shaking_type": "cat",
+ "entity_tags": [
+  "NONE",
+  "SH2OH",
+  "OH2ST",
+  "ST2OT",
+  "OT2ST"
+ ],
+ "relation_tags": [
+  "NONE",
+  "SH2OH",
+  "OH2ST"
+ ],
+ "relations": [
+  "rel"
+ ]
+}

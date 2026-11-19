@@ -1,18 +1,35 @@
-//! Library constructors must not import `.env` files from the working
-//! directory or its parents. Only the CLI loads `.env`.
-//!
-//! This is its own test binary because it changes the process working
-//! directory.
+//! This test has its own process because it changes the working directory.
+use anno::backends::universal_ner::UniversalNER;
+use std::{env, fs};
 
 #[test]
-fn universal_ner_does_not_load_dotenv_from_the_working_directory() {
-    let key = format!("ANNO_DOTENV_SENTINEL_{}", std::process::id());
+fn library_constructors_leave_dotenv_to_the_caller() {
+    const KEY: &str = "ANNO_TEST_IMPLICIT_DOTENV";
+    let original_dir = env::current_dir().unwrap();
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join(".env"), format!("{key}=from-dotenv\n")).unwrap();
-    std::env::remove_var(&key);
-    std::env::set_current_dir(dir.path()).unwrap();
+    let child = dir.path().join("child");
+    fs::create_dir(&child).unwrap();
+    fs::write(dir.path().join(".env"), format!("{KEY}=from-parent\n")).unwrap();
+    env::remove_var(KEY);
+    env::set_current_dir(&child).unwrap();
 
-    let _ = anno::backends::universal_ner::UniversalNER::new();
+    UniversalNER::new().unwrap();
+    assert!(env::var_os(KEY).is_none());
+    UniversalNER::with_config(Default::default()).unwrap();
+    assert!(env::var_os(KEY).is_none());
 
-    assert!(std::env::var(&key).is_err());
+    #[cfg(all(feature = "onnx", not(target_arch = "wasm32")))]
+    {
+        env::set_var("ANNO_NO_DOWNLOADS", "1");
+        env::set_var("HF_HOME", dir.path().join("hf"));
+        let Err(error) = anno::BertNEROnnx::new("anno-tests/uncached") else {
+            panic!("model loaded from an empty cache");
+        };
+        assert!(error.to_string().contains("ANNO_NO_DOWNLOADS"), "{error}");
+        assert!(env::var_os(KEY).is_none());
+    }
+
+    anno::env::load_dotenv();
+    assert_eq!(env::var(KEY).as_deref(), Ok("from-parent"));
+    env::set_current_dir(original_dir).unwrap();
 }

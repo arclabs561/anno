@@ -506,13 +506,7 @@ impl OffsetMapping {
         let mut last_token = 0;
 
         for (idx, &(tok_start, tok_end)) in self.offsets.iter().enumerate() {
-            // Skip special tokens (offset 0, 0)
-            if tok_start == 0 && tok_end == 0 && idx != 0 {
-                continue;
-            }
-
-            // Check overlap
-            if tok_end > char_start && tok_start < char_end {
+            if tok_start.max(char_start) < tok_end.min(char_end) {
                 if first_token.is_none() {
                     first_token = Some(idx);
                 }
@@ -974,6 +968,26 @@ impl SpanConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn token_overlap_matches_shared_character_positions() {
+        // "猫🦀" and "e\u{301}" are two characters each, separated by space.
+        let text = "猫🦀 e\u{301}";
+        let offsets = vec![(0, 0), (0, 2), (2, 2), (3, 5), (0, 0)];
+        let mapping = OffsetMapping::new(offsets.clone());
+        for start in 0..=text.chars().count() {
+            for end in 0..=text.chars().count() {
+                let mut hits = offsets.iter().enumerate().filter(|(_, &(left, right))| {
+                    (start..end).any(|pos| (left..right).contains(&pos))
+                });
+                let expected = hits.next().map(|(first, _)| {
+                    let last = hits.next_back().map_or(first, |(index, _)| index);
+                    (first, last + 1)
+                });
+                assert_eq!(mapping.char_span_to_tokens(start, end), expected);
+            }
+        }
+    }
 
     #[test]
     fn test_ascii_text() {

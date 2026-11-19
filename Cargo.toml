@@ -73,7 +73,6 @@ unicode-normalization = "0.1.25"
 rusqlite = { version = "0.40.2", features = ["bundled", "fallible_uint"] }
 
 # Observability
-tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Testing

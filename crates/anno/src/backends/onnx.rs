@@ -1012,13 +1012,18 @@ impl BertNEROnnx {
 
             // Detect subword continuation: either same word_id as the previous
             // entity token, or byte-adjacent and starting with alphanumeric.
+            // Byte adjacency is only a fallback for encodings without word ids:
+            // when the tokenizer says this token starts a new word (e.g. each
+            // CJK ideograph in unspaced text), adjacency does not join them.
             let starts_alnum = text
                 .get(byte_start..)
                 .and_then(|s| s.chars().next())
                 .is_some_and(|c| c.is_alphanumeric());
             let same_word =
                 starts_alnum && cur_word_id.is_some() && cur_word_id == last_entity_word_id;
+            let word_ids_known = cur_word_id.is_some() && last_entity_word_id.is_some();
             let byte_adjacent = starts_alnum
+                && !word_ids_known
                 && current_entity
                     .as_ref()
                     .map(|(_, prev_end, _, _)| byte_start == *prev_end)

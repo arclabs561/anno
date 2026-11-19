@@ -2,18 +2,14 @@
 
 ## [Unreleased]
 
-### Fixed
-
-- `chunk_text` no longer panics on a long run without whitespace (base64,
-  minified code) after the first chunk; it cuts at the chunk size instead.
-
 ### Changed
 
-- Library constructors (`UniversalNER::new`, `with_config`, the Hugging Face
-  loader) no longer read `.env` files from the working directory or its
-  parents. They read only the process environment. The CLI still loads `.env`
-  at startup; library and Python callers that relied on implicit `.env`
-  loading should call `anno::env::load_dotenv()` or export the variables.
+- Library constructors no longer load `.env` from the working directory or its
+  parents. The CLI still loads it at startup. Rust callers can opt in with
+  `anno::env::load_dotenv()`. Python callers can set the environment before
+  constructing a model.
+
+## [0.14.0] - 2026-11-02
 
 ### Added
 
@@ -23,15 +19,33 @@
 
 ### Changed (breaking, planned for 0.14.0)
 
+- `anno-eval`: `EvalMode::Partial` is the SemEval-2013 partial scheme (Segura-Bedmar et al. 2013), as `ner_metrics` computes it: entity type is ignored, an exact boundary earns full credit and an overlapping boundary half credit, with precision `(COR + 0.5 PAR) / ACT` and recall `(COR + 0.5 PAR) / POS`. It was overlap plus exact type, identical to `EvalMode::Type`. Reported Partial precision, recall and F1 change; `true_positives` counts matched pairs (exact or overlapping).
+- `anno-eval`: `DatasetId::DocRED` no longer downloads the CrossRE AI test file. That file is the new `DatasetId::CrossREAI` (431 sentences, 1,811 entities, 1,164 relations), which the relation-extraction task list, the `relation-standard` benchmark profile and CLI help now use. `DocRED` keeps its metadata but is not loadable until a parser for the DocRED format exists; cached `DocRED.cache` files are not migrated.
 - `anno-eval`: `EvalHistoryEntry` and `EvalRunProvenance` add public observation, muxer-run, and coverage-cohort fields; provenance also records the actual evaluated document sample. Rust struct-literal callers must initialize the new optional fields (or use `..Default::default()` for `EvalRunProvenance`). Historical JSON remains readable.
 
 ### Fixed
 
+- `anno-eval` gold loading: LitBank coreference builds chains from `-<id>` T-line labels (it found no `Coref` R lines and returned singletons); GermEval 2014 reads token and outer tag from its tab-separated columns; `tner/bc5cdr`, `tner/btc` and `tner/ontonotes5` map integer tags through each repository's `label.json` (they loaded with zero entities); CADEC groups adverse events by text into one sentence, splits tokens at event boundaries, and keeps the earliest, longest of overlapping events. CADEC sentence counts drop to one per text.
+- `anno-eval` gold loading: `tner/bionlp2004` (BioMNER) and `Babelscape/wikineural` map their unnamed integer tags through the published tagsets (they loaded with zero entities); JSONL NER files keep string BIO tags (they all became `O`) and decode integer tags with the MultiNERD table only for MultiNERD, giving `TAG_<n>` elsewhere; MAVEN tags each event trigger at its token offset within its tokenized sentence (the gold span was the whole sentence). MAVEN sentence counts change to one per document sentence.
+- BERT token-classification decoding no longer treats an `O` token that touches the previous entity token as a subword continuation when the tokenizer assigns it a new word; unspaced CJK entities ("北京" in "我在北京工作。") were extended to the rest of the clause.
+- Token-level GLiNER models (no `span_idx` input) decode their `[words, classes, (start, end, inside)]` output as start/end/inside scores; it was read as a span grid, truncating "John Smith" to "John".
+- W2NER maps its token-position grid to whitespace words through tokenizer offsets, keeps one argmax label per cell scored by softmax probability, assigns each `THW` label its entity type (one label per type, not one entity per configured label), and follows `NNW` links between non-adjacent words when decoding discontinuous entities.
+- TPLinker reads relation cells at entity head token positions; it indexed the handshaking matrix with character offsets.
+- Compact IBANs match by ISO 13616 length (15 to 34 characters) before the mod-97 check; the BBAN pattern `[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?` rejected valid IBANs whose BBAN has letters after the fourth character.
+- Easy-first mention-ranking coreference merges clusters when a mention already sits in a cluster as an earlier antecedent, so the output is a partition; it previously could place one mention in two clusters.
 - Lockfile advisories are cleared for `zip` (anno-eval), `rustls`, `rustls-webpki`, `webpki-roots`, `webpki-root-certs` and `office_oxide`; the `zip` 8 copy that `candle-core` still pins is documented as a `cargo audit` ignore because `candle-core` never calls the affected extraction APIs.
 - PII scanning and NER classification recognize uppercase, ASCII-space-grouped IBANs at registered country lengths, preserving original character spans and adjacent text during redaction. Compact recognition is unchanged.
 - Fresh dataset payloads are validated before replacing cache files; rejected downloads preserve existing caches, S3 snapshot hashes are checked, and cached ECB+ ZIP files load as binary data.
 - Relation evaluation honors the requested document limit and reports the units and gold relations actually scored.
 - Muxer outcomes and history share observation IDs, including cache-load failures; coverage selection filters history by recorded evaluation conditions.
+- US phone patterns in PII scanning and `RegexNER` need a word boundary before a leading digit; they matched the last ten digits of longer digit runs such as order IDs and millisecond timestamps.
+- `RegexNER` money amounts accept spelled-out magnitudes in any case and only as whole words: "$5 Billion" was cut to "$5 B" and "$20 Kits" became "$20 K".
+- N-Triples, JSON-LD and knowledge-graph export make entity type labels IRI-safe; a custom type such as "Medical Condition" produced IRIs with spaces that RDF parsers reject.
+- Mention-ranking coreference finds pronouns and nominal adjectives in a per-character lowercase copy of the text, so case folding that changes byte length ("İ") no longer panics or shifts later mentions; the sentence-initial check now looks at each word occurrence, so sentence-initial "The" is not a proper-noun mention and a name that opens the text is still found later.
+- Sieve coreference acronym and fuzzy matching visit earlier mentions most recent first instead of in hash order, so the same input always gives the same clusters.
+- `anno-eval` IOBES and IOE decoding split entities at a type change and start an entity at an orphan `I-`/`E-` tag, as seqeval does: "B-PER I-LOC E-LOC" gave one PER span.
+- `anno-eval` `evaluate_ner` assigns exact matches before partial ones across all gold spans, as nervaluate does; an outer nested gold span could take the inner span's exact prediction.
+- `anno-eval` GAP mentions end at offset plus the name's character count (non-ASCII names got byte lengths), and DocRED/CrossRE relation gold spans use character offsets (a non-ASCII token shifted every later span).
 
 ## [0.13.0] - 2026-09-12
 

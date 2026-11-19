@@ -81,7 +81,7 @@ pub struct CandleNER {
 impl CandleNER {
     /// Create a new CandleNER from a HuggingFace model.
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present.
+    /// Reads `HF_TOKEN` from the process environment if set.
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "dslim/bert-base-NER")

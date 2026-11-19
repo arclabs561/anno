@@ -225,7 +225,7 @@ pub enum DatasetAction {
     /// if missing (requires `--features eval` for network downloads).
     #[command(visible_alias = "dl")]
     Download {
-        /// Dataset name (e.g., WikiGold, Wnut17, DocRED, CHisIEC)
+        /// Dataset name (e.g., WikiGold, Wnut17, CrossREAI, CHisIEC)
         #[arg(short, long)]
         dataset: String,
     },
@@ -841,14 +841,14 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             }
 
                             if dataset == "synthetic" {
-                                return Err("Relation extraction evaluation requires a real dataset (e.g., docred, retacred)".to_string());
+                                return Err("Relation extraction evaluation requires a real dataset (e.g., crossreai, retacred)".to_string());
                             }
 
                             // Reuse parsed result (preserves original error message)
                             let dataset_id: DatasetId = parsed_dataset_result.clone()?;
 
                             if !dataset_id.is_relation_extraction() {
-                                return Err(format!("Dataset '{}' is not a relation extraction dataset. Use: docred or retacred", dataset));
+                                return Err(format!("Dataset '{}' is not a relation extraction dataset. Use: crossreai or retacred", dataset));
                             }
 
                             let loader = DatasetLoader::new()

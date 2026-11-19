@@ -273,10 +273,15 @@ impl SimpleCorefResolver {
         }
 
         // Strategy 4: acronym matching (e.g., "IBM" ~ "International Business Machines").
+        // Like the other sieves, candidates are visited most recent first, so the
+        // chosen cluster does not depend on hash iteration order.
         if self.config.acronym_matching {
-            for (other_canonical, &cluster_id) in canonical_map {
-                if self.is_acronym_match(&canonical, other_canonical) {
-                    return Some(cluster_id);
+            for prev in previous.iter().rev() {
+                if let Some(cluster_id) = prev.canonical_id {
+                    let other_canonical = self.canonical_form(&prev.text, &prev.entity_type);
+                    if self.is_acronym_match(&canonical, &other_canonical) {
+                        return Some(cluster_id);
+                    }
                 }
             }
         }
@@ -334,9 +339,12 @@ impl SimpleCorefResolver {
 
             // Strategy 9: substring/fuzzy matching.
             if self.config.fuzzy_matching {
-                for (other_canonical, &cluster_id) in canonical_map {
-                    if self.names_match(&canonical, other_canonical) {
-                        return Some(cluster_id);
+                for prev in previous.iter().rev() {
+                    if let Some(cluster_id) = prev.canonical_id {
+                        let other_canonical = self.canonical_form(&prev.text, &prev.entity_type);
+                        if self.names_match(&canonical, &other_canonical) {
+                            return Some(cluster_id);
+                        }
                     }
                 }
             }
@@ -773,6 +781,30 @@ impl CoreferenceResolver for SimpleCorefResolver {
 mod tests {
     use super::*;
     use crate::EntityCategory;
+
+    /// When two earlier clusters match an acronym, the choice must not depend
+    /// on hash iteration order: repeated calls give the same clusters.
+    #[test]
+    fn sieve_resolver_is_deterministic_when_two_clusters_match_an_acronym() {
+        let entities = vec![
+            Entity::new("Alpha Beta Corp", EntityType::Organization, 0, 15, 0.9),
+            Entity::new("Alpha Bravo Co", EntityType::Organization, 100, 114, 0.9),
+            Entity::new("ABC", EntityType::Organization, 200, 203, 0.9),
+        ];
+        let mut outcomes = std::collections::BTreeSet::new();
+        for _ in 0..64 {
+            let r = SimpleCorefResolver::new(CorefConfig::default()).resolve(&entities);
+            outcomes.insert(format!(
+                "{:?}",
+                r.iter().map(|e| e.canonical_id).collect::<Vec<_>>()
+            ));
+        }
+        assert_eq!(
+            outcomes.len(),
+            1,
+            "nondeterministic clustering: {outcomes:?}"
+        );
+    }
 
     fn resolver() -> SimpleCorefResolver {
         SimpleCorefResolver::new(CorefConfig::default())

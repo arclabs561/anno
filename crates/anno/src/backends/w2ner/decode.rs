@@ -56,8 +56,13 @@ impl W2NERRelation {
 
 /// Decode contiguous entity spans from a handshaking matrix.
 ///
-/// Finds all THW(tail, head) cells above `threshold`, sorts by start position,
-/// and optionally removes nested spans (outermost wins when `allow_nested` is false).
+/// Finds all THW(tail, head) cells of entity type `entity_type_idx` above
+/// `threshold`, sorts by start position, and optionally removes nested spans
+/// (outermost wins when `allow_nested` is false).
+///
+/// Label layout follows the reference implementation: 0 = None, 1 = NNW, and
+/// `2 + k` = THW for entity type `k`. A grid with a single THW label (index 2)
+/// therefore has exactly one entity type, index 0.
 ///
 /// Returns `Vec<(word_start, word_end_exclusive, score)>`.
 #[must_use]
@@ -71,8 +76,8 @@ pub fn decode_from_matrix(
     let mut entities = Vec::with_capacity(16);
 
     for cell in &matrix.cells {
-        let relation = W2NERRelation::from_index(cell.label_idx as usize);
-        if relation == W2NERRelation::THW && cell.score >= threshold {
+        let label = cell.label_idx as usize;
+        if label >= 2 && label - 2 == entity_type_idx && cell.score >= threshold {
             let tail = cell.i as usize;
             let head = cell.j as usize;
             if head <= tail && head < tokens.len() && tail < tokens.len() {
@@ -87,7 +92,6 @@ pub fn decode_from_matrix(
         entities = remove_nested(&entities);
     }
 
-    let _ = entity_type_idx;
     entities
 }
 
@@ -140,17 +144,28 @@ pub fn decode_discontinuous_from_matrix(
     };
 
     for (head, tail, score) in entity_boundaries {
-        let mut segments: Vec<(usize, usize)> = Vec::new();
-        let mut seg_start = head;
-        for i in head..tail {
-            let j = i + 1;
-            if !nnw.contains(&(i, j)) {
-                segments.push((seg_start, i + 1));
-                seg_start = j;
+        // An entity is a chain of NNW links from its head word to its tail
+        // word; the links may skip words that are not part of the entity.
+        let paths = nnw_paths(&nnw, head, tail);
+        if paths.is_empty() {
+            // No connecting chain: keep the boundary and split it wherever the
+            // adjacent-word NNW link is missing.
+            let mut segments: Vec<(usize, usize)> = Vec::new();
+            let mut seg_start = head;
+            for i in head..tail {
+                let j = i + 1;
+                if !nnw.contains(&(i, j)) {
+                    segments.push((seg_start, i + 1));
+                    seg_start = j;
+                }
             }
+            segments.push((seg_start, tail + 1));
+            results.push((type_label.clone(), segments, score));
+            continue;
         }
-        segments.push((seg_start, tail + 1));
-        results.push((type_label.clone(), segments, score));
+        for path in paths {
+            results.push((type_label.clone(), words_to_segments(&path), score));
+        }
     }
 
     results.sort_unstable_by(|a, b| {
@@ -164,9 +179,70 @@ pub fn decode_discontinuous_from_matrix(
     results
 }
 
+/// Upper bound on the NNW paths enumerated for one THW boundary.
+const MAX_NNW_PATHS: usize = 64;
+
+/// All increasing word paths from `head` to `tail` along NNW links.
+///
+/// `nnw` holds each link in both directions; only forward steps (to a later
+/// word) are followed, so every path is finite.
+fn nnw_paths(
+    nnw: &std::collections::HashSet<(usize, usize)>,
+    head: usize,
+    tail: usize,
+) -> Vec<Vec<usize>> {
+    if head == tail {
+        return vec![vec![head]];
+    }
+    let mut next: std::collections::BTreeMap<usize, Vec<usize>> = std::collections::BTreeMap::new();
+    for &(a, b) in nnw {
+        if a < b && a >= head && b <= tail {
+            next.entry(a).or_default().push(b);
+        }
+    }
+    for targets in next.values_mut() {
+        targets.sort_unstable();
+    }
+    let mut paths = Vec::new();
+    let mut stack = vec![vec![head]];
+    while let Some(path) = stack.pop() {
+        let last = *path.last().unwrap_or(&head);
+        if last == tail {
+            paths.push(path);
+            if paths.len() >= MAX_NNW_PATHS {
+                break;
+            }
+            continue;
+        }
+        if let Some(targets) = next.get(&last) {
+            for &t in targets.iter().rev() {
+                let mut p = path.clone();
+                p.push(t);
+                stack.push(p);
+            }
+        }
+    }
+    paths
+}
+
+/// Group sorted word indices into `(start, end_exclusive)` runs.
+fn words_to_segments(words: &[usize]) -> Vec<(usize, usize)> {
+    let mut segments: Vec<(usize, usize)> = Vec::new();
+    for &w in words {
+        match segments.last_mut() {
+            Some(seg) if seg.1 == w => seg.1 = w + 1,
+            _ => segments.push((w, w + 1)),
+        }
+    }
+    segments
+}
+
 /// Convert a dense `[seq_len × seq_len × num_relations]` grid to a sparse matrix.
 ///
-/// Cells with `rel == 0` (None relation) or score below `threshold` are dropped.
+/// Each cell keeps only its argmax label, scored by its softmax probability.
+/// Cells whose argmax is the None label (index 0) or whose probability is
+/// below `threshold` are dropped. `grid` holds raw logits, as produced by
+/// `scripts/export_w2ner_to_onnx.py`.
 #[must_use]
 pub fn grid_to_matrix(
     grid: &[f32],
@@ -175,19 +251,32 @@ pub fn grid_to_matrix(
     threshold: f32,
 ) -> HandshakingMatrix {
     let mut cells = Vec::new();
-    for i in 0..seq_len {
-        for j in 0..seq_len {
-            for rel in 0..num_relations {
-                let idx = i * seq_len * num_relations + j * num_relations + rel;
-                if let Some(&score) = grid.get(idx) {
-                    if score >= threshold && rel > 0 {
-                        cells.push(HandshakingCell {
-                            i: i as u32,
-                            j: j as u32,
-                            label_idx: rel as u16,
-                            score,
-                        });
+    if num_relations > 0 {
+        for i in 0..seq_len {
+            for j in 0..seq_len {
+                let base = (i * seq_len + j) * num_relations;
+                let Some(logits) = grid.get(base..base + num_relations) else {
+                    continue;
+                };
+                let mut best = 0;
+                for (rel, &v) in logits.iter().enumerate() {
+                    if v > logits[best] {
+                        best = rel;
                     }
+                }
+                if best == 0 {
+                    continue;
+                }
+                let max = logits[best];
+                let denom: f32 = logits.iter().map(|&v| (v - max).exp()).sum();
+                let score = 1.0 / denom;
+                if score >= threshold {
+                    cells.push(HandshakingCell {
+                        i: i as u32,
+                        j: j as u32,
+                        label_idx: best as u16,
+                        score,
+                    });
                 }
             }
         }
@@ -315,6 +404,47 @@ mod tests {
         let m = grid_to_matrix(&grid, 2, 3, 0.5);
         assert_eq!(m.cells.len(), 1);
         assert_eq!(m.cells[0].label_idx, 2);
+    }
+
+    #[test]
+    fn decode_keeps_only_the_requested_thw_type() {
+        // Labels: 0 None, 1 NNW, 2 THW-type0, 3 THW-type1.
+        let tokens = ["Ada", "joined", "Acme"];
+        let m = HandshakingMatrix {
+            cells: vec![
+                HandshakingCell {
+                    i: 0,
+                    j: 0,
+                    label_idx: 2,
+                    score: 0.9,
+                },
+                HandshakingCell {
+                    i: 2,
+                    j: 2,
+                    label_idx: 3,
+                    score: 0.9,
+                },
+            ],
+            seq_len: 3,
+            num_labels: 4,
+        };
+        assert_eq!(
+            decode_from_matrix(&m, &tokens, 0, 0.5, true),
+            vec![(0, 1, 0.9f32 as f64)]
+        );
+        assert_eq!(
+            decode_from_matrix(&m, &tokens, 1, 0.5, true),
+            vec![(2, 3, 0.9f32 as f64)]
+        );
+    }
+
+    #[test]
+    fn grid_to_matrix_keeps_argmax_label_only() {
+        // One cell over 4 labels; logits favour label 3, label 2 is also > 0.5.
+        let grid = [0.0f32, 0.0, 2.0, 5.0];
+        let m = grid_to_matrix(&grid, 1, 4, 0.5);
+        assert_eq!(m.cells.len(), 1);
+        assert_eq!(m.cells[0].label_idx, 3);
     }
 
     #[test]

@@ -364,34 +364,35 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
     // Track which predictions have been matched
     let mut matched_preds: Vec<bool> = vec![false; predicted.len()];
 
-    for gold_span in gold {
+    // Assign pairs best match first across all gold spans, so an exact match is
+    // never taken by an earlier gold span that only overlaps the prediction
+    // (as in nervaluate). Ties keep gold order, then prediction order.
+    let mut candidates: Vec<(usize, usize, MatchType)> = Vec::new();
+    for (gold_idx, gold_span) in gold.iter().enumerate() {
+        for (pred_idx, pred_span) in predicted.iter().enumerate() {
+            let match_type = classify_match(gold_span, pred_span);
+            if match_type != MatchType::None {
+                candidates.push((gold_idx, pred_idx, match_type));
+            }
+        }
+    }
+    candidates.sort_by_key(|&(_, _, m)| std::cmp::Reverse(m.priority()));
+    let mut gold_match: Vec<Option<(usize, MatchType)>> = vec![None; gold.len()];
+    for (gold_idx, pred_idx, match_type) in candidates {
+        if gold_match[gold_idx].is_none() && !matched_preds[pred_idx] {
+            gold_match[gold_idx] = Some((pred_idx, match_type));
+            matched_preds[pred_idx] = true;
+        }
+    }
+
+    for (gold_span, best_match) in gold.iter().zip(gold_match) {
         let entity_type_str = format!(
             "{:?}",
             EntityType::from_label(gold_span.entity_type.as_label())
         );
 
-        // Find best matching prediction
-        let mut best_match: Option<(usize, MatchType)> = None;
-
-        for (pred_idx, pred_span) in predicted.iter().enumerate() {
-            if matched_preds[pred_idx] {
-                continue;
-            }
-
-            let match_type = classify_match(gold_span, pred_span);
-            if match_type != MatchType::None {
-                // Prefer exact matches over partial
-                if best_match.is_none()
-                    || match_type.priority() > best_match.as_ref().map_or(0, |(_, m)| m.priority())
-                {
-                    best_match = Some((pred_idx, match_type));
-                }
-            }
-        }
-
         match best_match {
             Some((pred_idx, match_type)) => {
-                matched_preds[pred_idx] = true;
                 let pred_span = &predicted[pred_idx];
 
                 // Update counts based on match type
@@ -539,6 +540,22 @@ pub fn evaluate_entities(gold: &[Entity], predicted: &[Entity]) -> NerEvalResult
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// nervaluate matches a prediction to an exact gold span before any
+    /// overlapping one, so an outer nested gold span cannot take the inner
+    /// span's exact prediction. nervaluate: strict correct=1, missed=1.
+    #[test]
+    fn evaluate_ner_prefers_exact_match_across_gold_spans() {
+        let gold = vec![
+            EvalSpan::new(EntityType::Person, 0, 9, "John Smith"),
+            EvalSpan::new(EntityType::Person, 0, 3, "John"),
+        ];
+        let pred = vec![EvalSpan::new(EntityType::Person, 0, 3, "John")];
+        let r = evaluate_ner(&gold, &pred);
+        assert_eq!(r.strict.correct, 1, "strict={:?}", r.strict);
+        assert_eq!(r.strict.missed, 1);
+        assert_eq!(r.strict.incorrect, 0);
+    }
 
     fn span(t: EntityType, start: usize, end: usize) -> EvalSpan {
         EvalSpan::new(t, start, end, "test")

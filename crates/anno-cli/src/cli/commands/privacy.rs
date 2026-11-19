@@ -7,7 +7,8 @@ use clap::{Parser, ValueEnum};
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use super::super::output::color;
 use super::super::parser::ModelBackend;
@@ -39,7 +40,9 @@ pub struct PrivacyArgs {
     #[arg(short, long, default_value = "stacked")]
     pub model: ModelBackend,
 
-    /// Export PII map for re-identification (with pseudonymize)
+    /// Export PII map for re-identification (with pseudonymize).
+    /// On Unix, maps use mode 0600 and symlink targets are rejected.
+    /// Existing access-control lists are not changed.
     #[arg(long)]
     pub export_map: Option<PathBuf>,
 
@@ -162,7 +165,7 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
                     .map(|(orig, fake)| format!("{}\t{}", orig, fake))
                     .collect::<Vec<_>>()
                     .join("\n");
-                fs::write(map_path, map_content)
+                write_pii_map(map_path, &map_content)
                     .map_err(|e| format!("Failed to write map: {}", e))?;
                 if !args.quiet {
                     eprintln!(
@@ -177,6 +180,35 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn write_pii_map(path: &Path, content: &str) -> std::io::Result<()> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        // Do not follow a symlink or block opening a FIFO supplied as a map path.
+        options
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let mut file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "PII map destination must be a regular file",
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // Creation mode does not change an existing file's permissions.
+        // Restrict the opened file before truncating or writing sensitive data.
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+    file.set_len(0)?;
+    file.write_all(content.as_bytes())
 }
 
 /// Classify an entity as PII

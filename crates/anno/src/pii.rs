@@ -105,7 +105,11 @@ pub(crate) fn iban_mod97_valid(raw: &str) -> bool {
 
 const SSN_PATTERN: &str = r"\b\d{3}-\d{2}-\d{4}\b";
 const CARD_PATTERN: &str = r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b";
-const IBAN_PATTERN: &str = r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?\b";
+// ISO 13616: country code, check digits, then an 11-30 character
+// alphanumeric BBAN (15-34 total). BBAN layouts vary by country (RO and KZ
+// put letters after the bank code; LC and RU exceed 31 characters), so the
+// shape stays generic and `iban_mod97_valid` does the filtering.
+const IBAN_PATTERN: &str = r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b";
 
 /// A detected PII entity.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -224,7 +228,7 @@ pub fn scan_patterns(text: &str) -> Vec<PiiEntity> {
             None,
         ),
         (
-            r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
+            r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b",
             "CONTACT",
             "HIGH",
             None,
@@ -418,7 +422,9 @@ pub fn fingerprint(text: &str, entities: &[PiiEntity]) -> String {
 ///
 /// Generic version of [`redact`] / [`mask`] / [`fingerprint`] — use this when
 /// the built-in operators don't fit. `replacement_fn` is called once per
-/// entity after dedup+sort; the return value replaces that span.
+/// non-overlapping span after merging overlaps; the return value replaces that
+/// span. A merged span uses the complete source text and the type and risk level
+/// of the earliest-starting entity (the longest entity when starts are equal).
 ///
 /// Entity offsets are character offsets; internal byte-offset conversion is
 /// handled here.
@@ -429,9 +435,9 @@ where
     apply_per_entity(text, entities, |e| replacement_fn(e))
 }
 
-/// Shared core for `redact` / `mask` / `fingerprint` / `replace`.
+/// Shared core for `mask` / `fingerprint` / `replace` / `pseudonymize`.
 ///
-/// Deduplicates overlapping spans greedily (keeps longest-at-start), then
+/// Merges overlapping spans into their union, then
 /// walks them back-to-front so earlier char offsets remain valid during
 /// `replace_range` calls.
 fn apply_per_entity<F>(text: &str, entities: &[PiiEntity], mut replacement_fn: F) -> String
@@ -440,18 +446,8 @@ where
 {
     let mut result = text.to_string();
 
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
-    sorted.dedup_by(|a, b| a.start == b.start && a.end == b.end);
-    let mut max_end = 0;
-    sorted.retain(|e| {
-        if e.start < max_end {
-            false
-        } else {
-            max_end = e.end;
-            true
-        }
-    });
+    let mut sorted = entities.to_vec();
+    dedup_overlapping(text, &mut sorted);
     sorted.reverse();
 
     for entity in sorted {
@@ -461,7 +457,7 @@ where
             .map(|c| c.len_utf8())
             .sum();
         let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
-        let replacement = replacement_fn(entity);
+        let replacement = replacement_fn(&entity);
         result.replace_range(byte_start..byte_end, &replacement);
     }
 
@@ -473,7 +469,6 @@ where
 /// Returns `(pseudonymized_text, mapping)` where mapping maps original -> fake
 /// for audit/re-identification purposes.
 pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<String, String>) {
-    let mut result = text.to_string();
     let mut mapping: HashMap<String, String> = HashMap::new();
     let mut name_counter = 0;
     let mut date_counter = 0;
@@ -492,11 +487,8 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
         "Casey Martinez",
     ];
 
-    let mut sorted: Vec<_> = entities.iter().collect();
-    sorted.sort_by_key(|b| std::cmp::Reverse(b.start));
-
-    for entity in sorted {
-        let fake = if let Some(existing) = mapping.get(&entity.text) {
+    let result = apply_per_entity(text, entities, |entity| {
+        if let Some(existing) = mapping.get(&entity.text) {
             existing.clone()
         } else {
             let fake = match entity.pii_type.as_str() {
@@ -525,17 +517,8 @@ pub fn pseudonymize(text: &str, entities: &[PiiEntity]) -> (String, HashMap<Stri
             };
             mapping.insert(entity.text.clone(), fake.clone());
             fake
-        };
-
-        // Convert char offsets to byte offsets for replace_range
-        let byte_start: usize = result
-            .chars()
-            .take(entity.start)
-            .map(|c| c.len_utf8())
-            .sum();
-        let byte_end: usize = result.chars().take(entity.end).map(|c| c.len_utf8()).sum();
-        result.replace_range(byte_start..byte_end, &fake);
-    }
+        }
+    });
 
     (result, mapping)
 }
@@ -558,17 +541,17 @@ pub fn scan_and_redact(text: &str, model: &dyn crate::Model) -> crate::Result<St
     let entities = model.extract_entities(text, None)?;
     let mut pii_entities: Vec<PiiEntity> = entities.iter().filter_map(classify_entity).collect();
     pii_entities.extend(scan_patterns(text));
-    dedup_overlapping(&mut pii_entities);
+    dedup_overlapping(text, &mut pii_entities);
     Ok(redact(text, &pii_entities))
 }
 
-/// Remove duplicate and overlapping PII entities, keeping the longest span.
+/// Remove duplicate PII entities and merge overlaps into their union.
 ///
 /// After merging NER-based and regex-based detections, duplicates and overlaps
 /// are common (e.g., NER finds "John Smith" and regex finds "123-45-6789" within
 /// a span the NER also matched). This function sorts by start offset, then
-/// greedily keeps the longest non-overlapping spans.
-fn dedup_overlapping(entities: &mut Vec<PiiEntity>) {
+/// merges overlapping spans, retaining the earliest entity's type and risk.
+fn dedup_overlapping(text: &str, entities: &mut Vec<PiiEntity>) {
     // Sort by start, then longest span first for ties
     entities.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
     // Dedup exact duplicates
@@ -582,6 +565,11 @@ fn dedup_overlapping(entities: &mut Vec<PiiEntity>) {
             Some(last) if entity.start < last.end => {
                 if entity.end > last.end {
                     last.end = entity.end;
+                    last.text = text
+                        .chars()
+                        .skip(last.start)
+                        .take(last.end - last.start)
+                        .collect();
                 }
             }
             _ => merged.push(entity),
@@ -669,10 +657,7 @@ pub fn looks_like_id_number(text: &str) -> bool {
     let checked: [Checked; 3] = [
         (r"\d{3}-\d{2}-\d{4}", ssn_valid),
         (r"\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}", luhn_valid),
-        (
-            r"[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]{0,16})?",
-            iban_mod97_valid,
-        ),
+        (r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban_mod97_valid),
     ];
     for (pat, valid) in checked {
         if let Ok(re) = Regex::new(pat) {
@@ -699,6 +684,20 @@ pub fn looks_like_id_number(text: &str) -> bool {
 mod tests {
     use super::*;
     use crate::{EntityCategory, EntityType};
+
+    /// The phone pattern needs a word boundary before a leading digit, so it
+    /// does not match the tail of a longer digit run (order ids, timestamps).
+    #[test]
+    fn phone_pattern_does_not_match_inside_long_digit_runs() {
+        for text in ["Order 12345678901234 shipped", "ts=1700000000000"] {
+            let hits = scan_patterns(text);
+            assert!(
+                hits.is_empty(),
+                "{text}: {:?}",
+                hits.iter().map(|h| &h.text).collect::<Vec<_>>()
+            );
+        }
+    }
 
     /// Character offsets of the first occurrence of `needle` in `text`.
     fn char_span_of(text: &str, needle: &str) -> (usize, usize) {

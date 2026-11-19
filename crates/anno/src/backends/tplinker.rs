@@ -284,6 +284,8 @@ mod onnx_impl {
 
             // Decode relations from head/tail relation logits
             let relations = self.decode_relations(
+                text,
+                &encoding,
                 &entities,
                 head_data,
                 tail_data,
@@ -400,8 +402,11 @@ mod onnx_impl {
         /// Decode relations from head/tail relation logits (flat `&[f32]`).
         ///
         /// Layout: `[batch=1, hs_len, num_relation_types * 3]`
+        #[allow(clippy::too_many_arguments)]
         fn decode_relations(
             &self,
+            text: &str,
+            encoding: &tokenizers::Encoding,
             entities: &[Entity],
             head_data: &[f32],
             _tail_data: &[f32],
@@ -423,13 +428,22 @@ mod onnx_impl {
             let num_rel_cols = self.config.num_relation_types * 3;
             let mut relations = Vec::new();
 
-            for (head_idx, head_ent) in entities.iter().enumerate() {
-                for (tail_idx, tail_ent) in entities.iter().enumerate() {
+            // The handshaking matrix is indexed by token position, so each
+            // entity's head is the token where its character span starts.
+            let head_tokens: Vec<Option<usize>> = entities
+                .iter()
+                .map(|e| char_start_to_token(encoding, text, e.start()))
+                .collect();
+
+            for (head_idx, head_tok) in head_tokens.iter().enumerate() {
+                for (tail_idx, tail_tok) in head_tokens.iter().enumerate() {
                     if head_idx == tail_idx {
                         continue;
                     }
 
-                    let (hi, hj) = (head_ent.start(), tail_ent.start());
+                    let (Some(hi), Some(hj)) = (*head_tok, *tail_tok) else {
+                        continue;
+                    };
                     let (i, j) = if hi <= hj { (hi, hj) } else { (hj, hi) };
 
                     if j >= seq_len {
@@ -530,6 +544,26 @@ mod onnx_impl {
         let char_end = text[..byte_end].chars().count();
 
         Some((char_start, char_end))
+    }
+
+    /// Find the first non-special token whose span starts at character `char_start`.
+    fn char_start_to_token(
+        encoding: &tokenizers::Encoding,
+        text: &str,
+        char_start: usize,
+    ) -> Option<usize> {
+        let special = encoding.get_special_tokens_mask();
+        encoding
+            .get_offsets()
+            .iter()
+            .enumerate()
+            .find(|&(tok, &(start, end))| {
+                special.get(tok).copied().unwrap_or(0) == 0
+                    && start < end
+                    && end <= text.len()
+                    && text.get(..start).map(|p| p.chars().count()) == Some(char_start)
+            })
+            .map(|(tok, _)| tok)
     }
 
     /// Compute softmax confidence for the winning class at a handshaking position.

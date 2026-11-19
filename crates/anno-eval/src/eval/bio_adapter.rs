@@ -284,11 +284,31 @@ pub fn bio_to_entities<S: AsRef<str>>(
                         ));
                     }
                     current_entity = tag.entity_type.clone().map(|t| (i, t));
-                } else if tag.is_inside() {
-                    // Continue
-                } else if tag.is_end() {
-                    if let Some((start_idx, entity_type)) = current_entity.take() {
-                        entities.push(build_entity(tokens, &offsets, start_idx, i, &entity_type));
+                } else if tag.is_inside() || tag.is_end() {
+                    // Continue an entity of the same type; a type change or an
+                    // I/E with no open entity starts a new one (seqeval chunking).
+                    if current_entity.as_ref().map(|(_, t)| t) != tag.entity_type.as_ref() {
+                        if let Some((start_idx, entity_type)) = current_entity.take() {
+                            entities.push(build_entity(
+                                tokens,
+                                &offsets,
+                                start_idx,
+                                i - 1,
+                                &entity_type,
+                            ));
+                        }
+                        current_entity = tag.entity_type.clone().map(|t| (i, t));
+                    }
+                    if tag.is_end() {
+                        if let Some((start_idx, entity_type)) = current_entity.take() {
+                            entities.push(build_entity(
+                                tokens,
+                                &offsets,
+                                start_idx,
+                                i,
+                                &entity_type,
+                            ));
+                        }
                     }
                 } else if tag.is_single() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
@@ -317,14 +337,22 @@ pub fn bio_to_entities<S: AsRef<str>>(
             }
             // IOE1/IOE2 similar logic but ending-focused
             BioScheme::IOE1 | BioScheme::IOE2 => {
-                if tag.is_inside() || tag.is_begin() {
-                    if current_entity.is_none() {
+                if tag.is_inside() || tag.is_begin() || tag.is_end() {
+                    // A type change closes the open entity and starts a new one.
+                    if current_entity.as_ref().map(|(_, t)| t) != tag.entity_type.as_ref() {
+                        if let Some((start_idx, entity_type)) = current_entity.take() {
+                            entities.push(build_entity(
+                                tokens,
+                                &offsets,
+                                start_idx,
+                                i - 1,
+                                &entity_type,
+                            ));
+                        }
                         current_entity = tag.entity_type.clone().map(|t| (i, t));
                     }
-                } else if tag.is_end() {
-                    if current_entity.is_none() {
-                        current_entity = tag.entity_type.clone().map(|t| (i, t));
-                    }
+                }
+                if tag.is_end() {
                     if let Some((start_idx, entity_type)) = current_entity.take() {
                         entities.push(build_entity(tokens, &offsets, start_idx, i, &entity_type));
                     }
@@ -665,6 +693,42 @@ pub fn repair_bio_sequence<S: AsRef<str>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// seqeval get_entities(["B-PER","I-LOC","E-LOC"]) = [PER(0,0), LOC(1,2)].
+    #[test]
+    fn iobes_type_change_splits_entities() {
+        let toks = ["a", "b", "c"];
+        let ents = bio_to_entities(&toks, &["B-PER", "I-LOC", "E-LOC"], BioScheme::IOBES).unwrap();
+        let got: Vec<(String, usize, usize)> = ents
+            .iter()
+            .map(|e| (e.entity_type.as_label().to_string(), e.start(), e.end()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("PER".to_string(), 0, 1), ("LOC".to_string(), 2, 5)],
+            "{got:?}"
+        );
+    }
+
+    /// seqeval get_entities(["O","I-PER","E-PER"]) = [PER(1,2)].
+    #[test]
+    fn iobes_entity_starting_with_inside_is_kept() {
+        let toks = ["x", "John", "Smith"];
+        let ents = bio_to_entities(&toks, &["O", "I-PER", "E-PER"], BioScheme::IOBES).unwrap();
+        assert_eq!(ents.len(), 1, "{ents:?}");
+        assert_eq!(ents[0].text, "John Smith");
+    }
+
+    /// seqeval get_entities(["I-PER","I-LOC"]) = [PER(0,0), LOC(1,1)].
+    #[test]
+    fn ioe_type_change_splits_entities() {
+        let toks = ["John", "Paris"];
+        for scheme in [BioScheme::IOE1, BioScheme::IOE2] {
+            let ents = bio_to_entities(&toks, &["I-PER", "I-LOC"], scheme).unwrap();
+            let texts: Vec<&str> = ents.iter().map(|e| e.text.as_str()).collect();
+            assert_eq!(texts, vec!["John", "Paris"], "{scheme}: {ents:?}");
+        }
+    }
 
     #[test]
     fn test_iob2_basic() {
