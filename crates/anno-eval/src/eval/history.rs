@@ -116,7 +116,7 @@ impl From<&TaskEvalResult> for EvalHistoryEntry {
         let recall = result.metrics.get("recall").copied();
 
         Self {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: super::timestamp::now(),
             backend: result.backend.clone(),
             dataset: result.dataset.name().to_string(),
             task: format!("{:?}", result.task),
