@@ -25,7 +25,7 @@ serde_json = { workspace = true, features = ["float_roundtrip"] }
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
 ureq = { workspace = true, features = ["json"] }
-chrono = { workspace = true }
+jiff = { workspace = true, features = ["tz-system", "tzdb-zoneinfo", "tzdb-bundle-platform"] }
 dirs = { workspace = true }
 regex = { workspace = true }
 thiserror = { workspace = true }
