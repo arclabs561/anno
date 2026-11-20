@@ -788,6 +788,7 @@ impl CrfNER {
     }
 
     /// Helper to create entity with correct character offsets using token positions.
+    #[allow(clippy::too_many_arguments)]
     fn push_entity_from_positions(
         text: &str,
         converter: &crate::offset::SpanConverter,

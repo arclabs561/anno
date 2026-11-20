@@ -654,6 +654,7 @@ impl HeuristicCrfNER {
     }
 
     /// Helper to push entity using tracked token positions.
+    #[allow(clippy::too_many_arguments)]
     fn push_entity_from_positions(
         text: &str,
         converter: &crate::offset::SpanConverter,
