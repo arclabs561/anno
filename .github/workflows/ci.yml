@@ -82,6 +82,8 @@ jobs:
           cache-dependency-glob: ty.toml
       - name: Run ty
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
+      - name: Test attribution footer matching
+        run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test fixed QA panel contracts (offline fixtures)

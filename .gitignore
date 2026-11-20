@@ -56,8 +56,9 @@ crates/anno/target/
 *.swo
 .cursor/
 
-# Claude Code (local settings, commands, artifacts)
-.claude/
+# Claude Code (local settings, commands, artifacts); the shared settings are tracked
+.claude/*
+!.claude/settings.json
 !.agents/
 .agents/*
 !.agents/skills/
