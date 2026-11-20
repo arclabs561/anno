@@ -714,6 +714,7 @@ impl HmmNER {
                 // Save previous entity
                 if let Some((start_idx, end_idx, entity_type, entity_words)) = current.take() {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_idx,
@@ -745,6 +746,7 @@ impl HmmNER {
                 // O tag
                 if let Some((start_idx, end_idx, entity_type, entity_words)) = current.take() {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_idx,
@@ -760,6 +762,7 @@ impl HmmNER {
         // Final entity
         if let Some((start_idx, end_idx, entity_type, entity_words)) = current {
             Self::push_entity_from_positions(
+                text,
                 &converter,
                 &token_positions,
                 start_idx,
@@ -796,6 +799,7 @@ impl HmmNER {
 
     /// Helper to create entity with correct character offsets using token positions.
     fn push_entity_from_positions(
+        text: &str,
         converter: &crate::offset::SpanConverter,
         positions: &[(usize, usize)],
         start_token_idx: usize,
@@ -812,7 +816,13 @@ impl HmmNER {
         let byte_end = positions[end_token_idx].1;
         let char_start = converter.byte_to_char(byte_start);
         let char_end = converter.byte_to_char(byte_end);
-        let entity_text = words.join(" ");
+        // Slice the source so the text equals `text[start..end]`; joining the
+        // tokens with one space differs when they are separated by a tab,
+        // newline or several spaces.
+        let entity_text = match text.get(byte_start..byte_end) {
+            Some(slice) if !slice.is_empty() => slice.to_string(),
+            _ => words.join(" "),
+        };
 
         entities.push(Entity::new(
             entity_text,
@@ -1264,6 +1274,23 @@ mod tests {
         assert_eq!(entities[0].entity_type, EntityType::Person);
         assert_eq!(entities[1].text, "Google");
         assert_eq!(entities[1].entity_type, EntityType::Organization);
+    }
+
+    #[test]
+    fn decode_entities_text_matches_span_with_irregular_whitespace() {
+        let hmm = tiny_hmm();
+        let text = "Lynn\nConway works";
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let labels = vec![
+            hmm.state_to_idx["B-PER"],
+            hmm.state_to_idx["I-PER"],
+            hmm.state_to_idx["O"],
+        ];
+
+        let entities = hmm.decode_entities(text, &words, &labels);
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].text, "Lynn\nConway");
+        assert!(entities[0].validate(text).is_empty());
     }
 
     #[test]

@@ -571,6 +571,7 @@ impl HeuristicCrfNER {
                     current_entity.take()
                 {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_token_idx,
@@ -601,6 +602,7 @@ impl HeuristicCrfNER {
                     current_entity.take()
                 {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_token_idx,
@@ -616,6 +618,7 @@ impl HeuristicCrfNER {
         // Don't forget last entity
         if let Some((start_token_idx, end_token_idx, entity_type, words)) = current_entity.take() {
             Self::push_entity_from_positions(
+                text,
                 &converter,
                 &token_positions,
                 start_token_idx,
@@ -652,6 +655,7 @@ impl HeuristicCrfNER {
 
     /// Helper to push entity using tracked token positions.
     fn push_entity_from_positions(
+        text: &str,
         converter: &crate::offset::SpanConverter,
         positions: &[(usize, usize)],
         start_token_idx: usize,
@@ -668,7 +672,13 @@ impl HeuristicCrfNER {
         let byte_end = positions[end_token_idx].1;
         let char_start = converter.byte_to_char(byte_start);
         let char_end = converter.byte_to_char(byte_end);
-        let entity_text = words.join(" ");
+        // Slice the source so the text equals `text[start..end]`; joining the
+        // tokens with one space differs when they are separated by a tab,
+        // newline or several spaces.
+        let entity_text = match text.get(byte_start..byte_end) {
+            Some(slice) if !slice.is_empty() => slice.to_string(),
+            _ => words.join(" "),
+        };
 
         entities.push(Entity::new(
             entity_text,

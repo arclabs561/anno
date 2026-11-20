@@ -546,6 +546,10 @@ impl Model for HeuristicNER {
         // Robust strategy: Scan text linearly, identifying word boundaries.
         // This avoids synchronization issues between split_whitespace and find.
         let mut words_with_pos: Vec<(&str, usize, usize)> = Vec::new();
+        // Byte offset of each word in `text`, parallel to `words_with_pos`.
+        // Entity text is sliced from the source with these, so that it equals
+        // `text[start..end]` whatever whitespace separates the words.
+        let mut word_byte_starts: Vec<usize> = Vec::new();
 
         let mut in_word = false;
         let mut word_start_byte = 0;
@@ -558,6 +562,7 @@ impl Model for HeuristicNER {
                     // Word ended
                     let word = &text[word_start_byte..i];
                     words_with_pos.push((word, word_start_char, char_pos));
+                    word_byte_starts.push(word_start_byte);
                     in_word = false;
                 }
             } else if !in_word {
@@ -571,6 +576,7 @@ impl Model for HeuristicNER {
         if in_word {
             let word = &text[word_start_byte..];
             words_with_pos.push((word, word_start_char, char_pos));
+            word_byte_starts.push(word_start_byte);
         }
 
         let words: Vec<&str> = words_with_pos.iter().map(|(w, _, _)| *w).collect();
@@ -699,8 +705,11 @@ impl Model for HeuristicNER {
             }
 
             // Extract the span
-            let span_words = &words[start_idx..end_idx];
-            let mut entity_text = span_words.join(" ");
+            // Take the text from the source, not `span_words.join(" ")`: a
+            // double space, tab or newline inside a name would otherwise give
+            // a text that differs from `text[start..end]`.
+            let span_byte_end = word_byte_starts[end_idx - 1] + words[end_idx - 1].len();
+            let mut entity_text = text[word_byte_starts[start_idx]..span_byte_end].to_string();
 
             // Check if previous word is a person prefix (e.g., "Dr.", "Mr.")
             let prev_word = if start_idx > 0 {
@@ -720,8 +729,7 @@ impl Model for HeuristicNER {
 
             // If previous word is a person prefix, include it in the entity text
             if should_include_prefix {
-                let prefix_word = &words[start_idx - 1];
-                entity_text = format!("{} {}", prefix_word, entity_text);
+                entity_text = text[word_byte_starts[start_idx - 1]..span_byte_end].to_string();
                 // Use original text positions instead of joined text length
                 let char_start = words_with_pos[start_idx - 1].1;
                 let char_end = words_with_pos[end_idx - 1].2;

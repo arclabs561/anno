@@ -707,6 +707,7 @@ impl CrfNER {
                 // Save previous entity if any
                 if let Some((start_idx, end_idx, entity_type, words)) = current_entity.take() {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_idx,
@@ -735,6 +736,7 @@ impl CrfNER {
                 // O label - save and reset
                 if let Some((start_idx, end_idx, entity_type, words)) = current_entity.take() {
                     Self::push_entity_from_positions(
+                        text,
                         &converter,
                         &token_positions,
                         start_idx,
@@ -750,6 +752,7 @@ impl CrfNER {
         // Don't forget last entity
         if let Some((start_idx, end_idx, entity_type, words)) = current_entity.take() {
             Self::push_entity_from_positions(
+                text,
                 &converter,
                 &token_positions,
                 start_idx,
@@ -786,6 +789,7 @@ impl CrfNER {
 
     /// Helper to create entity with correct character offsets using token positions.
     fn push_entity_from_positions(
+        text: &str,
         converter: &crate::offset::SpanConverter,
         positions: &[(usize, usize)],
         start_token_idx: usize,
@@ -802,7 +806,13 @@ impl CrfNER {
         let byte_end = positions[end_token_idx].1;
         let char_start = converter.byte_to_char(byte_start);
         let char_end = converter.byte_to_char(byte_end);
-        let entity_text = words.join(" ");
+        // Slice the source so the text equals `text[start..end]`; joining the
+        // tokens with one space differs when they are separated by a tab,
+        // newline or several spaces.
+        let entity_text = match text.get(byte_start..byte_end) {
+            Some(slice) if !slice.is_empty() => slice.to_string(),
+            _ => words.join(" "),
+        };
 
         entities.push(Entity::new(
             &entity_text,
