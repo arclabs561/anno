@@ -304,6 +304,7 @@ pub mod task_evaluator;
 #[cfg(feature = "eval-profiling")]
 pub mod profiling;
 pub mod task_mapping;
+mod timestamp;
 pub mod types;
 pub mod validation;
 pub mod visual;
@@ -947,7 +948,7 @@ fn evaluate_ner_model_with_options(
             metadata: Some(EvaluationMetadata {
                 num_test_cases: 0,
                 total_gold_entities: Some(0),
-                timestamp: Some(chrono::Utc::now().to_rfc3339()),
+                timestamp: Some(timestamp::now()),
                 anno_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 ..Default::default()
             }),
@@ -1027,7 +1028,7 @@ fn evaluate_ner_model_with_options(
         metadata: Some(EvaluationMetadata {
             num_test_cases: aggregate.num_test_cases,
             total_gold_entities: Some(aggregate.total_expected),
-            timestamp: Some(chrono::Utc::now().to_rfc3339()),
+            timestamp: Some(timestamp::now()),
             anno_version: Some(env!("CARGO_PKG_VERSION").to_string()),
             ..Default::default()
         }),

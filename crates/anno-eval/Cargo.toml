@@ -69,7 +69,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 bitflags = { workspace = true }
 textprep = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
 log = { workspace = true }
 regex = { workspace = true }
 dirs = { workspace = true }
