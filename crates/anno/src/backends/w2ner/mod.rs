@@ -200,7 +200,7 @@ impl W2NER {
 
     /// Load W2NER model from path or HuggingFace.
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present.
+    /// Reads `HF_TOKEN` from the process environment if set.
     ///
     /// # Arguments
     /// * `model_path` - Local path or HuggingFace model ID

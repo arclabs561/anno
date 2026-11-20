@@ -31,7 +31,7 @@ impl GLiNEROnnx {
     /// let model = GLiNEROnnx::with_config("onnx-community/gliner_small-v2.1", config)?;
     /// ```
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present.
+    /// Reads `HF_TOKEN` from the process environment if set.
     pub fn with_config(model_name: &str, config: GLiNERConfig) -> Result<Self> {
         use crate::backends::hf_loader;
 
