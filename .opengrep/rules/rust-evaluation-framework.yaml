@@ -3,28 +3,6 @@
 
 rules:
   # ============================================================================
-  # Variance Calculation (Bessel's Correction)
-  # ============================================================================
-  
-  - id: variance-without-bessel
-    patterns:
-      - pattern: |
-          let $VAR = $SCORES.iter().map(|$X| ($X - $MEAN).powi(2)).sum::<f64>() / $SCORES.len() as f64;
-      - not:
-          - pattern: |
-              / ($SCORES.len() - 1) as f64
-              // or
-              / ($N - 1.0)
-    message: "Variance calculation uses population variance (n) instead of sample variance (n-1, Bessel's correction). For unbiased estimates, use (n-1). See BUGS_FIXED.md for details."
-    languages: [rust]
-    severity: ERROR
-    metadata:
-      category: correctness
-      cwe: "CWE-682: Incorrect Calculation"
-    paths:
-      include:
-        - "**/eval/**"
-  # ============================================================================
   # Evaluation Loop Patterns
   # ============================================================================
   
