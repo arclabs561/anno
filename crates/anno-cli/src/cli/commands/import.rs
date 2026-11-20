@@ -29,7 +29,7 @@ pub struct ImportArgs {
     #[arg(short, long, default_value = "brat")]
     pub format: ExportFormat,
 
-    /// Include text file content in output
+    /// Include source text. Multi-span brat records always need the matching .txt file.
     #[arg(long)]
     pub include_text: bool,
 
@@ -191,14 +191,19 @@ fn import_file(
 fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    // Try to read corresponding .txt file for entity text
+    // A multi-span annotation needs the source to distinguish newlines from omitted words.
     let txt_path = input.with_extension("txt");
-    let txt_content = if include_text && txt_path.exists() {
-        Some(fs::read_to_string(&txt_path).ok())
-    } else {
-        None
+    let source = std::cell::OnceCell::new();
+    let read_source = || {
+        source
+            .get_or_init(|| {
+                fs::read_to_string(&txt_path).map(|text| {
+                    let bytes = anno::offset::build_char_to_byte_map(&text);
+                    (text, bytes)
+                })
+            })
+            .as_ref()
     };
-    let txt_content = txt_content.flatten();
 
     let mut annotations = Vec::new();
     let mut confidences: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
@@ -227,24 +232,34 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
             let parts: Vec<&str> = line.splitn(3, '\t').collect();
             if parts.len() >= 3 {
                 let tid = parts[0];
-                let type_span: Vec<&str> = parts[1].split_whitespace().collect();
-                if type_span.len() >= 3 {
-                    let entity_type = type_span[0].to_string();
-                    let start: usize = type_span[1].parse().map_err(|_| "Invalid start offset")?;
-                    let end: usize = type_span[2].parse().map_err(|_| "Invalid end offset")?;
-
-                    // Get text from annotation or from txt file
-                    let text = if parts.len() > 2 && !parts[2].is_empty() {
-                        parts[2].to_string()
-                    } else if let Some(ref txt) = txt_content {
-                        txt.chars().skip(start).take(end - start).collect()
+                if let Some((entity_type, spans)) = parts[1].trim().split_once(char::is_whitespace)
+                {
+                    let (start, end, text) = if spans.contains(';') {
+                        let (source, bytes) = read_source().map_err(|e| {
+                            format!(
+                                "{tid}: need {} to check the gaps in a multi-span mention: {e}",
+                                txt_path.display()
+                            )
+                        })?;
+                        import_brat_segments(spans, parts[2], source, bytes)
+                            .map_err(|e| format!("{tid}: {e}"))?
                     } else {
-                        format!("[{}:{}]", start, end)
+                        let (start, end) = brat_span(spans)?;
+                        let text = if !parts[2].is_empty() {
+                            parts[2].to_string()
+                        } else if let Some((txt, _)) =
+                            include_text.then(read_source).and_then(Result::ok)
+                        {
+                            txt.chars().skip(start).take(end - start).collect()
+                        } else {
+                            format!("[{start}:{end}]")
+                        };
+                        (start, end, text)
                     };
 
                     annotations.push(ImportedAnnotation {
                         text,
-                        entity_type,
+                        entity_type: entity_type.to_string(),
                         start,
                         end,
                         source: input.to_string_lossy().to_string(),
@@ -256,6 +271,58 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
     }
 
     Ok(annotations)
+}
+
+fn brat_span(span: &str) -> Result<(usize, usize), String> {
+    let mut fields = span.split_whitespace();
+    let start = fields
+        .next()
+        .and_then(|n| n.parse().ok())
+        .ok_or("Invalid start offset")?;
+    let end = fields
+        .next()
+        .and_then(|n| n.parse().ok())
+        .ok_or("Invalid end offset")?;
+    if start > end || fields.next().is_some() {
+        return Err(format!("Invalid brat span '{span}'"));
+    }
+    Ok((start, end))
+}
+
+fn import_brat_segments(
+    spans: &str,
+    reference: &str,
+    source: &str,
+    bytes: &[usize],
+) -> Result<(usize, usize, String), String> {
+    let mut first = None;
+    let mut previous_end = 0;
+    let mut pieces = Vec::new();
+    for span in spans.split(';') {
+        let (start, end) = brat_span(span)?;
+        if end >= bytes.len() || (first.is_some() && start < previous_end) {
+            return Err(format!("Invalid or out-of-order brat span '{span}'"));
+        }
+        if first.is_some()
+            && !source[bytes[previous_end]..bytes[start]]
+                .chars()
+                .all(|c| matches!(c, '\r' | '\n'))
+        {
+            return Err("Discontinuous brat mention skips source text; cannot represent it as a single entity".into());
+        }
+        first.get_or_insert(start);
+        pieces.push(&source[bytes[start]..bytes[end]]);
+        previous_end = end;
+    }
+    if !reference.is_empty() && reference != pieces.join(" ") {
+        return Err("brat reference text does not match its source spans".into());
+    }
+    let first = first.ok_or("Missing brat span")?;
+    Ok((
+        first,
+        previous_end,
+        source[bytes[first]..bytes[previous_end]].to_string(),
+    ))
 }
 
 /// Import from CoNLL IOB format
@@ -595,6 +662,62 @@ fn import_jsonld(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brat_line_breaks_round_trip_with_their_source_offsets() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("mentions.ann");
+        for (mention, spans, reference) in [
+            ("New\nYork", "2 5;6 10", "New York"),
+            ("New\r\nYork", "2 5;7 11", "New York"),
+            ("Zoë\r\n\nZoe\u{301}", "2 5;8 12", "Zoë Zoe\u{301}"),
+            ("New \n York", "2 6;7 12", "New   York"),
+            ("\nYork\r\n", "2 2;3 7;9 9", " York "),
+            ("\r\n", "2 2;4 4", " "),
+        ] {
+            let text = format!("😀 {mention} {mention}");
+            let end = 2 + mention.chars().count();
+            let entity = anno::Entity::new(mention, anno::EntityType::Location, 2, end, 0.85);
+            let ann = anno::export::to_brat(&text, &[entity], true);
+            assert_eq!(
+                ann,
+                format!("T1\tLOC {spans}\t{reference}\nA1\tConfidence T1 0.85")
+            );
+            fs::write(path.with_extension("txt"), &text).unwrap();
+            fs::write(&path, ann).unwrap();
+            for include_text in [false, true] {
+                let rows = import_brat(&path, include_text).unwrap();
+                assert_eq!(rows.len(), 1);
+                assert_eq!(rows[0].text, mention);
+                assert_eq!((rows[0].start, rows[0].end), (2, end));
+                assert_eq!(rows[0].confidence, Some(0.85));
+            }
+        }
+    }
+
+    #[test]
+    fn brat_does_not_guess_what_a_multi_span_gap_contains() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gap.ann");
+        fs::write(&path, "T1\tLOC 0 3;8 12\tNew York").unwrap();
+        let err = import_brat(&path, false).unwrap_err();
+        assert!(err.contains("gap.txt"), "{err}");
+        fs::write(path.with_extension("txt"), "New and York").unwrap();
+        let err = import_brat(&path, false).unwrap_err();
+        assert!(err.contains("Discontinuous brat mention"), "{err}");
+
+        fs::write(path.with_extension("txt"), "New\nYork").unwrap();
+        for (spans, reference) in [
+            ("0 3;4 8", "New Paris"),
+            ("0 3;4 9", "New York"),
+            ("4 8;0 3", "York New"),
+            ("0 4;3 8", "New York"),
+            ("0 3;8 4", "New York"),
+        ] {
+            fs::write(&path, format!("T1\tLOC {spans}\t{reference}")).unwrap();
+            assert!(import_brat(&path, true).is_err(), "{spans}: {reference}");
+        }
+    }
 
     #[test]
     fn conll_import_uses_character_offsets_for_unicode_tokens() {
