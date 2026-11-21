@@ -38,6 +38,7 @@ jobs:
           cp -r crates/anno/tests/fixtures/fcoref-marker "$RUNNER_TEMP/"
           cp crates/anno/tests/fcoref_resolve_segments.rs "$RUNNER_TEMP/test.rs"
           git switch --detach 7849fa5dc146a5b9e40d69e9b3a876d2f1e14094
+          mkdir -p crates/anno/tests/fixtures
           cp -r "$RUNNER_TEMP/fcoref-marker" crates/anno/tests/fixtures/
           sed '/max_doc_tokens: Some(1026),/d' "$RUNNER_TEMP/test.rs" > crates/anno/tests/fcoref_resolve_segments.rs
           if test_marker > "$RUNNER_TEMP/baseline.log" 2>&1; then
