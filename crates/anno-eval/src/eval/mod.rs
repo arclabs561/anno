@@ -284,6 +284,7 @@ pub mod discourse_deixis;
 pub mod evaluator;
 pub mod harness;
 pub mod history;
+mod history_clock;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
 pub mod loader;
