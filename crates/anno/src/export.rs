@@ -35,28 +35,18 @@ use crate::{Entity, Relation};
 /// Each entity becomes a `T`-annotation line. When `include_confidence` is true,
 /// `A`-annotation lines are added with confidence scores.
 ///
-/// Brat requires UTF-8 byte offsets. Entity start/end are character offsets, so
-/// `text` is needed to convert them.
-///
-/// **Do not** assemble brat output by reading `entity.start()` / `entity.end()`
-/// directly — those are character offsets and will produce wrong positions for
-/// any non-ASCII input. Use this function; it handles the conversion.
-pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> String {
+/// Both brat and Anno count Unicode characters from the start of the source
+/// document. Offsets are half-open. The source argument is retained for callers.
+pub fn to_brat(_text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
     for (idx, entity) in entities.iter().enumerate() {
-        let byte_start: usize = text
-            .chars()
-            .take(entity.start())
-            .map(|c| c.len_utf8())
-            .sum();
-        let byte_end: usize = text.chars().take(entity.end()).map(|c| c.len_utf8()).sum();
         let tid = format!("T{}", idx + 1);
         let line = format!(
             "{}\t{} {} {}\t{}",
             tid,
             entity.entity_type.as_label(),
-            byte_start,
-            byte_end,
+            entity.start(),
+            entity.end(),
             entity.text
         );
         if include_confidence {
@@ -826,17 +816,16 @@ mod tests {
     }
 
     #[test]
-    fn brat_non_ascii() {
-        let text = "Visit caf\u{e9} in Paris today.";
-        let entities = vec![Entity::new("Paris", EntityType::Location, 14, 19, 0.9)];
-        let output = to_brat(text, &entities, false);
-        // brat uses byte offsets: "caf\u{e9}" is 5 bytes, so "Paris" starts at byte 15
-        let byte_start: usize = text.chars().take(14).map(|c| c.len_utf8()).sum();
-        let byte_end: usize = text.chars().take(19).map(|c| c.len_utf8()).sum();
-        assert!(
-            output.contains(&format!("{} {}", byte_start, byte_end)),
-            "got: {}",
-            output
+    fn brat_spans_index_the_decoded_source() {
+        let text = "😀 Zoe\u{301}\nZoë and Zoë";
+        let entities = [
+            Entity::new("Zoe\u{301}", EntityType::Person, 2, 6, 0.9),
+            Entity::new("Zoë", EntityType::Person, 7, 10, 0.9),
+            Entity::new("Zoë", EntityType::Person, 15, 18, 0.9),
+        ];
+        assert_eq!(
+            to_brat(text, &entities, false),
+            "T1\tPER 2 6\tZoe\u{301}\nT2\tPER 7 10\tZoë\nT3\tPER 15 18\tZoë"
         );
     }
 }
