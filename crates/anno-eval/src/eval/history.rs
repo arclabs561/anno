@@ -34,6 +34,16 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+// Only four-digit local years are representable in an RFC 3339 timestamp.
+fn rfc3339_day(date: chrono::NaiveDate) -> String {
+    use chrono::Datelike;
+    match date.year() {
+        ..0 => "0000-01-01".to_owned(),
+        10000.. => "9999-12-31".to_owned(),
+        _ => date.to_string(),
+    }
+}
+
 /// Cached git commit hash (avoids spawning `git` on every SQLite insert).
 fn cached_git_commit() -> Option<String> {
     static COMMIT: OnceLock<Option<String>> = OnceLock::new();
@@ -484,7 +494,8 @@ impl EvalHistory {
 
     /// Query recent results for a backend.
     ///
-    /// Returns the N most recent results, ordered by timestamp descending.
+    /// Returns the N newest instants, preserving insertion order on ties.
+    /// Unparseable legacy timestamps follow valid instants in descending text order.
     pub fn query_recent(
         &self,
         backend: &str,
@@ -497,7 +508,7 @@ impl EvalHistory {
         // Fallback to JSONL scan
         let mut entries = self.load_all()?;
         entries.retain(|e| e.backend == backend);
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        newest_first(&mut entries);
         entries.truncate(limit);
         Ok(entries)
     }
@@ -507,48 +518,60 @@ impl EvalHistory {
         backend: &str,
         limit: usize,
     ) -> std::io::Result<Vec<EvalHistoryEntry>> {
-        use rusqlite::params;
-
-        let conn = rusqlite::Connection::open(db_path)
-            .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
-                     observation_id, muxer_run_id, policy_cohort_key
-             FROM eval_results
-             WHERE backend = ?1
-             ORDER BY timestamp DESC
-             LIMIT ?2",
-            )
-            .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
-
-        let rows = stmt
-            .query_map(params![backend, limit as i64], |row| {
-                Ok(EvalHistoryEntry {
-                    timestamp: row.get(0)?,
-                    backend: row.get(1)?,
-                    dataset: row.get(2)?,
-                    task: row.get(3)?,
-                    seed: row.get(4)?,
-                    f1: row.get(5)?,
-                    precision: row.get(6)?,
-                    recall: row.get(7)?,
-                    n: row.get(8)?,
-                    duration_ms: row.get(9)?,
-                    error: row.get(10)?,
-                    metadata: row.get(11)?,
-                    observation_id: row.get(12)?,
-                    muxer_run_id: row.get(13)?,
-                    policy_cohort_key: row.get(14)?,
-                })
-            })
-            .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
-
-        let mut entries = Vec::new();
-        for row in rows {
-            entries.push(row.map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?);
+        if limit == 0 {
+            return Ok(Vec::new());
         }
-        Ok(entries)
+        let mut conn = rusqlite::Connection::open(db_path).map_err(std::io::Error::other)?;
+        let tx = conn.transaction().map_err(std::io::Error::other)?;
+        // Read only IDs and timestamps from the backend/timestamp index. Fetch
+        // the winning rows (including potentially large metadata) in the same snapshot.
+        let mut candidates = tx
+            .prepare("SELECT id, timestamp FROM eval_results WHERE backend = ?1")
+            .map_err(std::io::Error::other)?;
+        let mut rows = candidates.query([backend]).map_err(std::io::Error::other)?;
+        let mut newest = std::collections::BTreeSet::new();
+        while let Some(row) = rows.next().map_err(std::io::Error::other)? {
+            let id: i64 = row.get(0).map_err(std::io::Error::other)?;
+            let timestamp: String = row.get(1).map_err(std::io::Error::other)?;
+            let key = (std::cmp::Reverse(history_time(&timestamp)), id);
+            if newest.len() == limit {
+                if newest.last().is_some_and(|last| key >= *last) {
+                    continue;
+                }
+                newest.pop_last();
+            }
+            newest.insert(key);
+        }
+        let mut stmt = tx.prepare(
+            "SELECT timestamp, backend, dataset, task, seed, f1, precision, recall, n, duration_ms, error, metadata,
+                     observation_id, muxer_run_id, policy_cohort_key
+             FROM eval_results WHERE id = ?1",
+        ).map_err(std::io::Error::other)?;
+        newest
+            .into_iter()
+            .map(|(_, id)| {
+                stmt.query_row([id], |row| {
+                    Ok(EvalHistoryEntry {
+                        timestamp: row.get(0)?,
+                        backend: row.get(1)?,
+                        dataset: row.get(2)?,
+                        task: row.get(3)?,
+                        seed: row.get(4)?,
+                        f1: row.get(5)?,
+                        precision: row.get(6)?,
+                        recall: row.get(7)?,
+                        n: row.get(8)?,
+                        duration_ms: row.get(9)?,
+                        error: row.get(10)?,
+                        metadata: row.get(11)?,
+                        observation_id: row.get(12)?,
+                        muxer_run_id: row.get(13)?,
+                        policy_cohort_key: row.get(14)?,
+                    })
+                })
+                .map_err(std::io::Error::other)
+            })
+            .collect()
     }
 
     /// Query best results for a backend-dataset combination.
@@ -674,30 +697,54 @@ impl EvalHistory {
         Ok(entries)
     }
 
-    /// Query results by date range.
+    /// Query results between two inclusive bounds, newest first.
     ///
-    /// Returns all results between `start_date` and `end_date` (inclusive).
-    /// Dates should be in ISO 8601 format (e.g., "2024-01-01T00:00:00Z").
+    /// RFC 3339 bounds compare instants to nanosecond precision. Entries without
+    /// a parseable timestamp are skipped. Equal instants retain insertion order.
+    /// If either bound is not RFC 3339 (e.g. a date prefix), both bounds and
+    /// the results use the original lexical ordering.
     pub fn query_by_date_range(
         &self,
         start_date: &str,
         end_date: &str,
         backend: Option<&str>,
     ) -> std::io::Result<Vec<EvalHistoryEntry>> {
-        if let Some(ref db_path) = self.sqlite_path {
-            return Self::query_by_date_range_sqlite(db_path, start_date, end_date, backend);
-        }
+        use chrono::{DateTime, Days};
 
-        // Fallback to JSONL scan
-        let mut entries = self.load_all()?;
-        entries.retain(|e| {
-            e.timestamp.as_str() >= start_date
-                && e.timestamp.as_str() <= end_date
-                && match backend {
-                    None => true,
-                    Some(b) => e.backend == b,
-                }
+        let bounds = DateTime::parse_from_rfc3339(start_date)
+            .ok()
+            .zip(DateTime::parse_from_rfc3339(end_date).ok());
+        let window = bounds.map(|(start, end)| {
+            // A stored local date can be one day either side of its UTC date.
+            // Keep the timestamp index usable, then compare exact instants below.
+            let first = rfc3339_day(start.naive_utc().date() - Days::new(1));
+            let last = rfc3339_day(end.naive_utc().date() + Days::new(1));
+            (first, format!("{last}~")) // sorts after every time on the last day
         });
+        let (lo, hi) = window.as_ref().map_or((start_date, end_date), |(lo, hi)| {
+            (lo.as_str(), hi.as_str())
+        });
+        let mut entries = if let Some(path) = &self.sqlite_path {
+            Self::query_by_date_range_sqlite(path, lo, hi, backend)?
+        } else {
+            let mut entries = self.load_all()?;
+            entries.retain(|e| {
+                (lo..=hi).contains(&e.timestamp.as_str()) && backend.is_none_or(|b| e.backend == b)
+            });
+            entries
+        };
+
+        if let Some((start, end)) = bounds {
+            let mut matches: Vec<_> = entries
+                .into_iter()
+                .filter_map(|entry| {
+                    let time = DateTime::parse_from_rfc3339(&entry.timestamp).ok()?;
+                    (start <= time && time <= end).then_some((time, entry))
+                })
+                .collect();
+            matches.sort_by_key(|(time, _)| std::cmp::Reverse(*time));
+            return Ok(matches.into_iter().map(|(_, entry)| entry).collect());
+        }
         entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
         Ok(entries)
     }
@@ -722,7 +769,7 @@ impl EvalHistory {
                      observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE timestamp >= ?1 AND timestamp <= ?2 AND backend = ?3
-                     ORDER BY timestamp DESC",
+                     ORDER BY id",
                 )
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
             let rows = stmt
@@ -758,7 +805,7 @@ impl EvalHistory {
                      observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE timestamp >= ?1 AND timestamp <= ?2
-                     ORDER BY timestamp DESC",
+                     ORDER BY id",
                 )
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
             let rows = stmt
@@ -802,7 +849,9 @@ impl EvalHistory {
         dataset: Option<&str>,
     ) -> std::io::Result<Vec<EvalHistoryEntry>> {
         if let Some(ref db_path) = self.sqlite_path {
-            return Self::compare_backends_sqlite(db_path, backend1, backend2, dataset);
+            let mut entries = Self::compare_backends_sqlite(db_path, backend1, backend2, dataset)?;
+            newest_first(&mut entries);
+            return Ok(entries);
         }
 
         // Fallback to JSONL scan
@@ -814,7 +863,7 @@ impl EvalHistory {
                     Some(d) => e.dataset == d,
                 }
         });
-        entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        newest_first(&mut entries);
         Ok(entries)
     }
 
@@ -838,7 +887,7 @@ impl EvalHistory {
                      observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE (backend = ?1 OR backend = ?2) AND dataset = ?3
-                     ORDER BY timestamp DESC",
+                     ORDER BY id",
                 )
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
             let rows = stmt
@@ -874,7 +923,7 @@ impl EvalHistory {
                      observation_id, muxer_run_id, policy_cohort_key
                      FROM eval_results
                      WHERE backend = ?1 OR backend = ?2
-                     ORDER BY timestamp DESC",
+                     ORDER BY id",
                 )
                 .map_err(|e| std::io::Error::other(format!("SQLite error: {}", e)))?;
             let rows = stmt
@@ -1112,7 +1161,7 @@ impl EvalHistory {
             .prepare(
                 "SELECT backend, dataset, timestamp, f1 FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
-                 ORDER BY backend, dataset, timestamp",
+                 ORDER BY id",
             )
             .map_err(std::io::Error::other)?;
 
@@ -1132,7 +1181,8 @@ impl EvalHistory {
         }
 
         let mut alerts = Vec::new();
-        for ((backend, dataset), obs) in &cells {
+        for ((backend, dataset), obs) in &mut cells {
+            obs.sort_by_cached_key(|row| history_time(&row.0));
             let n = obs.len() as u64;
             if n < min_observations {
                 continue;
@@ -1192,7 +1242,7 @@ impl EvalHistory {
             .prepare(
                 "SELECT backend, dataset, timestamp, f1, n FROM eval_results \
                  WHERE f1 IS NOT NULL AND error IS NULL \
-                 ORDER BY backend, dataset, timestamp",
+                 ORDER BY id",
             )
             .map_err(std::io::Error::other)?;
 
@@ -1219,7 +1269,8 @@ impl EvalHistory {
         }
 
         let mut alerts = Vec::new();
-        for ((backend, dataset), obs) in &cells {
+        for ((backend, dataset), obs) in &mut cells {
+            obs.sort_by_cached_key(|row| history_time(&row.0));
             if (obs.len() as u64) < min_total || obs.len() <= recent_n {
                 continue;
             }
@@ -1517,6 +1568,25 @@ impl EvalHistory {
     }
 }
 
+// An unparseable legacy timestamp has no chronological position. Keep those
+// rows, ordered lexically before valid instants in ascending order.
+#[derive(PartialOrd, Ord, PartialEq, Eq)]
+enum HistoryTime {
+    Legacy(String),
+    Instant(chrono::DateTime<chrono::FixedOffset>),
+}
+
+fn history_time(timestamp: &str) -> HistoryTime {
+    match chrono::DateTime::parse_from_rfc3339(timestamp) {
+        Ok(time) => HistoryTime::Instant(time),
+        Err(_) => HistoryTime::Legacy(timestamp.to_owned()),
+    }
+}
+
+fn newest_first(entries: &mut [EvalHistoryEntry]) {
+    entries.sort_by_cached_key(|entry| std::cmp::Reverse(history_time(&entry.timestamp)));
+}
+
 /// A detected regression in a (backend, dataset) cell.
 #[derive(Debug, Clone)]
 pub struct RegressionAlert {
@@ -1573,6 +1643,77 @@ mod tests {
             observation_id: None,
             muxer_run_id: None,
             policy_cohort_key: None,
+        }
+    }
+
+    #[test]
+    fn history_range_compares_instants_in_both_stores() {
+        let temp = TempDir::new().unwrap();
+        let file = temp.path().join("history.jsonl");
+        let sqlite = EvalHistory::new(&file).unwrap();
+        let jsonl = EvalHistory {
+            jsonl_path: file,
+            sqlite_path: None,
+        };
+        for (seed, timestamp, backend) in [
+            (1, "2026-11-20T00:00:00.000000002+00:00", "a"),
+            (2, "2026-11-19T19:00:00.000000001-05:00", "a"),
+            (3, "2026-11-20T00:00:00+00:00", "a"),
+            (4, "2026-11-20T23:59:00.000000003+23:59", "a"),
+            (5, "2026-11-20T00:00:00.000000001Z", "b"),
+            (6, "2026-11-19T23:59:59.999999999Z", "a"),
+            (7, "2026-11-20T00:00:00.000000004Z", "a"),
+            (8, "2026-11-20Tbad", "a"),
+        ] {
+            let mut entry = test_entry(seed, 1);
+            entry.timestamp = timestamp.to_owned();
+            entry.backend = backend.to_owned();
+            sqlite.append_entry(&entry).unwrap();
+        }
+        for history in [&sqlite, &jsonl] {
+            let seeds = |from, through, backend| {
+                history
+                    .query_by_date_range(from, through, backend)
+                    .unwrap()
+                    .into_iter()
+                    .map(|entry| entry.seed)
+                    .collect::<Vec<_>>()
+            };
+            let start = "2026-11-20T00:00:00Z";
+            let end = "2026-11-19T19:00:00.000000003-05:00";
+            assert_eq!(seeds(start, end, None), [4, 1, 2, 5, 3]);
+            assert_eq!(seeds(start, end, Some("a")), [4, 1, 2, 3]);
+            assert_eq!(seeds(start, start, None), [3]);
+            assert!(seeds(end, start, None).is_empty());
+            // Date-only bounds retain their old lexical meaning.
+            assert_eq!(
+                seeds("2026-11-20", "2026-11-21", Some("a")),
+                [8, 4, 7, 1, 3]
+            );
+        }
+    }
+
+    #[test]
+    fn history_range_keeps_extreme_local_dates_in_the_index_window() {
+        let temp = TempDir::new().unwrap();
+        let sqlite = EvalHistory::new(temp.path().join("history.jsonl")).unwrap();
+        for (seed, stamp) in [
+            (1, "0000-01-01T00:00:00+23:59"),
+            (2, "9999-12-31T23:59:59-23:59"),
+            (3, "2026-11-21T22:00:00+23:00"),
+        ] {
+            let mut entry = test_entry(seed, 1);
+            entry.timestamp = stamp.to_owned();
+            sqlite.append_entry(&entry).unwrap();
+        }
+        for (bound, seed) in [
+            ("0000-01-01T00:00:00+23:59", 1),
+            ("9999-12-31T23:59:59-23:59", 2),
+            ("2026-11-20T00:00:00-23:00", 3),
+        ] {
+            let entries = sqlite.query_by_date_range(bound, bound, None).unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].seed, seed);
         }
     }
 
@@ -2007,6 +2148,83 @@ mod tests {
         assert_eq!(stats.total_entries, 5);
         assert_eq!(stats.by_backend.len(), 2);
         assert!(stats.avg_f1.is_some());
+    }
+
+    #[test]
+    fn chronological_recent_and_compare() {
+        let temp = TempDir::new().unwrap();
+        let mut history = EvalHistory::new(temp.path().join("history.jsonl")).unwrap();
+        let times = [
+            "2026-11-20T00:00:00.000000001+00:00",
+            "2026-11-19T19:00:00.000000002-05:00",
+            "2026-11-20T00:00:00+00:00",
+            "2026-11-20T00:00:00.000000004Z",
+            "2026-11-20T01:00:00.000000002+01:00",
+            "legacy",
+        ];
+        for (i, time) in times.iter().enumerate() {
+            let mut entry = test_entry(i as u64, 1);
+            entry.timestamp = time.to_string();
+            history.append_entry(&entry).unwrap();
+        }
+        let mut other = test_entry(20, 1);
+        other.backend = "other".into();
+        other.timestamp = "2027-01-01T00:00:00Z".into();
+        history.append_entry(&other).unwrap();
+        history.rebuild_index().unwrap();
+
+        fn seeds(rows: Vec<EvalHistoryEntry>) -> Vec<u64> {
+            rows.into_iter().map(|entry| entry.seed).collect()
+        }
+        for _ in 0..2 {
+            assert!(history.query_recent("test-backend", 0).unwrap().is_empty());
+            assert_eq!(
+                seeds(history.query_recent("test-backend", 2).unwrap()),
+                [3, 1]
+            );
+            assert_eq!(
+                seeds(history.query_recent("test-backend", usize::MAX).unwrap()),
+                [3, 1, 4, 0, 2, 5]
+            );
+            for dataset in [None, Some("test-dataset")] {
+                assert_eq!(
+                    seeds(
+                        history
+                            .compare_backends("test-backend", "other", dataset)
+                            .unwrap()
+                    ),
+                    [20, 3, 1, 4, 0, 2, 5]
+                );
+            }
+            history.sqlite_path = None;
+        }
+    }
+
+    #[test]
+    fn chronological_regression_windows() {
+        let temp = TempDir::new().unwrap();
+        let history = EvalHistory::new(temp.path().join("history.jsonl")).unwrap();
+        for (i, score) in [0.91, 0.90, 0.89, 0.31, 0.30, 0.29].into_iter().enumerate() {
+            let mut entry = test_entry(i as u64, 10);
+            entry.timestamp = if i < 3 {
+                format!("2026-11-20T01:00:00.{i:09}+01:00")
+            } else {
+                format!("2026-11-19T19:00:00.{i:09}-05:00")
+            };
+            entry.f1 = Some(score);
+            history.append_entry(&entry).unwrap();
+        }
+        for alerts in [
+            history.detect_regressions(6, 0.5).unwrap(),
+            history.detect_regressions_recent(3, 0.8, 6).unwrap(),
+        ] {
+            assert_eq!(alerts.len(), 1);
+            assert!((alerts[0].drop - 0.6).abs() < 1e-10);
+            assert_eq!(
+                alerts[0].split_timestamp,
+                "2026-11-19T19:00:00.000000003-05:00"
+            );
+        }
     }
 
     #[test]

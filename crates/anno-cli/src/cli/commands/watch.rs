@@ -140,18 +140,6 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
             };
 
             if should_process {
-                // Check max files limit
-                if args.max_files > 0 && files_processed >= args.max_files {
-                    if !args.quiet {
-                        eprintln!(
-                            "{} Reached max files limit ({}), stopping",
-                            color("33", "[limit]"),
-                            args.max_files
-                        );
-                    }
-                    return Ok(());
-                }
-
                 // Process the file
                 match process_file(path, &*model, &args) {
                     Ok(entity_count) => {
@@ -170,6 +158,17 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
                                 path.file_name().unwrap_or_default(),
                                 entity_count
                             );
+                        }
+
+                        if args.max_files > 0 && files_processed >= args.max_files {
+                            if !args.quiet {
+                                eprintln!(
+                                    "{} Reached max files limit ({}), stopping",
+                                    color("33", "[limit]"),
+                                    args.max_files
+                                );
+                            }
+                            return Ok(());
                         }
 
                         // Update state
