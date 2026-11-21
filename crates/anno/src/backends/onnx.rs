@@ -194,7 +194,7 @@ fn local_model_dir(model_name: &str) -> Result<Option<&std::path::Path>> {
             // Keep explicit paths local even when their directory is missing.
             let mut parts = model_name.split('/');
             let hub_shape = parts.clone().count() <= 2
-                && !model_name.contains('\\')
+                && !model_name.contains(['\\', ':'])
                 && parts.all(|part| Path::new(part).file_name() == Some(OsStr::new(part)));
             if hub_shape
                 && matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory)
@@ -1278,6 +1278,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn constructor_reports_missing_model_directory() {
+        // Isolate the Hub's offline setting if the caller ever bypasses local lookup.
+        if !crate::backends::hf_loader::no_downloads() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "backends::onnx::tests::constructor_reports_missing_model_directory",
+                ])
+                .env("ANNO_NO_DOWNLOADS", "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("missing");
+        let name = path.to_str().unwrap();
+        let error = BertNEROnnx::new(name).err().expect("directory is missing");
+        assert!(
+            matches!(error, Error::Retrieval(msg) if msg.starts_with(&format!("Cannot open model directory {name}:")))
+        );
+    }
+
+    #[test]
     fn model_source_rejects_missing_local_paths() {
         let temp = tempfile::tempdir().unwrap();
         let absolute = temp.path().join("missing");
@@ -1288,6 +1312,9 @@ mod tests {
             "missing-model/",
             "models/local/weights",
             r"models\missing-model",
+            "C:/missing-model",
+            "C:missing-model",
+            r"\\server\share\missing-model",
         ] {
             let err = local_model_dir(name).unwrap_err();
             assert!(err.to_string().contains(name), "{err}");
