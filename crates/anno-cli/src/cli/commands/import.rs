@@ -99,7 +99,6 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
 
     let mut all_annotations = Vec::new();
     let mut success_count = 0;
-    let mut error_count = 0;
 
     for file in &files {
         match import_file(file, args.format, args.include_text) {
@@ -117,7 +116,6 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
                 }
             }
             Err(e) => {
-                error_count += 1;
                 if !args.quiet {
                     eprintln!(
                         "  {} {:?}: {}",
@@ -128,6 +126,10 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
                 }
             }
         }
+    }
+
+    if success_count == 0 {
+        return Err("All imports failed".into());
     }
 
     // Write output
@@ -161,11 +163,7 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         );
     }
 
-    if error_count > 0 && success_count == 0 {
-        Err("All imports failed".into())
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 fn import_file(
@@ -262,72 +260,56 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
 fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    let mut annotations = Vec::new();
-    let mut current_entity: Option<(String, String, usize, usize)> = None; // (type, text, start, end)
+    let mut annotations: Vec<ImportedAnnotation> = Vec::new();
+    let mut inside_entity = false;
     let mut char_idx = 0;
 
     for line in content.lines() {
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 2 {
-            let word = parts[0];
-            let tag = parts[1];
+        let mut fields = line.split_whitespace();
+        let Some(word) = fields.next() else {
+            inside_entity = false;
+            continue;
+        };
+        if word == "-DOCSTART-" {
+            inside_entity = false;
+            continue;
+        }
+        let Some(second) = fields.next() else {
+            continue;
+        };
+        // Anno exports word/tag pairs. CoNLL-2003 puts the NER tag last,
+        // after the part-of-speech and chunk tags.
+        let tag = if second == "O" || second.starts_with("B-") || second.starts_with("I-") {
+            second
+        } else {
+            fields.next_back().unwrap_or(second)
+        };
+        let start = char_idx;
+        let end = start + word.chars().count();
+        char_idx = end + 1;
 
-            let word_len = word.chars().count();
-
-            if tag.starts_with("B-") {
-                // End previous entity if any
-                if let Some((entity_type, text, start, end)) = current_entity.take() {
-                    annotations.push(ImportedAnnotation {
-                        text,
-                        entity_type,
-                        start,
-                        end,
-                        source: input.to_string_lossy().to_string(),
-                        confidence: None,
-                    });
-                }
-                // Start new entity
-                let entity_type = tag
-                    .strip_prefix("B-")
-                    .expect("tag.starts_with('B-') checked above")
-                    .to_string();
-                current_entity =
-                    Some((entity_type, word.to_string(), char_idx, char_idx + word_len));
-            } else if tag.starts_with("I-") && current_entity.is_some() {
-                // Continue entity
-                if let Some((_, ref mut text, _, ref mut end)) = current_entity {
-                    text.push(' ');
-                    text.push_str(word);
-                    *end = char_idx + word_len;
-                }
-            } else {
-                // End entity
-                if let Some((entity_type, text, start, end)) = current_entity.take() {
-                    annotations.push(ImportedAnnotation {
-                        text,
-                        entity_type,
-                        start,
-                        end,
-                        source: input.to_string_lossy().to_string(),
-                        confidence: None,
-                    });
+        if let Some(label) = tag.strip_prefix("I-") {
+            if let Some(entity) = annotations.last_mut() {
+                if inside_entity && entity.entity_type == label {
+                    entity.text.push(' ');
+                    entity.text.push_str(word);
+                    entity.end = end;
+                    continue;
                 }
             }
-
-            char_idx += word_len + 1; // +1 for space
         }
-    }
-
-    // End final entity if any
-    if let Some((entity_type, text, start, end)) = current_entity {
-        annotations.push(ImportedAnnotation {
-            text,
-            entity_type,
-            start,
-            end,
-            source: input.to_string_lossy().to_string(),
-            confidence: None,
-        });
+        let label = tag.strip_prefix("B-").or_else(|| tag.strip_prefix("I-"));
+        inside_entity = label.is_some();
+        if let Some(label) = label {
+            annotations.push(ImportedAnnotation {
+                text: word.to_string(),
+                entity_type: label.to_string(),
+                start,
+                end,
+                source: input.to_string_lossy().into_owned(),
+                confidence: None,
+            });
+        }
     }
 
     Ok(annotations)
@@ -606,5 +588,42 @@ mod tests {
         assert_eq!(annotations.len(), 1);
         assert_eq!(annotations[0].text, "東京 駅");
         assert_eq!((annotations[0].start, annotations[0].end), (0, 4));
+    }
+    #[test]
+    fn failed_import_preserves_existing_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("bad.jsonl");
+        let output = dir.path().join("existing.jsonl");
+        fs::write(&input, "{").unwrap();
+        fs::write(&output, "previous annotations").unwrap();
+        assert!(run(ImportArgs {
+            input,
+            output: output.clone(),
+            format: ExportFormat::Jsonl,
+            include_text: false,
+            quiet: true,
+        })
+        .is_err());
+        assert_eq!(fs::read_to_string(output).unwrap(), "previous annotations");
+    }
+
+    #[test]
+    fn conll2003_keeps_iob1_starts_and_sentence_boundaries() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("sample.conll");
+        fs::write(&input, "-DOCSTART- -X- O O\n\nZoë NNP B-NP I-PER\nLi NNP I-NP I-PER\nAcme NNP B-NP I-ORG\n\n東京 NNP B-NP I-ORG\n").unwrap();
+        let rows = import_conll(&input).unwrap();
+        let spans: Vec<_> = rows
+            .iter()
+            .map(|a| (a.text.as_str(), a.entity_type.as_str(), a.start, a.end))
+            .collect();
+        assert_eq!(
+            spans,
+            [
+                ("Zoë Li", "PER", 0, 6),
+                ("Acme", "ORG", 7, 11),
+                ("東京", "ORG", 12, 14)
+            ]
+        );
     }
 }
