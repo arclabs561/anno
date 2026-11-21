@@ -1,0 +1,19 @@
+name: Review SQLite WAL recovery on Windows
+on:
+  pull_request:
+    branches: [fix/history-sqlite-3-54]
+    paths:
+      - 'scripts/review-sqlite-wal/**'
+      - '.github/workflows/review-sqlite-wal.yml'
+permissions:
+  contents: read
+jobs:
+  retained-mapping:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python scripts/review-sqlite-wal/run.py
