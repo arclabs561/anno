@@ -578,6 +578,7 @@ opengrep:
 # Run OpenGrep with custom rules
 opengrep-custom:
     @which opengrep > /dev/null || (echo "Install: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash" && exit 1)
+    opengrep scan -f .opengrep/rules/rust-validated.yaml --json --output opengrep-validated-results.json crates/
     opengrep scan -f .opengrep/rules/rust-security.yaml --json --output opengrep-security-results.json crates/anno/
     opengrep scan -f .opengrep/rules/rust-nlp-ml-patterns.yaml --json --output opengrep-nlp-results.json crates/anno/
     opengrep scan -f .opengrep/rules/rust-evaluation-framework.yaml --json --output opengrep-eval-results.json crates/anno-eval/
@@ -587,6 +588,7 @@ opengrep-custom:
     @echo "Custom rules results saved to opengrep-*-results.json"
     @if command -v jq > /dev/null; then \
         echo "Counts:"; \
+        echo "  validated: $$(jq -r '.results | length' opengrep-validated-results.json)"; \
         echo "  security: $$(jq -r '.results | length' opengrep-security-results.json)"; \
         echo "  nlp:      $$(jq -r '.results | length' opengrep-nlp-results.json)"; \
         echo "  eval:     $$(jq -r '.results | length' opengrep-eval-results.json)"; \
