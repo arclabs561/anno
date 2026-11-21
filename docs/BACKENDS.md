@@ -143,6 +143,10 @@ DirectML sessions disable memory patterns and use sequential execution, as
 required by the [DirectML provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html).
 Real-model placement on Windows remains unverified.
 
+On Windows with Cargo 1.100, set `__CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT=1`
+for the DirectML build. The pinned `ort-sys` 2.0.0-rc.12 copies `DirectML.dll`
+using Cargo’s previous build directory layout. See [upstream issue #619](https://github.com/pykeio/ort/issues/619).
+
 The `onnx-rocm` feature is a legacy binding, not a supported AMD runtime path
 with the current dependency: `ort` targets ONNX Runtime 1.24, while the
 [ROCm provider was removed in 1.23](https://onnxruntime.ai/docs/execution-providers/ROCm-ExecutionProvider.html).
