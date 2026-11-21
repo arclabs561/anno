@@ -48,6 +48,9 @@
 
 pub(crate) mod clustering;
 pub(crate) mod scoring;
+mod words;
+
+pub use words::{FCorefAnalysis, FCorefMention};
 
 use std::sync::Arc;
 
@@ -282,41 +285,10 @@ impl FCoref {
             .encode(text, true)
             .map_err(|e| Error::Parse(format!("Tokenizer encode: {}", e)))?;
 
-        let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
-        let attention_mask: Vec<i64> = encoding
-            .get_attention_mask()
-            .iter()
-            .map(|&m| m as i64)
-            .collect();
-
-        let seq_len = input_ids.len().min(self.config.max_segment_len);
-        let input_ids = &input_ids[..seq_len];
-        let attention_mask = &attention_mask[..seq_len];
-
-        // 2. Run encoder
-        let hidden = self.run_encoder(input_ids, attention_mask)?;
-
-        // 3. Score mentions (skip special tokens: positions 1..seq_len-1)
-        let mentions_result = scoring::score_mentions(
-            &hidden,
-            &self.scorer,
-            self.config.max_span_length,
-            self.config.top_lambda,
-        );
-
-        if mentions_result.top_k_starts.is_empty() {
-            return Ok(vec![]);
-        }
-
-        // 4. Score antecedents
-        let antecedents = scoring::score_antecedents(
-            &mentions_result.top_k_starts,
-            &mentions_result.top_k_ends,
-            &mentions_result.top_k_logits,
-            &mentions_result.start_coref_reps,
-            &mentions_result.end_coref_reps,
-            &self.scorer,
-        );
+        // Keep the existing raw-text candidate budget for resolve callers.
+        let seq_len = encoding.len().min(self.config.max_segment_len);
+        let max_candidates = ((seq_len as f32 * self.config.top_lambda).ceil() as usize).max(1);
+        let (mentions_result, antecedents) = self.score_encoding(&encoding, max_candidates)?;
 
         // 5. Map token indices to character offsets
         let offsets = encoding.get_offsets();
@@ -387,6 +359,46 @@ impl FCoref {
             .collect();
 
         Ok(clustering::build_clusters(&mentions, &filtered_antecedents))
+    }
+
+    fn score_encoding(
+        &self,
+        encoding: &tokenizers::Encoding,
+        max_candidates: usize,
+    ) -> Result<(scoring::MentionScoringResult, Vec<usize>)> {
+        let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
+        let attention_mask: Vec<i64> = encoding
+            .get_attention_mask()
+            .iter()
+            .map(|&m| m as i64)
+            .collect();
+
+        let seq_len = input_ids.len().min(self.config.max_segment_len);
+        let input_ids = &input_ids[..seq_len];
+        let attention_mask = &attention_mask[..seq_len];
+
+        // 2. Run encoder
+        let hidden = self.run_encoder(input_ids, attention_mask)?;
+
+        // 3. Score mentions (skip special tokens: positions 1..seq_len-1)
+        let mentions_result = scoring::score_mentions(
+            &hidden,
+            &self.scorer,
+            self.config.max_span_length,
+            max_candidates,
+        );
+
+        // 4. Score antecedents
+        let antecedents = scoring::score_antecedents(
+            &mentions_result.top_k_starts,
+            &mentions_result.top_k_ends,
+            &mentions_result.top_k_logits,
+            &mentions_result.start_coref_reps,
+            &mentions_result.end_coref_reps,
+            &self.scorer,
+        );
+
+        Ok((mentions_result, antecedents))
     }
 
     /// Run the DistilRoBERTa encoder and return hidden states.
