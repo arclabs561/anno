@@ -144,8 +144,8 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
                 match process_file(path, &*model, &args) {
                     Ok(entity_count) => {
                         files_processed += 1;
-                        let timestamp = chrono::Local::now().format("%H:%M:%S");
                         if !args.quiet {
+                            let now = jiff::Zoned::now();
                             let action = if file_states.contains_key(path) {
                                 "changed"
                             } else {
@@ -153,7 +153,7 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
                             };
                             eprintln!(
                                 "[{}] {}: {:?} → {} entities",
-                                timestamp,
+                                now.strftime("%T"),
                                 color("32", action),
                                 path.file_name().unwrap_or_default(),
                                 entity_count
@@ -204,10 +204,10 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
 
         for path in deleted {
             if !args.quiet {
-                let timestamp = chrono::Local::now().format("%H:%M:%S");
+                let now = jiff::Zoned::now();
                 eprintln!(
                     "[{}] {}: {:?} removed from index",
-                    timestamp,
+                    now.strftime("%T"),
                     color("33", "deleted"),
                     path.file_name().unwrap_or_default()
                 );

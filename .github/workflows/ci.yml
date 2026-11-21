@@ -266,6 +266,8 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Check the watch clock in a non-UTC timezone
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
@@ -876,8 +878,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: "stable"
-      # Library crates gitignore Cargo.lock; generate one for the audit scan.
-      - run: cargo generate-lockfile
       - name: Cache cargo-audit
         id: cache-audit
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -887,9 +887,14 @@ jobs:
       - name: Install cargo-audit
         if: steps.cache-audit.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-audit --version 0.22.2
-      - name: Check RustSec advisories
-        # Vulnerabilities fail; informational advisories remain visible warnings.
+      - name: Audit the checked-in Cargo.lock
+        id: locked
         run: cargo audit
+      - name: Audit a fresh dependency resolution
+        if: ${{ !cancelled() && (steps.locked.outcome == 'success' || steps.locked.outcome == 'failure') }}
+        run: |
+          cargo generate-lockfile
+          cargo audit
 
   semver-checks:
     name: Cargo Semver Checks

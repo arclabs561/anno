@@ -1,0 +1,60 @@
+{
+  "with_pages": {
+    "text": "Zoë approved the résumé.\n\nBob emailed alice@example.org.\n\nÉmilie paid 10 euros.",
+    "pages": [
+      "Zoë approved the résumé.",
+      "Bob emailed alice@example.org.",
+      "Émilie paid 10 euros."
+    ],
+    "bounds": [
+      [
+        0,
+        27
+      ],
+      [
+        29,
+        59
+      ],
+      [
+        61,
+        83
+      ]
+    ]
+  },
+  "marked": {
+    "text": "<!-- PAGE 1 -->\n\nZoë approved the résumé.\n\n<!-- PAGE 2 -->\n\nBob emailed alice@example.org.\n\n<!-- PAGE 3 -->\n\nÉmilie paid 10 euros.",
+    "pages": [
+      "Zoë approved the résumé.",
+      "Bob emailed alice@example.org.",
+      "Émilie paid 10 euros."
+    ],
+    "bounds": [
+      [
+        19,
+        46
+      ],
+      [
+        65,
+        95
+      ],
+      [
+        114,
+        136
+      ]
+    ]
+  },
+  "sentences": [
+    [
+      0,
+      27
+    ],
+    [
+      29,
+      59
+    ],
+    [
+      61,
+      83
+    ]
+  ]
+}
