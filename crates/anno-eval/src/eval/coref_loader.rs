@@ -1311,25 +1311,14 @@ pub fn parse_ecb_plus_zip(data: &[u8]) -> Result<Vec<CorefDocument>> {
 
     let mut all_docs: Vec<CorefDocument> = Vec::new();
 
-    // Collect file names first (borrow checker)
-    let file_names: Vec<String> = (0..archive.len())
-        .filter_map(|i| {
-            let f = archive.by_index(i).ok()?;
-            // zip 9 returns `Result<Cow<str>, ZipError>` from `name()`; skip
-            // entries whose name cannot be decoded instead of aborting.
-            let name = f.name().ok()?.into_owned();
-            if name.ends_with(".xml") {
-                Some(name)
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    for name in &file_names {
-        let mut file = archive
-            .by_name(name)
-            .map_err(|e| Error::InvalidInput(format!("Failed to read {} from zip: {}", name, e)))?;
+    for i in 0..archive.len() {
+        let Ok(mut file) = archive.by_index(i) else {
+            continue;
+        };
+        let name = match file.name() {
+            Ok(name) if name.ends_with(".xml") => name.into_owned(),
+            _ => continue,
+        };
 
         let mut xml_content = String::new();
         std::io::Read::read_to_string(&mut file, &mut xml_content)
@@ -2160,6 +2149,49 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
             .iter()
             .find(|c| c.mentions.iter().any(|m| m.text == "quake"));
         assert!(chain1_doc2.is_some());
+    }
+
+    #[test]
+    fn ecb_plus_zip_reads_each_member_when_decoded_names_match() {
+        use std::io::{Cursor, Write};
+        use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
+
+        let utf8 = ("ECB+/1/café.xml", "Alice");
+        let cp437 = ("ECB+/1/caf~.xml", "Bob");
+        for entries in [[utf8, cp437], [cp437, utf8]] {
+            let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
+            let options =
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+            for (name, token) in entries.into_iter().chain([
+                ("ECB+/2/control.xml", "Control"),
+                ("ECB+/2/notes.txt", "Ignored"),
+            ]) {
+                zip.start_file(name, options).unwrap();
+                write!(zip, r#"<Document><token t_id="1" sentence="0" number="0">{token}</token></Document>"#).unwrap();
+            }
+            let mut bytes = zip.finish().unwrap().into_inner();
+            // The writer takes UTF-8 names. Encode é in CP437 in both ZIP headers.
+            let placeholder = b"caf~.xml";
+            while let Some(offset) = bytes
+                .windows(placeholder.len())
+                .position(|s| s == placeholder)
+            {
+                bytes[offset + 3] = 0x82;
+            }
+            let docs = parse_ecb_plus_zip(&bytes).unwrap();
+            let parsed: Vec<_> = docs
+                .iter()
+                .map(|doc| (doc.doc_id.as_deref(), doc.text.as_str()))
+                .collect();
+            assert_eq!(
+                parsed,
+                [
+                    (Some("1_café"), entries[0].1),
+                    (Some("1_café"), entries[1].1),
+                    (Some("2_control"), "Control"),
+                ]
+            );
+        }
     }
 
     #[test]
