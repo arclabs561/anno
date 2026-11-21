@@ -258,6 +258,8 @@ jobs:
         with:
           cache-all-crates: true
           key: ${{ matrix.os }}
+          # PyO3 caches the absolute path to the runner's Python framework.
+          env-vars: ${{ runner.os == 'macOS' && 'ImageVersion' || '' }}
       # `anno-cli` requires at least one HTML extractor feature.
       # `extractor-html2text` is the lighter (no-MPL) option.
       - name: Build
@@ -404,6 +406,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+          env-vars: ImageVersion
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
