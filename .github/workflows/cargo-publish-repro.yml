@@ -45,3 +45,22 @@ jobs:
           fi
           cat control.log
           grep -E 'cannot find function .missing_name.' control.log
+
+          # Can verification also accept a caller whose dependency removed its API?
+          printf 'pub fn old_name() {}\n' > api/src/lib.rs
+          printf 'pub fn call() { anno_repro_api::old_name(); }\n' > caller/src/lib.rs
+          dry_run removed_api
+          sed -i s/old_name/replacement_name/ api/src/lib.rs
+          if dry_run removed_api > removed-reused.log 2>&1; then
+            echo "Reused target accepted the broken caller."
+          else
+            cat removed-reused.log
+            grep -E 'cannot find function .old_name.' removed-reused.log
+            echo "Reused target rejected the broken caller."
+          fi
+          if dry_run removed_fresh > removed-fresh.log 2>&1; then
+            echo "Fresh target unexpectedly accepted the broken caller."
+            exit 1
+          fi
+          cat removed-fresh.log
+          grep -E 'cannot find function .old_name.' removed-fresh.log
