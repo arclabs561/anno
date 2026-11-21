@@ -1,0 +1,47 @@
+name: Cargo workspace publish reproduction
+on:
+  push:
+    branches: [experiment/cargo-publish-stale-source]
+permissions: {}
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Test repeated workspace dry runs on stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup update stable --no-self-update
+          export RUSTUP_TOOLCHAIN=stable
+          cargo -Vv
+          cd "$(mktemp -d)"
+          export CARGO_HOME="$PWD/cargo-home"
+          mkdir -p api/src caller/src
+          printf '[workspace]\nmembers = ["api", "caller"]\nresolver = "2"\n' > Cargo.toml
+          for crate in api caller; do
+            printf '[package]\nname = "anno-repro-%s"\nversion = "0.1.0"\nedition = "2021"\n' "$crate" > "$crate/Cargo.toml"
+          done
+          printf '[dependencies]\nanno-repro-api = { path = "../api", version = "=0.1.0" }\n' >> caller/Cargo.toml
+          dry_run() {
+            cargo publish --dry-run --workspace --target-dir "$PWD/$1"
+          }
+          printf 'pub fn old_name() {}\n' > api/src/lib.rs
+          printf 'pub fn call() { anno_repro_api::old_name(); }\n' > caller/src/lib.rs
+          dry_run reused
+          sed -i s/old_name/new_name/g api/src/lib.rs caller/src/lib.rs
+          if dry_run reused > reused.log 2>&1; then
+            echo "Reused target passed on this Cargo version."
+          else
+            cat reused.log
+            grep -E 'cannot find function .new_name.' reused.log
+            echo "Reused target failed to resolve the renamed function."
+          fi
+          dry_run fresh
+          sed -i s/new_name/missing_name/ caller/src/lib.rs
+          if dry_run control > control.log 2>&1; then
+            echo "Unexpected success for a nonexistent function."
+            exit 1
+          fi
+          cat control.log
+          grep -E 'cannot find function .missing_name.' control.log
