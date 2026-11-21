@@ -14,7 +14,9 @@ echo
 
 log_file="$work_dir/publish.log"
 echo '## Publish readiness'
-if cargo publish --dry-run --workspace --exclude anno-py >"$log_file" 2>&1; then
+# Cargo stages workspace crates in a local registry under the target directory.
+# A fresh registry path makes Cargo unpack the current source at the same version.
+if cargo publish --dry-run --workspace --exclude anno-py --target-dir "$work_dir/target" >"$log_file" 2>&1; then
     echo '[ok] cargo publish --dry-run passed for anno, anno-eval, and anno-cli'
     cat "$log_file"
 else
