@@ -1,0 +1,58 @@
+name: Check FCoref segment boundaries and release regressions
+on:
+  push:
+    branches: [review/fcoref-final-segment]
+permissions:
+  contents: read
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+jobs:
+  marker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prepare CPU runtime
+        run: |
+          python3 -m venv "$RUNNER_TEMP/runtime"
+          "$RUNNER_TEMP/runtime/bin/pip" install onnxruntime==1.24.2
+          lib=$(find "$RUNNER_TEMP/runtime" -type f -name 'libonnxruntime.so.*' -print -quit)
+          test -f "$lib"
+          mkdir "$RUNNER_TEMP/ort"
+          ln -s "$lib" "$RUNNER_TEMP/ort/libonnxruntime.so"
+          echo "ORT_DYLIB_PATH=$lib" >> "$GITHUB_ENV"
+          echo "ORT_LIB_LOCATION=$RUNNER_TEMP/ort" >> "$GITHUB_ENV"
+      - name: Test contributor patch and old behavior
+        env:
+          ORT_SKIP_DOWNLOAD: "1"
+          ANNO_NO_DOWNLOADS: "1"
+        run: |
+          set -euo pipefail
+          test_marker() {
+            cargo test --locked -p anno --no-default-features --features 'onnx ort/load-dynamic' --test fcoref_resolve_segments
+          }
+          test_marker
+          cp -r crates/anno/tests/fixtures/fcoref-marker "$RUNNER_TEMP/"
+          cp crates/anno/tests/fcoref_resolve_segments.rs "$RUNNER_TEMP/test.rs"
+          git switch --detach 7849fa5dc146a5b9e40d69e9b3a876d2f1e14094
+          cp -r "$RUNNER_TEMP/fcoref-marker" crates/anno/tests/fixtures/
+          sed '/max_doc_tokens: Some(1026),/d' "$RUNNER_TEMP/test.rs" > crates/anno/tests/fcoref_resolve_segments.rs
+          if test_marker > "$RUNNER_TEMP/baseline.log" 2>&1; then
+            echo 'The control unexpectedly retained the final mention.'
+            exit 1
+          fi
+          tail -25 "$RUNNER_TEMP/baseline.log"
+          grep -F 'left: ["Zoë", "Zoë"]' "$RUNNER_TEMP/baseline.log"
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 5e1e35e628d515720559a45ec91866d83f944c92
+          persist-credentials: false
+      - run: cargo test --locked -p anno-eval --features eval --lib history
+      - run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --bin anno brat
+      - run: ./scripts/validate-publish.sh
