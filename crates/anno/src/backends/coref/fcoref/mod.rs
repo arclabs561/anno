@@ -49,6 +49,7 @@
 pub(crate) mod clustering;
 pub(crate) mod scoring;
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use ndarray::Array2;
@@ -60,6 +61,15 @@ use crate::offset::SpanConverter;
 use crate::{Error, Result};
 use clustering::MentionSpan;
 use scoring::ScorerWeights;
+
+/// Return the mention and its matching UTF-8 byte range in the original text.
+fn trimmed_mention(text: &str, span: Range<usize>) -> Option<(&str, Range<usize>)> {
+    let raw = text.get(span.clone())?;
+    let without_leading = raw.trim_start();
+    let mention = without_leading.trim_end();
+    let start = span.end - without_leading.len();
+    (!mention.is_empty()).then_some((mention, start..start + mention.len()))
+}
 
 /// Configuration for f-coref model loading.
 #[derive(Debug, Clone)]
@@ -332,18 +342,12 @@ impl FCoref {
                 }
                 let (byte_start, _) = offsets[ts];
                 let (_, byte_end) = offsets[te];
-                if byte_start >= byte_end || byte_end > text.len() {
-                    return None;
-                }
-                let mention_text = text.get(byte_start..byte_end)?.trim();
-                if mention_text.is_empty() {
-                    return None;
-                }
+                let (mention_text, span) = trimmed_mention(text, byte_start..byte_end)?;
                 Some(MentionSpan {
                     token_start: ts,
                     token_end: te,
-                    char_start: span_converter.byte_to_char(byte_start),
-                    char_end: span_converter.byte_to_char(byte_end),
+                    char_start: span_converter.byte_to_char(span.start),
+                    char_end: span_converter.byte_to_char(span.end),
                     text: mention_text.to_string(),
                 })
             })
@@ -449,6 +453,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn trimmed_mentions_keep_their_source_occurrence() {
+        let text = "Zoë met\u{2003}Zoë e\u{301}\r\n";
+        let space = text.find('\u{2003}').unwrap();
+        let second = text.rfind("Zoë").unwrap();
+        let end = text.find('\r').unwrap();
+        for input in [
+            space..text.len(),
+            second..text.len(),
+            space..end,
+            second..end,
+        ] {
+            assert_eq!(
+                trimmed_mention(text, input),
+                Some(("Zoë e\u{301}", second..end))
+            );
+        }
+        assert!(trimmed_mention(text, 0..0).is_none());
+        assert!(trimmed_mention(text, end..text.len()).is_none());
+        assert!(trimmed_mention(text, 0..3).is_none()); // inside ë
+    }
+
+    #[test]
     fn test_config_default() {
         let config = FCorefConfig::default();
         assert_eq!(config.max_span_length, 30);
@@ -509,6 +535,30 @@ mod tests {
             clusters.is_empty(),
             "Expected no clusters for non-referential text"
         );
+    }
+
+    #[test]
+    #[ignore]
+    fn leading_space_is_outside_resolved_mentions() {
+        let model = FCoref::from_path(&model_dir()).unwrap();
+        let text = " Alice came home. She said she was tired.";
+        let clusters = model.resolve(text).unwrap();
+        let spans: Vec<_> = clusters
+            .iter()
+            .flat_map(|c| c.mentions.iter().zip(&c.spans))
+            .collect();
+        assert!(spans
+            .iter()
+            .any(|(mention, span)| mention.as_str() == "Alice" && **span == (1, 6)));
+        for (mention, &(start, end)) in spans {
+            assert_eq!(
+                text.chars()
+                    .skip(start)
+                    .take(end - start)
+                    .collect::<String>(),
+                *mention
+            );
+        }
     }
 
     #[test]
