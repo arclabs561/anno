@@ -189,3 +189,7 @@ features = [
   "parallel",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "fcoref_word_spans"
+required-features = ["onnx"]
