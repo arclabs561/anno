@@ -147,8 +147,9 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         {
             return Err(format!("Invalid gold annotation #{}: expected a label and a nonempty character span within the input", i + 1));
         }
-        if text[offsets.char_to_byte(annotation.start)..offsets.char_to_byte(annotation.end)]
-            != annotation.text
+        if annotation.segments.is_none()
+            && text[offsets.char_to_byte(annotation.start)..offsets.char_to_byte(annotation.end)]
+                != annotation.text
         {
             return Err(format!(
                 "Invalid gold annotation #{}: surface text does not match characters {}..{}",
@@ -170,12 +171,6 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             return Err("Prediction source text differs from evaluation input".into());
         }
         for signal in doc.signals() {
-            if !matches!(signal.location, Location::Text { .. }) {
-                return Err(format!(
-                    "Prediction {} requires a contiguous text span for this evaluator",
-                    signal.id
-                ));
-            }
             if signal.label().trim().is_empty() || !(0.0..=1.0).contains(&signal.confidence) {
                 return Err(format!(
                     "Prediction {} has an invalid label or confidence",
@@ -223,7 +218,12 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         .map(|(i, g)| {
             Signal::new(
                 SignalId::new(i as u64),
-                Location::text(g.start, g.end),
+                g.segments.as_ref().map_or_else(
+                    || Location::text(g.start, g.end),
+                    |span| Location::Discontinuous {
+                        segments: span.segments().iter().map(|r| (r.start, r.end)).collect(),
+                    },
+                ),
                 &g.text,
                 g.label.as_str(),
                 1.0,
@@ -239,13 +239,17 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         let gold_entities: Vec<anno::Entity> = gold
             .iter()
             .map(|g| {
-                anno::Entity::new(
+                let mut entity = anno::Entity::new(
                     g.text.clone(),
                     anno::EntityType::from_label(&g.label),
                     g.start,
                     g.end,
                     1.0,
-                )
+                );
+                if let Some(span) = &g.segments {
+                    entity.set_discontinuous_span(span.clone());
+                }
+                entity
             })
             .collect();
         Some(anno_eval::eval::metrics::evaluate_char_masking(
@@ -256,29 +260,6 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
     } else {
         None
     };
-
-    // Detailed analysis with eval feature
-    #[cfg(feature = "eval")]
-    let detailed_analysis = {
-        use anno::{EntityCategory, EntityType};
-        use anno_eval::eval::analysis::ErrorAnalysis;
-        use anno_eval::eval::GoldEntity;
-
-        let gold_entities: Vec<GoldEntity> = gold
-            .iter()
-            .map(|g| GoldEntity {
-                text: g.text.clone(),
-                entity_type: EntityType::custom(g.label.clone(), EntityCategory::Misc),
-                original_label: g.label.clone(),
-                start: g.start,
-                end: g.end,
-            })
-            .collect();
-
-        Some(ErrorAnalysis::analyze(&text, &entities, &gold_entities))
-    };
-    #[cfg(not(feature = "eval"))]
-    let _detailed_analysis: Option<()> = None;
 
     // Output
     if args.json {
@@ -475,11 +456,33 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         print_matches(&cmp, args.verbose >= 1);
 
         #[cfg(feature = "eval")]
-        if let Some(analysis) = detailed_analysis {
+        {
+            // Classify the primary one-to-one matches, including split locations.
+            let mut counts = std::collections::BTreeMap::new();
+            for result in &cmp.matches {
+                let kind = match result {
+                    EvalMatch::Correct { .. } => continue,
+                    EvalMatch::Missed { .. } => "Missed",
+                    EvalMatch::Spurious { .. } => "Spurious",
+                    EvalMatch::TypeMismatch { .. } => "TypeMismatch",
+                    EvalMatch::BoundaryError {
+                        gold_id, pred_id, ..
+                    } => {
+                        let gold = cmp.gold.iter().find(|s| s.id == *gold_id);
+                        let pred = cmp.predicted.iter().find(|s| s.id == *pred_id);
+                        if gold.map(|s| &s.label) == pred.map(|s| &s.label) {
+                            "BoundaryError"
+                        } else {
+                            "BoundaryAndType"
+                        }
+                    }
+                };
+                *counts.entry(kind).or_insert(0usize) += 1;
+            }
             println!();
             println!("{}:", color("1;33", "Error Breakdown"));
-            for (err_type, count) in &analysis.counts {
-                println!("  {:?}: {}", err_type, count);
+            for (kind, count) in counts {
+                println!("  {kind}: {count}");
             }
         }
 

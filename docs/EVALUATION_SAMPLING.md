@@ -190,6 +190,14 @@ anno eval --predictions report.predictions.json --file report.txt --gold-file re
 anno eval --predictions report.predictions.json --file report.txt --gold-file report.gold.jsonl --metric char-masking --json
 ```
 
-A gold JSONL record has an `entities` array with `text`, `label`, `start`, and `end`. The evaluator accepts contiguous spans in Unicode character offsets. Replay validates the stored signals and matches the entire source text, including whitespace. The JSON report retains the grounded document ID, the SHA-256 of the evaluated UTF-8 text, and the saved signal IDs in the matches. Model and inference time are null during replay. The grounded artifact contains source text and detected surfaces, so store it with the same access controls as the original.
+A gold JSONL record has an `entities` array with `text`, `label`, `start`, and `end`. Offsets are half-open Unicode character ranges. An optional `segments` array identifies the covered characters of a discontinuous mention. For example, this record marks A and C while leaving the intervening B unlabeled.
+
+```json
+{"text":"😀A B C","entities":[{"label":"PER","start":1,"end":6,"segments":[{"start":1,"end":2},{"start":5,"end":6}],"text":"A C"}]}
+```
+
+The ordered ranges must agree with the outer bounds and the original source. The surface can join the selected pieces with spaces or preserve the exact bounding substring from a legacy record. Empty BRAT boundary markers add no covered characters. Each scored mention must cover at least one character. A missing or null `segments` field identifies a contiguous span. Entity matching compares the covered positions and label. Boundary IoU, character masking, the HTML highlights and the detailed text error counts use the same positions.
+
+Replay validates the stored signals and matches the entire source text, including whitespace. The JSON report retains the grounded document ID, the SHA-256 of the evaluated UTF-8 text, and the saved signal IDs in the matches. Model and inference time are null during replay. The grounded artifact contains source text and detected surfaces, so store it with the same access controls as the original.
 
 Gold JSONL records may carry their source `text`, `source_sha256`, and a document ID (`id`, `doc_id`, or `document_id`). The evaluator checks any supplied text or hash against its input, requires one document ID throughout the file, and checks that ID against the saved predictions. To preserve a corpus document ID, use `anno batch --stdin --model pattern --format grounded` with an input record such as `{"id":"report-v1","text":"…"}`. Legacy entity-only gold records still validate each annotated surface. Identical text from distinct revisions can be distinguished only when the records carry distinct document IDs.

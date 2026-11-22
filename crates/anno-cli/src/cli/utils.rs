@@ -211,6 +211,8 @@ pub struct GoldSpec {
     pub start: usize,
     /// Character offset where entity ends.
     pub end: usize,
+    /// Validated covered character ranges for segmented file annotations.
+    pub segments: Option<anno::DiscontinuousSpan>,
 }
 
 /// Parse gold spec with format: "text:label:start:end"
@@ -232,6 +234,7 @@ pub fn parse_gold_spec(s: &str) -> Option<GoldSpec> {
         label,
         start,
         end,
+        segments: None,
     })
 }
 
@@ -253,6 +256,7 @@ pub fn load_gold_from_file(
 ) -> Result<(Vec<GoldSpec>, Option<String>), String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
+    let offsets = std::cell::LazyCell::new(|| anno::offset::build_char_to_byte_map(source));
     let mut gold = Vec::new();
     let mut document_id = None;
     let digest = std::cell::LazyCell::new(|| source_sha256(source));
@@ -327,18 +331,48 @@ pub fn load_gold_from_file(
                     .and_then(|n| usize::try_from(n).ok())
                     .ok_or_else(|| invalid(field))
             };
+            let start = offset("start")?;
+            let end = offset("end")?;
+            let text = ent["text"].as_str().ok_or_else(|| invalid("text"))?;
+            let segments = if let Some(raw) = ent.get("segments").filter(|v| !v.is_null()) {
+                let ranges: Vec<std::ops::Range<usize>> =
+                    serde_json::from_value(raw.clone()).map_err(|_| invalid("segments"))?;
+                if ranges.is_empty()
+                    || start >= end
+                    || end >= offsets.len()
+                    || ranges.first().is_none_or(|r| r.start != start)
+                    || ranges.last().is_none_or(|r| r.end != end)
+                    || ranges.iter().any(|r| r.start > r.end)
+                    || ranges.windows(2).any(|p| p[0].end > p[1].start)
+                {
+                    return Err(invalid("segments or bounding offsets"));
+                }
+                let joined = ranges
+                    .iter()
+                    .map(|r| &source[offsets[r.start]..offsets[r.end]])
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if text != joined && text != &source[offsets[start]..offsets[end]] {
+                    return Err(invalid("segment surface text"));
+                }
+                let coverage = anno::DiscontinuousSpan::new(ranges);
+                if coverage.segments().is_empty() {
+                    return Err(invalid("empty segment coverage"));
+                }
+                Some(coverage)
+            } else {
+                None
+            };
             gold.push(GoldSpec {
-                text: ent["text"]
-                    .as_str()
-                    .ok_or_else(|| invalid("text"))?
-                    .to_owned(),
+                text: text.to_owned(),
                 label: ent["type"]
                     .as_str()
                     .or_else(|| ent["label"].as_str())
                     .ok_or_else(|| invalid("type or label"))?
                     .to_owned(),
-                start: offset("start")?,
-                end: offset("end")?,
+                start,
+                end,
+                segments,
             });
         }
     }

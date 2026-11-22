@@ -189,38 +189,39 @@ impl Location {
         }
     }
 
-    /// Check if two locations overlap.
-    #[must_use]
-    pub fn overlaps(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Text { start: s1, end: e1 }, Self::Text { start: s2, end: e2 }) => {
-                s1 < e2 && s2 < e1
-            }
-            _ => false, // Different types don't overlap
+    fn coverage(&self) -> LocationCoverage {
+        match self {
+            Self::Text { start, end } => LocationCoverage::Contiguous(*start..*end),
+            Self::Discontinuous { segments } => LocationCoverage::Segmented(
+                DiscontinuousSpan::new(segments.iter().map(|&(s, e)| s..e).collect()),
+            ),
         }
     }
 
-    /// Calculate IoU (Intersection over Union) for compatible location types.
-    ///
-    /// Returns None if the locations are incompatible (e.g., text vs bbox).
+    /// Check for a shared covered character.
+    #[must_use]
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.coverage().view().overlaps(&other.coverage().view())
+    }
+
+    /// Character-level intersection over union of the two locations.
     #[must_use]
     pub fn iou(&self, other: &Self) -> Option<f64> {
-        match (self, other) {
-            (Self::Text { start: s1, end: e1 }, Self::Text { start: s2, end: e2 }) => {
-                let intersection_start = (*s1).max(*s2);
-                let intersection_end = (*e1).min(*e2);
-                if intersection_start >= intersection_end {
-                    return Some(0.0);
-                }
-                let intersection = (intersection_end - intersection_start) as f64;
-                let union = ((*e1).max(*e2) - (*s1).min(*s2)) as f64;
-                if union == 0.0 {
-                    Some(0.0)
-                } else {
-                    Some(intersection / union)
-                }
-            }
-            _ => None,
+        Some(self.coverage().view().iou(&other.coverage().view()))
+    }
+}
+
+// Store contiguous coordinates inline and normalize legacy segmented locations once.
+enum LocationCoverage {
+    Contiguous(std::ops::Range<usize>),
+    Segmented(DiscontinuousSpan),
+}
+
+impl LocationCoverage {
+    fn view(&self) -> crate::SpanCoverage<'_> {
+        match self {
+            Self::Contiguous(range) => crate::SpanCoverage::Contiguous(range.clone()),
+            Self::Segmented(span) => crate::SpanCoverage::Segmented(span),
         }
     }
 }
@@ -677,14 +678,17 @@ impl std::error::Error for SignalValidationError {}
 
 /// Convert an [`Entity`] to a [`Signal<Location>`].
 ///
-/// Uses `Location::Text` for the span and preserves `normalized`, `provenance`,
-/// and `hierarchical_confidence` fields. Discontinuous and visual spans are not
-/// handled; use [`GroundedDocument::from_entities`] for full fidelity.
+/// Preserves text segments, normalization, provenance and hierarchical confidence.
 impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
         let mut signal = Signal::new(
             SignalId::ZERO,
-            Location::text(e.start(), e.end()),
+            e.discontinuous_span.as_ref().map_or_else(
+                || Location::text(e.start(), e.end()),
+                |span| Location::Discontinuous {
+                    segments: span.segments().iter().map(|r| (r.start, r.end)).collect(),
+                },
+            ),
             &e.text,
             e.entity_type.as_label(),
             f32::from(e.confidence),
@@ -1901,30 +1905,10 @@ impl GroundedDocument {
     }
 
     fn signal_from_entity(entity: &Entity) -> Signal<Location> {
-        let location = if let Some(discontinuous_span) = &entity.discontinuous_span {
-            Location::Discontinuous {
-                segments: discontinuous_span
-                    .segments()
-                    .iter()
-                    .map(|range| (range.start, range.end))
-                    .collect(),
-            }
-        } else if let Some(visual_span) = &entity.visual_span {
-            Location::from(visual_span)
-        } else {
-            Location::text(entity.start(), entity.end())
-        };
-
-        let mut signal = Signal::new(
-            SignalId::ZERO,
-            location,
-            &entity.text,
-            entity.entity_type.as_label(),
-            f32::from(entity.confidence),
-        );
-        signal.normalized = entity.normalized.clone();
-        signal.provenance = entity.provenance.clone();
-        signal.hierarchical = entity.hierarchical_confidence;
+        let mut signal = Signal::from(entity);
+        if let (None, Some(visual)) = (&entity.discontinuous_span, &entity.visual_span) {
+            signal.location = Location::from(visual);
+        }
         signal
     }
 
@@ -3787,6 +3771,9 @@ impl EvalComparison {
         let mut gold_matched = vec![false; gold.len()];
         let mut pred_matched = vec![false; predicted.len()];
 
+        let gold_coverage: Vec<_> = gold.iter().map(|s| s.location.coverage()).collect();
+        let pred_coverage: Vec<_> = predicted.iter().map(|s| s.location.coverage()).collect();
+
         // Reserve all exact (location, label) matches before assigning type errors.
         // Stable IDs break ties between interchangeable occurrences at the same span.
         let mut gold_order: Vec<_> = (0..gold.len()).collect();
@@ -3799,14 +3786,15 @@ impl EvalComparison {
                     continue;
                 }
                 let pred = &predicted[pi];
-                let Some(offsets) = pred.location.text_offsets() else {
+                let coverage = pred_coverage[pi].view();
+                if coverage.ranges().is_empty() {
                     continue;
-                };
+                }
                 let Some(&gi) = gold_order.iter().find(|&&gi| {
                     let g = &gold[gi];
                     !gold_matched[gi]
                         && (g.label == pred.label) == same_label
-                        && g.location.text_offsets() == Some(offsets)
+                        && gold_coverage[gi].view().ranges() == coverage.ranges()
                 }) else {
                     continue;
                 };
@@ -3835,23 +3823,13 @@ impl EvalComparison {
             if pred_matched[pi] {
                 continue;
             }
-            let pred_offsets = match pred.location.text_offsets() {
-                Some(o) => o,
-                None => continue,
-            };
 
             for (gi, g) in gold.iter().enumerate() {
                 if gold_matched[gi] {
                     continue;
                 }
-                let gold_offsets = match g.location.text_offsets() {
-                    Some(o) => o,
-                    None => continue,
-                };
-
-                // Check overlap
-                if pred_offsets.0 < gold_offsets.1 && pred_offsets.1 > gold_offsets.0 {
-                    let iou = pred.location.iou(&g.location).unwrap_or(0.0);
+                let iou = pred_coverage[pi].view().iou(&gold_coverage[gi].view());
+                if iou > 0.0 {
                     matches.push(EvalMatch::BoundaryError {
                         gold_id: g.id,
                         pred_id: pred.id,
@@ -4096,39 +4074,28 @@ tr:hover{background:var(--hover)}
 
     // Gold panel
     html.push_str("<div class=\"panel\"><h2>gold (ground truth)</h2><div class=\"text-box\">");
-    let gold_spans: Vec<EvalHtmlSpan> = cmp
-        .gold
-        .iter()
-        .map(|s| {
-            let (start, end) = s.location.text_offsets().unwrap_or((0, 0));
-            EvalHtmlSpan {
-                start,
-                end,
-                label: s.label.to_string(),
-                class: "e-gold",
-                id: format!("G{}", s.id),
+    let spans = |signals: &[Signal<Location>], class, prefix| {
+        let mut result = Vec::new();
+        for signal in signals {
+            for range in signal.location.coverage().view().ranges() {
+                result.push(EvalHtmlSpan {
+                    start: range.start,
+                    end: range.end,
+                    label: signal.label.to_string(),
+                    class,
+                    id: format!("{prefix}{}", signal.id),
+                });
             }
-        })
-        .collect();
+        }
+        result
+    };
+    let gold_spans = spans(&cmp.gold, "e-gold", "G");
     html.push_str(&annotate_text_spans(&cmp.text, &gold_spans));
     html.push_str("</div></div>");
 
     // Predicted panel
     html.push_str("<div class=\"panel\"><h2>predicted</h2><div class=\"text-box\">");
-    let pred_spans: Vec<EvalHtmlSpan> = cmp
-        .predicted
-        .iter()
-        .map(|s| {
-            let (start, end) = s.location.text_offsets().unwrap_or((0, 0));
-            EvalHtmlSpan {
-                start,
-                end,
-                label: s.label.to_string(),
-                class: "e-pred",
-                id: format!("P{}", s.id),
-            }
-        })
-        .collect();
+    let pred_spans = spans(&cmp.predicted, "e-pred", "P");
     html.push_str(&annotate_text_spans(&cmp.text, &pred_spans));
     html.push_str("</div></div>");
 

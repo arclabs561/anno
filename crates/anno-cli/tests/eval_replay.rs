@@ -229,3 +229,135 @@ fn gold_records_bind_to_the_evaluated_source_and_saved_document_when_identified(
     std::fs::write(&gold, numbered.to_string()).unwrap();
     assert_eq!(json_output(&args)["f1"], 1.0);
 }
+
+#[test]
+fn replay_score_uses_only_covered_characters_for_segmented_mentions() {
+    let dir = tempfile::tempdir().unwrap();
+    let prediction_file = dir.path().join("prediction.json");
+    let gold_file = dir.path().join("gold.jsonl");
+    let text = "😀A B C"; // A, B, C begin at scalar indices 1, 3, 5.
+    let mut doc = json_output(&[
+        "extract", "--model", "pattern", "--text", SOURCE, "--format", "grounded",
+    ]);
+    doc["text"] = json!(text);
+    doc["signals"][0]["location"] = json!({"Discontinuous":{"segments":[[1,2],[5,6]]}});
+    doc["signals"][0]["surface"] = json!("A C");
+    doc["signals"][0]["label"] = json!("PER");
+    std::fs::write(&prediction_file, doc.to_string()).unwrap();
+    let score = |entity: Value| {
+        let gold = json!({"id":"extract","text":text,"entities":[entity]});
+        std::fs::write(&gold_file, gold.to_string()).unwrap();
+        cli(&[
+            "eval",
+            "--text",
+            text,
+            "--gold-file",
+            gold_file.to_str().unwrap(),
+            "--predictions",
+            prediction_file.to_str().unwrap(),
+            "--metric",
+            "char-masking",
+            "--json",
+        ])
+    };
+    let entity = |surface: &str, start: usize, end: usize, ranges: &[(usize, usize)]| {
+        let mut e = json!({"label":"PER","text":surface,"start":start,"end":end});
+        if !ranges.is_empty() {
+            e["segments"] = json!(ranges
+                .iter()
+                .map(|(s, e)| json!({"start":s,"end":e}))
+                .collect::<Vec<_>>());
+        }
+        e
+    };
+    for (gold, correct, iou, tp) in [
+        (entity("A C", 1, 6, &[(1, 2), (5, 6)]), 1, None, 2),
+        (entity("A B C", 1, 6, &[(1, 2), (5, 6)]), 1, None, 2),
+        (entity("A B C", 1, 6, &[]), 0, Some(2.0 / 5.0), 2),
+        (
+            entity("A B C", 1, 6, &[(1, 2), (3, 4), (5, 6)]),
+            0,
+            Some(2.0 / 3.0),
+            2,
+        ),
+        (entity("B", 3, 4, &[]), 0, None, 0),
+    ] {
+        let output = score(gold);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["correct"], correct);
+        assert_eq!(value["char_masking"]["strict_span_f1"], correct as f64);
+        assert_eq!(value["char_masking"]["counts"]["true_positive_chars"], tp);
+        assert_eq!(value["char_masking"]["counts"]["predicted_chars"], 2);
+        if let Some(expected) = iou {
+            assert_eq!(value["matches"][0]["type"], "boundary_error");
+            assert!((value["matches"][0]["iou"].as_f64().unwrap() - expected).abs() < 1e-12);
+        } else if correct == 0 {
+            assert_eq!(value["matches"].as_array().unwrap().len(), 2);
+        }
+    }
+    // BRAT newline anchors count as zero coverage. A null field keeps the legacy contiguous form.
+    let null = {
+        let mut row = entity("B", 3, 4, &[]);
+        row["segments"] = Value::Null;
+        row
+    };
+    assert!(score(null).status.success());
+    assert!(score(entity("A", 1, 2, &[(1, 2)])).status.success());
+    let anchored = score(entity(" A C ", 0, 6, &[(0, 0), (1, 2), (5, 6), (6, 6)]));
+    assert!(anchored.status.success());
+    let anchored: Value = serde_json::from_slice(&anchored.stdout).unwrap();
+    assert_eq!(anchored["correct"], 1);
+    assert_eq!(anchored["char_masking"]["counts"]["gold_chars"], 2);
+    assert!(score(entity("A C", 1, 6, &[(1, 2), (5, 6)]))
+        .status
+        .success());
+    let html = cli(&[
+        "eval",
+        "--text",
+        text,
+        "--gold-file",
+        gold_file.to_str().unwrap(),
+        "--predictions",
+        prediction_file.to_str().unwrap(),
+        "--html",
+    ]);
+    assert!(html.status.success());
+    let html = String::from_utf8(html.stdout).unwrap();
+    assert!(html.contains(">A</span> B <span"), "gap was highlighted");
+    assert!(html.contains("data-eids=\"P0\""));
+    #[cfg(feature = "eval")]
+    {
+        let mut wrong = entity("A B C", 1, 6, &[]);
+        wrong["label"] = json!("ORG");
+        assert!(score(wrong).status.success());
+        let detailed = cli(&[
+            "eval",
+            "--text",
+            text,
+            "--gold-file",
+            gold_file.to_str().unwrap(),
+            "--predictions",
+            prediction_file.to_str().unwrap(),
+            "--verbose",
+        ]);
+        assert!(detailed.status.success());
+        assert!(String::from_utf8(detailed.stdout)
+            .unwrap()
+            .contains("BoundaryAndType: 1"));
+    }
+    for invalid in [
+        entity("A C", 1, 6, &[(1, 2), (4, 6)]),
+        entity("A C", 1, 5, &[(1, 2), (5, 6)]),
+        entity("A C", 1, 6, &[(1, 4), (3, 6)]),
+        entity(" ", 1, 6, &[(1, 1), (6, 6)]),
+    ] {
+        let rejected = score(invalid);
+        assert!(!rejected.status.success());
+        assert!(rejected.stdout.is_empty());
+    }
+}
