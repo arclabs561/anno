@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/fcoref-cli.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'crates/anno/Cargo.toml'
+      - 'crates/anno-cli/Cargo.toml'
       - 'crates/anno/src/backends/coref/fcoref/**'
       - 'crates/anno/src/core/grounded/**'
       - 'crates/anno-cli/src/cli/commands/pipeline.rs'
