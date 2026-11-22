@@ -1,11 +1,16 @@
 # Building anno
 
-Cargo's normal freshness and incremental artifacts are the fastest path for a
-short edit-and-test loop:
+For an edit inside the core library, keep the same Cargo target directory and
+check just the library. Run the relevant unit test before widening the build:
 
 ```sh
-just t parser_test_name
+cargo check --locked -p anno --no-default-features --lib
+cargo test --locked -p anno --no-default-features --lib edit_distance::tests::test_levenshtein_cjk
 ```
+
+For code behind a feature, add that feature to both commands. For an integration
+test, select its binary with `--test <name>`. Use `just t <filter>` to search
+across the crate's test targets. Keep incremental compilation enabled locally.
 
 For a CI-shaped check, disable incremental compilation. This makes Rust library
 compilations eligible for reuse by `sccache` when another clean target directory
