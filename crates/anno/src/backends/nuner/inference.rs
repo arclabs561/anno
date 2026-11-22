@@ -62,7 +62,7 @@ impl NuNER {
 
     /// Load NuNER model from HuggingFace.
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present. Auto-detects the 4k
+    /// Reads `HF_TOKEN` from the process environment if set. Auto-detects the 4k
     /// variant from the model ID (looks for "4k" case-insensitively) and sets
     /// the chunk threshold accordingly.
     ///

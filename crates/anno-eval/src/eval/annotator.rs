@@ -15,8 +15,7 @@
 //! | Metric | Description |
 //! |--------|-------------|
 //! | **Agreement Rate** | % of tokens/spans all annotators agree on |
-//! | **Fleiss' Kappa** | Chance-corrected agreement for multiple annotators |
-//! | **Krippendorff's Alpha** | Agreement metric that handles missing data |
+//! | **Fleiss' Kappa** | Chance-corrected agreement on type, over spans that two or more annotators marked |
 //! | **Soft F1** | F1 weighted by annotator agreement |
 //!
 //! # Example
@@ -137,6 +136,49 @@ impl AnnotatedDocument {
     }
 }
 
+// The document's grouping key identifies the rater, including for imported annotations.
+struct SpanRatings<'a> {
+    text: &'a str,
+    labels: HashMap<&'a str, HashSet<&'a str>>,
+}
+
+impl<'a> SpanRatings<'a> {
+    fn type_counts(&self) -> HashMap<&'a str, usize> {
+        let mut counts = HashMap::new();
+        for &label in self
+            .labels
+            .values()
+            .filter(|labels| labels.len() == 1)
+            .flatten()
+        {
+            *counts.entry(label).or_default() += 1;
+        }
+        counts
+    }
+}
+
+impl AnnotatedDocument {
+    fn span_ratings(&self) -> HashMap<(usize, usize), SpanRatings<'_>> {
+        let mut spans = HashMap::new();
+        for (rater, annotations) in &self.annotations {
+            for ann in annotations {
+                let ratings = spans
+                    .entry((ann.start, ann.end))
+                    .or_insert_with(|| SpanRatings {
+                        text: &ann.text,
+                        labels: HashMap::new(),
+                    });
+                ratings
+                    .labels
+                    .entry(rater.as_str())
+                    .or_default()
+                    .insert(&ann.entity_type);
+            }
+        }
+        spans
+    }
+}
+
 /// Corpus with multi-annotator annotations.
 #[derive(Debug, Clone, Default)]
 pub struct MultiAnnotatorCorpus {
@@ -196,7 +238,7 @@ pub struct AgreementStats {
     pub span_agreement: f64,
     /// Proportion of spans where all annotators agree on type
     pub type_agreement: f64,
-    /// Fleiss' kappa for span identification
+    /// Chance-corrected type agreement on spans rated by at least two annotators.
     pub fleiss_kappa: f64,
     /// Per-type agreement rates
     pub type_specific_agreement: HashMap<String, f64>,
@@ -219,7 +261,7 @@ pub struct ContentiousSpan {
     pub end: usize,
     /// Text
     pub text: String,
-    /// Types assigned by different annotators
+    /// All reported types, with each annotator listed once for each distinct label.
     pub types_assigned: HashMap<String, Vec<String>>, // type -> [annotators]
     /// Disagreement score (0 = full agreement, 1 = no agreement)
     pub disagreement: f64,
@@ -246,70 +288,48 @@ impl<'a> AnnotatorAnalyzer<'a> {
         let mut contentious: Vec<ContentiousSpan> = Vec::new();
 
         for (doc_id, doc) in &self.corpus.documents {
-            let spans = doc.unique_spans();
-            let annotators: Vec<_> = doc.annotators();
-
-            for (start, end) in spans {
+            let n_annotators = doc.annotations.len();
+            for ((start, end), ratings) in doc.span_ratings() {
                 span_total += 1;
-
-                // Collect annotations for this span
-                let mut types_for_span: HashMap<String, Vec<String>> = HashMap::new();
-                let mut annotators_with_span = 0;
-
-                for annotator in &annotators {
-                    if let Some(anns) = doc.annotations.get(*annotator) {
-                        for ann in anns {
-                            if ann.start == start && ann.end == end {
-                                types_for_span
-                                    .entry(ann.entity_type.clone())
-                                    .or_default()
-                                    .push((*annotator).to_string());
-                                annotators_with_span += 1;
-                            }
-                        }
-                    }
-                }
-
-                // Check span agreement (all annotators marked this span)
-                if annotators_with_span == annotators.len() {
+                if ratings.labels.len() == n_annotators {
                     span_agree_count += 1;
                 }
 
-                // Check type agreement
+                let votes = ratings.type_counts();
+                let best_count = votes.values().max().copied().unwrap_or(0);
+                let unanimous = best_count == n_annotators;
                 type_total += 1;
-                let all_same_type = types_for_span.len() == 1;
-                if all_same_type && annotators_with_span == annotators.len() {
+                if unanimous {
                     type_agree_count += 1;
                 }
 
-                // Track per-type agreement
-                for (etype, ann_list) in &types_for_span {
-                    let entry = type_counts.entry(etype.clone()).or_insert((0, 0));
+                // Each reported type has one denominator entry for this span, even
+                // if it was reported only by a rater with conflicting labels.
+                let mut types_for_span: HashMap<String, Vec<String>> = HashMap::new();
+                for (rater, labels) in &ratings.labels {
+                    for &label in labels {
+                        types_for_span
+                            .entry(label.to_owned())
+                            .or_default()
+                            .push((*rater).to_owned());
+                    }
+                }
+                for label in types_for_span.keys() {
+                    let entry = type_counts.entry(label.clone()).or_default();
                     entry.1 += 1;
-                    if ann_list.len() == annotators.len() {
+                    if unanimous {
                         entry.0 += 1;
                     }
                 }
 
-                // Track contentious spans
-                if types_for_span.len() > 1 || annotators_with_span < annotators.len() {
-                    let disagreement = 1.0
-                        - (types_for_span.values().map(|v| v.len()).max().unwrap_or(0) as f64
-                            / annotators.len() as f64);
-                    let text = doc
-                        .annotations
-                        .values()
-                        .flat_map(|anns| anns.iter())
-                        .find(|a| a.start == start && a.end == end)
-                        .map(|a| a.text.clone())
-                        .unwrap_or_default();
-
+                if !unanimous {
+                    let disagreement = 1.0 - best_count as f64 / n_annotators as f64;
                     contentious.push(ContentiousSpan {
                         doc_id: doc_id.clone(),
                         start,
                         end,
-                        text,
-                        types_assigned: types_for_span.clone(),
+                        text: ratings.text.to_owned(),
+                        types_assigned: types_for_span,
                         disagreement,
                     });
                 }
@@ -356,41 +376,37 @@ impl<'a> AnnotatorAnalyzer<'a> {
         }
     }
 
-    /// Compute Fleiss' kappa for inter-annotator agreement.
+    /// Compute Fleiss' kappa over the spans that two or more annotators marked.
+    ///
+    /// An item is a span; its votes are the types the annotators gave it.
+    /// Chance agreement is the sum of squared category proportions pooled
+    /// over those items, which is Fleiss' formula when every item has the
+    /// same number of votes. With unequal counts each span contributes equally
+    /// to observed agreement, while each vote contributes equally to chance agreement.
+    /// Each annotator supplies at most one type for a span. Conflicting labels
+    /// from one annotator leave that vote unspecified.
+    /// Spans marked by one annotator carry no agreement information and are
+    /// left out, so this measures agreement on type, not on span boundaries.
     fn compute_fleiss_kappa(&self) -> f64 {
-        // Simplified Fleiss' kappa computation
-        // Full implementation would need token-level annotation matrix
-
         let mut total_agreement = 0.0;
         let mut count = 0;
+        let mut category_votes: HashMap<&str, usize> = HashMap::new();
+        let mut all_votes = 0usize;
 
         for doc in self.corpus.documents.values() {
-            let spans = doc.unique_spans();
-            let n_annotators = doc.annotators().len();
-            if n_annotators < 2 {
-                continue;
-            }
-
-            for (start, end) in spans {
-                let mut votes: HashMap<String, usize> = HashMap::new();
-                let mut n_votes = 0;
-
-                for anns in doc.annotations.values() {
-                    for ann in anns {
-                        if ann.start == start && ann.end == end {
-                            *votes.entry(ann.entity_type.clone()).or_insert(0) += 1;
-                            n_votes += 1;
-                        }
-                    }
+            for ratings in doc.span_ratings().values() {
+                let counts = ratings.type_counts();
+                let n: usize = counts.values().sum();
+                if n < 2 {
+                    continue;
                 }
-
-                if n_votes >= 2 {
-                    // Agreement for this item
-                    let sum_sq: usize = votes.values().map(|v| v * v).sum();
-                    let p_i = (sum_sq - n_votes) as f64 / (n_votes * (n_votes - 1)) as f64;
-                    total_agreement += p_i;
-                    count += 1;
+                for (&label, &votes) in &counts {
+                    *category_votes.entry(label).or_insert(0) += votes;
                 }
+                let agreeing_pairs: f64 = counts.values().map(|&v| v as f64 * (v - 1) as f64).sum();
+                total_agreement += agreeing_pairs / (n as f64 * (n - 1) as f64);
+                count += 1;
+                all_votes += n;
             }
         }
 
@@ -399,10 +415,17 @@ impl<'a> AnnotatorAnalyzer<'a> {
         }
 
         let p_bar = total_agreement / count as f64;
-        // Simplified: assume uniform category distribution for P_e
-        let p_e = 0.5; // This should be computed from category frequencies
+        let p_e: f64 = category_votes
+            .values()
+            .map(|&v| {
+                let p = v as f64 / all_votes as f64;
+                p * p
+            })
+            .sum();
 
-        if (1.0_f64 - p_e).abs() < 1e-7 {
+        if category_votes.len() == 1 {
+            // Every vote is in one category: agreement is complete, and
+            // kappa is undefined; report it as full agreement.
             return 1.0;
         }
 
@@ -411,48 +434,23 @@ impl<'a> AnnotatorAnalyzer<'a> {
 
     /// Create a "soft" gold standard by aggregating annotations.
     ///
-    /// Returns annotations with confidence based on annotator agreement.
+    /// Confidence is the number of distinct raters voting for the selected type
+    /// divided by the number of raters on the document. A rater who gives a span
+    /// conflicting types supplies no type vote. A span with no type votes is omitted.
     pub fn aggregate_gold(&self, doc_id: &str) -> Vec<(Annotation, f64)> {
         let doc = match self.corpus.documents.get(doc_id) {
             Some(d) => d,
             None => return Vec::new(),
         };
 
-        let spans = doc.unique_spans();
-        let n_annotators = doc.annotators().len();
+        let n_annotators = doc.annotations.len();
         let mut result = Vec::new();
-
-        for (start, end) in spans {
-            let mut type_votes: HashMap<String, usize> = HashMap::new();
-            let mut text = String::new();
-            let mut total_votes = 0;
-
-            for anns in doc.annotations.values() {
-                for ann in anns {
-                    if ann.start == start && ann.end == end {
-                        *type_votes.entry(ann.entity_type.clone()).or_insert(0) += 1;
-                        text = ann.text.clone();
-                        total_votes += 1;
-                    }
-                }
-            }
-
-            if total_votes > 0 {
-                // Majority vote for type
-                let (best_type, best_count) = type_votes
-                    .iter()
-                    .max_by_key(|(_, c)| *c)
-                    .map(|(t, c)| (t.clone(), *c))
-                    .expect("type_votes should not be empty");
-
-                // Confidence based on agreement
-                let span_confidence = total_votes as f64 / n_annotators as f64;
-                let type_confidence = best_count as f64 / total_votes as f64;
-                let confidence = span_confidence * type_confidence;
-
+        for ((start, end), ratings) in doc.span_ratings() {
+            let votes = ratings.type_counts();
+            if let Some((best_type, best_count)) = votes.into_iter().max_by_key(|&(_, n)| n) {
                 result.push((
-                    Annotation::new(&text, start, end, &best_type, "aggregated"),
-                    confidence,
+                    Annotation::new(ratings.text, start, end, best_type, "aggregated"),
+                    best_count as f64 / n_annotators as f64,
                 ));
             }
         }
@@ -674,6 +672,67 @@ mod tests {
     }
 
     #[test]
+    fn repeated_labels_do_not_replace_a_missing_rater() {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        corpus.add_annotation("doc", "B", vec![]);
+        for copies in [1, 2, 3] {
+            corpus.add_annotation("doc", "A", vec![("x", 0, 1, "PER"); copies]);
+            let analyzer = AnnotatorAnalyzer::new(&corpus);
+            let stats = analyzer.compute_agreement();
+            assert_eq!((stats.span_agreement, stats.type_agreement), (0.0, 0.0));
+            assert_eq!(stats.type_specific_agreement["PER"], 0.0);
+            let span = &stats.contentious_spans[0];
+            assert_eq!(span.disagreement, 0.5);
+            assert_eq!(span.types_assigned["PER"], ["A"]);
+            let gold = analyzer.aggregate_gold("doc");
+            assert_eq!(gold.len(), 1);
+            assert_eq!(gold[0].1, 0.5);
+        }
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "PER"); 2]);
+        let analyzer = AnnotatorAnalyzer::new(&corpus);
+        let stats = analyzer.compute_agreement();
+        assert_eq!((stats.span_agreement, stats.type_agreement), (1.0, 1.0));
+        assert!(stats.contentious_spans.is_empty());
+        assert_eq!(stats.type_specific_agreement["PER"], 1.0);
+        assert_eq!(analyzer.aggregate_gold("doc")[0].1, 1.0);
+    }
+
+    #[test]
+    fn conflicting_labels_mark_presence_and_remain_in_diagnostics() {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "LOC"); 2]);
+        for labels in [["PER", "LOC", "PER"], ["LOC", "PER", "PER"]] {
+            corpus.add_annotation(
+                "doc",
+                "A",
+                labels.iter().map(|label| ("x", 0, 1, *label)).collect(),
+            );
+            let analyzer = AnnotatorAnalyzer::new(&corpus);
+            let stats = analyzer.compute_agreement();
+            assert_eq!((stats.span_agreement, stats.type_agreement), (1.0, 0.0));
+            assert_eq!(stats.type_specific_agreement["PER"], 0.0);
+            assert_eq!(stats.type_specific_agreement["LOC"], 0.0);
+            let span = &stats.contentious_spans[0];
+            assert_eq!(span.disagreement, 0.5);
+            assert_eq!(span.types_assigned["PER"], ["A"]);
+            let mut loc = span.types_assigned["LOC"].clone();
+            loc.sort();
+            assert_eq!(loc, ["A", "B"]);
+            let gold = analyzer.aggregate_gold("doc");
+            assert_eq!(gold.len(), 1);
+            assert_eq!(gold[0].0.entity_type, "LOC");
+            assert_eq!(gold[0].1, 0.5);
+        }
+        corpus.add_annotation("doc", "B", vec![("x", 0, 1, "LOC"), ("x", 0, 1, "ORG")]);
+        let analyzer = AnnotatorAnalyzer::new(&corpus);
+        assert!(analyzer.aggregate_gold("doc").is_empty());
+        assert_eq!(
+            analyzer.compute_agreement().contentious_spans[0].disagreement,
+            1.0
+        );
+    }
+
+    #[test]
     fn test_soft_evaluation() {
         let predictions = vec![Annotation::new("Obama", 0, 5, "PER", "model")];
         let gold_with_conf = vec![(Annotation::new("Obama", 0, 5, "PER", "gold"), 0.9)];
@@ -682,5 +741,79 @@ mod tests {
         let metrics = evaluator.evaluate(&predictions, &gold_with_conf);
 
         assert!(metrics.f1 > 0.8); // Should be close to 1.0 weighted by confidence
+    }
+
+    fn corpus_of(a: &[&'static str], b: &[&'static str]) -> MultiAnnotatorCorpus {
+        let mut corpus = MultiAnnotatorCorpus::new();
+        let spans = |types: &[&'static str]| -> Vec<(&'static str, usize, usize, &'static str)> {
+            types
+                .iter()
+                .enumerate()
+                .map(|(k, t)| ("x", 10 * k, 10 * k + 1, *t))
+                .collect()
+        };
+        corpus.add_annotation("doc", "A", spans(a));
+        corpus.add_annotation("doc", "B", spans(b));
+        corpus
+    }
+
+    #[test]
+    fn fleiss_kappa_uses_category_frequencies_for_chance_agreement() {
+        // Observed agreement 0.75; PER has 5 of 8 votes and LOC 3, so chance
+        // agreement is 34/64 and kappa is (0.75 - 0.53125) / 0.46875.
+        let corpus = corpus_of(&["PER", "PER", "PER", "LOC"], &["PER", "PER", "LOC", "LOC"]);
+        let kappa = AnnotatorAnalyzer::new(&corpus)
+            .compute_agreement()
+            .fleiss_kappa;
+        assert!((kappa - 0.466_666_7).abs() < 1e-6, "kappa = {kappa}");
+    }
+
+    #[test]
+    fn fleiss_kappa_is_near_zero_when_one_category_dominates() {
+        // Nine spans agreed as PER and one split: 90% observed agreement, but
+        // 90.5% is expected by chance. A fixed chance of 0.5 reported 0.8.
+        let mut a = vec!["PER"; 10];
+        let b = vec!["PER"; 10];
+        a[9] = "LOC";
+        let corpus = corpus_of(&a, &b);
+        let kappa = AnnotatorAnalyzer::new(&corpus)
+            .compute_agreement()
+            .fleiss_kappa;
+        assert!(
+            (kappa - (0.9 - 0.905) / 0.095).abs() < 1e-9,
+            "kappa = {kappa}"
+        );
+    }
+    #[test]
+    fn fleiss_kappa_counts_each_annotator_once_per_span() {
+        let mut corpus = corpus_of(&["PER", "LOC"], &["PER", "PER"]);
+        let expected = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        let a = corpus
+            .documents
+            .get_mut("doc")
+            .unwrap()
+            .annotations
+            .get_mut("A")
+            .unwrap();
+        a.push(a[1].clone());
+        // A span seen by A alone supplies no pair, even when A marks it twice.
+        a.extend(vec![Annotation::new("y", 30, 31, "ORG", "A"); 2]);
+        let actual = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        assert!((expected - actual).abs() < 1e-10, "{actual} vs {expected}");
+    }
+
+    #[test]
+    fn fleiss_kappa_omits_a_raters_conflicting_labels_regardless_of_order() {
+        let mut corpus = corpus_of(&["PER", "LOC"], &["PER", "PER"]);
+        let expected = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+        for labels in [["PER", "LOC"], ["LOC", "PER"]] {
+            corpus.add_annotation(
+                "doc",
+                "C",
+                vec![("x", 0, 1, labels[0]), ("x", 0, 1, labels[1])],
+            );
+            let actual = AnnotatorAnalyzer::new(&corpus).compute_fleiss_kappa();
+            assert!((expected - actual).abs() < 1e-10, "{actual} vs {expected}");
+        }
     }
 }
