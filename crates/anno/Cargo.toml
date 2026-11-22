@@ -166,6 +166,10 @@ required-features = ["gliner2-fastino"]
 # so without the feature it has no `main` and `cargo check --all-targets`
 # fails with E0601. Gate it the same way the iobinding bench is gated.
 [[example]]
+name = "onnx_directml_fallback"
+required-features = ["onnx-directml"]
+
+[[example]]
 name = "gliner2_candle_lora_demo"
 required-features = ["gliner2-fastino-candle"]
 
