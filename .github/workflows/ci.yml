@@ -172,10 +172,10 @@ jobs:
   test-eval:
     name: Test (eval)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &test-eval-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -236,6 +236,15 @@ jobs:
         run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
         run: cargo test -p anno --doc --features discourse
+  test-eval-trusted:
+    name: Test (eval) (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *test-eval-steps
+
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -531,10 +540,10 @@ jobs:
     name: Randomized Matrix Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &matrix-test-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -679,6 +688,16 @@ jobs:
             ${{ runner.temp }}/muxer-decisions.jsonl
             Cargo.lock
           if-no-files-found: warn
+  matrix-test-trusted:
+    name: Randomized Matrix Test (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *matrix-test-steps
+
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
@@ -715,10 +734,10 @@ jobs:
     name: Eval Sanity (small samples)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-sanity-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -788,6 +807,16 @@ jobs:
             reports/eval-sanity-report.md
             reports/eval-sanity-report.json
           if-no-files-found: warn
+  eval-sanity-trusted:
+    name: Eval Sanity (small samples) (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-sanity-steps
+
   # ==========================================================================
   # Full Evaluations (only on eval-* branches or manual trigger)
   # ==========================================================================
