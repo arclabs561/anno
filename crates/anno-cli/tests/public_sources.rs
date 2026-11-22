@@ -60,8 +60,12 @@ fn published_excerpts_have_expected_pattern_spans() {
 }
 
 #[cfg(feature = "eval")]
-#[test]
-fn fetch_published_span_over_http() {
+fn verify_http(
+    body: &'static [u8],
+    content_type: &'static str,
+    path: &str,
+    gold: &[(&str, &str, usize, usize)],
+) {
     use std::io::{BufRead, BufReader, Write};
     use std::net::TcpListener;
 
@@ -74,9 +78,31 @@ fn fetch_published_span_over_http() {
         while reader.read_line(&mut line).unwrap() != 0 && line != "\r\n" {
             line.clear();
         }
-        let body = include_str!("fixtures/public_sources/boe.txt");
-        write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
+        stream.write_all(body).unwrap();
     });
-    verify("--url", &format!("http://{address}/boe.txt"), BOE);
+    verify("--url", &format!("http://{address}/{path}"), gold);
     responder.join().unwrap();
+}
+
+#[cfg(feature = "eval")]
+#[test]
+fn fetch_published_span_over_http() {
+    verify_http(
+        include_bytes!("fixtures/public_sources/boe.txt"),
+        "text/plain; charset=utf-8",
+        "boe.txt",
+        BOE,
+    );
+}
+
+#[cfg(feature = "eval")]
+#[test]
+fn cp932_colophon_url_ends_at_its_fullwidth_delimiter() {
+    verify_http(
+        include_bytes!("fixtures/public_sources/aozora-footer.html.cp932"),
+        "text/html; charset=Shift_JIS",
+        "footer.html",
+        &[("http://www.aozora.gr.jp/", "URL", 25, 49)],
+    );
 }
