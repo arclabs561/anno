@@ -23,7 +23,7 @@ commit, and `Cargo.lock` with the run. The legacy `muxer_version` log field is
 
 ```bash
 mkdir -p .generated/sampler
-receipt_dir=$(mktemp -d .generated/sampler/smoke.XXXXXX)
+receipt_dir=$(mktemp -d "$PWD/.generated/sampler/smoke.XXXXXX")
 
 ANNO_MATRIX_REQUIRE_CACHED=1 \
 ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=0 \
