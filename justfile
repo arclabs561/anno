@@ -266,8 +266,19 @@ eval-sanity:
 
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
-qa-panel ANNO_BIN SUITE="smoke" OUT=".generated/anno-qa/fixed-panel":
-    python3 scripts/qa/run_panel.py --anno-bin {{quote(ANNO_BIN)}} --suite {{quote(SUITE)}} --output-dir {{quote(OUT)}}
+qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$OUT" ]]; then
+        mkdir -p .generated/anno-qa
+        OUT=$(mktemp -d "$PWD/.generated/anno-qa/fixed-panel.XXXXXXXX")
+    fi
+    echo "QA panel output: $OUT"
+    python3 scripts/qa/run_panel.py --anno-bin "$ANNO_BIN" --suite "$SUITE" --output-dir "$OUT"
+
+# Run the offline Python QA contracts discovered by CI.
+qa-test:
+    python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
 
 # Exercise the fixed-panel failure gates without models or network access.
 qa-panel-test:

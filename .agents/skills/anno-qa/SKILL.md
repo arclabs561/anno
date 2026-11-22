@@ -15,8 +15,8 @@ developers or coding agents; it does not require a particular harness.
    `docs/EVALUATION_SAMPLING.md`. Keep receipts in a fresh directory:
 
    ```bash
-   REC="$PWD/.generated/anno-qa/run-001"
-   mkdir -p "$REC"
+   mkdir -p .generated/anno-qa
+   REC=$(mktemp -d "$PWD/.generated/anno-qa/run.XXXXXXXX")
    git rev-parse HEAD > "$REC/commit.txt"
    git diff > "$REC/working-tree.patch"
    cp Cargo.lock "$REC/Cargo.lock"
@@ -77,8 +77,7 @@ developers or coding agents; it does not require a particular harness.
    per-seed artifacts so a failed or minimal binary cannot pass using old JSON.
 
    ```bash
-   REC="$PWD/.generated/anno-qa/fixed-panel-001"
-   just qa-panel "$PWD/target/debug/anno" smoke "$REC"
+   just qa-panel "$PWD/target/debug/anno" smoke "$REC/fixed-panel"
    ```
 
    Run `--suite ner-baseline`, `classical-ner`, or `coref-diagnostic` only
