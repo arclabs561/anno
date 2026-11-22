@@ -5,6 +5,7 @@
 //! cached locally (~280M base, plus tokenizer/config). Run with:
 //!
 //! ```bash
+//! hf download fastino/gliner2-multi-v1 --revision ce747d79a8e362d3dee0b0b26d1201f7f1a8615a
 //! cargo test -p anno --features gliner2-fastino-candle \
 //!     --test gliner2_fastino_candle_integration -- --ignored --nocapture
 //! ```
@@ -33,50 +34,45 @@ fn from_pretrained_smoke() {
 
 #[test]
 #[ignore]
-fn parity_onnx_candle_extract_with_types() {
-    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
-    let candle =
-        GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
-
-    let text = "Marie Curie won the Nobel Prize in Physics in 1903.";
-    let types = ["person", "award", "year"];
-
-    let onnx_result =
-        ZeroShotNER::extract_with_types(&onnx, text, &types, 0.5).expect("ONNX extract");
-    let candle_result =
-        ZeroShotNER::extract_with_types(&candle, text, &types, 0.5).expect("Candle extract");
-
-    eprintln!("onnx ({}): {:#?}", onnx_result.len(), onnx_result);
-    eprintln!("candle ({}): {:#?}", candle_result.len(), candle_result);
-
-    let mut onnx_sorted = onnx_result.clone();
-    let mut candle_sorted = candle_result.clone();
-    onnx_sorted.sort_by_key(|e| (e.start(), e.end(), e.text.clone()));
-    candle_sorted.sort_by_key(|e| (e.start(), e.end(), e.text.clone()));
-
-    assert_eq!(
-        onnx_sorted.len(),
-        candle_sorted.len(),
-        "entity count mismatch: onnx={}, candle={}",
-        onnx_sorted.len(),
-        candle_sorted.len()
-    );
-
-    let mut max_diff: f64 = 0.0;
-    for (o, c) in onnx_sorted.iter().zip(candle_sorted.iter()) {
-        assert_eq!(o.start(), c.start(), "start mismatch: {o:?} vs {c:?}");
-        assert_eq!(o.end(), c.end(), "end mismatch: {o:?} vs {c:?}");
-        assert_eq!(o.text, c.text, "text mismatch: {o:?} vs {c:?}");
-        let diff = (o.confidence.value() - c.confidence.value()).abs();
-        if diff > max_diff {
-            max_diff = diff;
+fn extraction_matches_python_spans_and_scores() {
+    // Recorded with gliner2 2.2.0, CPU float32, at this checkpoint.
+    let revision = "ce747d79a8e362d3dee0b0b26d1201f7f1a8615a";
+    let snapshot = hf_hub::Cache::from_env()
+        .model("fastino/gliner2-multi-v1".into())
+        .pointer_path(revision);
+    let check = |model: &dyn ZeroShotNER| {
+        let mut entities = model
+            .extract_with_types(
+                "Élodie met Ada Lovelace in Zürich.",
+                &["person", "organization", "location"],
+                0.5,
+            )
+            .unwrap();
+        entities.sort_by_key(|e| e.start());
+        let expected = [
+            ("Élodie", "PER", 0, 6, 0.9998294),
+            ("Ada Lovelace", "PER", 11, 23, 0.9997054),
+            ("Zürich", "LOC", 27, 33, 0.9995928),
+        ];
+        assert_eq!(entities.len(), expected.len(), "{entities:?}");
+        for (entity, (text, label, start, end, probability)) in entities.iter().zip(expected) {
+            assert_eq!(
+                (
+                    entity.text.as_str(),
+                    entity.entity_type.as_label(),
+                    entity.start(),
+                    entity.end()
+                ),
+                (text, label, start, end)
+            );
+            assert!(
+                (entity.confidence.value() - probability).abs() < 5e-3,
+                "{entity:?}"
+            );
         }
-    }
-    eprintln!("ONNX↔Candle max_abs_diff: {max_diff}");
-    assert!(
-        max_diff < 5e-3,
-        "parity broken: max_abs_diff = {max_diff} > 5e-3"
-    );
+    };
+    check(&GLiNER2FastinoCandle::from_local(&snapshot).expect("load pinned Candle checkpoint"));
+    check(&GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX"));
 }
 
 #[test]
@@ -85,10 +81,6 @@ fn parity_onnx_candle_long_text_many_types() {
     // Validation: stress the pipeline with longer text + more entity
     // types than the basic parity test. If parity holds here, the
     // port works on realistic inputs.
-    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
-    let candle =
-        GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
-
     let text = "On January 15, 2026, Apple CEO Tim Cook met Google CEO Sundar Pichai in \
                 Seattle. The deal, worth EUR 3.2 billion, closes on March 15, 2026. \
                 Contact press@apple.com or call +1-555-867-5309. The European Central \
@@ -111,10 +103,14 @@ fn parity_onnx_candle_long_text_many_types() {
         "percentage",
     ];
 
-    let onnx_result =
-        ZeroShotNER::extract_with_types(&onnx, text, &types, 0.5).expect("ONNX extract long");
-    let candle_result =
-        ZeroShotNER::extract_with_types(&candle, text, &types, 0.5).expect("Candle extract long");
+    let onnx_result = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
+        .expect("load ONNX")
+        .extract_with_types(text, &types, 0.5)
+        .expect("ONNX extract long");
+    let candle_result = GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1")
+        .expect("load Candle")
+        .extract_with_types(text, &types, 0.5)
+        .expect("Candle extract long");
 
     eprintln!(
         "long-text onnx ({}) candle ({})",
@@ -167,15 +163,15 @@ fn parity_onnx_candle_classify() {
     // count_pred → classifier → softmax) must match the ONNX classify
     // path. Without this test, half of the Candle backend (the classify
     // half) is unverified.
-    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
-    let candle =
-        GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
-
     let text = "I absolutely loved every minute of the show — wonderful experience!";
     let labels = ["positive", "negative", "neutral"];
 
-    let onnx_result = onnx.classify(text, &labels, 0.5).expect("ONNX classify");
-    let candle_result = candle
+    let onnx_result = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
+        .expect("load ONNX")
+        .classify(text, &labels, 0.5)
+        .expect("ONNX classify");
+    let candle_result = GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1")
+        .expect("load Candle")
         .classify(text, &labels, 0.5)
         .expect("Candle classify");
 

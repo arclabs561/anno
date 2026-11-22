@@ -1,0 +1,15 @@
+{
+  "source": "AMI Meeting Corpus, manual annotations v1.6.2 (Jean Carletta et al.), meeting ES2002a",
+  "archive": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+  "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+  "license": "CC BY 4.0, https://creativecommons.org/licenses/by/4.0/",
+  "adaptation": "Six noncontiguous excerpts in segment-start order. Words and punctuation come from words/ES2002a.{channel}.words.xml, using inclusive word IDs. Names are from speakers' introductions in segments sync.4 (David), sync.288 (Craig), and sync.330 (Andrew). Name prefixes, spaces and line breaks are our formatting. Only the specified first-person singular mentions have labels, derived from the annotated speaker channel. AMI did not annotate these coreference links.",
+  "turns": [
+    {"channel":"D", "speaker":"Andrew", "segment":"sync.340", "words":[26,32], "excerpt":"I will go. That's fine.", "mention":"I", "span":[0,1]},
+    {"channel":"C", "speaker":"Craig", "segment":"sync.294", "words":[11,20], "excerpt":"Well, my favourite animal would be a monkey.", "mention":"my", "span":[6,8]},
+    {"channel":"A", "speaker":"David", "segment":"sync.29", "words":[159,161], "excerpt":"I think.", "mention":"I", "span":[0,1]},
+    {"channel":"D", "speaker":"Andrew", "segment":"sync.425", "words":[352,355], "excerpt":"I don't know.", "mention":"I", "span":[0,1]},
+    {"channel":"C", "speaker":"Craig", "segment":"sync.319", "words":[60,62], "excerpt":"I know um", "mention":"I", "span":[0,1]},
+    {"channel":"A", "speaker":"David", "segment":"sync.61", "words":[261,262], "excerpt":"I think", "mention":"I", "span":[0,1]}
+  ]
+}
