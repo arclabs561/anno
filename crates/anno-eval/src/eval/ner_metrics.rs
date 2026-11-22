@@ -90,6 +90,10 @@ impl EvalSpan {
     pub fn type_match(&self, other: &Self) -> bool {
         super::entity_type_matches(&self.entity_type, &other.entity_type)
     }
+
+    fn type_key(&self) -> String {
+        format!("{:?}", EntityType::from_label(self.entity_type.as_label()))
+    }
 }
 
 impl From<&Entity> for EvalSpan {
@@ -319,25 +323,11 @@ pub struct NerEvalSummary {
 ///
 /// Implements SemEval-2013 Task 9.1 evaluation methodology.
 ///
-/// # Boundary Error Handling
+/// Exact matches take precedence over partial overlaps. Within each match
+/// priority we choose a maximum-cardinality assignment in canonical span order.
+/// Each gold span and prediction contributes to at most one pair.
 ///
-/// This implementation uses **greedy matching** to assign predictions to gold entities:
-/// - Each gold entity is matched to at most one prediction (best match by priority)
-/// - Each prediction is matched to at most one gold entity
-/// - Boundary errors (overlapping but inexact spans) are counted as **one incorrect match**
-///   - The unmatched gold becomes a false negative (FN)
-///   - The unmatched prediction becomes a false positive (FP)
-///
-/// **Note**: This is NOT the double-penalty issue described in AIDA-CoNLL (D13-1027).
-/// The double-penalty occurs when boundary errors are counted as both FP and FN for the
-/// same entity pair. Our greedy matching avoids this by ensuring each entity is only
-/// counted once.
-///
-/// However, boundary errors still result in two errors total (one incorrect match + one FN + one FP),
-/// which is more than a complete miss (one FN). This is intentional and reflects that
-/// boundary errors are more problematic than complete misses in many applications.
-///
-/// # Example
+////// # Example
 ///
 /// ```
 /// use anno_eval::eval::ner_metrics::{evaluate_ner, EvalSpan};
@@ -364,47 +354,64 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
     // Track which predictions have been matched
     let mut matched_preds: Vec<bool> = vec![false; predicted.len()];
 
-    // Assign pairs best match first across all gold spans, so an exact match is
-    // never taken by an earlier gold span that only overlaps the prediction
-    // (as in nervaluate). Ties keep gold order, then prediction order.
-    let mut candidates: Vec<(usize, usize, MatchType)> = Vec::new();
-    for (gold_idx, gold_span) in gold.iter().enumerate() {
-        for (pred_idx, pred_span) in predicted.iter().enumerate() {
-            let match_type = classify_match(gold_span, pred_span);
-            if match_type != MatchType::None {
-                candidates.push((gold_idx, pred_idx, match_type));
-            }
-        }
+    // Stable span order also fixes which equally good assignment is frozen
+    // before the next priority is considered.
+    fn canonical_order(spans: &[EvalSpan]) -> Vec<usize> {
+        let mut indices: Vec<_> = (0..spans.len()).collect();
+        indices.sort_by_cached_key(|&i| (spans[i].start, spans[i].end, spans[i].type_key()));
+        indices
     }
-    candidates.sort_by_key(|&(_, _, m)| std::cmp::Reverse(m.priority()));
-    let mut gold_match: Vec<Option<(usize, MatchType)>> = vec![None; gold.len()];
-    for (gold_idx, pred_idx, match_type) in candidates {
-        if gold_match[gold_idx].is_none() && !matched_preds[pred_idx] {
-            gold_match[gold_idx] = Some((pred_idx, match_type));
-            matched_preds[pred_idx] = true;
+    let gold_order = canonical_order(gold);
+    let pred_order = canonical_order(predicted);
+    let mut gold_match = vec![None; gold.len()];
+    for tier in [
+        MatchType::ExactBoth,
+        MatchType::ExactBoundaryWrongType,
+        MatchType::PartialBoundaryCorrectType,
+        MatchType::PartialBoundaryWrongType,
+    ] {
+        let gs: Vec<_> = gold_order
+            .iter()
+            .copied()
+            .filter(|&g| gold_match[g].is_none())
+            .collect();
+        let ps: Vec<_> = pred_order
+            .iter()
+            .copied()
+            .filter(|&p| !matched_preds[p])
+            .collect();
+        let pairs = super::matching::maximum_cardinality_matching(ps.len(), gs.len(), |p, g| {
+            classify_match(&gold[gs[g]], &predicted[ps[p]]) == tier
+        });
+        for (p, g) in pairs.into_iter().enumerate() {
+            if let Some(g) = g {
+                gold_match[gs[g]] = Some((ps[p], tier));
+                matched_preds[ps[p]] = true;
+            }
         }
     }
 
     for (gold_span, best_match) in gold.iter().zip(gold_match) {
-        let entity_type_str = format!(
-            "{:?}",
-            EntityType::from_label(gold_span.entity_type.as_label())
-        );
+        let type_counts = results.by_type.entry(gold_span.type_key()).or_default();
 
         match best_match {
             Some((pred_idx, match_type)) => {
                 let pred_span = &predicted[pred_idx];
 
-                // Update counts based on match type
-                update_counts(&mut results, gold_span, pred_span, match_type);
-
-                // Per-type tracking (strict mode)
-                let type_counts = results.by_type.entry(entity_type_str).or_default();
+                // A wrong type consumes one gold item and one prediction in different classes.
                 if match_type == MatchType::ExactBoth {
                     type_counts.correct += 1;
-                } else {
+                } else if match_type == MatchType::PartialBoundaryCorrectType {
                     type_counts.incorrect += 1;
+                } else {
+                    type_counts.missed += 1;
+                    results
+                        .by_type
+                        .entry(pred_span.type_key())
+                        .or_default()
+                        .spurious += 1;
                 }
+                update_counts(&mut results, gold_span, pred_span, match_type);
             }
             None => {
                 // Missing: gold entity not found
@@ -413,7 +420,7 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
                 results.partial.missed += 1;
                 results.ent_type.missed += 1;
 
-                results.by_type.entry(entity_type_str).or_default().missed += 1;
+                type_counts.missed += 1;
             }
         }
     }
@@ -426,11 +433,11 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
             results.partial.spurious += 1;
             results.ent_type.spurious += 1;
 
-            let entity_type_str = format!(
-                "{:?}",
-                EntityType::from_label(predicted[pred_idx].entity_type.as_label())
-            );
-            results.by_type.entry(entity_type_str).or_default().spurious += 1;
+            results
+                .by_type
+                .entry(predicted[pred_idx].type_key())
+                .or_default()
+                .spurious += 1;
         }
     }
 
@@ -450,19 +457,6 @@ enum MatchType {
     ExactBoundaryWrongType,
     /// Exact boundary AND type match
     ExactBoth,
-}
-
-impl MatchType {
-    /// Priority for selecting best match (higher = better).
-    fn priority(self) -> u8 {
-        match self {
-            MatchType::None => 0,
-            MatchType::PartialBoundaryWrongType => 1,
-            MatchType::PartialBoundaryCorrectType => 2,
-            MatchType::ExactBoundaryWrongType => 3,
-            MatchType::ExactBoth => 4,
-        }
-    }
 }
 
 /// Classify the match type between gold and predicted spans.
@@ -615,6 +609,33 @@ mod tests {
     }
 
     #[test]
+    fn wnut_gold_and_decoded_labels_share_type_counts() {
+        use crate::eval::loader::{DatasetId, DatasetLoader};
+        use anno::schema::{map_to_canonical, DatasetSchema};
+
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        for label in DatasetId::Wnut17.entity_types() {
+            let data = loader
+                .parse_content_str(&format!("example\tB-{label}\n"), DatasetId::Wnut17)
+                .unwrap();
+            let gold_type = data.sentences[0].entities().pop().unwrap().entity_type;
+            let type_key = format!("{gold_type:?}");
+            let gold = [span(gold_type, 0, 7)];
+            let pred = [
+                span(map_to_canonical(label, None), 0, 7),
+                span(map_to_canonical(label, Some(DatasetSchema::WNUT17)), 8, 15),
+            ];
+
+            let results = evaluate_ner(&gold, &pred);
+            assert_eq!(results.strict.correct, 1, "{label}");
+            assert_eq!(results.by_type.len(), 1, "{label}");
+            let counts = &results.by_type[&type_key];
+            assert_eq!((counts.correct, counts.spurious), (1, 1), "{label}");
+        }
+    }
+
+    #[test]
     fn test_partial_boundary() {
         let gold = vec![span(EntityType::Person, 0, 10)];
         let pred = vec![span(EntityType::Person, 0, 8)]; // Partial overlap
@@ -622,6 +643,7 @@ mod tests {
         let results = evaluate_ner(&gold, &pred);
         // Strict: incorrect (boundary mismatch)
         assert_eq!(results.strict.incorrect, 1);
+        assert_eq!(results.by_type["Person"].incorrect, 1);
         // Exact: incorrect (boundary mismatch)
         assert_eq!(results.exact.incorrect, 1);
         // Partial: partial match
@@ -707,12 +729,28 @@ mod tests {
 
         let results = evaluate_ner(&gold, &pred);
 
-        // Check per-type breakdown
-        let person_counts = results.by_type.get("Person").unwrap();
-        assert_eq!(person_counts.correct, 1);
-        assert_eq!(person_counts.incorrect, 1);
+        let person = &results.by_type["Person"];
+        assert_eq!((person.correct, person.missed, person.actual()), (1, 1, 1));
+        let org = &results.by_type["Organization"];
+        assert_eq!((org.spurious, org.possible(), org.actual()), (1, 0, 1));
+        assert_eq!(results.by_type["Location"].correct, 1);
+        assert_eq!(results.strict.incorrect, 1);
+    }
+}
 
-        let loc_counts = results.by_type.get("Location").unwrap();
-        assert_eq!(loc_counts.correct, 1);
+#[cfg(test)]
+#[test]
+fn overlapping_entities_score_the_same_in_every_order() {
+    let person = |a, b| EvalSpan::new(EntityType::Person, a, b, "x");
+    let mut gold = vec![person(0, 4), person(5, 9)];
+    let mut pred = vec![person(2, 7), person(0, 2)];
+    for _ in 0..2 {
+        for _ in 0..2 {
+            let scores = evaluate_ner(&gold, &pred);
+            assert_eq!(scores.partial.partial, 2);
+            assert_eq!(scores.ent_type.correct, 2);
+            pred.reverse();
+        }
+        gold.reverse();
     }
 }
