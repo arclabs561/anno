@@ -2,13 +2,16 @@
 
 use clap::{Parser, ValueEnum};
 use std::fs;
-use std::time::Instant;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 #[cfg(feature = "eval")]
 use super::super::output::print_matches;
 use super::super::output::{color, metric_colored};
 use super::super::parser::ModelBackend;
-use super::super::utils::{get_input_text, load_gold_from_file, parse_gold_spec};
+use super::super::utils::{
+    get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document, source_sha256,
+};
 
 use anno::core::grounded::{
     render_eval_html, EvalComparison, EvalMatch, Location, Signal, SignalId,
@@ -49,6 +52,10 @@ pub struct EvalArgs {
     /// Model backend to use
     #[arg(short, long, default_value = "stacked")]
     pub model: ModelBackend,
+
+    /// Score predictions from a saved GroundedDocument with the same source text.
+    #[arg(long, value_name = "FILE", conflicts_with = "model")]
+    pub predictions: Option<PathBuf>,
 
     /// Metric family to report (default: entity)
     #[arg(long, value_enum, default_value = "entity")]
@@ -92,15 +99,25 @@ pub struct EvalArgs {
     pub positional: Vec<String>,
 }
 
+enum PredictionSource {
+    Live {
+        model: ModelBackend,
+        elapsed: Duration,
+    },
+    Saved {
+        document_id: String,
+    },
+}
+
 /// Execute the eval command.
 pub fn run(args: EvalArgs) -> Result<(), String> {
     let text = get_input_text(&args.text, args.file.as_deref(), &args.positional)?;
 
     // Load gold from file or args
-    let gold = if let Some(gold_file) = &args.gold_file {
-        load_gold_from_file(gold_file)?
+    let (gold, gold_id) = if let Some(gold_file) = &args.gold_file {
+        load_gold_from_file(gold_file, &text)?
     } else if !args.gold_specs.is_empty() {
-        args.gold_specs
+        let annotations = args.gold_specs
             .iter()
             .enumerate()
             .map(|(i, spec)| {
@@ -108,7 +125,8 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                     format!("Invalid --gold #{}: expected text:label:start:end with unsigned character offsets", i + 1)
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()?;
+        (annotations, None)
     } else {
         return Err(
             "No gold annotations. Use -g 'text:label:start:end' or --gold-file path.jsonl"
@@ -141,13 +159,62 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         }
     }
 
-    let model = args.model.create_model()?;
-
-    let start = Instant::now();
-    let entities = model
-        .extract_entities(&text, None)
-        .map_err(|e| format!("Extraction failed: {}", e))?;
-    let elapsed = start.elapsed();
+    let (entities, pred_signals, prediction_source) = if let Some(path) = &args.predictions {
+        let json = fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read predictions {}: {e}", path.display()))?;
+        let doc = parse_grounded_document(&json)?;
+        if gold_id.as_deref().is_some_and(|id| id != doc.id()) {
+            return Err("Gold document ID differs from saved prediction document ID".into());
+        }
+        if doc.text() != text {
+            return Err("Prediction source text differs from evaluation input".into());
+        }
+        for signal in doc.signals() {
+            if !matches!(signal.location, Location::Text { .. }) {
+                return Err(format!(
+                    "Prediction {} requires a contiguous text span for this evaluator",
+                    signal.id
+                ));
+            }
+            if signal.label().trim().is_empty() || !(0.0..=1.0).contains(&signal.confidence) {
+                return Err(format!(
+                    "Prediction {} has an invalid label or confidence",
+                    signal.id
+                ));
+            }
+        }
+        (
+            doc.to_entities(),
+            doc.signals().to_vec(),
+            PredictionSource::Saved {
+                document_id: doc.id().to_owned(),
+            },
+        )
+    } else {
+        let model = args.model.create_model()?;
+        let start = Instant::now();
+        let entities = model
+            .extract_entities(&text, None)
+            .map_err(|e| format!("Extraction failed: {e}"))?;
+        let elapsed = start.elapsed();
+        let signals = entities
+            .iter()
+            .enumerate()
+            .map(|(i, entity)| {
+                let mut signal = Signal::from(entity);
+                signal.id = SignalId::new(i as u64);
+                signal
+            })
+            .collect();
+        (
+            entities,
+            signals,
+            PredictionSource::Live {
+                model: args.model,
+                elapsed,
+            },
+        )
+    };
 
     // Build signals
     let gold_signals: Vec<Signal<Location>> = gold
@@ -161,16 +228,6 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 g.label.as_str(),
                 1.0,
             )
-        })
-        .collect();
-
-    let pred_signals: Vec<Signal<Location>> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            let mut s = Signal::from(e);
-            s.id = SignalId::new(i as u64);
-            s
         })
         .collect();
 
@@ -226,9 +283,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
     // Output
     if args.json {
         let mut output = serde_json::json!({
-            "model": args.model.name(),
             "metric": args.metric.name(),
-            "elapsed_ms": elapsed.as_secs_f64() * 1000.0,
             "gold_count": cmp.gold.len(),
             "predicted_count": cmp.predicted.len(),
             "correct": cmp.correct_count(),
@@ -237,6 +292,21 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             "recall": cmp.recall(),
             "f1": cmp.f1(),
         });
+
+        match &prediction_source {
+            PredictionSource::Live { model, elapsed } => {
+                output["model"] = serde_json::json!(model.name());
+                output["elapsed_ms"] = serde_json::json!(elapsed.as_secs_f64() * 1000.0);
+            }
+            PredictionSource::Saved { document_id } => {
+                output["model"] = serde_json::Value::Null;
+                output["elapsed_ms"] = serde_json::Value::Null;
+                output["predictions"] = serde_json::json!({
+                    "document_id": document_id,
+                    "source_sha256": source_sha256(&text),
+                });
+            }
+        }
 
         let matches: Vec<_> = cmp
             .matches
@@ -309,12 +379,19 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 "======================================================================="
             )
         );
-        println!(
-            "  {}  model={}  time={:.1}ms",
-            color("1;36", "EVALUATION"),
-            args.model.name(),
-            elapsed.as_secs_f64() * 1000.0
-        );
+        match &prediction_source {
+            PredictionSource::Live { model, elapsed } => println!(
+                "  {}  model={}  time={:.1}ms",
+                color("1;36", "EVALUATION"),
+                model.name(),
+                elapsed.as_secs_f64() * 1000.0
+            ),
+            PredictionSource::Saved { document_id } => println!(
+                "  {}  saved predictions for {}",
+                color("1;36", "EVALUATION"),
+                document_id
+            ),
+        }
         println!(
             "  gold={}  pred={}  correct={}  errors={}",
             cmp.gold.len(),

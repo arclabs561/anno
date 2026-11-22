@@ -3787,45 +3787,50 @@ impl EvalComparison {
         let mut gold_matched = vec![false; gold.len()];
         let mut pred_matched = vec![false; predicted.len()];
 
-        // First pass: find exact matches and type mismatches
-        for (pi, pred) in predicted.iter().enumerate() {
-            let pred_offsets = match pred.location.text_offsets() {
-                Some(o) => o,
-                None => continue,
-            };
-
-            for (gi, g) in gold.iter().enumerate() {
-                if gold_matched[gi] {
+        // Reserve all exact (location, label) matches before assigning type errors.
+        // Stable IDs break ties between interchangeable occurrences at the same span.
+        let mut gold_order: Vec<_> = (0..gold.len()).collect();
+        gold_order.sort_unstable_by_key(|&i| gold[i].id);
+        let mut pred_order: Vec<_> = (0..predicted.len()).collect();
+        pred_order.sort_unstable_by_key(|&i| predicted[i].id);
+        for same_label in [true, false] {
+            for &pi in &pred_order {
+                if pred_matched[pi] {
                     continue;
                 }
-                let gold_offsets = match g.location.text_offsets() {
-                    Some(o) => o,
-                    None => continue,
+                let pred = &predicted[pi];
+                let Some(offsets) = pred.location.text_offsets() else {
+                    continue;
                 };
-
-                // Exact span match
-                if pred_offsets == gold_offsets {
-                    if pred.label == g.label {
-                        matches.push(EvalMatch::Correct {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                        });
-                    } else {
-                        matches.push(EvalMatch::TypeMismatch {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                            gold_label: g.label.to_string(),
-                            pred_label: pred.label.to_string(),
-                        });
+                let Some(&gi) = gold_order.iter().find(|&&gi| {
+                    let g = &gold[gi];
+                    !gold_matched[gi]
+                        && (g.label == pred.label) == same_label
+                        && g.location.text_offsets() == Some(offsets)
+                }) else {
+                    continue;
+                };
+                let g = &gold[gi];
+                let matched = if same_label {
+                    EvalMatch::Correct {
+                        gold_id: g.id,
+                        pred_id: pred.id,
                     }
-                    gold_matched[gi] = true;
-                    pred_matched[pi] = true;
-                    break;
-                }
+                } else {
+                    EvalMatch::TypeMismatch {
+                        gold_id: g.id,
+                        pred_id: pred.id,
+                        gold_label: g.label.to_string(),
+                        pred_label: pred.label.to_string(),
+                    }
+                };
+                matches.push(matched);
+                gold_matched[gi] = true;
+                pred_matched[pi] = true;
             }
         }
 
-        // Second pass: find boundary errors (overlapping but not exact)
+        // Assign boundary errors after the exact-location matches.
         for (pi, pred) in predicted.iter().enumerate() {
             if pred_matched[pi] {
                 continue;
@@ -4844,6 +4849,56 @@ mod tests {
     #![allow(clippy::unwrap_used)] // unwrap() is acceptable in test code
     use super::*;
     use crate::EntityCategory;
+
+    #[test]
+    fn exact_typed_counts_equal_multiset_intersection_for_all_small_inputs() {
+        // Every ordered sequence of up to three signals drawn from two spans
+        // and two labels, including empty sequences and repeated occurrences.
+        let mut cases = Vec::new();
+        for length in 0..=3 {
+            for mut code in 0..4usize.pow(length) {
+                let mut counts = [0usize; 4];
+                let mut signals = Vec::new();
+                for id in 0..length {
+                    let kind = code % 4;
+                    code /= 4;
+                    counts[kind] += 1;
+                    let start = kind / 2;
+                    signals.push(Signal::new(
+                        SignalId::new(u64::from(id)),
+                        Location::text(start, start + 1),
+                        ["A", "B"][start],
+                        ["PER", "ORG"][kind % 2],
+                        1.0,
+                    ));
+                }
+                cases.push((signals, counts));
+            }
+        }
+        for (gold, gold_counts) in &cases {
+            for (predicted, pred_counts) in &cases {
+                // The oracle uses only per-kind multiplicities and never pairs signals.
+                let expected: usize = gold_counts
+                    .iter()
+                    .zip(pred_counts)
+                    .map(|(g, p)| g.min(p))
+                    .sum();
+                let score = EvalComparison::compare("AB", gold.clone(), predicted.clone());
+                assert_eq!(
+                    score.correct_count(),
+                    expected,
+                    "gold={gold_counts:?}, predicted={pred_counts:?}"
+                );
+                let n = gold.len() + predicted.len();
+                let f1 = if n == 0 {
+                    0.0
+                } else {
+                    2.0 * expected as f64 / n as f64
+                };
+                assert!((score.f1() - f1).abs() < 1e-12);
+            }
+        }
+    }
 
     #[test]
     fn test_render_eval_html_has_interactive_hooks_and_is_unicode_safe() {
