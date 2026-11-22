@@ -82,7 +82,7 @@ pub use confidence::Confidence;
 pub use entity::{
     generate_span_candidates, DiscontinuousSpan, Entity, EntityBuilder, EntityCategory, EntityType,
     ExtractionMethod, HashMapLexicon, HierarchicalConfidence, Lexicon, Provenance, RaggedBatch,
-    Relation, Span, SpanCandidate, TypeMapper, ValidationIssue,
+    Relation, Span, SpanCandidate, SpanCoverage, TypeMapper, ValidationIssue,
 };
 
 pub use grounded::{
