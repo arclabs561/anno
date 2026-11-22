@@ -2827,27 +2827,7 @@ impl TaskEvaluator {
         // character base offset per document.
         let mut cumulative_char_base: usize = 0;
 
-        fn offset_chains(
-            mut chains: Vec<crate::eval::coref::CorefChain>,
-            base: usize,
-        ) -> Vec<crate::eval::coref::CorefChain> {
-            if base == 0 {
-                return chains;
-            }
-            for chain in &mut chains {
-                for m in &mut chain.mentions {
-                    m.start = m.start.saturating_add(base);
-                    m.end = m.end.saturating_add(base);
-                    if let Some(hs) = m.head_start.as_mut() {
-                        *hs = hs.saturating_add(base);
-                    }
-                    if let Some(he) = m.head_end.as_mut() {
-                        *he = he.saturating_add(base);
-                    }
-                }
-            }
-            chains
-        }
+        use super::coref::offset_chains;
 
         for doc in &gold_docs {
             let doc_base = cumulative_char_base;
