@@ -430,7 +430,11 @@ fn file_identity(path: &Path) -> std::io::Result<same_file::Handle> {
     same_file::Handle::from_path(path)
 }
 
-fn write_output(path: &Path, content: impl AsRef<[u8]>, overwrite: bool) -> std::io::Result<()> {
+pub(super) fn write_output(
+    path: &Path,
+    content: impl AsRef<[u8]>,
+    overwrite: bool,
+) -> std::io::Result<()> {
     use std::io::Write;
     let mut staged = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
     staged.write_all(content.as_ref())?;

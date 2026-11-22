@@ -9,10 +9,10 @@
 
 use clap::Parser;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::super::output::color;
-use super::export::ExportFormat;
+use super::export::{write_output, ExportFormat};
 
 /// Import annotations from different formats
 #[derive(Parser, Debug)]
@@ -21,7 +21,7 @@ pub struct ImportArgs {
     #[arg(short, long, value_name = "PATH")]
     pub input: PathBuf,
 
-    /// Output file (JSONL format)
+    /// JSONL destination, replaced atomically after successful import
     #[arg(short, long, value_name = "PATH")]
     pub output: PathBuf,
 
@@ -33,7 +33,12 @@ pub struct ImportArgs {
     #[arg(long)]
     pub include_text: bool,
 
-    /// Quiet mode
+    /// Skip files that fail to import and write the successful files' annotations.
+    /// Directory listing errors and an entirely failed import still abort.
+    #[arg(long)]
+    pub allow_partial: bool,
+
+    /// Suppress progress messages
     #[arg(short, long)]
     pub quiet: bool,
 }
@@ -55,6 +60,30 @@ pub struct ImportedAnnotation {
     pub confidence: Option<f64>,
 }
 
+fn same_existing_file(left: &Path, right: &Path) -> Result<bool, String> {
+    same_file::is_same_file(left, right).map_err(|e| {
+        format!(
+            "Failed to compare {} and {}: {e}",
+            left.display(),
+            right.display()
+        )
+    })
+}
+
+// Compare directory entries even when the target (e.g. an optional companion)
+// does not exist yet. Symlinked parent directories may spell the same location.
+fn same_entry(left: &Path, right: &Path) -> Result<bool, String> {
+    fn parent(path: &Path) -> &Path {
+        path.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+    }
+    if left.file_name() != right.file_name() {
+        return Ok(false);
+    }
+    same_existing_file(parent(left), parent(right))
+}
+
 /// Run the import command.
 pub fn run(args: ImportArgs) -> Result<(), String> {
     // Validate input
@@ -62,8 +91,19 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         return Err(format!("Input not found: {:?}", args.input));
     }
 
+    let output_exists = args
+        .output
+        .try_exists()
+        .map_err(|e| format!("Failed to inspect output: {e}"))?;
+
     // Collect files to process
     let files: Vec<PathBuf> = if args.input.is_file() {
+        if output_exists && same_existing_file(&args.input, &args.output)? {
+            return Err(format!(
+                "Output aliases an input file: {}",
+                args.input.display()
+            ));
+        }
         vec![args.input.clone()]
     } else {
         let ext = match args.format {
@@ -76,13 +116,51 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             ExportFormat::GraphNTriples => "nt",
             ExportFormat::GraphCsv => "csv",
         };
-        fs::read_dir(&args.input)
-            .map_err(|e| format!("Failed to read directory: {}", e))?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == ext))
-            .collect()
+        let mut inputs = Vec::new();
+        let entries = fs::read_dir(&args.input)
+            .map_err(|e| format!("Failed to read directory {}: {e}", args.input.display()))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|e| format!("Failed to list {}: {e}", args.input.display()))?
+                .path();
+            if path.extension().is_none_or(|e| e != ext) {
+                continue;
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("Failed to inspect {}: {e}", path.display()))?;
+            if !metadata.is_file() {
+                continue;
+            }
+            if output_exists && same_existing_file(&path, &args.output)? {
+                // A previous JSONL result in a JSONL source directory is
+                // excluded on reruns. Other formats contain source records.
+                if matches!(args.format, ExportFormat::Jsonl) && same_entry(&path, &args.output)? {
+                    continue;
+                }
+                return Err(format!("Output aliases an input file: {}", path.display()));
+            }
+            inputs.push(path);
+        }
+        inputs
     };
+
+    if matches!(args.format, ExportFormat::Brat) {
+        for file in &files {
+            let companion = file.with_extension("txt");
+            if same_entry(&companion, &args.output)?
+                || (output_exists
+                    && companion
+                        .try_exists()
+                        .map_err(|e| format!("Failed to inspect {}: {e}", companion.display()))?
+                    && same_existing_file(&companion, &args.output)?)
+            {
+                return Err(format!(
+                    "Output aliases a brat source companion: {}",
+                    companion.display()
+                ));
+            }
+        }
+    }
 
     if files.is_empty() {
         return Err("No annotation files found in input".into());
@@ -99,7 +177,6 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
 
     let mut all_annotations = Vec::new();
     let mut success_count = 0;
-    let mut error_count = 0;
 
     for file in &files {
         match import_file(file, args.format, args.include_text) {
@@ -116,18 +193,13 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
                     );
                 }
             }
-            Err(e) => {
-                error_count += 1;
-                if !args.quiet {
-                    eprintln!(
-                        "  {} {:?}: {}",
-                        color("31", "✗"),
-                        file.file_name().unwrap_or_default(),
-                        e
-                    );
-                }
-            }
+            Err(e) if args.allow_partial => eprintln!("Skipping {}: {e}", file.display()),
+            Err(e) => return Err(format!("Failed to import {}: {e}", file.display())),
         }
+    }
+
+    if success_count == 0 {
+        return Err("All imports failed".into());
     }
 
     // Write output
@@ -147,8 +219,8 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         .collect::<Vec<_>>()
         .join("\n");
 
-    fs::write(&args.output, output_content)
-        .map_err(|e| format!("Failed to write output: {}", e))?;
+    write_output(&args.output, output_content, true)
+        .map_err(|e| format!("Failed to write output {}: {e}", args.output.display()))?;
 
     if !args.quiet {
         eprintln!();
@@ -161,11 +233,7 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         );
     }
 
-    if error_count > 0 && success_count == 0 {
-        Err("All imports failed".into())
-    } else {
-        Ok(())
-    }
+    Ok(())
 }
 
 fn import_file(
@@ -329,72 +397,56 @@ fn import_brat_segments(
 fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
-    let mut annotations = Vec::new();
-    let mut current_entity: Option<(String, String, usize, usize)> = None; // (type, text, start, end)
+    let mut annotations: Vec<ImportedAnnotation> = Vec::new();
+    let mut inside_entity = false;
     let mut char_idx = 0;
 
     for line in content.lines() {
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 2 {
-            let word = parts[0];
-            let tag = parts[1];
+        let mut fields = line.split_whitespace();
+        let Some(word) = fields.next() else {
+            inside_entity = false;
+            continue;
+        };
+        if word == "-DOCSTART-" {
+            inside_entity = false;
+            continue;
+        }
+        let Some(second) = fields.next() else {
+            continue;
+        };
+        // Anno exports word/tag pairs. CoNLL-2003 puts the NER tag last,
+        // after the part-of-speech and chunk tags.
+        let tag = if second == "O" || second.starts_with("B-") || second.starts_with("I-") {
+            second
+        } else {
+            fields.next_back().unwrap_or(second)
+        };
+        let start = char_idx;
+        let end = start + word.chars().count();
+        char_idx = end + 1;
 
-            let word_len = word.chars().count();
-
-            if tag.starts_with("B-") {
-                // End previous entity if any
-                if let Some((entity_type, text, start, end)) = current_entity.take() {
-                    annotations.push(ImportedAnnotation {
-                        text,
-                        entity_type,
-                        start,
-                        end,
-                        source: input.to_string_lossy().to_string(),
-                        confidence: None,
-                    });
-                }
-                // Start new entity
-                let entity_type = tag
-                    .strip_prefix("B-")
-                    .expect("tag.starts_with('B-') checked above")
-                    .to_string();
-                current_entity =
-                    Some((entity_type, word.to_string(), char_idx, char_idx + word_len));
-            } else if tag.starts_with("I-") && current_entity.is_some() {
-                // Continue entity
-                if let Some((_, ref mut text, _, ref mut end)) = current_entity {
-                    text.push(' ');
-                    text.push_str(word);
-                    *end = char_idx + word_len;
-                }
-            } else {
-                // End entity
-                if let Some((entity_type, text, start, end)) = current_entity.take() {
-                    annotations.push(ImportedAnnotation {
-                        text,
-                        entity_type,
-                        start,
-                        end,
-                        source: input.to_string_lossy().to_string(),
-                        confidence: None,
-                    });
+        if let Some(label) = tag.strip_prefix("I-") {
+            if let Some(entity) = annotations.last_mut() {
+                if inside_entity && entity.entity_type == label {
+                    entity.text.push(' ');
+                    entity.text.push_str(word);
+                    entity.end = end;
+                    continue;
                 }
             }
-
-            char_idx += word_len + 1; // +1 for space
         }
-    }
-
-    // End final entity if any
-    if let Some((entity_type, text, start, end)) = current_entity {
-        annotations.push(ImportedAnnotation {
-            text,
-            entity_type,
-            start,
-            end,
-            source: input.to_string_lossy().to_string(),
-            confidence: None,
-        });
+        let label = tag.strip_prefix("B-").or_else(|| tag.strip_prefix("I-"));
+        inside_entity = label.is_some();
+        if let Some(label) = label {
+            annotations.push(ImportedAnnotation {
+                text: word.to_string(),
+                entity_type: label.to_string(),
+                start,
+                end,
+                source: input.to_string_lossy().into_owned(),
+                confidence: None,
+            });
+        }
     }
 
     Ok(annotations)
@@ -566,18 +618,36 @@ fn parse_iri_or_bnode(s: &str) -> Option<(String, &str)> {
 fn strip_literal(o: &str) -> &str {
     let o = o.trim();
     if let Some(inner) = o.strip_prefix('"') {
-        inner.find('"').map(|i| &inner[..i]).unwrap_or(inner)
+        inner.rfind('"').map(|i| &inner[..i]).unwrap_or(inner)
     } else {
         o.trim_start_matches('<').trim_end_matches('>')
     }
 }
 
 fn unescape_literal(s: &str) -> String {
-    s.replace("\\\"", "\"")
-        .replace("\\\\", "\\")
-        .replace("\\n", "\n")
-        .replace("\\r", "\r")
-        .replace("\\t", "\t")
+    // Consume each exporter escape once. A literal backslash followed by n
+    // must survive without becoming a newline.
+    let mut chars = s.chars();
+    let mut decoded = String::with_capacity(s.len());
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            decoded.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('"') => decoded.push('"'),
+            Some('\\') => decoded.push('\\'),
+            Some('n') => decoded.push('\n'),
+            Some('r') => decoded.push('\r'),
+            Some('t') => decoded.push('\t'),
+            Some(other) => {
+                decoded.push('\\');
+                decoded.push(other);
+            }
+            None => decoded.push('\\'),
+        }
+    }
+    decoded
 }
 
 // =============================================================================
@@ -729,5 +799,93 @@ mod tests {
         assert_eq!(annotations.len(), 1);
         assert_eq!(annotations[0].text, "東京 駅");
         assert_eq!((annotations[0].start, annotations[0].end), (0, 4));
+    }
+    #[test]
+    fn failed_import_preserves_existing_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("bad.jsonl");
+        let output = dir.path().join("existing.jsonl");
+        fs::write(&input, "{").unwrap();
+        fs::write(&output, "previous annotations").unwrap();
+        assert!(run(ImportArgs {
+            input,
+            output: output.clone(),
+            format: ExportFormat::Jsonl,
+            include_text: false,
+            allow_partial: false,
+            quiet: true,
+        })
+        .is_err());
+        assert_eq!(fs::read_to_string(output).unwrap(), "previous annotations");
+    }
+
+    #[test]
+    fn directory_import_excludes_existing_output_and_its_alias() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("result.jsonl");
+        let original = r#"{ "text": "keep this exactly" }"#;
+        fs::write(&output, original).unwrap();
+        fs::write(dir.path().join("bad.jsonl"), "{").unwrap();
+        let args = || ImportArgs {
+            input: dir.path().into(),
+            output: output.clone(),
+            format: ExportFormat::Jsonl,
+            include_text: false,
+            allow_partial: false,
+            quiet: true,
+        };
+        assert!(run(args()).is_err());
+        assert_eq!(fs::read_to_string(&output).unwrap(), original);
+
+        fs::write(dir.path().join("valid.jsonl"), r#"{"text":"new"}"#).unwrap();
+        let alias = dir.path().join("alias.jsonl");
+        fs::hard_link(&output, &alias).unwrap();
+        assert!(run(args()).unwrap_err().contains("aliases an input file"));
+        assert_eq!(fs::read_to_string(&alias).unwrap(), original);
+        fs::remove_file(alias).unwrap();
+        fs::remove_file(dir.path().join("bad.jsonl")).unwrap();
+
+        run(args()).unwrap();
+        let contents = fs::read_to_string(output).unwrap();
+        let row: serde_json::Value = serde_json::from_str(&contents).unwrap();
+        assert_eq!(row["text"], "new");
+    }
+
+    #[test]
+    fn conll2003_keeps_iob1_starts_and_sentence_boundaries() {
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("sample.conll");
+        fs::write(&input, "-DOCSTART- -X- O O\n\nZoë NNP B-NP I-PER\nLi NNP I-NP I-PER\nAcme NNP B-NP I-ORG\n\n東京 NNP B-NP I-ORG\n").unwrap();
+        let rows = import_conll(&input).unwrap();
+        let spans: Vec<_> = rows
+            .iter()
+            .map(|a| (a.text.as_str(), a.entity_type.as_str(), a.start, a.end))
+            .collect();
+        assert_eq!(
+            spans,
+            [
+                ("Zoë Li", "PER", 0, 6),
+                ("Acme", "ORG", 7, 11),
+                ("東京", "ORG", 12, 14)
+            ]
+        );
+    }
+    #[test]
+    fn ntriples_recovers_quotes_and_distinguishes_backslashes_from_controls() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("labels.nt");
+        let text = "Zoë \"Z\" C:\\new\\tools\\report\r\n\tend\\";
+        let triples = format!(
+            "<urn:e> <http://www.w3.org/2000/01/rdf-schema#label> {} .\n\
+             <urn:e> <urn:v#startOffset> \"0\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n\
+             <urn:e> <urn:v#endOffset> \"{}\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n",
+            serde_json::to_string(text).unwrap(),
+            text.chars().count()
+        );
+        fs::write(&path, triples).unwrap();
+        let rows = import_ntriples(&path).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].text, text);
+        assert_eq!(rows[0].end, text.chars().count());
     }
 }
