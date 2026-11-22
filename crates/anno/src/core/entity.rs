@@ -812,6 +812,11 @@ pub trait Lexicon: Send + Sync {
     /// Returns `None` if the text is not in the lexicon.
     fn lookup(&self, text: &str) -> Option<(EntityType, Confidence)>;
 
+    /// Upper bound on key length in Unicode scalar values, if known.
+    fn max_entry_chars(&self) -> Option<usize> {
+        None
+    }
+
     /// Check if the lexicon contains this exact string.
     fn contains(&self, text: &str) -> bool {
         self.lookup(text).is_some()
@@ -835,6 +840,7 @@ pub trait Lexicon: Send + Sync {
 /// For larger lexicons, consider a trie-based or FST implementation.
 #[derive(Debug, Clone)]
 pub struct HashMapLexicon {
+    max_entry_chars: usize,
     entries: std::collections::HashMap<String, (EntityType, Confidence)>,
     source: String,
 }
@@ -844,6 +850,7 @@ impl HashMapLexicon {
     #[must_use]
     pub fn new(source: impl Into<String>) -> Self {
         Self {
+            max_entry_chars: 0,
             entries: std::collections::HashMap::new(),
             source: source.into(),
         }
@@ -856,8 +863,9 @@ impl HashMapLexicon {
         entity_type: EntityType,
         confidence: impl Into<Confidence>,
     ) {
-        self.entries
-            .insert(text.into(), (entity_type, confidence.into()));
+        let text = text.into();
+        self.max_entry_chars = self.max_entry_chars.max(text.chars().count());
+        self.entries.insert(text, (entity_type, confidence.into()));
     }
 
     /// Create from an iterator of (text, type, confidence) tuples.
@@ -881,6 +889,10 @@ impl HashMapLexicon {
 }
 
 impl Lexicon for HashMapLexicon {
+    fn max_entry_chars(&self) -> Option<usize> {
+        Some(self.max_entry_chars)
+    }
+
     fn lookup(&self, text: &str) -> Option<(EntityType, Confidence)> {
         self.entries.get(text).cloned()
     }
