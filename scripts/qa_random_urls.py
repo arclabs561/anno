@@ -37,7 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 # ---------------------------------------------------------------------------
 # Source pool
@@ -57,6 +57,7 @@ class Source:
     category: str  # wikipedia, wikimedia, rss, other
     lang: str      # ISO 639-1 or "multi"
     script: str    # Latin, Cyrillic, CJK, Arabic, Devanagari, etc.
+    discover_from_feed: bool = False
 
 
 # Language -> script mapping for Wikipedia/Wikimedia sources
@@ -262,8 +263,8 @@ DOCUMENT_SOURCES = [
     Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
 ]
 
-# Each publisher uses one canonical hostname. Fixed page links allow a seed
-# to select the same pages without a feed snapshot or external crawler.
+# One canonical hostname per publisher. Fixed links replay without discovery.
+# For feeds the selected article depends on both the seed and current entries.
 CROSS_DOMAIN_SOURCES = [
     Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin"),
     Source("NASA lunar eclipses 2001–2100", "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html", "cross-domain", "en", "Latin"),
@@ -279,6 +280,12 @@ CROSS_DOMAIN_SOURCES = [
     Source("IANA time zone database", "https://www.iana.org/time-zones", "cross-domain", "en", "Latin"),
     Source("Python data structures", "https://docs.python.org/3/tutorial/datastructures.html", "cross-domain", "en", "Latin"),
     Source("Python Unicode HOWTO", "https://docs.python.org/3/howto/unicode.html", "cross-domain", "en", "Latin"),
+    Source("Quanta Magazine", "https://www.quantamagazine.org/feed/", "cross-domain", "en", "Latin", True),
+    Source("Library of Congress blog", "https://blogs.loc.gov/loc/feed/", "cross-domain", "en", "Latin", True),
+    Source("MIT News", "https://news.mit.edu/rss/feed", "cross-domain", "en", "Latin", True),
+    Source("Rust project blog", "https://blog.rust-lang.org/feed.xml", "cross-domain", "en", "Latin", True),
+    Source("The Guardian world news", "https://www.theguardian.com/world/rss", "cross-domain", "en", "Latin", True),
+    Source("STAT health news", "https://www.statnews.com/feed/", "cross-domain", "en", "Latin", True),
 ]
 
 
@@ -308,41 +315,65 @@ ALL_SOURCES = (WIKIPEDIA_SOURCES + CONLANG_SOURCES + WIKIMEDIA_SOURCES
 # RSS helper
 # ---------------------------------------------------------------------------
 
+def feed_entry_links(data: bytes) -> list[str]:
+    root = ET.fromstring(data)
+
+    links: list[str] = []
+
+    # RSS 2.0: channel/item/link
+    for item in root.iter("item"):
+        link_el = item.find("link")
+        if link_el is not None and link_el.text:
+            links.append(link_el.text.strip())
+
+    # Atom entry links, including feeds that omit the namespace.
+    for entry in root.findall(".//{*}entry"):
+        for link_el in entry.findall("{*}link"):
+            if link_el.get("rel", "alternate") != "alternate":
+                continue
+            href = link_el.get("href") or (link_el.text or "").strip()
+            if href:
+                links.append(href)
+
+    # RDF: rdf:item/link
+    for item in root.iter("{http://purl.org/rss/1.0/}item"):
+        link_el = item.find("{http://purl.org/rss/1.0/}link")
+        if link_el is not None and link_el.text:
+            links.append(link_el.text.strip())
+
+    return links
+
+
+MAX_PUBLISHER_FEED_BYTES = 2 * 1024 * 1024
+
+
+def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
+    """Read one bounded feed and choose one same-host HTTPS article, without crawling."""
+    request = urllib.request.Request(source.url, headers={"User-Agent": "anno-qa/1.0"})
+    with urllib.request.urlopen(request, timeout=min(15, timeout)) as response:
+        data = response.read(MAX_PUBLISHER_FEED_BYTES + 1)
+    if len(data) > MAX_PUBLISHER_FEED_BYTES:
+        raise ValueError("feed exceeds 2 MiB limit")
+    origin = urlsplit(source.url).netloc
+    candidates = []
+    for entry in feed_entry_links(data):
+        url = urlsplit(entry)
+        if url.scheme == "https" and url.netloc == origin and entry != source.url:
+            candidates.append(entry)
+    if not candidates:
+        raise ValueError("feed has no same-host HTTPS article links")
+    # Sorting and per-publisher randomness keep feed order and other publishers'
+    # availability from changing selection given the same set of entries.
+    return random.Random(f"{seed}:{source.url}").choice(sorted(set(candidates)))
+
+
 def fetch_random_rss_link(feed_url: str, timeout: int = 15) -> Optional[str]:
     """Fetch an RSS/Atom feed and return one random entry link."""
     try:
         req = urllib.request.Request(feed_url, headers={"User-Agent": "anno-qa/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
-        root = ET.fromstring(data)
-
-        links: list[str] = []
-
-        # RSS 2.0: channel/item/link
-        for item in root.iter("item"):
-            link_el = item.find("link")
-            if link_el is not None and link_el.text:
-                links.append(link_el.text.strip())
-
-        # Atom: entry/link[@href]
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
-            for link_el in entry.findall("atom:link", ns):
-                href = link_el.get("href")
-                if href:
-                    links.append(href.strip())
-            # Also try without namespace (some feeds)
-            for link_el in entry.findall("link"):
-                href = link_el.get("href") or (link_el.text or "").strip()
-                if href:
-                    links.append(href)
-
-        # RDF: rdf:item/link
-        for item in root.iter("{http://purl.org/rss/1.0/}item"):
-            link_el = item.find("{http://purl.org/rss/1.0/}link")
-            if link_el is not None and link_el.text:
-                links.append(link_el.text.strip())
-
+        links = feed_entry_links(data)
         if not links:
             return None
         return random.choice(links)
@@ -412,6 +443,7 @@ class RunResult:
     reported_model: str = ""
     text_hash: str = ""
     detected_lang: str = ""
+    selected_article: str = ""
 
 
 def resolve_url(source: Source) -> Optional[str]:
@@ -609,7 +641,7 @@ def generate_report(
     lines.append("|---|--------|-----|------|--------|-----------|----------------------------|----------|------|--------|")
 
     for i, r in enumerate(results, 1):
-        url_display = r.url
+        url_display = "—" if r.source.discover_from_feed and not r.selected_article else r.url
         url_display = url_display.replace("|", "%7C")
         time_str = f"{r.elapsed_secs:.1f}s"
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
@@ -617,6 +649,9 @@ def generate_report(
         source_display = r.source.name
         if r.source.category == "cross-domain":
             source_display = f"[{r.source.name}]({r.source.url}) ({urlsplit(r.source.url).netloc})"
+            if r.selected_article:
+                article_link = quote(r.selected_article, safe=":/?#&=%+")
+                source_display += f" · [selected article]({article_link})"
         lines.append(
             f"| {i} | {source_display} | {url_display} | {r.source.lang} / {r.detected_lang or '—'} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
@@ -664,7 +699,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
     selection = p.add_mutually_exclusive_group()
     selection.add_argument("--cross-domain", action="store_true",
-                           help="Sample fixed public pages from distinct publishers per pass, without replacement")
+                           help="Sample pages and feed entries from distinct publishers per pass; use --no-rss for fixed pages only")
     selection.add_argument("--category", "-c", default="all",
                    choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
                    help="Filter source category (default: all)")
@@ -795,7 +830,7 @@ def main() -> int:
     # Filter sources
     pool = list(CROSS_DOMAIN_SOURCES if args.cross_domain else ALL_SOURCES)
     if args.no_rss:
-        pool = [s for s in pool if s.category not in ("rss", "refhop")]
+        pool = [s for s in pool if s.category not in ("rss", "refhop") and not s.discover_from_feed]
     if args.category != "all":
         pool = [s for s in pool if s.category == args.category]
     if args.lang:
@@ -821,32 +856,35 @@ def main() -> int:
     print(f"Source pool: {len(pool)} sources after filters")
     print()
 
-    # Dry-run: show selection and resolve URLs, but don't run anno
-    if args.dry_run:
-        for i, source in enumerate(selected, 1):
-            url = resolve_url(source)
-            resolved = url or "(resolve failed)"
+    all_results: list[RunResult] = []
+    for i, source in enumerate(selected, 1):
+        error = "URL resolution failed"
+        try:
+            if source.discover_from_feed:
+                url = discover_publisher_article(source, args.seed, args.timeout)
+            else:
+                url = resolve_url(source)
+        except (URLError, ET.ParseError, OSError, ValueError) as exc:
+            url = None
+            error = f"feed discovery failed: {exc}"
+
+        if args.dry_run:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{source.category}]")
             if url != source.url:
-                print(f"           feed: {source.url}")
-            print(f"           url:  {resolved}")
-        return 0
-
-    all_results: list[RunResult] = []
-
-    for i, source in enumerate(selected, 1):
-        # Resolve URL (RSS/refhop sources need a network fetch to get the actual article URL)
-        url = resolve_url(source)
+                print(f"           source: {source.url}")
+            print(f"           url:  {url or error}")
         if url is None:
-            print(f"  [{i}/{count}] {source.name}: URL resolution failed")
-            r = RunResult(source=source, url=source.url, status="error",
-                          error_msg="URL resolution failed")
-            all_results.append(r)
+            print(f"  [{i}/{count}] {source.name}: {error}")
+            all_results.append(RunResult(source, source.url, "error", error_msg=error))
+            continue
+        if args.dry_run:
             continue
 
+        selected_article = url if source.discover_from_feed else ""
         for backend in backends:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) -> {backend}...", end=" ", flush=True)
             result = run_anno(source, anno_bin, url, backend, args.timeout, args.verbose)
+            result.selected_article = selected_article
             if result.status == "OK":
                 # Reuse the article reached by the first backend on random redirects.
                 url = result.url
@@ -862,6 +900,9 @@ def main() -> int:
         # Rate limiting
         if i < count and args.delay > 0:
             time.sleep(args.delay)
+
+    if args.dry_run:
+        return 1 if args.cross_domain and all_results else 0
 
     # Generate report
     report = generate_report(all_results, args.seed, backends, start_time)

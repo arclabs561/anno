@@ -136,3 +136,59 @@ class CrossDomainSampling(unittest.TestCase):
             result = qa.run_anno(source, "anno", source.url, "pattern", 1, False)
         self.assertEqual(result.status, "error")
         self.assertIn("hash", result.error_msg)
+
+
+class PublisherFeeds(unittest.TestCase):
+    source = qa.Source("Test feed", "https://news.example/rss", "cross-domain", "en", "Latin", True)
+
+    def test_seed_selects_same_host_articles_independently_of_entry_order(self):
+        def choose(entries):
+            data = ("<feed xmlns='http://www.w3.org/2005/Atom'><entry>"
+                    "<link rel='self' href='https://news.example/self'/>" +
+                    "".join(f"<link href='{url}'/>" for url in entries) +
+                    "</entry></feed>").encode()
+            with patch.object(qa.urllib.request, "urlopen", return_value=io.BytesIO(data)) as fetch:
+                page = qa.discover_publisher_article(self.source, 7, 60)
+                self.assertEqual(fetch.call_args.kwargs["timeout"], 15)
+                return page
+        links = ["https://news.example/a", "https://news.example/b", "https://other.example/c"]
+        self.assertIn(choose(links), links[:2])
+        self.assertEqual(choose(links), choose(reversed(links)))
+
+    def test_feed_size_empty_and_parse_failures(self):
+        cases = [(b"<rss><channel/></rss>", "same-host"),
+                 (b"<rss>", "no element found"), (b"x" * (qa.MAX_PUBLISHER_FEED_BYTES + 1), "2 MiB")]
+        for data, reason in cases:
+            with self.subTest(reason=reason), patch.object(qa.urllib.request, "urlopen", return_value=io.BytesIO(data)):
+                with self.assertRaisesRegex((ValueError, qa.ET.ParseError), reason):
+                    qa.discover_publisher_article(self.source, 1, 3)
+
+    def test_mixed_report_preserves_discovery_failure_and_redirect(self):
+        empty_feed = qa.Source("Empty feed", "https://empty.example/rss", "cross-domain", "en", "Latin", True)
+        fixed = qa.Source("Fixed", "https://fixed.example/doc", "cross-domain", "en", "Latin")
+        pool = [self.source, fixed, empty_feed]
+
+        def fetch(req, timeout):
+            if req.full_url == empty_feed.url:
+                return io.BytesIO(b"<rss><channel/></rss>")
+            self.assertEqual(req.full_url, self.source.url)
+            return io.BytesIO(b"<rss><channel><item><link>https://news.example/entry</link></item></channel></rss>")
+
+        def extract(source, binary, url, backend, timeout, verbose):
+            return qa.RunResult(source, url + "-final", "OK", backend=backend, text_hash="xxh3:123")
+
+        with tempfile.TemporaryDirectory() as tmp, patch.object(qa, "CROSS_DOMAIN_SOURCES", pool), \
+                patch.object(qa.urllib.request, "urlopen", side_effect=fetch) as feeds, \
+                patch.object(qa, "run_anno", side_effect=extract) as docs:
+            report = qa.Path(tmp) / "qa.md"
+            with patch("sys.argv", ["qa", "--cross-domain", "--count", "3", "--seed", "42",
+                                    "--delay", "0", "--output", str(report)]):
+                self.assertEqual(qa.main(), 1)
+            self.assertEqual(feeds.call_count, 2)
+            self.assertEqual(docs.call_count, 2)
+            for value in (self.source.url, "](https://news.example/entry)", "https://news.example/entry-final",
+                          "xxh3:123", "empty.example | 0 | 1", "feed has no same-host"):
+                self.assertIn(value, report.read_text())
+            with patch("sys.argv", ["qa", "--cross-domain", "--no-rss", "--count", "1", "--dry-run"]):
+                self.assertEqual(qa.main(), 0)
+            self.assertEqual(feeds.call_count, 2)
