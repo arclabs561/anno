@@ -25,7 +25,7 @@
 //! let trends = history.query_trends("gliner", 30)?;
 //! ```
 
-use crate::eval::task_evaluator::TaskEvalResult;
+use crate::eval::{history_clock, task_evaluator::TaskEvalResult};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -35,12 +35,11 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 // Only four-digit local years are representable in an RFC 3339 timestamp.
-fn rfc3339_day(date: chrono::NaiveDate) -> String {
-    use chrono::Datelike;
-    match date.year() {
-        ..0 => "0000-01-01".to_owned(),
-        10000.. => "9999-12-31".to_owned(),
-        _ => date.to_string(),
+fn rfc3339_day(unix_seconds: i64) -> String {
+    match time::OffsetDateTime::from_unix_timestamp(unix_seconds) {
+        Ok(date) if (0..=9999).contains(&date.year()) => date.date().to_string(),
+        _ if unix_seconds < 0 => "0000-01-01".to_owned(),
+        _ => "9999-12-31".to_owned(),
     }
 }
 
@@ -126,7 +125,7 @@ impl From<&TaskEvalResult> for EvalHistoryEntry {
         let recall = result.metrics.get("recall").copied();
 
         Self {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: super::timestamp::now(),
             backend: result.backend.clone(),
             dataset: result.dataset.name().to_string(),
             task: format!("{:?}", result.task),
@@ -709,16 +708,12 @@ impl EvalHistory {
         end_date: &str,
         backend: Option<&str>,
     ) -> std::io::Result<Vec<EvalHistoryEntry>> {
-        use chrono::{DateTime, Days};
-
-        let bounds = DateTime::parse_from_rfc3339(start_date)
-            .ok()
-            .zip(DateTime::parse_from_rfc3339(end_date).ok());
+        let bounds = history_clock::parse(start_date).zip(history_clock::parse(end_date));
         let window = bounds.map(|(start, end)| {
             // A stored local date can be one day either side of its UTC date.
             // Keep the timestamp index usable, then compare exact instants below.
-            let first = rfc3339_day(start.naive_utc().date() - Days::new(1));
-            let last = rfc3339_day(end.naive_utc().date() + Days::new(1));
+            let first = rfc3339_day(start.0 - 86_400);
+            let last = rfc3339_day(end.0 + 86_400);
             (first, format!("{last}~")) // sorts after every time on the last day
         });
         let (lo, hi) = window.as_ref().map_or((start_date, end_date), |(lo, hi)| {
@@ -738,7 +733,7 @@ impl EvalHistory {
             let mut matches: Vec<_> = entries
                 .into_iter()
                 .filter_map(|entry| {
-                    let time = DateTime::parse_from_rfc3339(&entry.timestamp).ok()?;
+                    let time = history_clock::parse(&entry.timestamp)?;
                     (start <= time && time <= end).then_some((time, entry))
                 })
                 .collect();
@@ -1573,13 +1568,13 @@ impl EvalHistory {
 #[derive(PartialOrd, Ord, PartialEq, Eq)]
 enum HistoryTime {
     Legacy(String),
-    Instant(chrono::DateTime<chrono::FixedOffset>),
+    Instant(history_clock::Key),
 }
 
 fn history_time(timestamp: &str) -> HistoryTime {
-    match chrono::DateTime::parse_from_rfc3339(timestamp) {
-        Ok(time) => HistoryTime::Instant(time),
-        Err(_) => HistoryTime::Legacy(timestamp.to_owned()),
+    match history_clock::parse(timestamp) {
+        Some(time) => HistoryTime::Instant(time),
+        None => HistoryTime::Legacy(timestamp.to_owned()),
     }
 }
 
@@ -2148,6 +2143,51 @@ mod tests {
         assert_eq!(stats.total_entries, 5);
         assert_eq!(stats.by_backend.len(), 2);
         assert!(stats.avg_f1.is_some());
+    }
+
+    #[test]
+    fn leap_second_survives_recent_and_range_reads() {
+        let temp = TempDir::new().unwrap();
+        let mut history = EvalHistory::new(temp.path().join("history.jsonl")).unwrap();
+        let times = [
+            "2016-12-31T23:59:59Z",
+            "2016-12-31T23:59:60Z",
+            "2017-01-01T00:00:00Z",
+            "2016-12-31T23:59:60.0000000009Z",
+            "2016-12-31T23:59Z",
+            "9999-12-31T23:59:59-23:59",
+        ];
+        for (i, text) in times.iter().enumerate() {
+            let mut entry = test_entry(i as u64, 1);
+            entry.timestamp = text.to_string();
+            history.append_entry(&entry).unwrap();
+        }
+        history.rebuild_index().unwrap();
+        for _ in 0..2 {
+            let seeds =
+                |rows: Vec<EvalHistoryEntry>| rows.into_iter().map(|e| e.seed).collect::<Vec<_>>();
+            assert_eq!(
+                seeds(history.query_recent("test-backend", 6).unwrap()),
+                [5, 2, 1, 3, 0, 4]
+            );
+            assert_eq!(
+                seeds(
+                    history
+                        .query_by_date_range(times[1], times[1], None)
+                        .unwrap()
+                ),
+                [1, 3]
+            );
+            assert_eq!(
+                seeds(
+                    history
+                        .query_by_date_range(times[5], times[5], None)
+                        .unwrap()
+                ),
+                [5]
+            );
+            history.sqlite_path = None;
+        }
     }
 
     #[test]
