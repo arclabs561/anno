@@ -508,15 +508,19 @@ impl Signal<Location> {
                     end,
                 });
             }
-            let offsets = crate::offset::build_char_to_byte_map(source_text);
-            let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
-                let separator = if index == 0 { "" } else { " " };
-                separator
-                    .bytes()
-                    .chain(source_text[offsets[s]..offsets[e]].bytes())
-            });
-            if joined.eq(self.surface.bytes()) {
-                return None;
+            // Entity conversion sorts segments and coalesces touching ranges.
+            // A joined surface must use that same order and segmentation.
+            if segments.windows(2).all(|pair| pair[0].1 < pair[1].0) {
+                let offsets = crate::offset::build_char_to_byte_map(source_text);
+                let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
+                    let separator = if index == 0 { "" } else { " " };
+                    separator
+                        .bytes()
+                        .chain(source_text[offsets[s]..offsets[e]].bytes())
+                });
+                if joined.eq(self.surface.bytes()) {
+                    return None;
+                }
             }
         }
 
@@ -5131,9 +5135,33 @@ mod tests {
     }
 
     #[test]
+    fn discontinuous_document_retains_legacy_bounding_surface_for_unsorted_segments() {
+        let mut doc = GroundedDocument::new("spans", "A B C");
+        doc.add_signal(Signal::new(
+            0,
+            Location::Discontinuous {
+                segments: vec![(4, 5), (0, 1)],
+            },
+            "A B C",
+            "LOC",
+            0.9,
+        ));
+        let json = serde_json::to_string(&doc).unwrap();
+        let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
+        let entity = &restored.to_entities()[0];
+        assert_eq!(entity.text, "A B C");
+        assert_eq!(
+            entity.discontinuous_span,
+            Some(DiscontinuousSpan::new(vec![0..1, 4..5]))
+        );
+    }
+
+    #[test]
     fn discontinuous_document_rejects_mismatched_surfaces_and_invalid_segments() {
         for (segments, surface) in [
             (vec![(0, 1), (4, 5)], "A B"),
+            (vec![(4, 5), (0, 1)], "C A"),
+            (vec![(0, 3), (2, 5)], "A B B C"),
             (vec![(0, 1), (3, 2), (4, 5)], "A B C"),
             (vec![(0, 1), (4, 6)], "A C"),
             (vec![], ""),
