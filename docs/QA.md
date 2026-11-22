@@ -11,8 +11,6 @@ Choose the evidence for the question you want to answer. A source offset bug, a 
 | What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
 | What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
 
-For agent-led discovery, use the [adversarial QA coordinator prompt](ADVERSARIAL_QA.md).
-
 ## Run a check
 
 From the repository root, these checks use checked-in inputs. Cargo needs its dependencies installed or cached.
@@ -28,10 +26,20 @@ To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once.
 cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
 export ANNO_CACHE_DIR="$PWD/.generated/qa-cache"
 bash scripts/qa/prepare_matrix_wikigold.sh
-just qa-panel target/debug/anno smoke
+mkdir -p .generated/anno-qa
+OUT=$(mktemp -d "$PWD/.generated/anno-qa/fixed-panel.XXXXXXXX")
+just qa-panel target/debug/anno smoke "$OUT"
 ```
 
 Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence WikiGold-format CI fixture, the labeled WikiGold corpus, and a random Wikipedia page are three distinct sources.
+
+To investigate a result, pass the panel's printed output directory and the claim to the coordinator. This prints a local handoff with the observed cells, the independent review prompt, and a worked WikiGold example. Give the oracle reviewer only the source and contract so its expected answer remains independent.
+
+```sh
+just qa-round "$OUT" "Does removing spaces inside parentheses change organization boundaries?"
+```
+
+The same command accepts a matrix slot's receipt directory. Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
 
 ## What runs in GitHub Actions
 

@@ -201,6 +201,14 @@ coverage state between slots within a policy. Comparing discovery at the same
 budget measures triage. Estimating overall quality requires a separate random
 sample or an independently scored complete panel.
 
+After a slot, use its receipts to decide which behavior to challenge. For example:
+
+```sh
+just qa-round .generated/mixed/slot-2 "Does this backend preserve the source occurrence after a name repeats?"
+```
+
+The handoff labels plan-only selections, incomplete runs, and strategy mismatches. The coordinator can use those to investigate execution. Only native evaluator outcomes supply quality evidence. Keep agent hypotheses in the round report and let completed evaluations update muxer history.
+
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which

@@ -1,24 +1,26 @@
 # Run an adversarial QA round for Anno
 
-A round answers one falsifiable question through a public Anno entry point. Use the following prompt with a coordinator that can delegate to agents. A single reviewer can run the same stages, but should record when the oracle and repair share an author.
+Use a round when a result could change what a maintainer ships, reverts, or measures next. Start with the user's operation and the evidence already available. A green panel can motivate a challenge just as readily as a failed cell.
 
 ## Coordinator prompt
 
-> Find a small, reproducible case where Anno violates **[behavior]** for someone using **[CLI command or library API]**. Start at **[commit]**. Success means that independent evidence establishes the expected behavior, a replay distinguishes a real failure from a bad expectation, and a proposed repair survives a test its author did not see. A round that disproves a plausible bug is also a valid result.
+> At the baseline revision, identify one user-visible claim and the decision that depends on it. Read the starting receipt. State two plausible explanations for the observation, the smallest test on which they predict different outcomes, and what result would change your mind.
 >
-> Start three independent investigations. Give the **scout** the task and a budget. Give the **oracle reviewer** the task and source material, withholding Anno's predictions and the proposed patch. Give the **skeptic** the claimed contract and ask for a counterexample to the expectation itself. Keep the repair agent out of the held-out material.
+> Choose the job for this round. **Verify** a recurring failure using triage history. **Explore** an under-observed part of a compatible panel using coverage. **Discriminate** between explanations using a paired experiment on the same inputs. These are assignments for the coordinator. The existing sampler modes select cells; the coordinator chooses the claim to test inside a cell.
 >
-> The scout should try a checked-in fixture, an annotated dataset or an authoritative public source, and a seeded transformation of a real example. Prefer different document families when the claim spans domains. Search can find a source; use a pinned record, revision or content hash to replay it. With fuzzing, save the seed, minimize the first interesting failure, and explain which output should change and which should stay the same.
+> Give the scout the public API or CLI, a time or example budget, and one starting case. Search a pinned source, use corpus labels, or apply a seeded transformation. Look for a boundary between two correct behaviors. Give the oracle reviewer only the inputs, units and contract. Have them record expected output independently of the implementation. Ask the skeptic for a legitimate neighboring case a repair might break, and reserve a different document or transformation family before exposing any result to the repair agent.
 >
-> Have the oracle reviewer write expected spans, labels, scores or error behavior before seeing the output. Name the evidence: a source slice and its units, an independent implementation, a corpus annotation, or a mathematical invariant. Record ambiguities. Ask the skeptic to try a legitimate near-neighbor that a tempting fix would break. Where practical, reserve a different source, document or transformation family. Commit to its cases or selection rule in a separate receipt before the repair agent begins.
+> Bring the three agents together over one disagreement. Ask each for the replay that would settle it. If the gold is ambiguous, record the ambiguity. If a failure reproduces, give the repair agent the minimized case and visible controls. Have the reviewer run both revisions on identical inputs and then reveal the reserved cases. Retire any exposed holdout from future blind rounds.
 >
-> Convene a short review. Each agent gives its claim, evidence, strongest objection and a command that could settle it. Resolve disagreement by running that command or consulting the source. If the task has two defensible interpretations, record the disputed contract and stop that repair. Agent votes cannot supply missing ground truth.
->
-> Give the repair agent the minimized reproducer, agreed contract and visible controls. Ask for the narrowest change through the normal code path. Have a different agent replay baseline and candidate on identical inputs, then open the reserved cases. Report gains, losses, ties, missing inputs and the denominator. If a held-out failure informs a second repair, reserve fresh material for the next evaluation.
->
-> Return one result per finding: **confirmed and fixed**, **confirmed and open**, **disproved**, or **inconclusive**. Include revisions, seeds or source hashes, an executable replay, expected and observed output, and the most important limit. Promote the smallest redistributable regression to the repository. Keep raw pages, model outputs and large receipts in local storage or CI artifacts.
+> Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
-A starter budget for one claim is three discovery sources, 32 seeded transformations, one minimized fixture and one held-out family. Scale it to the cost of the backend. Commit the selection rule before running a comparison and include attempts that timed out or found nothing.
+## From a panel to a decision
+
+The fixed WikiGold panel can stay green even if organization boundaries fail around punctuation. Two explanations are that the backend mishandles aliases generally or that token spacing masks the bug. Keep the ordinary corpus as the control. Have the scout remove only the spaces immediately inside parentheses and have the reviewer remap the gold offsets to the transformed text. Run both versions on both renderings.
+
+On 1,696 WikiGold sentences the ordinary rendering produced identical predictions. On the transformed rendering the candidate removed 17 incorrectly merged organizations, recovered 30 exact gold organizations and introduced three false positives. The next triage question is what distinguishes those three false positives from genuine aliases. A separate coverage slot can sample a new document family while the skeptic investigates them. Keep synthetic transformations identifiable in the receipt.
+
+For a policy comparison, give the seeded random control the same candidate set, starting history and budget. For a historical blind replay, give the scout a pre-fix revision, withhold the patch and its tests, and count distinct rediscovered failures per runner-minute. Use a fresh case when the agent has already seen the public fix.
 
 ## Choose a challenge that fits the claim
 
