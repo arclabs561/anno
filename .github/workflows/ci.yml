@@ -233,7 +233,7 @@ jobs:
           cargo test -p anno-cli --all-targets --no-default-features
           --features "eval-bias graph pdf chunking parallel llm extractor-html2text"
       - name: Run integration tests
-        run: cargo test --package anno --tests --features "discourse bundled-crf-weights bundled-hmm-params"
+        run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
         run: cargo test -p anno --doc --features discourse
   # ==========================================================================
@@ -266,6 +266,8 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Check the watch clock in a non-UTC timezone
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
