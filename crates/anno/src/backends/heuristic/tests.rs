@@ -6,7 +6,7 @@ fn parenthesized_aliases_have_independent_source_spans() {
     for (text, names) in [
         (
             "The Department of Commerce (Commerce) seeks public comment.",
-            vec!["Department of Commerce"],
+            vec!["Department of Commerce", "Commerce"],
         ),
         (
             "🦊 Federal Communications Commission (FCC), Mary Jones said.",
@@ -16,7 +16,7 @@ fn parenthesized_aliases_have_independent_source_spans() {
     ] {
         let entities = ner.extract_entities(text, None).unwrap();
         for name in names {
-            let start = text[..text.find(name).unwrap()].chars().count();
+            let start = text[..text.rfind(name).unwrap()].chars().count();
             let end = start + name.chars().count();
             assert!(
                 entities
