@@ -368,9 +368,22 @@ pub(crate) fn occurrence_iris(entities: &[Entity], doc_iri: &str, base_uri: &str
         .collect()
 }
 
-fn rel_predicate_uri(base_uri: &str, rel_type: &str) -> String {
-    let base = base_uri.trim_end_matches('/');
-    format!("<{}/rel/{}>", base, uri_safe(rel_type))
+/// Encode the exact label as one IRI path segment. Keep established relation
+/// IRIs for letters, numbers, underscores and hyphens, including Unicode letters.
+pub(crate) fn relation_iri(base_uri: &str, label: &str) -> String {
+    use std::fmt::Write;
+
+    let mut iri = format!("{}/rel/", base_uri.trim_end_matches('/'));
+    for c in label.chars() {
+        if c.is_alphanumeric() || matches!(c, '_' | '-') {
+            iri.push(c);
+        } else {
+            for byte in c.encode_utf8(&mut [0; 4]).bytes() {
+                write!(iri, "%{byte:02X}").expect("writing to a String cannot fail");
+            }
+        }
+    }
+    iri
 }
 
 /// Resolve a relation endpoint to exactly one exported entity.
@@ -492,8 +505,8 @@ pub fn to_ntriples_for_document(
     }
 
     for (rel, h, t) in resolved_relations(entities, relations) {
-        let pred = rel_predicate_uri(base_uri, &rel.relation_type);
-        lines.push(format!("<{}> {} <{}> .", ent_uri[h], pred, ent_uri[t]));
+        let pred = relation_iri(base, &rel.relation_type);
+        lines.push(format!("<{}> <{}> <{}> .", ent_uri[h], pred, ent_uri[t]));
     }
 
     lines.join("\n")
@@ -534,7 +547,7 @@ pub fn to_jsonld_for_document(
         std::collections::HashMap::new();
     for (rel, h, t) in resolved_relations(entities, relations) {
         rel_by_head.entry(h).or_default().push(serde_json::json!({
-            "@type": format!("{}/rel/{}", base, uri_safe(&rel.relation_type)),
+            "@type": relation_iri(base, &rel.relation_type),
             "target": { "@id": entity_ids[t] }
         }));
     }

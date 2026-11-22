@@ -47,6 +47,19 @@ original text at their reported offsets.
 
 A caption editor can use FCoref to suggest which earlier mention a pronoun refers to. The adapter returns the original cue IDs, character ranges, and playback times in milliseconds. [Run the caption example](../crates/anno/examples/caption_links/README.md)
 
+## Migrating RDF relation labels
+
+N-Triples, JSON-LD and graph N-Triples preserve letters, numbers, underscores
+and hyphens in relation IRIs, and percent-encode other characters as UTF-8.
+For example, `WORKS_AT` keeps `/rel/WORKS_AT`, `part:of` becomes
+`/rel/part%3Aof`, and literal `part%3Aof` becomes `/rel/part%253Aof`.
+
+Older releases replaced punctuation with underscores, so `part_of` and
+`part:of` both used `/rel/part_of`. To migrate, re-export the original labeled
+relations and update stored RDF and queries using those labels. If both labels
+occurred, the old predicate alone cannot identify which original label a
+particular edge used.
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,

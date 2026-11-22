@@ -271,7 +271,7 @@ pub fn entities_to_knowledge_graph(
     }
 
     for (rel, h, t) in crate::export::resolved_relations(entities, relations) {
-        let pred = format!("{}/rel/{}", base, uri_safe(&rel.relation_type));
+        let pred = crate::export::relation_iri(base, &rel.relation_type);
         let mut triple = Triple::new(
             entity_iris[h].as_str(),
             pred.as_str(),
