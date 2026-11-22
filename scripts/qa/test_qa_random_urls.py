@@ -1,13 +1,21 @@
+import contextlib
+import io
 import json
 import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 
-import qa_random_urls as qa
+from scripts import qa_random_urls as qa
 
 
 class ExtractionVerdict(unittest.TestCase):
+    def test_source_inventory(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            status = qa.self_test()
+        self.assertEqual(status, 0, output.getvalue())
+
     def run_extractor(self, output, source=qa.WIKIPEDIA_SOURCES[0]):
         proc = subprocess.CompletedProcess([], 0, json.dumps(output), "")
         with patch.object(qa.subprocess, "run", return_value=proc):
@@ -59,6 +67,21 @@ class ExtractionVerdict(unittest.TestCase):
             self.assertEqual(qa.main(), 0)
         self.assertIn("Special:Random", runner.call_args_list[0].args[2])
         self.assertEqual(runner.call_args_list[1].args[2], article)
+
+    def test_comparison_requires_matching_input_from_each_backend(self):
+        source = qa.DOCUMENT_SOURCES[0]
+        first = qa.RunResult(source, source.url, "OK", backend="pattern", text_hash="a")
+        for second, message in [
+            (qa.RunResult(source, source.url, "OK", backend="heuristic", text_hash="a"), "1/1 sources"),
+            (qa.RunResult(source, source.url, "OK", backend="heuristic", text_hash="b"), "Different input text"),
+            (qa.RunResult(source, source.url, "OK", backend="heuristic"), "Incomplete input comparison"),
+            (qa.RunResult(source, source.url, "error", backend="heuristic"), "Incomplete input comparison"),
+        ]:
+            with self.subTest(message=message):
+                report = qa.generate_report([first, second], 42, ["pattern", "heuristic"], qa.datetime.now())
+                self.assertIn(message, report)
+                if second.text_hash != first.text_hash:
+                    self.assertIn("0/1 sources", report)
 
     def test_empty_selection_fails(self):
         with patch("sys.argv", ["qa_random_urls", "--count", "0"]):

@@ -30,7 +30,7 @@ import sys
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -529,6 +529,20 @@ def generate_report(
     lines.append("## Summary")
     lines.append(f"- Successful checks: {ok_count}/{len(results)}")
     lines.append(f"- Failures: {err_count}" + (f" ({', '.join(r.status for r in results if r.status != 'OK')})" if err_count else ""))
+    if len(backends) > 1:
+        by_source: dict[Source, list[RunResult]] = defaultdict(list)
+        for result in results:
+            by_source[result.source].append(result)
+        matched = 0
+        for source, runs in by_source.items():
+            observed = Counter(r.backend for r in runs if r.status == "OK" and r.text_hash)
+            if observed != Counter(backends):
+                lines.append(f"- Incomplete input comparison: {source.name}")
+            elif len({r.text_hash for r in runs}) > 1:
+                lines.append(f"- Different input text across backends: {source.name}")
+            else:
+                matched += 1
+        lines.append(f"- Same input verified across all backends: {matched}/{len(by_source)} sources")
     lines.append(f"- Source languages: {', '.join(all_langs)}")
     lines.append(f"- Scripts: {', '.join(all_scripts)}")
     type_summary = ", ".join(f"{t}: {c}" for t, c in total_types.most_common())
@@ -591,12 +605,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--count", "-n", type=int, default=10, help="Number of URLs to test (default: 10)")
     p.add_argument("--backends", "-b", default="stacked", help="Comma-separated backends (default: stacked)")
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
-    p.add_argument("--output", "-o", help="Report file path (default: reports/qa-random-<timestamp>.md)")
+    p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
     p.add_argument("--category", "-c", default="all",
                    choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
                    help="Filter source category (default: all)")
     p.add_argument("--lang", help="Filter by language codes (comma-separated)")
-    p.add_argument("--seed", "-s", type=int, help="Random seed for reproducibility")
+    p.add_argument("--seed", "-s", type=int, help="Repeat source selection; live page contents may change")
     p.add_argument("--no-rss", action="store_true", help="Skip RSS and refhop sources (faster, no feed/API fetching)")
     p.add_argument("--verbose", "-v", action="store_true", help="Show full anno output")
     p.add_argument("--delay", type=float, default=1.0, help="Delay between requests in seconds (default: 1.0)")

@@ -18,7 +18,7 @@ check:
         cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
     else
         cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
-        cargo test --manifest-path Cargo.toml -p anno-cli --test extract_provenance --features "eval discourse"
+        cargo test --manifest-path Cargo.toml -p anno-cli --test '*' --features "eval discourse"
     fi
 
 # Run standard checks with sccache-friendly compilation settings.
@@ -330,32 +330,26 @@ eval-results:
 
 # === QA Random URL Testing ===
 
-# Run QA with random URLs from multilingual Wikipedia + diverse sites
-qa-random count="10" backends="stacked" seed="":
+# Sample URLs with the selected backends. Set ANNO to reuse a built CLI.
+qa-random $count="10" $backends="stacked" $seed="" $category="all":
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build --release -p anno-cli --features "eval onnx"
-    mkdir -p qa/reports
-    seed_args=""
-    if [ -n "{{seed}}" ]; then seed_args="--seed {{seed}}"; fi
-    ANNO="./target/release/anno" uv run scripts/qa_random_urls.py \
-        --count {{count}} --backends {{backends}} \
-        $seed_args \
-        --output "qa/reports/qa-random-$(date +%Y%m%d-%H%M%S).md"
+    if [[ -z "${ANNO:-}" ]]; then
+        cargo build --locked --release -p anno-cli --features eval
+        target_dir=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')
+        export ANNO="$target_dir/release/anno"
+    fi
+    args=(--count "$count" --backends "$backends" --category "$category")
+    if [[ -n "$seed" ]]; then args+=(--seed "$seed"); fi
+    python3 scripts/qa_random_urls.py "${args[@]}"
 
-# Validate qa-random source pool integrity (no anno binary or network needed)
+# Exercise the URL runner's inventory and verdicts offline.
 qa-random-selftest:
-    uv run scripts/qa_random_urls.py --self-test
+    python3 -m unittest discover -v -s scripts/qa -p test_qa_random_urls.py
 
-# Quick QA smoke test (5 URLs, Wikipedia only, no RSS)
+# Sample five Wikipedia pages with the default backend.
 qa-random-quick:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cargo build --release -p anno-cli --features "eval onnx"
-    mkdir -p qa/reports
-    ANNO="./target/release/anno" uv run scripts/qa_random_urls.py \
-        --count 5 --no-rss --category wikipedia \
-        --output "qa/reports/qa-random-quick-$(date +%Y%m%d-%H%M%S).md"
+    just qa-random 5 stacked "" wikipedia
 
 # === Backend Tests ===
 
