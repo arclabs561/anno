@@ -96,3 +96,25 @@ The CLI fixture documents under `crates/anno-cli/tests/fixtures/` are useful
 for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
+
+## Identifying RDF source documents
+
+Provide the IRI of the exact source revision when exporting one file.
+
+```sh
+anno export --input report.txt --output rdf --format ntriples \
+  --document-iri https://example.org/reports/42/revisions/3
+```
+
+N-Triples, JSON-LD and graph N-Triples share the same mention IDs. By default
+the CLI hashes the canonical input path and extracted text to identify the
+source revision. Moving a file or changing its text changes that identity.
+An explicit versioned IRI lets different machines identify the same revision.
+
+To migrate stored RDF from the earlier index-based IDs, re-export each original
+document with its annotations in their original order using the earlier release
+and this release. Within each document, use the index in each old mention ID
+to find the original annotation and its new ID. Several annotations can have
+the same type and outer span. A previously merged graph can contain several
+occurrences under one old ID. Rebuild from the originals to recover them.
+An external reference that recorded only the old ID can remain ambiguous.
