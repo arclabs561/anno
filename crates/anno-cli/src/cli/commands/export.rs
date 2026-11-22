@@ -14,6 +14,9 @@
 //! back to co-occurrence edges.
 
 use clap::{Parser, ValueEnum};
+use sha2::{Digest, Sha256};
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -58,6 +61,10 @@ pub struct ExportArgs {
     #[arg(long, default_value = "urn:anno:")]
     pub base_uri: String,
 
+    /// Versioned source IRI for a single RDF input. Defaults to a digest of its path and text.
+    #[arg(long, value_name = "IRI", value_parser = parse_document_iri)]
+    pub document_iri: Option<String>,
+
     /// Quiet mode
     #[arg(short, long)]
     pub quiet: bool,
@@ -89,6 +96,51 @@ pub enum ExportFormat {
     GraphCsv,
 }
 
+impl ExportFormat {
+    fn is_rdf(self) -> bool {
+        match self {
+            Self::NTriples | Self::JsonLd => true,
+            #[cfg(feature = "graph")]
+            Self::GraphNTriples => true,
+            _ => false,
+        }
+    }
+}
+
+fn parse_document_iri(value: &str) -> Result<String, String> {
+    oxiri::Iri::parse(value)
+        .map(|_| value.to_owned())
+        .map_err(|error| format!("invalid absolute document IRI: {error}"))
+}
+
+/// Different source files can contain identical text. Editing one file creates a new revision.
+fn file_document_iri(input: &Path, text: &str, base_uri: &str) -> Result<String, String> {
+    let path = input
+        .canonicalize()
+        .map_err(|e| format!("Cannot identify source file {}: {e}", input.display()))?;
+    #[cfg(windows)]
+    let path_bytes: Vec<u8> = {
+        use std::os::windows::ffi::OsStrExt;
+        path.as_os_str()
+            .encode_wide()
+            .flat_map(u16::to_le_bytes)
+            .collect()
+    };
+    #[cfg(not(windows))]
+    let path_bytes = path.as_os_str().as_encoded_bytes();
+
+    let mut hash = Sha256::new();
+    hash.update((path_bytes.len() as u64).to_be_bytes());
+    hash.update(path_bytes);
+    hash.update((text.len() as u64).to_be_bytes());
+    hash.update(text.as_bytes());
+    let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    Ok(format!(
+        "{}/doc/sha256-{digest}",
+        base_uri.trim_end_matches('/')
+    ))
+}
+
 // =============================================================================
 // Extraction result
 // =============================================================================
@@ -115,19 +167,9 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
         return Err(format!("Input not found: {:?}", args.input));
     }
 
-    // Create output directory
-    if !args.output.exists() {
-        fs::create_dir_all(&args.output)
-            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    if args.document_iri.is_some() && (!args.input.is_file() || !args.format.is_rdf()) {
+        return Err("--document-iri requires one input file and an RDF export format".into());
     }
-
-    // Choose extraction path: relation-capable model vs plain model.
-    let relation_model = args.model.try_create_relation_model().transpose()?;
-    let plain_model = if relation_model.is_none() {
-        Some(args.model.create_model()?)
-    } else {
-        None
-    };
 
     // Collect files to process
     let files: Vec<PathBuf> = if args.input.is_file() {
@@ -148,6 +190,32 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
     if files.is_empty() {
         return Err("No .txt/.json/.jsonl files found in input".into());
     }
+
+    // A format appends the same suffixes to every stem, including both CSV or brat files.
+    // --overwrite may replace an earlier run, but two inputs must never replace one another.
+    let mut by_output_stem = HashMap::new();
+    for file in &files {
+        let stem = output_stem(file);
+        if let Some(previous) = by_output_stem.insert(stem, file) {
+            return Err(format!(
+                "Inputs {previous:?} and {file:?} map to the same output name. Rename one or export them to separate directories."
+            ));
+        }
+    }
+
+    // Create output directory
+    if !args.output.exists() {
+        fs::create_dir_all(&args.output)
+            .map_err(|e| format!("Failed to create output directory: {}", e))?;
+    }
+
+    // Choose extraction path: relation-capable model vs plain model.
+    let relation_model = args.model.try_create_relation_model().transpose()?;
+    let plain_model = if relation_model.is_none() {
+        Some(args.model.create_model()?)
+    } else {
+        None
+    };
 
     if !args.quiet {
         let mode = if relation_model.is_some() {
@@ -182,13 +250,19 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                 .iter()
                 .filter_map(|s| {
                     let (start, end) = s.text_offsets()?;
-                    Some(anno::Entity::new(
+                    let mut entity = anno::Entity::new(
                         s.surface(),
                         s.label.to_entity_type(),
                         start,
                         end,
                         s.confidence.value(),
-                    ))
+                    );
+                    if let anno::Location::Discontinuous { segments } = &s.location {
+                        entity.set_discontinuous_span(anno::DiscontinuousSpan::new(
+                            segments.iter().map(|&(start, end)| start..end).collect(),
+                        ));
+                    }
+                    Some(entity)
                 })
                 .collect();
             Ok((doc.text().to_owned(), Extracted::entities_only(entities)))
@@ -240,6 +314,7 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
                     include_confidence: args.include_confidence,
                     overwrite: args.overwrite,
                     base_uri: &args.base_uri,
+                    document_iri: args.document_iri.as_deref(),
                 }) {
                     Ok(()) => {
                         success_count += 1;
@@ -300,6 +375,11 @@ struct ExportFileOpts<'a> {
     include_confidence: bool,
     overwrite: bool,
     base_uri: &'a str,
+    document_iri: Option<&'a str>,
+}
+
+fn output_stem(input: &Path) -> Cow<'_, str> {
+    input.file_stem().unwrap_or_default().to_string_lossy()
 }
 
 fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
@@ -312,8 +392,9 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         include_confidence,
         overwrite,
         base_uri,
+        document_iri,
     } = opts;
-    let stem = input.file_stem().unwrap_or_default().to_string_lossy();
+    let stem = output_stem(input);
 
     // Graph CSV writes two CSVs (nodes + edges); handle before the single-path logic below.
     if matches!(format, ExportFormat::GraphCsv) {
@@ -369,25 +450,32 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     }
 
     let source_label = input.to_string_lossy();
+    let source_iri = || match document_iri {
+        Some(iri) => Ok(iri.to_owned()),
+        None => file_document_iri(input, content, base_uri),
+    };
     let output_content = match format {
         ExportFormat::Brat => anno::export::to_brat(content, &ext.entities, include_confidence),
         ExportFormat::Conll => anno::export::to_conll(content, &ext.entities),
         ExportFormat::Jsonl => {
             anno::export::to_jsonl(&ext.entities, &source_label, include_confidence)
         }
-        ExportFormat::NTriples => {
-            anno::export::to_ntriples(&ext.entities, &ext.relations, &source_label, base_uri)
-        }
-        ExportFormat::JsonLd => anno::export::to_jsonld(
+        ExportFormat::NTriples => anno::export::to_ntriples_for_document(
             &ext.entities,
             &ext.relations,
-            &source_label,
+            &source_iri()?,
+            base_uri,
+        ),
+        ExportFormat::JsonLd => anno::export::to_jsonld_for_document(
+            &ext.entities,
+            &ext.relations,
+            &source_iri()?,
             include_confidence,
             base_uri,
         ),
         #[cfg(feature = "graph")]
         ExportFormat::GraphNTriples => {
-            export_graph_ntriples(&ext.entities, &ext.relations, input, base_uri)
+            export_graph_ntriples(&ext.entities, &ext.relations, &source_iri()?, base_uri)
         }
         // GraphCsv handled above; guard against future variants.
         _ => {
@@ -417,14 +505,10 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
 fn export_graph_ntriples(
     entities: &[anno::Entity],
     relations: &[anno::Relation],
-    source: &Path,
+    doc_iri: &str,
     base_uri: &str,
 ) -> String {
-    let base = base_uri.trim_end_matches('/');
-    let stem = anno::graph::uri_safe(&source.file_stem().unwrap_or_default().to_string_lossy());
-    let doc_iri = format!("{}/doc/{}", base, stem);
-
-    let kg = anno::graph::entities_to_knowledge_graph(entities, relations, &doc_iri, base_uri);
+    let kg = anno::graph::entities_to_knowledge_graph(entities, relations, doc_iri, base_uri);
     kg.triples()
         .map(|t| t.to_ntriples())
         .collect::<Vec<_>>()
@@ -434,6 +518,24 @@ fn export_graph_ntriples(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn file_identity_preserves_non_utf8_paths() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join(OsStr::from_bytes(b"report-\x80.txt"));
+        let second = dir.path().join(OsStr::from_bytes(b"report-\x81.txt"));
+        fs::write(&first, "Ada").unwrap();
+        fs::write(&second, "Ada").unwrap();
+        assert_eq!(first.to_string_lossy(), second.to_string_lossy());
+        assert_ne!(
+            file_document_iri(&first, "Ada", "urn:anno:").unwrap(),
+            file_document_iri(&second, "Ada", "urn:anno:").unwrap()
+        );
+    }
 
     #[test]
     fn conll_splits_trailing_period_from_entity() {
