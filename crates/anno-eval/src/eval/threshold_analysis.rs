@@ -90,7 +90,7 @@ pub struct ThresholdCurve {
     pub optimal_precision: f64,
     /// Recall at optimal threshold
     pub optimal_recall: f64,
-    /// Area under precision-recall curve (approximation)
+    /// Trapezoidal area under the sampled precision-recall curve.
     pub auc_pr: f64,
     /// Total predictions analyzed
     pub total_predictions: usize,
@@ -239,19 +239,15 @@ impl ThresholdAnalyzer {
     }
 
     fn compute_auc_pr(&self, points: &[ThresholdPoint]) -> f64 {
-        if points.len() < 2 {
-            return 0.0;
-        }
-
-        // Sort by recall (descending) for proper AUC computation
-        let mut sorted: Vec<_> = points.iter().collect();
-        sorted.sort_by(|a, b| b.recall.total_cmp(&a.recall));
-
+        // Walk from rejecting all predictions toward keeping them all. A sample
+        // at threshold 1.0 can still include predictions with confidence 1.0.
+        let mut previous_recall = 0.0;
+        let mut previous_precision = 1.0;
         let mut auc = 0.0;
-        for i in 1..sorted.len() {
-            let recall_diff = sorted[i - 1].recall - sorted[i].recall;
-            let avg_precision = (sorted[i - 1].precision + sorted[i].precision) / 2.0;
-            auc += recall_diff * avg_precision;
+        for point in points.iter().rev() {
+            auc += (point.recall - previous_recall) * (point.precision + previous_precision) / 2.0;
+            previous_recall = point.recall;
+            previous_precision = point.precision;
         }
 
         auc
@@ -437,6 +433,23 @@ mod tests {
         // Optimal should be around 0.5 to filter out the low-confidence wrong predictions
         assert!(curve.optimal_threshold >= 0.3);
         assert!(curve.optimal_threshold <= 0.9);
+    }
+
+    #[test]
+    fn sampled_pr_area_includes_rejecting_max_confidence_predictions() {
+        let analyzer = ThresholdAnalyzer::default();
+        for confidence in [0.95, 1.0] {
+            let correct = PredictionWithConfidence::new("A", "T", confidence, true);
+            let wrong = PredictionWithConfidence::new("B", "T", confidence, false);
+            assert_eq!(analyzer.analyze(std::slice::from_ref(&correct)).auc_pr, 1.0);
+            // The tied group enters the sampled curve at recall 1, precision 1/2.
+            // The trapezoid from recall 0, precision 1 therefore has area 3/4.
+            assert_eq!(
+                analyzer.analyze(&[correct.clone(), wrong.clone()]).auc_pr,
+                0.75
+            );
+            assert_eq!(analyzer.analyze(&[wrong, correct]).auc_pr, 0.75);
+        }
     }
 
     #[test]
