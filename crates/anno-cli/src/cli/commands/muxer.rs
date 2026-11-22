@@ -660,10 +660,10 @@ impl MuxerPerspective {
 pub enum MuxerStrategy {
     /// Deterministic random subset.
     Random,
-    /// MAB-driven selection (prefers higher ok-rate / lower junk).
+    /// Use outcome history to select among eligible backends (EXP3-IX by default).
     ///
-    /// Note: in the matrix sampler harness, `ok` is recorded as “evaluation succeeded AND not junk”
-    /// (where “junk” is a coarse low-F1 threshold, task-dependent).
+    /// The historical strategy name is independent of candidate eligibility.
+    /// Use --include-ml to include available ML backends.
     MlOnly,
     /// Regression-hunting selection (bias toward historically bad/flaky arms).
     WorstFirst,
