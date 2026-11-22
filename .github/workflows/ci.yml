@@ -266,8 +266,9 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
-      - name: Check the watch clock in a non-UTC timezone
-        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
+      - name: Run portable CLI integration tests
+        shell: bash
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test '*'
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
