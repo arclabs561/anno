@@ -338,7 +338,10 @@ impl EntityMemory {
             if score >= similarity_threshold {
                 let should_update = match best_match {
                     None => true,
-                    Some((_, best_score)) => score > best_score,
+                    // Equal scores prefer the first-created cluster in document order.
+                    Some((best_id, best_score)) => {
+                        score > best_score || (score == best_score && *id < best_id)
+                    }
                 };
                 if should_update {
                     best_match = Some((*id, score));
@@ -607,6 +610,7 @@ impl IncrementalCorefResolver {
 
         let mut chains = memory.finished.take().unwrap_or_default();
         chains.extend(memory.to_chains());
+        chains.sort_unstable_by_key(|chain| chain.cluster_id);
         chains
     }
 
@@ -948,7 +952,8 @@ impl IncrementalCorefResolver {
         // 3. Merge singleton clusters that should be linked
 
         // For now, we do simple cluster merging based on string similarity
-        let cluster_ids: Vec<u64> = memory.clusters.keys().copied().collect();
+        let mut cluster_ids: Vec<u64> = memory.clusters.keys().copied().collect();
+        cluster_ids.sort_unstable();
 
         for i in 0..cluster_ids.len() {
             for j in (i + 1)..cluster_ids.len() {
@@ -1223,6 +1228,27 @@ mod tests {
 
         // Should have evicted the oldest (John)
         assert_eq!(memory.cluster_count(), 2);
+    }
+
+    #[test]
+    fn equal_scores_prefer_the_first_created_cluster() {
+        let mut memory = EntityMemory::new(MemoryPolicy::Unbounded);
+        for (text, start) in [("Alice Reed", 0), ("Boris Reed", 20)] {
+            memory.create_cluster(
+                &MentionRecord {
+                    text: text.into(),
+                    start,
+                    end: start + text.len(),
+                    window_index: 0,
+                    mention_type: MentionType::Proper,
+                },
+                Some(EntityType::Person),
+            );
+        }
+        assert_eq!(
+            memory.find_best_match("Reed", MentionType::Proper, 0.7, true, true),
+            Some(0)
+        );
     }
 
     #[test]
