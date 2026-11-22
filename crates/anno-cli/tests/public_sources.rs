@@ -98,10 +98,10 @@ fn fetch_published_span_over_http() {
 
 #[cfg(feature = "eval")]
 #[test]
-fn cp932_colophon_url_ends_at_its_fullwidth_delimiter() {
+fn aozora_colophon_url_ends_at_its_fullwidth_delimiter() {
     verify_http(
-        include_bytes!("fixtures/public_sources/aozora-footer.html.cp932"),
-        "text/html; charset=Shift_JIS",
+        include_bytes!("fixtures/public_sources/aozora-footer.html.utf8"),
+        "text/html; charset=utf-8",
         "footer.html",
         &[("http://www.aozora.gr.jp/", "URL", 25, 49)],
     );
