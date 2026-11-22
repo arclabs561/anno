@@ -97,6 +97,36 @@ for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
 
+## Carrying source revisions through brat and dataset JSONL
+
+Keep one directory per source revision. From a common corpus root, export the
+grounded document and import the resulting annotation file.
+
+```sh
+anno export --input v1/report.json --output v1/brat --format brat --include-confidence
+anno dataset import --input v1/brat/report.ann --output v1/rows.jsonl --format brat --include-text
+sha256sum v1/brat/report.txt
+```
+
+The companion `report.txt` contains the grounded document’s source text.
+Keep the SHA-256 digest of those exact UTF-8 bytes with your document ID,
+revision ID and annotation path in the corpus manifest. The digest distinguishes
+text changes, including changes in Unicode normalization. Two documents can
+contain the same text, and an annotation edit can leave the text digest unchanged.
+Version the annotation file separately when tracking annotation edits.
+
+Each imported row’s `source` records the annotation path supplied to the
+importer. Running from the same root retains the revision directory in that
+path. brat’s `T1`, `T2` identifiers are local to the annotation file.
+The grounded document ID, signal IDs and local brat IDs are absent from these
+JSONL rows. Use the manifest to recover document identity after moving files.
+
+For a mention that skips intervening words, `segments` lists its half-open
+Unicode character ranges. `start` and `end` bound the whole mention, and
+`text` joins the selected pieces with spaces. Use the individual ranges when
+repeated mentions have the same surface. Offsets count Unicode code points,
+so a decomposed accent and its base character occupy two positions.
+
 ## Identifying RDF source documents
 
 Provide the IRI of the exact source revision when exporting one file.
