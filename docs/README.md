@@ -10,6 +10,7 @@ contract before integrating the results.
 - [Backends](BACKENDS.md): model selection and feature flags
 - [Constituency](CONSTITUENCY.md): external parsers and tree interchange
 - [Extraction workflows](EXTRACTION_WORKFLOWS.md): reusable models and measured fixture profiles
+- [Fixtures, datasets and QA](QA.md)
 - [Building](BUILDING.md): local checks and compiler caching
 - [Publishing](PUBLISH_STATUS.md): release and validation checks
 

@@ -134,18 +134,20 @@
 //! The most common source of Unicode bugs is accidentally mixing byte and character
 //! offsets. Use the newtype wrappers to make this impossible at compile time:
 //!
-//! ```rust
-//! use anno::offset::{CharOffset, ByteOffset};
+//! ```
+//! use anno::offset::{CharOffset, CharRange};
 //!
-//! fn process_span(start: CharOffset, end: CharOffset) {
-//!     // Can only receive CharOffset, not ByteOffset
-//! }
+//! let email = CharRange::new(CharOffset::new(8), CharOffset::new(23));
+//! assert_eq!(email.end.get() - email.start.get(), 15);
+//! ```
 //!
-//! let char_pos = CharOffset::new(5);
-//! let byte_pos = ByteOffset::new(10);
+//! A byte position cannot be passed to a character range constructor:
 //!
-//! process_span(char_pos, CharOffset::new(10));  // OK
-//! // process_span(byte_pos, CharOffset::new(10));  // Compile error!
+//! ```compile_fail,E0308
+//! use anno::offset::{ByteOffset, CharOffset, CharRange};
+//!
+//! let end = ByteOffset::new(26);
+//! let email = CharRange::new(CharOffset::new(8), end);
 //! ```
 
 use serde::{Deserialize, Serialize};

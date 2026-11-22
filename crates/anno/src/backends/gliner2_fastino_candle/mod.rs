@@ -102,7 +102,7 @@ fn is_boundary_extractor_architecture(value: &str) -> bool {
 /// Phase 4 Candle-based GLiNER2 backend with PEFT LoRA adapter
 /// merge-at-load support.
 pub struct GLiNER2FastinoCandle {
-    pub(crate) tokenizer: tokenizers::Tokenizer,
+    transformer: processor::SchemaTransformer,
     pub(crate) device: Device,
     /// Directory containing the base model's tokenizer.json,
     /// config.json, and model.safetensors. Used to re-merge from disk
@@ -289,6 +289,9 @@ impl GLiNER2FastinoCandle {
 
         let tokenizer = crate::backends::hf_loader::load_tokenizer(&tokenizer_path)
             .map_err(|e| crate::Error::Backend(format!("tokenizer: {e}")))?;
+        let transformer = processor::SchemaTransformer::new(tokenizer).map_err(|e| {
+            crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
+        })?;
         let encoder = encoder::Encoder::from_safetensors(&weights_path, &config_path, device)?;
         let heads = heads::AllHeads::from_safetensors(&weights_path, device)?;
         let model_id = model_dir
@@ -297,7 +300,7 @@ impl GLiNER2FastinoCandle {
             .unwrap_or_else(|| "gliner2_fastino_candle_local".to_string());
 
         Ok(Self {
-            tokenizer,
+            transformer,
             device: device.clone(),
             base_model_dir: model_dir.to_path_buf(),
             encoder,
@@ -318,11 +321,7 @@ impl GLiNER2FastinoCandle {
         }
         let labels: Vec<String> = types.iter().map(|s| s.to_string()).collect();
         let task = processor::SchemaTask::Entities(labels);
-        let transformer =
-            processor::SchemaTransformer::new(self.tokenizer.clone()).map_err(|e| {
-                crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
-            })?;
-        let record = transformer.transform(text, &[task]).map_err(|e| {
+        let record = self.transformer.transform(text, &[task]).map_err(|e| {
             crate::Error::Backend(format!("gliner2_fastino_candle: transform: {e}"))
         })?;
         let num_words = record.word_to_char_maps.len();
@@ -369,11 +368,7 @@ impl GLiNER2FastinoCandle {
             .map(|(l, d)| (l.to_string(), d.to_string()))
             .collect();
         let task = processor::SchemaTask::EntitiesDescribed(owned);
-        let transformer =
-            processor::SchemaTransformer::new(self.tokenizer.clone()).map_err(|e| {
-                crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
-            })?;
-        let record = transformer.transform(text, &[task]).map_err(|e| {
+        let record = self.transformer.transform(text, &[task]).map_err(|e| {
             crate::Error::Backend(format!("gliner2_fastino_candle: transform: {e}"))
         })?;
         let num_words = record.word_to_char_maps.len();
@@ -418,11 +413,7 @@ impl GLiNER2FastinoCandle {
             .map(|(l, _)| l.to_string())
             .collect();
         let task = processor::SchemaTask::Entities(labels);
-        let transformer =
-            processor::SchemaTransformer::new(self.tokenizer.clone()).map_err(|e| {
-                crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
-            })?;
-        let record = transformer.transform(text, &[task]).map_err(|e| {
+        let record = self.transformer.transform(text, &[task]).map_err(|e| {
             crate::Error::Backend(format!("gliner2_fastino_candle: transform: {e}"))
         })?;
         let num_words = record.word_to_char_maps.len();
@@ -463,10 +454,6 @@ impl GLiNER2FastinoCandle {
         if schema.structures.is_empty() {
             return Ok(vec![]);
         }
-        let transformer =
-            processor::SchemaTransformer::new(self.tokenizer.clone()).map_err(|e| {
-                crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
-            })?;
 
         let mut all_results: Vec<crate::backends::gliner2_fastino::schema::ExtractedStructure> =
             Vec::new();
@@ -480,7 +467,7 @@ impl GLiNER2FastinoCandle {
                     .map(|f| (f.name.clone(), f.field_type))
                     .collect();
             let task = processor::SchemaTask::Structures(st.name.clone(), fields_owned.clone());
-            let record = transformer.transform(text, &[task]).map_err(|e| {
+            let record = self.transformer.transform(text, &[task]).map_err(|e| {
                 crate::Error::Backend(format!("gliner2_fastino_candle: transform: {e}"))
             })?;
             let num_words = record.word_to_char_maps.len();
@@ -528,11 +515,7 @@ impl GLiNER2FastinoCandle {
             "classification".to_string(),
             label_strings.clone(),
         );
-        let transformer =
-            processor::SchemaTransformer::new(self.tokenizer.clone()).map_err(|e| {
-                crate::Error::Backend(format!("gliner2_fastino_candle: transformer: {e}"))
-            })?;
-        let record = transformer.transform(text, &[task]).map_err(|e| {
+        let record = self.transformer.transform(text, &[task]).map_err(|e| {
             crate::Error::Backend(format!("gliner2_fastino_candle: transform: {e}"))
         })?;
         let task_map = record.tasks.first().ok_or_else(|| {

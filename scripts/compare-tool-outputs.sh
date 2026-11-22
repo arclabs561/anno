@@ -26,35 +26,27 @@ EOF
 echo "## Unwrap/Expect Detection Comparison" >> "$COMPARISON_FILE"
 echo "" >> "$COMPARISON_FILE"
 
-# Clippy findings
-if command -v cargo &> /dev/null; then
-    echo "### Clippy Findings" >> "$COMPARISON_FILE"
-    echo "" >> "$COMPARISON_FILE"
-    cargo clippy --all-targets --message-format=json 2>/dev/null | \
-        jq -r 'select(.message.code == "clippy::unwrap_used") | "\(.message.spans[0].file_name):\(.message.spans[0].line_start)"' \
-        > .clippy-unwraps.txt 2>/dev/null || echo "" > .clippy-unwraps.txt
-    CLIPPY_COUNT=$(wc -l < .clippy-unwraps.txt | tr -d ' ')
-    echo "- **Total unwrap warnings**: $CLIPPY_COUNT" >> "$COMPARISON_FILE"
-    echo "" >> "$COMPARISON_FILE"
-fi
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
 
-# OpenGrep findings
-if command -v opengrep &> /dev/null; then
-    echo "### OpenGrep Findings" >> "$COMPARISON_FILE"
-    echo "" >> "$COMPARISON_FILE"
-    opengrep scan --config auto --quiet --json crates/anno/ tests/ examples/ | \
-        jq -r '.results[] | select(.check_id | contains("unwrap")) | "\(.path):\(.start.line)"' \
-        > .opengrep-unwraps.txt 2>/dev/null || echo "" > .opengrep-unwraps.txt
-    OPENGREP_COUNT=$(wc -l < .opengrep-unwraps.txt | tr -d ' ')
-    echo "- **Total unwrap findings**: $OPENGREP_COUNT" >> "$COMPARISON_FILE"
-    echo "" >> "$COMPARISON_FILE"
-    
-    # Find overlaps
-    if [ -f .clippy-unwraps.txt ] && [ -f .opengrep-unwraps.txt ]; then
-        OVERLAP=$(comm -12 <(sort .clippy-unwraps.txt) <(sort .opengrep-unwraps.txt) | wc -l | tr -d ' ')
-        echo "- **Overlapping findings**: $OVERLAP" >> "$COMPARISON_FILE"
-        echo "" >> "$COMPARISON_FILE"
-    fi
+if cargo clippy --all-targets --message-format=json -- -W clippy::unwrap_used 2>/dev/null |
+   jq -r 'select(.message.code.code == "clippy::unwrap_used") | .message.spans[] | select(.is_primary) | "\(.file_name):\(.line_start)"' > "$work/clippy"; then
+    echo "- Clippy unwrap findings: $(wc -l < "$work/clippy")" >> "$COMPARISON_FILE"
+else
+    rm -f "$work/clippy"
+    echo "- Clippy unwrap findings: Not measured" >> "$COMPARISON_FILE"
+fi
+if opengrep scan --config auto --quiet --json crates/anno/ 2>/dev/null |
+   jq -r -L "$script_dir" 'include "scan_metrics"; analyzed_findings[] | select(.check_id | contains("unwrap")) | "\(.path):\(.start.line)"' > "$work/opengrep"; then
+    echo "- OpenGrep unwrap findings: $(wc -l < "$work/opengrep")" >> "$COMPARISON_FILE"
+else
+    rm -f "$work/opengrep"
+    echo "- OpenGrep unwrap findings: Not measured" >> "$COMPARISON_FILE"
+fi
+if [[ -f "$work/clippy" && -f "$work/opengrep" ]]; then
+    overlap=$(comm -12 <(sort -u "$work/clippy") <(sort -u "$work/opengrep") | wc -l)
+    echo "- Overlapping locations: $overlap" >> "$COMPARISON_FILE"
 fi
 
 # 2. Dependency analysis comparison
@@ -85,7 +77,7 @@ if command -v cargo-geiger &> /dev/null; then
     echo "### cargo-geiger Statistics" >> "$COMPARISON_FILE"
     echo "" >> "$COMPARISON_FILE"
     cargo geiger --output-format json 2>/dev/null | \
-        jq -r '[.packages[] | select(.geiger.unsafe_used > 0)] | "Total packages with unsafe: \(length)"' \
+        jq -er -L "$script_dir" 'include "scan_metrics"; geiger_rows | map(select(.count > 0)) | "Total packages with unsafe: \(length)"' \
         >> "$COMPARISON_FILE" 2>/dev/null || echo "Unable to generate statistics" >> "$COMPARISON_FILE"
     echo "" >> "$COMPARISON_FILE"
 fi
@@ -113,7 +105,7 @@ echo "- Style enforcement" >> "$COMPARISON_FILE"
 echo "" >> "$COMPARISON_FILE"
 
 # Cleanup
-rm -f .clippy-unwraps.txt .opengrep-unwraps.txt
+
 
 echo "OK: Comparison report generated: $COMPARISON_FILE"
 

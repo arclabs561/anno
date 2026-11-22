@@ -48,6 +48,11 @@ pub struct GoldEntity {
 }
 
 impl GoldEntity {
+    /// Legacy gold samples carry a single contiguous character span.
+    pub(super) fn coverage(&self) -> anno::SpanCoverage<'_> {
+        anno::SpanCoverage::Contiguous(self.start..self.end)
+    }
+
     /// Create a new gold entity with computed end offset.
     ///
     /// Note: Uses character count (not byte count) for Unicode correctness.

@@ -1,0 +1,3 @@
+# Character offsets in the published excerpt gold use LF on every platform.
+*.txt text eol=lf
+*.utf8 text eol=lf

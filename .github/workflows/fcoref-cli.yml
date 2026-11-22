@@ -1,0 +1,74 @@
+name: FCoref CLI with real weights
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/fcoref-cli.yml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+      - 'crates/anno/Cargo.toml'
+      - 'crates/anno-cli/Cargo.toml'
+      - 'crates/anno/src/backends/coref/fcoref/**'
+      - 'crates/anno/src/core/grounded/**'
+      - 'crates/anno-cli/src/cli/commands/pipeline.rs'
+      - 'crates/anno-cli/src/cli/utils.rs'
+      - 'crates/anno-cli/tests/pipeline_coref_backend.rs'
+      - 'scripts/export_fcoref.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fcoref-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      MODEL_REVISION: e91dfff12879495d882ba9460d0c5d5dd44ade59
+      FCOREF_MODEL_PATH: ${{ github.workspace }}/fcoref_onnx
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Cache converted model
+        id: weights
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.FCOREF_MODEL_PATH }}
+          key: fcoref-fp32-${{ runner.os }}-${{ runner.arch }}-${{ env.MODEL_REVISION }}-${{ hashFiles('scripts/export_fcoref.py', '.github/workflows/fcoref-cli.yml') }}
+      - if: steps.weights.outputs.cache-hit != 'true'
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Export the pinned CPU model
+        if: steps.weights.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install 'torch @ https://download.pytorch.org/whl/cpu/torch-2.6.0%2Bcpu-cp312-cp312-linux_x86_64.whl' \
+            'transformers==4.51.3' 'tokenizers==0.21.4' 'onnx==1.17.0' 'onnxruntime==1.24.2' 'safetensors==0.8.0'
+          checkpoint=$(python -c 'import os; from huggingface_hub import hf_hub_download; print(hf_hub_download("biu-nlp/f-coref", "pytorch_model.bin", revision=os.environ["MODEL_REVISION"]))')
+          echo "30ea6efe2bce49a857fe8aba41dcfe28b4147f77e3dec9f14100950bf4de1aa5  $checkpoint" | sha256sum -c -
+          python scripts/export_fcoref.py --revision "$MODEL_REVISION" --output-dir "$FCOREF_MODEL_PATH"
+      - name: Verify converted artifacts
+        working-directory: ${{ env.FCOREF_MODEL_PATH }}
+        run: |
+          sha256sum -c <<'SUMS'
+          74b98b0f03b27154065d0918a566ed5968d14665e601ecaea6905014bfe6f065  encoder.onnx
+          54c3e13017825750b725dbb682db861c3b7933db6ec1306ff5f51d46c533d0e7  scorer_weights.safetensors
+          5ec67f22fb423648c32c22819353703e5d3dddd3a553b11989f37702fb910aa1  tokenizer.json
+          12361347b196a78de4fad99045cd127c19baa55590fc7885f84a89a7a785bfbf  config.json
+          SUMS
+      - name: Run the FCoref model contracts
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+        run: cargo test --locked -p anno --no-default-features --features onnx --lib fcoref -- --ignored --test-threads=1
+      - name: Check neural and fallback output through the CLI
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+        run: >-
+          cargo test --locked -p anno-cli --no-default-features --features onnx,extractor-html2text
+          --test pipeline_coref_backend -- --include-ignored

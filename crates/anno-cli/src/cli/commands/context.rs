@@ -131,7 +131,7 @@ pub fn run(args: ContextArgs) -> Result<(), String> {
         ContextFormat::Json => format_json(&contexts),
         ContextFormat::Tsv => format_tsv(&contexts),
         ContextFormat::Markdown => format_markdown(&contexts),
-        ContextFormat::Brat => format_brat(&contexts),
+        ContextFormat::Brat => format_brat(&text, &entities),
     };
 
     // Output
@@ -373,27 +373,26 @@ fn format_markdown(contexts: &[EntityContext]) -> String {
     output
 }
 
-fn format_brat(contexts: &[EntityContext]) -> String {
-    let mut output = String::new();
-
-    // brat standoff format: T1\tType Start End\tText
-    for (i, c) in contexts.iter().enumerate() {
-        output.push_str(&format!(
-            "T{}\t{} {} {}\t{}\n",
-            i + 1,
-            c.entity_type,
-            c.start,
-            c.end,
-            c.text
-        ));
+fn format_brat(text: &str, entities: &[anno::Entity]) -> String {
+    let mut output = anno::export::to_brat(text, entities, false);
+    if !output.is_empty() {
+        output.push('\n');
     }
-
     output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brat_context_keeps_a_multiline_mention_in_one_record() {
+        let entity = anno::Entity::new("New\r\nYork", anno::EntityType::Location, 2, 11, 0.9);
+        assert_eq!(
+            format_brat("😀 New\r\nYork", &[entity]),
+            "T1\tLOC 2 5;7 11\tNew York\n"
+        );
+    }
 
     #[test]
     fn markdown_context_preview_clips_unicode_on_character_boundaries() {

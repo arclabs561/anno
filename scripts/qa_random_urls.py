@@ -17,6 +17,7 @@ Examples:
     uv run scripts/qa_random_urls.py --count 3 --no-rss --seed 42
     uv run scripts/qa_random_urls.py --count 10 --backends stacked,bert-onnx
     uv run scripts/qa_random_urls.py --category wikipedia --lang ja,zh,ar
+    uv run scripts/qa_random_urls.py --cross-domain --count 6 --seed 42 --backends pattern
 """
 
 from __future__ import annotations
@@ -30,12 +31,13 @@ import sys
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
 
 # ---------------------------------------------------------------------------
 # Source pool
@@ -55,6 +57,7 @@ class Source:
     category: str  # wikipedia, wikimedia, rss, other
     lang: str      # ISO 639-1 or "multi"
     script: str    # Latin, Cyrillic, CJK, Arabic, Devanagari, etc.
+    discover_from_feed: bool = False
 
 
 # Language -> script mapping for Wikipedia/Wikimedia sources
@@ -254,13 +257,115 @@ REFHOP_SOURCES = [
     Source("Wiki refhop (ko)", "https://ko.wikipedia.org/", "refhop", "ko", "CJK"),
 ]
 
+DOCUMENT_SOURCES = [
+    Source("RFC 3339", "https://www.rfc-editor.org/rfc/rfc3339.html", "documents", "en", "Latin"),
+    Source("W3C bidi controls", "https://www.w3.org/International/questions/qa-bidi-unicode-controls", "documents", "en", "Latin"),
+    Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
+]
+
+# One canonical hostname per publisher. Fixed links replay without discovery.
+# For feeds the selected article depends on both the seed and current entries.
+CROSS_DOMAIN_SOURCES = [
+    Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin"),
+    Source("NASA lunar eclipses 2001–2100", "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html", "cross-domain", "en", "Latin"),
+    Source("US Constitution transcript", "https://www.archives.gov/founding-docs/constitution-transcript", "cross-domain", "en", "Latin"),
+    Source("Bill of Rights transcript", "https://www.archives.gov/founding-docs/bill-of-rights-transcript", "cross-domain", "en", "Latin"),
+    Source("Spanish Constitution", "https://www.boe.es/buscar/act.php?id=BOE-A-1978-31229", "cross-domain", "es", "Latin"),
+    Source("Spanish Civil Code", "https://www.boe.es/buscar/act.php?id=BOE-A-1889-4763", "cross-domain", "es", "Latin"),
+    Source("Aozora: Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "cross-domain", "ja", "CJK"),
+    Source("Aozora: I Am a Cat", "https://www.aozora.gr.jp/cards/000148/card789.html", "cross-domain", "ja", "CJK"),
+    Source("RFC 3339: timestamps", "https://www.rfc-editor.org/rfc/rfc3339.html", "cross-domain", "en", "Latin"),
+    Source("RFC 8259: JSON", "https://www.rfc-editor.org/rfc/rfc8259.html", "cross-domain", "en", "Latin"),
+    Source("IANA example domains", "https://www.iana.org/help/example-domains", "cross-domain", "en", "Latin"),
+    Source("IANA time zone database", "https://www.iana.org/time-zones", "cross-domain", "en", "Latin"),
+    Source("Python data structures", "https://docs.python.org/3/tutorial/datastructures.html", "cross-domain", "en", "Latin"),
+    Source("Python Unicode HOWTO", "https://docs.python.org/3/howto/unicode.html", "cross-domain", "en", "Latin"),
+    Source("Quanta Magazine", "https://www.quantamagazine.org/feed/", "cross-domain", "en", "Latin", True),
+    Source("Library of Congress blog", "https://blogs.loc.gov/loc/feed/", "cross-domain", "en", "Latin", True),
+    Source("MIT News", "https://news.mit.edu/rss/feed", "cross-domain", "en", "Latin", True),
+    Source("Rust project blog", "https://blog.rust-lang.org/feed.xml", "cross-domain", "en", "Latin", True),
+    Source("The Guardian world news", "https://www.theguardian.com/world/rss", "cross-domain", "en", "Latin", True),
+    Source("STAT health news", "https://www.statnews.com/feed/", "cross-domain", "en", "Latin", True),
+]
+
+
+def sample_publishers(pool: list[Source], count: int, rng: random.Random) -> list[Source]:
+    """Take one page per publisher per pass, without replacement across passes."""
+    if count > len(pool):
+        raise ValueError(f"requested {count} cross-domain pages; only {len(pool)} match the filters")
+    by_host: dict[str, list[Source]] = defaultdict(list)
+    for source in pool:
+        by_host[urlsplit(source.url).netloc].append(source)
+    for pages in by_host.values():
+        rng.shuffle(pages)
+    selected = []
+    while len(selected) < count:
+        hosts = [host for host, pages in by_host.items() if pages]
+        rng.shuffle(hosts)
+        for host in hosts[:count - len(selected)]:
+            selected.append(by_host[host].pop())
+    return selected
+
+
 ALL_SOURCES = (WIKIPEDIA_SOURCES + CONLANG_SOURCES + WIKIMEDIA_SOURCES
-               + OTHER_SOURCES + RSS_SOURCES + REFHOP_SOURCES)
+               + OTHER_SOURCES + RSS_SOURCES + REFHOP_SOURCES + DOCUMENT_SOURCES)
 
 
 # ---------------------------------------------------------------------------
 # RSS helper
 # ---------------------------------------------------------------------------
+
+def feed_entry_links(data: bytes) -> list[str]:
+    root = ET.fromstring(data)
+
+    links: list[str] = []
+
+    # RSS 2.0: channel/item/link
+    for item in root.iter("item"):
+        link_el = item.find("link")
+        if link_el is not None and link_el.text:
+            links.append(link_el.text.strip())
+
+    # Atom entry links, including feeds that omit the namespace.
+    for entry in root.findall(".//{*}entry"):
+        for link_el in entry.findall("{*}link"):
+            if link_el.get("rel", "alternate") != "alternate":
+                continue
+            href = link_el.get("href") or (link_el.text or "").strip()
+            if href:
+                links.append(href)
+
+    # RDF: rdf:item/link
+    for item in root.iter("{http://purl.org/rss/1.0/}item"):
+        link_el = item.find("{http://purl.org/rss/1.0/}link")
+        if link_el is not None and link_el.text:
+            links.append(link_el.text.strip())
+
+    return links
+
+
+MAX_PUBLISHER_FEED_BYTES = 2 * 1024 * 1024
+
+
+def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
+    """Read one bounded feed and choose one same-host HTTPS article, without crawling."""
+    request = urllib.request.Request(source.url, headers={"User-Agent": "anno-qa/1.0"})
+    with urllib.request.urlopen(request, timeout=min(15, timeout)) as response:
+        data = response.read(MAX_PUBLISHER_FEED_BYTES + 1)
+    if len(data) > MAX_PUBLISHER_FEED_BYTES:
+        raise ValueError("feed exceeds 2 MiB limit")
+    origin = urlsplit(source.url).netloc
+    candidates = []
+    for entry in feed_entry_links(data):
+        url = urlsplit(entry)
+        if url.scheme == "https" and url.netloc == origin and entry != source.url:
+            candidates.append(entry)
+    if not candidates:
+        raise ValueError("feed has no same-host HTTPS article links")
+    # Sorting and per-publisher randomness keep feed order and other publishers'
+    # availability from changing selection given the same set of entries.
+    return random.Random(f"{seed}:{source.url}").choice(sorted(set(candidates)))
+
 
 def fetch_random_rss_link(feed_url: str, timeout: int = 15) -> Optional[str]:
     """Fetch an RSS/Atom feed and return one random entry link."""
@@ -268,35 +373,7 @@ def fetch_random_rss_link(feed_url: str, timeout: int = 15) -> Optional[str]:
         req = urllib.request.Request(feed_url, headers={"User-Agent": "anno-qa/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = resp.read()
-        root = ET.fromstring(data)
-
-        links: list[str] = []
-
-        # RSS 2.0: channel/item/link
-        for item in root.iter("item"):
-            link_el = item.find("link")
-            if link_el is not None and link_el.text:
-                links.append(link_el.text.strip())
-
-        # Atom: entry/link[@href]
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        for entry in root.iter("{http://www.w3.org/2005/Atom}entry"):
-            for link_el in entry.findall("atom:link", ns):
-                href = link_el.get("href")
-                if href:
-                    links.append(href.strip())
-            # Also try without namespace (some feeds)
-            for link_el in entry.findall("link"):
-                href = link_el.get("href") or (link_el.text or "").strip()
-                if href:
-                    links.append(href)
-
-        # RDF: rdf:item/link
-        for item in root.iter("{http://purl.org/rss/1.0/}item"):
-            link_el = item.find("{http://purl.org/rss/1.0/}link")
-            if link_el is not None and link_el.text:
-                links.append(link_el.text.strip())
-
+        links = feed_entry_links(data)
         if not links:
             return None
         return random.choice(links)
@@ -362,6 +439,11 @@ class RunResult:
     elapsed_secs: float = 0.0
     error_msg: str = ""
     stderr_tail: str = ""
+    backend: str = ""
+    reported_model: str = ""
+    text_hash: str = ""
+    detected_lang: str = ""
+    selected_article: str = ""
 
 
 def resolve_url(source: Source) -> Optional[str]:
@@ -373,7 +455,38 @@ def resolve_url(source: Source) -> Optional[str]:
     return source.url
 
 
+def validate_extraction(data: object) -> None:
+    """Check the extract JSON contract for a nonempty document. Zero matches are valid."""
+    if not isinstance(data, dict) or not isinstance(data.get("entities"), list):
+        raise ValueError("missing entities array")
+    prov = data.get("provenance")
+    if not isinstance(prov, dict) or not isinstance(prov.get("model"), str) or not prov["model"].strip():
+        raise ValueError("missing provenance model")
+    if "source_url" in prov and not (
+        isinstance(prov["source_url"], str) and prov["source_url"].startswith(("http://", "https://"))
+    ):
+        raise ValueError("invalid provenance.source_url")
+    if "text_hash" in prov and not isinstance(prov["text_hash"], str):
+        raise ValueError("invalid provenance.text_hash")
+    size = prov.get("text_chars")
+    if type(size) is not int or size <= 0:
+        raise ValueError("expected a positive provenance.text_chars")
+    entities = data["entities"]
+    if type(prov.get("entity_count")) is not int or prov["entity_count"] != len(entities):
+        raise ValueError("provenance.entity_count disagrees with entities")
+    for i, entity in enumerate(entities):
+        if not isinstance(entity, dict):
+            raise ValueError(f"entity {i} is not an object")
+        for key in ("type", "text"):
+            if not isinstance(entity.get(key), str) or not entity[key].strip():
+                raise ValueError(f"entity {i} has an empty {key}")
+        start, end = entity.get("start"), entity.get("end")
+        if type(start) is not int or type(end) is not int or not 0 <= start < end <= size:
+            raise ValueError(f"entity {i} has invalid character offsets")
+
+
 def run_anno(
+    source: Source,
     anno_bin: str,
     url: str,
     backend: str,
@@ -381,10 +494,10 @@ def run_anno(
     verbose: bool,
 ) -> RunResult:
     """Run anno extract on a URL and parse the result."""
-    # placeholder -- filled by caller
     result = RunResult(
-        source=Source("", "", "", "", ""),
+        source=source,
         url=url,
+        backend=backend,
         status="error",
     )
 
@@ -425,21 +538,25 @@ def run_anno(
             result.error_msg = f"JSON parse error: {e}"
             return result
 
-        entities = data.get("entities", [])
-        prov = data.get("provenance", {})
-
+        try:
+            validate_extraction(data)
+        except ValueError as e:
+            result.error_msg = f"invalid extraction: {e}"
+            return result
+        prov = data["provenance"]
+        result.reported_model = prov["model"]
+        result.url = prov.get("source_url") or url
+        result.text_hash = prov.get("text_hash", "")
+        result.detected_lang = prov.get("language", "")
+        if source.category == "cross-domain" and not result.text_hash:
+            result.error_msg = "missing rendered text hash"
+            return result
+        if source.category == "documents" and result.detected_lang != source.lang:
+            result.error_msg = f"expected {source.lang}, detected {result.detected_lang or 'unknown'}"
+            return result
         result.status = "OK"
-        result.entity_count = len(entities)
-
-        type_counts: dict[str, int] = {}
-        for ent in entities:
-            t = ent.get("type", "?")
-            type_counts[t] = type_counts.get(t, 0) + 1
-        result.type_counts = type_counts
-
-        # Use provenance elapsed_ms if available (more accurate)
-        if "elapsed_ms" in prov:
-            result.elapsed_secs = prov["elapsed_ms"] / 1000.0
+        result.entity_count = len(data["entities"])
+        result.type_counts = dict(Counter(ent["type"] for ent in data["entities"]))
 
         return result
 
@@ -482,30 +599,61 @@ def generate_report(
     lines.append("# QA Random URL Report")
     lines.append(f"Date: {start_time.strftime('%Y-%m-%d %H:%M:%S UTC')} | Seed: {seed_str} | Backend: {backend_str}")
     lines.append("")
+    lines.append("The seed selects sources. Live pages may change between requests, including between backends.")
+    lines.append("")
     lines.append("## Summary")
-    lines.append(f"- URLs tested: {ok_count}/{len(results)}")
+    lines.append(f"- Successful checks: {ok_count}/{len(results)}")
     lines.append(f"- Failures: {err_count}" + (f" ({', '.join(r.status for r in results if r.status != 'OK')})" if err_count else ""))
-    lines.append(f"- Languages: {', '.join(all_langs)}")
+    if len(backends) > 1:
+        by_source: dict[Source, list[RunResult]] = defaultdict(list)
+        for result in results:
+            by_source[result.source].append(result)
+        matched = 0
+        for source, runs in by_source.items():
+            observed = Counter(r.backend for r in runs if r.status == "OK" and r.text_hash)
+            if observed != Counter(backends):
+                lines.append(f"- Incomplete input comparison: {source.name}")
+            elif len({r.text_hash for r in runs}) > 1:
+                lines.append(f"- Different input text across backends: {source.name}")
+            else:
+                matched += 1
+        lines.append(f"- Same input verified across all backends: {matched}/{len(by_source)} sources")
+    lines.append(f"- Source languages: {', '.join(all_langs)}")
     lines.append(f"- Scripts: {', '.join(all_scripts)}")
     type_summary = ", ".join(f"{t}: {c}" for t, c in total_types.most_common())
     lines.append(f"- Entities found: {total_entities} total ({type_summary})")
     lines.append("")
 
+    if any(r.source.category == "cross-domain" for r in results):
+        lines.extend(["## Selected publishers", "", "| Selected host | Successful checks | Errors |",
+                      "|---|---:|---:|"])
+        counts: dict[str, Counter] = defaultdict(Counter)
+        for run in results:
+            counts[urlsplit(run.source.url).netloc][run.status] += 1
+        for host, statuses in sorted(counts.items()):
+            lines.append(f"| {host} | {statuses['OK']} | {sum(statuses.values()) - statuses['OK']} |")
+        lines.append("")
+
     # Results table
     lines.append("## Results")
     lines.append("")
-    lines.append("| # | Source | URL | Lang | Script | Entities | Time | Status |")
-    lines.append("|---|--------|-----|------|--------|----------|------|--------|")
+    lines.append("| # | Source | URL | Source / detected language | Script | Text hash | Requested / reported model | Entities | Time | Status |")
+    lines.append("|---|--------|-----|------|--------|-----------|----------------------------|----------|------|--------|")
 
     for i, r in enumerate(results, 1):
-        url_display = r.url
-        if len(url_display) > 60:
-            url_display = url_display[:57] + "..."
+        url_display = "—" if r.source.discover_from_feed and not r.selected_article else r.url
+        url_display = url_display.replace("|", "%7C")
         time_str = f"{r.elapsed_secs:.1f}s"
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
         status_icon = "OK" if r.status == "OK" else f"**{r.status}**"
+        source_display = r.source.name
+        if r.source.category == "cross-domain":
+            source_display = f"[{r.source.name}]({r.source.url}) ({urlsplit(r.source.url).netloc})"
+            if r.selected_article:
+                article_link = quote(r.selected_article, safe=":/?#&=%+")
+                source_display += f" · [selected article]({article_link})"
         lines.append(
-            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {ent_str} | {time_str} | {status_icon} |"
+            f"| {i} | {source_display} | {url_display} | {r.source.lang} / {r.detected_lang or '—'} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
 
     lines.append("")
@@ -548,12 +696,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--count", "-n", type=int, default=10, help="Number of URLs to test (default: 10)")
     p.add_argument("--backends", "-b", default="stacked", help="Comma-separated backends (default: stacked)")
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
-    p.add_argument("--output", "-o", help="Report file path (default: reports/qa-random-<timestamp>.md)")
-    p.add_argument("--category", "-c", default="all",
-                   choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "all"],
+    p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument("--cross-domain", action="store_true",
+                           help="Sample pages and feed entries from distinct publishers per pass; use --no-rss for fixed pages only")
+    selection.add_argument("--category", "-c", default="all",
+                   choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
                    help="Filter source category (default: all)")
     p.add_argument("--lang", help="Filter by language codes (comma-separated)")
-    p.add_argument("--seed", "-s", type=int, help="Random seed for reproducibility")
+    p.add_argument("--seed", "-s", type=int, help="Repeat source selection; live page contents may change")
     p.add_argument("--no-rss", action="store_true", help="Skip RSS and refhop sources (faster, no feed/API fetching)")
     p.add_argument("--verbose", "-v", action="store_true", help="Show full anno output")
     p.add_argument("--delay", type=float, default=1.0, help="Delay between requests in seconds (default: 1.0)")
@@ -572,7 +723,7 @@ def self_test() -> int:
             errors.append(f"Source with url={s.url} has empty name")
         if not s.url:
             errors.append(f"Source {s.name} has empty url")
-        if s.category not in ("wikipedia", "conlang", "wikimedia", "rss", "other", "refhop"):
+        if s.category not in ("wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents"):
             errors.append(f"Source {s.name} has unknown category: {s.category}")
         if not s.lang:
             errors.append(f"Source {s.name} has empty lang")
@@ -666,14 +817,20 @@ def main() -> int:
     anno_bin = os.environ.get("ANNO", "./target/release/anno")
     backends = [b.strip() for b in args.backends.split(",")]
 
+    if args.count < 1 or not all(backends):
+        print("error: expected a positive count and a nonempty backend name", file=sys.stderr)
+        return 1
+
     # Seed
-    if args.seed is not None:
+    if args.cross_domain and args.seed is None:
+        args.seed = random.SystemRandom().getrandbits(64)
+    elif not args.cross_domain and args.seed is not None:
         random.seed(args.seed)
 
     # Filter sources
-    pool = list(ALL_SOURCES)
+    pool = list(CROSS_DOMAIN_SOURCES if args.cross_domain else ALL_SOURCES)
     if args.no_rss:
-        pool = [s for s in pool if s.category not in ("rss", "refhop")]
+        pool = [s for s in pool if s.category not in ("rss", "refhop") and not s.discover_from_feed]
     if args.category != "all":
         pool = [s for s in pool if s.category == args.category]
     if args.lang:
@@ -685,41 +842,52 @@ def main() -> int:
         return 1
 
     # Sample
-    count = min(args.count, len(pool))
-    selected = random.sample(pool, count)
+    if args.cross_domain:
+        try:
+            selected = sample_publishers(pool, args.count, random.Random(args.seed))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    else:
+        selected = random.sample(pool, min(args.count, len(pool)))
+    count = len(selected)
 
     print(f"QA random URL test: {count} URLs, backend(s): {', '.join(backends)}, seed: {args.seed}")
     print(f"Source pool: {len(pool)} sources after filters")
     print()
 
-    # Dry-run: show selection and resolve URLs, but don't run anno
-    if args.dry_run:
-        for i, source in enumerate(selected, 1):
-            url = resolve_url(source)
-            resolved = url or "(resolve failed)"
+    all_results: list[RunResult] = []
+    for i, source in enumerate(selected, 1):
+        error = "URL resolution failed"
+        try:
+            if source.discover_from_feed:
+                url = discover_publisher_article(source, args.seed, args.timeout)
+            else:
+                url = resolve_url(source)
+        except (URLError, ET.ParseError, OSError, ValueError) as exc:
+            url = None
+            error = f"feed discovery failed: {exc}"
+
+        if args.dry_run:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{source.category}]")
             if url != source.url:
-                print(f"           feed: {source.url}")
-            print(f"           url:  {resolved}")
-        return 0
-
-    all_results: list[RunResult] = []
-
-    for i, source in enumerate(selected, 1):
-        # Resolve URL (RSS/refhop sources need a network fetch to get the actual article URL)
-        url = resolve_url(source)
+                print(f"           source: {source.url}")
+            print(f"           url:  {url or error}")
         if url is None:
-            print(f"  [{i}/{count}] {source.name}: RSS fetch failed, skipping")
-            r = RunResult(source=source, url=source.url, status="error",
-                          error_msg="RSS feed fetch failed")
-            all_results.append(r)
+            print(f"  [{i}/{count}] {source.name}: {error}")
+            all_results.append(RunResult(source, source.url, "error", error_msg=error))
+            continue
+        if args.dry_run:
             continue
 
+        selected_article = url if source.discover_from_feed else ""
         for backend in backends:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) -> {backend}...", end=" ", flush=True)
-            result = run_anno(anno_bin, url, backend, args.timeout, args.verbose)
-            result.source = source
-            result.url = url  # resolved URL
+            result = run_anno(source, anno_bin, url, backend, args.timeout, args.verbose)
+            result.selected_article = selected_article
+            if result.status == "OK":
+                # Reuse the article reached by the first backend on random redirects.
+                url = result.url
 
             if result.status == "OK":
                 top_types = ", ".join(f"{t}:{c}" for t, c in sorted(result.type_counts.items(), key=lambda x: -x[1])[:3])
@@ -732,6 +900,9 @@ def main() -> int:
         # Rate limiting
         if i < count and args.delay > 0:
             time.sleep(args.delay)
+
+    if args.dry_run:
+        return 1 if args.cross_domain and all_results else 0
 
     # Generate report
     report = generate_report(all_results, args.seed, backends, start_time)

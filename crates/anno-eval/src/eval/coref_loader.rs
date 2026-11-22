@@ -1648,8 +1648,11 @@ fn parse_ecb_plus_xml(xml: &str, topic: &str, doc_name: &str) -> Result<CorefDoc
         }
 
         if !chain_mentions.is_empty() {
-            let cid = cluster_key.parse::<u64>().unwrap_or(0);
-            coref_chains.push(CorefChain::with_id(chain_mentions, cid));
+            let mut chain = CorefChain::new(chain_mentions);
+            // ECB+ normally uses alphanumeric notes. The numeric field can only
+            // represent source IDs that actually parse as numbers.
+            chain.cluster_id = cluster_key.parse::<u64>().ok().map(Into::into);
+            coref_chains.push(chain);
         }
     }
 
@@ -2195,6 +2198,28 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
     }
 
     #[test]
+    fn ecb_plus_alphanumeric_notes_remain_separate_chains_without_a_numeric_id() {
+        // Two annotated mentions and their source IDs from ECB+/1/1_10ecb.xml.
+        let xml = r#"<Document>
+          <token t_id="7" sentence="0" number="6">herself</token>
+          <token t_id="15" sentence="0" number="14">told</token>
+          <Markables>
+            <HUMAN_PART_PER m_id="21"><token_anchor t_id="7"/></HUMAN_PART_PER>
+            <ACTION_REPORTING m_id="34"><token_anchor t_id="15"/></ACTION_REPORTING>
+          </Markables>
+          <Relations>
+            <CROSS_DOC_COREF r_id="37612" note="ACT16235311629112331"><source m_id="34"/><target m_id="41"/></CROSS_DOC_COREF>
+            <CROSS_DOC_COREF r_id="37614" note="HUM16236184328979740"><source m_id="21"/><target m_id="43"/></CROSS_DOC_COREF>
+          </Relations>
+        </Document>"#;
+        let doc = parse_ecb_plus_xml(xml, "1", "1_10ecb").unwrap();
+        assert_eq!(doc.chains.len(), 2);
+        assert_eq!(doc.chains[0].mentions[0].text, "told");
+        assert_eq!(doc.chains[1].mentions[0].text, "herself");
+        assert!(doc.chains.iter().all(|c| c.cluster_id.is_none()));
+    }
+
+    #[test]
     fn test_parse_ecb_plus_xml() {
         let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
 <Document doc_name="1_1ecb" doc_id="1_1ecb.xml.xml">
@@ -2251,6 +2276,6 @@ Topic,File,Sentence Number,Token Number,Token,Lemma,Event Mention,Coreference Ch
             .chains
             .iter()
             .find(|c| c.mentions.iter().any(|m| m.text == "struck"));
-        assert!(cluster_30002.is_some(), "Expected cluster for struck");
+        assert_eq!(cluster_30002.unwrap().cluster_id.unwrap().get(), 30002);
     }
 }
