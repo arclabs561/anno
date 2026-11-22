@@ -267,6 +267,8 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Check the watch clock in a non-UTC timezone
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
@@ -620,15 +622,7 @@ jobs:
       - name: Prepare the pinned public WikiGold input
         # External sampling is advisory on PRs if the source and cache are unavailable.
         continue-on-error: ${{ github.event_name == 'pull_request' }}
-        run: |
-          input="$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          digest=c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
-          if [[ -f "$input" ]] && echo "$digest  $input" | sha256sum --check --status; then exit 0; fi
-          curl --fail --location --retry 2 --max-time 30 --max-filesize 1000000 \
-            https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt \
-            -o "$RUNNER_TEMP/wikigold.conll"
-          echo "$digest  $RUNNER_TEMP/wikigold.conll" | sha256sum --check
-          install -D "$RUNNER_TEMP/wikigold.conll" "$input"
+        run: bash scripts/qa/prepare_matrix_wikigold.sh
       - name: Bootstrap a cold trusted run on the public WikiGold corpus
         if: steps.prior.outputs.restored == 'false' && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
@@ -705,9 +699,11 @@ jobs:
           python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
         id: checkpoint
+        env:
+          JOURNAL_START: ${{ steps.prior.outputs.journal_start }}
         if: success() && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
-          python3 scripts/qa/matrix_checkpoint.py snapshot "$RUNNER_TEMP/matrix-checkpoint" \
+          python3 scripts/qa/matrix_checkpoint.py snapshot --journal-start "$JOURNAL_START" "$RUNNER_TEMP/matrix-checkpoint" \
             "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
       - name: Publish trusted matrix checkpoint
         if: steps.checkpoint.outcome == 'success' && steps.checkpoint.outputs.observations != '0'

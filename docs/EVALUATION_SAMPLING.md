@@ -112,6 +112,19 @@ panel. Count newly observed backend failures separately from repeat dataset
 and I/O failures. A run that measures only its chosen cell cannot tell whether
 the other policy would have found a failure sooner.
 
+Run `python3 scripts/qa/compare_matrix_picks.py --output-dir /tmp/anno-matched`
+with an unused output path for an offline prospective control. It builds the
+test binary from cached dependencies and runs both production selectors through
+their normal first-pick path. Each reads an independent copy of the same
+frozen history and neutral dataset cache. The experiment writes `picks.json`
+before any held-out scoring. Separate exact-cell runs then write `panels.json`
+and retain the observation IDs. Both mirrored histories use eight seeds by
+default. Each panel has one NER task, one heuristic backend and two dataset
+slots containing the same synthetic text. Only the gold annotations vary.
+The persistent and switched cases show whether a policy rediscovers a known
+quality failure or detects it after it moves. Neither creates a backend crash
+or an I/O error. The experiment does not estimate discovery rates on live data.
+
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which

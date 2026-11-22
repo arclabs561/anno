@@ -76,21 +76,44 @@ def restore(root, name, branch, repo, current_run):
     return artifact["workflow_run"]["id"], published_run
 
 
-def snapshot(root, target, logs):
-    # A Rust test can exit successfully with no samples. Do not replace the
-    # last useful checkpoint with an empty or unchanged run.
-    observations = 0
-    for log in logs:
-        if log.exists():
-            with log.open() as stream:
-                observations += sum(json.loads(line).get("record_type") == "outcome" for line in stream)
-    if not observations:
+def journal_size(root):
+    try:
+        return (root / "eval-results.jsonl").stat().st_size
+    except FileNotFoundError:
         return 0
+
+
+def snapshot(root, target, logs, journal_start=0):
+    # The evaluator logs an outcome even if appending its history row failed.
+    # Only post-restore journal entries prove that the next run can see it.
+    expected = set()
+    for log in logs:
+        if not log.exists():
+            continue
+        with log.open() as stream:
+            for line in stream:
+                row = json.loads(line)
+                if row.get("record_type") != "outcome":
+                    continue
+                obs = row.get("observation_id")
+                if not isinstance(obs, str) or not obs:
+                    raise ValueError(f"{log}: outcome has no observation ID")
+                expected.add(obs)
+    if not expected:
+        return 0
+    if not 0 <= journal_start <= journal_size(root):
+        raise ValueError("evaluation journal shrank after checkpoint restore")
+    missing = expected.copy()
+    with (root / "eval-results.jsonl").open("rb") as journal:
+        journal.seek(journal_start)
+        for line in journal:
+            missing.discard(json.loads(line).get("observation_id"))
+    if missing:
+        raise ValueError(f"{len(missing)} current observations missing from the appended "
+                         f"evaluation journal, including {min(missing)!r}")
     files = [p for p in root.iterdir() if p.is_file() and state_file(p.name)]
     if not any(p.name.startswith("muxer_history.") for p in files):
         raise ValueError("observations recorded but muxer history missing")
-    if not (root / "eval-results.jsonl").is_file() or not (root / "eval-results.jsonl").stat().st_size:
-        raise ValueError("observations recorded but evaluation results missing")
     target.mkdir()
     for src in files:
         dest = target / src.name
@@ -100,7 +123,7 @@ def snapshot(root, target, logs):
                 source.backup(backup)
         else:
             shutil.copyfile(src, dest)
-    return observations
+    return len(expected)
 
 
 if __name__ == "__main__":
@@ -110,6 +133,7 @@ if __name__ == "__main__":
     save = cmd.add_parser("snapshot")
     save.add_argument("target", type=Path)
     save.add_argument("logs", nargs="+", type=Path)
+    save.add_argument("--journal-start", type=int, default=0, help="byte length at restore")
     args = parser.parse_args()
     cache = Path(os.environ["ANNO_CACHE_DIR"])
     if args.command == "restore":
@@ -119,9 +143,9 @@ if __name__ == "__main__":
                    if run is not None else "Sampler history starts empty. No compatible trusted checkpoint exists.")
         if published_run is not None:
             message += f" Run {published_run} already published this cohort at or after this run; this attempt is read-only."
-        output = f"can_publish={'true' if published_run is None else 'false'}\nrestored={'true' if run is not None else 'false'}"
+        output = f"journal_start={journal_size(cache)}\ncan_publish={'true' if published_run is None else 'false'}\nrestored={'true' if run is not None else 'false'}"
     else:
-        count = snapshot(cache, args.target, args.logs)
+        count = snapshot(cache, args.target, args.logs, args.journal_start)
         message = f"Matrix checkpoint contains {count} new external observations." if count else "No new external observations to checkpoint."
         output = f"observations={count}"
     print(message)
