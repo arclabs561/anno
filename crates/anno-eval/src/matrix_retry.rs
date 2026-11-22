@@ -97,7 +97,7 @@ fn infrastructure_diagnosis(error: &str) -> Option<&str> {
 
 fn infrastructure_probe(seed: u64) -> bool {
     // One shared bucket across all affected cells; more broken cells do not open more slots.
-    mh::stable_hash64(seed, "matrix-infrastructure-probe") % 8 == 0
+    mh::stable_hash64(seed, "matrix-infrastructure-probe").is_multiple_of(8)
 }
 
 #[derive(Default)]
@@ -212,7 +212,7 @@ impl Recent {
         }
         // Reserve three seed buckets out of four for ordinary worst-first exploration
         // when there are no eligible outstanding failures.
-        if mh::stable_hash64(seed, "matrix-recovered-check") % 4 != 0 {
+        if !mh::stable_hash64(seed, "matrix-recovered-check").is_multiple_of(4) {
             return None;
         }
         [
