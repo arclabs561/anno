@@ -34,3 +34,22 @@ class SlotSchedule(unittest.TestCase):
             self.assertFalse((receipts / "result.json").exists())
             with self.assertRaises(FileExistsError):
                 run_slot(root / "fake", root / "cache", receipts, "mixed", 2, 4, 2, 9)
+
+    def test_unexpected_native_strategy_invalidates_plans_and_measurements(self):
+        for plan_only in [False, True]:
+            with self.subTest(plan_only=plan_only), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                receipts = root / "receipts"
+                def native(*args, **kwargs):
+                    if plan_only:
+                        (receipts / "selection.json").write_text(json.dumps({"strategy":"random"}))
+                    else:
+                        (receipts / "decisions.jsonl").write_text(json.dumps({
+                            "record_type":"outcome", "strategy":"random"
+                        }) + "\n")
+                with patch("run_matrix_slot.subprocess.run", native):
+                    with self.assertRaisesRegex(ValueError, "expected estimate"):
+                        run_slot(root / "fake", root / "cache", receipts, "mixed", 2, 4, 2, 9, plan_only)
+                summary = json.loads((receipts / "result.json").read_text())
+                self.assertFalse(summary["strategy_matches"])
+                self.assertEqual(summary["observed_strategies"], ["random"])

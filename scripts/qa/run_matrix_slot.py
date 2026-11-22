@@ -47,7 +47,12 @@ def run_slot(binary, cache, receipts, policy, slot, period, coverage_slot, seed,
         observed = sorted({r["strategy"] for r in map(json.loads, rows) if r.get("record_type") == "outcome"})
     if not observed:
         raise ValueError("matrix sampler emitted no outcome receipts")
-    record(receipts / "result.json", {**plan, "observed_strategies": observed})
+    matches = observed == [strategy]
+    record(receipts / "result.json", {
+        **plan, "observed_strategies": observed, "strategy_matches": matches,
+    })
+    if not matches:
+        raise ValueError(f"expected {strategy} in slot {slot}, observed {observed}")
 
 
 def main():
