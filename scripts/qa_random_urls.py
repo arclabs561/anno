@@ -370,6 +370,7 @@ class RunResult:
     stderr_tail: str = ""
     backend: str = ""
     reported_model: str = ""
+    text_hash: str = ""
 
 
 def resolve_url(source: Source) -> Optional[str]:
@@ -388,6 +389,12 @@ def validate_extraction(data: object) -> None:
     prov = data.get("provenance")
     if not isinstance(prov, dict) or not isinstance(prov.get("model"), str) or not prov["model"].strip():
         raise ValueError("missing provenance model")
+    if "source_url" in prov and not (
+        isinstance(prov["source_url"], str) and prov["source_url"].startswith(("http://", "https://"))
+    ):
+        raise ValueError("invalid provenance.source_url")
+    if "text_hash" in prov and not isinstance(prov["text_hash"], str):
+        raise ValueError("invalid provenance.text_hash")
     size = prov.get("text_chars")
     if type(size) is not int or size <= 0:
         raise ValueError("expected a positive provenance.text_chars")
@@ -464,7 +471,10 @@ def run_anno(
             result.error_msg = f"invalid extraction: {e}"
             return result
         result.status = "OK"
-        result.reported_model = data["provenance"]["model"]
+        prov = data["provenance"]
+        result.reported_model = prov["model"]
+        result.url = prov.get("source_url") or url
+        result.text_hash = prov.get("text_hash", "")
         result.entity_count = len(data["entities"])
         result.type_counts = dict(Counter(ent["type"] for ent in data["entities"]))
 
@@ -523,8 +533,8 @@ def generate_report(
     # Results table
     lines.append("## Results")
     lines.append("")
-    lines.append("| # | Source | URL | Lang | Script | Requested / reported model | Entities | Time | Status |")
-    lines.append("|---|--------|-----|------|--------|----------------------------|----------|------|--------|")
+    lines.append("| # | Source | URL | Lang | Script | Text hash | Requested / reported model | Entities | Time | Status |")
+    lines.append("|---|--------|-----|------|--------|-----------|----------------------------|----------|------|--------|")
 
     for i, r in enumerate(results, 1):
         url_display = r.url
@@ -533,7 +543,7 @@ def generate_report(
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
         status_icon = "OK" if r.status == "OK" else f"**{r.status}**"
         lines.append(
-            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
+            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
 
     lines.append("")
@@ -751,7 +761,9 @@ def main() -> int:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) -> {backend}...", end=" ", flush=True)
             result = run_anno(anno_bin, url, backend, args.timeout, args.verbose)
             result.source = source
-            result.url = url  # resolved URL
+            if result.status == "OK":
+                # Reuse the article reached by the first backend on random redirects.
+                url = result.url
 
             if result.status == "OK":
                 top_types = ", ".join(f"{t}:{c}" for t, c in sorted(result.type_counts.items(), key=lambda x: -x[1])[:3])

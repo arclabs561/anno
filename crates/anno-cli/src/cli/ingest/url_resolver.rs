@@ -4,6 +4,7 @@
 //! library concern. The library takes `&str`; the CLI resolves formats into text.
 
 use std::collections::HashMap;
+use ureq::ResponseExt;
 
 /// Resolved content from a URL.
 #[derive(Debug, Clone)]
@@ -13,7 +14,7 @@ pub struct ResolvedContent {
     pub text: String,
     /// Metadata about the source (title, content-type, etc.)
     pub metadata: HashMap<String, String>,
-    /// The original URL
+    /// The final URL after redirects
     pub source_url: String,
 }
 
@@ -70,6 +71,7 @@ impl UrlResolver for HttpResolver {
             ));
         }
 
+        let source_url = response.get_uri().to_string();
         let mut body = response.into_body();
         let html_without_charset = matches!(
             body.mime_type(),
@@ -113,7 +115,7 @@ impl UrlResolver for HttpResolver {
         Ok(ResolvedContent {
             text,
             metadata,
-            source_url: url.to_string(),
+            source_url,
         })
     }
 }

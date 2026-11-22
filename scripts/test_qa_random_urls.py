@@ -1,5 +1,6 @@
 import json
 import subprocess
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -33,6 +34,18 @@ class ExtractionVerdict(unittest.TestCase):
         ):
             with self.subTest(row=row, metadata=metadata):
                 self.assertEqual(self.run_extractor({"entities": [row], "provenance": metadata}).status, "error")
+
+    def test_second_backend_reuses_final_article_url(self):
+        article = "https://example.org/article"
+        def extract(binary, url, backend, timeout, verbose):
+            return qa.RunResult(qa.DOCUMENT_SOURCES[0], article, "OK", backend=backend)
+        with tempfile.TemporaryDirectory() as tmp, patch("sys.argv", [
+            "qa_random_urls", "--category", "wikipedia", "--count", "1",
+            "--seed", "42", "--backends", "pattern,heuristic", "--output", tmp + "/qa.md",
+        ]), patch.object(qa, "run_anno", side_effect=extract) as runner:
+            self.assertEqual(qa.main(), 0)
+        self.assertIn("Special:Random", runner.call_args_list[0].args[1])
+        self.assertEqual(runner.call_args_list[1].args[1], article)
 
     def test_empty_selection_fails(self):
         with patch("sys.argv", ["qa_random_urls", "--count", "0"]):
