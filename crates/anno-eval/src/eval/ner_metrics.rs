@@ -90,6 +90,10 @@ impl EvalSpan {
     pub fn type_match(&self, other: &Self) -> bool {
         super::entity_type_matches(&self.entity_type, &other.entity_type)
     }
+
+    fn type_key(&self) -> String {
+        format!("{:?}", EntityType::from_label(self.entity_type.as_label()))
+    }
 }
 
 impl From<&Entity> for EvalSpan {
@@ -386,25 +390,26 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
     }
 
     for (gold_span, best_match) in gold.iter().zip(gold_match) {
-        let entity_type_str = format!(
-            "{:?}",
-            EntityType::from_label(gold_span.entity_type.as_label())
-        );
+        let type_counts = results.by_type.entry(gold_span.type_key()).or_default();
 
         match best_match {
             Some((pred_idx, match_type)) => {
                 let pred_span = &predicted[pred_idx];
 
-                // Update counts based on match type
-                update_counts(&mut results, gold_span, pred_span, match_type);
-
-                // Per-type tracking (strict mode)
-                let type_counts = results.by_type.entry(entity_type_str).or_default();
+                // A wrong type consumes one gold item and one prediction in different classes.
                 if match_type == MatchType::ExactBoth {
                     type_counts.correct += 1;
-                } else {
+                } else if match_type == MatchType::PartialBoundaryCorrectType {
                     type_counts.incorrect += 1;
+                } else {
+                    type_counts.missed += 1;
+                    results
+                        .by_type
+                        .entry(pred_span.type_key())
+                        .or_default()
+                        .spurious += 1;
                 }
+                update_counts(&mut results, gold_span, pred_span, match_type);
             }
             None => {
                 // Missing: gold entity not found
@@ -413,7 +418,7 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
                 results.partial.missed += 1;
                 results.ent_type.missed += 1;
 
-                results.by_type.entry(entity_type_str).or_default().missed += 1;
+                type_counts.missed += 1;
             }
         }
     }
@@ -426,11 +431,11 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
             results.partial.spurious += 1;
             results.ent_type.spurious += 1;
 
-            let entity_type_str = format!(
-                "{:?}",
-                EntityType::from_label(predicted[pred_idx].entity_type.as_label())
-            );
-            results.by_type.entry(entity_type_str).or_default().spurious += 1;
+            results
+                .by_type
+                .entry(predicted[pred_idx].type_key())
+                .or_default()
+                .spurious += 1;
         }
     }
 
@@ -615,6 +620,33 @@ mod tests {
     }
 
     #[test]
+    fn wnut_gold_and_decoded_labels_share_type_counts() {
+        use crate::eval::loader::{DatasetId, DatasetLoader};
+        use anno::schema::{map_to_canonical, DatasetSchema};
+
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        for label in DatasetId::Wnut17.entity_types() {
+            let data = loader
+                .parse_content_str(&format!("example\tB-{label}\n"), DatasetId::Wnut17)
+                .unwrap();
+            let gold_type = data.sentences[0].entities().pop().unwrap().entity_type;
+            let type_key = format!("{gold_type:?}");
+            let gold = [span(gold_type, 0, 7)];
+            let pred = [
+                span(map_to_canonical(label, None), 0, 7),
+                span(map_to_canonical(label, Some(DatasetSchema::WNUT17)), 8, 15),
+            ];
+
+            let results = evaluate_ner(&gold, &pred);
+            assert_eq!(results.strict.correct, 1, "{label}");
+            assert_eq!(results.by_type.len(), 1, "{label}");
+            let counts = &results.by_type[&type_key];
+            assert_eq!((counts.correct, counts.spurious), (1, 1), "{label}");
+        }
+    }
+
+    #[test]
     fn test_partial_boundary() {
         let gold = vec![span(EntityType::Person, 0, 10)];
         let pred = vec![span(EntityType::Person, 0, 8)]; // Partial overlap
@@ -622,6 +654,7 @@ mod tests {
         let results = evaluate_ner(&gold, &pred);
         // Strict: incorrect (boundary mismatch)
         assert_eq!(results.strict.incorrect, 1);
+        assert_eq!(results.by_type["Person"].incorrect, 1);
         // Exact: incorrect (boundary mismatch)
         assert_eq!(results.exact.incorrect, 1);
         // Partial: partial match
@@ -707,12 +740,11 @@ mod tests {
 
         let results = evaluate_ner(&gold, &pred);
 
-        // Check per-type breakdown
-        let person_counts = results.by_type.get("Person").unwrap();
-        assert_eq!(person_counts.correct, 1);
-        assert_eq!(person_counts.incorrect, 1);
-
-        let loc_counts = results.by_type.get("Location").unwrap();
-        assert_eq!(loc_counts.correct, 1);
+        let person = &results.by_type["Person"];
+        assert_eq!((person.correct, person.missed, person.actual()), (1, 1, 1));
+        let org = &results.by_type["Organization"];
+        assert_eq!((org.spurious, org.possible(), org.actual()), (1, 0, 1));
+        assert_eq!(results.by_type["Location"].correct, 1);
+        assert_eq!(results.strict.incorrect, 1);
     }
 }
