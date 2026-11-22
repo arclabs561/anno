@@ -88,6 +88,10 @@ def check(lines, report=False):
         selected = next((r for r in candidates if r["arm"] == backend), {})
         prior_calls = selected.get("calls", "unknown")
         reason = "exploration" if first.get("explore_first") else "ranked"
+        retry = (first.get("worst_first_round") or {}).get("retry")
+        if retry:
+            print(f"Retry evidence: {retry['observation_id']} "
+                  f"(risk weight {retry['risk']:.3f} over {retry['observations']} observations).")
         for dataset in first.get("datasets", []):
             row = observed.get((first.get("run_id"), backend, dataset))
             result = "no outcome"

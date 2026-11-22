@@ -608,6 +608,8 @@ jobs:
           install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
+      - name: Replay adaptive selection across isolated CI histories
+        run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
       - name: Restore the latest compatible default-branch checkpoint
         id: prior
         env:

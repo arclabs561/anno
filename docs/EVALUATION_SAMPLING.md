@@ -69,6 +69,13 @@ may fetch data when that task's local cache is empty. The job summary links
 the restored run and reports the first worst-first selection, its observed
 result, and completed or missing coverage by task.
 
+To replay the cross-run feedback test locally, run
+`python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the
+same seed, text, backend, and budget. Swapping which dataset scored zero must
+swap the next run's first cell after checkpoint restore. A successful retry
+must clear the pending observation. This test enables low-score retries
+explicitly. CI's default adaptive lane targets operational failures.
+
 To require full external coverage on a provisioned runner, use
 `python3 scripts/qa/check_matrix_outcomes.py muxer-decisions.jsonl`. It
 requires a completed sample with examples on each named task and an attempted
