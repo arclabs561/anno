@@ -80,7 +80,7 @@ pub struct EvalHistoryEntry {
     pub task: String,
     /// Random seed used
     pub seed: u64,
-    /// F1 score (0.0-1.0)
+    /// Finite primary F1 of a successful evaluation (0.0-1.0)
     pub f1: Option<f64>,
     /// Precision (0.0-1.0)
     pub precision: Option<f64>,
@@ -118,9 +118,25 @@ struct StoredEvalHistoryEntry {
     git_commit: Option<String>,
 }
 
+impl StoredEvalHistoryEntry {
+    // Older history writers copied only the literal "f1" key, but retained
+    // the evaluator result with the task-specific score in metadata.
+    fn recover_primary_f1(mut self) -> Self {
+        if self.entry.f1.is_none() && self.entry.error.is_none() {
+            self.entry.f1 = self
+                .entry
+                .metadata
+                .as_deref()
+                .and_then(|raw| serde_json::from_str::<TaskEvalResult>(raw).ok())
+                .and_then(|result| result.measured_primary_f1());
+        }
+        self
+    }
+}
+
 impl From<&TaskEvalResult> for EvalHistoryEntry {
     fn from(result: &TaskEvalResult) -> Self {
-        let f1 = result.metrics.get("f1").copied();
+        let f1 = result.measured_primary_f1();
         let precision = result.metrics.get("precision").copied();
         let recall = result.metrics.get("recall").copied();
 
@@ -310,7 +326,7 @@ impl EvalHistory {
                         ),
                     )
                 })?;
-            records.push(record);
+            records.push(record.recover_primary_f1());
         }
         Ok(records)
     }
@@ -323,7 +339,7 @@ impl EvalHistory {
                 continue;
             }
             if let Ok(record) = serde_json::from_str::<StoredEvalHistoryEntry>(&line) {
-                records.push(record);
+                records.push(record.recover_primary_f1());
             }
         }
         Ok(records)
@@ -993,7 +1009,8 @@ impl EvalHistory {
         Ok(counts)
     }
 
-    /// Return coverage counts only for one pre-selection policy cohort.
+    /// Count all evaluation receipts in one pre-selection policy cohort, including
+    /// skipped evaluations and failures before backend execution.
     ///
     /// Legacy receipts and records without a matching cohort are intentionally
     /// excluded. The cohort holds task/dataset/sampling/scoring controls fixed,

@@ -35,6 +35,14 @@ layers. It does not download or select an ML model. Test an ML-backed
 stack separately and record the exact model artifact, configuration, runtime,
 and whether every requested backend actually ran.
 
+The `Offline extraction benchmark` GitHub Actions workflow runs the same
+profile on a pinned WikiGold corpus. To repeat it locally, pass the downloaded
+`wikigold.conll` file as the example's sole argument. For each gold mention the
+profile checks whether either layer proposed its span and type and whether the
+stack returned it. The four counts distinguish retained, lost, gained, and
+missed mentions. The last line counts output surfaces that disagree with the
+original text at their reported offsets.
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,
@@ -96,6 +104,78 @@ The CLI fixture documents under `crates/anno-cli/tests/fixtures/` are useful
 for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
+
+## Comparing contract passage suggestions
+
+Use the CUAD retrieval example's `matched_passages_per_question` field to
+compare BM25 and literal category lookup at equal suggestion volume. For each
+question both methods return as many windows as the shorter ranking. A hit
+requires a window to contain the complete annotated answer. Each annotation
+counts once even when windows overlap.
+[Runnable example](../crates/anno-eval/examples/cuad_retrieval.rs) · [Pinned CUAD release](https://github.com/TheAtticusProject/cuad/tree/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2)
+
+Across Governing Law, Termination For Convenience and Non-Compete on the 102
+test contracts, the unrestricted top-three lists recovered 100 answers with
+867 BM25 windows and 43 with 136 literal windows. At equal volume, BM25
+recovered 45 of 190 answers and literal lookup recovered 43, each in 136
+windows. Summing across the three categories per contract, BM25 gained one
+answer on six contracts and two on one, lost one on six and tied on 89.
+An exact two-sided sign test on the 13 non-ties gave *p* = 1.00. This sample
+provides little evidence that switching rankers improves recall at equal
+volume. The counts measure machine suggestions. [Replay and category results](https://github.com/arclabs561/anno/pull/217)
+
+## Carrying source revisions through brat and dataset JSONL
+
+Keep one directory per source revision. From a common corpus root, export the
+grounded document and import the resulting annotation file.
+
+```sh
+anno export --input v1/report.json --output v1/brat --format brat --include-confidence
+anno dataset import --input v1/brat/report.ann --output v1/rows.jsonl --format brat --include-text
+sha256sum v1/brat/report.txt
+```
+
+The companion `report.txt` contains the grounded document’s source text.
+Keep the SHA-256 digest of those exact UTF-8 bytes with your document ID,
+revision ID and annotation path in the corpus manifest. The digest distinguishes
+text changes, including changes in Unicode normalization. Two documents can
+contain the same text, and an annotation edit can leave the text digest unchanged.
+Version the annotation file separately when tracking annotation edits.
+
+Each imported row’s `source` records the annotation path supplied to the
+importer. Running from the same root retains the revision directory in that
+path. brat’s `T1`, `T2` identifiers are local to the annotation file.
+The grounded document ID, signal IDs and local brat IDs are absent from these
+JSONL rows. Use the manifest to recover document identity after moving files.
+
+For a mention that skips intervening words, `segments` lists its half-open
+Unicode character ranges. `start` and `end` bound the whole mention, and
+`text` joins the selected pieces with spaces. Use the individual ranges when
+repeated mentions have the same surface. Offsets count Unicode code points,
+so a decomposed accent and its base character occupy two positions.
+
+## CoNLL offsets and the original source revision
+
+By default, `anno dataset import --format conll` counts Unicode characters in
+the token sequence reconstructed with one ASCII space between tokens. Blank
+lines and `-DOCSTART-` reset entity boundaries without adding characters.
+This convention retains offsets for existing token-only corpora.
+
+When original document offsets matter, supply the matching UTF-8 text for a
+single CoNLL file.
+
+```sh
+anno dataset import --format conll --input v1/report.conll \
+  --source-text v1/report.txt --output v1/rows.jsonl
+```
+
+Every token, including tokens tagged `O`, must match the next source text
+after any intervening Unicode whitespace. Adjacent tokens may touch in the
+original. The importer checks the whole document and preserves tabs, multiple
+spaces and line endings inside entities. The output ranges count Unicode
+scalar values from the start of the original file, with an exclusive end.
+CRLF counts as two characters. Keep the text revision and its digest alongside
+the CoNLL file in the corpus manifest. The row’s `source` identifies the CoNLL file.
 
 ## Identifying RDF source documents
 

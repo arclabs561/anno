@@ -94,7 +94,9 @@ def main():
     with open(json_path, "r") as f:
         data = json.load(f)
     
-    datasets = data.get("datasets", [])
+    datasets = data.get("datasets") if isinstance(data, dict) else None
+    if not isinstance(datasets, list) or not datasets:
+        parser.error(f"{json_path} must contain a nonempty datasets array")
     print(f"Validating URLs for {len(datasets)} datasets...")
     
     results = asyncio.run(validate_all(datasets, quick=args.quick))

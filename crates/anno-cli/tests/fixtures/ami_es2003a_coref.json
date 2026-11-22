@@ -1,0 +1,17 @@
+{
+  "source": "AMI Meeting Corpus, manual annotations v1.6.2 (Jean Carletta et al.), meeting ES2003a",
+  "archive": "https://groups.inf.ed.ac.uk/ami/AMICorpusAnnotations/ami_public_manual_1.6.2.zip",
+  "sha256": "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d",
+  "license": "CC BY 4.0, https://creativecommons.org/licenses/by/4.0/",
+  "adaptation": "Eight noncontiguous excerpts in segment-start order, two per recorded channel, frozen before testing speaker-aware predictions. One unquoted first-person singular word per excerpt. The supplied speaker labels are native channel IDs. Inclusive word ranges identify the source XML; punctuation attaches to the preceding word. Annotation covers only the specified mentions. Speaker-derived links are our labels, not AMI coreference annotations.",
+  "turns": [
+    {"channel": "B", "speaker": "B", "segment": "sync.37", "words": [10, 15], "excerpt": "Right, my name's Adam Duguid", "mention": "my", "span": [7, 9]},
+    {"channel": "C", "speaker": "C", "segment": "sync.143", "words": [5, 12], "excerpt": "Would you like me to spell that?", "mention": "me", "span": [15, 17]},
+    {"channel": "B", "speaker": "B", "segment": "sync.61", "words": [330, 334], "excerpt": "What can I say?", "mention": "I", "span": [9, 10]},
+    {"channel": "C", "speaker": "C", "segment": "sync.159", "words": [34, 38], "excerpt": "I will make this quick", "mention": "I", "span": [0, 1]},
+    {"channel": "D", "speaker": "D", "segment": "sync.243", "words": [26, 31], "excerpt": "Now where do I put the", "mention": "I", "span": [13, 14]},
+    {"channel": "D", "speaker": "D", "segment": "sync.259", "words": [94, 99], "excerpt": "uh it was my favourite cat", "mention": "my", "span": [10, 12]},
+    {"channel": "A", "speaker": "A", "segment": "sync.11", "words": [44, 53], "excerpt": "I have a three uh three y year old daughter", "mention": "I", "span": [0, 1]},
+    {"channel": "A", "speaker": "A", "segment": "sync.17", "words": [376, 380], "excerpt": "I wouldn't like to say", "mention": "I", "span": [0, 1]}
+  ]
+}

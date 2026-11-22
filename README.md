@@ -3,11 +3,8 @@
 [![crates.io](https://img.shields.io/crates/v/anno.svg)](https://crates.io/crates/anno)
 [![Documentation](https://docs.rs/anno/badge.svg)](https://docs.rs/anno)
 
-Text annotation and entity extraction.
-
-Extract entity spans, coreference links, and common forms of personally
-identifiable information from text. Model-backed extractors are optional; the
-rule-based extractors work offline.
+Anno extracts entity spans, links coreferent mentions, and redacts common forms
+of personally identifiable information. Pattern and heuristic backends run offline.
 
 ## Library
 
@@ -40,16 +37,12 @@ fn main() -> anno::Result<()> {
 }
 ```
 
-For repeated extraction, create and reuse a model rather than calling
-`anno::extract` each time. Offsets are character offsets, not UTF-8 byte
-offsets. Confidence scores are backend-local and are not calibrated across
-backends.
+Offsets count Unicode scalar values in the exact input text. For repeated calls,
+[reuse a model](docs/QUICKSTART.md#library-usage). Each backend has its own
+confidence scale.
 
-Redact email addresses, US Social Security numbers, and IBANs without
-downloading a model.
-The patterns check formats and checksums, not whether an account exists.
-See the [PII pattern limits](docs/CONTRACT.md#pii-pattern-limits) for supported
-formats and validation rules.
+Redact supported PII formats without downloading weights.
+[Pattern coverage and validation](docs/CONTRACT.md#pii-pattern-limits)
 
 ```rust
 use anno::pii;
@@ -72,26 +65,17 @@ ORG:2 "IBM" "Xerox PARC"
 LOC:1 "California"
 ```
 
-This uses the offline heuristic backend. `anno extract --format json` emits
-JSON. Run `anno help <command>` for command options.
+Use `--format grounded` to retain the input text alongside its annotations.
+The default stack may download weights on first use. `ANNO_NO_DOWNLOADS=1`
+limits it to available local models, patterns and heuristics.
 
-## Backends
+Anno supports Rust 1.91 and later.
 
-The default `onnx` feature may download model weights on first use. Set
-`ANNO_NO_DOWNLOADS=1` to use only cached or local models; the default stack then
-falls back to pattern and heuristic extractors when a model is unavailable.
-The [backend guide](docs/BACKENDS.md) lists model identifiers, feature flags,
-and hardware requirements.
-
-This crate provides inference and annotation utilities, not model training.
-The minimum supported Rust version is 1.91.
-
-Further documentation:
-
-- [Quickstart](docs/QUICKSTART.md)
-- [Span and offset contract](docs/CONTRACT.md)
-- [References](docs/REFERENCES.md)
-- [Examples](crates/anno/examples/)
+- [Quickstart and examples](docs/QUICKSTART.md)
+- [Source text, offsets and provenance](docs/CONTRACT.md)
+- [Backends and feature flags](docs/BACKENDS.md)
+- [Fixtures, datasets and QA](docs/QA.md) and [evaluation sampling](docs/EVALUATION_SAMPLING.md)
+- [References](docs/REFERENCES.md) and [runnable examples](crates/anno/examples/)
 
 ## License
 

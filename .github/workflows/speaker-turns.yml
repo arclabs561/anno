@@ -1,0 +1,45 @@
+name: Speaker-turn CLI contracts
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/speaker-turns.yml'
+      - '**/Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/anno/src/discourse/dialogue.rs'
+      - 'crates/anno/src/discourse/dialogue/**'
+      - 'crates/anno/src/core/grounded/**'
+      - 'crates/anno-cli/src/cli/commands/pipeline.rs'
+      - 'crates/anno-cli/src/cli/utils.rs'
+      - 'crates/anno-cli/tests/pipeline_speaker_turns.rs'
+      - 'crates/anno-cli/tests/fixtures/ami_*_coref.json'
+      - 'scripts/qa/test_speaker_coref.py'
+      - 'scripts/qa_speaker_coref.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: speaker-turns-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transcripts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ANNO_NO_DOWNLOADS: '1'
+      CARGO_PROFILE_TEST_DEBUG: 0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify frozen pair counts and scorer controls
+        run: python3 -m unittest discover -s scripts/qa -p test_speaker_coref.py
+      - name: Build and test the offline CLI
+        run: cargo test --locked -p anno-cli --no-default-features --features discourse,extractor-html2text --test pipeline_speaker_turns
+      - name: Replay the AMI development and held-out speakers
+        run: |
+          python3 scripts/qa_speaker_coref.py --meeting es2002a --speaker-turns --anno target/debug/anno
+          python3 scripts/qa_speaker_coref.py --meeting es2003a --speaker-turns --anno target/debug/anno

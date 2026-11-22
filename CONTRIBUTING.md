@@ -92,10 +92,14 @@ The `just check-feature-matrix` recipe sweeps the gating combinations that have 
 
 ## Testing
 
+Choose a fixture, labeled dataset or live page using the [QA guide](docs/QA.md). It includes cache preparation, runnable commands and guidance for turning a field failure into a regression test.
+
 - `just check`: fmt + clippy + quick tests.
 - `just test`: unit tests with `eval discourse` features.
 - `just test-all`: full workspace including integration.
-- Integration tests live in `crates/anno/tests/integration/main.rs` (single-binary consolidation; new tests go in `tests/integration/`, not new test crates).
+- `just qa-test` runs the offline Python QA checks used in CI. Put new harness regressions in `scripts/qa/test_*.py` for automatic discovery.
+- `just qa-panel /path/to/anno smoke` runs the cached evaluation panel and prints its fresh output directory. Supply a third argument to choose the directory.
+- Library integration tests share the entry point in `crates/anno/tests/integration/main.rs`. CLI regressions belong under `crates/anno-cli/tests/` and should exercise the compiled binary.
 
 ## Models
 

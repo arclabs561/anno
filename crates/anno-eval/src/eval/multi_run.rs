@@ -350,7 +350,10 @@ fn shuffle_with_seed<T: Clone>(data: &[T], seed: u64) -> Vec<T> {
     indices.into_iter().map(|i| data[i].clone()).collect()
 }
 
-/// Compare two models across multiple runs with statistical significance.
+/// Compare per-run F1 scores for two models on the same test corpus.
+///
+/// The paired test describes run-to-run differences. Each shuffle reuses the
+/// same documents. Inference across documents requires document-level pairs.
 pub fn compare_models_multi_run(
     model_a: (&str, &dyn Model),
     model_b: (&str, &dyn Model),
@@ -413,7 +416,7 @@ pub struct ModelComparison {
     pub model_b_f1: MetricWithVariance,
     /// Difference in mean F1 (A - B)
     pub f1_difference: f64,
-    /// T-statistic from paired t-test
+    /// T-statistic from the paired test (±100 represents signed infinity for JSON).
     pub t_statistic: f64,
     /// P-value
     pub p_value: f64,
@@ -462,60 +465,18 @@ impl std::fmt::Display for ModelComparison {
 ///
 /// Returns (t-statistic, two-tailed p-value).
 fn paired_t_test(a: &[f64], b: &[f64]) -> (f64, f64) {
-    if a.len() != b.len() || a.is_empty() {
+    if a.len() != b.len() {
         return (0.0, 1.0);
     }
-
-    let n = a.len() as f64;
-    let diffs: Vec<f64> = a.iter().zip(b.iter()).map(|(x, y)| x - y).collect();
-
-    let mean_diff: f64 = diffs.iter().sum::<f64>() / n;
-    let var_diff: f64 = if a.len() > 1 {
-        diffs.iter().map(|d| (d - mean_diff).powi(2)).sum::<f64>() / (n - 1.0)
+    let test = super::SignificanceTest::paired_t_test(a, b);
+    // Keep the existing finite sentinel for constant nonzero differences in the
+    // serializable multi-run report. JSON has no representation for infinity.
+    let t = if test.t_statistic.is_infinite() {
+        test.t_statistic.signum() * 100.0
     } else {
-        0.0
+        test.t_statistic
     };
-
-    let std_err = (var_diff / n).sqrt();
-
-    let t_stat = if std_err > 1e-10 {
-        mean_diff / std_err
-    } else {
-        // If variance is zero, all differences are identical
-        // Large |mean_diff| = very significant, mean_diff == 0 = identical
-        if mean_diff.abs() > 1e-10 {
-            // Return large t-stat with same sign as mean_diff
-            mean_diff.signum() * 100.0
-        } else {
-            0.0
-        }
-    };
-
-    // Approximate two-tailed p-value using normal distribution
-    // For small samples this is an approximation (t-distribution would be more accurate)
-    // Normal CDF returns P(X < x), so P(|X| > |t|) = 2 * (1 - CDF(|t|))
-    let p_value = 2.0 * (1.0 - normal_cdf(t_stat.abs()));
-
-    (t_stat, p_value)
-}
-
-/// Approximate CDF of standard normal distribution.
-fn normal_cdf(x: f64) -> f64 {
-    // Abramowitz and Stegun approximation (7.1.26)
-    let a1 = 0.254829592;
-    let a2 = -0.284496736;
-    let a3 = 1.421413741;
-    let a4 = -1.453152027;
-    let a5 = 1.061405429;
-    let p = 0.3275911;
-
-    let sign = if x < 0.0 { -1.0 } else { 1.0 };
-    let x = x.abs() / std::f64::consts::SQRT_2;
-
-    let t = 1.0 / (1.0 + p * x);
-    let y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * (-x * x).exp();
-
-    0.5 * (1.0 + sign * y)
+    (t, test.p_value)
 }
 
 // =============================================================================
@@ -597,6 +558,20 @@ mod tests {
     }
 
     #[test]
+    fn paired_t_reports_agree_for_ner_and_multi_run() {
+        let scores = [0.0, 0.01, 0.02, 0.03, 0.08, 0.1];
+        let zeros = [0.0; 6];
+        let ner =
+            crate::eval::analysis::compare_ner_systems("candidate", &scores, "baseline", &zeros);
+        let (t, p) = paired_t_test(&scores, &zeros);
+        assert!((p - 0.060159441115201315).abs() < 1e-12);
+        assert_eq!((t, p), (ner.t_statistic, ner.p_value));
+        assert!(!ner.significant_05);
+        assert_eq!(paired_t_test(&[0.2], &[0.0]), (0.0, 1.0));
+        assert_eq!(paired_t_test(&[0.2, 0.2], &[0.0, 0.0]), (100.0, 0.0));
+    }
+
+    #[test]
     fn test_paired_t_test_identical() {
         let a = vec![0.80, 0.82, 0.85, 0.83, 0.80];
         let b = vec![0.80, 0.82, 0.85, 0.83, 0.80];
@@ -635,18 +610,6 @@ mod tests {
         assert_eq!(config.num_runs, 10);
         assert!(!config.shuffle);
         assert_eq!(config.seed_base, 123);
-    }
-
-    #[test]
-    fn test_normal_cdf() {
-        // Standard normal: P(X < 0) = 0.5
-        assert!((normal_cdf(0.0) - 0.5).abs() < 0.01);
-
-        // P(X < 2) ≈ 0.977
-        assert!((normal_cdf(2.0) - 0.977).abs() < 0.01);
-
-        // P(X < -2) ≈ 0.023
-        assert!((normal_cdf(-2.0) - 0.023).abs() < 0.01);
     }
 }
 
@@ -782,33 +745,6 @@ mod proptests {
 
             let (_, p_value) = paired_t_test(a, b);
             prop_assert!((0.0..=1.0).contains(&p_value), "p-value {} out of [0,1]", p_value);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Normal CDF Properties
-    // -------------------------------------------------------------------------
-
-    proptest! {
-        /// CDF is monotonically increasing
-        #[test]
-        fn prop_cdf_monotonic(x1 in -5.0f64..5.0, x2 in -5.0f64..5.0) {
-            if x1 < x2 {
-                prop_assert!(normal_cdf(x1) <= normal_cdf(x2) + 1e-10);
-            }
-        }
-
-        /// CDF is in [0, 1]
-        #[test]
-        fn prop_cdf_bounds(x in -10.0f64..10.0) {
-            let cdf = normal_cdf(x);
-            prop_assert!((0.0..=1.0).contains(&cdf), "CDF {} out of bounds for x={}", cdf, x);
-        }
-
-        /// CDF(0) ≈ 0.5 for standard normal
-        #[test]
-        fn prop_cdf_symmetric_at_zero(_unused in Just(())) {
-            prop_assert!((normal_cdf(0.0) - 0.5).abs() < 0.01);
         }
     }
 
