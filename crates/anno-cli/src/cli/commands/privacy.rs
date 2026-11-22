@@ -46,8 +46,9 @@ pub struct PrivacyArgs {
     #[arg(long)]
     pub export_map: Option<PathBuf>,
 
-    /// PII types to target (default: all)
-    #[arg(long, value_delimiter = ',')]
+    /// Comma-separated PII types to target (default: all). CONTACT includes email and phone.
+    #[arg(long, value_delimiter = ',', ignore_case = true,
+          value_parser = ["PERSON", "DOB", "ADDRESS", "CONTACT", "ID_NUMBER"])]
     pub types: Vec<String>,
 
     /// Quiet mode
