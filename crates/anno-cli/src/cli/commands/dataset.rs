@@ -305,7 +305,6 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
         } => {
             #[cfg(feature = "eval")]
             {
-                let m = model.create_model()?;
                 let ner_min_errors = min_case_errors.unwrap_or(min_errors);
                 #[cfg(feature = "eval")]
                 let coref_min_mentions = min_gold_mentions.unwrap_or(min_errors);
@@ -316,7 +315,10 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 #[cfg(not(feature = "eval"))]
                 let _ = (min_gold_mentions, min_gold_relations, coref_oracle_mentions);
 
-                let (name, test_cases) = if dataset == "synthetic" {
+                let (name, test_cases) = if matches!(task, EvalTask::Coref) {
+                    // Coreference uses document-level chains from its own loader below.
+                    (dataset.clone(), Vec::new())
+                } else if dataset == "synthetic" {
                     ("synthetic".to_string(), synthetic_ner_test_cases())
                 } else {
                     // Parse dataset ID
@@ -372,6 +374,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                 // Route to appropriate evaluation based on task
                 match task {
                     EvalTask::Ner => {
+                        let m = model.create_model()?;
                         println!();
                         println!("Evaluating {} on {} dataset (NER)...", model.name(), name);
                         println!("  Sentences: {}", test_cases.len());
@@ -701,7 +704,13 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                             println!("  Documents: {}", gold_docs.len());
                             println!();
 
+                            let mention_model = if coref_oracle_mentions {
+                                None
+                            } else {
+                                Some(model.create_model()?)
+                            };
                             let resolver = SimpleCorefResolver::default();
+                            let mut report_entities = Vec::new();
                             let mut all_pred_chains: Vec<Vec<anno_eval::eval::coref::CorefChain>> =
                                 Vec::new();
                             let mut all_gold_chains: Vec<&[anno_eval::eval::coref::CorefChain]> =
@@ -713,15 +722,20 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 all_gold_chains.push(&doc.chains);
 
                                 // Mentions source: model NER (default) or oracle gold mentions.
-                                let entities = if coref_oracle_mentions {
-                                    coref_doc_to_oracle_mentions(doc)
-                                } else {
-                                    m.extract_entities(text, None).unwrap_or_default()
+                                let entities = match &mention_model {
+                                    Some(detector) => detector.extract_entities(text, None).map_err(|e|
+                                        format!("Mention detection with {} failed on document {:?}: {e}", model.name(), doc.doc_id)
+                                    )?,
+                                    None => coref_doc_to_oracle_mentions(doc),
                                 };
 
                                 // Resolve coreference
-                                let pred_chains = resolver.resolve_to_chains(&entities);
-                                all_pred_chains.push(pred_chains);
+                                let resolved = resolver.resolve_entities(&entities);
+                                all_pred_chains
+                                    .push(anno_eval::eval::coref::entities_to_chains(&resolved));
+                                if html_output_path.is_some() {
+                                    report_entities.push(resolved);
+                                }
                             }
 
                             let elapsed = start_time.elapsed();
@@ -739,7 +753,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     &document_pairs,
                                 );
 
-                            println!("Results:");
+                            println!("Results (mean across documents):");
                             println!("  CoNLL F1: {:.3}", results.mean.conll_f1);
                             println!(
                                 "  MUC: P={:.3} R={:.3} F1={:.3}",
@@ -796,14 +810,16 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                 write_coref_error_explorer_html(
                                     output_path.as_path(),
                                     &name,
-                                    model.name(),
+                                    if coref_oracle_mentions {
+                                        "gold mentions"
+                                    } else {
+                                        model.name()
+                                    },
                                     resolver.name(),
                                     &gold_docs,
                                     &results.per_document,
                                     &selected,
-                                    m.as_ref(),
-                                    &resolver,
-                                    coref_oracle_mentions,
+                                    &report_entities,
                                 )?;
                                 println!(
                                     "{} HTML written to: {}",
@@ -822,6 +838,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                         #[cfg(feature = "eval")]
                         {
                             use anno::backends::inference::RelationExtractor;
+                            let m = model.create_model()?;
                             use anno_eval::eval::loader::DatasetLoader;
                             use anno_eval::eval::relation::{
                                 evaluate_relations, RelationEvalConfig, RelationPrediction,
@@ -1706,9 +1723,7 @@ fn write_coref_error_explorer_html(
     gold_docs: &[anno_eval::eval::coref::CorefDocument],
     per_doc: &[anno_eval::eval::coref_metrics::CorefEvaluation],
     selected_doc_indices: &[usize],
-    model: &dyn anno::Model,
-    resolver: &anno_eval::eval::coref_resolver::SimpleCorefResolver,
-    coref_oracle_mentions: bool,
+    predicted_entities: &[Vec<anno::Entity>],
 ) -> Result<(), String> {
     let parent = output_path.parent().unwrap_or_else(|| Path::new("."));
     let stem = output_path
@@ -1747,19 +1762,13 @@ fn write_coref_error_explorer_html(
         fs::write(&gold_path, gold_html)
             .map_err(|e| format!("Failed to write {:?}: {}", gold_path, e))?;
 
-        // Predicted inspector (re-run NER + coref for selected docs only)
-        let entities = if coref_oracle_mentions {
-            coref_doc_to_oracle_mentions(doc)
-        } else {
-            model
-                .extract_entities(doc.text.as_str(), None)
-                .unwrap_or_default()
-        };
-        let resolved = resolver.resolve(&entities);
+        let resolved = predicted_entities
+            .get(idx)
+            .ok_or_else(|| format!("Missing scored entities for document {idx}"))?;
         let pred_gdoc = GroundedDocument::from_entities(
             format!("{dataset_name}:{doc_id}:pred"),
             doc.text.clone(),
-            &resolved,
+            resolved,
         );
         let pred_html = render_document_html(&pred_gdoc);
         let pred_filename = format!("coref_{:06}_pred.html", idx);

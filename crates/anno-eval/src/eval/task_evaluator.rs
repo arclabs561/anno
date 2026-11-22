@@ -2653,7 +2653,7 @@ impl TaskEvaluator {
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::backend_factory::create_coref_resolver;
         use crate::eval::coref::entities_to_chains;
-        use crate::eval::coref_metrics::{CorefEvaluation, WindowFragmentationStats};
+        use crate::eval::coref_metrics::{BlancCounts, CorefEvaluation, WindowFragmentationStats};
 
         // Try to load coreference documents if dataset supports it
         let gold_docs = if dataset_data.id.is_coreference() {
@@ -2783,6 +2783,7 @@ impl TaskEvaluator {
             };
 
         let mut all_predicted_chains = Vec::new();
+        let mut blanc = BlancCounts::default();
         let mut all_gold_chains = Vec::new();
 
         // Long-document stitching diagnostics (CorefInst-style window fragmentation).
@@ -2961,11 +2962,16 @@ impl TaskEvaluator {
                     fs.missing_mentions_in_multiwindow_chains;
             }
 
+            blanc.add_document(&predicted_chains, &doc.chains);
             all_predicted_chains.extend(offset_chains(predicted_chains, doc_base));
         }
 
         // Compute coreference metrics
-        let eval = CorefEvaluation::compute(&all_predicted_chains, &all_gold_chains);
+        let eval = CorefEvaluation::compute_with_blanc_counts(
+            &all_predicted_chains,
+            &all_gold_chains,
+            &blanc,
+        );
 
         let mut metrics = HashMap::new();
         metrics.insert("num_docs".to_string(), gold_docs.len() as f64);
