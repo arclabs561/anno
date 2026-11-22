@@ -91,5 +91,35 @@
         ]
       }
     ]
+  },
+  {
+    "id": "credential-cpa-no-role",
+    "text": "Áine Doran (CPA) reviewed the expense report.",
+    "assertions": [
+      {
+        "kind": "no_overlap",
+        "start": 12,
+        "end": 15,
+        "text": "CPA",
+        "types": [
+          "ORG"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "organization-cpa",
+    "text": "Coastal Planning Authority (CPA) approved the seawall.",
+    "assertions": [
+      {
+        "kind": "exact_span",
+        "start": 28,
+        "end": 31,
+        "text": "CPA",
+        "types": [
+          "ORG"
+        ]
+      }
+    ]
   }
 ]

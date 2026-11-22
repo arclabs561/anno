@@ -79,6 +79,27 @@ class TestSpanAssertions(unittest.TestCase):
             with self.assertRaises(ValueError):
                 oracle.score(cases, predictions)
 
+    def test_comparison_detects_loss_even_when_total_improves(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rows = [{**self.row, "id": str(i), "assertions": [self.positive]} for i in range(4)]
+            fixture = root / "fixture.json"
+            fixture.write_text(json.dumps(rows))
+            old, new = root / "old.jsonl", root / "new.jsonl"
+            for target, good in [(old, {0}), (new, {1, 2})]:
+                target.write_text("".join(json.dumps(dict(id=row["id"], entities=(
+                    [entity(1, 4, "Zoë", "PER")] if int(row["id"]) in good else []))) + "\n"
+                    for row in reversed(rows)))
+            cmd = [sys.executable, oracle.__file__, "--fixture", str(fixture),
+                   "--baseline-predictions", str(old), "--predictions"]
+            changed = subprocess.run([*cmd, str(new)], capture_output=True, text=True)
+            self.assertEqual(changed.returncode, 1, changed.stderr)
+            self.assertEqual(json.loads(changed.stdout)["comparison"],
+                             {"baseline_passed": 1, "gained": 2, "lost": 1})
+            same = subprocess.run([*cmd, str(old)], capture_output=True, text=True)
+            self.assertEqual(same.returncode, 0, same.stderr)
+            self.assertEqual(json.loads(same.stdout)["passed"], 1)
+
     def test_replay_exit_codes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -89,6 +89,21 @@ def score(cases, predictions):
             "findings": findings}
 
 
+def compare_predictions(cases, baseline_jsonl, candidate):
+    # Both reports iterate the same validated fixture, regardless of JSONL row order.
+    baseline = score(cases, [json.loads(line) for line in baseline_jsonl.splitlines()])
+    gained = lost = 0
+    for old, new in zip(baseline["findings"], candidate["findings"], strict=True):
+        new["baseline_passed"] = old["passed"]
+        if old["passed"] != new["passed"]:
+            new["baseline_overlaps"] = old["overlaps"]
+            if new["passed"]:
+                gained += 1
+            else:
+                lost += 1
+    return {"baseline_passed": baseline["passed"], "gained": gained, "lost": lost}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
@@ -98,6 +113,8 @@ def main():
     parser.add_argument("--model", choices=("pattern", "heuristic", "stacked"), default="heuristic")
     parser.add_argument("--allow-type", action="append", default=[], metavar="LABEL",
                         help="declare a custom, case-sensitive assertion label (repeatable)")
+    parser.add_argument("--baseline-predictions", type=Path,
+                        help="compare against saved batch JSONL and fail on any lost assertion")
     args = parser.parse_args()
     try:
         cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")), args.allow_type)
@@ -110,9 +127,14 @@ def main():
             output = subprocess.run(cmd, input=inputs, encoding="utf-8", stdout=subprocess.PIPE,
                                     check=True, env={**os.environ, "ANNO_NO_DOWNLOADS": "1"}).stdout
         report = score(cases, [json.loads(line) for line in output.splitlines()])
+        if args.baseline_predictions:
+            report["comparison"] = compare_predictions(
+                cases, args.baseline_predictions.read_text(encoding="utf-8"), report)
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         parser.exit(2, f"invalid span QA run: {exc}\n")
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    if args.baseline_predictions:
+        return int(report["comparison"]["lost"] > 0)
     return int(report["passed"] != report["total"])
 
 
