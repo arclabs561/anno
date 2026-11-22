@@ -9,7 +9,7 @@
 
 use clap::Parser;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::super::output::color;
 use super::export::ExportFormat;
@@ -76,12 +76,38 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             ExportFormat::GraphNTriples => "nt",
             ExportFormat::GraphCsv => "csv",
         };
-        fs::read_dir(&args.input)
+        let output_exists = args
+            .output
+            .try_exists()
+            .map_err(|e| format!("Failed to inspect output: {e}"))?;
+        let mut inputs = Vec::new();
+        for path in fs::read_dir(&args.input)
             .map_err(|e| format!("Failed to read directory: {}", e))?
             .filter_map(|e| e.ok())
             .map(|e| e.path())
             .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == ext))
-            .collect()
+        {
+            // A previous output is not input on the next directory import.
+            if output_exists
+                && same_file::is_same_file(&path, &args.output)
+                    .map_err(|e| format!("Failed to identify input {}: {e}", path.display()))?
+            {
+                let parent = args
+                    .output
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .unwrap_or(Path::new("."));
+                if path.file_name() != args.output.file_name()
+                    || !same_file::is_same_file(&args.input, parent)
+                        .map_err(|e| format!("Failed to identify output directory: {e}"))?
+                {
+                    return Err(format!("Output aliases an input file: {}", path.display()));
+                }
+                continue;
+            }
+            inputs.push(path);
+        }
+        inputs
     };
 
     if files.is_empty() {
@@ -623,6 +649,36 @@ mod tests {
         })
         .is_err());
         assert_eq!(fs::read_to_string(output).unwrap(), "previous annotations");
+    }
+
+    #[test]
+    fn directory_import_excludes_existing_output_and_its_alias() {
+        let dir = tempfile::tempdir().unwrap();
+        let output = dir.path().join("result.jsonl");
+        let original = r#"{ "text": "keep this exactly" }"#;
+        fs::write(&output, original).unwrap();
+        fs::write(dir.path().join("bad.jsonl"), "{").unwrap();
+        let args = || ImportArgs {
+            input: dir.path().into(),
+            output: output.clone(),
+            format: ExportFormat::Jsonl,
+            include_text: false,
+            quiet: true,
+        };
+        assert!(run(args()).is_err());
+        assert_eq!(fs::read_to_string(&output).unwrap(), original);
+
+        fs::write(dir.path().join("valid.jsonl"), r#"{"text":"new"}"#).unwrap();
+        let alias = dir.path().join("alias.jsonl");
+        fs::hard_link(&output, &alias).unwrap();
+        assert!(run(args()).unwrap_err().contains("aliases an input file"));
+        assert_eq!(fs::read_to_string(&alias).unwrap(), original);
+        fs::remove_file(alias).unwrap();
+
+        run(args()).unwrap();
+        let contents = fs::read_to_string(output).unwrap();
+        let row: serde_json::Value = serde_json::from_str(&contents).unwrap();
+        assert_eq!(row["text"], "new");
     }
 
     #[test]
