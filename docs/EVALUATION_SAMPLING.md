@@ -106,3 +106,15 @@ selected action and a predeclared target policy. The current mixed deterministic
 and adaptive sampler logs do not provide that common contract.
 
 For the surrounding evaluation architecture, see [Architecture](ARCHITECTURE.md).
+
+## Rescore saved entity predictions
+
+Save one grounded document per source. Supply the same source text and gold annotations to compare entity matching and character masking without running the model again.
+
+```sh
+anno extract --model pattern --file report.txt --format grounded > report.predictions.json
+anno eval --predictions report.predictions.json --file report.txt --gold-file report.gold.jsonl --json
+anno eval --predictions report.predictions.json --file report.txt --gold-file report.gold.jsonl --metric char-masking --json
+```
+
+A gold JSONL record has an `entities` array with `text`, `label`, `start`, and `end`. The evaluator accepts contiguous spans in Unicode character offsets. Replay validates the stored signals and matches the entire source text, including whitespace. The JSON report retains the grounded document ID, the SHA-256 of the evaluated UTF-8 text, and the saved signal IDs in the matches. Model and inference time are null during replay. The grounded artifact contains source text and detected surfaces, so store it with the same access controls as the original.
