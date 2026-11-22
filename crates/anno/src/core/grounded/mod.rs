@@ -4806,6 +4806,56 @@ mod tests {
     use crate::EntityCategory;
 
     #[test]
+    fn exact_typed_counts_equal_multiset_intersection_for_all_small_inputs() {
+        // Every ordered sequence of up to three signals drawn from two spans
+        // and two labels, including empty sequences and repeated occurrences.
+        let mut cases = Vec::new();
+        for length in 0..=3 {
+            for mut code in 0..4usize.pow(length) {
+                let mut counts = [0usize; 4];
+                let mut signals = Vec::new();
+                for id in 0..length {
+                    let kind = code % 4;
+                    code /= 4;
+                    counts[kind] += 1;
+                    let start = kind / 2;
+                    signals.push(Signal::new(
+                        SignalId::new(u64::from(id)),
+                        Location::text(start, start + 1),
+                        ["A", "B"][start],
+                        ["PER", "ORG"][kind % 2],
+                        1.0,
+                    ));
+                }
+                cases.push((signals, counts));
+            }
+        }
+        for (gold, gold_counts) in &cases {
+            for (predicted, pred_counts) in &cases {
+                // The oracle uses only per-kind multiplicities and never pairs signals.
+                let expected: usize = gold_counts
+                    .iter()
+                    .zip(pred_counts)
+                    .map(|(g, p)| g.min(p))
+                    .sum();
+                let score = EvalComparison::compare("AB", gold.clone(), predicted.clone());
+                assert_eq!(
+                    score.correct_count(),
+                    expected,
+                    "gold={gold_counts:?}, predicted={pred_counts:?}"
+                );
+                let n = gold.len() + predicted.len();
+                let f1 = if n == 0 {
+                    0.0
+                } else {
+                    2.0 * expected as f64 / n as f64
+                };
+                assert!((score.f1() - f1).abs() < 1e-12);
+            }
+        }
+    }
+
+    #[test]
     fn test_render_eval_html_has_interactive_hooks_and_is_unicode_safe() {
         // CJK example (multi-byte, no spaces)
         let text = "習近平在北京會見了普京。";
