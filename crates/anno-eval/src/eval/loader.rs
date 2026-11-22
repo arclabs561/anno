@@ -3547,6 +3547,11 @@ impl DatasetLoader {
         }
 
         if sentences.is_empty() {
+            if id == DatasetId::CUAD {
+                return Err(Error::InvalidInput(
+                    "CUAD contains no token-labeled JSONL rows. For the official question/answer JSON, use anno_eval::eval::cuad::read.".into(),
+                ));
+            }
             return Err(Error::InvalidInput(format!(
                 "JSONL NER file for {:?} contains no valid sentences",
                 id

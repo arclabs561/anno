@@ -152,6 +152,7 @@ dependencies = [
  "fs2",
  "hf-hub",
  "jiff",
+ "lexir",
  "log",
  "muxer",
  "proptest",
@@ -2527,6 +2528,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
+name = "lexir"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9d0ad20c0ac4947f7abfc690ec7620b706f0c732bc727b93f18ad9db8ef15a7"
+dependencies = [
+ "postings",
+ "rankfns",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3435,6 +3447,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "postings"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb7b7a946abfc4e9dce91ecf9249c85029aefb46df76b8480bf01e5b0aa4a283"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "potential_utf"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3695,6 +3716,12 @@ checksum = "513962919efc330f829edb2535844d1b912b0fbe2ca165d613e4e8788bb05a5a"
 dependencies = [
  "rand_core",
 ]
+
+[[package]]
+name = "rankfns"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1fceb74f1c833e615294f4ed0af1775182aca4dad3fc2cd35fb3bf1f62856e3"
 
 [[package]]
 name = "rankops"
