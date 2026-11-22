@@ -38,39 +38,56 @@ use crate::{Entity, Relation};
 /// Both brat and Anno count Unicode characters from the start of the source
 /// document. Offsets are half-open. A mention crossing a line break uses one
 /// record with semicolon-separated spans. Its reference text joins the pieces
-/// with a space. The source argument is retained for callers.
-pub fn to_brat(_text: &str, entities: &[Entity], include_confidence: bool) -> String {
+/// with a space. For discontinuous mentions, each segment's reference text
+/// comes from the supplied source.
+pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
+    let offsets = std::cell::OnceCell::new();
     for (idx, entity) in entities.iter().enumerate() {
         let tid = format!("T{}", idx + 1);
         let label = entity.entity_type.as_label();
-        let line = if entity.text.contains(['\r', '\n']) {
-            let mut spans = Vec::new();
-            let mut reference_parts = Vec::new();
-            let mut pos = entity.start();
-            let mut pieces = entity.text.split(['\r', '\n']).peekable();
+        let mut spans = Vec::new();
+        let mut reference_parts = Vec::new();
+        let mut add_segment = |start, end, surface: &str| {
+            if !surface.contains(['\r', '\n']) {
+                spans.push(format!("{start} {end}"));
+                reference_parts.push(surface.to_owned());
+                return;
+            }
+            let mut pos = start;
+            let mut pieces = surface.split(['\r', '\n']).peekable();
             while let Some(piece) = pieces.next() {
                 let end = pos + piece.chars().count();
                 // Empty endpoints keep leading and trailing breaks in the mention.
-                if !piece.is_empty() || pos == entity.start() || pieces.peek().is_none() {
+                if !piece.is_empty() || pos == start || pieces.peek().is_none() {
                     spans.push(format!("{pos} {end}"));
-                    reference_parts.push(piece);
+                    reference_parts.push(piece.to_owned());
                 }
                 pos = end + 1;
             }
-            format!(
-                "{tid}\t{label} {}\t{}",
-                spans.join(";"),
-                reference_parts.join(" ")
-            )
-        } else {
-            format!(
-                "{tid}\t{label} {} {}\t{}",
-                entity.start(),
-                entity.end(),
-                entity.text
-            )
         };
+        if let Some(span) = entity
+            .discontinuous_span
+            .as_ref()
+            .filter(|s| s.is_discontinuous())
+        {
+            let offsets = offsets.get_or_init(|| crate::offset::build_char_to_byte_map(text));
+            for segment in span.segments() {
+                let byte = |index| offsets.get(index).copied().unwrap_or(text.len());
+                add_segment(
+                    segment.start,
+                    segment.end,
+                    &text[byte(segment.start)..byte(segment.end)],
+                );
+            }
+        } else {
+            add_segment(entity.start(), entity.end(), &entity.text);
+        }
+        let line = format!(
+            "{tid}\t{label} {}\t{}",
+            spans.join(";"),
+            reference_parts.join(" ")
+        );
         if include_confidence {
             let aid = format!("A{}", idx + 1);
             lines.push(line);
