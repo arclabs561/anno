@@ -840,6 +840,77 @@ mod tests {
     }
 
     #[test]
+    fn every_pair_of_character_ranges_keeps_its_source_segments() {
+        // One-, two-, three- and four-byte scalars, a decomposed accent and CRLF.
+        let source = "é🦊e\u{301}\r\n界";
+        let chars: Vec<char> = source.chars().collect();
+        let bytes = anno::offset::build_char_to_byte_map(source);
+        let offsets = 0..=chars.len();
+        let pairs: Vec<_> = offsets
+            .clone()
+            .flat_map(|start| offsets.clone().map(move |end| start..end))
+            .collect();
+        let mut jsonl = String::new();
+        let mut expected = Vec::new();
+        for first in &pairs {
+            for second in &pairs {
+                let bounds = first.start..second.end;
+                let spans = format!(
+                    "{} {};{} {}",
+                    first.start, first.end, second.start, second.end
+                );
+                let ranges = [first.clone(), second.clone()];
+                let endpoints = [first.start, first.end, second.start, second.end];
+                if !endpoints.is_sorted() {
+                    assert!(
+                        import_brat_segments(&spans, "", source, &bytes).is_err(),
+                        "{spans}"
+                    );
+                    continue;
+                }
+
+                // This oracle indexes Unicode scalars directly, independently of
+                // the byte-offset map used by the BRAT reader.
+                let left: String = chars[first.clone()].iter().collect();
+                let right: String = chars[second.clone()].iter().collect();
+                let reference = format!("{left} {right}");
+                let text = if chars[first.end..second.start]
+                    .iter()
+                    .all(|c| matches!(c, '\r' | '\n'))
+                {
+                    chars[bounds.clone()].iter().collect()
+                } else {
+                    reference.clone()
+                };
+                let (span, surface) =
+                    import_brat_segments(&spans, &reference, source, &bytes).unwrap();
+                let ImportedSpan::Segmented(segment) = span else {
+                    panic!("flattened {spans}")
+                };
+                assert_eq!(segment.0, ranges, "{spans}");
+                assert_eq!(segment.bounds(), bounds, "{spans}");
+                assert_eq!(surface, text, "{spans}");
+                jsonl.push_str(&serde_json::json!({"text":text, "segments":ranges, "start":bounds.start, "end":bounds.end}).to_string());
+                jsonl.push('\n');
+                expected.push((ranges, text));
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ranges.jsonl");
+        fs::write(&path, jsonl).unwrap();
+        let rows = import_jsonl(&path).unwrap();
+        assert_eq!(rows.len(), expected.len());
+        for (row, (ranges, text)) in rows.into_iter().zip(expected) {
+            let ImportedSpan::Segmented(segments) = row.span else {
+                panic!("flattened JSONL range")
+            };
+            assert_eq!(segments.0, ranges);
+            assert_eq!(row.text, text);
+        }
+    }
+
+    #[test]
     fn jsonl_segment_validation_preserves_exact_offsets() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("entity.jsonl");
