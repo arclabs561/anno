@@ -707,11 +707,7 @@ impl MentionRankingCoref {
         // "not a smoker" vs "smoker" should not link
         let m1_negated = Self::has_negation_context(&m1_context);
         let m2_negated = Self::has_negation_context(&m2_context);
-        if m1_negated != m2_negated {
-            return true;
-        }
-
-        false
+        m1_negated != m2_negated
     }
 
     /// Extract a date from context text if present.

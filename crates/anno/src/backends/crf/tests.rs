@@ -968,3 +968,34 @@ fn crf_no_cross_sentence_span() {
         );
     }
 }
+
+/// A multi-token entity's text is the source slice, not the tokens joined by
+/// one space, so it validates against its span.
+#[test]
+fn test_labels_to_entities_text_matches_span_with_irregular_whitespace() {
+    let ner = minimal_crf(HashMap::new());
+    for text in [
+        "Lynn\nConway joined IBM",
+        "Lynn  Conway joined IBM",
+        "Zoë\tÉcole joined IBM",
+    ] {
+        let tokens: Vec<&str> = text.split_whitespace().collect();
+        let labels = vec![
+            "B-PER".to_string(),
+            "I-PER".to_string(),
+            "O".to_string(),
+            "B-ORG".to_string(),
+        ];
+        let entities = ner.labels_to_entities(text, &tokens, &labels);
+        assert_eq!(entities.len(), 2);
+        for e in &entities {
+            assert!(
+                e.validate(text).is_empty(),
+                "{text:?}: {:?}",
+                e.validate(text)
+            );
+        }
+        let name_end = text.find(" joined").expect("fixture");
+        assert_eq!(entities[0].text, &text[..name_end]);
+    }
+}

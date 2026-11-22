@@ -82,6 +82,8 @@ jobs:
           cache-dependency-glob: ty.toml
       - name: Run ty
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
+      - name: Test attribution footer matching
+        run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test fixed QA panel contracts (offline fixtures)
@@ -256,18 +258,26 @@ jobs:
         with:
           cache-all-crates: true
           key: ${{ matrix.os }}
+          # PyO3 caches the absolute path to the runner's Python framework.
+          env-vars: ${{ runner.os == 'macOS' && 'ImageVersion' || '' }}
       # `anno-cli` requires at least one HTML extractor feature.
       # `extractor-html2text` is the lighter (no-MPL) option.
       - name: Build
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Check the watch clock in a non-UTC timezone
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
       # representative DirectML GPU execution evidence.
       - name: Check DirectML session configuration
         if: runner.os == 'Windows'
+        env:
+          # ort-sys rc.12 locates DLL destinations using Cargo's pre-1.100 layout.
+          # Remove after upgrading to the fix in https://github.com/pykeio/ort/issues/619.
+          __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT: "1"
         run: cargo clippy -p anno --features onnx-directml -- -D warnings
   # ==========================================================================
   # ONNX backend tests (Linux only)
@@ -402,6 +412,7 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+          env-vars: ImageVersion
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -968,24 +979,12 @@ jobs:
   #   `./scripts/track-unsafe-code-trends.sh`
   # A per-PR gate was rejected rather than pinned: an unsafe-use count is a
   # statistic, and this repo defines no acceptable threshold or baseline for it.
-  # OpenGrep: Custom security pattern detection.
-  # Gate semantics: the pinned binary must install, the in-repo rule files must
-  # validate, and every custom-rule scan must complete. Findings themselves stay
-  # advisory (counts in the step summary, full results in SARIF and artifacts):
-  # no baseline exists for these heuristic rules, so finding-fatal would block
-  # PRs on unmeasured signal. `opengrep scan` exits 0 on findings by default and
-  # non-zero on config/rule errors, which is exactly the split we want.
+  # The fixture-backed rules must scan and pass their positive/negative cases.
+  # Findings are advisory. Legacy pack errors are reported separately.
   opengrep:
     name: OpenGrep Static Analysis
     runs-on: ubuntu-latest
-    # Advisory job: the custom rule set cannot be validated yet. Reproduced on
-    # Linux with the pinned v1.30.2 binary -- every rules file is rejected
-    # before scanning: (`not:` is not a semgrep operator, 41 uses across 6
-    # files; after converting those, some rules still use unparseable Rust
-    # patterns such as `/// ...`). scripts/validate-rules.sh therefore fails,
-    # and it is the real gate that a bulk rule rewrite must satisfy. Keep the
-    # job non-fatal (SARIF/JSON artifacts still upload) until the rule set is
-    # repaired and its precision measured per rule.
+    # Keep the job advisory until the remaining packs parse and their precision is measured.
     continue-on-error: true
     permissions:
       contents: read
@@ -1024,15 +1023,13 @@ jobs:
           if [ ! -f opengrep-results.sarif ]; then
             printf '%s\n' '{"version":"2.1.0","runs":[]}' > opengrep-results.sarif
           fi
+      - name: Run OpenGrep rules covered by fixtures
+        run: |
+          opengrep scan -f .opengrep/rules/rust-validated.yaml \
+            --json --output opengrep-validated-results.json crates/
+      # Legacy packs still contain unsupported operators or Rust patterns.
+      # Keep their diagnostics and artifacts while individual rules gain fixtures.
       - name: Run OpenGrep (custom rules - general)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1040,14 +1037,6 @@ jobs:
             --json --output opengrep-security-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - NLP/ML patterns)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1055,14 +1044,6 @@ jobs:
             --json --output opengrep-nlp-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - evaluation framework)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1070,14 +1051,6 @@ jobs:
             --json --output opengrep-eval-results.json \
             crates/anno-eval/
       - name: Run OpenGrep (custom rules - anno-specific)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1085,14 +1058,6 @@ jobs:
             --json --output opengrep-anno-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - error handling)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1100,14 +1065,6 @@ jobs:
             --json --output opengrep-error-results.json \
             crates/anno/
       - name: Run OpenGrep (custom rules - memory patterns)
-        # Not findings: opengrep v1.30.2 rejects every custom rules file before it
-        # scans. Reproduced on Linux (amd64 container, same pinned binary):
-        #   (1) InvalidRuleSchemaError: `not:` is not a semgrep operator -- 41 uses
-        #       across 6 files (`pattern-not:` is the equivalent);
-        #   (2) once that is fixed, `Invalid pattern for Rust: Parse_error` on rules
-        #       such as `unsafe-function-without-docs` (`/// ...`).
-        # The rules have therefore never run. Keep the scan non-fatal and fix the
-        # rule set before gating it.
         continue-on-error: true
         run: |
           opengrep scan \
@@ -1115,17 +1072,15 @@ jobs:
             --json --output opengrep-memory-results.json \
             crates/anno/
       - name: Validate rules
-        # Exits non-zero on a rule regression. Skips its opengrep/jq checks with a
-        # WARNING (exit 0) when either tool is missing, so this cannot fail spuriously.
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/validate-rules.sh
+        run: bash scripts/validate-rules.sh
       - name: Report finding counts (advisory)
         if: always()
         run: |
           total=0
+          incomplete=0
           for f in \
             opengrep-results.json \
+            opengrep-validated-results.json \
             opengrep-security-results.json \
             opengrep-nlp-results.json \
             opengrep-eval-results.json \
@@ -1134,16 +1089,22 @@ jobs:
             opengrep-memory-results.json
           do
             if [ -s "$f" ]; then
+              if ! jq -e 'type == "object" and (.errors | type == "array" and length == 0)' "$f" > /dev/null; then
+                incomplete=$((incomplete + 1))
+                printf 'OpenGrep %s: scan errors; see JSON artifact\n' "$f"
+              fi
               n="$(jq -r 'if type == "array" then length else (.results // [] | length) end' "$f" 2>/dev/null || echo 0)"
               total=$((total + n))
               printf 'OpenGrep %s: %s finding(s)\n' "$f" "$n"
             else
+              incomplete=$((incomplete + 1))
               printf 'OpenGrep %s: no output file\n' "$f"
             fi
           done
           {
             echo "## OpenGrep findings (advisory)"
             echo ""
+            echo "Scans with errors or missing output: ${incomplete}."
             echo "Total: ${total}. Advisory only; see the SARIF upload and artifacts."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
@@ -1157,6 +1118,7 @@ jobs:
         run: |
           for f in \
             opengrep-results.json \
+            opengrep-validated-results.json \
             opengrep-security-results.json \
             opengrep-nlp-results.json \
             opengrep-eval-results.json \
@@ -1175,6 +1137,7 @@ jobs:
           name: opengrep-results
           path: |
             opengrep-results.json
+            opengrep-validated-results.json
             opengrep-security-results.json
             opengrep-nlp-results.json
             opengrep-eval-results.json
