@@ -109,3 +109,53 @@ fn provenance_does_not_invent_entity_sources_when_nothing_is_emitted() {
     assert_eq!(json["entities"], serde_json::json!([]));
     assert!(json["provenance"].get("entity_sources").is_none());
 }
+
+#[cfg(all(
+    feature = "extractor-html2text",
+    not(feature = "extractor-readability")
+))]
+#[test]
+fn full_page_extraction_keeps_a_table_contact_intact() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = dir.path().join("directory.html");
+    let export = dir.path().join("document.json");
+    let email = "management-team@example.invalid";
+    std::fs::write(
+        &input,
+        format!(
+            "<html><body><table>
+        <tr><th>Department and contact</th><th>Primary contact for account inquiries</th>
+        <th>Discretionary account control status</th><th>Current escalation instructions</th></tr>
+        <tr><td>Café supervision</td><td>{email}</td><td>Current review scheduled weekly</td>
+        <td>Contact the department supervisor</td></tr></table></body></html>"
+        ),
+    )
+    .unwrap();
+    let output = anno()
+        .args([
+            "extract", "--model", "pattern", "--format", "json", "--file",
+        ])
+        .arg(input)
+        .args(["--export-format", "minimal", "--export"])
+        .arg(&export)
+        .env("ANNO_NO_DOWNLOADS", "1")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let doc: serde_json::Value = serde_json::from_slice(&std::fs::read(export).unwrap()).unwrap();
+    let text = doc["text"].as_str().unwrap();
+    let signal = doc["signals"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["surface"] == email)
+        .unwrap();
+    assert_eq!(signal["label"], "EMAIL");
+    let prefix = text.split_once(email).unwrap().0;
+    assert_eq!(signal["start"], prefix.chars().count());
+    assert_eq!(signal["end"], prefix.chars().count() + email.len());
+}

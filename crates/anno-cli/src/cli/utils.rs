@@ -14,31 +14,51 @@ compile_error!(
      `extractor-html2text` (no MPL-2.0 transitives, lower quality)"
 );
 
-/// Extract HTML into a `deformat::Extracted` (text + metadata). Routes to
-/// a deformat backend based on compile-time `extractor-readability` /
-/// `extractor-html2text` features:
-///
-/// - `extractor-readability` (default): readability-class article
-///   extraction. Best quality on news/article pages. Pulls cssparser /
-///   selectors MPL-2.0 transitives.
-/// - `extractor-html2text` only: tag-strip via `html5ever`. No MPL deps.
-///   Lower quality on boilerplate-heavy pages; `title`/`excerpt` will be
-///   `None`.
-///
-/// If both are enabled, readability wins (strict precedence -- users opt
-/// out of readability by *disabling* the default feature).
+/// Extracted text and the provenance recorded by the URL resolver.
+#[cfg_attr(not(feature = "eval"), allow(dead_code))]
+pub(crate) struct HtmlExtraction {
+    pub text: String,
+    pub extractor: deformat::Extractor,
+    pub title: Option<String>,
+    pub fallback: bool,
+}
+
+// Readability takes precedence when both backends are compiled.
 #[cfg(feature = "extractor-readability")]
-pub(crate) fn extract_html(html: &str, url: Option<&str>) -> deformat::Extracted {
-    deformat::extract_readable(html, url)
+pub(crate) fn extract_html(html: &str, url: Option<&str>) -> HtmlExtraction {
+    let article = deformat::extract_readable(html, url);
+    HtmlExtraction {
+        text: article.text,
+        extractor: article.extractor,
+        title: article.title,
+        fallback: article.fallback,
+    }
 }
 
 #[cfg(all(
     not(feature = "extractor-readability"),
     feature = "extractor-html2text"
 ))]
-pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> deformat::Extracted {
-    // html2text wraps to a fixed width; URL has no role.
-    deformat::extract_html2text(html, 80)
+pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> HtmlExtraction {
+    // Render each cell in document order. Display columns interleave other cells
+    // into wrapped identifiers before the entity detector sees them.
+    let rendered = html2text::config::plain()
+        .raw_mode(true)
+        .string_from_read(html.as_bytes(), 80);
+    let (text, extractor, fallback) = match rendered {
+        Ok(text) => (text, deformat::Extractor::Html2text, false),
+        Err(_) => (
+            deformat::html::strip_to_text(html),
+            deformat::Extractor::Strip,
+            true,
+        ),
+    };
+    HtmlExtraction {
+        text,
+        extractor,
+        title: None,
+        fallback,
+    }
 }
 
 /// Convenience: extract HTML and return only the text. Same backend

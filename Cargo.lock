@@ -125,6 +125,7 @@ dependencies = [
  "dirs 5.0.1",
  "encoding_rs",
  "glob",
+ "html2text",
  "indicatif",
  "itertools 0.14.0",
  "jiff",
@@ -1043,7 +1044,6 @@ checksum = "44bc5802bd4000bc32d8dad484875e829c21c28991e3b2f504fc1c271fa700e9"
 dependencies = [
  "dom_smoothie",
  "encoding_rs",
- "html2text",
  "memchr",
  "pdf_oxide",
 ]
