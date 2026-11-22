@@ -56,7 +56,7 @@ pub struct DatasetArgs {
 /// Dataset subcommand actions.
 #[derive(Subcommand, Debug)]
 pub enum DatasetAction {
-    /// List available datasets
+    /// List dataset catalog entries and standard loader support
     #[command(visible_alias = "ls")]
     List {
         /// Filter by task (ner, coref, re, el)
@@ -67,7 +67,7 @@ pub enum DatasetAction {
         #[arg(short, long)]
         domain: Option<String>,
 
-        /// Show only loadable datasets (vs full registry)
+        /// List only entries supported by the standard dataset loader
         #[arg(long)]
         loadable: bool,
 
@@ -2890,7 +2890,7 @@ fn run_list(
     verbose: bool,
 ) -> Result<(), String> {
     println!();
-    println!("{}", color("1;36", "Available Datasets"));
+    println!("{}", color("1;36", "Dataset Catalog"));
     println!();
 
     #[cfg(feature = "eval")]
@@ -2933,114 +2933,70 @@ fn run_list(
             }
         }
 
-        if loadable_only {
-            let task_pred = match task_filter.as_deref() {
-                Some(t) => Some(task_predicate(t)?),
-                None => None,
-            };
+        let catalog = RegistryDatasetId::all();
+        let has_loader = |id: &RegistryDatasetId| LoadableDatasetId::try_from(*id).is_ok();
+        let task = task_filter.as_deref().map(task_predicate).transpose()?;
+        let domain = domain_filter.as_deref().map(str::to_lowercase);
 
-            // Show only loadable datasets
-            let loadable_datasets: Vec<RegistryDatasetId> = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| LoadableDatasetId::try_from(*id).is_ok())
-                .collect();
+        if !loadable_only && task.is_none() && domain.is_none() && !verbose {
+            println!("  {} catalog entries", catalog.len());
             println!(
-                "  {} loadable datasets (can be downloaded and parsed):",
-                loadable_datasets.len()
+                "    Supported by the standard loader: {}",
+                catalog.iter().filter(|id| has_loader(id)).count()
+            );
+            println!(
+                "    Marked for automatic retrieval:   {}",
+                catalog
+                    .iter()
+                    .filter(|id| id.is_automatable_download())
+                    .count()
+            );
+            println!(
+                "    NER:                              {}",
+                catalog.iter().filter(|id| id.is_ner()).count()
+            );
+            println!(
+                "    Coreference:                      {}",
+                catalog.iter().filter(|id| id.is_coreference()).count()
+            );
+            println!(
+                "    Biomedical:                       {}",
+                catalog.iter().filter(|id| id.is_biomedical()).count()
             );
             println!();
-
-            for id in loadable_datasets {
-                let name = id.name();
-                if let Some(ref task_pred) = task_pred {
-                    let tasks = id.tasks_typed();
-                    if !task_pred(&tasks) {
-                        continue;
-                    }
-                }
-
+            println!("  Cache manifests identify local artifacts. Evaluation receipts record completed runs.");
+        } else {
+            let entries: Vec<_> = catalog
+                .iter()
+                .filter(|id| {
+                    (!loadable_only || has_loader(id))
+                        && task.as_ref().is_none_or(|test| test(&id.tasks_typed()))
+                        && domain
+                            .as_ref()
+                            .is_none_or(|filter| id.domain().to_lowercase().contains(filter))
+                })
+                .collect();
+            let group = if loadable_only {
+                "entries supported by the standard loader"
+            } else {
+                "catalog entries"
+            };
+            println!("  {} {group} matching the selection:", entries.len());
+            for id in entries {
                 if verbose {
-                    let citation = id.citation().unwrap_or("N/A");
-                    let license = id.license().unwrap_or("Unknown");
                     let year = id
                         .year()
-                        .map(|y| y.to_string())
-                        .unwrap_or_else(|| "N/A".to_string());
-                    println!("    {:<20} [{:>4}] {} ({})", name, year, citation, license);
+                        .map(|v| v.to_string())
+                        .unwrap_or_else(|| "----".to_string());
+                    println!(
+                        "    {:<25} [{:>4}] {} ({})",
+                        id.name(),
+                        year,
+                        id.citation().unwrap_or("N/A"),
+                        id.license().unwrap_or("Unknown")
+                    );
                 } else {
-                    println!("    {}", name);
-                }
-            }
-        } else {
-            // Show registry (full catalog)
-            let all_datasets: Vec<_> = RegistryDatasetId::all().iter().collect();
-            let loadable_count = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| LoadableDatasetId::try_from(*id).is_ok())
-                .count();
-            let automatable_count = RegistryDatasetId::all()
-                .iter()
-                .copied()
-                .filter(|id| id.is_automatable_download())
-                .count();
-            println!(
-                "  {} datasets in registry ({} loadable):",
-                all_datasets.len(),
-                loadable_count
-            );
-            println!();
-
-            // Group by domain if no filter
-            if domain_filter.is_none() && task_filter.is_none() {
-                // Just show counts by category
-                let ner_count = all_datasets.iter().filter(|d| d.is_ner()).count();
-                let coref_count = all_datasets.iter().filter(|d| d.is_coreference()).count();
-                let bio_count = all_datasets.iter().filter(|d| d.is_biomedical()).count();
-
-                println!("    NER datasets:           {}", ner_count);
-                println!("    Coreference datasets:   {}", coref_count);
-                println!("    Biomedical datasets:    {}", bio_count);
-                println!("    Automatable downloads:  {}", automatable_count);
-                println!();
-                println!("  Use --loadable to see only datasets with loader implementations");
-                println!("  Use --task ner/coref/re/el to filter by task");
-                println!("  Use --verbose for more details");
-            } else {
-                let task_pred = match task_filter.as_deref() {
-                    Some(t) => Some(task_predicate(t)?),
-                    None => None,
-                };
-
-                // Filter and display
-                for dataset in &all_datasets {
-                    // Apply task filter
-                    if let Some(ref task_pred) = task_pred {
-                        let tasks = dataset.tasks_typed();
-                        if !task_pred(&tasks) {
-                            continue;
-                        }
-                    }
-
-                    // Apply domain filter
-                    if let Some(ref domain) = domain_filter {
-                        let dataset_domain = dataset.domain().to_lowercase();
-                        if !dataset_domain.contains(&domain.to_lowercase()) {
-                            continue;
-                        }
-                    }
-
-                    if verbose {
-                        let citation = dataset.citation().unwrap_or("N/A");
-                        let year = dataset
-                            .year()
-                            .map(|y| y.to_string())
-                            .unwrap_or_else(|| "----".to_string());
-                        println!("    {:<25} [{:>4}] {}", dataset.name(), year, citation);
-                    } else {
-                        println!("    {}", dataset.name());
-                    }
+                    println!("    {}", id.name());
                 }
             }
         }
@@ -3099,6 +3055,11 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
             // Local datasets are allowed to have no URL (they live in-repo / on-disk).
             if access_status == anno_eval::eval::dataset_registry::DatasetAccessibility::Local {
                 // no-op
+            } else if !is_loadable && access_status.is_automatable() {
+                info.push(format!(
+                    "{}: catalog only; no standard loader or configured download URL",
+                    registry_id.name()
+                ));
             } else if access_status.is_automatable() {
                 warnings.push(format!(
                     "{}: Missing download URL but marked as automatable ({})",
@@ -3157,7 +3118,7 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
 
     // Summary
     if !issues_only {
-        println!("Checked {} datasets", datasets_to_check.len());
+        println!("Catalog entries checked: {}", datasets_to_check.len());
         println!();
     }
 
@@ -3187,8 +3148,10 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
 
     // Statistics
     if !issues_only {
-        let registry_count = RegistryDatasetId::all().len();
-        let loadable_count = LoadableDatasetId::all().len();
+        let loadable_count = datasets_to_check
+            .iter()
+            .filter(|id| LoadableDatasetId::try_from(**id).is_ok())
+            .count();
         let with_urls = datasets_to_check
             .iter()
             .filter(|d| !d.download_url().is_empty())
@@ -3201,11 +3164,10 @@ fn run_check(issues_only: bool, dataset: Option<&str>, _fix: bool) -> Result<(),
             })
             .count();
 
-        println!("Statistics:");
-        println!("  Registry datasets:    {}", registry_count);
-        println!("  Loadable datasets:   {}", loadable_count);
-        println!("  With download URLs: {}", with_urls);
-        println!("  With entity types:   {}", with_entity_types);
+        println!("Checked entries:");
+        println!("  Supported by the standard loader: {}", loadable_count);
+        println!("  With download URLs:               {}", with_urls);
+        println!("  With entity types:                {}", with_entity_types);
         println!();
     }
 

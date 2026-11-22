@@ -577,10 +577,10 @@ macro_rules! define_datasets {
                 }
             }
 
-            /// Check if this dataset can be automatically downloaded.
+            /// Whether the registry supplies a source eligible for automatic retrieval.
             #[must_use]
             pub fn is_automatable(&self) -> bool {
-                self.access_status().is_automatable()
+                self.is_automatable_download()
             }
 
             /// Check if this dataset requires a license agreement (no public URL).
