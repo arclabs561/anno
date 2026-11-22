@@ -154,6 +154,13 @@ hard/soft weight times `episodes / (relevant attempts + 4)`.
 The decision records the reason, number of recovered episodes and latest
 supporting failure ID. Other buckets use the usual worst-first exploration.
 
+Two consecutive attempts in a cell with the same explicit dataset or download
+error share a retry budget with other repeated infrastructure failures. One
+eighth of seed buckets give them normal priority. In the remaining buckets
+the sampler prefers an alternative backend when one is eligible. A sole
+eligible backend still runs. A changed error or recovery starts a new episode.
+A repeated-infrastructure retry records both observation IDs and the failure kind.
+
 ## Interpreting receipts
 
 A low F1 is an observed quality result, not automatically a code regression.
