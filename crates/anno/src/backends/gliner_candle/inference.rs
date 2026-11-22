@@ -140,7 +140,7 @@ pub(crate) fn convert_pytorch_to_safetensors(pytorch_path: &Path) -> Result<Path
 impl GLiNERCandle {
     /// Load GLiNER from HuggingFace.
     ///
-    /// Automatically loads `.env` for HF_TOKEN if present.
+    /// Reads `HF_TOKEN` from the process environment if set.
     ///
     /// # Arguments
     /// * `model_id` - HuggingFace model ID (e.g., "urchade/gliner_small-v2.1")

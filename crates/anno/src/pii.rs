@@ -670,14 +670,10 @@ pub fn looks_like_id_number(text: &str) -> bool {
     // Require that digits make up at least half the characters to avoid
     // false-positives on version strings like "Python3", "iPhone6", "Cent0S".
     let digit_count = text.chars().filter(|c| c.is_ascii_digit()).count();
-    if text.len() >= 6
+    text.len() >= 6
         && text.len() <= 10
         && text.chars().all(|c| c.is_alphanumeric())
         && digit_count * 2 >= text.len()
-    {
-        return true;
-    }
-    false
 }
 
 #[cfg(test)]

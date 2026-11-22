@@ -288,7 +288,7 @@ fn run() -> Result<(), String> {
         commit_sha_source: "git rev-parse HEAD at generation time (the artifact is committed \
                             in a later local commit on the same branch)",
         working_tree_dirty_at_generation: working_tree_dirty(),
-        generated_at_utc: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        generated_at_utc: format!("{:.0}", jiff::Timestamp::now()),
         dataset: DatasetInfo {
             kind: ARTIFACT_KIND,
             name: "repo testdata + synthetic PII documents",

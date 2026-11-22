@@ -33,7 +33,7 @@
 //!
 //! This backend is LLM-backed and requires:
 //! - A supported API provider (OpenRouter recommended, or Anthropic / Groq / Gemini / Ollama)
-//! - An API key in the environment (loaded from `.env` if present), or a local Ollama instance
+//! - An API key in the environment, or a local Ollama instance
 //! - The `llm` feature for HTTP calls (`ureq`)
 //!
 //! Behavior is **explicit**:
@@ -41,7 +41,7 @@
 //!
 //! # Environment Variables
 //!
-//! Automatically loads from `.env` if present. Supported keys (checked in order):
+//! Supported process environment variables (checked in order):
 //! - `OPENROUTER_API_KEY` - OpenRouter API (recommended: unified gateway for all models)
 //! - `GROQ_API_KEY` - Groq API (ultra-fast inference for open models)
 //! - `ANTHROPIC_API_KEY` - Anthropic API
@@ -141,7 +141,7 @@ pub enum PromptStrategy {
 
 /// UniversalNER backend for LLM-based zero-shot NER.
 ///
-/// Automatically loads API keys from `.env` if present.
+/// Use [`crate::env::load_dotenv`] before construction to read API keys from a `.env` file.
 /// Returns explicit errors when unavailable - use `is_available()` to check.
 pub struct UniversalNER {
     /// Whether LLM backend is available
@@ -174,12 +174,8 @@ pub struct UniversalNER {
 impl UniversalNER {
     /// Create a new UniversalNER instance.
     ///
-    /// Opportunistically loads `.env` file to check for API keys.
     /// Check `is_available()` before use. Returns an explicit error when unavailable.
     pub fn new() -> Result<Self> {
-        // Load .env if present (idempotent)
-        crate::env::load_dotenv();
-
         let llm_available = llm_provider_available();
 
         Ok(Self {
@@ -195,7 +191,6 @@ impl UniversalNER {
 
     /// Create with a specific LLM configuration.
     pub fn with_config(config: crate::backends::llm_client::LlmConfig) -> Result<Self> {
-        crate::env::load_dotenv();
         let llm_available = llm_provider_available();
         Ok(Self {
             llm_available,
