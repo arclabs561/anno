@@ -777,6 +777,8 @@ jobs:
         run: ./scripts/eval-sanity.sh
         env:
           ANNO_ARTIFACT_DIR: reports
+          # Use cached models when available. The WikiGold download uses its own byte cap.
+          ANNO_NO_DOWNLOADS: "1"
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
           ANNO_MAX_DOWNLOAD_BYTES: 8000000

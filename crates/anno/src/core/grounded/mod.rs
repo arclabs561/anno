@@ -459,6 +459,8 @@ impl Signal<Location> {
 
     /// Validate that this signal's location matches its surface text.
     ///
+    /// Discontinuous surfaces may contain the source segments joined with a space
+    /// or the full bounding substring stored by older callers.
     /// Returns `None` if valid, or a description of the mismatch.
     ///
     /// # Example
@@ -475,7 +477,8 @@ impl Signal<Location> {
     /// ```
     #[must_use]
     pub fn validate_against(&self, source_text: &str) -> Option<SignalValidationError> {
-        let (start, end) = self.location.text_offsets()?;
+        // An empty segment list has no source span.
+        let (start, end) = self.location.text_offsets().unwrap_or((0, 0));
 
         let char_count = source_text.chars().count();
 
@@ -496,7 +499,31 @@ impl Signal<Location> {
             });
         }
 
-        // Extract actual text at offsets
+        if let Location::Discontinuous { segments } = &self.location {
+            // The bounding end checked above is the maximum of all segment ends.
+            if let Some(&(start, end)) = segments.iter().find(|(s, e)| s >= e) {
+                return Some(SignalValidationError::InvalidSpan {
+                    signal_id: self.id,
+                    start,
+                    end,
+                });
+            }
+            // Entity conversion sorts segments and coalesces touching ranges.
+            // A joined surface must use that same order and segmentation.
+            if segments.windows(2).all(|pair| pair[0].1 < pair[1].0) {
+                let offsets = crate::offset::build_char_to_byte_map(source_text);
+                let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
+                    let separator = if index == 0 { "" } else { " " };
+                    separator
+                        .bytes()
+                        .chain(source_text[offsets[s]..offsets[e]].bytes())
+                });
+                if joined.eq(self.surface.bytes()) {
+                    return None;
+                }
+            }
+        }
+
         let actual: String = source_text.chars().skip(start).take(end - start).collect();
 
         if actual != self.surface {
@@ -5080,6 +5107,79 @@ mod tests {
         assert!(doc.tracks_map().is_empty());
         assert!(doc.identities_map().is_empty());
         assert!(doc.validate_invariants().is_empty());
+    }
+
+    #[test]
+    fn discontinuous_document_roundtrips_joined_and_bounding_surfaces() {
+        for (source, segments, joined, bounding) in [
+            ("A B C", vec![0..1, 4..5], "A C", "A B C"),
+            (
+                "🦊 été — 東京!",
+                vec![2..5, 8..10],
+                "été 東京",
+                "été — 東京",
+            ),
+        ] {
+            let span = DiscontinuousSpan::new(segments);
+            for surface in [joined, bounding] {
+                let mut entity = Entity::new(surface, EntityType::Location, 0, 1, 0.9);
+                entity.set_discontinuous_span(span.clone());
+                let doc = GroundedDocument::from_entity_signals("spans", source, &[entity]);
+                let json = serde_json::to_string(&doc).unwrap();
+                let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
+                let restored_entity = &restored.to_entities()[0];
+                assert_eq!(restored_entity.text, surface);
+                assert_eq!(restored_entity.discontinuous_span.as_ref(), Some(&span));
+            }
+        }
+    }
+
+    #[test]
+    fn discontinuous_document_retains_legacy_bounding_surface_for_unsorted_segments() {
+        let mut doc = GroundedDocument::new("spans", "A B C");
+        doc.add_signal(Signal::new(
+            0,
+            Location::Discontinuous {
+                segments: vec![(4, 5), (0, 1)],
+            },
+            "A B C",
+            "LOC",
+            0.9,
+        ));
+        let json = serde_json::to_string(&doc).unwrap();
+        let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
+        let entity = &restored.to_entities()[0];
+        assert_eq!(entity.text, "A B C");
+        assert_eq!(
+            entity.discontinuous_span,
+            Some(DiscontinuousSpan::new(vec![0..1, 4..5]))
+        );
+    }
+
+    #[test]
+    fn discontinuous_document_rejects_mismatched_surfaces_and_invalid_segments() {
+        for (segments, surface) in [
+            (vec![(0, 1), (4, 5)], "A B"),
+            (vec![(4, 5), (0, 1)], "C A"),
+            (vec![(0, 3), (2, 5)], "A B B C"),
+            (vec![(0, 1), (3, 2), (4, 5)], "A B C"),
+            (vec![(0, 1), (4, 6)], "A C"),
+            (vec![], ""),
+        ] {
+            let mut doc = GroundedDocument::new("spans", "A B C");
+            doc.add_signal(Signal::new(
+                0,
+                Location::Discontinuous { segments },
+                surface,
+                "LOC",
+                0.9,
+            ));
+            let json = serde_json::to_string(&doc).unwrap();
+            assert!(
+                serde_json::from_str::<GroundedDocument>(&json).is_err(),
+                "{json}"
+            );
+        }
     }
 
     #[test]

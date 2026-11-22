@@ -35,6 +35,14 @@ layers. It does not download or select an ML model. Test an ML-backed
 stack separately and record the exact model artifact, configuration, runtime,
 and whether every requested backend actually ran.
 
+The `Offline extraction benchmark` GitHub Actions workflow runs the same
+profile on a pinned WikiGold corpus. To repeat it locally, pass the downloaded
+`wikigold.conll` file as the example's sole argument. For each gold mention the
+profile checks whether either layer proposed its span and type and whether the
+stack returned it. The four counts distinguish retained, lost, gained, and
+missed mentions. The last line counts output surfaces that disagree with the
+original text at their reported offsets.
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,

@@ -3,8 +3,11 @@
 Python bindings for [anno](https://github.com/arclabs561/anno).
 
 The default build uses pattern + heuristic backends: no model downloads and it
-works offline. Offsets are character offsets, so
-`text[e.start:e.end] == e.text`.
+works offline. Offsets count Unicode code points and index Python strings
+directly. A contiguous entity has `e.segments == [(e.start, e.end)]`.
+For a discontinuous entity, `e.start` and `e.end` bound the whole mention,
+including any gaps. Get the exact source pieces with
+`[text[start:end] for start, end in e.segments]`.
 
 ## Install (development)
 
