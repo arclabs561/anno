@@ -122,14 +122,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get("groups")
         .and_then(|v| v.as_array())
         .ok_or("aggregate output missing groups")?;
-    if groups.is_empty() {
-        return Err("expected at least one aggregated group".into());
+    assert_eq!(groups.len(), arms.len());
+    let summaries = history.summaries_for(None, &arms, Some(&[dataset]), true, 0);
+    for row in groups {
+        let arm = row["backend"].as_str().ok_or("missing backend")?;
+        let observed = &summaries[arm];
+        assert_eq!(Some(observed.calls), row["n"].as_u64());
+        let logged = row["mean_primary_f1"].as_f64().ok_or("missing logged F1")?;
+        let quality = observed.mean_quality_score.ok_or_else(|| {
+            format!("{arm}: missing dataset-scoped quality for logged F1 {logged}")
+        })?;
+        assert!(
+            (quality - logged).abs() < 1e-12,
+            "{arm}: {quality} vs {logged}"
+        );
     }
 
     let lines_outcome = agg
         .get("lines_outcome")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
+    assert_eq!(lines_outcome, 12);
     println!(
         "wrote {lines_outcome} synthetic outcomes to {}",
         jsonl_path.display()
