@@ -5311,7 +5311,6 @@ fn eval_history_path_anno_eval_history_wins() {
     let key = "ANNO_EVAL_HISTORY";
     let old = std::env::var(key).ok();
     std::env::set_var(key, "/explicit/eval-results.jsonl");
-    std::env::remove_var("ANNO_CACHE_DIR");
     let p = eval_history_jsonl_path();
     match old.as_deref() {
         None => std::env::remove_var(key),
