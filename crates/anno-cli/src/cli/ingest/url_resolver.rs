@@ -4,6 +4,44 @@
 //! library concern. The library takes `&str`; the CLI resolves formats into text.
 
 use std::collections::HashMap;
+use std::path::Path;
+use ureq::tls::{parse_pem, PemItem, RootCerts, TlsConfig};
+use ureq::ResponseExt;
+
+/// Use ureq's bundled roots unless the caller explicitly supplies a CA bundle.
+fn http_agent(ca_file: Option<&Path>) -> Result<ureq::Agent, String> {
+    let mut config = ureq::Agent::config_builder()
+        .timeout_global(Some(std::time::Duration::from_secs(60)))
+        .http_status_as_error(false);
+    if let Some(path) = ca_file {
+        let bytes = std::fs::read(path)
+            .map_err(|e| format!("Cannot read SSL_CERT_FILE {}: {e}", path.display()))?;
+        let mut roots = Vec::new();
+        for item in parse_pem(&bytes) {
+            match item.map_err(|e| format!("Invalid SSL_CERT_FILE {}: {e}", path.display()))? {
+                PemItem::Certificate(cert) => roots.push(cert),
+                _ => {
+                    return Err(format!(
+                        "Expected certificates in SSL_CERT_FILE {}",
+                        path.display()
+                    ))
+                }
+            }
+        }
+        if roots.is_empty() {
+            return Err(format!(
+                "No certificates in SSL_CERT_FILE {}",
+                path.display()
+            ));
+        }
+        config = config.tls_config(
+            TlsConfig::builder()
+                .root_certs(RootCerts::from(roots))
+                .build(),
+        );
+    }
+    Ok(config.build().into())
+}
 
 /// Resolved content from a URL.
 #[derive(Debug, Clone)]
@@ -13,7 +51,7 @@ pub struct ResolvedContent {
     pub text: String,
     /// Metadata about the source (title, content-type, etc.)
     pub metadata: HashMap<String, String>,
-    /// The original URL
+    /// The final URL after redirects
     pub source_url: String,
 }
 
@@ -30,13 +68,15 @@ pub trait UrlResolver: std::fmt::Debug {
 ///
 /// Fetches content from HTTP/HTTPS URLs and extracts text from HTML if needed.
 #[derive(Debug, Default)]
-pub struct HttpResolver;
+pub struct HttpResolver {
+    read_declared_language: bool,
+}
 
 impl HttpResolver {
     /// Create a new HTTP resolver.
     #[must_use]
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
@@ -46,11 +86,9 @@ impl UrlResolver for HttpResolver {
     }
 
     fn resolve(&self, url: &str) -> Result<ResolvedContent, String> {
-        let response = ureq::get(url)
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(60)))
-            .http_status_as_error(false)
-            .build()
+        let ca_file = std::env::var_os("SSL_CERT_FILE");
+        let response = http_agent(ca_file.as_deref().map(Path::new))?
+            .get(url)
             .call()
             .map_err(|e| {
                 format!(
@@ -70,7 +108,30 @@ impl UrlResolver for HttpResolver {
             ));
         }
 
-        let content = response.into_body().read_to_string().map_err(|e| {
+        let source_url = response.get_uri().to_string();
+        let media_type = response
+            .headers()
+            .get(ureq::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()?.parse::<mime::Mime>().ok());
+        let is_html = media_type.as_ref().is_some_and(|media| {
+            matches!(media.essence_str(), "text/html" | "application/xhtml+xml")
+        });
+        let encoding = media_type
+            .as_ref()
+            .and_then(|media| media.get_param(mime::CHARSET))
+            .and_then(|charset| encoding_rs::Encoding::for_label(charset.as_str().as_bytes()));
+        let mut body = response.into_body();
+        let content = if let Some(encoding) = encoding {
+            // decode honors a byte order mark before the HTTP charset.
+            body.read_to_vec()
+                .map(|bytes| encoding.decode(&bytes).0.into_owned())
+        } else if is_html {
+            body.read_to_vec()
+                .map(|bytes| deformat::detect::decode_bytes(&bytes, "utf-8").into_owned())
+        } else {
+            body.read_to_string()
+        }
+        .map_err(|e| {
             format!(
                 "Failed to read response from {}: {}. \
                  Response may be too large or corrupted.",
@@ -84,8 +145,13 @@ impl UrlResolver for HttpResolver {
         // Check if content looks like HTML
         let text = if deformat::detect::is_html(&content) {
             metadata.insert("content-type".to_string(), "text/html".to_string());
+            if self.read_declared_language {
+                if let Some(language) = deformat::html::extract_metadata(&content).language {
+                    metadata.insert("declared_language".to_owned(), language);
+                }
+            }
             // Routes between readability / html2text based on anno-cli features.
-            let result = crate::cli::utils::extract_html(&content, Some(url));
+            let result = crate::cli::utils::extract_html(&content, Some(&source_url));
             metadata.insert("extractor".to_string(), result.extractor.to_string());
             if let Some(title) = &result.title {
                 metadata.insert("title".to_string(), title.clone());
@@ -102,7 +168,7 @@ impl UrlResolver for HttpResolver {
         Ok(ResolvedContent {
             text,
             metadata,
-            source_url: url.to_string(),
+            source_url,
         })
     }
 }
@@ -124,7 +190,13 @@ impl CompositeResolver {
     /// Create a new composite resolver with default resolvers.
     #[must_use]
     pub fn new() -> Self {
-        let resolvers = vec![Box::new(HttpResolver::new()) as Box<dyn UrlResolver>];
+        Self::with_declared_language(false)
+    }
+
+    pub(crate) fn with_declared_language(read_declared_language: bool) -> Self {
+        let mut http = HttpResolver::new();
+        http.read_declared_language = read_declared_language;
+        let resolvers = vec![Box::new(http) as Box<dyn UrlResolver>];
         Self { resolvers }
     }
 }
@@ -155,12 +227,64 @@ mod tests {
     use super::*;
 
     #[test]
+    fn explicitly_configured_ca_file_must_provide_certificates() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(http_agent(None).is_ok());
+        assert!(http_agent(Some(&root.join("missing-ca-bundle.pem")))
+            .unwrap_err()
+            .contains("Cannot read SSL_CERT_FILE"));
+        assert!(http_agent(Some(&root.join("Cargo.toml")))
+            .unwrap_err()
+            .contains("No certificates in SSL_CERT_FILE"));
+    }
+
+    #[test]
     fn http_resolver_can_resolve_http() {
         let resolver = HttpResolver::new();
         assert!(resolver.can_resolve("http://example.com"));
         assert!(resolver.can_resolve("https://example.com"));
         assert!(resolver.can_resolve("http://example.com/path?query=1"));
         assert!(resolver.can_resolve("https://subdomain.example.com/path"));
+    }
+
+    #[test]
+    fn http_resolver_decodes_shift_jis_html() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        for (content_type, meta) in [
+            ("TeXt/HtMl", "Shift_JIS"),
+            ("text/html; CHARSET=\"Shift_JIS\"", "utf-8"),
+            ("application/xhtml+xml; charset=Shift_JIS", "utf-8"),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                for line in BufReader::new(&stream).lines() {
+                    if line.unwrap().is_empty() {
+                        break;
+                    }
+                }
+                let mut html =
+                    format!("<html><head><meta charset='{meta}'></head><body><p>").into_bytes();
+                html.extend_from_slice(b"\x93\xfa\x96\x7b</p></body></html>"); // 日本 in Shift_JIS
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\r\n",
+                    html.len()
+                )
+                .unwrap();
+                stream.write_all(&html).unwrap();
+            });
+            let resolved = HttpResolver::new().resolve(&url).unwrap();
+            server.join().unwrap();
+            assert!(
+                resolved.text.contains("日本"),
+                "{content_type}: {}",
+                resolved.text
+            );
+        }
     }
 
     #[test]

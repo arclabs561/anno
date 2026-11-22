@@ -5,7 +5,7 @@
 //! extraction even in an ONNX-enabled wheel: no model downloads, works offline.
 //!
 //! Offsets are **character offsets** (Unicode scalar values), which match
-//! Python `str` indexing exactly: `text[e.start:e.end] == e.text`.
+//! Python `str` indexing. An entity’s `segments` give its exact source ranges.
 
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -34,11 +34,11 @@ fn to_py_err(err: anno::Error) -> PyErr {
 /// An extracted entity span.
 ///
 /// `start` and `end` are character offsets (Unicode code points, end
-/// exclusive), not byte offsets. They index directly into a Python string:
-/// `text[e.start:e.end] == e.text`.
+/// exclusive). They bound the entire mention, including any intervening
+/// words. Use `segments` for the exact source ranges.
 #[pyclass(frozen, module = "anno_py")]
 pub struct Entity {
-    /// Surface form as it appears in the source text.
+    /// Surface form supplied by the producing backend.
     #[pyo3(get)]
     text: String,
     /// Entity type label ("PER", "ORG", "LOC", "EMAIL", "DATE", ...).
@@ -50,6 +50,7 @@ pub struct Entity {
     /// End position, character offset (exclusive).
     #[pyo3(get)]
     end: usize,
+    segmented_span: Option<anno::DiscontinuousSpan>,
     /// Confidence score in [0.0, 1.0].
     #[pyo3(get)]
     confidence: f64,
@@ -72,6 +73,16 @@ pub struct Entity {
 
 #[pymethods]
 impl Entity {
+    /// Ordered (start, end) pairs in Python character offsets, end exclusive.
+    /// A contiguous mention has one pair. Slice each pair to recover the source pieces.
+    #[getter]
+    fn segments(&self) -> Vec<(usize, usize)> {
+        match &self.segmented_span {
+            Some(span) => span.segments().iter().map(|r| (r.start, r.end)).collect(),
+            None => vec![(self.start, self.end)],
+        }
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Entity(text={:?}, label={:?}, start={}, end={}, confidence={:.2})",
@@ -101,6 +112,7 @@ impl From<anno::Entity> for Entity {
             end: e.end(),
             confidence: e.confidence.value(),
             text: e.text,
+            segmented_span: e.discontinuous_span,
             source,
             method,
             model_version,
@@ -479,8 +491,8 @@ impl Extractor {
 
     /// Extract entities from `text`.
     ///
-    /// Returns a list of `Entity`. Offsets are character offsets into `text`
-    /// (end exclusive), so `text[e.start:e.end] == e.text`.
+    /// Returns entities with end-exclusive character offsets into `text`.
+    /// Each entity’s `segments` identify its source pieces.
     fn extract(&self, py: Python<'_>, text: &str) -> PyResult<Vec<Entity>> {
         match &self.backend {
             ExtractorBackend::Offline(model) => run_model_extract(py, model, text),
@@ -509,7 +521,7 @@ static DEFAULT_MODEL: OnceLock<StackedNER> = OnceLock::new();
 ///
 /// One-liner counterpart to `Extractor().extract(text)`; the underlying
 /// model is built once per process and reused. Offsets are character
-/// offsets (end exclusive): `text[e.start:e.end] == e.text`.
+/// offsets (end exclusive). Use `entity.segments` to slice the source pieces.
 #[pyfunction]
 fn extract(py: Python<'_>, text: &str) -> PyResult<Vec<Entity>> {
     let model = DEFAULT_MODEL.get_or_init(offline_stack);
@@ -532,6 +544,29 @@ fn anno_py(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Embedding links libpython; extension-module builds are loaded by Python instead.
+    #[cfg(not(feature = "extension-module"))]
+    #[test]
+    fn python_slices_each_segment_of_a_rust_entity() -> PyResult<()> {
+        let source = "🦊 e\u{301} met Zoë";
+        let mut entity =
+            anno::Entity::new("🦊 e\u{301} Zoë", anno::EntityType::Person, 0, 12, 0.75);
+        entity.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![0..1, 2..4, 9..12]));
+        Python::initialize();
+        Python::attach(|py| {
+            let globals = pyo3::types::PyDict::new(py);
+            globals.set_item("entity", Py::new(py, Entity::from(entity))?)?;
+            globals.set_item("source", source)?;
+            py.run(
+                c"assert entity.segments == [(0, 1), (2, 4), (9, 12)]
+assert source[entity.start:entity.end] == source
+assert ' '.join(source[a:b] for a, b in entity.segments) == entity.text",
+                Some(&globals),
+                None,
+            )
+        })
+    }
 
     fn labels() -> Vec<String> {
         vec!["positive".into(), "negative".into(), "neutral".into()]

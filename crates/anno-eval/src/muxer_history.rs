@@ -58,28 +58,33 @@ impl HistoryWindow {
     /// matching the aggregation in `muxer::Window::summarize()`.
     #[must_use]
     pub fn summary(&self) -> Summary {
-        let mut s = Summary::default();
-        let mut q_sum = 0.0f64;
-        let mut q_n = 0u64;
-        for o in &self.buf {
-            s.calls = s.calls.saturating_add(1);
-            s.ok = s.ok.saturating_add(o.ok as u64);
-            s.junk = s.junk.saturating_add(o.junk as u64);
-            s.hard_junk = s.hard_junk.saturating_add(o.hard_junk as u64);
-            s.cost_units = s.cost_units.saturating_add(o.cost_units);
-            s.elapsed_ms_sum = s.elapsed_ms_sum.saturating_add(o.elapsed_ms);
-            if let Some(q) = o.quality_score {
-                q_sum += q;
-                q_n += 1;
-            }
-        }
-        s.mean_quality_score = if q_n > 0 {
-            Some(q_sum / q_n as f64)
-        } else {
-            None
-        };
-        s
+        summarize_windows(std::iter::once(self))
     }
+}
+
+/// Pool retained outcomes, weighting each scored observation equally across windows.
+pub fn summarize_windows<'a>(windows: impl IntoIterator<Item = &'a HistoryWindow>) -> Summary {
+    let mut s = Summary::default();
+    let mut q_sum = 0.0f64;
+    let mut q_n = 0u64;
+    for o in windows.into_iter().flat_map(|w| &w.buf) {
+        s.calls = s.calls.saturating_add(1);
+        s.ok = s.ok.saturating_add(o.ok as u64);
+        s.junk = s.junk.saturating_add(o.junk as u64);
+        s.hard_junk = s.hard_junk.saturating_add(o.hard_junk as u64);
+        s.cost_units = s.cost_units.saturating_add(o.cost_units);
+        s.elapsed_ms_sum = s.elapsed_ms_sum.saturating_add(o.elapsed_ms);
+        if let Some(q) = o.quality_score {
+            q_sum += q;
+            q_n += 1;
+        }
+    }
+    s.mean_quality_score = if q_n > 0 {
+        Some(q_sum / q_n as f64)
+    } else {
+        None
+    };
+    s
 }
 
 /// Persistent history of backend evaluation outcomes.
@@ -250,22 +255,11 @@ impl BackendHistory {
     ) -> Summary {
         if per_dataset {
             if let Some(datasets) = datasets {
-                let mut agg = Summary::default();
-                for &ds in datasets {
-                    let k = Self::dataset_key(backend, ds);
-                    if let Some(w) = self.windows.get(&k) {
-                        let s = w.summary();
-                        if s.calls == 0 {
-                            continue;
-                        }
-                        agg.calls = agg.calls.saturating_add(s.calls);
-                        agg.ok = agg.ok.saturating_add(s.ok);
-                        agg.junk = agg.junk.saturating_add(s.junk);
-                        agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
-                        agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
-                        agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
-                    }
-                }
+                let agg = summarize_windows(
+                    datasets
+                        .iter()
+                        .filter_map(|&ds| self.windows.get(&Self::dataset_key(backend, ds))),
+                );
                 if agg.calls > 0 {
                     return agg;
                 }
@@ -285,36 +279,18 @@ impl BackendHistory {
             .unwrap_or_default()
     }
 
-    fn facet_prior_summary_for(
-        prior: &BackendHistory,
+    /// Pool prior outcomes for datasets with the requested language and domain.
+    pub fn facet_prior_summary_for(
+        &self,
         backend: &str,
         lang: &'static str,
         dom: &'static str,
     ) -> Summary {
         let prefix = format!("{backend}@@");
-        let mut agg = Summary::default();
-        for (k, w) in &prior.windows {
-            let Some(suffix) = k.strip_prefix(&prefix) else {
-                continue;
-            };
-            let Ok(ds) = suffix.parse::<DatasetId>() else {
-                continue;
-            };
-            if ds.language() != lang || ds.domain() != dom {
-                continue;
-            }
-            let s = w.summary();
-            if s.calls == 0 {
-                continue;
-            }
-            agg.calls = agg.calls.saturating_add(s.calls);
-            agg.ok = agg.ok.saturating_add(s.ok);
-            agg.junk = agg.junk.saturating_add(s.junk);
-            agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
-            agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
-            agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
-        }
-        agg
+        summarize_windows(self.windows.iter().filter_map(|(key, window)| {
+            let ds = key.strip_prefix(&prefix)?.parse::<DatasetId>().ok()?;
+            (ds.language() == lang && ds.domain() == dom).then_some(window)
+        }))
     }
 
     /// Get summaries for arms, with optional prior smoothing.
@@ -335,7 +311,7 @@ impl BackendHistory {
                     if mh::prior_by_facets_from_env() && per_dataset {
                         if let Some(datasets) = datasets {
                             if let Some((lang, dom)) = mh::facet_prior_filter(datasets) {
-                                let facet = Self::facet_prior_summary_for(prior, a, lang, dom);
+                                let facet = prior.facet_prior_summary_for(a, lang, dom);
                                 if facet.calls > 0 {
                                     prior_s = facet;
                                 }
@@ -566,6 +542,30 @@ mod tests {
         assert_eq!(fk[0].as_deref(), Some("timeout"));
         assert_eq!(fk[1].as_deref(), Some("backend"));
         assert_eq!(fk[2].as_deref(), Some("low_signal"));
+    }
+
+    #[test]
+    fn scoped_quality_counts_only_scored_observations_across_windows() {
+        let tmp = TempJsonFile::new("scoped-quality", serde_json::json!({"version": 3}));
+        let mut h = BackendHistory::try_load(&tmp.path, 10).unwrap();
+        let first = DatasetId::Wnut17;
+        let second = DatasetId::WikiGold;
+        for (dataset, scores) in [
+            (first, &[Some(0.25), None][..]),
+            (second, &[Some(0.75), Some(0.5)][..]),
+        ] {
+            for &score in scores {
+                let mut outcome = Outcome::new(true, false, false, 1, 1);
+                outcome.quality_score = score;
+                h.push_with_fail_kind(&BackendHistory::dataset_key("a", dataset), outcome, None);
+            }
+        }
+        h.save(&tmp.path);
+        let h = BackendHistory::try_load(&tmp.path, 10).unwrap();
+        let scoped = h.observed_summary_for("a", Some(&[first, second]), true);
+        assert_eq!((scoped.calls, scoped.mean_quality_score), (4, Some(0.5)));
+        let facet = h.facet_prior_summary_for("a", first.language(), first.domain());
+        assert_eq!((facet.calls, facet.mean_quality_score), (2, Some(0.25)));
     }
 
     #[test]

@@ -1,0 +1,31 @@
+{
+  "schema": "anno-public-muxer-summary-v1",
+  "source": "pinned-offline-replay",
+  "evaluation_revision": "665d1c3bd88e308cd9c2d8be7006fcf022723dad",
+  "dataset_sha256": "c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+  "scorer": "anno-eval-primary-score-v1",
+  "seeds": [
+    41,
+    42,
+    43
+  ],
+  "examples_per_trial": 32,
+  "cells": [
+    {
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "heuristic",
+      "evaluated_trials": 3,
+      "example_evaluations": 96,
+      "mean_trial_f1": 0.34887
+    },
+    {
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "hmm",
+      "evaluated_trials": 3,
+      "example_evaluations": 96,
+      "mean_trial_f1": 0.254692
+    }
+  ]
+}

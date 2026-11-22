@@ -380,20 +380,51 @@ pub fn evaluate_cross_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone
     let mut total_gold_clusters = 0;
     let mut total_pred_clusters = 0;
 
+    // The metric functions identify mentions by offsets. Place each document in
+    // a disjoint range, including documents with the same ID in different topics.
+    let mut next_offset = 0;
     for topic in topics {
-        // Convert gold clusters to chains for evaluation
-        let topic_gold_chains =
-            cross_doc_clusters_to_chains(&topic.gold_clusters, &topic.documents);
+        if per_topic.contains_key(&topic.id) {
+            return Err(crate::Error::InvalidInput(format!(
+                "Duplicate topic ID {}",
+                topic.id
+            )));
+        }
+        let mut documents = HashMap::new();
+        for doc in &topic.documents {
+            if documents
+                .insert(doc.id.as_str(), (doc, next_offset))
+                .is_some()
+            {
+                return Err(crate::Error::InvalidInput(format!(
+                    "Duplicate document {} in topic {}",
+                    doc.id, topic.id
+                )));
+            }
+            let len = doc.text.chars().count();
+            if doc
+                .entities
+                .iter()
+                .any(|e| e.start() > e.end() || e.end() > len)
+            {
+                return Err(crate::Error::InvalidInput(format!(
+                    "Invalid entity span in document {}",
+                    doc.id
+                )));
+            }
+            next_offset += len + 1;
+        }
+        let topic_gold_chains = cross_doc_clusters_to_chains(&topic.gold_clusters, &documents)?;
         total_gold_clusters += topic.gold_clusters.len();
 
         // Resolve across documents in this topic
         let pred_clusters = resolver.resolve_documents(&topic.documents);
         total_pred_clusters += pred_clusters.len();
 
-        let topic_pred_chains = cross_doc_clusters_to_chains(&pred_clusters, &topic.documents);
+        let topic_pred_chains = cross_doc_clusters_to_chains(&pred_clusters, &documents)?;
 
         // Compute per-topic metrics
-        let topic_f1 = conll_f1(&topic_gold_chains, &topic_pred_chains);
+        let topic_f1 = conll_f1(&topic_pred_chains, &topic_gold_chains);
 
         per_topic.insert(
             topic.id.clone(),
@@ -419,7 +450,7 @@ pub fn evaluate_cross_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone
         crate::eval::coref_metrics::ceaf_e_score(&all_pred_chains, &all_gold_chains);
     let (lea_p, lea_r, lea_f1) =
         crate::eval::coref_metrics::lea_score(&all_pred_chains, &all_gold_chains);
-    let conll = conll_f1(&all_gold_chains, &all_pred_chains);
+    let conll = conll_f1(&all_pred_chains, &all_gold_chains);
 
     let num_contexts: usize = topics.iter().map(|t| t.documents.len()).sum();
     let total_mentions: usize = all_pred_chains.iter().map(|c| c.len()).sum();
@@ -573,32 +604,34 @@ pub fn evaluate_long_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone>
 /// Convert cross-document clusters to coreference chains.
 fn cross_doc_clusters_to_chains(
     clusters: &[CrossDocCluster],
-    docs: &[Document],
-) -> Vec<CorefChain> {
-    clusters
-        .iter()
-        .map(|cluster| {
-            let mentions: Vec<Mention> = cluster
-                .mentions
-                .iter()
-                .filter_map(|(doc_id, entity_idx)| {
-                    let doc = docs.iter().find(|d| &d.id == doc_id)?;
-                    let entity = doc.entities.get(*entity_idx)?;
-                    Some(Mention {
-                        text: entity.text.clone(),
-                        start: entity.start(),
-                        end: entity.end(),
-                        head_start: None,
-                        head_end: None,
-                        entity_type: Some(entity.entity_type.as_label().to_string()),
-                        mention_type: None,
-                    })
-                })
-                .collect();
-            CorefChain::new(mentions)
-        })
-        .filter(|c| !c.is_empty())
-        .collect()
+    documents: &HashMap<&str, (&Document, usize)>,
+) -> Result<Vec<CorefChain>> {
+    let mut chains = Vec::new();
+    for cluster in clusters {
+        let mut mentions = Vec::new();
+        for (doc_id, idx) in &cluster.mentions {
+            let (doc, base) = documents.get(doc_id.as_str()).ok_or_else(|| {
+                crate::Error::InvalidInput(format!(
+                    "Cluster {} refers to unknown document {doc_id}",
+                    cluster.id
+                ))
+            })?;
+            let entity = doc.entities.get(*idx).ok_or_else(|| {
+                crate::Error::InvalidInput(format!(
+                    "Cluster {} refers to missing entity {idx} in {doc_id}",
+                    cluster.id
+                ))
+            })?;
+            let mut mention =
+                Mention::new(&entity.text, base + entity.start(), base + entity.end());
+            mention.entity_type = Some(entity.entity_type.as_label().to_string());
+            mentions.push(mention);
+        }
+        if !mentions.is_empty() {
+            chains.push(CorefChain::new(mentions));
+        }
+    }
+    Ok(chains)
 }
 
 // =============================================================================
@@ -745,6 +778,45 @@ mod tests {
 
         assert!(doc.approx_tokens() > 100);
         assert_eq!(doc.gold_chains.len(), 1);
+    }
+
+    #[test]
+    fn cross_document_scores_keep_repeated_offsets_distinct_across_topics() {
+        let mut linked = Topic::new("linked");
+        let mut separate = Topic::new("separate");
+        let mut pair = CrossDocCluster::new(0u64, "Zoë");
+        for id in ["first", "second"] {
+            let doc = Document::new(id, "Zoë").with_entities(vec![Entity::new(
+                "Zoë",
+                EntityType::Person,
+                0,
+                3,
+                1.0,
+            )]);
+            linked.add_document(doc.clone());
+            separate.add_document(doc);
+            pair.add_mention(id, 0);
+            let mut singleton = CrossDocCluster::new(separate.gold_clusters.len() as u64, "Zoë");
+            singleton.add_mention(id, 0);
+            separate.add_gold_cluster(singleton);
+        }
+        linked.add_gold_cluster(pair);
+        let results = evaluate_cross_document(
+            &[linked, separate],
+            HeuristicClusterEncoder::new(64),
+            CosineMergeScorer::new(),
+            &CrossContextEvalConfig {
+                merge_threshold: 2.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // The scorer predicted four singletons. Two mentions earn half recall
+        // for the missed pair, and the two true singletons each earn full recall.
+        assert_eq!(results.num_pred_clusters, 4);
+        assert_eq!(results.b_cubed.precision, 1.0);
+        assert_eq!(results.b_cubed.recall, 0.75);
+        assert_eq!(results.muc.recall, 0.0);
     }
 
     #[test]

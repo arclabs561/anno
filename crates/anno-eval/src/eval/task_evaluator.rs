@@ -179,14 +179,14 @@ pub struct TaskEvalConfig {
     /// Whether to compute confidence intervals for metrics
     pub confidence_intervals: bool,
     /// Optional custom coreference resolver (for use with matryoshka-box trained models)
-    /// If None, resolver is created from backend_name using create_coref_resolver()
+    /// If absent, the requested backend selects an entity resolver or a raw-text model.
     /// Uses Arc to allow sharing across multiple evaluation calls
     #[serde(skip)]
     pub custom_coref_resolver:
         Option<std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver>>,
 
     /// Coreference evaluation mode:
-    /// - `false` (default): run NER to get mentions, then resolve coref on those mentions.
+    /// - `false` (default): use the backend’s mention detector, or NER for an entity resolver.
     /// - `true`: use GOLD mentions from the coref dataset and evaluate clustering only.
     ///
     /// This is critical for datasets like CorefUD where mentions include pronouns/nominals
@@ -369,6 +369,12 @@ impl TaskEvalResult {
             .or_else(|| self.metrics.get("strict_f1"))
             .copied()
     }
+
+    /// Finite quality measurement from a completed, successful evaluation.
+    pub(crate) fn measured_primary_f1(&self) -> Option<f64> {
+        self.primary_f1()
+            .filter(|score| self.success && score.is_finite())
+    }
 }
 
 /// Comprehensive evaluation results across all combinations.
@@ -413,6 +419,20 @@ pub struct TaskEvaluator {
     muxer_run_id: Option<String>,
 }
 
+// The task registry lists one canonical entry per backend so that an automatic
+// evaluation runs it once. Explicit coreference requests may use factory aliases.
+fn canonical_coref_name(task: Task, name: &str) -> &str {
+    if matches!(task, Task::IntraDocCoref | Task::AbstractAnaphora) {
+        match name.to_ascii_lowercase().as_str() {
+            "fcoref" | "f-coref" | "fastcoref" => return "fcoref",
+            "coref_resolver" | "simplecorefresolver" | "simple" => return "coref_resolver",
+            "mention_ranking" | "mention-ranking" | "mentionranking" => return "mention_ranking",
+            _ => {}
+        }
+    }
+    name
+}
+
 impl TaskEvaluator {
     /// Access the evaluation history (if initialized).
     pub fn history(&self) -> Option<&super::history::EvalHistory> {
@@ -438,7 +458,6 @@ impl TaskEvaluator {
                 | Task::DiscontinuousNER
                 | Task::RelationExtraction
                 | Task::IntraDocCoref
-                | Task::InterDocCoref
                 | Task::AbstractAnaphora
                 | Task::TextClassification
                 | Task::EventExtraction
@@ -989,11 +1008,18 @@ impl TaskEvaluator {
         let mut sampled_cache: HashMap<(Task, DatasetId), (LoadedDataset, usize)> = HashMap::new();
 
         // Determine which tasks to evaluate
-        let tasks = if config.tasks.is_empty() {
+        let mut tasks = if config.tasks.is_empty() {
             Task::all().to_vec()
         } else {
             config.tasks.clone()
         };
+
+        tasks.retain(|task| *task != Task::InterDocCoref);
+        if tasks.is_empty() {
+            return Err(crate::Error::FeatureNotAvailable(
+                "Inter-document evaluation requires a cross-document resolver and source cluster identities. TaskEvaluator currently has document-level resolvers.".into(),
+            ));
+        }
 
         for task in &tasks {
             tasks_evaluated.push(*task);
@@ -1030,7 +1056,7 @@ impl TaskEvaluator {
                     config
                         .backends
                         .iter()
-                        .filter(|b| allowed.contains(b.as_str()))
+                        .filter(|b| allowed.contains(canonical_coref_name(*task, b)))
                         .cloned()
                         .collect()
                 };
@@ -1333,11 +1359,7 @@ impl TaskEvaluator {
         }
 
         // Validate task-backend compatibility
-        let backend_tasks: Vec<String> = get_task_backends(task)
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        if !backend_tasks.contains(&backend_name.to_string()) {
+        if !get_task_backends(task).contains(&canonical_coref_name(task, backend_name)) {
             return Err(crate::Error::InvalidInput(format!(
                 "Backend '{}' does not support task {:?}",
                 backend_name, task
@@ -1345,7 +1367,6 @@ impl TaskEvaluator {
         }
 
         // Run task-specific evaluation
-        // Note: Coref tasks don't use BackendFactory (they use create_coref_resolver)
         match task {
             Task::NER
             | Task::DiscontinuousNER
@@ -1421,9 +1442,7 @@ impl TaskEvaluator {
                     scheduling,
                 })
             }
-            Task::IntraDocCoref | Task::InterDocCoref | Task::AbstractAnaphora => {
-                // Coref tasks use create_coref_resolver, not BackendFactory
-                // Skip BackendFactory::create() to avoid "Unknown backend" error
+            Task::IntraDocCoref | Task::AbstractAnaphora => {
                 let metrics = self.evaluate_coref_task(task, backend_name, dataset_data, config)?;
                 Ok(BackendEvalOk {
                     metrics,
@@ -2643,7 +2662,6 @@ impl TaskEvaluator {
     /// Evaluate coreference task.
     ///
     /// For `IntraDocCoref` and `AbstractAnaphora`, runs per-document coreference.
-    /// For `InterDocCoref`, groups documents by topic and runs cross-document clustering.
     fn evaluate_coref_task(
         &self,
         task: Task,
@@ -2653,7 +2671,9 @@ impl TaskEvaluator {
     ) -> Result<HashMap<String, f64>> {
         use crate::eval::backend_factory::create_coref_resolver;
         use crate::eval::coref::entities_to_chains;
-        use crate::eval::coref_metrics::{CorefEvaluation, WindowFragmentationStats};
+        use crate::eval::coref_metrics::{BlancCounts, CorefEvaluation, WindowFragmentationStats};
+
+        debug_assert!(matches!(task, Task::IntraDocCoref | Task::AbstractAnaphora));
 
         // Try to load coreference documents if dataset supports it
         let gold_docs = if dataset_data.id.is_coreference() {
@@ -2764,25 +2784,31 @@ impl TaskEvaluator {
             gold_docs
         };
 
-        // ---- InterDocCoref: cross-document clustering path ----
-        if task == Task::InterDocCoref {
-            return self.evaluate_inter_doc_coref(&gold_docs, backend_name, config);
+        // A raw-text backend detects its own mentions. A supplied entity resolver
+        // takes precedence even when its reporting name is a neural backend alias.
+        enum Resolver {
+            Text(Box<dyn anno::CorefBackend>),
+            Entities(std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver>),
         }
-
-        // ---- IntraDocCoref / AbstractAnaphora: per-document path (unchanged) ----
-
-        // Create coreference resolver (not a Model backend)
-        // Use custom resolver if provided, otherwise create from backend_name
-        let resolver: std::sync::Arc<dyn crate::eval::coref_resolver::CoreferenceResolver> =
-            if let Some(ref custom_resolver) = config.custom_coref_resolver {
-                // Use the custom resolver directly (e.g., TrainedBoxCorefResolver from matryoshka-box)
-                custom_resolver.clone()
-            } else {
-                // Create resolver from backend_name (e.g., "coref_resolver", "box", etc.)
-                std::sync::Arc::from(create_coref_resolver(backend_name)?)
-            };
+        let name = canonical_coref_name(task, backend_name);
+        let resolver = if let Some(custom) = &config.custom_coref_resolver {
+            Resolver::Entities(custom.clone())
+        } else if name == "fcoref" {
+            if config.coref_use_gold_mentions {
+                return Err(crate::Error::FeatureNotAvailable(
+                    "FCoref detects mentions from raw text and cannot evaluate gold mentions"
+                        .into(),
+                ));
+            }
+            Resolver::Text(crate::eval::backend_factory::create_coref_backend(
+                backend_name,
+            )?)
+        } else {
+            Resolver::Entities(std::sync::Arc::from(create_coref_resolver(backend_name)?))
+        };
 
         let mut all_predicted_chains = Vec::new();
+        let mut blanc = BlancCounts::default();
         let mut all_gold_chains = Vec::new();
 
         // Long-document stitching diagnostics (CorefInst-style window fragmentation).
@@ -2832,118 +2858,91 @@ impl TaskEvaluator {
             // Collect gold chains from the document
             all_gold_chains.extend(offset_chains(doc.chains.clone(), doc_base));
 
-            // Check if this is a text-based coref backend (CorefBackend)
-            // rather than an entity-based resolver (CoreferenceResolver).
-            let is_text_based_coref = matches!(backend_name, "fcoref" | "f-coref" | "fastcoref");
+            let predicted_chains = match &resolver {
+                Resolver::Text(backend) => {
+                    use crate::eval::coref::{CorefChain, Mention};
+                    let clusters = backend.resolve(&doc.text).map_err(|e| {
+                        crate::Error::Inference(format!(
+                            "Coreference backend '{backend_name}' inference failed for document {:?}: {e}",
+                            doc.doc_id
+                        ))
+                    })?;
+                    clusters
+                        .into_iter()
+                        .map(|cluster| CorefChain {
+                            mentions: cluster
+                                .spans
+                                .iter()
+                                .zip(&cluster.mentions)
+                                .map(|(&(start, end), text)| Mention::new(text, start, end))
+                                .collect(),
+                            cluster_id: Some(anno::CanonicalId::new(cluster.id as u64)),
+                            entity_type: None,
+                        })
+                        .collect()
+                }
+                Resolver::Entities(resolver) if config.coref_use_gold_mentions => {
+                    // Gold-mention mode: evaluate clustering only.
+                    //
+                    // We deliberately exclude zero-length mentions (CorefUD empty nodes) from the
+                    // resolver input because most resolvers operate on overt spans.
+                    let mut gold_entities: Vec<crate::Entity> = Vec::new();
+                    for chain in &doc.chains {
+                        for m in &chain.mentions {
+                            let is_zero =
+                                m.mention_type == Some(anno::MentionType::Zero) || m.start == m.end;
+                            if is_zero {
+                                continue;
+                            }
+                            let et = m
+                                .entity_type
+                                .as_deref()
+                                .map(|t| {
+                                    // Best-effort mapping from CorefUD etype (person/place/organization/...)
+                                    // to our coarse EntityType. Everything else becomes Other.
+                                    let tl = t.to_lowercase();
+                                    if tl.contains("person") {
+                                        crate::EntityType::Person
+                                    } else if tl.contains("place") || tl.contains("loc") {
+                                        crate::EntityType::Location
+                                    } else if tl.contains("org") {
+                                        crate::EntityType::Organization
+                                    } else {
+                                        crate::EntityType::custom(t, crate::EntityCategory::Misc)
+                                    }
+                                })
+                                .unwrap_or_else(|| {
+                                    crate::EntityType::custom(
+                                        "mention",
+                                        crate::EntityCategory::Misc,
+                                    )
+                                });
 
-            let predicted_chains = if is_text_based_coref {
-                // Text-based coref: run directly on raw text, bypass NER extraction.
-                // This is the proper path for neural coref models (FCoref, etc.)
-                use crate::eval::backend_factory::create_coref_backend;
-                match create_coref_backend(backend_name) {
-                    Ok(coref_backend) => {
-                        match coref_backend.resolve(&doc.text) {
-                            Ok(clusters) => {
-                                // Convert CorefCluster -> CorefChain
-                                use crate::eval::coref::{CorefChain, Mention};
-                                clusters
-                                    .into_iter()
-                                    .map(|cluster| {
-                                        let mentions = cluster
-                                            .spans
-                                            .iter()
-                                            .zip(cluster.mentions.iter())
-                                            .map(|(&(start, end), text)| {
-                                                Mention::new(text, start, end)
-                                            })
-                                            .collect();
-                                        CorefChain {
-                                            mentions,
-                                            cluster_id: Some(anno::CanonicalId::new(
-                                                cluster.id as u64,
-                                            )),
-                                            entity_type: None,
-                                        }
-                                    })
-                                    .collect()
-                            }
-                            Err(e) => {
-                                return Err(crate::Error::Inference(format!(
-                                    "Coreference backend '{backend_name}' inference failed for document {:?}: {e}",
-                                    doc.doc_id
-                                )));
-                            }
+                            gold_entities
+                                .push(crate::Entity::new(&m.text, et, m.start, m.end, 1.0));
                         }
                     }
-                    Err(e) => {
-                        return Err(crate::Error::FeatureNotAvailable(format!(
-                            "Failed to create coref backend '{}': {}",
-                            backend_name, e
-                        )));
-                    }
+
+                    let resolved_entities = resolver.resolve(&gold_entities);
+                    entities_to_chains(&resolved_entities)
                 }
-            } else if config.coref_use_gold_mentions {
-                // Gold-mention mode: evaluate clustering only.
-                //
-                // We deliberately exclude zero-length mentions (CorefUD empty nodes) from the
-                // resolver input because most resolvers operate on overt spans.
-                let mut gold_entities: Vec<crate::Entity> = Vec::new();
-                for chain in &doc.chains {
-                    for m in &chain.mentions {
-                        let is_zero =
-                            m.mention_type == Some(anno::MentionType::Zero) || m.start == m.end;
-                        if is_zero {
-                            continue;
-                        }
-                        let et = m
-                            .entity_type
-                            .as_deref()
-                            .map(|t| {
-                                // Best-effort mapping from CorefUD etype (person/place/organization/...)
-                                // to our coarse EntityType. Everything else becomes Other.
-                                let tl = t.to_lowercase();
-                                if tl.contains("person") {
-                                    crate::EntityType::Person
-                                } else if tl.contains("place") || tl.contains("loc") {
-                                    crate::EntityType::Location
-                                } else if tl.contains("org") {
-                                    crate::EntityType::Organization
-                                } else {
-                                    crate::EntityType::custom(t, crate::EntityCategory::Misc)
-                                }
-                            })
-                            .unwrap_or_else(|| {
-                                crate::EntityType::custom("mention", crate::EntityCategory::Misc)
-                            });
+                Resolver::Entities(resolver) => {
+                    // End-to-end mode: extract mentions via NER backend, then cluster.
+                    // Use a NER backend to extract entities first (heuristic or stacked as default)
+                    let ner_backend_name = match name {
+                        "coref_resolver" | "mention_ranking" | "box" | "fcoref" => "stacked",
+                        // If the user passed an actual NER backend name, allow it.
+                        _ => backend_name,
+                    };
+                    let ner_backend = BackendFactory::create(ner_backend_name)?;
 
-                        gold_entities.push(crate::Entity::new(&m.text, et, m.start, m.end, 1.0));
-                    }
-                }
-
-                let resolved_entities = resolver.resolve(&gold_entities);
-                entities_to_chains(&resolved_entities)
-            } else {
-                // End-to-end mode: extract mentions via NER backend, then cluster.
-                // Use a NER backend to extract entities first (heuristic or stacked as default)
-                let ner_backend_name = match backend_name {
-                    // Coref resolvers are not NER backends. Pick a sensible default mention detector.
-                    "coref_resolver" | "mention_ranking" | "box" => "stacked",
-                    // If the user passed an actual NER backend name, allow it.
-                    other => other,
-                };
-                let ner_backend = BackendFactory::create(ner_backend_name)?;
-
-                match ner_backend.extract_entities(&doc.text, None) {
-                    Ok(entities) => {
-                        let resolved_entities = resolver.resolve(&entities);
-                        entities_to_chains(&resolved_entities)
-                    }
-                    Err(e) => {
-                        return Err(crate::Error::Inference(format!(
+                    let entities = ner_backend.extract_entities(&doc.text, None).map_err(|e| {
+                        crate::Error::Inference(format!(
                             "NER backend '{ner_backend_name}' inference failed for coreference document {:?}: {e}",
                             doc.doc_id
-                        )));
-                    }
+                        ))
+                    })?;
+                    entities_to_chains(&resolver.resolve(&entities))
                 }
             };
 
@@ -2961,11 +2960,16 @@ impl TaskEvaluator {
                     fs.missing_mentions_in_multiwindow_chains;
             }
 
+            blanc.add_document(&predicted_chains, &doc.chains);
             all_predicted_chains.extend(offset_chains(predicted_chains, doc_base));
         }
 
         // Compute coreference metrics
-        let eval = CorefEvaluation::compute(&all_predicted_chains, &all_gold_chains);
+        let eval = CorefEvaluation::compute_with_blanc_counts(
+            &all_predicted_chains,
+            &all_gold_chains,
+            &blanc,
+        );
 
         let mut metrics = HashMap::new();
         metrics.insert("num_docs".to_string(), gold_docs.len() as f64);
@@ -3060,155 +3064,6 @@ impl TaskEvaluator {
             "num_predicted_chains".to_string(),
             all_predicted_chains.len() as f64,
         );
-
-        Ok(metrics)
-    }
-
-    /// Evaluate inter-document (cross-document) coreference.
-    ///
-    /// Groups `CorefDocument`s by topic (from metadata), builds `Topic` objects with
-    /// gold `CrossDocCluster`s, and runs `evaluate_cross_document()`.
-    fn evaluate_inter_doc_coref(
-        &self,
-        gold_docs: &[crate::eval::coref::CorefDocument],
-        _backend_name: &str,
-        _config: &TaskEvalConfig,
-    ) -> Result<HashMap<String, f64>> {
-        use crate::eval::cdcr::{CrossDocCluster, Document};
-        use crate::eval::cluster_encoder::{CosineMergeScorer, HeuristicClusterEncoder};
-        use crate::eval::cross_context_eval::{
-            evaluate_cross_document, CrossContextEvalConfig, Topic,
-        };
-
-        // Group docs by topic (from metadata, or treat each doc as its own topic)
-        let mut topics_map: HashMap<String, Vec<&crate::eval::coref::CorefDocument>> =
-            HashMap::new();
-
-        for doc in gold_docs {
-            // Extract topic from doc_id (format: "topicN_fileM" from ECB+ parser)
-            let topic_key = doc
-                .doc_id
-                .as_deref()
-                .and_then(|id| id.split('_').next())
-                .unwrap_or("default")
-                .to_string();
-            topics_map.entry(topic_key).or_default().push(doc);
-        }
-
-        // Build Topic objects
-        let mut topics: Vec<Topic> = Vec::new();
-        let mut topic_keys: Vec<_> = topics_map.keys().cloned().collect();
-        topic_keys.sort();
-
-        for topic_key in &topic_keys {
-            let coref_docs = &topics_map[topic_key];
-            let mut topic = Topic::new(topic_key);
-
-            // Convert CorefDocuments to cdcr::Documents and build gold clusters
-            // Each CorefChain in each doc that shares a chain across docs becomes a cross-doc cluster.
-            // For ECB+, the chain IDs encode cross-doc identity.
-            let mut chain_to_mentions: HashMap<String, Vec<(String, usize)>> = HashMap::new();
-
-            for coref_doc in coref_docs {
-                let doc_id = coref_doc
-                    .doc_id
-                    .clone()
-                    .unwrap_or_else(|| format!("doc_{}", topic.documents.len()));
-
-                // Build cdcr::Document with entities from gold mentions
-                let mut entities: Vec<anno::Entity> = Vec::new();
-                for (chain_idx, chain) in coref_doc.chains.iter().enumerate() {
-                    for mention in &chain.mentions {
-                        let et = mention
-                            .entity_type
-                            .as_deref()
-                            .map(|t| {
-                                let tl = t.to_lowercase();
-                                if tl.contains("person") {
-                                    anno::EntityType::Person
-                                } else if tl.contains("loc") || tl.contains("place") {
-                                    anno::EntityType::Location
-                                } else if tl.contains("org") {
-                                    anno::EntityType::Organization
-                                } else {
-                                    anno::EntityType::custom(t, anno::EntityCategory::Misc)
-                                }
-                            })
-                            .unwrap_or(anno::EntityType::custom(
-                                "mention",
-                                anno::EntityCategory::Misc,
-                            ));
-
-                        let entity_idx = entities.len();
-                        entities.push(anno::Entity::new(
-                            &mention.text,
-                            et,
-                            mention.start,
-                            mention.end,
-                            1.0,
-                        ));
-
-                        // Track chain membership for cross-doc clustering
-                        let chain_key = format!("{}_{}", topic_key, chain_idx);
-                        chain_to_mentions
-                            .entry(chain_key)
-                            .or_default()
-                            .push((doc_id.clone(), entity_idx));
-                    }
-                }
-
-                let cdcr_doc = Document::new(&doc_id, &coref_doc.text).with_entities(entities);
-                topic.add_document(cdcr_doc);
-            }
-
-            // Build gold CrossDocClusters from chain_to_mentions
-            for mentions in chain_to_mentions.values() {
-                if mentions.len() < 2 {
-                    continue; // Skip singletons for cross-doc
-                }
-                let mut cluster = CrossDocCluster::new(topic.gold_clusters.len() as u64, "");
-                cluster.mentions = mentions.clone();
-                topic.add_gold_cluster(cluster);
-            }
-
-            topics.push(topic);
-        }
-
-        // Run cross-document evaluation
-        let encoder = HeuristicClusterEncoder::new(64);
-        let scorer = CosineMergeScorer::new();
-        let config = CrossContextEvalConfig::default();
-
-        let results = evaluate_cross_document(&topics, encoder, scorer, &config)?;
-
-        // Convert to flat metrics HashMap
-        let mut metrics = HashMap::new();
-        metrics.insert("conll_f1".to_string(), results.conll_f1);
-        metrics.insert("muc_f1".to_string(), results.muc.f1);
-        metrics.insert("muc_precision".to_string(), results.muc.precision);
-        metrics.insert("muc_recall".to_string(), results.muc.recall);
-        metrics.insert("b3_f1".to_string(), results.b_cubed.f1);
-        metrics.insert("b3_precision".to_string(), results.b_cubed.precision);
-        metrics.insert("b3_recall".to_string(), results.b_cubed.recall);
-        metrics.insert("ceaf_e_f1".to_string(), results.ceaf_e.f1);
-        metrics.insert("ceaf_e_precision".to_string(), results.ceaf_e.precision);
-        metrics.insert("ceaf_e_recall".to_string(), results.ceaf_e.recall);
-        metrics.insert("lea_f1".to_string(), results.lea.f1);
-        metrics.insert("lea_precision".to_string(), results.lea.precision);
-        metrics.insert("lea_recall".to_string(), results.lea.recall);
-        metrics.insert("num_topics".to_string(), topics.len() as f64);
-        metrics.insert("num_documents".to_string(), results.num_contexts as f64);
-        metrics.insert(
-            "num_gold_clusters".to_string(),
-            results.num_gold_clusters as f64,
-        );
-        metrics.insert(
-            "num_pred_clusters".to_string(),
-            results.num_pred_clusters as f64,
-        );
-        metrics.insert("purity".to_string(), results.avg_cluster_size);
-        metrics.insert("time_ms".to_string(), results.time_ms);
-        metrics.insert("is_cross_doc".to_string(), 1.0);
 
         Ok(metrics)
     }
@@ -4786,6 +4641,42 @@ mod tests {
     }
 
     #[test]
+    fn document_resolvers_cannot_report_inter_document_scores() {
+        assert!(!TaskEvaluator::is_task_supported(Task::InterDocCoref));
+        assert!(get_task_backends(Task::InterDocCoref).is_empty());
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        for backend in ["mention_ranking", "coref_resolver"] {
+            assert!(get_task_backends(Task::IntraDocCoref).contains(&backend));
+            let result = evaluator.evaluate_all(TaskEvalConfig {
+                datasets: vec![DatasetId::ECBPlus],
+                tasks: vec![Task::InterDocCoref],
+                backends: vec![backend.into()],
+                require_cached: true,
+                ..Default::default()
+            });
+            assert!(
+                matches!(result, Err(crate::Error::FeatureNotAvailable(message))
+                if message.contains("source cluster identities"))
+            );
+        }
+        let mixed = evaluator
+            .evaluate_all(TaskEvalConfig {
+                datasets: vec![DatasetId::GAP],
+                tasks: vec![Task::InterDocCoref, Task::IntraDocCoref],
+                backends: vec!["mention_ranking".into()],
+                require_cached: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(mixed.summary.tasks, [Task::IntraDocCoref]);
+        assert!(mixed
+            .results
+            .iter()
+            .all(|row| row.task == Task::IntraDocCoref));
+    }
+
+    #[test]
     fn test_task_mapping_build() {
         let mapping = TaskMapping::build();
         assert!(!mapping.task_to_datasets.is_empty());
@@ -4909,6 +4800,54 @@ mod tests {
             .collect();
         assert!(joined.contains(first_id.as_str()));
         assert!(joined.contains(second_id.as_str()));
+    }
+
+    #[test]
+    fn explicit_fcoref_alias_requires_predicted_mentions_unless_a_custom_resolver_is_supplied() {
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        std::fs::write(
+            cache.path().join(DatasetId::GAP.cache_filename()),
+            "ID\tText\tPronoun\tPronoun-offset\tA\tA-offset\tA-coref\tB\tB-offset\tB-coref\n1\tAlice saw Bob and she waved\tshe\t18\tAlice\t0\tTRUE\tBob\t10\tFALSE\n",
+        ).unwrap();
+        let config = || TaskEvalConfig {
+            tasks: vec![Task::IntraDocCoref],
+            datasets: vec![DatasetId::GAP],
+            backends: vec!["fastcoref".into()],
+            require_cached: true,
+            coref_use_gold_mentions: true,
+            ..Default::default()
+        };
+        let report = evaluator.evaluate_all(config()).unwrap();
+        assert_eq!(report.results.len(), 1);
+        assert!(report.results[0]
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("cannot evaluate gold mentions"));
+
+        assert!(report.results[0].is_skipped());
+        #[cfg(not(feature = "onnx"))]
+        {
+            let mut predicted_mentions = config();
+            predicted_mentions.coref_use_gold_mentions = false;
+            let report = evaluator.evaluate_all(predicted_mentions).unwrap();
+            assert_eq!(report.results.len(), 1);
+            assert!(report.results[0]
+                .error
+                .as_deref()
+                .unwrap()
+                .contains("FCoref requires 'onnx'"));
+        }
+
+        let mut config = config();
+        config.custom_coref_resolver = Some(std::sync::Arc::from(
+            crate::eval::backend_factory::create_coref_resolver("simple").unwrap(),
+        ));
+        let report = evaluator.evaluate_all(config).unwrap();
+        assert_eq!(report.results.len(), 1);
+        assert!(report.results[0].success, "{:?}", report.results[0].error);
+        assert_eq!(report.results[0].metrics["num_docs"], 1.0);
     }
 
     #[test]
@@ -5679,6 +5618,42 @@ mod tests {
     fn test_task_eval_result_primary_f1() {
         let result = make_test_result(true, None, Some(0.824));
         assert_eq!(result.primary_f1(), Some(0.824));
+    }
+
+    #[test]
+    fn history_indexes_measured_task_scores_and_recovers_legacy_aliases() {
+        let mut coref_ok = make_test_result(true, None, None);
+        coref_ok.task = Task::IntraDocCoref;
+        coref_ok.metrics.insert("conll_f1".into(), 0.9);
+        let mut rel_ok = make_test_result(true, None, None);
+        rel_ok.task = Task::RelationExtraction;
+        rel_ok.metrics.insert("strict_f1".into(), 0.9);
+        // Both the SQLite quality index and a rebuild from legacy JSONL must
+        // preserve the coreference and relation evaluators' primary score.
+        use crate::eval::history::{EvalHistory, EvalHistoryEntry};
+        let archive_dir = tempfile::tempdir().unwrap();
+        let archive = EvalHistory::new(archive_dir.path().join("history.jsonl")).unwrap();
+        for r in [&coref_ok, &rel_ok] {
+            let mut legacy = EvalHistoryEntry::from(r);
+            assert_eq!(legacy.f1, r.primary_f1());
+            legacy.f1 = None;
+            archive.append_entry(&legacy).unwrap();
+        }
+        assert!(archive
+            .query_recent(&coref_ok.backend, 2)
+            .unwrap()
+            .iter()
+            .all(|e| e.f1.is_none()));
+        archive.rebuild_index().unwrap();
+        for rows in [
+            archive.load_all().unwrap(),
+            archive.query_recent(&coref_ok.backend, 2).unwrap(),
+        ] {
+            assert_eq!(rows.len(), 2);
+            assert!(rows.iter().all(|e| e.f1 == Some(0.9)));
+        }
+        rel_ok.success = false;
+        assert!(EvalHistoryEntry::from(&rel_ok).f1.is_none());
     }
 
     #[test]
