@@ -84,6 +84,13 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test attribution footer matching
         run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
+      - name: Test optional research routing
+        timeout-minutes: 2
+        run: |
+          test_dir="$RUNNER_TEMP/anno-routing-tests"
+          npm install --prefix "$test_dir" --ignore-scripts --no-audit --no-fund --no-package-lock --no-save @actions/expressions@0.3.61 yaml@2.8.4
+          cp .github/scripts/test_research_routing.mjs "$test_dir/"
+          node "$test_dir/test_research_routing.mjs"
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
       - name: Test fixed QA panel contracts (offline fixtures)
