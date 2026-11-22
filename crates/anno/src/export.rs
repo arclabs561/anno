@@ -36,19 +36,41 @@ use crate::{Entity, Relation};
 /// `A`-annotation lines are added with confidence scores.
 ///
 /// Both brat and Anno count Unicode characters from the start of the source
-/// document. Offsets are half-open. The source argument is retained for callers.
+/// document. Offsets are half-open. A mention crossing a line break uses one
+/// record with semicolon-separated spans. Its reference text joins the pieces
+/// with a space. The source argument is retained for callers.
 pub fn to_brat(_text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
     for (idx, entity) in entities.iter().enumerate() {
         let tid = format!("T{}", idx + 1);
-        let line = format!(
-            "{}\t{} {} {}\t{}",
-            tid,
-            entity.entity_type.as_label(),
-            entity.start(),
-            entity.end(),
-            entity.text
-        );
+        let label = entity.entity_type.as_label();
+        let line = if entity.text.contains(['\r', '\n']) {
+            let mut spans = Vec::new();
+            let mut reference_parts = Vec::new();
+            let mut pos = entity.start();
+            let mut pieces = entity.text.split(['\r', '\n']).peekable();
+            while let Some(piece) = pieces.next() {
+                let end = pos + piece.chars().count();
+                // Empty endpoints keep leading and trailing breaks in the mention.
+                if !piece.is_empty() || pos == entity.start() || pieces.peek().is_none() {
+                    spans.push(format!("{pos} {end}"));
+                    reference_parts.push(piece);
+                }
+                pos = end + 1;
+            }
+            format!(
+                "{tid}\t{label} {}\t{}",
+                spans.join(";"),
+                reference_parts.join(" ")
+            )
+        } else {
+            format!(
+                "{tid}\t{label} {} {}\t{}",
+                entity.start(),
+                entity.end(),
+                entity.text
+            )
+        };
         if include_confidence {
             let aid = format!("A{}", idx + 1);
             lines.push(line);
