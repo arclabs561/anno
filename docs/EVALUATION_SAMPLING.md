@@ -46,6 +46,13 @@ The harness records failures and can return early when nothing is runnable;
 an exit code of zero alone is not acceptance. Check that outcome rows exist,
 the expected cells ran, and recorded failures are understood.
 
+CI pins each randomized lane with `ANNO_MATRIX_TASK` and requires at least one
+completed evaluation with a positive example count for each of NER, relation
+extraction, intra-document coreference, and temporal extraction. A completed
+zero score counts toward coverage. The separate worst-first lane can surface
+hard failures, but must record an attempted evaluation. To check a downloaded
+CI artifact, run `python3 scripts/qa/check_matrix_outcomes.py muxer-decisions.jsonl`.
+
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
 policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
 test: it bypasses the policy and must not be used to evaluate it. Similarly,

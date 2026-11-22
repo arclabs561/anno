@@ -599,7 +599,7 @@ jobs:
       - name: Run randomized matrix test (NER)
         run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
-          ANNO_MATRIX_PERSPECTIVE: ner
+          ANNO_MATRIX_TASK: ner
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
@@ -611,7 +611,7 @@ jobs:
       - name: Run randomized matrix test (RE)
         run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
-          ANNO_MATRIX_PERSPECTIVE: re
+          ANNO_MATRIX_TASK: re
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
@@ -621,7 +621,7 @@ jobs:
       - name: Run randomized matrix test (Coref)
         run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
-          ANNO_MATRIX_PERSPECTIVE: coref
+          ANNO_MATRIX_TASK: intra-coref
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
@@ -631,7 +631,7 @@ jobs:
       - name: Run randomized matrix test (Temporal)
         run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
-          ANNO_MATRIX_PERSPECTIVE: temporal
+          ANNO_MATRIX_TASK: temporal
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
@@ -659,17 +659,7 @@ jobs:
           ANNO_CHECK_REGRESSIONS: "1"
       - name: Verify matrix decision log
         if: always()
-        run: |
-          if [ ! -s "$ANNO_MUXER_DECISIONS_FILE" ]; then
-            echo "::error::Matrix sampler produced no decision/outcome JSONL; inspect the matrix test logs."
-            exit 1
-          fi
-          outcome_count="$(grep -c '"record_type":"outcome"' "$ANNO_MUXER_DECISIONS_FILE" || true)"
-          if [ "${outcome_count:-0}" -eq 0 ]; then
-            echo "::error::Matrix sampler produced no non-skipped evaluation outcomes; inspect the matrix test logs."
-            exit 1
-          fi
-          printf 'matrix outcome records: %s\n' "$outcome_count"
+        run: python3 scripts/qa/check_matrix_outcomes.py "$ANNO_MUXER_DECISIONS_FILE"
       - name: Upload matrix decision and outcome log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
