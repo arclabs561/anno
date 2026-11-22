@@ -506,7 +506,12 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     };
     let output_content = match format {
         ExportFormat::Brat => anno::export::to_brat(content, &ext.entities, include_confidence),
-        ExportFormat::Conll => anno::export::to_conll(content, &ext.entities),
+        ExportFormat::Conll => {
+            if ext.entities.iter().any(anno::Entity::is_discontinuous) {
+                return Err("CoNLL BIO cannot represent a discontinuous mention. Use brat to preserve its segments.".into());
+            }
+            anno::export::to_conll(content, &ext.entities)
+        }
         ExportFormat::Jsonl => {
             anno::export::to_jsonl(&ext.entities, &source_label, include_confidence)
         }

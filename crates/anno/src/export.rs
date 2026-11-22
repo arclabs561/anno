@@ -35,29 +35,58 @@ use crate::{Entity, Relation};
 /// Each entity becomes a `T`-annotation line. When `include_confidence` is true,
 /// `A`-annotation lines are added with confidence scores.
 ///
-/// Brat requires UTF-8 byte offsets. Entity start/end are character offsets, so
-/// `text` is needed to convert them.
-///
-/// **Do not** assemble brat output by reading `entity.start()` / `entity.end()`
-/// directly — those are character offsets and will produce wrong positions for
-/// any non-ASCII input. Use this function; it handles the conversion.
+/// Both brat and Anno count Unicode characters from the start of the source
+/// document. Offsets are half-open. A mention crossing a line break uses one
+/// record with semicolon-separated spans. Its reference text joins the pieces
+/// with a space. For discontinuous mentions, each segment's reference text
+/// comes from the supplied source.
 pub fn to_brat(text: &str, entities: &[Entity], include_confidence: bool) -> String {
     let mut lines = Vec::new();
+    let offsets = std::cell::OnceCell::new();
     for (idx, entity) in entities.iter().enumerate() {
-        let byte_start: usize = text
-            .chars()
-            .take(entity.start())
-            .map(|c| c.len_utf8())
-            .sum();
-        let byte_end: usize = text.chars().take(entity.end()).map(|c| c.len_utf8()).sum();
         let tid = format!("T{}", idx + 1);
+        let label = entity.entity_type.as_label();
+        let mut spans = Vec::new();
+        let mut reference_parts = Vec::new();
+        let mut add_segment = |start, end, surface: &str| {
+            if !surface.contains(['\r', '\n']) {
+                spans.push(format!("{start} {end}"));
+                reference_parts.push(surface.to_owned());
+                return;
+            }
+            let mut pos = start;
+            let mut pieces = surface.split(['\r', '\n']).peekable();
+            while let Some(piece) = pieces.next() {
+                let end = pos + piece.chars().count();
+                // Empty endpoints keep leading and trailing breaks in the mention.
+                if !piece.is_empty() || pos == start || pieces.peek().is_none() {
+                    spans.push(format!("{pos} {end}"));
+                    reference_parts.push(piece.to_owned());
+                }
+                pos = end + 1;
+            }
+        };
+        if let Some(span) = entity
+            .discontinuous_span
+            .as_ref()
+            .filter(|s| s.is_discontinuous())
+        {
+            let offsets = offsets.get_or_init(|| crate::offset::build_char_to_byte_map(text));
+            for segment in span.segments() {
+                let byte = |index| offsets.get(index).copied().unwrap_or(text.len());
+                add_segment(
+                    segment.start,
+                    segment.end,
+                    &text[byte(segment.start)..byte(segment.end)],
+                );
+            }
+        } else {
+            add_segment(entity.start(), entity.end(), &entity.text);
+        }
         let line = format!(
-            "{}\t{} {} {}\t{}",
-            tid,
-            entity.entity_type.as_label(),
-            byte_start,
-            byte_end,
-            entity.text
+            "{tid}\t{label} {}\t{}",
+            spans.join(";"),
+            reference_parts.join(" ")
         );
         if include_confidence {
             let aid = format!("A{}", idx + 1);
@@ -892,17 +921,16 @@ mod tests {
     }
 
     #[test]
-    fn brat_non_ascii() {
-        let text = "Visit caf\u{e9} in Paris today.";
-        let entities = vec![Entity::new("Paris", EntityType::Location, 14, 19, 0.9)];
-        let output = to_brat(text, &entities, false);
-        // brat uses byte offsets: "caf\u{e9}" is 5 bytes, so "Paris" starts at byte 15
-        let byte_start: usize = text.chars().take(14).map(|c| c.len_utf8()).sum();
-        let byte_end: usize = text.chars().take(19).map(|c| c.len_utf8()).sum();
-        assert!(
-            output.contains(&format!("{} {}", byte_start, byte_end)),
-            "got: {}",
-            output
+    fn brat_spans_index_the_decoded_source() {
+        let text = "😀 Zoe\u{301}\nZoë and Zoë";
+        let entities = [
+            Entity::new("Zoe\u{301}", EntityType::Person, 2, 6, 0.9),
+            Entity::new("Zoë", EntityType::Person, 7, 10, 0.9),
+            Entity::new("Zoë", EntityType::Person, 15, 18, 0.9),
+        ];
+        assert_eq!(
+            to_brat(text, &entities, false),
+            "T1\tPER 2 6\tZoe\u{301}\nT2\tPER 7 10\tZoë\nT3\tPER 15 18\tZoë"
         );
     }
 }
