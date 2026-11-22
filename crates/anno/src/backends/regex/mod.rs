@@ -13,6 +13,8 @@
 //!
 //! For Person/Organization/Location, use ML models (BERT ONNX, GLiNER).
 
+mod table;
+
 use crate::{Entity, EntityType, Language, Model, Result};
 use regex::Regex;
 use std::sync::LazyLock;
@@ -280,7 +282,7 @@ impl Model for RegexNER {
                 let char_end = converter.byte_to_char(m.end());
                 if !overlaps(&entities, char_start, char_end) {
                     entities.push(Entity::with_provenance(
-                        m.as_str(),
+                        &text[m.range()],
                         entity_type,
                         char_start,
                         char_end,
@@ -291,6 +293,7 @@ impl Model for RegexNER {
             };
 
         // Dates (high confidence - very specific patterns)
+        let date_text = table::with_cell_boundaries(text);
         // English dates
         let date_patterns_en: &[(&LazyLock<Regex>, &'static str)] = &[
             (&DATE_ISO, "DATE_ISO"),
@@ -302,7 +305,7 @@ impl Model for RegexNER {
             (&DATE_WRITTEN_EU, "DATE_WRITTEN_EU"),
         ];
         for (pattern, name) in date_patterns_en {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.95, name);
             }
         }
@@ -322,7 +325,7 @@ impl Model for RegexNER {
             (&DATE_RUSSIAN_EU, "DATE_RUSSIAN_EU"),
         ];
         for (pattern, name) in date_patterns_i18n {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.93, name); // Slightly lower confidence for i18n
             }
         }
@@ -335,7 +338,7 @@ impl Model for RegexNER {
             (&DATE_MONTH_YEAR_DE, "DATE_MONTH_YEAR_DE"),
         ];
         for (pattern, name) in date_month_year {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.90, name);
             }
         }
@@ -600,6 +603,50 @@ mod tests {
         for case in cases {
             let e = extract(case);
             assert!(has_type(&e, &EntityType::Date), "Failed: {}", case);
+        }
+    }
+
+    #[test]
+    fn dates_stay_inside_underlined_table_cells() {
+        // RFC 3339 §5.7 has separate month-number, name and day-limit cells.
+        // Add genuine dates in prose and a table cell, plus a non-ASCII prefix.
+        let text = concat!(
+            "Préface: May\n  2020.\n\n",
+            "  Code  Designation       Data\n",
+            "  ----  ----------------  ----------\n",
+            "  01    January           31\n",
+            "  02    February, leap    29\n",
+            "  03    March 2020        31\n",
+            "  éà    14 juin 2020      30\r\n",
+            "\nAnnounced on April          12, 2021.\n",
+        );
+        let dates: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .collect();
+        let gold = [
+            "May\n  2020",
+            "March 2020",
+            "14 juin 2020",
+            "April          12, 2021",
+        ];
+        assert_eq!(dates.len(), gold.len(), "{dates:?}");
+        for expected in gold {
+            let start = text[..text.find(expected).unwrap()].chars().count();
+            let end = start + expected.chars().count();
+            assert!(dates
+                .iter()
+                .any(|e| e.text == expected && e.start() == start && e.end() == end));
+        }
+    }
+
+    #[test]
+    fn decorative_rules_do_not_split_prose() {
+        for text in [
+            "May          12\n---  -----\nNo date here.",
+            "Some  Text\n----  ----\nMay          12",
+        ] {
+            assert!(find_text(&extract(text), "May          12").is_some());
         }
     }
 
