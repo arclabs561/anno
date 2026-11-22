@@ -105,7 +105,7 @@
 use super::coref::{CorefChain, Mention, MentionType};
 use anno::{Entity, EntityType};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 // =============================================================================
 // Configuration
@@ -202,6 +202,25 @@ struct ClusterMetadata {
     first_mention_offset: usize,
 }
 
+impl ClusterMetadata {
+    fn to_chain(&self) -> CorefChain {
+        let mentions: Vec<Mention> = self
+            .mentions
+            .iter()
+            .map(|m| {
+                let mut mention = Mention::new(&m.text, m.start, m.end);
+                mention.mention_type = Some(m.mention_type);
+                mention
+            })
+            .collect();
+
+        let mut chain = CorefChain::new(mentions);
+        chain.cluster_id = Some(self.id.into());
+        chain.entity_type = self.entity_type.as_ref().map(|t| format!("{:?}", t));
+        chain
+    }
+}
+
 /// Record of a mention within a cluster.
 #[derive(Debug, Clone)]
 struct MentionRecord {
@@ -218,7 +237,10 @@ struct MentionRecord {
 /// Stores active clusters and handles eviction based on memory policy.
 #[derive(Debug)]
 pub struct EntityMemory {
-    /// All clusters by ID
+    /// Finished document output, collected only by resolve_document.
+    finished: Option<Vec<CorefChain>>,
+    evictions: usize,
+    /// Active clusters by ID
     clusters: HashMap<u64, ClusterMetadata>,
     /// Next cluster ID to assign
     next_cluster_id: u64,
@@ -236,6 +258,8 @@ impl EntityMemory {
     /// Create a new entity memory with the given policy.
     pub fn new(policy: MemoryPolicy) -> Self {
         Self {
+            finished: None,
+            evictions: 0,
             clusters: HashMap::new(),
             next_cluster_id: 0,
             policy,
@@ -282,6 +306,7 @@ impl EntityMemory {
             }
         }
         self.update_cache_on_access(cluster_id);
+        self.maybe_evict();
     }
 
     /// Find the best matching cluster for a mention.
@@ -424,7 +449,11 @@ impl EntityMemory {
 
                 // Trim L-cache
                 while self.l_cache.len() > l_cache_size {
-                    self.l_cache.pop_back();
+                    if let Some(id) = self.l_cache.pop_back() {
+                        if !self.g_cache.contains(&id) {
+                            self.evict(id);
+                        }
+                    }
                 }
             }
             MemoryPolicy::LeastRecentlyUsed { .. } => {
@@ -437,6 +466,15 @@ impl EntityMemory {
         }
     }
 
+    fn evict(&mut self, id: u64) {
+        if let Some(cluster) = self.clusters.remove(&id) {
+            self.evictions += 1;
+            if let Some(finished) = &mut self.finished {
+                finished.push(cluster.to_chain());
+            }
+        }
+    }
+
     /// Evict clusters if over capacity.
     fn maybe_evict(&mut self) {
         match self.policy {
@@ -446,11 +484,11 @@ impl EntityMemory {
                     let lru_id = self
                         .clusters
                         .iter()
-                        .min_by_key(|(_, c)| c.last_accessed_window)
+                        .min_by_key(|(id, c)| (c.last_accessed_window, **id))
                         .map(|(&id, _)| id);
 
                     if let Some(id) = lru_id {
-                        self.clusters.remove(&id);
+                        self.evict(id);
                     } else {
                         break;
                     }
@@ -462,11 +500,11 @@ impl EntityMemory {
                     let lfu_id = self
                         .clusters
                         .iter()
-                        .min_by_key(|(_, c)| c.access_count)
+                        .min_by_key(|(id, c)| (c.access_count, **id))
                         .map(|(&id, _)| id);
 
                     if let Some(id) = lfu_id {
-                        self.clusters.remove(&id);
+                        self.evict(id);
                     } else {
                         break;
                     }
@@ -478,7 +516,7 @@ impl EntityMemory {
                     if let Some(id) = self.g_cache.pop() {
                         // Only remove from clusters if not in L-cache
                         if !self.l_cache.contains(&id) {
-                            self.clusters.remove(&id);
+                            self.evict(id);
                         }
                     }
                 }
@@ -496,22 +534,7 @@ impl EntityMemory {
     pub fn to_chains(&self) -> Vec<CorefChain> {
         self.clusters
             .values()
-            .map(|cluster| {
-                let mentions: Vec<Mention> = cluster
-                    .mentions
-                    .iter()
-                    .map(|m| {
-                        let mut mention = Mention::new(&m.text, m.start, m.end);
-                        mention.mention_type = Some(m.mention_type);
-                        mention
-                    })
-                    .collect();
-
-                let mut chain = CorefChain::new(mentions);
-                chain.cluster_id = Some(cluster.id.into());
-                chain.entity_type = cluster.entity_type.as_ref().map(|t| format!("{:?}", t));
-                chain
-            })
+            .map(ClusterMetadata::to_chain)
             .collect()
     }
 
@@ -555,15 +578,21 @@ impl IncrementalCorefResolver {
     /// Returns coreference chains linking all coreferent mentions.
     pub fn resolve_document(&self, text: &str) -> Vec<CorefChain> {
         let mut memory = EntityMemory::new(self.config.memory_policy);
+        memory.finished = Some(Vec::new());
+        let mut seen = HashSet::new();
         let windows = self.split_into_windows(text);
 
         for (window_idx, (window_text, window_offset)) in windows.iter().enumerate() {
             // Extract mentions from this window
+            seen.retain(|&(_, end)| end > *window_offset);
             let mentions = self.extract_mentions(window_text, *window_offset);
 
             // Link each mention to existing cluster or create new
-            for mention in mentions {
-                self.process_mention(&mut memory, &mention);
+            for mut mention in mentions {
+                if seen.insert((mention.start, mention.end)) {
+                    mention.window_index = window_idx;
+                    self.process_mention(&mut memory, &mention);
+                }
             }
 
             memory.advance_window();
@@ -576,7 +605,9 @@ impl IncrementalCorefResolver {
             }
         }
 
-        memory.to_chains()
+        let mut chains = memory.finished.take().unwrap_or_default();
+        chains.extend(memory.to_chains());
+        chains
     }
 
     /// Process a stream of entities (from external NER).
@@ -928,6 +959,8 @@ impl IncrementalCorefResolver {
                 if self.should_merge_clusters(memory, id_i, id_j) {
                     // Merge j into i
                     if let Some(cluster_j) = memory.clusters.remove(&id_j) {
+                        memory.l_cache.retain(|&id| id != id_j);
+                        memory.g_cache.retain(|&id| id != id_j);
                         if let Some(cluster_i) = memory.clusters.get_mut(&id_i) {
                             cluster_i.mentions.extend(cluster_j.mentions);
                             cluster_i.access_count += cluster_j.access_count;
@@ -1055,7 +1088,7 @@ impl IncrementalStats {
             windows_processed: windows,
             mentions_processed: memory.mention_count(),
             final_clusters: memory.cluster_count(),
-            clusters_evicted: 0, // Would need tracking during resolution
+            clusters_evicted: memory.evictions,
             avg_mentions_per_cluster: if memory.cluster_count() > 0 {
                 memory.mention_count() as f64 / memory.cluster_count() as f64
             } else {
@@ -1208,6 +1241,41 @@ mod tests {
         // Should match "Smith" to "John Smith"
         let match_result = memory.find_best_match("Smith", MentionType::Proper, 0.7, true, true);
         assert!(match_result.is_some());
+    }
+
+    #[test]
+    fn overlap_and_eviction_preserve_document_mentions() {
+        let text = "Éva met Boris near Éva";
+        for policy in [
+            MemoryPolicy::Unbounded,
+            MemoryPolicy::LeastRecentlyUsed { max_clusters: 1 },
+            MemoryPolicy::LeastFrequentlyUsed { max_clusters: 1 },
+            MemoryPolicy::DualCache {
+                l_cache_size: 1,
+                g_cache_size: 0,
+            },
+        ] {
+            for overlap in [0, 1] {
+                let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+                    window_size: 2,
+                    window_overlap: overlap,
+                    memory_policy: policy,
+                    ..Default::default()
+                });
+                let mut spans: Vec<_> = resolver
+                    .resolve_document(text)
+                    .into_iter()
+                    .flat_map(|c| c.mentions)
+                    .map(|m| (m.start, m.end))
+                    .collect();
+                spans.sort_unstable();
+                assert_eq!(
+                    spans,
+                    [(0, 3), (8, 13), (19, 22)],
+                    "{policy:?}, overlap={overlap}"
+                );
+            }
+        }
     }
 
     #[test]
