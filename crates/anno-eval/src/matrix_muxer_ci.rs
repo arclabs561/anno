@@ -107,7 +107,8 @@ mod retry;
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::provenance::policy_cohort_key;
-use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvaluator};
+use crate::eval::provenance::EvaluationScheduling;
+use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvalResult, TaskEvaluator};
 use crate::eval::task_mapping::{
     backend_tasks, dataset_tasks, get_task_backends, get_task_datasets, Task,
 };
@@ -1440,6 +1441,26 @@ fn slice_for_run(
 
 fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
     mh::pick_random_subset(seed, items, k)
+}
+
+// Routing utility is zero on a failed call, even when there was no F1
+// measurement. An unavailable primary score on a successful call is unknown.
+fn routing_reward(result: &TaskEvalResult) -> Option<f64> {
+    if result.is_skipped() {
+        return None;
+    }
+    if !result.success {
+        // Missing or empty datasets fail before the selected backend runs.
+        return (!matches!(
+            result.provenance.runtime.scheduling,
+            EvaluationScheduling::NotRun { .. }
+        ))
+        .then_some(0.0);
+    }
+    result
+        .primary_f1()
+        .filter(|f1| f1.is_finite())
+        .map(|f1| f1.clamp(0.0, 1.0))
 }
 
 fn junk_f1_threshold(task: Task) -> f64 {
@@ -4223,15 +4244,12 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 let chosen = chosen.as_str();
                 let mut sum = 0.0;
                 let mut n = 0u64;
-                for r in &results.results {
-                    if r.is_skipped() {
-                        continue;
-                    }
-                    if r.backend.as_str() != chosen {
-                        continue;
-                    }
-                    let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
-                    let reward = if r.success { f1 } else { 0.0 };
+                for reward in results
+                    .results
+                    .iter()
+                    .filter(|r| r.backend == chosen)
+                    .filter_map(routing_reward)
+                {
                     sum += reward;
                     n += 1;
                 }
@@ -4305,11 +4323,9 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         let latency_weight = mh::env_f64("ANNO_MUXER_LINUCB_LATENCY_WEIGHT", 0.0);
         let latency_max_ms = mh::env_f64("ANNO_MUXER_LINUCB_LATENCY_MAX_MS", 10000.0);
         for r in &results.results {
-            if r.is_skipped() {
+            let Some(base_reward) = routing_reward(r) else {
                 continue;
-            }
-            let f1 = r.primary_f1().unwrap_or(0.0).clamp(0.0, 1.0);
-            let base_reward = if r.success { f1 } else { 0.0 };
+            };
             let latency_penalty = if latency_weight > 0.0 {
                 let ms = r.duration_ms.unwrap_or(0.0).max(0.0);
                 latency_weight * (ms / latency_max_ms).min(1.0)
@@ -4321,15 +4337,15 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             if verbose {
                 if latency_weight > 0.0 {
                     eprintln!(
-                        "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} lat_pen={:.3} ms={:.0}) ctx=[{}]",
-                        r.backend, reward, f1, latency_penalty,
+                        "matrix-muxer: linucb update arm={} reward={:.3} (base={:.3} lat_pen={:.3} ms={:.0}) ctx=[{}]",
+                        r.backend, reward, base_reward, latency_penalty,
                         r.duration_ms.unwrap_or(0.0),
                         context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
                     );
                 } else {
                     eprintln!(
-                        "matrix-muxer: linucb update arm={} reward={:.3} (f1={:.3} success={}) ctx=[{}]",
-                        r.backend, reward, f1, r.success,
+                        "matrix-muxer: linucb update arm={} reward={:.3} (base={:.3} success={}) ctx=[{}]",
+                        r.backend, reward, base_reward, r.success,
                         context.iter().map(|x| format!("{:.2}", x)).collect::<Vec<_>>().join(",")
                     );
                 }
@@ -4640,6 +4656,49 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
         &[("strict_f1", 0.9)],
     );
     assert_eq!(rel_ok.primary_f1(), Some(0.9));
+    assert_eq!(routing_reward(&rel_ok), Some(0.9));
+
+    // The classification evaluator emits macro/micro/weighted F1 without a
+    // primary F1. It supplies no reward for either online learner.
+    let mut row = mk(
+        Task::TextClassification,
+        DatasetId::AGNews,
+        true,
+        &[("macro_f1", 0.8)],
+    );
+    assert_eq!(routing_reward(&row), None);
+    row.metrics.insert("f1".to_owned(), f64::NAN);
+    assert_eq!(routing_reward(&row), None);
+    row.metrics.insert("f1".to_owned(), 0.0);
+    assert_eq!(routing_reward(&row), Some(0.0));
+    row.metrics.clear();
+    row.success = false;
+    row.provenance.runtime.scheduling = EvaluationScheduling::Unknown {
+        reason: "backend failed before completing scheduling".into(),
+    };
+    row.error = Some("backend crashed".into());
+    assert_eq!(routing_reward(&row), Some(0.0));
+    row.error = Some("incompatible: no backend for this task".into());
+    assert_eq!(routing_reward(&row), None);
+    // The evaluator still records an uncached dataset as a failed result, but
+    // no backend was attempted. Neither learner should receive feedback.
+    let cache = tempfile::tempdir().unwrap();
+    let missing = TaskEvaluator::with_cache_dir(cache.path())
+        .unwrap()
+        .evaluate_all(TaskEvalConfig {
+            tasks: vec![Task::NER],
+            datasets: vec![DatasetId::WikiGold],
+            backends: vec!["stacked".into()],
+            require_cached: true,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(missing.results.len(), 1);
+    assert!(matches!(
+        missing.results[0].provenance.runtime.scheduling,
+        EvaluationScheduling::NotRun { .. }
+    ));
+    assert_eq!(routing_reward(&missing.results[0]), None);
 }
 
 #[test]
