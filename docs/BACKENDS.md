@@ -190,6 +190,10 @@ fill. The ONNX export runs the attention operation in ONNX Runtime. For
 a LoRA adapter, this route requires an ONNX export with the adapter merged.
 [Dependency review](https://github.com/arclabs561/anno/pull/168)
 
+For GLiNER2.5 Multi, the [Python import example](../scripts/gliner25_import.py)
+uses Fastino's boundary decoder to extract labels from a UTF-8 document. It
+writes one mention per JSONL row for `anno dataset import --format jsonl`.
+
 ### Features not validated in CI
 
 CI compile-checks the hardware-gated features a GitHub-hosted runner can build:
