@@ -7,7 +7,7 @@
 //! - Cross-dataset comparison utilities
 
 use super::datasets::GoldEntity;
-use anno::Entity;
+use anno::{Entity, SpanCoverage};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -39,22 +39,7 @@ pub fn calculate_overlap(
     gt_start: usize,
     gt_end: usize,
 ) -> f64 {
-    let intersection_start = pred_start.max(gt_start);
-    let intersection_end = pred_end.min(gt_end);
-
-    if intersection_start >= intersection_end {
-        return 0.0;
-    }
-
-    let intersection = (intersection_end - intersection_start) as f64;
-    let union = ((pred_end - pred_start) + (gt_end - gt_start)
-        - (intersection_end - intersection_start)) as f64;
-
-    if union == 0.0 {
-        return 1.0; // Both spans are empty
-    }
-
-    intersection / union
+    SpanCoverage::Contiguous(pred_start..pred_end).iou(&SpanCoverage::Contiguous(gt_start..gt_end))
 }
 
 /// Calculate partial match metrics.
@@ -92,13 +77,13 @@ pub fn calculate_partial_match_metrics(
             }
 
             // Calculate overlap
-            let overlap = calculate_overlap(pred.start(), pred.end(), gt.start, gt.end);
+            let overlap = pred.coverage().iou(&gt.coverage());
 
             let should_update = match best_match {
                 None => true,
                 Some((_, best_overlap)) => best_overlap < overlap,
             };
-            if overlap >= overlap_threshold && should_update {
+            if overlap > 0.0 && overlap >= overlap_threshold && should_update {
                 best_match = Some((gt_idx, overlap));
             }
         }
@@ -873,19 +858,10 @@ fn entity_char_ranges(
     entity: &Entity,
     char_count: usize,
 ) -> impl Iterator<Item = (usize, usize)> + '_ {
-    let segments = entity.discontinuous_span.as_ref();
-    let contiguous = segments.is_none().then(|| entity.start()..entity.end());
-    contiguous
-        .into_iter()
-        .chain(
-            segments
-                .into_iter()
-                .flat_map(|span| span.segments().iter().cloned()),
-        )
-        .filter_map(move |range| {
-            let end = range.end.min(char_count);
-            (range.start < end).then_some((range.start, end))
-        })
+    entity.coverage().into_ranges().filter_map(move |range| {
+        let end = range.end.min(char_count);
+        (range.start < end).then_some((range.start, end))
+    })
 }
 
 fn union_char_ranges(ranges: impl IntoIterator<Item = (usize, usize)>) -> Vec<(usize, usize)> {

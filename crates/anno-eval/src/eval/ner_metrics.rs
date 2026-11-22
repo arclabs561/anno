@@ -44,7 +44,7 @@
 //! - OntoNotes Errors (2024): <https://arxiv.org/abs/2406.19172>
 //! - TMR - Tough Mentions Recall (2021): <https://arxiv.org/abs/2103.12312>
 
-use anno::{Entity, EntityType};
+use anno::{Entity, EntityType, SpanCoverage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::Range;
@@ -106,24 +106,14 @@ impl From<&Entity> for EvalSpan {
     }
 }
 
-// Preserve the contiguous public EvalSpan API while borrowing canonical segments
-// directly from an Entity. The common single-range case needs no heap allocation.
-enum Coverage<'a> {
-    Contiguous(Range<usize>),
-    Segmented(&'a [Range<usize>]),
-}
-
 struct ScoringSpan<'a> {
     entity_type: &'a EntityType,
-    coverage: Coverage<'a>,
+    coverage: SpanCoverage<'a>,
 }
 
 impl ScoringSpan<'_> {
     fn ranges(&self) -> &[Range<usize>] {
-        match &self.coverage {
-            Coverage::Contiguous(range) => std::slice::from_ref(range),
-            Coverage::Segmented(ranges) => ranges,
-        }
+        self.coverage.ranges()
     }
 
     fn type_key(&self) -> String {
@@ -378,7 +368,7 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
             .iter()
             .map(|s| ScoringSpan {
                 entity_type: &s.entity_type,
-                coverage: Coverage::Contiguous(s.start..s.end),
+                coverage: SpanCoverage::Contiguous(s.start..s.end),
             })
             .collect()
     }
@@ -530,21 +520,12 @@ fn classify_match(gold: &ScoringSpan<'_>, pred: &ScoringSpan<'_>) -> MatchType {
             MatchType::ExactBoundaryWrongType
         };
     }
-    let (mut g, mut p) = (0, 0);
-    while g < gold_ranges.len() && p < pred_ranges.len() {
-        let (left, right) = (&gold_ranges[g], &pred_ranges[p]);
-        if left.start.max(right.start) < left.end.min(right.end) {
-            return if same_type {
-                MatchType::PartialBoundaryCorrectType
-            } else {
-                MatchType::PartialBoundaryWrongType
-            };
-        }
-        if left.end <= right.end {
-            g += 1;
+    if gold.coverage.overlaps(&pred.coverage) {
+        return if same_type {
+            MatchType::PartialBoundaryCorrectType
         } else {
-            p += 1;
-        }
+            MatchType::PartialBoundaryWrongType
+        };
     }
     MatchType::None
 }
@@ -605,10 +586,7 @@ pub fn evaluate_entities(gold: &[Entity], predicted: &[Entity]) -> NerEvalResult
             .iter()
             .map(|e| ScoringSpan {
                 entity_type: &e.entity_type,
-                coverage: match &e.discontinuous_span {
-                    Some(span) => Coverage::Segmented(span.segments()),
-                    None => Coverage::Contiguous(e.start()..e.end()),
-                },
+                coverage: e.coverage(),
             })
             .collect()
     }
