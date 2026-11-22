@@ -96,6 +96,30 @@ pub struct ImportedAnnotation {
     pub confidence: Option<f64>,
 }
 
+fn same_existing_file(left: &Path, right: &Path) -> Result<bool, String> {
+    same_file::is_same_file(left, right).map_err(|e| {
+        format!(
+            "Failed to compare {} and {}: {e}",
+            left.display(),
+            right.display()
+        )
+    })
+}
+
+// Compare directory entries even when the target (e.g. an optional companion)
+// does not exist yet. Symlinked parent directories may spell the same location.
+fn same_entry(left: &Path, right: &Path) -> Result<bool, String> {
+    fn parent(path: &Path) -> &Path {
+        path.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."))
+    }
+    if left.file_name() != right.file_name() {
+        return Ok(false);
+    }
+    same_existing_file(parent(left), parent(right))
+}
+
 /// Run the import command.
 pub fn run(args: ImportArgs) -> Result<(), String> {
     // Validate input
@@ -103,8 +127,19 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         return Err(format!("Input not found: {:?}", args.input));
     }
 
+    let output_exists = args
+        .output
+        .try_exists()
+        .map_err(|e| format!("Failed to inspect output: {e}"))?;
+
     // Collect files to process
     let files: Vec<PathBuf> = if args.input.is_file() {
+        if output_exists && same_existing_file(&args.input, &args.output)? {
+            return Err(format!(
+                "Output aliases an input file: {}",
+                args.input.display()
+            ));
+        }
         vec![args.input.clone()]
     } else {
         let ext = match args.format {
@@ -117,10 +152,6 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             ExportFormat::GraphNTriples => "nt",
             ExportFormat::GraphCsv => "csv",
         };
-        let output_exists = args
-            .output
-            .try_exists()
-            .map_err(|e| format!("Failed to inspect output: {e}"))?;
         let mut inputs = Vec::new();
         let entries = fs::read_dir(&args.input)
             .map_err(|e| format!("Failed to read directory {}: {e}", args.input.display()))?;
@@ -136,28 +167,36 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             if !metadata.is_file() {
                 continue;
             }
-            // A previous output is not input on the next directory import.
-            if output_exists
-                && same_file::is_same_file(&path, &args.output)
-                    .map_err(|e| format!("Failed to identify input {}: {e}", path.display()))?
-            {
-                let parent = args
-                    .output
-                    .parent()
-                    .filter(|p| !p.as_os_str().is_empty())
-                    .unwrap_or(Path::new("."));
-                if path.file_name() != args.output.file_name()
-                    || !same_file::is_same_file(&args.input, parent)
-                        .map_err(|e| format!("Failed to identify output directory: {e}"))?
-                {
-                    return Err(format!("Output aliases an input file: {}", path.display()));
+            if output_exists && same_existing_file(&path, &args.output)? {
+                // A previous JSONL result in a JSONL source directory is
+                // excluded on reruns. Other formats contain source records.
+                if matches!(args.format, ExportFormat::Jsonl) && same_entry(&path, &args.output)? {
+                    continue;
                 }
-                continue;
+                return Err(format!("Output aliases an input file: {}", path.display()));
             }
             inputs.push(path);
         }
         inputs
     };
+
+    if matches!(args.format, ExportFormat::Brat) {
+        for file in &files {
+            let companion = file.with_extension("txt");
+            if same_entry(&companion, &args.output)?
+                || (output_exists
+                    && companion
+                        .try_exists()
+                        .map_err(|e| format!("Failed to inspect {}: {e}", companion.display()))?
+                    && same_existing_file(&companion, &args.output)?)
+            {
+                return Err(format!(
+                    "Output aliases a brat source companion: {}",
+                    companion.display()
+                ));
+            }
+        }
+    }
 
     if files.is_empty() {
         return Err("No annotation files found in input".into());
