@@ -1,0 +1,13 @@
+[package]
+name = "history-clock-parity"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# This comparison tool does not participate in Anno's dependency graph.
+[workspace]
+
+[dependencies]
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+jiff = { version = "=0.2.46", default-features = false, features = ["std"] }
+time = { version = "=0.3.49", default-features = false, features = ["parsing"] }
