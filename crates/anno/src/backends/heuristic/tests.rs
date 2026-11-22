@@ -1,6 +1,28 @@
 use super::*;
 
 #[test]
+fn colon_separates_speaker_and_utterance_names() {
+    let text = "Zoë Martin: Mary Jones spoke.\nMary Jones: I listened.\nDr. Lin: Indeed.";
+    let entities = HeuristicNER::new().extract_entities(text, None).unwrap();
+    let spans: Vec<_> = entities
+        .iter()
+        .map(|entity| (entity.text.as_str(), entity.start(), entity.end()))
+        .collect();
+    for expected in [
+        ("Zoë Martin", 0, 10),
+        ("Mary Jones", 12, 22),
+        ("Mary Jones", 30, 40),
+        ("Dr. Lin", 54, 61),
+    ] {
+        assert!(
+            spans.contains(&expected),
+            "missing {expected:?} in {spans:?}"
+        );
+    }
+    assert!(entities.iter().all(|entity| !entity.text.contains(':')));
+}
+
+#[test]
 fn test_basic_person_detection() {
     let ner = HeuristicNER::new();
     let entities = ner
