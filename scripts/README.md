@@ -21,6 +21,18 @@ These scripts are not part of a Python package. Many are intended to be run with
 When a script needs extra dependencies, prefer using `uv`’s inline metadata format (see
 the generated `convert_pytorch_to_safetensors.py` written by `sync_datasets_s3.sh`).
 
+### Official multilingual coreference scores
+
+For one aligned CorefUD key/response dataset, run the [CRAC 2026 scorer](https://ufal.mff.cuni.cz/corefud/shared-task/2026#unconstr-evaluation) on the original CoNLL-U files. This preserves mention heads, discontinuous spans and empty-node identities. The local clone supplies the [pinned scorer and its fixtures](https://github.com/ufal/corefud-scorer/tree/4fd7b0e0c661aeeff88bc60c19ef507b84d1b590).
+
+```sh
+git clone https://github.com/ufal/corefud-scorer.git /tmp/corefud-scorer
+uv run scripts/eval_corefud.py --scorer /tmp/corefud-scorer --check
+uv run scripts/eval_corefud.py --scorer /tmp/corefud-scorer key.conllu response.conllu
+```
+
+The default uses head matching, excludes singletons, and matches zeros by dependency. The scorer prints MUC, B³, CEAF-e, zero-anaphor P/R/F1 and the CoNLL score in percent. Use `--mode partial`, `--mode exact` or `--mode singletons` for the three secondary settings. To compare a multilingual system to the primary leaderboard, score each evaluation dataset separately and take the unweighted mean of the dataset CoNLL scores. Anno's native span-based evaluator uses a different matching protocol.
+
 ## Shell scripts
 
 Most bash scripts are standalone entrypoints and should use strict mode:
