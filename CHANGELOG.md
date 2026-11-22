@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.15.0]
+
 ### Changed
 
 - Library constructors no longer load `.env` from the working directory or its
@@ -10,6 +12,9 @@
   constructing a model.
 
 ### Fixed
+
+- The privacy CLI rejects unsupported PII categories before writing output.
+- Long-document coreference scoring keeps mention offsets local to each document.
 
 - brat export writes character offsets for annotations in non-ASCII text. Regenerate older `.ann` files if their spans have shifted.
 - FCoref excludes surrounding whitespace from both mention text and its source offsets.
