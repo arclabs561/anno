@@ -107,7 +107,8 @@ Providing this sidecar selects a speaker-only resolver. General name and third-p
 ## CoNLL BIO export
 
 `anno export --format conll` and `anno::export::to_conll` split the source at
-mention boundaries. For example, a pair of parentheses around an email address
+contiguous mention boundaries. The CLI rejects discontinuous mentions and
+supports brat output for preserving their separate segments. For example, a pair of parentheses around an email address
 gets separate `O` rows, and the address gets a `B-EMAIL` row. BIO carries one
 label per token. When mentions overlap, the exporter keeps the earliest
 starting mention, preferring the longer span for a tied start.
