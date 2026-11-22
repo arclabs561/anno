@@ -3631,27 +3631,28 @@ mod proptests {
             prop_assert_eq!(&e.kb_id, &e2.kb_id);
         }
 
-        /// DiscontinuousSpan: total_len() == sum of merged segment lengths,
-        /// and merged segments are non-overlapping and sorted.
+        /// Normalizing source segments preserves their union, including gaps.
         #[test]
         fn discontinuous_span_total_length(
-            segments in proptest::collection::vec(
-                (0usize..5000, 1usize..500),
-                1..6
-            ),
+            origin in 0usize..5000,
+            endpoints in proptest::collection::vec((0usize..=32, 0usize..=32), 0..9),
         ) {
-            let ranges: Vec<std::ops::Range<usize>> = segments.iter()
-                .map(|&(start, len)| start..start + len)
+            let ranges = endpoints.iter()
+                .map(|&(start, end)| (origin + start)..(origin + end))
                 .collect();
             let span = DiscontinuousSpan::new(ranges);
-            // After merging, total_len must equal sum of the stored segments.
-            let expected_sum: usize = span.segments().iter().map(|r| r.end - r.start).sum();
-            prop_assert_eq!(span.total_len(), expected_sum,
-                "total_len must equal sum of merged segment lengths");
-            // Verify no overlaps in stored segments.
-            for w in span.segments().windows(2) {
-                prop_assert!(w[0].end <= w[1].start,
-                    "segments must not overlap: {:?} vs {:?}", w[0], w[1]);
+
+            // Compute the oracle from the original endpoints, before normalization.
+            let mut covered_count = 0;
+            for pos in 0..=32 {
+                let covered = endpoints.iter().any(|&(start, end)| start <= pos && pos < end);
+                prop_assert_eq!(span.contains(origin + pos), covered);
+                covered_count += usize::from(covered);
+            }
+            prop_assert_eq!(span.total_len(), covered_count);
+            prop_assert!(span.segments().iter().all(|r| r.start < r.end));
+            for pair in span.segments().windows(2) {
+                prop_assert!(pair[0].end < pair[1].start);
             }
         }
     }

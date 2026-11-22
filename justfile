@@ -498,9 +498,9 @@ example-muxer:
 
 # === Mutation Testing ===
 
-# Run mutation tests on entity.rs (fast, targeted)
+# Check discontinuous character coverage against the original source segments.
 mutants-fast:
-    cargo mutants --file "src/entity.rs" --timeout 120 --minimum-test-timeout 60 --features "eval discourse"
+    ./scripts/mutants-fast.sh
 
 # Run mutation tests on specific file
 mutants-file FILE:
