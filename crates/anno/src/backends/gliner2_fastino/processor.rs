@@ -165,7 +165,16 @@ impl SchemaTransformer {
         text: &str,
         schema_tasks: &[SchemaTask],
     ) -> Result<ProcessedRecord, Error> {
-        let words_with_offsets = self.word_splitter.split_with_offsets(text);
+        // GLiNER2 supplies terminal punctuation to the encoder. Keep its
+        // source interval empty when it was added by the processor.
+        let punctuated;
+        let model_text = if text.trim().is_empty() || text.ends_with(['.', '!', '?']) {
+            text
+        } else {
+            punctuated = format!("{text}.");
+            &punctuated
+        };
+        let words_with_offsets = self.word_splitter.split_with_offsets(model_text);
 
         let mut combined_tokens: Vec<&str> = Vec::new();
         let mut task_mappings_temp = Vec::new();
@@ -183,8 +192,8 @@ impl SchemaTransformer {
                     combined_tokens.push("(");
 
                     for label in entity_labels {
-                        combined_tokens.push(E_TOKEN);
                         field_indices.push(combined_tokens.len());
+                        combined_tokens.push(E_TOKEN);
                         combined_tokens.push(label.as_str());
                         labels.push(label.clone());
                     }
@@ -207,8 +216,8 @@ impl SchemaTransformer {
                     combined_tokens.push("(");
 
                     for (label, description) in labeled {
-                        combined_tokens.push(E_TOKEN);
                         field_indices.push(combined_tokens.len());
+                        combined_tokens.push(E_TOKEN);
                         combined_tokens.push(label.as_str());
                         combined_tokens.push(DESC_TOKEN);
                         combined_tokens.push(description.as_str());
@@ -232,8 +241,8 @@ impl SchemaTransformer {
                     combined_tokens.push(task_name.as_str());
                     combined_tokens.push("(");
                     for label in cls_labels {
-                        combined_tokens.push(L_TOKEN);
                         field_indices.push(combined_tokens.len());
+                        combined_tokens.push(L_TOKEN);
                         combined_tokens.push(label.as_str());
                         labels.push(label.clone());
                     }
@@ -254,8 +263,8 @@ impl SchemaTransformer {
                     combined_tokens.push(task_name.as_str());
                     combined_tokens.push("(");
                     for (field_name, _ftype) in fields {
-                        combined_tokens.push(C_TOKEN);
                         field_indices.push(combined_tokens.len());
+                        combined_tokens.push(C_TOKEN);
                         combined_tokens.push(field_name.as_str());
                         labels.push(field_name.clone());
                     }
@@ -284,56 +293,41 @@ impl SchemaTransformer {
         let mut word_to_char_maps = Vec::new();
         for (w, start_char, end_char) in &words_with_offsets {
             combined_tokens.push(*w);
-            word_to_char_maps.push((*start_char, *end_char));
+            word_to_char_maps.push(((*start_char).min(text.len()), (*end_char).min(text.len())));
         }
         let text_end_idx = combined_tokens.len();
 
         let mut final_input_ids = Vec::new();
-        let mut final_attention_mask = Vec::new();
         let mut word_to_token_maps = Vec::new();
 
         let mut combined_to_final_map: HashMap<usize, usize> = HashMap::new();
 
-        // Encode [CLS] at start.
-        let cls_id = self
-            .tokenizer
-            .encode("[CLS]", false)
-            .map_err(|e| Error::Tokenizer(format!("encode [CLS]: {e}")))?
-            .get_ids()[0] as i64;
-        final_input_ids.push(cls_id);
-        final_attention_mask.push(1);
-        let mut current_subword_idx = 1;
-
         for (i, token) in combined_tokens.iter().enumerate() {
-            combined_to_final_map.insert(i, current_subword_idx);
+            let start_sub = final_input_ids.len();
+            combined_to_final_map.insert(i, start_sub);
+            // Lowercase the model input after recording source offsets.
+            // Unicode lowercase can change the number of characters.
+            let lower;
+            let token = if i >= text_start_idx {
+                lower = token.to_lowercase();
+                lower.as_str()
+            } else {
+                token
+            };
 
             let encoding = self
                 .tokenizer
-                .encode(*token, false)
+                .encode(token, false)
                 .map_err(|e| Error::Tokenizer(format!("encode '{token}': {e}")))?;
 
             let ids = encoding.get_ids();
-            let start_sub = current_subword_idx;
-            let end_sub = current_subword_idx + ids.len();
-
-            for &id in ids {
-                final_input_ids.push(id as i64);
-                final_attention_mask.push(1);
-                current_subword_idx += 1;
-            }
+            final_input_ids.extend(ids.iter().map(|&id| i64::from(id)));
+            let end_sub = final_input_ids.len();
 
             if i >= text_start_idx && i < text_end_idx {
                 word_to_token_maps.push((start_sub, end_sub));
             }
         }
-
-        let sep_id = self
-            .tokenizer
-            .encode("[SEP]", false)
-            .map_err(|e| Error::Tokenizer(format!("encode [SEP]: {e}")))?
-            .get_ids()[0] as i64;
-        final_input_ids.push(sep_id);
-        final_attention_mask.push(1);
 
         let text_real_start = word_to_token_maps.first().map(|v| v.0).unwrap_or(0);
         let text_real_end = word_to_token_maps.last().map(|v| v.1).unwrap_or(0);
@@ -355,9 +349,10 @@ impl SchemaTransformer {
             });
         }
 
+        let input_len = final_input_ids.len();
         Ok(ProcessedRecord {
             input_ids: final_input_ids,
-            attention_mask: final_attention_mask,
+            attention_mask: vec![1; input_len],
             tasks,
             text_start: text_real_start,
             text_end: text_real_end,
@@ -388,49 +383,15 @@ mod transformer_tests {
         let task = SchemaTask::Entities(labels);
         let rec = xfm.transform("Acme Corp in Paris .", &[task]).unwrap();
 
+        // Stub vocabulary: parentheses 19/20, [P] 2, [E] 3, [SEP_TEXT] 8.
+        // Lowercased acme/corp/paris are outside this case-sensitive vocab.
         let ids = &rec.input_ids;
-
-        // Stub tokenizer ids: [CLS]=17, [P]=2, [E]=3, [SEP_TEXT]=8, [SEP]=18,
-        //                     person=9, organization=10, Acme=12, Corp=13,
-        //                     Paris=14, in=15, .=16, (=19, )=20, entities=21
-        // Structural invariants (independent of exact subword splits):
-        //   1. Begins with [CLS] (id 17)
-        //   2. Contains [P] (id 2) somewhere
-        //   3. Contains exactly 2 [E] markers (id 3)
-        //   4. Contains [SEP_TEXT] (id 8) before the text tokens
-        //   5. Ends with [SEP] (id 18)
-        //   6. The labels (ids 9, 10) appear in the prompt area (BEFORE [SEP_TEXT])
-
-        assert_eq!(ids[0], 17, "prompt must start with [CLS], got ids={ids:?}");
         assert_eq!(
-            *ids.last().unwrap(),
-            18,
-            "prompt must end with [SEP], got ids={ids:?}"
+            ids,
+            &[19, 2, 21, 19, 3, 9, 3, 10, 20, 20, 8, 1, 1, 15, 1, 16]
         );
-        assert!(ids.contains(&2), "missing [P], got {ids:?}");
-        let e_count = ids.iter().filter(|&&i| i == 3).count();
-        assert_eq!(
-            e_count, 2,
-            "expected 2 [E] markers, got {e_count} in {ids:?}"
-        );
-        let sep_pos = ids
-            .iter()
-            .position(|&i| i == 8)
-            .expect("missing [SEP_TEXT]");
-        // Acme (12) appears AFTER [SEP_TEXT]
-        assert!(
-            ids[sep_pos + 1..].contains(&12),
-            "Acme not after SEP_TEXT, ids={ids:?}"
-        );
-        // Labels person (9), organization (10) appear BEFORE [SEP_TEXT]
-        assert!(
-            ids[..sep_pos].contains(&9),
-            "person label not before SEP_TEXT"
-        );
-        assert!(
-            ids[..sep_pos].contains(&10),
-            "organization label not before SEP_TEXT"
-        );
+        assert_eq!(rec.tasks[0].prompt_tok_idx, 1);
+        assert_eq!(rec.tasks[0].field_tok_indices, [4, 6]);
 
         // attention_mask matches input_ids length and is all-ones
         assert_eq!(rec.attention_mask.len(), rec.input_ids.len());
@@ -455,6 +416,9 @@ mod transformer_tests {
         let task = SchemaTask::EntitiesDescribed(labels);
         let rec = xfm.transform("Acme Corp in Paris .", &[task]).unwrap();
         let ids = &rec.input_ids;
+        for &index in &rec.tasks[0].field_tok_indices {
+            assert_eq!(ids[index], 3);
+        }
 
         // Should contain 2 [E] markers (one per label) AND 2 [DESCRIPTION] markers.
         let e_count = ids.iter().filter(|&&i| i == 3).count();
@@ -482,11 +446,25 @@ mod transformer_tests {
         // No [E] markers when labels is empty
         let e_count = ids.iter().filter(|&&i| i == 3).count();
         assert_eq!(e_count, 0);
-        // Still wrapped in [CLS] / [SEP]
-        assert_eq!(ids[0], 17);
-        assert_eq!(*ids.last().unwrap(), 18);
-        // [SEP_TEXT] still present
+        assert_eq!(rec.word_to_char_maps, [(0, 4), (5, 9), (9, 9)]);
+        assert_eq!(ids.last(), Some(&16)); // appended period
         assert!(ids.contains(&8));
+    }
+
+    #[test]
+    fn gather_class_labels_at_markers_after_multiword_labels() {
+        let xfm = SchemaTransformer::new(stub()).unwrap();
+        let task = SchemaTask::Classifications(
+            "subject".into(),
+            vec!["long label".into(), "person".into()],
+        );
+        let rec = xfm.transform("İn Paris!", &[task]).unwrap();
+        let mapping = &rec.tasks[0];
+        assert_eq!(mapping.field_tok_indices.len(), 2);
+        for &idx in &mapping.field_tok_indices {
+            assert_eq!(rec.input_ids[idx], 5); // [L]
+        }
+        assert_eq!(rec.word_to_char_maps, [(0, 3), (4, 9), (9, 10)]);
     }
 
     #[test]
@@ -550,6 +528,10 @@ mod transformer_tests {
         assert_eq!(t.task_type, "structures");
         assert_eq!(t.labels, vec!["name", "price", "vendor"]);
         assert_eq!(t.field_tok_indices.len(), 3);
+        assert!(t
+            .field_tok_indices
+            .iter()
+            .all(|&index| rec.input_ids[index] == 4));
     }
 
     #[test]
