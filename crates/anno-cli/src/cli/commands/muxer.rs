@@ -750,6 +750,20 @@ struct SummarySerde {
     mean_quality_score: Option<f64>,
 }
 
+impl From<muxer::Summary> for SummarySerde {
+    fn from(s: muxer::Summary) -> Self {
+        Self {
+            calls: s.calls,
+            ok: s.ok,
+            junk: s.junk,
+            hard_junk: s.hard_junk,
+            cost_units: s.cost_units,
+            elapsed_ms_sum: s.elapsed_ms_sum,
+            mean_quality_score: s.mean_quality_score,
+        }
+    }
+}
+
 impl SummarySerde {
     fn wilson_95_ci(ok: u64, calls: u64) -> (f64, f64) {
         // Wilson score interval for a Bernoulli proportion at 95% confidence.
@@ -769,29 +783,7 @@ impl SummarySerde {
     }
 
     fn from_window(w: &anno_eval::muxer_history::HistoryWindow) -> Self {
-        let mut out = SummarySerde {
-            calls: w.buf.len() as u64,
-            ..Default::default()
-        };
-        let mut q_sum = 0.0f64;
-        let mut q_n = 0u64;
-        for o in &w.buf {
-            out.ok += o.ok as u64;
-            out.junk += o.junk as u64;
-            out.hard_junk += o.hard_junk as u64;
-            out.cost_units = out.cost_units.saturating_add(o.cost_units);
-            out.elapsed_ms_sum = out.elapsed_ms_sum.saturating_add(o.elapsed_ms);
-            if let Some(q) = o.quality_score {
-                q_sum += q;
-                q_n += 1;
-            }
-        }
-        out.mean_quality_score = if q_n > 0 {
-            Some(q_sum / q_n as f64)
-        } else {
-            None
-        };
-        out
+        w.summary().into()
     }
 
     fn ok_rate(&self) -> f64 {
@@ -906,28 +898,13 @@ impl BackendHistoryCliExt for BackendHistory {
                 // Prefer aggregating dataset-scoped windows if present:
                 // keys of the form `{backend}@@{DatasetId}` are written by the matrix sampler harness.
                 let prefix = format!("{a}@@");
-                let mut agg = SummarySerde::default();
-                for (k, w) in &self.windows {
-                    if !k.starts_with(&prefix) {
-                        continue;
-                    }
-                    if let Some(ds) = datasets {
-                        let suffix = k.strip_prefix(&prefix).unwrap_or("");
-                        if !ds.contains(suffix) {
-                            continue;
-                        }
-                    }
-                    let s = SummarySerde::from_window(w);
-                    agg.calls = agg.calls.saturating_add(s.calls);
-                    agg.ok = agg.ok.saturating_add(s.ok);
-                    agg.junk = agg.junk.saturating_add(s.junk);
-                    agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
-                    agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
-                    agg.elapsed_ms_sum = agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
-                }
-                if agg.calls > 0 {
-                    obs = agg;
-                }
+                let windows = self.windows.iter().filter_map(|(key, window)| {
+                    let suffix = key.strip_prefix(&prefix)?;
+                    datasets
+                        .is_none_or(|ds| ds.contains(suffix))
+                        .then_some(window)
+                });
+                obs = anno_eval::muxer_history::summarize_windows(windows).into();
             }
 
             if obs.calls == 0 {
@@ -956,29 +933,9 @@ impl BackendHistoryCliExt for BackendHistory {
                         }
                         if let Some(prior_hist) = prior {
                             if let Some((lang, dom)) = mh::facet_prior_filter(&parsed) {
-                                let prefix = format!("{a}@@");
-                                let mut agg = SummarySerde::default();
-                                for (k, w) in &prior_hist.windows {
-                                    let Some(suffix) = k.strip_prefix(&prefix) else {
-                                        continue;
-                                    };
-                                    let Ok(ds) = suffix.parse::<DatasetId>() else {
-                                        continue;
-                                    };
-                                    if ds.language() != lang || ds.domain() != dom {
-                                        continue;
-                                    }
-                                    let s = SummarySerde::from_window(w);
-                                    agg.calls = agg.calls.saturating_add(s.calls);
-                                    agg.ok = agg.ok.saturating_add(s.ok);
-                                    agg.junk = agg.junk.saturating_add(s.junk);
-                                    agg.hard_junk = agg.hard_junk.saturating_add(s.hard_junk);
-                                    agg.cost_units = agg.cost_units.saturating_add(s.cost_units);
-                                    agg.elapsed_ms_sum =
-                                        agg.elapsed_ms_sum.saturating_add(s.elapsed_ms_sum);
-                                }
+                                let agg = prior_hist.facet_prior_summary_for(a, lang, dom);
                                 if agg.calls > 0 {
-                                    prior_s = agg;
+                                    prior_s = agg.into();
                                 }
                             }
                         }
@@ -1005,15 +962,7 @@ impl BackendHistoryCliExt for BackendHistory {
                     mean_quality_score: prior_s.mean_quality_score,
                 };
                 mh::apply_prior_counts_to_summary(&mut out_m, prior_m, prior_calls);
-                obs = SummarySerde {
-                    calls: out_m.calls,
-                    ok: out_m.ok,
-                    junk: out_m.junk,
-                    hard_junk: out_m.hard_junk,
-                    cost_units: out_m.cost_units,
-                    elapsed_ms_sum: out_m.elapsed_ms_sum,
-                    mean_quality_score: out_m.mean_quality_score,
-                };
+                obs = out_m.into();
             }
 
             out.insert(a.clone(), obs);
@@ -2815,6 +2764,42 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
 #[cfg(all(test, feature = "eval"))]
 mod run_cli_tests {
     use super::*;
+
+    #[test]
+    fn sampler_quality_respects_dataset_filters_and_global_fallback() {
+        let mut h = BackendHistory {
+            version: 3,
+            window_cap: 5,
+            windows: BTreeMap::new(),
+            fail_kinds: BTreeMap::new(),
+            exp3ix_state: None,
+            linucb_state: None,
+        };
+        for (key, f1) in [("a", 0.0), ("a@@old_name", 0.25), ("a@@Wnut17", 0.75)] {
+            h.push_with_fail_kind(
+                key,
+                muxer::Outcome::with_quality(true, false, false, 1, 1, f1),
+                None,
+            );
+        }
+        let arms = [String::from("a")];
+        let filtered = |name: &str| {
+            h.summaries_for_cli(
+                None,
+                &arms,
+                Some(&BTreeSet::from([name.to_owned()])),
+                true,
+                0,
+            )["a"]
+                .mean_quality_score
+        };
+        assert_eq!(filtered("old_name"), Some(0.25));
+        assert_eq!(filtered("absent"), Some(0.0));
+        assert_eq!(
+            h.summaries_for_cli(None, &arms, None, true, 0)["a"].mean_quality_score,
+            Some(0.5)
+        );
+    }
 
     #[test]
     fn parse_run_basic() {
