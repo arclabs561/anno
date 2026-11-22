@@ -6,6 +6,8 @@
 
 ### Changed
 
+- GLiNER2 Fastino Candle requires a supported accelerator while its CPU attention kernel is affected. For CPU inference use the Fastino ONNX backend and export any LoRA adapter merged into the model.
+
 - Library constructors no longer load `.env` from the working directory or its
   parents. The CLI still loads it at startup. Rust callers can opt in with
   `anno::env::load_dotenv()`. Python callers can set the environment before
@@ -13,7 +15,7 @@
 
 ### Fixed
 
-- The privacy CLI rejects unsupported PII categories before writing output.
+- The privacy CLI rejects unsupported PII categories before writing output. Pseudonymization checks that its document and re-identification map point to different files and assigns distinct replacements to distinct original values.
 - Long-document coreference scoring keeps mention offsets local to each document.
 
 - brat export writes character offsets for annotations in non-ASCII text. Regenerate older `.ann` files if their spans have shifted.
