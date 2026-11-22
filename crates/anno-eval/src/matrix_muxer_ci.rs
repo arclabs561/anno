@@ -1445,24 +1445,54 @@ fn pick_random_subset(seed: u64, items: &[String], k: usize) -> Vec<String> {
     mh::pick_random_subset(seed, items, k)
 }
 
-// Routing utility is zero on a failed call, even when there was no F1
-// measurement. An unavailable primary score on a successful call is unknown.
+// A successful document-level evaluator may never invoke sentence scheduling.
+fn backend_was_attempted(result: &TaskEvalResult) -> bool {
+    !result.is_skipped()
+        && (result.success
+            || !matches!(
+                result.provenance.runtime.scheduling,
+                EvaluationScheduling::NotRun { .. }
+            ))
+}
+
+// Execution failures have zero routing utility; missing quality on success is unknown.
 fn routing_reward(result: &TaskEvalResult) -> Option<f64> {
-    if result.is_skipped() {
+    if !backend_was_attempted(result) {
         return None;
     }
     if !result.success {
-        // Missing or empty datasets fail before the selected backend runs.
-        return (!matches!(
-            result.provenance.runtime.scheduling,
-            EvaluationScheduling::NotRun { .. }
-        ))
-        .then_some(0.0);
+        return Some(0.0);
     }
-    result
-        .primary_f1()
-        .filter(|f1| f1.is_finite())
-        .map(|f1| f1.clamp(0.0, 1.0))
+    result.measured_primary_f1().map(|f1| f1.clamp(0.0, 1.0))
+}
+
+fn backend_outcome(r: &TaskEvalResult, threshold: f64) -> Outcome {
+    let quality = r.measured_primary_f1();
+    let hard_junk = !r.success;
+    let junk = hard_junk || quality.is_some_and(|f1| f1 < threshold);
+    let cost = r.num_examples as u64;
+    let elapsed = r.duration_ms.unwrap_or(0.0) as u64;
+    match quality {
+        Some(f1) => Outcome::with_quality(!junk, junk, hard_junk, cost, elapsed, f1),
+        None => Outcome::new(!junk, junk, hard_junk, cost, elapsed),
+    }
+}
+
+fn record_backend_windows(
+    history: &mut BackendHistory,
+    result: &TaskEvalResult,
+    outcome: Outcome,
+    fail_kind: Option<String>,
+    per_dataset: bool,
+) {
+    if !backend_was_attempted(result) {
+        return;
+    }
+    history.push_with_fail_kind(&result.backend, outcome, fail_kind.clone());
+    if per_dataset {
+        let key = BackendHistory::dataset_key(&result.backend, result.dataset);
+        history.push_with_fail_kind(&key, outcome, fail_kind);
+    }
 }
 
 fn junk_f1_threshold(task: Task) -> f64 {
@@ -4095,21 +4125,15 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             continue;
         }
 
-        // Prefer task-appropriate primary F1:
-        // - NER: "f1"
-        // - Coref/CDCR: "conll_f1"
-        // - Relation: "strict_f1"
-        let f1 = r.primary_f1().unwrap_or(0.0);
         let thr = junk_f1_threshold(r.task);
+        let o = backend_outcome(r, thr);
+        let Outcome {
+            ok,
+            junk,
+            hard_junk,
+            ..
+        } = o;
         let dur_ms = r.duration_ms.unwrap_or(0.0).max(0.0);
-
-        // Outcome mapping:
-        // - ok: “succeeded AND not junk” (so ok_rate reflects both stability and quality)
-        // - junk: “low-signal output” (low F1) OR hard failure
-        // - hard_junk: “hard failure” (evaluation failed)
-        let hard_junk = !r.success;
-        let junk = hard_junk || f1 < thr;
-        let ok = r.success && !junk;
 
         let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
         if verbose {
@@ -4143,12 +4167,12 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 "".to_string()
             };
             eprintln!(
-                "matrix-muxer: result task={:?} dataset={:?} backend={} success={} f1={:.3} thr={:.3} ok={} junk={} hard={} ms={:.0}{} err={}",
+                "matrix-muxer: result task={:?} dataset={:?} backend={} success={} f1={:?} thr={:.3} ok={} junk={} hard={} ms={:.0}{} err={}",
                 r.task,
                 r.dataset,
                 r.backend,
                 r.success,
-                f1,
+                o.quality_score,
                 thr,
                 ok,
                 junk,
@@ -4159,12 +4183,6 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             );
         }
 
-        let cost = r.num_examples as u64;
-        let elapsed = dur_ms as u64;
-        let o = match r.primary_f1() {
-            Some(f1) => Outcome::with_quality(ok, junk, hard_junk, cost, elapsed, f1),
-            None => Outcome::new(ok, junk, hard_junk, cost, elapsed),
-        };
         let fail_kind = if hard_junk {
             Some(
                 r.error
@@ -4252,14 +4270,13 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                 },
             );
         }
-        // Update both:
-        // - global per-backend window (back-compat + overall view)
-        // - dataset-scoped per-backend window (preferred for selection within a slice)
-        history.push_with_fail_kind(&r.backend, o, fail_kind.clone());
-        if mh::env_bool("ANNO_MUXER_PER_DATASET", true) {
-            let k = BackendHistory::dataset_key(&r.backend, r.dataset);
-            history.push_with_fail_kind(&k, o, fail_kind);
-        }
+        record_backend_windows(
+            &mut history,
+            r,
+            o,
+            fail_kind,
+            mh::env_bool("ANNO_MUXER_PER_DATASET", true),
+        );
     }
 
     // Update EXP3-IX state (ml-only policy) from the scalar reward signal.
@@ -4706,6 +4723,7 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
     assert_eq!(routing_reward(&row), None);
     row.metrics.insert("f1".to_owned(), f64::NAN);
     assert_eq!(routing_reward(&row), None);
+    assert_eq!(row.measured_primary_f1(), None);
     row.metrics.insert("f1".to_owned(), 0.0);
     assert_eq!(routing_reward(&row), Some(0.0));
     row.metrics.clear();
@@ -4736,6 +4754,67 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
         EvaluationScheduling::NotRun { .. }
     ));
     assert_eq!(routing_reward(&missing.results[0]), None);
+    let path = cache.path().join("history.json");
+    let mut history = BackendHistory::load(&path, 50);
+    let preflight = &missing.results[0];
+    record_backend_windows(
+        &mut history,
+        preflight,
+        backend_outcome(preflight, 0.05),
+        Some("missing_dataset".to_owned()),
+        true,
+    );
+    history.save(&path);
+    let saved = BackendHistory::try_load(&path, 50).unwrap();
+    let mut classification = mk(
+        Task::TextClassification,
+        DatasetId::AGNews,
+        true,
+        &[("macro_f1", 0.8)],
+    );
+    let unscored = backend_outcome(&classification, 0.05);
+    eprintln!(
+        "preflight window keys={:?}, unscored ok={} junk={}",
+        saved.windows.keys(),
+        unscored.ok,
+        unscored.junk
+    );
+    assert!(saved.windows.is_empty());
+    assert!(saved.fail_kinds.is_empty());
+    assert!(unscored.ok && !unscored.junk && unscored.quality_score.is_none());
+    classification.metrics.insert("f1".into(), f64::NAN);
+    assert!(backend_outcome(&classification, 0.05)
+        .quality_score
+        .is_none());
+    classification.metrics.insert("f1".into(), 0.0);
+    let measured = backend_outcome(&classification, 0.05);
+    assert!(measured.junk && !measured.hard_junk && measured.quality_score == Some(0.0));
+    record_backend_windows(
+        &mut history,
+        &classification,
+        measured,
+        Some("low_signal".into()),
+        true,
+    );
+    classification.success = false;
+    classification.provenance.runtime.scheduling = EvaluationScheduling::Unknown {
+        reason: "backend crashed".into(),
+    };
+    classification.metrics.clear();
+    let failure = backend_outcome(&classification, 0.05);
+    assert!(failure.hard_junk && failure.quality_score.is_none());
+    record_backend_windows(
+        &mut history,
+        &classification,
+        failure,
+        Some("backend".into()),
+        true,
+    );
+    history.save(&path);
+    let saved = BackendHistory::try_load(&path, 50).unwrap();
+    for key in ["stub", "stub@@AGNews"] {
+        assert_eq!(saved.fail_kinds[key].len(), 2);
+    }
 }
 
 #[test]

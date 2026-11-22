@@ -369,6 +369,12 @@ impl TaskEvalResult {
             .or_else(|| self.metrics.get("strict_f1"))
             .copied()
     }
+
+    /// Finite quality measurement from a completed, successful evaluation.
+    pub(crate) fn measured_primary_f1(&self) -> Option<f64> {
+        self.primary_f1()
+            .filter(|score| self.success && score.is_finite())
+    }
 }
 
 /// Comprehensive evaluation results across all combinations.
@@ -5612,6 +5618,42 @@ mod tests {
     fn test_task_eval_result_primary_f1() {
         let result = make_test_result(true, None, Some(0.824));
         assert_eq!(result.primary_f1(), Some(0.824));
+    }
+
+    #[test]
+    fn history_indexes_measured_task_scores_and_recovers_legacy_aliases() {
+        let mut coref_ok = make_test_result(true, None, None);
+        coref_ok.task = Task::IntraDocCoref;
+        coref_ok.metrics.insert("conll_f1".into(), 0.9);
+        let mut rel_ok = make_test_result(true, None, None);
+        rel_ok.task = Task::RelationExtraction;
+        rel_ok.metrics.insert("strict_f1".into(), 0.9);
+        // Both the SQLite quality index and a rebuild from legacy JSONL must
+        // preserve the coreference and relation evaluators' primary score.
+        use crate::eval::history::{EvalHistory, EvalHistoryEntry};
+        let archive_dir = tempfile::tempdir().unwrap();
+        let archive = EvalHistory::new(archive_dir.path().join("history.jsonl")).unwrap();
+        for r in [&coref_ok, &rel_ok] {
+            let mut legacy = EvalHistoryEntry::from(r);
+            assert_eq!(legacy.f1, r.primary_f1());
+            legacy.f1 = None;
+            archive.append_entry(&legacy).unwrap();
+        }
+        assert!(archive
+            .query_recent(&coref_ok.backend, 2)
+            .unwrap()
+            .iter()
+            .all(|e| e.f1.is_none()));
+        archive.rebuild_index().unwrap();
+        for rows in [
+            archive.load_all().unwrap(),
+            archive.query_recent(&coref_ok.backend, 2).unwrap(),
+        ] {
+            assert_eq!(rows.len(), 2);
+            assert!(rows.iter().all(|e| e.f1 == Some(0.9)));
+        }
+        rel_ok.success = false;
+        assert!(EvalHistoryEntry::from(&rel_ok).f1.is_none());
     }
 
     #[test]

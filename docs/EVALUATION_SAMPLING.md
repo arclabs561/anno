@@ -157,9 +157,11 @@ sample or an independently scored complete panel.
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
-eligible fixed-panel cells have been run least often. The implementation adds
-each backend's historical observation counts across the selected datasets and
-chooses the lowest total. Counts are scoped to a recorded policy cohort: task,
+eligible fixed-panel cells have the fewest recorded evaluation receipts. The
+implementation sums each backend's receipts across the selected datasets and
+chooses the lowest total. Skips, dataset preflight failures, and successful
+unscored runs all count. To measure scored coverage, count successful receipts
+with a finite primary F1. Counts are scoped to a recorded policy cohort: task,
 dataset, example cap, cache policy, enabled evaluator features, and the
 primary-score contract. Seed remains in each receipt but does not split coverage
 cohorts, so repeated-seed panels can accumulate coverage. Legacy and nonmatching receipts do not count. Source
@@ -173,6 +175,17 @@ regression probability. Keep the dataset panel fixed and inspect the resulting
 receipt before treating missing cells as the next work item. Coverage decisions
 now record each candidate's count and deterministic tie-break selection; each
 outcome carries the same opaque observation ID as its evaluation-history row.
+
+Backend rolling windows exclude skips and failed dataset preflights. An executed
+backend failure contributes a hard failure. A successful run without a finite
+primary F1 records execution and cost with unknown quality. A measured zero
+qualifies as low quality for a positive junk threshold.
+
+The history index stores finite primary scores from successful evaluations,
+including coreference `conll_f1` and relation `strict_f1`. For a previously
+created SQLite index, `anno history --history-file PATH rebuild` recovers these
+scores from readable evaluator metadata in the original JSONL. Old backend
+windows retain their recorded outcomes until new attempts displace them.
 
 In worst-first mode, comparable unresolved failures have priority. When none is
 eligible, one quarter of stable seed buckets also consider cells with at least
