@@ -545,7 +545,7 @@ impl EvalSystem {
             data_quality,
             warnings,
             metadata: EvalMetadata {
-                timestamp: chrono::Utc::now().to_rfc3339(),
+                timestamp: super::timestamp::now(),
                 model_name: self.model_name.clone(),
                 total_duration_ms: Some(duration.as_secs_f64() * 1000.0),
                 num_examples,
