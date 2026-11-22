@@ -73,6 +73,12 @@ static DATE_US: LazyLock<Regex> =
 static DATE_EU: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b").expect("valid regex"));
 
+// Unpunctuated calendar dates used in astronomical catalogs (2001 Jan 09).
+// A single inline space keeps a preceding column or line from supplying the year.
+static DATE_YEAR_MONTH_DAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b[0-9]{4} (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) (?:0?[1-9]|[12][0-9]|3[01])\b").expect("valid regex")
+});
+
 static DATE_WRITTEN_FULL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\b").expect("valid regex")
 });
@@ -290,6 +296,7 @@ impl Model for RegexNER {
             (&DATE_ISO, "DATE_ISO"),
             (&DATE_US, "DATE_US"),
             (&DATE_EU, "DATE_EU"),
+            (&DATE_YEAR_MONTH_DAY, "DATE_YEAR_MONTH_DAY"),
             (&DATE_WRITTEN_FULL, "DATE_WRITTEN_FULL"),
             (&DATE_WRITTEN_SHORT, "DATE_WRITTEN_SHORT"),
             (&DATE_WRITTEN_EU, "DATE_WRITTEN_EU"),
@@ -624,6 +631,18 @@ mod tests {
         for case in cases {
             let e = extract(case);
             assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
+        }
+    }
+
+    #[test]
+    fn year_first_date_uses_inline_year_only() {
+        for date in ["2001 Jan 09", "2020 September 30", "2020 Jul 5"] {
+            assert!(find_text(&extract(date), date).is_some(), "{date}");
+        }
+        for text in ["2001\nJan 09", "2001    Jan 09"] {
+            let entities = extract(text);
+            assert!(find_text(&entities, text).is_none());
+            assert!(find_text(&entities, "Jan 09").is_some());
         }
     }
 

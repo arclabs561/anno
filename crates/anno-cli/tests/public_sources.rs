@@ -41,6 +41,10 @@ fn published_excerpts_have_expected_pattern_spans() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/public_sources");
     for (name, gold) in [
         ("boe.txt", BOE),
+        (
+            "nasa-eclipse.txt",
+            &[("2001 Jan 09", "DATE", 7, 18), ("20:21:40", "TIME", 20, 28)][..],
+        ),
         ("aozora.txt", &[][..]),
         (
             "tzdb.txt",
