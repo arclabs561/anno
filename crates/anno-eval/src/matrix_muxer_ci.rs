@@ -936,6 +936,8 @@ struct WorstFirstRoundLog {
     top_candidates: LogTopCandidates,
     #[serde(skip_serializing_if = "Option::is_none")]
     retry: Option<retry::RetryCell>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    deferred_infrastructure_arms: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -1499,7 +1501,7 @@ fn select_backends(
     cached_only: bool,
     k: usize,
     prior_calls: u64,
-    retry: Option<&retry::RetryCell>,
+    plan: Option<&retry::RetryPlan>,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -1869,10 +1871,16 @@ fn select_backends(
             let decisions_path = decisions_path();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
-            let mut remaining: Vec<String> = candidates_in_order.to_vec();
+            let (mut deferred, mut remaining): (Vec<_>, Vec<_>) = candidates_in_order
+                .iter()
+                .cloned()
+                .partition(|arm| plan.is_some_and(|p| p.defer(tasks, datasets, arm)));
             let mut chosen: Vec<String> = Vec::new();
 
-            for round in 0..k.min(remaining.len()) {
+            for round in 0..k.min(candidates_in_order.len()) {
+                if remaining.is_empty() {
+                    std::mem::swap(&mut remaining, &mut deferred);
+                }
                 let summaries = history.summaries_for(
                     prior,
                     &remaining,
@@ -1882,7 +1890,9 @@ fn select_backends(
                 );
 
                 let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-                let retry = retry.filter(|cell| round == 0 && remaining.contains(&cell.backend));
+                let retry = plan
+                    .and_then(|p| p.first.as_ref())
+                    .filter(|cell| round == 0 && remaining.contains(&cell.backend));
                 let (pick, explore_first) = if let Some(cell) = retry {
                     (cell.backend.clone(), false)
                 } else {
@@ -2033,6 +2043,7 @@ fn select_backends(
                             exp3ix_rounds: None,
                             worst_first_round: Some(WorstFirstRoundLog {
                                 retry: retry.cloned(),
+                                deferred_infrastructure_arms: deferred.clone(),
                                 remaining: remaining.clone(),
                                 chosen: pick.clone(),
                                 explore_first,
@@ -2975,6 +2986,10 @@ fn test_matrix_coverage_report() {
 /// - unit tests (CI harness)
 /// - developer tooling (`muxer_repeat`)
 pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
+    run_matrix_sample(seed, None);
+}
+
+fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     anno::env::load_dotenv();
     let strategy = SampleStrategy::from_env();
     // Default window cap: 50 observations per arm.
@@ -3022,7 +3037,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     {
         eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
     }
-    let retry = if matches!(strategy, SampleStrategy::WorstFirst) {
+    let plan = if matches!(strategy, SampleStrategy::WorstFirst) {
         retry::next_cell(
             &loader,
             require_cached,
@@ -3035,7 +3050,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     } else {
         None
     };
-    let (slice_tag, tasks, require_cached_for_run) = if let Some(cell) = &retry {
+    let retry = plan.as_ref().and_then(|p| p.first.as_ref());
+    let (slice_tag, tasks, require_cached_for_run) = if let Some(cell) = retry {
         (
             cell.task.code().to_string(),
             vec![cell.task],
@@ -3169,7 +3185,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             return;
         }
         chosen_datasets = retained;
-    } else if let Some(cell) = &retry {
+    } else if let Some(cell) = retry {
         // Keep the replayed cell eligible for every backend in this batch.
         chosen_datasets = vec![cell.dataset];
         if datasets_per_run > 1 {
@@ -3912,7 +3928,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
-                retry.as_ref(),
+                plan.as_ref(),
             )
         } else {
             select_backends(
@@ -3928,10 +3944,12 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
-                retry.as_ref(),
+                plan.as_ref(),
             )
         }
-    } else if per_dataset {
+    } else if per_dataset || matches!(strategy, SampleStrategy::WorstFirst) {
+        // Worst-first needs the actual panel when deferring a fault, even if its
+        // statistical summaries are configured to use global backend history.
         select_backends(
             strategy,
             seed,
@@ -3945,7 +3963,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
-            retry.as_ref(),
+            plan.as_ref(),
         )
     } else {
         select_backends(
@@ -3961,7 +3979,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
-            retry.as_ref(),
+            plan.as_ref(),
         )
     };
 
@@ -4008,6 +4026,18 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             seed, slice_tag_for_muxer, strategy
         )
     });
+    if let Some(path) = selection_receipt {
+        let file =
+            std::fs::File::create_new(path).expect("create fresh prospective selection receipt");
+        serde_json::to_writer(file, &serde_json::json!({
+            "strategy": strategy.id_str(),
+            "seed": seed,
+            "tasks": tasks.iter().map(|task| task.code()).collect::<Vec<_>>(),
+            "datasets": chosen_datasets.iter().map(|dataset| format!("{dataset:?}")).collect::<Vec<_>>(),
+            "backends": chosen_backends,
+        })).expect("write prospective selection");
+        return;
+    }
     let eval = TaskEvaluator::new()
         .expect("TaskEvaluator::new")
         .with_muxer_run_id(muxer_run_id);
@@ -4466,6 +4496,13 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 #[ignore] // Slow (often >60s); run with: cargo test -p anno-eval --lib test_randomized_matrix_sample -- --ignored --include-ignored
 fn test_randomized_matrix_sample() {
     run_randomized_matrix_sample_with_seed(ci_seed());
+}
+
+#[test]
+#[ignore] // Invoked by scripts/qa/compare_matrix_picks.py before revealing the held-out panel.
+fn prospective_first_pick() {
+    let path = std::env::var_os("ANNO_SELECTION_RECEIPT").expect("missing selection receipt path");
+    run_matrix_sample(ci_seed(), Some(std::path::Path::new(&path)));
 }
 
 #[test]

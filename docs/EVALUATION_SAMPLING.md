@@ -22,20 +22,21 @@ commit, and `Cargo.lock` with the run. The legacy `muxer_version` log field is
 `unrecorded`; use the retained lockfile to identify the resolved dependency.
 
 ```bash
-mkdir -p .generated/sampler/smoke
+mkdir -p .generated/sampler
+receipt_dir=$(mktemp -d "$PWD/.generated/sampler/smoke.XXXXXX")
 
 ANNO_MATRIX_REQUIRE_CACHED=1 \
 ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=0 \
-ANNO_MATRIX_PERSPECTIVE=ner \
+ANNO_MATRIX_TASK=ner \
 ANNO_SAMPLE_STRATEGY=random \
 ANNO_CI_SEED=42 \
 ANNO_MAX_EXAMPLES=5 \
 ANNO_MUXER_FIXED_BACKEND=heuristic \
 ANNO_MUXER_FIXED_DATASETS=WikiGold \
-ANNO_HISTORY_FILE=.generated/sampler/smoke/history.json \
-ANNO_EVAL_HISTORY=.generated/sampler/smoke/eval-results.jsonl \
-ANNO_MUXER_DECISIONS_FILE=.generated/sampler/smoke/decisions.jsonl \
-cargo test -p anno-eval --lib --features "eval discourse" \
+ANNO_HISTORY_FILE="$receipt_dir/history.json" \
+ANNO_EVAL_HISTORY="$receipt_dir/eval-results.jsonl" \
+ANNO_MUXER_DECISIONS_FILE="$receipt_dir/decisions.jsonl" \
+cargo test --locked -p anno-eval --lib --features "eval discourse" \
   muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
 ```
 
@@ -45,6 +46,43 @@ example `onnx`) only after the fixed panel is known to be available.
 The harness records failures and can return early when nothing is runnable;
 an exit code of zero alone is not acceptance. Check that outcome rows exist,
 the expected cells ran, and recorded failures are understood.
+
+CI first runs the sampler with the heuristic backend on one checked-in sentence
+with known entity spans. The fixture is the dataset registry's WikiGold format
+example. It lives in a separate temporary cache, with downloads disabled, and
+must produce one completed result with F1 of 1. Its receipt is separate from
+evaluation results on real corpora.
+
+External sampling restores the newest compatible checkpoint produced by this
+workflow on the default branch. The artifact contains muxer windows, evaluation
+JSONL, and its SQLite index. Checkpoints expire after 60 days. A new cohort
+starts when the history or provenance implementation changes. PRs can read
+this state. Only default-branch runs with new external observations publish it.
+An active default-branch run can finish its checkpoint before the next run
+starts. A retry stays read-only if that run or a newer run already published
+the same cohort. Each retry retains its own sampling receipt.
+
+Both kinds of run measure five examples per dataset from a local cache. A
+checksum-pinned public WikiGold corpus supplies a real input even after cache
+eviction. A cold default-branch run records a heuristic baseline on that corpus.
+The synthetic offline fixture uses separate storage. Worst-first runs before
+the four randomized task controls (NER, relation extraction, intra-document
+coreference, and temporal extraction). On the default branch, a named control
+may fetch data when that task's local cache is empty. The job summary links
+the restored run and reports the first worst-first selection, its observed
+result, and completed or missing coverage by task.
+
+To replay the cross-run feedback test locally, run
+`python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the
+same seed, text, backend, and budget. Swapping which dataset scored zero must
+swap the next run's first cell after checkpoint restore. A successful retry
+must clear the pending observation. This test enables low-score retries
+explicitly. CI's default adaptive lane targets operational failures.
+
+To require full external coverage on a provisioned runner, use
+`python3 scripts/qa/check_matrix_outcomes.py muxer-decisions.jsonl`. It
+requires a completed sample with examples on each named task and an attempted
+worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
 policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
@@ -67,6 +105,25 @@ Muxer 0.5.3 is enabled for evaluation with `serde`, `stochastic`, and
 `contextual`. The sampler uses its bounded outcome history, candidate summaries,
 and policy helpers. It does not need every muxer policy or feature: extra knobs
 make a small matrix harder to interpret.
+
+For a prospective comparison, record the adaptive and random first picks before
+running every cell on a small fixed panel. Score both picks against that same
+panel. Count newly observed backend failures separately from repeat dataset
+and I/O failures. A run that measures only its chosen cell cannot tell whether
+the other policy would have found a failure sooner.
+
+Run `python3 scripts/qa/compare_matrix_picks.py --output-dir /tmp/anno-matched`
+with an unused output path for an offline prospective control. It builds the
+test binary from cached dependencies and runs both production selectors through
+their normal first-pick path. Each reads an independent copy of the same
+frozen history and neutral dataset cache. The experiment writes `picks.json`
+before any held-out scoring. Separate exact-cell runs then write `panels.json`
+and retain the observation IDs. Both mirrored histories use eight seeds by
+default. Each panel has one NER task, one heuristic backend and two dataset
+slots containing the same synthetic text. Only the gold annotations vary.
+The persistent and switched cases show whether a policy rediscovers a known
+quality failure or detects it after it moves. Neither creates a backend crash
+or an I/O error. The experiment does not estimate discovery rates on live data.
 
 ## Coverage
 
@@ -96,6 +153,13 @@ a low-F1 episode. For recovered cells the draw weight is the configured
 hard/soft weight times `episodes / (relevant attempts + 4)`.
 The decision records the reason, number of recovered episodes and latest
 supporting failure ID. Other buckets use the usual worst-first exploration.
+
+Two consecutive attempts in a cell with the same explicit dataset or download
+error share a retry budget with other repeated infrastructure failures. One
+eighth of seed buckets give them normal priority. In the remaining buckets
+the sampler prefers an alternative backend when one is eligible. A sole
+eligible backend still runs. A changed error or recovery starts a new episode.
+A repeated-infrastructure retry records both observation IDs and the failure kind.
 
 ## Interpreting receipts
 
