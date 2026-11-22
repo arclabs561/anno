@@ -12,7 +12,7 @@
 //! - [`OverlapStrategy`] / [`deduplicate_overlapping()`](crate::backends::chunking::deduplicate_overlapping) -- overlap resolution
 //! - [`find_sentence_boundary()`](crate::backends::chunking::find_sentence_boundary) / [`find_word_boundary()`](crate::backends::chunking::find_word_boundary) -- boundary helpers
 
-use crate::{Entity, Result};
+use crate::{ByteOffset, CharOffset, Entity, Result};
 
 #[cfg(feature = "chunking")]
 use text_splitter::TextSplitter;
@@ -107,7 +107,7 @@ pub(crate) fn chunk_text_with_hints(
             "breakpoint hints must be UTF-8 byte positions in the source text".into(),
         ));
     }
-    let mut hints = hints.to_vec();
+    let mut hints: Vec<_> = hints.iter().copied().map(ByteOffset::new).collect();
     hints.sort_unstable();
     hints.dedup();
     let mut hints = hints.into_iter().peekable();
@@ -118,15 +118,15 @@ pub(crate) fn chunk_text_with_hints(
         .chain([text.len()])
         .enumerate()
     {
-        if hints.peek() == Some(&byte_offset) {
-            char_hints.push(char_offset);
+        if hints.peek() == Some(&ByteOffset::new(byte_offset)) {
+            char_hints.push(CharOffset::new(char_offset));
             hints.next();
         }
     }
     Ok(split_text(text, config, &char_hints))
 }
 
-fn split_text(text: &str, config: &ChunkConfig, hints: &[usize]) -> Vec<TextChunk> {
+fn split_text(text: &str, config: &ChunkConfig, hints: &[CharOffset]) -> Vec<TextChunk> {
     let chars: Vec<char> = text.chars().collect();
     let text_len = chars.len();
 
@@ -150,9 +150,10 @@ fn split_text(text: &str, config: &ChunkConfig, hints: &[usize]) -> Vec<TextChun
     while position < text_len {
         let chunk_end = position.saturating_add(chunk_size).min(text_len);
 
-        let preferred = hints[..hints.partition_point(|&hint| hint <= chunk_end)]
+        let preferred = hints[..hints.partition_point(|&hint| hint <= CharOffset::new(chunk_end))]
             .last()
             .copied()
+            .map(CharOffset::get)
             .filter(|&hint| hint > previous_end);
         let actual_end = if chunk_end >= text_len {
             text_len
