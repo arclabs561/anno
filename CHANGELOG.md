@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- FCoref now returns an error for documents above its token budget. The default
+  budget is 512 tokens including special tokens. To process longer documents,
+  raise `FCorefConfig::max_doc_tokens`. Existing Rust struct literals must add
+  `max_doc_tokens: Some(512)` or use `..Default::default()`. The encoder still
+  uses `max_segment_len` tokens per segment and scores mentions across segments.
+
 ### Changed
 
 - Library constructors no longer load `.env` from the working directory or its
