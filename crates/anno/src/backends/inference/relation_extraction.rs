@@ -285,8 +285,6 @@ fn detect_relation_type<'a>(
                 "chief executive",
                 "chief executive officer",
                 "leads",
-                "founded",
-                "founder of",
             ],
             confidence: 0.8,
         },
@@ -308,6 +306,7 @@ fn detect_relation_type<'a>(
             triggers: &[
                 "founded",
                 "co-founded",
+                "founder of",
                 "cofounder",
                 "started",
                 "established",
@@ -1366,15 +1365,18 @@ mod tests {
 
     #[test]
     fn test_founded_pattern_english() {
-        let text = "Bob founded WidgetCo last year.";
-        let entities = vec![person("Bob", 0, 3), org("WidgetCo", 12, 20)];
-        let reg = registry_with_relations(&["FOUNDED"]);
-        let rels = extract_relations(&entities, text, &reg, &default_config());
+        let reg = registry_with_relations(&["CEO_OF", "FOUNDED"]);
+        for phrase in ["founded", "co-founded", "is the founder of"] {
+            let text = format!("Bob {phrase} WidgetCo last year.");
+            let start = "Bob ".len() + phrase.len() + 1;
+            let entities = vec![person("Bob", 0, 3), org("WidgetCo", start, start + 8)];
+            let rels = extract_relations(&entities, &text, &reg, &default_config());
 
-        assert_eq!(rels.len(), 1);
-        assert_eq!(rels[0].relation_type, "FOUNDED");
-        assert_eq!(rels[0].head.text, "Bob");
-        assert_eq!(rels[0].tail.text, "WidgetCo");
+            assert_eq!(rels.len(), 1, "{phrase}");
+            assert_eq!(rels[0].relation_type, "FOUNDED", "{phrase}");
+            assert_eq!(rels[0].head.text, "Bob");
+            assert_eq!(rels[0].tail.text, "WidgetCo");
+        }
     }
 
     #[test]
@@ -1418,7 +1420,7 @@ mod tests {
     fn test_ceo_of_pattern_english() {
         let text = "Alice ceo of Acme Corp recently.";
         let entities = vec![person("Alice", 0, 5), org("Acme Corp", 13, 22)];
-        let reg = registry_with_relations(&["CEO_OF"]);
+        let reg = registry_with_relations(&["FOUNDED", "CEO_OF"]);
         let rels = extract_relations(&entities, text, &reg, &default_config());
 
         assert_eq!(rels.len(), 1);
