@@ -177,7 +177,7 @@ mod tests {
     #[test]
     #[ignore = "requires exported biu-nlp/f-coref model artifacts"]
     fn word_candidates_match_pretrained_fastcoref() {
-        let model = FCoref::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/fcoref_onnx")).unwrap();
+        let model = FCoref::from_path(&super::super::tests::model_dir()).unwrap();
         // Three encoded tokens * 0.25 yields no candidates.
         assert!(model
             .analyze_words("Alice", &[(0, 5)])
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     #[ignore = "requires exported biu-nlp/f-coref model artifacts"]
     fn coarse_word_span_preserves_pretrained_clusters() {
-        let model = FCoref::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/fcoref_onnx")).unwrap();
+        let model = FCoref::from_path(&super::super::tests::model_dir()).unwrap();
         let text = concat!(
             "Alice and Bob met. Alice smiled at Bob. She thanked him. He waved at her. ",
             "The stone pavement stretched for miles into the distance."
