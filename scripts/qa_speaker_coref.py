@@ -45,14 +45,21 @@ def score(doc, text, gold):
     if doc["text"] != text:
         raise ValueError("Prediction text differs from the selected fixture rendering")
     signals = {signal["id"]: signal for signal in doc["signals"]}
+    if len(signals) != len(doc["signals"]):
+        raise ValueError("Duplicate signal ID in predictions")
     memberships = {}
     for track_id, track in doc["tracks"].items():
         for ref in track["signals"]:
+            if ref["signal_id"] not in signals:
+                raise ValueError(f"Track {track_id} refers to missing signal {ref['signal_id']}")
             signal = signals[ref["signal_id"]]
             location = signal["location"].get("Text")
             if location:
                 span = location["start"], location["end"]
-                if text[slice(*span)] != signal["surface"]:
+                start, end = span
+                if type(start) is not int or type(end) is not int or not 0 <= start < end <= len(text):
+                    raise ValueError(f"Invalid text span {span}")
+                if text[start:end] != signal["surface"]:
                     raise ValueError(f"Signal surface disagrees with source span {span}")
                 memberships.setdefault(span, set()).add(track_id)
 

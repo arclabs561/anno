@@ -28,6 +28,14 @@ class SpeakerCorefTest(unittest.TestCase):
                 self.assertEqual(correct["same_speaker"]["correct"], same)
                 self.assertEqual(correct["different_speaker"]["correct"], different)
 
+                # One missing span leaves precisely its incident pairs unresolved.
+                first_channel = gold[0][0]
+                first_ref = doc["tracks"][first_channel]["signals"].pop(0)
+                partial = score(doc, text, gold)
+                self.assertEqual(partial["same_speaker"]["unresolved"], 1)
+                self.assertEqual(partial["different_speaker"]["unresolved"], len(gold) - 2)
+                doc["tracks"][first_channel]["signals"].append(first_ref)
+
                 # Multi-track membership also abstains on every affected pair.
                 doc["tracks"]["extra"] = {"signals": [{"signal_id": 0}]}
                 ambiguous = score(doc, text, gold)
@@ -36,6 +44,24 @@ class SpeakerCorefTest(unittest.TestCase):
                     ambiguous["same_speaker"]["unresolved"] + ambiguous["different_speaker"]["unresolved"],
                     len(gold) - 1,
                 )
+
+    def test_malformed_predictions(self):
+        text, gold, _ = transcript("es2002a", "speaker")
+        start, end = gold[0][1]
+        signal = {"id": 0, "surface": text[start:end], "location": {"Text": {"start": start, "end": end}}}
+        doc = {"text": text, "signals": [signal], "tracks": {"a": {"signals": [{"signal_id": 0}]}}}
+        for fields, message in [
+            ({"text": text + " "}, "Prediction text differs"),
+            ({"signals": [dict(signal, surface="different"), signal]}, "Duplicate signal ID"),
+            ({"signals": []}, "missing signal"),
+            ({"signals": [dict(signal, surface="different")]}, "surface disagrees"),
+            ({"signals": [dict(signal, surface=text[-1:], location={"Text": {"start": -1, "end": len(text)}})]},
+             "Invalid text span"),
+            ({"signals": [dict(signal, surface=text[-1:], location={"Text": {"start": len(text)-1, "end": len(text)+1}})]},
+             "Invalid text span"),
+        ]:
+            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
+                score({**doc, **fields}, text, gold)
 
 
 if __name__ == "__main__":
