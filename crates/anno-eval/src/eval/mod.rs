@@ -241,12 +241,12 @@ pub use modes::EvalConfig as ModeConfig;
 /// Evaluation mode for NER (re-exported from modes).
 pub use modes::EvalMode;
 
-/// Cross-context clustering primitives (shared via `anno-metrics`).
+/// Cross-context clustering primitives (shared via `anno::metrics`).
 pub mod cluster_encoder {
     pub use anno::metrics::cluster_encoder::*;
 }
 
-/// Coreference metrics (shared via `anno-metrics`).
+/// Coreference metrics (shared via `anno::metrics`).
 pub mod coref_metrics {
     pub use anno::metrics::coref_metrics::*;
 }

@@ -69,9 +69,7 @@ fn all_mention_spans_mode(chains: &[CorefChain], mode: SpanMode) -> HashSet<Span
 
 /// Filter out singleton chains (chains with exactly one mention).
 ///
-/// CRAC 2022-2025 shared tasks compute primary scores (B3, CEAF, LEA)
-/// without singletons. This function strips them from both predicted
-/// and gold chain sets before scoring.
+/// Apply independently to the predicted and gold chain sets before scoring.
 #[must_use]
 pub fn filter_singletons(chains: &[CorefChain]) -> Vec<CorefChain> {
     chains.iter().filter(|c| c.len() > 1).cloned().collect()
@@ -168,13 +166,25 @@ impl CorefEvaluation {
     /// ```
     #[must_use]
     pub fn compute(predicted: &[CorefChain], gold: &[CorefChain]) -> Self {
+        let mut counts = BlancCounts::default();
+        counts.add_document(predicted, gold);
+        Self::compute_with_blanc_counts(predicted, gold, &counts)
+    }
+
+    /// Compute the metric bundle with BLANC link counts accumulated per document.
+    /// Pass disjoint document offsets in the pooled chains for the other metrics.
+    #[must_use]
+    pub fn compute_with_blanc_counts(
+        predicted: &[CorefChain],
+        gold: &[CorefChain],
+        counts: &BlancCounts,
+    ) -> Self {
         let muc = CorefScores::from_tuple(muc_score(predicted, gold));
         let b_cubed = CorefScores::from_tuple(b_cubed_score(predicted, gold));
         let ceaf_e = CorefScores::from_tuple(ceaf_e_score(predicted, gold));
         let ceaf_m = CorefScores::from_tuple(ceaf_m_score(predicted, gold));
         let lea = CorefScores::from_tuple(lea_score(predicted, gold));
-        let blanc = CorefScores::from_tuple(blanc_score(predicted, gold));
-        let conll = conll_f1(predicted, gold);
+        let conll = (muc.f1 + b_cubed.f1 + ceaf_e.f1) / 3.0;
         let chain_stats = compute_chain_length_stratified(predicted, gold);
         let zero_anaphor = ZeroAnaphorEvaluation::compute(predicted, gold);
 
@@ -184,7 +194,7 @@ impl CorefEvaluation {
             ceaf_e,
             ceaf_m,
             lea,
-            blanc,
+            blanc: counts.scores(),
             conll_f1: conll,
             chain_stats: Some(chain_stats),
             zero_anaphor,
@@ -193,9 +203,9 @@ impl CorefEvaluation {
 
     /// Compute the full metric bundle with singletons excluded.
     ///
-    /// CRAC 2022-2025 shared tasks use this as the primary scoring mode:
-    /// chains with only one mention are removed from both predicted and
-    /// gold before computing B3, CEAF, LEA, and CoNLL scores.
+    /// This path matches full character spans. The [CRAC 2026 shared task](https://ufal.mff.cuni.cz/corefud/shared-task/2026)
+    /// ranks systems using head matching with singletons excluded. Use its
+    /// official scorer on the original CoNLL-U files for leaderboard comparisons.
     ///
     /// Scores typically differ from the singleton-included variant because
     /// singletons inflate B3 precision/recall when correctly matched but
@@ -901,7 +911,8 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// follow Luo et al. (2014), Sec. 4.1: a pair class is left out only when
 /// neither the key nor the response has a link of that class, and when
 /// neither side has any link the score is 1 if the mention sets are equal,
-/// else 0.
+/// else 0. The CoNLL reference Perl scorer v8.01 uses key-only boundary
+/// rules, so its scores differ when only the response contains a link class.
 ///
 /// Returns `(precision, recall, f1)`.
 ///
@@ -924,85 +935,112 @@ pub fn lea_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f6
 /// ```
 #[must_use]
 pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, f64) {
-    fn pair_sets(chains: &[CorefChain]) -> (HashSet<SpanPair>, HashSet<SpanPair>) {
-        let mentions: Vec<SpanId> = all_mention_spans_mode(chains, SpanMode::Full)
-            .into_iter()
-            .collect();
-        let mut all_pairs = HashSet::new();
-        for i in 0..mentions.len() {
-            for j in (i + 1)..mentions.len() {
-                let pair = if mentions[i] < mentions[j] {
-                    (mentions[i], mentions[j])
-                } else {
-                    (mentions[j], mentions[i])
-                };
-                all_pairs.insert(pair);
-            }
-        }
+    let mut counts = BlancCounts::default();
+    counts.add_document(predicted, gold);
+    let scores = counts.scores();
+    (scores.precision, scores.recall, scores.f1)
+}
 
-        let mut coref_pairs = HashSet::new();
-        for chain in chains {
-            for i in 0..chain.mentions.len() {
-                for j in (i + 1)..chain.mentions.len() {
-                    let left = chain.mentions[i].span_id();
-                    let right = chain.mentions[j].span_id();
-                    if left == right {
-                        continue;
+/// Corpus BLANC totals. Links are formed only between mentions in the same document.
+#[derive(Default)]
+pub struct BlancCounts {
+    coreferent: LinkCounts,
+    noncoreferent: LinkCounts,
+    different_mentions: bool,
+}
+
+#[derive(Default)]
+struct LinkCounts {
+    matched: u128,
+    predicted: u128,
+    gold: u128,
+}
+
+impl LinkCounts {
+    fn add(&mut self, matched: u128, predicted: u128, gold: u128) {
+        self.matched += matched;
+        self.predicted += predicted;
+        self.gold += gold;
+    }
+
+    fn scores(&self) -> Option<CorefScores> {
+        if self.predicted == 0 && self.gold == 0 {
+            return None;
+        }
+        Some(CorefScores::new(
+            self.matched as f64 / self.predicted.max(1) as f64,
+            self.matched as f64 / self.gold.max(1) as f64,
+        ))
+    }
+}
+
+impl BlancCounts {
+    /// Add one document using its original mention coordinates.
+    pub fn add_document(&mut self, predicted: &[CorefChain], gold: &[CorefChain]) {
+        fn coreferent_links(chains: &[CorefChain]) -> HashSet<SpanPair> {
+            let mut links = HashSet::new();
+            for chain in chains {
+                for (i, mention) in chain.mentions.iter().enumerate() {
+                    let left = mention.span_id();
+                    for other in &chain.mentions[i + 1..] {
+                        let right = other.span_id();
+                        if left != right {
+                            links.insert((left.min(right), left.max(right)));
+                        }
                     }
-                    let pair = if left < right {
-                        (left, right)
-                    } else {
-                        (right, left)
-                    };
-                    coref_pairs.insert(pair);
                 }
             }
+            links
         }
-        let non_coref_pairs = all_pairs.difference(&coref_pairs).copied().collect();
-        (coref_pairs, non_coref_pairs)
+
+        fn pair_count(mentions: usize) -> u128 {
+            mentions as u128 * mentions.saturating_sub(1) as u128 / 2
+        }
+
+        let proposed = all_mention_spans_mode(predicted, SpanMode::Full);
+        let key = all_mention_spans_mode(gold, SpanMode::Full);
+        let proposed_links = coreferent_links(predicted);
+        let key_links = coreferent_links(gold);
+        let matched = proposed_links.intersection(&key_links).count() as u128;
+        self.coreferent.add(
+            matched,
+            proposed_links.len() as u128,
+            key_links.len() as u128,
+        );
+
+        // A pair is correctly unlinked when both mentions occur on both sides
+        // and neither partition links them. Count the complement without storing it.
+        let shared_pairs = pair_count(proposed.intersection(&key).count());
+        let linked_on_either_side = proposed_links
+            .union(&key_links)
+            .filter(|(a, b)| {
+                proposed.contains(a) && proposed.contains(b) && key.contains(a) && key.contains(b)
+            })
+            .count() as u128;
+        self.noncoreferent.add(
+            shared_pairs - linked_on_either_side,
+            pair_count(proposed.len()) - proposed_links.len() as u128,
+            pair_count(key.len()) - key_links.len() as u128,
+        );
+        self.different_mentions |= proposed != key;
     }
 
-    fn class_score(predicted: &HashSet<SpanPair>, gold: &HashSet<SpanPair>) -> (f64, f64, f64) {
-        let true_positive = predicted.intersection(gold).count() as f64;
-        let precision = if predicted.is_empty() {
-            0.0
-        } else {
-            true_positive / predicted.len() as f64
-        };
-        let recall = if gold.is_empty() {
-            0.0
-        } else {
-            true_positive / gold.len() as f64
-        };
-        (precision, recall, prf1(precision, recall))
+    /// Score the accumulated classes using the same boundary conventions as a single document.
+    #[must_use]
+    pub fn scores(&self) -> CorefScores {
+        match (self.coreferent.scores(), self.noncoreferent.scores()) {
+            (Some(c), Some(n)) => CorefScores::from_tuple((
+                (c.precision + n.precision) / 2.0,
+                (c.recall + n.recall) / 2.0,
+                (c.f1 + n.f1) / 2.0,
+            )),
+            (Some(score), None) | (None, Some(score)) => score,
+            (None, None) => {
+                let equal = if self.different_mentions { 0.0 } else { 1.0 };
+                CorefScores::new(equal, equal)
+            }
+        }
     }
-
-    let (pred_coref, pred_non_coref) = pair_sets(predicted);
-    let (gold_coref, gold_non_coref) = pair_sets(gold);
-    let mut class_scores = Vec::with_capacity(2);
-
-    // Boundary cases (Luo et al. 2014, Sec. 4.1) are decided by key *and*
-    // response links: a class is dropped only when both sides lack it.
-    if !gold_coref.is_empty() || !pred_coref.is_empty() {
-        class_scores.push(class_score(&pred_coref, &gold_coref));
-    }
-    if !gold_non_coref.is_empty() || !pred_non_coref.is_empty() {
-        class_scores.push(class_score(&pred_non_coref, &gold_non_coref));
-    }
-    if class_scores.is_empty() {
-        // No links on either side: BLANC = I(M_k = M_r).
-        let same = all_mention_spans_mode(predicted, SpanMode::Full)
-            == all_mention_spans_mode(gold, SpanMode::Full);
-        let v = if same { 1.0 } else { 0.0 };
-        return (v, v, v);
-    }
-
-    let divisor = class_scores.len() as f64;
-    (
-        class_scores.iter().map(|(p, _, _)| p).sum::<f64>() / divisor,
-        class_scores.iter().map(|(_, r, _)| r).sum::<f64>() / divisor,
-        class_scores.iter().map(|(_, _, f1)| f1).sum::<f64>() / divisor,
-    )
 }
 
 // =============================================================================
@@ -1316,26 +1354,23 @@ impl AggregateCorefEvaluation {
 
         let n = evaluations.len() as f64;
 
-        let mean_muc_p = evaluations.iter().map(|e| e.muc.precision).sum::<f64>() / n;
-        let mean_muc_r = evaluations.iter().map(|e| e.muc.recall).sum::<f64>() / n;
-        let mean_b3_p = evaluations.iter().map(|e| e.b_cubed.precision).sum::<f64>() / n;
-        let mean_b3_r = evaluations.iter().map(|e| e.b_cubed.recall).sum::<f64>() / n;
-        let mean_ceafe_p = evaluations.iter().map(|e| e.ceaf_e.precision).sum::<f64>() / n;
-        let mean_ceafe_r = evaluations.iter().map(|e| e.ceaf_e.recall).sum::<f64>() / n;
-        let mean_ceafm_p = evaluations.iter().map(|e| e.ceaf_m.precision).sum::<f64>() / n;
-        let mean_ceafm_r = evaluations.iter().map(|e| e.ceaf_m.recall).sum::<f64>() / n;
-        let mean_lea_p = evaluations.iter().map(|e| e.lea.precision).sum::<f64>() / n;
-        let mean_lea_r = evaluations.iter().map(|e| e.lea.recall).sum::<f64>() / n;
-        let mean_blanc_p = evaluations.iter().map(|e| e.blanc.precision).sum::<f64>() / n;
-        let mean_blanc_r = evaluations.iter().map(|e| e.blanc.recall).sum::<f64>() / n;
+        let mean_scores = |metric: fn(&CorefEvaluation) -> &CorefScores| {
+            let mut sum = CorefScores::default();
+            for score in evaluations.iter().map(metric) {
+                sum.precision += score.precision;
+                sum.recall += score.recall;
+                sum.f1 += score.f1;
+            }
+            CorefScores::from_tuple((sum.precision / n, sum.recall / n, sum.f1 / n))
+        };
 
         let mean = CorefEvaluation {
-            muc: CorefScores::new(mean_muc_p, mean_muc_r),
-            b_cubed: CorefScores::new(mean_b3_p, mean_b3_r),
-            ceaf_e: CorefScores::new(mean_ceafe_p, mean_ceafe_r),
-            ceaf_m: CorefScores::new(mean_ceafm_p, mean_ceafm_r),
-            lea: CorefScores::new(mean_lea_p, mean_lea_r),
-            blanc: CorefScores::new(mean_blanc_p, mean_blanc_r),
+            muc: mean_scores(|e| &e.muc),
+            b_cubed: mean_scores(|e| &e.b_cubed),
+            ceaf_e: mean_scores(|e| &e.ceaf_e),
+            ceaf_m: mean_scores(|e| &e.ceaf_m),
+            lea: mean_scores(|e| &e.lea),
+            blanc: mean_scores(|e| &e.blanc),
             conll_f1: evaluations.iter().map(|e| e.conll_f1).sum::<f64>() / n,
             chain_stats: None,
             zero_anaphor: None,
@@ -2212,6 +2247,31 @@ mod tests {
     // =========================================================================
 
     #[test]
+    fn corpus_blanc_excludes_cross_document_negatives() {
+        let linked = chains(vec![vec![("a", 0, 1), ("b", 2, 3)], vec![("c", 4, 5)]]);
+        let split = chains(vec![
+            vec![("a", 0, 1)],
+            vec![("b", 2, 3)],
+            vec![("c", 4, 5)],
+        ]);
+        let mut counts = BlancCounts::default();
+        counts.add_document(&split, &linked);
+        counts.add_document(&linked, &linked);
+        // One correct positive out of one proposed and two gold;
+        // four correct negatives out of five proposed and four gold.
+        assert!(approx_eq(counts.scores().f1, 7.0 / 9.0));
+    }
+
+    #[test]
+    fn macro_f1_averages_document_scores() {
+        let linked = chains(vec![vec![("a", 0, 1), ("b", 2, 3), ("c", 4, 5)]]);
+        let partial = chains(vec![vec![("a", 0, 1), ("b", 2, 3)]]);
+        let aggregate =
+            AggregateCorefEvaluation::compute(&[(&linked, &partial), (&partial, &linked)]);
+        assert!(approx_eq(aggregate.mean.muc.f1, 2.0 / 3.0));
+    }
+
+    #[test]
     fn aggregate_multiple_documents() {
         let gold1 = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
         let pred1 = gold1.clone();
@@ -2551,7 +2611,7 @@ mod tests {
     }
 
     // =========================================================================
-    // 11. Singleton-excluded scoring (CRAC 2022-2025 primary mode)
+    // 11. Singleton-excluded full-span scoring
     // =========================================================================
 
     #[test]
