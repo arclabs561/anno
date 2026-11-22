@@ -753,6 +753,7 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                                     &document_pairs,
                                 );
 
+                            println!("{COREF_SCORING_POLICY}");
                             println!("Results (mean across documents):");
                             println!("  CoNLL F1: {:.3}", results.mean.conll_f1);
                             println!(
@@ -1714,6 +1715,10 @@ fn coref_doc_to_oracle_mentions(doc: &anno_eval::eval::coref::CorefDocument) -> 
 }
 
 #[cfg(feature = "eval")]
+const COREF_SCORING_POLICY: &str =
+    "Native CoNLL scoring matches exact character spans and retains supplied singleton chains.";
+
+#[cfg(feature = "eval")]
 #[allow(clippy::too_many_arguments)]
 fn write_coref_error_explorer_html(
     output_path: &Path,
@@ -1812,6 +1817,7 @@ iframe{width:100%;height:82vh;border:0;background:var(--bg)}
             "<div style=\"display:flex;justify-content:space-between;align-items:center\"><h1>coref doc {idx:06} — {}</h1><span class=\"toggle\" id=\"theme-toggle\" title=\"toggle theme (auto → dark → light)\">theme: auto</span></div>",
             html_escape(&doc_id)
         ));
+        page.push_str(&format!("<p>{COREF_SCORING_POLICY}</p>"));
         page.push_str(&format!(
             "<div class=\"meta\"><b>dataset</b> {} &nbsp; <b>model</b> {} &nbsp; <b>resolver</b> {} &nbsp; <b>CoNLL F1</b> {:.3} &nbsp; <b>MUC</b> {:.3} &nbsp; <b>B³</b> {:.3} &nbsp; <b>CEAF-e</b> {:.3}</div>",
             html_escape(dataset_name),
@@ -1920,6 +1926,9 @@ code{color:var(--code)}
 </style></head><body>"##,
     );
     index.push_str("<div class=\"row\" style=\"justify-content:space-between\"><h1>coref eval explorer</h1><span class=\"toggle\" id=\"theme-toggle\" title=\"toggle theme (auto → dark → light)\">theme: auto</span></div>");
+    index.push_str(&format!(
+        "<p>{COREF_SCORING_POLICY} Each row scores one document.</p>"
+    ));
     index.push_str(&format!(
         "<div class=\"meta\"><b>model</b> {} &nbsp; <b>resolver</b> {} &nbsp; <b>dataset</b> {} &nbsp; <b>docs</b> {}</div>",
         html_escape(model_name),

@@ -13,17 +13,25 @@ import tempfile
 
 SCORER_COMMIT = "4fd7b0e0c661aeeff88bc60c19ef507b84d1b590"
 MODES = {
-    "primary": ["-a", "head"],
-    "partial": ["-a", "partial"],
-    "exact": ["-a", "exact"],
-    "singletons": ["-a", "head", "--keep-singletons"],
+    "primary": ("head", False),
+    "partial": ("partial", False),
+    "exact": ("exact", False),
+    "singletons": ("head", True),
 }
 
 
 def score(root, key, response, mode, zero_match="dependent", capture=False):
+    match, keep_singletons = MODES[mode]
+    flags = ["-a", match, "-z", zero_match]
+    if keep_singletons:
+        flags.append("--keep-singletons")
+    if not capture:
+        singletons = "included" if keep_singletons else "excluded"
+        print(f"CorefUD {mode} mode on one dataset with {match} mention matching, "
+              f"singletons {singletons}, {zero_match} zero matching.", flush=True)
     return subprocess.run(
         [sys.executable, str(root / "corefud-scorer.py"), str(key), str(response),
-         *MODES[mode], "-z", zero_match, "-m", "muc", "bcub", "ceafe", "zero"],
+         *flags, "-m", "muc", "bcub", "ceafe", "zero"],
         check=True, text=True, stdout=subprocess.PIPE if capture else None,
     ).stdout
 

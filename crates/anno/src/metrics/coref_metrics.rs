@@ -208,26 +208,22 @@ impl CorefEvaluation {
     /// ranks systems using head matching with singletons excluded. Use its
     /// official scorer on the original CoNLL-U files for leaderboard comparisons.
     ///
-    /// Scores typically differ from the singleton-included variant because
-    /// singletons inflate B3 precision/recall when correctly matched but
-    /// contribute no signal to MUC (which already ignores them).
+    /// A singleton policy can move B³ and CEAF-e in opposite directions.
+    /// Here the response splits one gold cluster into a pair and a singleton.
     ///
     /// ```
     /// use anno::core::coref::{CorefChain, Mention};
     /// use anno::metrics::coref_metrics::CorefEvaluation;
     ///
-    /// let gold = vec![
-    ///     CorefChain::new(vec![
-    ///         Mention::new("John", 0, 4),
-    ///         Mention::new("he", 10, 12),
-    ///     ]),
-    ///     CorefChain::singleton(Mention::new("Paris", 20, 25)),
-    /// ];
-    /// let with = CorefEvaluation::compute(&gold, &gold);
-    /// let without = CorefEvaluation::compute_without_singletons(&gold, &gold);
-    /// // B3 F1 is 1.0 either way for identical input, but the chain_stats differ.
-    /// assert!(with.chain_stats.as_ref().unwrap().singleton_count == 1);
-    /// assert!(without.chain_stats.as_ref().unwrap().singleton_count == 0);
+    /// let a = Mention::new("A", 0, 1);
+    /// let b = Mention::new("B", 2, 3);
+    /// let c = Mention::new("C", 4, 5);
+    /// let gold = [CorefChain::new(vec![a.clone(), b.clone(), c.clone()])];
+    /// let response = [CorefChain::new(vec![a, b]), CorefChain::singleton(c)];
+    /// let kept = CorefEvaluation::compute(&response, &gold);
+    /// let excluded = CorefEvaluation::compute_without_singletons(&response, &gold);
+    /// assert!((kept.conll_f1 - (2.0 / 3.0 + 5.0 / 7.0 + 8.0 / 15.0) / 3.0).abs() < 1e-9);
+    /// assert!((excluded.conll_f1 - (2.0 / 3.0 + 8.0 / 13.0 + 4.0 / 5.0) / 3.0).abs() < 1e-9);
     /// ```
     #[must_use]
     pub fn compute_without_singletons(predicted: &[CorefChain], gold: &[CorefChain]) -> Self {
@@ -1048,7 +1044,7 @@ impl BlancCounts {
 // CoNLL F1
 // =============================================================================
 
-/// CoNLL F1: the official shared-task aggregate (Pradhan et al., 2012).
+/// CoNLL F1 for exact character-span mentions, retaining supplied singleton chains.
 ///
 /// ```text
 ///   CoNLL_F1 = (F1_MUC + F1_B3 + F1_CEAFe) / 3
