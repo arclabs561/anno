@@ -26,10 +26,33 @@ To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once.
 cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
 export ANNO_CACHE_DIR="$PWD/.generated/qa-cache"
 bash scripts/qa/prepare_matrix_wikigold.sh
-just qa-panel target/debug/anno smoke
+mkdir -p .generated/anno-qa
+OUT=$(mktemp -d "$PWD/.generated/anno-qa/fixed-panel.XXXXXXXX")
+just qa-panel target/debug/anno smoke "$OUT"
 ```
 
 Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence WikiGold-format CI fixture, the labeled WikiGold corpus, and a random Wikipedia page are three distinct sources.
+
+To investigate a result, pass the panel's printed output directory and the claim to the coordinator. This prints a local handoff with the observed cells, the independent review prompt, and a worked WikiGold example. Give the oracle reviewer only the source and contract so its expected answer remains independent.
+
+```sh
+just qa-round "$OUT" "Does removing spaces inside parentheses change organization boundaries?"
+```
+
+The same command accepts a matrix slot's receipt directory. Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
+
+### Check what a negative span means
+
+Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.
+
+```sh
+just qa-spans target/debug/anno stacked
+python3 scripts/qa/check_span_assertions.py --fixture cases.json --predictions batch.jsonl
+```
+
+The [diagnostic fixture](../scripts/qa/fixtures/typed-span-assertions.json) includes credentials, a delivery channel and organization initials. Its failures expose current backend behavior. Exit 0 means all assertions passed, 1 means at least one assertion failed, and 2 means the input or run was invalid. For a custom assertion type, pass its exact spelling with `--allow-type LABEL`. Other custom predictions still appear in the overlap report. Saved batch JSONL must include a per-document `source_sha256` matching the exact UTF-8 fixture text, including line endings. The report lists overlapping entities so a reviewer can inspect both boundaries and labels.
+
+For a change to a partially passing backend, add `--baseline-predictions old.jsonl` to the replay command. Both versions must match the same source revision. For an older CLI that omits the digest, capture a fresh baseline from the original binary with `python3 scripts/qa/check_span_assertions.py --fixture cases.json --binary /path/to/old/anno --model stacked --save-predictions old.jsonl`. Use a new output path. The checker saves valid predictions even when assertions fail. Older saved files without a source digest require a new run. In comparison mode exit 1 means a previously passing assertion was lost, even when the total improved. Unchanged failures remain visible in the report. The fixture includes the same string, `CPA`, as a credential and as the initials of Coastal Planning Authority. A blanket suppression can improve the credential count while losing the organization.
 
 ## What runs in GitHub Actions
 
@@ -55,3 +78,25 @@ anno dataset info --dataset WikiGold
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
 When a live run reveals a bug, preserve the original revision and rendering details, then reduce it to the smallest redistributable input that still fails. Put the expected behavior beside the test that consumes it. For a restricted source, use an independently authored reproducer or a permitted fetch recipe with a digest. Preserve the coordinate system of the original data, including whether source offsets address bytes, Unicode characters or token-reconstructed text. [Source and offset contract](CONTRACT.md)
+
+### Agency names in government publications
+
+Federal Register records provide an independent source of organization names.
+The following replay compares each issuing agency's metadata against its own
+document abstract. It scores exact, case-insensitive occurrences of multiword
+names, counts overlapping aliases once, and checks that every predicted span
+slices back to its reported text. The report gives the document and anchor
+denominators. Other mentions in the abstract have no gold labels, so this panel
+supports recall on those anchors only.
+
+```sh
+curl --fail --silent --show-error --get 'https://www.federalregister.gov/api/v1/documents.json' \
+  --data-urlencode 'conditions[publication_date][is]=2024-06-03' \
+  --data-urlencode 'per_page=1000' --data-urlencode 'order=document_number' -o /tmp/fr-june.json
+python3 scripts/qa/check_agency_spans.py target/debug/anno /tmp/fr-june.json
+```
+
+The June 3, 2024 issue yielded 53 anchors in 47 abstracts. A separate September 3,
+2024 issue yielded 50 in 44. Save each response and its reported SHA-256 for
+repeat comparisons. Use `--cases PATH` to inspect individual spans and look
+up the corresponding Federal Register document number.

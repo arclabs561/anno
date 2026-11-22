@@ -92,6 +92,8 @@ The `just check-feature-matrix` recipe sweeps the gating combinations that have 
 
 ## Testing
 
+For a disputed behavior, start with a [fixture or fixed panel](docs/QA.md). The [QA round](docs/ADVERSARIAL_QA.md) helps a reviewer challenge the expected result independently and carry a minimized regression into the PR.
+
 Choose a fixture, labeled dataset or live page using the [QA guide](docs/QA.md). It includes cache preparation, runnable commands and guidance for turning a field failure into a regression test.
 
 - `just check`: fmt + clippy + quick tests.

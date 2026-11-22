@@ -2827,27 +2827,7 @@ impl TaskEvaluator {
         // character base offset per document.
         let mut cumulative_char_base: usize = 0;
 
-        fn offset_chains(
-            mut chains: Vec<crate::eval::coref::CorefChain>,
-            base: usize,
-        ) -> Vec<crate::eval::coref::CorefChain> {
-            if base == 0 {
-                return chains;
-            }
-            for chain in &mut chains {
-                for m in &mut chain.mentions {
-                    m.start = m.start.saturating_add(base);
-                    m.end = m.end.saturating_add(base);
-                    if let Some(hs) = m.head_start.as_mut() {
-                        *hs = hs.saturating_add(base);
-                    }
-                    if let Some(he) = m.head_end.as_mut() {
-                        *he = he.saturating_add(base);
-                    }
-                }
-            }
-            chains
-        }
+        use super::coref::offset_chains;
 
         for doc in &gold_docs {
             let doc_base = cumulative_char_base;
@@ -4724,17 +4704,23 @@ mod tests {
         );
         assert!(
             result.provenance.policy_cohort_key.is_some(),
-            "candidate coverage must include a pre-load failure cohort"
+            "the failed attempt must remain attributable to its policy cohort"
         );
         assert!(matches!(
             result.provenance.runtime.scheduling,
             EvaluationScheduling::NotRun { .. }
         ));
-        let entries = evaluator
-            .history()
-            .expect("history initialized")
-            .load_all()
-            .expect("read persisted history");
+        let history = evaluator.history().expect("history initialized");
+        let cohort = result.provenance.policy_cohort_key.as_deref().unwrap();
+        assert!(history
+            .cell_observation_counts_for_policy_cohort(cohort)
+            .unwrap()
+            .is_empty());
+        assert!(history
+            .dataset_observation_counts_for_policy_cohort(cohort)
+            .unwrap()
+            .is_empty());
+        let entries = history.load_all().expect("read persisted history");
         assert!(entries.iter().any(|entry| {
             entry.muxer_run_id.as_deref() == Some("missing-cache-muxer-run")
                 && entry.observation_id.as_deref() == Some(observation_id)

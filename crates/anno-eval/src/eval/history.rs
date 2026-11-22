@@ -105,6 +105,12 @@ pub struct EvalHistoryEntry {
     pub policy_cohort_key: Option<String>,
 }
 
+impl EvalHistoryEntry {
+    fn counts_toward_coverage(&self) -> bool {
+        self.n > 0 && self.error.is_none()
+    }
+}
+
 /// On-disk JSONL representation of an evaluation entry.
 ///
 /// Git provenance belongs to the observation, rather than the SQLite index: the index can be
@@ -980,7 +986,7 @@ impl EvalHistory {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
                 let mut stmt = conn
                     .prepare(
-                        "SELECT backend, dataset, COUNT(*) FROM eval_results GROUP BY backend, dataset",
+                        "SELECT backend, dataset, COUNT(*) FROM eval_results WHERE error IS NULL AND n > 0 GROUP BY backend, dataset",
                     )
                     .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
@@ -1001,7 +1007,10 @@ impl EvalHistory {
         // Fallback: scan JSONL
         let entries = self.load_all()?;
         let mut counts = HashMap::new();
-        for e in entries {
+        for e in entries
+            .into_iter()
+            .filter(EvalHistoryEntry::counts_toward_coverage)
+        {
             *counts
                 .entry((e.backend.clone(), e.dataset.clone()))
                 .or_insert(0u64) += 1;
@@ -1009,8 +1018,8 @@ impl EvalHistory {
         Ok(counts)
     }
 
-    /// Count all evaluation receipts in one pre-selection policy cohort, including
-    /// skipped evaluations and failures before backend execution.
+    /// Count completed evaluations with at least one example in one policy cohort.
+    /// A task-specific score can contribute coverage even without a primary F1.
     ///
     /// Legacy receipts and records without a matching cohort are intentionally
     /// excluded. The cohort holds task/dataset/sampling/scoring controls fixed,
@@ -1024,7 +1033,7 @@ impl EvalHistory {
                 let mut stmt = conn
                     .prepare(
                         "SELECT backend, dataset, COUNT(*) FROM eval_results \
-                         WHERE policy_cohort_key = ?1 GROUP BY backend, dataset",
+                         WHERE policy_cohort_key = ?1 AND error IS NULL AND n > 0 GROUP BY backend, dataset",
                     )
                     .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
@@ -1046,7 +1055,9 @@ impl EvalHistory {
 
         let mut counts = HashMap::new();
         for entry in self.load_all()? {
-            if entry.policy_cohort_key.as_deref() == Some(policy_cohort_key) {
+            if entry.counts_toward_coverage()
+                && entry.policy_cohort_key.as_deref() == Some(policy_cohort_key)
+            {
                 *counts.entry((entry.backend, entry.dataset)).or_insert(0) += 1;
             }
         }
@@ -1060,7 +1071,7 @@ impl EvalHistory {
         if let Some(ref db_path) = self.sqlite_path {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
                 let mut stmt = conn
-                    .prepare("SELECT dataset, COUNT(*) FROM eval_results GROUP BY dataset")
+                    .prepare("SELECT dataset, COUNT(*) FROM eval_results WHERE error IS NULL AND n > 0 GROUP BY dataset")
                     .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
                 let rows = stmt
@@ -1078,7 +1089,10 @@ impl EvalHistory {
         }
         let entries = self.load_all()?;
         let mut counts = HashMap::new();
-        for e in entries {
+        for e in entries
+            .into_iter()
+            .filter(EvalHistoryEntry::counts_toward_coverage)
+        {
             *counts.entry(e.dataset.clone()).or_insert(0u64) += 1;
         }
         Ok(counts)
@@ -1094,7 +1108,7 @@ impl EvalHistory {
                 let mut stmt = conn
                     .prepare(
                         "SELECT dataset, COUNT(*) FROM eval_results \
-                         WHERE policy_cohort_key = ?1 GROUP BY dataset",
+                         WHERE policy_cohort_key = ?1 AND error IS NULL AND n > 0 GROUP BY dataset",
                     )
                     .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
@@ -1111,7 +1125,9 @@ impl EvalHistory {
         }
         let mut counts = HashMap::new();
         for entry in self.load_all()? {
-            if entry.policy_cohort_key.as_deref() == Some(policy_cohort_key) {
+            if entry.counts_toward_coverage()
+                && entry.policy_cohort_key.as_deref() == Some(policy_cohort_key)
+            {
                 *counts.entry(entry.dataset).or_insert(0) += 1;
             }
         }
@@ -1123,7 +1139,7 @@ impl EvalHistory {
         if let Some(ref db_path) = self.sqlite_path {
             if let Ok(conn) = rusqlite::Connection::open(db_path) {
                 let mut stmt = conn
-                    .prepare("SELECT backend, COUNT(*) FROM eval_results GROUP BY backend")
+                    .prepare("SELECT backend, COUNT(*) FROM eval_results WHERE error IS NULL AND n > 0 GROUP BY backend")
                     .map_err(|e| std::io::Error::other(e.to_string()))?;
                 let mut counts = HashMap::new();
                 let rows = stmt
@@ -1141,7 +1157,10 @@ impl EvalHistory {
         }
         let entries = self.load_all()?;
         let mut counts = HashMap::new();
-        for e in entries {
+        for e in entries
+            .into_iter()
+            .filter(EvalHistoryEntry::counts_toward_coverage)
+        {
             *counts.entry(e.backend.clone()).or_insert(0u64) += 1;
         }
         Ok(counts)
@@ -1787,13 +1806,49 @@ mod tests {
         history.append_entry(&other).expect("append other");
         history.append_entry(&legacy).expect("append legacy");
 
-        let counts = history
-            .cell_observation_counts_for_policy_cohort("cohort-a")
-            .expect("query cohort counts");
-        assert_eq!(
-            counts.get(&("test-backend".to_string(), "test-dataset".to_string())),
-            Some(&1),
-        );
+        let mut task_specific = matching.clone();
+        task_specific.f1 = None;
+        let mut empty = matching.clone();
+        empty.n = 0;
+        let mut failed = matching.clone();
+        failed.error = Some("backend failed after selecting examples".into());
+        for entry in [&task_specific, &empty, &failed] {
+            history.append_entry(entry).unwrap();
+        }
+
+        let jsonl = EvalHistory {
+            jsonl_path: history.jsonl_path.clone(),
+            sqlite_path: None,
+        };
+        let cell = (matching.backend.clone(), matching.dataset.clone());
+        for store in [&history, &jsonl] {
+            let by_cell = store
+                .cell_observation_counts_for_policy_cohort("cohort-a")
+                .unwrap();
+            let by_dataset = store
+                .dataset_observation_counts_for_policy_cohort("cohort-a")
+                .unwrap();
+            assert_eq!(by_cell.get(&cell), Some(&2));
+            assert_eq!(by_dataset.get(&matching.dataset), Some(&2));
+            assert_eq!(
+                store.cell_observation_counts().unwrap().get(&cell),
+                Some(&4)
+            );
+            assert_eq!(
+                store
+                    .dataset_observation_counts()
+                    .unwrap()
+                    .get(&matching.dataset),
+                Some(&4)
+            );
+            assert_eq!(
+                store
+                    .backend_observation_counts()
+                    .unwrap()
+                    .get(&matching.backend),
+                Some(&4)
+            );
+        }
 
         let loaded = history.load_all().expect("load JSONL");
         assert_eq!(loaded[0].observation_id.as_deref(), Some("run-a|one"));

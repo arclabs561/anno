@@ -104,6 +104,21 @@ Offsets count Unicode scalar values in the original text, with an exclusive end.
 
 Providing this sidecar selects a speaker-only resolver. General name and third-person chains from the ordinary resolver are omitted. The resolver records `speaker-turns` in `coref_backend` and uses document-local speaker IDs as track names. It groups English `I`, `me`, `my`, `mine`, and `myself` when at least two mentions belong to one speaker. A missing turn language defaults to English. Turns bearing quotation marks and turns marked with another language are skipped. The resolver leaves second-person references unresolved. Its output depends on the accuracy of the supplied speaker annotations.
 
+## CoNLL BIO export
+
+`anno export --format conll` and `anno::export::to_conll` split the source at
+contiguous mention boundaries. The CLI rejects discontinuous mentions and
+supports brat output for preserving their separate segments. For example, a pair of parentheses around an email address
+gets separate `O` rows, and the address gets a `B-EMAIL` row. BIO carries one
+label per token. When mentions overlap, the exporter keeps the earliest
+starting mention, preferring the longer span for a tied start.
+
+These rows depend on the supplied mentions. For evaluation on a pretokenized
+corpus, align predictions to the corpus's token rows and sentence boundaries
+before scoring. The shared-task definition assigns `B` to the first word of
+each entity and `I` to its remaining words.
+[CoNLL-2002 shared task, section 2](https://aclanthology.org/W02-2024.pdf)
+
 ## Evaluation (two layers)
 
 `anno` has two eval layers with very different runtimes:

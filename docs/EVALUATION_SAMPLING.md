@@ -201,13 +201,22 @@ coverage state between slots within a policy. Comparing discovery at the same
 budget measures triage. Estimating overall quality requires a separate random
 sample or an independently scored complete panel.
 
+After a slot, use its receipts to decide which behavior to challenge. For example:
+
+```sh
+just qa-round .generated/mixed/slot-2 "Does this backend preserve the source occurrence after a name repeats?"
+```
+
+The handoff labels plan-only selections, incomplete runs, and strategy mismatches. The coordinator can use those to investigate execution. Only native evaluator outcomes supply quality evidence. Keep agent hypotheses in the round report and let completed evaluations update muxer history.
+
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
-eligible fixed-panel cells have the fewest recorded evaluation receipts. The
-implementation sums each backend's receipts across the selected datasets and
-chooses the lowest total. Skips, dataset preflight failures, and successful
-unscored runs all count. To measure scored coverage, count successful receipts
+eligible fixed-panel cells have the fewest completed evaluations. The
+implementation counts runs that evaluated at least one example without an error,
+sums each backend's counts across the selected datasets, and chooses the lowest
+total. Tasks with their own metrics can contribute coverage without a primary
+F1. The evaluation history also retains skipped and failed attempts for triage. To measure scored coverage, count successful receipts
 with a finite primary F1. Counts are scoped to a recorded policy cohort: task,
 dataset, example cap, cache policy, enabled evaluator features, and the
 primary-score contract. Seed remains in each receipt but does not split coverage

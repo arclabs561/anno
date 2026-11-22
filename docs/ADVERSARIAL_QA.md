@@ -1,0 +1,46 @@
+# Run an adversarial QA round for Anno
+
+Use a round when a result could change what a maintainer ships, reverts, or measures next. Start with the user's operation and the evidence already available. A green panel can motivate a challenge just as readily as a failed cell.
+
+## Coordinator prompt
+
+> At the baseline revision, identify one user-visible claim and the decision that depends on it. Read the starting receipt. State two plausible explanations for the observation, the smallest test on which they predict different outcomes, and what result would change your mind.
+>
+> Choose the job for this round. **Verify** a recurring failure using triage history. **Explore** an under-observed part of a compatible panel using coverage. **Discriminate** between explanations using a paired experiment on the same inputs. These are assignments for the coordinator. The existing sampler modes select cells; the coordinator chooses the claim to test inside a cell.
+>
+> Give the scout the public API or CLI, a time or example budget, and one starting case. Search a pinned source, use corpus labels, or apply a seeded transformation. Look for a boundary between two correct behaviors. Give the oracle reviewer only the inputs, units and contract. Have them record expected output independently of the implementation. Ask the skeptic for a legitimate neighboring case a repair might break, and reserve a different document or transformation family before exposing any result to the repair agent.
+>
+> Bring the three agents together over one disagreement. Ask each for the replay that would settle it. If the gold is ambiguous, record the ambiguity. If a failure reproduces, give the repair agent the minimized case and visible controls. Have the reviewer run both revisions on identical inputs and then reveal the reserved cases. Retire any exposed holdout from future blind rounds.
+>
+> Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
+
+## Assign a reviewer and account for the run
+
+Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
+
+For each actual agent call record the role, invocation tool, prompt or its digest, permitted evidence, revision, and available model and usage metadata. For each replay record its command, wall time, output and revision. Mark unavailable token usage or elapsed time as unknown. Use matched runner and model budgets when estimating cost effectiveness. Select an exact mention or a protected source range explicitly before replay. [Span assertion examples](QA.md#check-what-a-negative-span-means)
+
+## From a panel to a decision
+
+The fixed WikiGold panel can stay green even if organization boundaries fail around punctuation. Two explanations are that the backend mishandles aliases generally or that token spacing masks the bug. Keep the ordinary corpus as the control. Have the scout remove only the spaces immediately inside parentheses and have the reviewer remap the gold offsets to the transformed text. Run both versions on both renderings.
+
+On 1,696 WikiGold sentences the ordinary rendering produced identical predictions. On the transformed rendering the candidate removed 17 incorrectly merged organizations, recovered 30 exact gold organizations and introduced three false positives. The next triage question is what distinguishes those three false positives from genuine aliases. A separate coverage slot can sample a new document family while the skeptic investigates them. Keep synthetic transformations identifiable in the receipt.
+
+For a policy comparison, give the seeded random control the same candidate set, starting history and budget. For a historical blind replay, give the scout a pre-fix revision, withhold the patch and its tests, and count distinct rediscovered failures per runner-minute. Use a fresh case when the agent has already seen the public fix.
+
+## Choose a challenge that fits the claim
+
+| Target | Scout's challenge | Oracle and skeptic |
+|---|---|---|
+| Offsets and interchange | Prepend an emoji, repeat the same name twice, change LF to CRLF, or insert a gap in a mention. | Slice the original text in the format's specified units. A same-looking mention at a different occurrence must fail. |
+| Organization boundaries | Sample filings, contracts or research affiliations containing parenthesized names. Vary surrounding punctuation. | Use annotated spans or independently supplied names. Preserve a legal name such as `Acme (UK) Ltd` and distinguish a separate alias. Score only anchors the source actually labels. |
+| Coreference and scoring | Move the same predicted mentions from their gold document into a second document with identical local offsets. | Compare with the reference scorer. Moving the prediction should eliminate credit. Permuting document order should preserve the score. |
+| Matrix coverage | Remove a cached dataset before one run, restore it for the next, then repeat with a measured zero F1. | Inspect actual evaluator outcomes. A preflight failure belongs in triage history. A successful nonempty run with zero F1 counts as an evaluation. |
+
+## Route the result
+
+- **Pull requests** run the deterministic regression and its near-neighbor offline. Property tests cover the surrounding invariant. A small mutation check can show whether the regression catches the old behavior.
+- **Scheduled or opt-in research** runs rotating public sources, larger seeded campaigns and model comparisons. Save the resolved input, retrieval outcome and content hash before comparing backends. Review material from the web as data.
+- **Muxer** can spend a triage slot on a previously broken cell and a coverage slot on a different compatible cell. Keep a fixed panel for comparisons and a seeded random control for policy experiments. Feed it measured execution outcomes. Keep retrieval failures and disputed annotations distinct from model errors.
+
+Record the baseline and candidate separately even when their outputs match. A count such as “3 gained, 0 lost across 175 anchors in 92 contracts” lets the next reviewer audit a claim; whole-document precision requires labels for the other mentions too. [Fixtures and dataset commands](QA.md) · [Muxer modes](EVALUATION_SAMPLING.md)
