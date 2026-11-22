@@ -106,6 +106,12 @@ Muxer 0.5.3 is enabled for evaluation with `serde`, `stochastic`, and
 and policy helpers. It does not need every muxer policy or feature: extra knobs
 make a small matrix harder to interpret.
 
+For a prospective comparison, record the adaptive and random first picks before
+running every cell on a small fixed panel. Score both picks against that same
+panel. Count newly observed backend failures separately from repeat dataset
+and I/O failures. A run that measures only its chosen cell cannot tell whether
+the other policy would have found a failure sooner.
+
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
@@ -125,6 +131,15 @@ regression probability. Keep the dataset panel fixed and inspect the resulting
 receipt before treating missing cells as the next work item. Coverage decisions
 now record each candidate's count and deterministic tie-break selection; each
 outcome carries the same opaque observation ID as its evaluation-history row.
+
+In worst-first mode, comparable unresolved failures have priority. When none is
+eligible, one quarter of stable seed buckets also consider cells with at least
+two recovered episodes of the same kind in the retained window. An unscored
+completion can close an execution failure. Only a scored measurement can close
+a low-F1 episode. For recovered cells the draw weight is the configured
+hard/soft weight times `episodes / (relevant attempts + 4)`.
+The decision records the reason, number of recovered episodes and latest
+supporting failure ID. Other buckets use the usual worst-first exploration.
 
 ## Interpreting receipts
 

@@ -65,12 +65,14 @@ class CoverageTest(unittest.TestCase):
         decision = {"strategy": "worst-first", "chosen": "heuristic", "slice": "ner",
                     "run_id": "run", "datasets": ["WikiGold"], "explore_first": False,
                     "top_candidates": {"rows": [{"arm": "heuristic", "calls": 2}]}}
-        decision["worst_first_round"] = {"retry": {"observation_id": "prior", "risk": 0.25, "observations": 4}}
+        decision["worst_first_round"] = {"retry": {"observation_id": "prior", "reason": "recurrent_after_recovery", "risk": 0.25, "observations": 4}}
         wrong = dict(outcome("ner", "worst-first"), backend="crf", dataset="WikiGold", run_id="run")
-        matching = dict(wrong, backend="heuristic", hard_junk=True)
+        matching = dict(wrong, backend="heuristic", hard_junk=True, fail_kind="io")
         for rows, result in (([decision, wrong], "no outcome"), ([decision, wrong, matching], "hard failure")):
             output = io.StringIO()
             with redirect_stdout(output), redirect_stderr(io.StringIO()):
                 check(map(json.dumps, rows), report=True)
+            if matching in rows:
+                self.assertIn("Hard failures by recorded kind: io 1", output.getvalue())
             self.assertIn("Retry evidence: prior (risk weight 0.250 over 4 observations)", output.getvalue())
-            self.assertIn(f"heuristic (ranked, prior calls 2) — {result}", output.getvalue())
+            self.assertIn(f"heuristic (repeated failures after recovery, prior calls 2) — {result}", output.getvalue())

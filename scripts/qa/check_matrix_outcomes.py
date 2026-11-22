@@ -63,6 +63,7 @@ def check(lines, report=False):
     attempts = Counter()
     completions = Counter()
     failures = Counter()
+    failure_kinds = Counter()
     decisions = []
     observed = {}
     for lane, row in outcomes(lines, decisions):
@@ -71,6 +72,7 @@ def check(lines, report=False):
             observed[(row.get("run_id"), row.get("backend"), row.get("dataset"))] = row
         if row["hard_junk"]:
             failures[lane] += 1
+            failure_kinds[row.get("fail_kind") or "unknown"] += 1
         elif row["cost_units"] > 0:
             completions[lane] += 1
 
@@ -81,6 +83,10 @@ def check(lines, report=False):
         label = lane if attempts[lane] else f"{lane} (no outcome)"
         print(f"| {label} | {completions[lane]} | {failures[lane]} | {empty} |")
 
+    if failure_kinds:
+        print("Hard failures by recorded kind: " + ", ".join(
+            f"{kind} {count}" for kind, count in sorted(failure_kinds.items())))
+
     if decisions:
         first = decisions[0]
         backend = first["chosen"]
@@ -90,6 +96,8 @@ def check(lines, report=False):
         reason = "exploration" if first.get("explore_first") else "ranked"
         retry = (first.get("worst_first_round") or {}).get("retry")
         if retry:
+            reason = {"outstanding_failure": "unresolved failure",
+                      "recurrent_after_recovery": "repeated failures after recovery"}.get(retry.get("reason"), "ranked")
             print(f"Retry evidence: {retry['observation_id']} "
                   f"(risk weight {retry['risk']:.3f} over {retry['observations']} observations).")
         for dataset in first.get("datasets", []):
