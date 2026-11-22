@@ -141,7 +141,12 @@ runtime validation requires the corresponding hardware and drivers.
 
 DirectML sessions disable memory patterns and use sequential execution, as
 required by the [DirectML provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html).
-Real-model placement on Windows remains unverified.
+The DirectML registration fallback workflow loads a pinned Windows CPU runtime,
+checks 81 known logits from a synthetic ONNX fixture, then requests DirectML
+through the same Anno API. The job fails if that request silently returns a CPU
+session. Each run retains its runtime build, file hashes and registration result.
+Representative DirectML placement still needs a hardware-backed DX12 run.
+See [the hosted probe](../.github/workflows/directml-fallback.yml).
 
 On Windows with Cargo 1.100, set `__CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT=1`
 for the DirectML build. The pinned `ort-sys` 2.0.0-rc.12 copies `DirectML.dll`
