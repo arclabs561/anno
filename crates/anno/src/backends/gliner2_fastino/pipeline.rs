@@ -525,7 +525,7 @@ pub(crate) fn decode_entities(
 /// `// TODO(Phase 2.5)` markers below for where they'd specialize.
 ///
 /// Threshold semantics: a (instance, field) candidate is dropped only if
-/// its best score is `<= threshold`. An instance with all fields dropped
+/// its best score is below `threshold`. An instance with all fields dropped
 /// becomes an empty `fields` map; the caller decides whether to keep
 /// such instances (this fn keeps them — see `extract_structure` for the
 /// emptiness filter).

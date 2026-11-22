@@ -291,9 +291,12 @@ impl SchemaTransformer {
         let text_start_idx = combined_tokens.len();
 
         let mut word_to_char_maps = Vec::new();
+        // The model may include an appended period. A span ending there
+        // should stop at the last source token, before trailing whitespace.
+        let source_end = text.trim_end().len();
         for (w, start_char, end_char) in &words_with_offsets {
             combined_tokens.push(*w);
-            word_to_char_maps.push(((*start_char).min(text.len()), (*end_char).min(text.len())));
+            word_to_char_maps.push(((*start_char).min(source_end), (*end_char).min(source_end)));
         }
         let text_end_idx = combined_tokens.len();
 
@@ -440,7 +443,7 @@ mod transformer_tests {
         let tok = stub();
         let xfm = SchemaTransformer::new(tok).unwrap();
         let task = SchemaTask::Entities(vec![]);
-        let rec = xfm.transform("Acme Corp", &[task]).unwrap();
+        let rec = xfm.transform("Acme Corp \t", &[task]).unwrap();
         let ids = &rec.input_ids;
 
         // No [E] markers when labels is empty
