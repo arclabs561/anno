@@ -823,14 +823,14 @@ jobs:
   eval-full:
     name: Eval Full (all combinations)
     runs-on: ubuntu-latest
-    if: |
-      startsWith(github.ref, 'refs/heads/eval-') ||
-      github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' &&
+      !startsWith(github.ref, 'refs/heads/eval-')
     timeout-minutes: 120
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-full-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -892,6 +892,20 @@ jobs:
         with:
           name: eval-full-report
           path: eval-full-report.md
+  eval-full-trusted:
+    name: Eval Full (all combinations) (trusted branch)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request' &&
+      (startsWith(github.ref, 'refs/heads/eval-') ||
+       (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')))
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-full-steps
+
   # ==========================================================================
   # Security audit
   # ==========================================================================
