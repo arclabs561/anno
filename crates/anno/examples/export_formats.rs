@@ -6,18 +6,18 @@
 /// cargo run -p anno --no-default-features --example export_formats
 /// ```
 ///
-/// Example output:
+/// Example output with tab-separated fields shown as columns.
 ///
 /// ```text
 /// === brat ===
-/// T1	PER 0 11	Lynn Conway
-/// T2	ORG 22 25	IBM
+/// T1    PER 0 11    Lynn Conway
+/// T2    ORG 22 25    IBM
 /// ...
 ///
 /// === CoNLL ===
-/// Lynn	B-PER
-/// Conway	I-PER
-/// worked	O
+/// Lynn    B-PER
+/// Conway    I-PER
+/// worked    O
 /// ...
 ///
 /// === JSONL ===
