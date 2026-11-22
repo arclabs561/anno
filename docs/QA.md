@@ -31,6 +31,18 @@ just qa-panel target/debug/anno smoke
 
 Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence WikiGold-format CI fixture, the labeled WikiGold corpus, and a random Wikipedia page are three distinct sources.
 
+## What runs in GitHub Actions
+
+The required Ubuntu CLI integration job runs against local fixtures, including public-source excerpts. The additional eval-feature job exercises the loopback HTTP cases. The Python QA job tests the harness itself with fixed inputs. A separate path-filtered benchmark fetches checksum-pinned WikiGold and records corpus scores. The full 457-date NASA replay is an explicit command. Fuzzing is available locally, and a maintainer can launch the bounded mutation job from a matching branch. [CI workflow](../.github/workflows/ci.yml) · [WikiGold benchmark](../.github/workflows/bench-extraction.yml) · [Fuzz target](../fuzz/README.md)
+
+For discovery across publishers, choose an eval-enabled CLI and a bounded number of pages:
+
+```sh
+ANNO=target/debug/anno python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed 42 --backends pattern
+```
+
+The seed reproduces the choice among unchanged candidates. Publishers can change a page, redirect a URL or stop responding. Compare backend outputs only when their rendered source hashes agree. Scheduled or manually dispatched live QA keeps the reports when some pages fail. The standard contributor path uses local inputs.
+
 ## Find a dataset or add a case
 
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).

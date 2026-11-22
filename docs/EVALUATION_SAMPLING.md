@@ -165,6 +165,8 @@ A repeated-infrastructure retry records both observation IDs and the failure kin
 
 A test cell identifies a task, dataset and backend under a comparable evaluation configuration. The selection policy uses observations from earlier attempts to allocate a bounded test budget. The library also supports multi-arm routing, contextual selection, change monitoring and triage. Anno uses particular pieces of [muxer 0.5.3](https://docs.rs/muxer/0.5.3/muxer/) for evaluation. Production model selection remains with the caller.
 
+Anno wires EXP3-IX, an alternative MAB selector, and LinUCB into its ML-only sampling path. It uses bounded history windows, outcome and cost summaries, and optional drift monitors. The library also offers Thompson sampling, sticky routing, a stateful Router with snapshots, and a triage session. These have no active Anno selection path. Enabling more policies would divide an already small observation budget. The [locked muxer API](https://docs.rs/muxer/0.5.3/muxer/) and [Anno integration](../crates/anno-eval/src/matrix_muxer_ci.rs) show the distinction.
+
 | Question | Appropriate comparison |
 | --- | --- |
 | Which checks find regressions sooner? | Compare first discovery and unique failures at equal runner-minute budgets. Record time spent fetching data separately from backend execution. Historical duration, time since the last execution, and previous outcomes are useful test-prioritization inputs. [Spieker et al.](https://dl.acm.org/doi/10.1145/3092703.3092709) |
