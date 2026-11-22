@@ -323,25 +323,11 @@ pub struct NerEvalSummary {
 ///
 /// Implements SemEval-2013 Task 9.1 evaluation methodology.
 ///
-/// # Boundary Error Handling
+/// Exact matches take precedence over partial overlaps. Within each match
+/// priority we choose a maximum-cardinality assignment in canonical span order.
+/// Each gold span and prediction contributes to at most one pair.
 ///
-/// This implementation uses **greedy matching** to assign predictions to gold entities:
-/// - Each gold entity is matched to at most one prediction (best match by priority)
-/// - Each prediction is matched to at most one gold entity
-/// - Boundary errors (overlapping but inexact spans) are counted as **one incorrect match**
-///   - The unmatched gold becomes a false negative (FN)
-///   - The unmatched prediction becomes a false positive (FP)
-///
-/// **Note**: This is NOT the double-penalty issue described in AIDA-CoNLL (D13-1027).
-/// The double-penalty occurs when boundary errors are counted as both FP and FN for the
-/// same entity pair. Our greedy matching avoids this by ensuring each entity is only
-/// counted once.
-///
-/// However, boundary errors still result in two errors total (one incorrect match + one FN + one FP),
-/// which is more than a complete miss (one FN). This is intentional and reflects that
-/// boundary errors are more problematic than complete misses in many applications.
-///
-/// # Example
+////// # Example
 ///
 /// ```
 /// use anno_eval::eval::ner_metrics::{evaluate_ner, EvalSpan};
@@ -368,24 +354,40 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
     // Track which predictions have been matched
     let mut matched_preds: Vec<bool> = vec![false; predicted.len()];
 
-    // Assign pairs best match first across all gold spans, so an exact match is
-    // never taken by an earlier gold span that only overlaps the prediction
-    // (as in nervaluate). Ties keep gold order, then prediction order.
-    let mut candidates: Vec<(usize, usize, MatchType)> = Vec::new();
-    for (gold_idx, gold_span) in gold.iter().enumerate() {
-        for (pred_idx, pred_span) in predicted.iter().enumerate() {
-            let match_type = classify_match(gold_span, pred_span);
-            if match_type != MatchType::None {
-                candidates.push((gold_idx, pred_idx, match_type));
-            }
-        }
+    // Stable span order also fixes which equally good assignment is frozen
+    // before the next priority is considered.
+    fn canonical_order(spans: &[EvalSpan]) -> Vec<usize> {
+        let mut indices: Vec<_> = (0..spans.len()).collect();
+        indices.sort_by_cached_key(|&i| (spans[i].start, spans[i].end, spans[i].type_key()));
+        indices
     }
-    candidates.sort_by_key(|&(_, _, m)| std::cmp::Reverse(m.priority()));
-    let mut gold_match: Vec<Option<(usize, MatchType)>> = vec![None; gold.len()];
-    for (gold_idx, pred_idx, match_type) in candidates {
-        if gold_match[gold_idx].is_none() && !matched_preds[pred_idx] {
-            gold_match[gold_idx] = Some((pred_idx, match_type));
-            matched_preds[pred_idx] = true;
+    let gold_order = canonical_order(gold);
+    let pred_order = canonical_order(predicted);
+    let mut gold_match = vec![None; gold.len()];
+    for tier in [
+        MatchType::ExactBoth,
+        MatchType::ExactBoundaryWrongType,
+        MatchType::PartialBoundaryCorrectType,
+        MatchType::PartialBoundaryWrongType,
+    ] {
+        let gs: Vec<_> = gold_order
+            .iter()
+            .copied()
+            .filter(|&g| gold_match[g].is_none())
+            .collect();
+        let ps: Vec<_> = pred_order
+            .iter()
+            .copied()
+            .filter(|&p| !matched_preds[p])
+            .collect();
+        let pairs = super::matching::maximum_cardinality_matching(ps.len(), gs.len(), |p, g| {
+            classify_match(&gold[gs[g]], &predicted[ps[p]]) == tier
+        });
+        for (p, g) in pairs.into_iter().enumerate() {
+            if let Some(g) = g {
+                gold_match[gs[g]] = Some((ps[p], tier));
+                matched_preds[ps[p]] = true;
+            }
         }
     }
 
@@ -455,19 +457,6 @@ enum MatchType {
     ExactBoundaryWrongType,
     /// Exact boundary AND type match
     ExactBoth,
-}
-
-impl MatchType {
-    /// Priority for selecting best match (higher = better).
-    fn priority(self) -> u8 {
-        match self {
-            MatchType::None => 0,
-            MatchType::PartialBoundaryWrongType => 1,
-            MatchType::PartialBoundaryCorrectType => 2,
-            MatchType::ExactBoundaryWrongType => 3,
-            MatchType::ExactBoth => 4,
-        }
-    }
 }
 
 /// Classify the match type between gold and predicted spans.
@@ -746,5 +735,22 @@ mod tests {
         assert_eq!((org.spurious, org.possible(), org.actual()), (1, 0, 1));
         assert_eq!(results.by_type["Location"].correct, 1);
         assert_eq!(results.strict.incorrect, 1);
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn overlapping_entities_score_the_same_in_every_order() {
+    let person = |a, b| EvalSpan::new(EntityType::Person, a, b, "x");
+    let mut gold = vec![person(0, 4), person(5, 9)];
+    let mut pred = vec![person(2, 7), person(0, 2)];
+    for _ in 0..2 {
+        for _ in 0..2 {
+            let scores = evaluate_ner(&gold, &pred);
+            assert_eq!(scores.partial.partial, 2);
+            assert_eq!(scores.ent_type.correct, 2);
+            pred.reverse();
+        }
+        gold.reverse();
     }
 }

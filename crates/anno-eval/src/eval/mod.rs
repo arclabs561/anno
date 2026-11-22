@@ -287,6 +287,7 @@ pub mod history;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
 pub mod loader;
+mod matching;
 pub mod metrics;
 pub mod modes;
 pub mod ner_metrics;
