@@ -131,6 +131,17 @@ developers or coding agents; it does not require a particular harness.
    when required fixed checks pass and exploratory findings are reproduced,
    fixed, or assigned an explicit follow-up with an owner and reason.
 
+### Real documents
+
+Run `scripts/qa_random_urls.py --category documents --count 3` against the
+built CLI to exercise standards text, mixed-direction HTML and Japanese
+literature. The seed selects endpoints. Two requests to a random endpoint
+can return different articles. For a backend comparison, give both backends
+the same captured input. Record the source, excerpt and exact character span
+when promoting a discovery to an offline CLI regression. A valid extraction
+with zero matches passes the live contract. Use labeled fixtures or evaluation
+panels to check what the extractor missed.
+
 ## Constraints
 
 - A successful process or an outcome row is not proof that every selected cell

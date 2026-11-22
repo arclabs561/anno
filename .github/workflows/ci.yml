@@ -47,6 +47,8 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Check random URL verdicts offline
+        run: python3 -m unittest discover -s scripts -p test_qa_random_urls.py
       - name: Run portable check command
         run: ./scripts/ci-portable.sh check
       - name: Upload portable check receipts

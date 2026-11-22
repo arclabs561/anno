@@ -70,7 +70,18 @@ impl UrlResolver for HttpResolver {
             ));
         }
 
-        let content = response.into_body().read_to_string().map_err(|e| {
+        let mut body = response.into_body();
+        let html_without_charset = matches!(
+            body.mime_type(),
+            Some("text/html" | "application/xhtml+xml")
+        ) && body.charset().is_none();
+        let content = if html_without_charset {
+            body.read_to_vec()
+                .map(|bytes| deformat::detect::decode_bytes(&bytes, "utf-8").into_owned())
+        } else {
+            body.read_to_string()
+        }
+        .map_err(|e| {
             format!(
                 "Failed to read response from {}: {}. \
                  Response may be too large or corrupted.",
@@ -161,6 +172,35 @@ mod tests {
         assert!(resolver.can_resolve("https://example.com"));
         assert!(resolver.can_resolve("http://example.com/path?query=1"));
         assert!(resolver.can_resolve("https://subdomain.example.com/path"));
+    }
+
+    #[test]
+    fn http_resolver_decodes_shift_jis_html() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        // 日本 in Shift_JIS, with only an HTML declaration as on Aozora Bunko.
+        let html = b"<html><head><meta charset='Shift_JIS'></head><body><p>\x93\xfa\x96\x7b</p></body></html>";
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            for line in BufReader::new(&stream).lines() {
+                if line.unwrap().is_empty() {
+                    break;
+                }
+            }
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n",
+                html.len()
+            )
+            .unwrap();
+            stream.write_all(html).unwrap();
+        });
+        let resolved = HttpResolver::new().resolve(&url).unwrap();
+        server.join().unwrap();
+        assert!(resolved.text.contains("日本"), "{}", resolved.text);
     }
 
     #[test]

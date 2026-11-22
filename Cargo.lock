@@ -1101,6 +1101,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84bb4809b79a422fe4f33bc60e84eed908d7eae8cbabaf24f01674f5205d4aec"
 dependencies = [
  "dom_smoothie",
+ "encoding_rs",
  "html2text",
  "memchr",
  "pdf_oxide",
@@ -5503,6 +5504,7 @@ dependencies = [
  "base64 0.23.1",
  "cookie_store",
  "der",
+ "encoding_rs",
  "flate2",
  "log",
  "native-tls",

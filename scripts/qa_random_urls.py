@@ -254,8 +254,14 @@ REFHOP_SOURCES = [
     Source("Wiki refhop (ko)", "https://ko.wikipedia.org/", "refhop", "ko", "CJK"),
 ]
 
+DOCUMENT_SOURCES = [
+    Source("RFC 3339", "https://www.rfc-editor.org/rfc/rfc3339.html", "documents", "en", "Latin"),
+    Source("W3C bidi controls", "https://www.w3.org/International/questions/qa-bidi-unicode-controls", "documents", "en", "Latin"),
+    Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
+]
+
 ALL_SOURCES = (WIKIPEDIA_SOURCES + CONLANG_SOURCES + WIKIMEDIA_SOURCES
-               + OTHER_SOURCES + RSS_SOURCES + REFHOP_SOURCES)
+               + OTHER_SOURCES + RSS_SOURCES + REFHOP_SOURCES + DOCUMENT_SOURCES)
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +368,8 @@ class RunResult:
     elapsed_secs: float = 0.0
     error_msg: str = ""
     stderr_tail: str = ""
+    backend: str = ""
+    reported_model: str = ""
 
 
 def resolve_url(source: Source) -> Optional[str]:
@@ -371,6 +379,30 @@ def resolve_url(source: Source) -> Optional[str]:
     if source.category == "refhop":
         return fetch_wiki_refhop(source.url)
     return source.url
+
+
+def validate_extraction(data: object) -> None:
+    """Check the extract JSON contract for a nonempty document. Zero matches are valid."""
+    if not isinstance(data, dict) or not isinstance(data.get("entities"), list):
+        raise ValueError("missing entities array")
+    prov = data.get("provenance")
+    if not isinstance(prov, dict) or not isinstance(prov.get("model"), str) or not prov["model"].strip():
+        raise ValueError("missing provenance model")
+    size = prov.get("text_chars")
+    if type(size) is not int or size <= 0:
+        raise ValueError("expected a positive provenance.text_chars")
+    entities = data["entities"]
+    if type(prov.get("entity_count")) is not int or prov["entity_count"] != len(entities):
+        raise ValueError("provenance.entity_count disagrees with entities")
+    for i, entity in enumerate(entities):
+        if not isinstance(entity, dict):
+            raise ValueError(f"entity {i} is not an object")
+        for key in ("type", "text"):
+            if not isinstance(entity.get(key), str) or not entity[key].strip():
+                raise ValueError(f"entity {i} has an empty {key}")
+        start, end = entity.get("start"), entity.get("end")
+        if type(start) is not int or type(end) is not int or not 0 <= start < end <= size:
+            raise ValueError(f"entity {i} has invalid character offsets")
 
 
 def run_anno(
@@ -385,6 +417,7 @@ def run_anno(
     result = RunResult(
         source=Source("", "", "", "", ""),
         url=url,
+        backend=backend,
         status="error",
     )
 
@@ -425,21 +458,15 @@ def run_anno(
             result.error_msg = f"JSON parse error: {e}"
             return result
 
-        entities = data.get("entities", [])
-        prov = data.get("provenance", {})
-
+        try:
+            validate_extraction(data)
+        except ValueError as e:
+            result.error_msg = f"invalid extraction: {e}"
+            return result
         result.status = "OK"
-        result.entity_count = len(entities)
-
-        type_counts: dict[str, int] = {}
-        for ent in entities:
-            t = ent.get("type", "?")
-            type_counts[t] = type_counts.get(t, 0) + 1
-        result.type_counts = type_counts
-
-        # Use provenance elapsed_ms if available (more accurate)
-        if "elapsed_ms" in prov:
-            result.elapsed_secs = prov["elapsed_ms"] / 1000.0
+        result.reported_model = data["provenance"]["model"]
+        result.entity_count = len(data["entities"])
+        result.type_counts = dict(Counter(ent["type"] for ent in data["entities"]))
 
         return result
 
@@ -482,8 +509,10 @@ def generate_report(
     lines.append("# QA Random URL Report")
     lines.append(f"Date: {start_time.strftime('%Y-%m-%d %H:%M:%S UTC')} | Seed: {seed_str} | Backend: {backend_str}")
     lines.append("")
+    lines.append("The seed selects sources. Live pages may change between requests, including between backends.")
+    lines.append("")
     lines.append("## Summary")
-    lines.append(f"- URLs tested: {ok_count}/{len(results)}")
+    lines.append(f"- Successful checks: {ok_count}/{len(results)}")
     lines.append(f"- Failures: {err_count}" + (f" ({', '.join(r.status for r in results if r.status != 'OK')})" if err_count else ""))
     lines.append(f"- Languages: {', '.join(all_langs)}")
     lines.append(f"- Scripts: {', '.join(all_scripts)}")
@@ -494,18 +523,17 @@ def generate_report(
     # Results table
     lines.append("## Results")
     lines.append("")
-    lines.append("| # | Source | URL | Lang | Script | Entities | Time | Status |")
-    lines.append("|---|--------|-----|------|--------|----------|------|--------|")
+    lines.append("| # | Source | URL | Lang | Script | Requested / reported model | Entities | Time | Status |")
+    lines.append("|---|--------|-----|------|--------|----------------------------|----------|------|--------|")
 
     for i, r in enumerate(results, 1):
         url_display = r.url
-        if len(url_display) > 60:
-            url_display = url_display[:57] + "..."
+        url_display = url_display.replace("|", "%7C")
         time_str = f"{r.elapsed_secs:.1f}s"
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
         status_icon = "OK" if r.status == "OK" else f"**{r.status}**"
         lines.append(
-            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {ent_str} | {time_str} | {status_icon} |"
+            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
 
     lines.append("")
@@ -550,7 +578,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
     p.add_argument("--output", "-o", help="Report file path (default: reports/qa-random-<timestamp>.md)")
     p.add_argument("--category", "-c", default="all",
-                   choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "all"],
+                   choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
                    help="Filter source category (default: all)")
     p.add_argument("--lang", help="Filter by language codes (comma-separated)")
     p.add_argument("--seed", "-s", type=int, help="Random seed for reproducibility")
@@ -572,7 +600,7 @@ def self_test() -> int:
             errors.append(f"Source with url={s.url} has empty name")
         if not s.url:
             errors.append(f"Source {s.name} has empty url")
-        if s.category not in ("wikipedia", "conlang", "wikimedia", "rss", "other", "refhop"):
+        if s.category not in ("wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents"):
             errors.append(f"Source {s.name} has unknown category: {s.category}")
         if not s.lang:
             errors.append(f"Source {s.name} has empty lang")
@@ -666,6 +694,10 @@ def main() -> int:
     anno_bin = os.environ.get("ANNO", "./target/release/anno")
     backends = [b.strip() for b in args.backends.split(",")]
 
+    if args.count < 1 or not all(backends):
+        print("error: expected a positive count and a nonempty backend name", file=sys.stderr)
+        return 1
+
     # Seed
     if args.seed is not None:
         random.seed(args.seed)
@@ -709,9 +741,9 @@ def main() -> int:
         # Resolve URL (RSS/refhop sources need a network fetch to get the actual article URL)
         url = resolve_url(source)
         if url is None:
-            print(f"  [{i}/{count}] {source.name}: RSS fetch failed, skipping")
+            print(f"  [{i}/{count}] {source.name}: URL resolution failed")
             r = RunResult(source=source, url=source.url, status="error",
-                          error_msg="RSS feed fetch failed")
+                          error_msg="URL resolution failed")
             all_results.append(r)
             continue
 

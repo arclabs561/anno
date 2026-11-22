@@ -24,7 +24,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
-ureq = { workspace = true, features = ["json"] }
+ureq = { workspace = true, features = ["json", "charset"] }
 chrono = { workspace = true }
 dirs = { workspace = true }
 regex = { workspace = true }
@@ -47,7 +47,7 @@ muxer = { version = "0.5", default-features = false, features = [
 # (default, best quality, pulls cssparser/selectors MPL-2.0 transitives)
 # vs extractor-html2text (no MPL deps, lower quality on boilerplate-heavy
 # pages).
-deformat = { workspace = true }
+deformat = { workspace = true, features = ["encoding_rs"] }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 rayon = { workspace = true }
 
