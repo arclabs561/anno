@@ -35,6 +35,12 @@ grep -q 'Findings: 0' safety-report.md
 bash "$scripts/track-unsafe-code-trends.sh" >/dev/null
 [[ -s "$(echo .unsafe-code-trends/trend-*.json)" ]]
 rm -f .unsafe-code-trends/trend-*.json
+# Partial JSON from a scanner lacks the arrays that attest coverage.
+jq 'del(.used_but_not_scanned_files)' geiger.json > partial.json
+mv partial.json geiger.json
+echo '{"results":[]}' > scan.json
+bash "$scripts/generate-safety-report.sh" >/dev/null
+[[ $(grep -c 'Not measured. The scanner' safety-report.md) == 2 ]]
 echo '{}' > geiger.json
 echo '{"results":[],"errors":["scan failed"]}' > scan.json
 bash "$scripts/generate-safety-report.sh" >/dev/null
