@@ -1055,6 +1055,18 @@ mod tests {
     use anno::{EntityCategory, EntityType};
 
     #[test]
+    fn classification_f1_handles_empty_and_disjoint_labels() {
+        let mut metrics = ClassificationMetrics::new();
+        assert_eq!(metrics.micro_f1(), 0.0);
+        assert_eq!(metrics.class_f1("A"), 0.0);
+        metrics.add("A", "B");
+        assert_eq!(metrics.micro_f1(), 0.0);
+        assert_eq!(metrics.class_f1("A"), 0.0);
+        metrics.add("A", "A");
+        assert_eq!(metrics.micro_f1(), 0.5);
+    }
+
+    #[test]
     fn test_classification_metrics() {
         let mut metrics = ClassificationMetrics::new();
 
