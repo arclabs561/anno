@@ -161,6 +161,18 @@ the sampler prefers an alternative backend when one is eligible. A sole
 eligible backend still runs. A changed error or recovery starts a new episode.
 A repeated-infrastructure retry records both observation IDs and the failure kind.
 
+## What the selector learns
+
+A test cell identifies a task, dataset and backend under a comparable evaluation configuration. The selection policy uses observations from earlier attempts to allocate a bounded test budget. The library also supports multi-arm routing, contextual selection, change monitoring and triage. Anno uses particular pieces of [muxer 0.5.3](https://docs.rs/muxer/0.5.3/muxer/) for evaluation. Production model selection remains with the caller.
+
+| Question | Appropriate comparison |
+| --- | --- |
+| Which checks find regressions sooner? | Compare first discovery and unique failures at equal runner-minute budgets. Record time spent fetching data separately from backend execution. Historical duration, time since the last execution, and previous outcomes are useful test-prioritization inputs. [Spieker et al.](https://dl.acm.org/doi/10.1145/3092703.3092709) |
+| Which interactions have we missed? | Reserve coverage for compatible task, backend and data combinations, including formats and languages. A combinatorial design can cover selected interactions within a fixed budget. Its coverage guarantee applies only to the dimensions and interaction strength specified. [NIST SP 800-142](https://nvlpubs.nist.gov/nistpubs/legacy/sp/nistspecialpublication800-142.pdf) |
+| Would a different policy have done better? | Seal competing picks before running the same small held-out panel, or design a randomized logging experiment. Ordinary adaptive logs contain outcomes only for chosen cells. Unbiased replay needs a suitable randomized logging policy and assumptions about the observations. [Li et al.](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/published-3.pdf) |
+
+Keep live-web sampling outcomes separate from labeled dataset F1. A broken feed is evidence about retrieval. A wrong labeled span is evidence about extraction or scoring. Track them separately so a publisher outage cannot teach the selector that a model regressed.
+
 ## Interpreting receipts
 
 A low F1 is an observed quality result, not automatically a code regression.
