@@ -625,7 +625,8 @@ pub fn looks_like_address(text: &str) -> bool {
         "Terrace",
         "Ter",
     ];
-    let has_street = street_indicators.iter().any(|ind| text.contains(ind));
+    let mut words = text.split(|ch: char| !(ch.is_alphanumeric() || ch == '_'));
+    let has_street = words.clone().any(|word| street_indicators.contains(&word));
 
     let has_zip = Regex::new(r"\b\d{5}(?:-\d{4})?\b")
         .map(|re| re.is_match(text))
@@ -636,7 +637,7 @@ pub fn looks_like_address(text: &str) -> bool {
         "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
         "VA", "WA", "WV", "WI", "WY", "DC",
     ];
-    let has_state = us_states.iter().any(|s| text.contains(s));
+    let has_state = words.any(|word| us_states.contains(&word));
 
     (has_number && has_street) || (has_zip && has_state)
 }
@@ -1369,6 +1370,18 @@ mod tests {
         }
         for text in ["1234 Elm Street", "1234 Elm Street, Springfield, IL 62704"] {
             assert!(looks_like_address(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn classify_location_requires_whole_address_indicators() {
+        for text in ["Studio 54", "Area 51 Driveway", "CANADA 12345"] {
+            let entity = Entity::new(text, EntityType::Location, 0, text.chars().count(), 0.95);
+            assert!(classify_entity(&entity).is_none(), "{text}");
+        }
+        for text in ["123 Main St.", "Chicago, IL 60601-1234"] {
+            let entity = Entity::new(text, EntityType::Location, 0, text.chars().count(), 0.95);
+            assert_eq!(classify_entity(&entity).unwrap().pii_type, "ADDRESS");
         }
     }
 
