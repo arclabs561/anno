@@ -1030,10 +1030,10 @@ jobs:
     runs-on: ubuntu-latest
     # Keep the job advisory until the remaining packs parse and their precision is measured.
     continue-on-error: true
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      security-events: write
-    steps:
+    steps: &opengrep-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1153,7 +1153,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
+        if: always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         continue-on-error: true
         with:
           sarif_file: opengrep-results.sarif
@@ -1189,6 +1189,15 @@ jobs:
             opengrep-error-results.json
             opengrep-memory-results.json
           if-no-files-found: error
+  opengrep-trusted:
+    name: OpenGrep Static Analysis (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps: *opengrep-steps
   # Code coverage (optional, runs on schedule or manual trigger)
   # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs).
   # PR coverage for the `analysis`/`schema` features runs in test-minimal instead.
