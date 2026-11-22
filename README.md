@@ -8,6 +8,14 @@ of personally identifiable information. Pattern and heuristic backends run offli
 
 ## Library
 
+Run the example with offline backends from the repository root.
+
+```sh
+cargo run -p anno --no-default-features --example quickstart
+```
+
+For your own project, add anno to `Cargo.toml`.
+
 ```toml
 [dependencies]
 anno = "0.14"
@@ -47,7 +55,7 @@ assert_eq!(redacted, "John Smith's SSN is [ID_NUMBER_1].");
 ## CLI
 
 ```sh
-cargo install anno-cli
+cargo install anno-cli --locked
 ```
 
 ```console
