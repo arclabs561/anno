@@ -15,16 +15,14 @@ use crate::cli::ingest::CompositeResolver;
 use anno::backends::inference::{
     extract_relation_triples_simple, RelationExtractionConfig, RelationExtractor,
 };
-use anno::core::grounded::{
-    GroundedDocument, Location, Modality, Quantifier, Signal, SignalId, SignalValidationError,
-};
+use anno::core::grounded::{GroundedDocument, Location, Modality, Quantifier, Signal, SignalId};
 #[cfg(feature = "graph")]
 use anno::graph::{GraphDocument, GraphExportFormat};
 use anno::ingest::DocumentPreprocessor;
 
 use crate::cli::CliError;
 
-use xxhash_rust::xxh3::xxh3_64;
+use xxhash_rust::xxh3::{xxh3_64, Xxh3Default};
 
 /// Extract entities from text
 #[derive(Parser, Debug)]
@@ -487,16 +485,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
 
     // Build grounded document with validation using library method
     let mut doc = GroundedDocument::new("extract", &text);
-    let mut validation_errors: Vec<SignalValidationError> = Vec::new();
-
-    for signal in signals {
-        match doc.add_signal_validated(signal) {
-            Ok(_) => {}
-            Err(err) => {
-                validation_errors.push(err);
-            }
-        }
-    }
+    let validation_errors = doc.add_signals_validated(signals);
 
     // Report validation errors
     if !validation_errors.is_empty() && !args.quiet {
@@ -539,16 +528,26 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         Vec::new()
     };
 
+    let render_entities = || -> Result<Vec<serde_json::Value>, CliError> {
+        let prefix = entity_id_prefix(&text);
+        doc.signals()
+            .iter()
+            .map(|signal| {
+                entity_json(
+                    &text,
+                    &prefix,
+                    signal,
+                    args.context_window,
+                    args.include_sentence,
+                )
+            })
+            .collect()
+    };
+
     // Output
     match format {
         OutputFormat::Json => {
-            let entities_out: Vec<serde_json::Value> = doc
-                .signals()
-                .iter()
-                .map(|signal| {
-                    entity_json(&text, signal, args.context_window, args.include_sentence)
-                })
-                .collect::<Result<_, _>>()?;
+            let entities_out = render_entities()?;
 
             let provenance = build_provenance(
                 &text,
@@ -570,13 +569,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             );
         }
         OutputFormat::Jsonl => {
-            let entities_out: Vec<serde_json::Value> = doc
-                .signals()
-                .iter()
-                .map(|signal| {
-                    entity_json(&text, signal, args.context_window, args.include_sentence)
-                })
-                .collect::<Result<_, _>>()?;
+            let entities_out = render_entities()?;
 
             let provenance = build_provenance(
                 &text,
@@ -986,16 +979,26 @@ fn get_sentence_for_span(text: &str, start: usize, end: usize) -> String {
         .to_string()
 }
 
-fn compute_entity_id(text: &str, surface: &str, label: &str, start: usize, end: usize) -> String {
-    // Content-addressed entity id: stable across runs, sensitive to (text + span + label).
-    // Note: include full text so the same span indices in different docs can't collide.
-    let mut data = Vec::new();
-    data.extend_from_slice(text.as_bytes());
-    data.extend_from_slice(surface.as_bytes());
-    data.extend_from_slice(label.as_bytes());
-    data.extend_from_slice(&start.to_le_bytes());
-    data.extend_from_slice(&end.to_le_bytes());
-    format!("xxh3:{:016x}", xxh3_64(&data))
+fn entity_id_prefix(text: &str) -> Xxh3Default {
+    let mut prefix = Xxh3Default::new();
+    prefix.update(text.as_bytes());
+    prefix
+}
+
+fn compute_entity_id(
+    prefix: &Xxh3Default,
+    surface: &str,
+    label: &str,
+    start: usize,
+    end: usize,
+) -> String {
+    // Preserve the original byte stream while sharing its document prefix.
+    let mut hasher = prefix.clone();
+    hasher.update(surface.as_bytes());
+    hasher.update(label.as_bytes());
+    hasher.update(&start.to_le_bytes());
+    hasher.update(&end.to_le_bytes());
+    format!("xxh3:{:016x}", hasher.digest())
 }
 
 /// Render one emitted signal for JSON and JSONL output.
@@ -1004,13 +1007,14 @@ fn compute_entity_id(text: &str, surface: &str, label: &str, start: usize, end: 
 /// emitted signal keeps this metadata aligned with filtering and validation.
 fn entity_json(
     text: &str,
+    prefix: &Xxh3Default,
     signal: &Signal<Location>,
     context_window: Option<usize>,
     include_sentence: bool,
 ) -> Result<serde_json::Value, CliError> {
     let (start, end) = signal.text_offsets().unwrap_or((0, 0));
     let mut obj = serde_json::json!({
-        "id": compute_entity_id(text, signal.surface(), signal.label(), start, end),
+        "id": compute_entity_id(prefix, signal.surface(), signal.label(), start, end),
         "text": signal.surface(),
         "type": signal.label(),
         "start": start,
@@ -1312,18 +1316,41 @@ mod tests {
     }
 
     #[test]
+    fn shared_entity_id_prefix_preserves_legacy_bytes() {
+        for padding in [0, 1, 16, 128, 240, 256, 1024, 10000] {
+            let text = format!("É 🦊 É{}", "x".repeat(padding));
+            let prefix = entity_id_prefix(&text);
+            for (surface, label, start, end) in [
+                ("É", "PER", 0usize, 1usize),
+                ("🦊", "动物", 2, 3),
+                ("É", "PER", 4, 5),
+            ] {
+                let mut legacy = text.as_bytes().to_vec();
+                legacy.extend_from_slice(surface.as_bytes());
+                legacy.extend_from_slice(label.as_bytes());
+                legacy.extend_from_slice(&start.to_le_bytes());
+                legacy.extend_from_slice(&end.to_le_bytes());
+                assert_eq!(
+                    compute_entity_id(&prefix, surface, label, start, end),
+                    format!("xxh3:{:016x}", xxh3_64(&legacy))
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_compute_entity_id_deterministic() {
         let text = "Test text";
-        let id1 = compute_entity_id(text, "Test", "PER", 0, 4);
-        let id2 = compute_entity_id(text, "Test", "PER", 0, 4);
+        let id1 = compute_entity_id(&entity_id_prefix(text), "Test", "PER", 0, 4);
+        let id2 = compute_entity_id(&entity_id_prefix(text), "Test", "PER", 0, 4);
         assert_eq!(id1, id2);
     }
 
     #[test]
     fn test_compute_entity_id_different_for_different_spans() {
         let text = "Test text";
-        let id1 = compute_entity_id(text, "Test", "PER", 0, 4);
-        let id2 = compute_entity_id(text, "text", "PER", 5, 9);
+        let id1 = compute_entity_id(&entity_id_prefix(text), "Test", "PER", 0, 4);
+        let id2 = compute_entity_id(&entity_id_prefix(text), "text", "PER", 5, 9);
         assert_ne!(id1, id2);
     }
 
@@ -1401,7 +1428,7 @@ mod tests {
         // Build JSON entity (same logic as --format json)
         let (start, end) = signal.text_offsets().unwrap_or((0, 0));
         let json_entity = serde_json::json!({
-            "id": compute_entity_id("Alice met Bob.", signal.surface(), signal.label(), start, end),
+            "id": compute_entity_id(&entity_id_prefix("Alice met Bob."), signal.surface(), signal.label(), start, end),
             "text": signal.surface(),
             "type": signal.label(),
             "start": start,
@@ -1413,7 +1440,7 @@ mod tests {
 
         // Build JSONL entity (same logic as --format jsonl)
         let jsonl_entity = serde_json::json!({
-            "id": compute_entity_id("Alice met Bob.", signal.surface(), signal.label(), start, end),
+            "id": compute_entity_id(&entity_id_prefix("Alice met Bob."), signal.surface(), signal.label(), start, end),
             "text": signal.surface(),
             "type": signal.label(),
             "start": start,

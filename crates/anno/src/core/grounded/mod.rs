@@ -478,10 +478,19 @@ impl Signal<Location> {
     /// ```
     #[must_use]
     pub fn validate_against(&self, source_text: &str) -> Option<SignalValidationError> {
+        self.validate_with_offsets(source_text, None)
+    }
+
+    fn validate_with_offsets(
+        &self,
+        source_text: &str,
+        offsets: Option<&[usize]>,
+    ) -> Option<SignalValidationError> {
+        use std::borrow::Cow;
         // An empty segment list has no source span.
         let (start, end) = self.location.text_offsets().unwrap_or((0, 0));
 
-        let char_count = source_text.chars().count();
+        let char_count = offsets.map_or_else(|| source_text.chars().count(), |map| map.len() - 1);
 
         // Check bounds
         if end > char_count {
@@ -512,7 +521,10 @@ impl Signal<Location> {
             // Entity conversion sorts segments and coalesces touching ranges.
             // A joined surface must use that same order and segmentation.
             if segments.windows(2).all(|pair| pair[0].1 < pair[1].0) {
-                let offsets = crate::offset::build_char_to_byte_map(source_text);
+                let offsets = offsets.map_or_else(
+                    || Cow::Owned(crate::offset::build_char_to_byte_map(source_text)),
+                    Cow::Borrowed,
+                );
                 let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
                     let separator = if index == 0 { "" } else { " " };
                     separator
@@ -525,13 +537,16 @@ impl Signal<Location> {
             }
         }
 
-        let actual: String = source_text.chars().skip(start).take(end - start).collect();
+        let actual: Cow<'_, str> = match offsets {
+            Some(map) => Cow::Borrowed(&source_text[map[start]..map[end]]),
+            None => Cow::Owned(source_text.chars().skip(start).take(end - start).collect()),
+        };
 
         if actual != self.surface {
             return Some(SignalValidationError::TextMismatch {
                 signal_id: self.id,
                 expected: self.surface.clone(),
-                actual,
+                actual: actual.into_owned(),
                 start,
                 end,
             });
@@ -2215,6 +2230,25 @@ impl GroundedDocument {
             return Err(err);
         }
         Ok(self.add_signal(signal))
+    }
+
+    /// Validate signals in input order, adding valid signals and returning all errors.
+    /// Reuse a single character-offset index for a batch.
+    pub fn add_signals_validated(
+        &mut self,
+        signals: Vec<Signal<Location>>,
+    ) -> Vec<SignalValidationError> {
+        let offsets =
+            (signals.len() > 1).then(|| crate::offset::build_char_to_byte_map(&self.text));
+        let mut errors = Vec::new();
+        for signal in signals {
+            if let Some(error) = signal.validate_with_offsets(&self.text, offsets.as_deref()) {
+                errors.push(error);
+            } else {
+                self.add_signal(signal);
+            }
+        }
+        errors
     }
 
     /// Add a signal by finding text in document (safe construction).
@@ -5172,6 +5206,41 @@ mod tests {
                 assert_eq!(restored_entity.discontinuous_span.as_ref(), Some(&span));
             }
         }
+    }
+
+    #[test]
+    fn batch_validation_matches_individual_unicode_and_discontinuous_signals() {
+        let text = "é🦊 中 Ω";
+        let segments = |pairs: &[(usize, usize)]| Location::Discontinuous {
+            segments: pairs.to_vec(),
+        };
+        let signals: Vec<_> = [
+            (Location::text(0, 2), "é🦊"),
+            (segments(&[(1, 2), (5, 6)]), "🦊 Ω"),
+            (segments(&[(1, 2), (5, 6)]), "🦊 中 Ω"),
+            (segments(&[(5, 6), (1, 2)]), "🦊 中 Ω"),
+            (segments(&[(5, 6), (1, 2)]), "Ω 🦊"),
+            (segments(&[(0, 1), (3, 2)]), "é"),
+            (segments(&[]), ""),
+            (Location::text(4, 9), "Ω"),
+            (Location::text(3, 4), "中"),
+        ]
+        .into_iter()
+        .map(|(loc, surface)| Signal::new(0, loc, surface, "LOC", 0.9))
+        .collect();
+        let mut single = GroundedDocument::new("doc", text);
+        let mut batch = GroundedDocument::new("doc", text);
+        let expected: Vec<_> = signals
+            .iter()
+            .cloned()
+            .filter_map(|s| single.add_signal_validated(s).err())
+            .collect();
+        assert_eq!(expected.len(), 4);
+        assert_eq!(expected, batch.add_signals_validated(signals));
+        assert_eq!(
+            serde_json::to_value(single.signals()).unwrap(),
+            serde_json::to_value(batch.signals()).unwrap()
+        );
     }
 
     #[test]
