@@ -156,22 +156,33 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
                 .map(open_pii_map)
                 .transpose()
                 .map_err(|e| format!("Failed to open map: {e}"))?;
-            if let Some(path) = &args.output {
-                let mut output = fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(false)
-                    .open(path)
-                    .map_err(|e| format!("Failed to open output: {e}"))?;
-                if let Some(map) = &map_file {
-                    let identity =
-                        |f: &fs::File| f.try_clone().and_then(same_file::Handle::from_file);
-                    let output_id = identity(&output).map_err(|e| e.to_string())?;
-                    let map_id = identity(map).map_err(|e| e.to_string())?;
-                    if output_id == map_id {
-                        return Err("--output and --export-map must be different files".into());
-                    }
+            let output = args
+                .output
+                .as_deref()
+                .map(|path| {
+                    fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(false)
+                        .open(path)
+                })
+                .transpose()
+                .map_err(|e| format!("Failed to open output: {e}"))?;
+            if let Some(map) = &map_file {
+                let identity = |f: &fs::File| f.try_clone().and_then(same_file::Handle::from_file);
+                let output_id = match &output {
+                    Some(file) => identity(file),
+                    None => same_file::Handle::stdout(),
                 }
+                .map_err(|e| e.to_string())?;
+                let map_id = identity(map).map_err(|e| e.to_string())?;
+                if output_id == map_id {
+                    return Err(
+                        "Pseudonymized output and --export-map must be different files".into(),
+                    );
+                }
+            }
+            if let (Some(path), Some(mut output)) = (&args.output, output) {
                 output
                     .set_len(0)
                     .and_then(|()| output.write_all(pseudonymized.as_bytes()))

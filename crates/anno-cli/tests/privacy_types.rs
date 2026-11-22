@@ -105,3 +105,32 @@ fn mapping_recovers_distinct_contacts_and_repeated_mentions() {
     let recovered: Vec<_> = doc.split_whitespace().map(|s| reverse[s]).collect();
     assert_eq!(recovered.join(" "), input);
 }
+
+#[test]
+fn map_cannot_replace_redirected_stdout() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("out.txt");
+    std::fs::write(&path, "sentinel").unwrap();
+    let out = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .unwrap();
+    let run = Command::new(env!("CARGO_BIN_EXE_anno"))
+        .args([
+            "privacy",
+            "--model",
+            "pattern",
+            "--action",
+            "pseudonymize",
+            "--text",
+            INPUT,
+        ])
+        .arg("--export-map")
+        .arg(&path)
+        .stdout(out)
+        .env("ANNO_NO_DOWNLOADS", "1")
+        .output()
+        .unwrap();
+    assert!(!run.status.success());
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "sentinel");
+}
