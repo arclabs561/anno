@@ -106,14 +106,14 @@ if command -v cargo-geiger &> /dev/null; then
     if command -v jq &> /dev/null; then
         UNSAFE_COUNT=$(jq -r '[.packages[] | select(.geiger.unsafe_used > 0)] | length' .geiger-tmp.json 2>/dev/null || echo "0")
     fi
-    ((TOOLS_INSTALLED++))
+    ((TOOLS_INSTALLED+=1))
     rm -f .geiger-tmp.json
 fi
 
 if command -v opengrep &> /dev/null; then
     opengrep scan --config auto --json crates/anno/ 2>/dev/null | jq -r '.results | length' > .opengrep-tmp.txt 2>/dev/null || echo "0" > .opengrep-tmp.txt
     FINDINGS_COUNT=$(cat .opengrep-tmp.txt)
-    ((TOOLS_INSTALLED++))
+    ((TOOLS_INSTALLED+=1))
     rm -f .opengrep-tmp.txt
 fi
 
@@ -128,13 +128,13 @@ if command -v ast-grep &> /dev/null && command -v jq &> /dev/null; then
 fi
 
 if command -v cargo-machete &> /dev/null; then
-    ./scripts/static-analysis-common.sh machete > .machete-output.txt 2>&1 || true
-    if command -v rg &> /dev/null; then
-        UNUSED_DEPS=$(rg -c "unused" .machete-output.txt 2>/dev/null || echo "0")
+    if ./scripts/static-analysis-common.sh machete > .machete-output.txt 2>&1; then
+        UNUSED_DEPS=0
     else
-        UNUSED_DEPS=$(grep -c "unused" .machete-output.txt 2>/dev/null || echo "0")
+        # A nonzero tool status can mean findings or an execution failure.
+        UNUSED_DEPS="Review cargo machete output (exit $?)"
     fi
-    ((TOOLS_INSTALLED++))
+    ((TOOLS_INSTALLED+=1))
     rm -f .machete-output.txt
 fi
 

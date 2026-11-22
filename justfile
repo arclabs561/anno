@@ -856,7 +856,7 @@ analysis-nlp-ml:
     @just check-ml-backends || echo "warning:  Some ML backend issues found"
     @echo ""
     @echo "=== Evaluation Invariants ==="
-    @just check-eval-invariants || echo "warning:  Some invariant issues found"
+    @just check-eval-invariants
     @echo ""
     @echo "=== OpenGrep Custom Rules ==="
     @just opengrep-custom || echo "warning:  OpenGrep not installed"

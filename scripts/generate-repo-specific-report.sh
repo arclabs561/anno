@@ -34,7 +34,7 @@ echo "" >> "$REPORT_FILE"
 
 echo "## Evaluation Invariant Checks" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
-./scripts/check-evaluation-invariants.sh >> "$REPORT_FILE" 2>&1 || true
+./scripts/check-evaluation-invariants.sh >> "$REPORT_FILE" 2>&1
 echo "" >> "$REPORT_FILE"
 
 # Add OpenGrep findings if available
@@ -86,7 +86,7 @@ This report combines:
    - \`just check-nlp-patterns\`
    - \`just analyze-eval-patterns\`
    - \`just check-ml-backends\`
-   - \`just check-evaluation-invariants\`
+   - \`just check-eval-invariants\`
 
 EOF
 
