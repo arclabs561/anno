@@ -199,3 +199,39 @@ fn conflicting_batch_names_fail_before_writing_any_files() {
     assert!(output.join("first.nt").is_file());
     assert!(output.join("notes.nt").is_file());
 }
+
+#[test]
+fn export_preflights_aliases_and_all_companions() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path();
+    let input = dir.join("doc.jsonl");
+    let original = r#"{"id":"v1","text":"unchanged","signals":[],"tracks":{},"identities":{}}"#;
+    fs::write(&input, original).unwrap();
+    let run = |src: &Path, dst: &Path, format: &str, overwrite: bool| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_anno"));
+        cmd.arg("export")
+            .arg("-i")
+            .arg(src)
+            .arg("-o")
+            .arg(dst)
+            .args(["--format", format, "--model", "pattern", "--quiet"]);
+        if overwrite {
+            cmd.arg("--overwrite");
+        }
+        cmd.output().unwrap().status.success()
+    };
+    assert!(!run(&input, dir, "jsonl", true));
+    assert_eq!(fs::read_to_string(&input).unwrap(), original);
+    let out = dir.join("out");
+    fs::create_dir(&out).unwrap();
+    fs::hard_link(&input, out.join("doc.jsonl")).unwrap();
+    assert!(!run(&input, &out, "jsonl", true));
+    assert_eq!(fs::read_to_string(&input).unwrap(), original);
+    fs::write(out.join("doc.txt"), "old").unwrap();
+    assert!(!run(&input, &out, "brat", false));
+    assert!(!out.join("doc.ann").exists());
+    fs::write(dir.join("other.txt"), "new").unwrap();
+    fs::write(out.join("other.nt"), "old").unwrap();
+    assert!(!run(dir, &out, "ntriples", false));
+    assert!(!out.join("doc.nt").exists());
+}

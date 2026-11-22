@@ -209,6 +209,39 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
             .map_err(|e| format!("Failed to create output directory: {}", e))?;
     }
 
+    // Check every destination before touching any output. Existing hard links
+    // and symlinks can name an input even when their path strings differ.
+    let sources = files
+        .iter()
+        .map(|path| file_identity(path))
+        .collect::<std::io::Result<std::collections::HashSet<_>>>()
+        .map_err(|e| format!("Cannot identify export inputs: {e}"))?;
+    for file in &files {
+        for path in output_paths(file, &args.output, args.format) {
+            match fs::symlink_metadata(&path) {
+                Ok(_) => {
+                    let target = file_identity(&path)
+                        .map_err(|e| format!("Cannot identify output {path:?}: {e}"))?;
+                    if matches!(args.format, ExportFormat::Brat)
+                        && path.extension().is_some_and(|ext| ext == "txt")
+                        && file.extension().is_some_and(|ext| ext == "txt")
+                        && file_identity(file).map_err(|e| e.to_string())? == target
+                    {
+                        continue; // The source already is the brat text companion.
+                    }
+                    if sources.contains(&target) {
+                        return Err(format!("Output {path:?} aliases an input file"));
+                    }
+                    if !args.overwrite || !path.is_file() {
+                        return Err(format!("Output already exists: {path:?}"));
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(format!("Cannot inspect output {path:?}: {e}")),
+            }
+        }
+    }
+
     // Choose extraction path: relation-capable model vs plain model.
     let relation_model = args.model.try_create_relation_model().transpose()?;
     let plain_model = if relation_model.is_none() {
@@ -359,8 +392,10 @@ pub fn run(args: ExportArgs) -> Result<(), String> {
         );
     }
 
-    if error_count > 0 && success_count == 0 {
-        Err("All exports failed".into())
+    if error_count > 0 {
+        Err(format!(
+            "{error_count} exports failed, {success_count} succeeded"
+        ))
     } else {
         Ok(())
     }
@@ -382,6 +417,49 @@ fn output_stem(input: &Path) -> Cow<'_, str> {
     input.file_stem().unwrap_or_default().to_string_lossy()
 }
 
+// Unix metadata identifies hard links without holding a descriptor per input.
+#[cfg(unix)]
+fn file_identity(path: &Path) -> std::io::Result<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = fs::metadata(path)?;
+    Ok((meta.dev(), meta.ino()))
+}
+
+#[cfg(not(unix))]
+fn file_identity(path: &Path) -> std::io::Result<same_file::Handle> {
+    same_file::Handle::from_path(path)
+}
+
+fn write_output(path: &Path, content: impl AsRef<[u8]>, overwrite: bool) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut staged = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
+    staged.write_all(content.as_ref())?;
+    if overwrite {
+        staged.persist(path)?;
+    } else {
+        staged.persist_noclobber(path)?;
+    }
+    Ok(())
+}
+
+fn output_paths(input: &Path, dir: &Path, format: ExportFormat) -> Vec<PathBuf> {
+    let suffixes: &[&str] = match format {
+        ExportFormat::Brat => &[".ann", ".txt"],
+        ExportFormat::Conll => &[".conll"],
+        ExportFormat::Jsonl => &[".jsonl"],
+        ExportFormat::NTriples => &[".nt"],
+        ExportFormat::JsonLd => &[".jsonld"],
+        ExportFormat::GraphCsv => &["-nodes.csv", "-edges.csv"],
+        #[cfg(feature = "graph")]
+        ExportFormat::GraphNTriples => &[".nt"],
+    };
+    let stem = output_stem(input);
+    suffixes
+        .iter()
+        .map(|suffix| dir.join(format!("{stem}{suffix}")))
+        .collect()
+}
+
 fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
     let ExportFileOpts {
         input,
@@ -394,54 +472,26 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         base_uri,
         document_iri,
     } = opts;
-    let stem = output_stem(input);
+    let paths = output_paths(input, output_dir, format);
 
-    // Graph CSV writes two CSVs (nodes + edges); handle before the single-path logic below.
     if matches!(format, ExportFormat::GraphCsv) {
-        let nodes_path = output_dir.join(format!("{}-nodes.csv", stem));
-        let edges_path = output_dir.join(format!("{}-edges.csv", stem));
-
-        for path in [&nodes_path, &edges_path] {
-            if path.exists() && !overwrite {
-                return Err(format!(
-                    "Output file already exists: {:?} (use --overwrite)",
-                    path
-                ));
-            }
-        }
-
+        let nodes_path = &paths[0];
+        let edges_path = &paths[1];
         let (nodes_csv, edges_csv) = anno::export::to_graph_csv(
             &ext.entities,
             &ext.relations,
             &input.to_string_lossy(),
             include_confidence,
         );
-        fs::write(&nodes_path, nodes_csv)
+        write_output(nodes_path, nodes_csv, overwrite)
             .map_err(|e| format!("Failed to write nodes CSV: {}", e))?;
-        fs::write(&edges_path, edges_csv)
+        write_output(edges_path, edges_csv, overwrite)
             .map_err(|e| format!("Failed to write edges CSV: {}", e))?;
 
         return Ok(());
     }
 
-    // Determine output filename for single-file formats
-    let output_path = match format {
-        ExportFormat::Brat => output_dir.join(format!("{}.ann", stem)),
-        ExportFormat::Conll => output_dir.join(format!("{}.conll", stem)),
-        ExportFormat::Jsonl => output_dir.join(format!("{}.jsonl", stem)),
-        ExportFormat::NTriples => output_dir.join(format!("{}.nt", stem)),
-        ExportFormat::JsonLd => output_dir.join(format!("{}.jsonld", stem)),
-        #[cfg(feature = "graph")]
-        ExportFormat::GraphNTriples => output_dir.join(format!("{}.nt", stem)),
-        // GraphCsv handled above (writes two files); guard against future variants.
-        _ => {
-            return Err(format!(
-                "Unsupported single-file export format: {:?}",
-                format
-            ))
-        }
-    };
-
+    let output_path = &paths[0];
     if output_path.exists() && !overwrite {
         return Err(format!(
             "Output file already exists: {:?} (use --overwrite)",
@@ -486,15 +536,17 @@ fn export_file(opts: ExportFileOpts<'_>) -> Result<(), String> {
         }
     };
 
-    fs::write(&output_path, output_content)
+    write_output(output_path, output_content, overwrite)
         .map_err(|e| format!("Failed to write output: {}", e))?;
 
-    // brat also copies the source text alongside the .ann file
     if matches!(format, ExportFormat::Brat) {
-        let txt_path = output_dir.join(format!("{}.txt", stem));
-        if !txt_path.exists() || overwrite {
-            fs::write(&txt_path, content)
-                .map_err(|e| format!("Failed to write text file: {}", e))?;
+        let companion = &paths[1];
+        let is_source = input.extension().is_some_and(|ext| ext == "txt")
+            && companion.exists()
+            && same_file::is_same_file(input, companion).map_err(|e| e.to_string())?;
+        if !is_source {
+            write_output(companion, content, overwrite)
+                .map_err(|e| format!("Failed to write text file: {e}"))?;
         }
     }
 
