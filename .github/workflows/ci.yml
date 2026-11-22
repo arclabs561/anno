@@ -1202,7 +1202,11 @@ jobs:
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Reject a packaged caller of a removed API
+        run: bash scripts/test-validate-publish.sh
       - name: Validate packaged workspace
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -o pipefail
           scripts/validate-publish.sh 2>&1 | tee publish-validation.log
