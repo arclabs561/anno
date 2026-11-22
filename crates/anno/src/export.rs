@@ -156,69 +156,48 @@ pub fn to_html(text: &str, entities: &[Entity]) -> String {
 
 /// Export entities in CoNLL BIO-tagged format.
 ///
-/// Produces one token per line with TAB-separated BIO tags. Trailing
-/// punctuation is split into a separate `O` token unless the punctuation
-/// falls inside an entity span.
+/// Produces one token per line with a TAB-separated BIO tag. Entity boundaries
+/// split tokens even when mentions touch punctuation or one another. Outside
+/// annotations, trailing punctuation forms a separate `O` token.
+///
+/// BIO represents one layer of annotations. For overlapping spans, keep the
+/// earliest start (longest span for a tie) and omit later overlaps. Token rows
+/// depend on the supplied mentions. Align predictions and gold to the same
+/// tokens and sentence boundaries before using a token-based corpus scorer.
 pub fn to_conll(text: &str, entities: &[Entity]) -> String {
-    let mut lines = Vec::new();
-    let mut byte_idx = 0;
-    for word in text.split_whitespace() {
-        // Find the byte position of this word in the remaining text
-        let byte_start = text[byte_idx..]
-            .find(word)
-            .map(|i| byte_idx + i)
-            .unwrap_or(byte_idx);
-        let byte_end = byte_start + word.len();
-        byte_idx = byte_end;
-
-        // Convert byte offsets to char offsets for entity comparison
-        let word_start = text[..byte_start].chars().count();
-        let word_end = text[..byte_end].chars().count();
-
-        let entity_full = entities
-            .iter()
-            .find(|e| word_start < e.end() && word_end > e.start());
-
-        let trimmed = word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']);
-        let punct = &word[trimmed.len()..];
-        let inside_entity = entity_full.map(|e| word_end <= e.end()).unwrap_or(false);
-
-        if inside_entity {
-            let tag = match entity_full {
-                Some(e) => {
-                    if word_start <= e.start() {
-                        format!("B-{}", e.entity_type.as_label())
-                    } else {
-                        format!("I-{}", e.entity_type.as_label())
-                    }
+    fn outside_tokens(text: &str, lines: &mut Vec<String>) {
+        for word in text.split_whitespace() {
+            let stem = word.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']']);
+            for token in [stem, &word[stem.len()..]] {
+                if !token.is_empty() {
+                    lines.push(format!("{token}\tO"));
                 }
-                None => "O".to_string(),
-            };
-            lines.push(format!("{}\t{}", word, tag));
-        } else {
-            let trimmed_end = word_start + trimmed.chars().count();
-            if !trimmed.is_empty() {
-                let entity = entities
-                    .iter()
-                    .find(|e| word_start < e.end() && trimmed_end > e.start());
-                let tag = match entity {
-                    Some(e) => {
-                        if word_start <= e.start() {
-                            format!("B-{}", e.entity_type.as_label())
-                        } else {
-                            format!("I-{}", e.entity_type.as_label())
-                        }
-                    }
-                    None => "O".to_string(),
-                };
-                lines.push(format!("{}\t{}", trimmed, tag));
-            }
-
-            if !punct.is_empty() {
-                lines.push(format!("{}\tO", punct));
             }
         }
     }
+
+    let offsets = crate::offset::build_char_to_byte_map(text);
+    let mut sorted: Vec<_> = entities.iter().collect();
+    sorted.sort_by_key(|entity| (entity.start(), std::cmp::Reverse(entity.end())));
+
+    let mut lines = Vec::new();
+    let mut cursor = 0;
+    for entity in sorted {
+        let start = offsets.get(entity.start()).copied().unwrap_or(text.len());
+        let end = offsets.get(entity.end()).copied().unwrap_or(text.len());
+        if start < cursor || start >= end {
+            continue;
+        }
+
+        outside_tokens(&text[cursor..start], &mut lines);
+        let label = entity.entity_type.as_label();
+        for (index, token) in text[start..end].split_whitespace().enumerate() {
+            let prefix = if index == 0 { "B" } else { "I" };
+            lines.push(format!("{token}\t{prefix}-{label}"));
+        }
+        cursor = end;
+    }
+    outside_tokens(&text[cursor..], &mut lines);
     lines.join("\n")
 }
 
@@ -686,6 +665,47 @@ mod tests {
         assert_eq!(lines[3], "Cook\tI-PER");
         assert_eq!(lines[4], ".\tO");
         assert_eq!(lines.len(), 5);
+    }
+
+    #[test]
+    fn conll_keeps_adjacent_annotations_and_outside_characters_separate() {
+        let entities = [
+            Entity::new("Zoë", EntityType::Person, 1, 4, 1.0),
+            Entity::new("Léa", EntityType::Person, 5, 8, 1.0),
+        ];
+        assert_eq!(
+            to_conll("«Zoë/Léa»", &entities),
+            "«\tO\nZoë\tB-PER\n/\tO\nLéa\tB-PER\n»\tO"
+        );
+    }
+
+    #[test]
+    fn conll_keeps_punctuation_inside_the_annotated_name() {
+        let entities = [Entity::new(
+            "Acme Inc.",
+            EntityType::Organization,
+            1,
+            10,
+            1.0,
+        )];
+        assert_eq!(
+            to_conll("(Acme Inc.)", &entities),
+            "(\tO\nAcme\tB-ORG\nInc.\tI-ORG\n)\tO"
+        );
+    }
+
+    #[test]
+    fn conll_flattens_overlaps_and_starts_adjacent_entities() {
+        let entities = [
+            Entity::new("York", EntityType::Location, 4, 8, 1.0),
+            Entity::new("New", EntityType::Location, 0, 3, 1.0),
+            Entity::new("New York", EntityType::Location, 0, 8, 1.0),
+            Entity::new("US", EntityType::Location, 8, 10, 1.0),
+        ];
+        assert_eq!(
+            to_conll("New YorkUS", &entities),
+            "New\tB-LOC\nYork\tI-LOC\nUS\tB-LOC"
+        );
     }
 
     #[test]

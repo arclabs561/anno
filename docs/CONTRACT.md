@@ -132,6 +132,20 @@ from the entities actually emitted after filtering and validation. It is omitted
 entity has source metadata. It does not infer a single producing model for stacked output, a
 model artifact version, or provider/device placement.
 
+## CoNLL BIO export
+
+`anno export --format conll` and `anno::export::to_conll` split the source at
+mention boundaries. For example, a pair of parentheses around an email address
+gets separate `O` rows, and the address gets a `B-EMAIL` row. BIO carries one
+label per token. When mentions overlap, the exporter keeps the earliest
+starting mention, preferring the longer span for a tied start.
+
+These rows depend on the supplied mentions. For evaluation on a pretokenized
+corpus, align predictions to the corpus's token rows and sentence boundaries
+before scoring. The shared-task definition assigns `B` to the first word of
+each entity and `I` to its remaining words.
+[CoNLL-2002 shared task, section 2](https://aclanthology.org/W02-2024.pdf)
+
 ## Evaluation (two layers)
 
 `anno` has two eval layers with very different runtimes:
