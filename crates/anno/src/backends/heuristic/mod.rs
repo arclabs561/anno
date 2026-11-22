@@ -626,6 +626,24 @@ impl Model for HeuristicNER {
                 let w = words[i];
                 let w_clean = w.trim_start_matches(|c: char| !c.is_alphanumeric());
 
+                // A parenthesized short form is its own candidate, even when
+                // followed by a comma. Keep embedded qualifiers in "Acme (UK) Ltd".
+                let parenthesized = w.strip_prefix('(').and_then(|rest| {
+                    rest.trim_end_matches([',', '.', ';', ':', '!', '?'])
+                        .strip_suffix(')')
+                });
+                if parenthesized
+                    .is_some_and(|alias| is_acronym_word(alias) || (i > 0 && words[i - 1] == alias))
+                    && !words.get(i + 1).is_some_and(|next| {
+                        ORG_SUFFIX.contains(&next.trim_end_matches(',').to_lowercase().as_str())
+                    })
+                {
+                    if i == start_idx {
+                        i += 1;
+                    }
+                    break;
+                }
+
                 // Check if word ends with closing parenthesis - implies end of group
                 // Also check for sentence boundaries (. ! ?) unless it's a known suffix like Inc. or Mr.
                 // NOTE: We assume '.' inside a word (e.g. U.S.A.) is fine, but '.' at end is boundary.
