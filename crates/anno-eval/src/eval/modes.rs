@@ -157,7 +157,7 @@
 //! ```
 
 use super::datasets::GoldEntity;
-use anno::{Entity, EntityType, SpanCoverage};
+use anno::{Entity, SpanCoverage};
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -635,6 +635,7 @@ pub fn evaluate_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anno::EntityType;
 
     fn pred(text: &str, ty: EntityType, start: usize, end: usize) -> Entity {
         Entity::new(text, ty, start, end, 0.9)
