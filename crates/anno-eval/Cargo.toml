@@ -69,7 +69,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 bitflags = { workspace = true }
 textprep = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
+time = { version = "0.3.49", default-features = false, features = ["parsing"] }
 log = { workspace = true }
 regex = { workspace = true }
 dirs = { workspace = true }
