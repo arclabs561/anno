@@ -1,5 +1,6 @@
 """Check typed assertions against anno batch JSONL using half-open Unicode code-point ranges."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -61,13 +62,42 @@ def load_cases(rows, custom_types=()):
     return cases
 
 
+def jsonl_rows(text):
+    return [json.loads(line) for line in text.split("\n") if line.strip()]
+
+
+def source_sha256(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def run_batch(cases, binary, model):
+    inputs = "".join(json.dumps({"id": key, "text": case["text"]}) + "\n"
+                     for key, case in cases.items())
+    cmd = [binary, "batch", "--stdin", "--format", "jsonl", "--model", model]
+    output = subprocess.run(cmd, input=inputs, encoding="utf-8", stdout=subprocess.PIPE,
+                            check=True, env={**os.environ, "ANNO_NO_DOWNLOADS": "1"}).stdout
+    rows = jsonl_rows(output)
+    # Older binaries omit this field. Bind their live output to the text we sent.
+    for key, row in indexed(rows, "batch output").items():
+        if key in cases and "source_sha256" not in row:
+            row["source_sha256"] = source_sha256(cases[key]["text"])
+    return rows
+
+
 def score(cases, predictions):
     outputs = indexed(predictions, "predictions")
     if outputs.keys() != cases.keys():
         raise ValueError(f"prediction IDs differ from fixture: {sorted(outputs.keys() ^ cases.keys())}")
     findings = []
     for key, case in cases.items():
-        entities = objects(outputs[key].get("entities"), key)
+        row = outputs[key]
+        if "source_sha256" not in row:
+            raise ValueError(f"{key}: saved prediction lacks source_sha256; "
+                             "rerun the original binary with --save-predictions")
+        digest = row["source_sha256"]
+        if not isinstance(digest, str) or digest.lower() != source_sha256(case["text"]):
+            raise ValueError(f"{key}: prediction source_sha256 differs from fixture text")
+        entities = objects(row.get("entities"), key)
         for entity in entities:
             check_range(entity, case["text"], key)
             label = entity.get("type")
@@ -91,7 +121,7 @@ def score(cases, predictions):
 
 def compare_predictions(cases, baseline_jsonl, candidate):
     # Both reports iterate the same validated fixture, regardless of JSONL row order.
-    baseline = score(cases, [json.loads(line) for line in baseline_jsonl.splitlines()])
+    baseline = score(cases, jsonl_rows(baseline_jsonl))
     gained = lost = 0
     for old, new in zip(baseline["findings"], candidate["findings"], strict=True):
         new["baseline_passed"] = old["passed"]
@@ -115,21 +145,25 @@ def main():
                         help="declare a custom, case-sensitive assertion label (repeatable)")
     parser.add_argument("--baseline-predictions", type=Path,
                         help="compare against saved batch JSONL and fail on any lost assertion")
+    parser.add_argument("--save-predictions", type=Path, metavar="FILE",
+                        help="capture a live batch run in a new source-bound JSONL file")
     args = parser.parse_args()
+    if args.save_predictions and args.predictions:
+        parser.error("--save-predictions requires a live run; use --binary")
     try:
         cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")), args.allow_type)
         if args.predictions:
-            output = args.predictions.read_text(encoding="utf-8")
+            predictions = jsonl_rows(args.predictions.read_text(encoding="utf-8"))
         else:
-            inputs = "".join(json.dumps({"id": key, "text": case["text"]}) + "\n"
-                             for key, case in cases.items())
-            cmd = [args.binary, "batch", "--stdin", "--format", "jsonl", "--model", args.model]
-            output = subprocess.run(cmd, input=inputs, encoding="utf-8", stdout=subprocess.PIPE,
-                                    check=True, env={**os.environ, "ANNO_NO_DOWNLOADS": "1"}).stdout
-        report = score(cases, [json.loads(line) for line in output.splitlines()])
+            predictions = run_batch(cases, args.binary, args.model)
+        report = score(cases, predictions)
         if args.baseline_predictions:
             report["comparison"] = compare_predictions(
                 cases, args.baseline_predictions.read_text(encoding="utf-8"), report)
+        if args.save_predictions:
+            with args.save_predictions.open("x", encoding="utf-8") as capture:
+                for row in predictions:
+                    capture.write(json.dumps(row) + "\n")
     except (ValueError, OSError, subprocess.CalledProcessError) as exc:
         parser.exit(2, f"invalid span QA run: {exc}\n")
     print(json.dumps(report, ensure_ascii=False, indent=2))

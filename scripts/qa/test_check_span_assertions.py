@@ -1,11 +1,18 @@
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import check_span_assertions as oracle
+
+
+def prediction(row, entities):
+    return dict(id=row["id"], entities=entities,
+                source_sha256=hashlib.sha256(row["text"].encode("utf-8")).hexdigest())
 
 
 def entity(start, end, text, label):
@@ -20,7 +27,7 @@ class TestSpanAssertions(unittest.TestCase):
         self.row = dict(id="unicode", text=self.text, assertions=[self.positive, self.negative])
 
     def score(self, entities):
-        return oracle.score(oracle.load_cases([self.row]), [dict(id="unicode", entities=entities)])
+        return oracle.score(oracle.load_cases([self.row]), [prediction(self.row, entities)])
 
     def test_unicode_exact_and_half_open_typed_overlap(self):
         report = self.score([entity(1, 4, "Zoë", "PER"), entity(4, 6, " (", "ORG"),
@@ -54,7 +61,7 @@ class TestSpanAssertions(unittest.TestCase):
         hashtag = entity(2, 9, "#Launch", "Hashtag")
         check = dict(kind="no_overlap", start=2, end=9, text="#Launch", types=["ORG"])
         case = dict(id="tag", text="🦊 #Launch at LHA.", assertions=[check])
-        predictions = [dict(id="tag", entities=[hashtag])]
+        predictions = [prediction(case, [hashtag])]
         finding = oracle.score(oracle.load_cases([case]), predictions)["findings"][0]
         self.assertTrue(finding["passed"])
         self.assertEqual(finding["overlaps"], [hashtag])
@@ -79,6 +86,32 @@ class TestSpanAssertions(unittest.TestCase):
             with self.assertRaises(ValueError):
                 oracle.score(cases, predictions)
 
+    def test_saved_output_must_bind_the_complete_input(self):
+        cases = oracle.load_cases([self.row])
+        for entities in ([], [entity(1, 4, "Zoë", "PER")]):
+            stale = prediction({**self.row, "text": "🪶Zoë waits"}, entities)
+            for value in (stale["source_sha256"], None, True, "invalid"):
+                with self.subTest(entities=entities, digest=value), self.assertRaisesRegex(
+                        ValueError, "source_sha256 differs"):
+                    oracle.score(cases, [{**stale, "source_sha256": value}])
+            legacy = dict(id=self.row["id"], entities=entities)
+            with self.assertRaisesRegex(ValueError, "lacks source_sha256"):
+                oracle.score(cases, [legacy])
+            with patch("check_span_assertions.subprocess.run") as run:
+                run.return_value.stdout = json.dumps(legacy)
+                live = oracle.run_batch(cases, "old-anno", "heuristic")
+                self.assertEqual(json.loads(run.call_args.kwargs["input"]),
+                                 {"id": self.row["id"], "text": self.row["text"]})
+                self.assertEqual(live, [prediction(self.row, entities)])
+                self.assertEqual(oracle.score(cases, live), self.score(entities))
+                run.return_value.stdout = json.dumps(stale)
+                with self.assertRaisesRegex(ValueError, "source_sha256 differs"):
+                    oracle.score(cases, oracle.run_batch(cases, "anno", "heuristic"))
+
+    def test_jsonl_preserves_unicode_line_separators_inside_values(self):
+        row = {"text": "a\u2028b\u0085c"}
+        self.assertEqual(oracle.jsonl_rows(json.dumps(row, ensure_ascii=False) + "\r\n"), [row])
+
     def test_comparison_detects_loss_even_when_total_improves(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -87,8 +120,8 @@ class TestSpanAssertions(unittest.TestCase):
             fixture.write_text(json.dumps(rows))
             old, new = root / "old.jsonl", root / "new.jsonl"
             for target, good in [(old, {0}), (new, {1, 2})]:
-                target.write_text("".join(json.dumps(dict(id=row["id"], entities=(
-                    [entity(1, 4, "Zoë", "PER")] if int(row["id"]) in good else []))) + "\n"
+                target.write_text("".join(json.dumps(prediction(row,
+                    [entity(1, 4, "Zoë", "PER")] if int(row["id"]) in good else [])) + "\n"
                     for row in reversed(rows)))
             cmd = [sys.executable, oracle.__file__, "--fixture", str(fixture),
                    "--baseline-predictions", str(old), "--predictions"]
@@ -99,6 +132,10 @@ class TestSpanAssertions(unittest.TestCase):
             same = subprocess.run([*cmd, str(old)], capture_output=True, text=True)
             self.assertEqual(same.returncode, 0, same.stderr)
             self.assertEqual(json.loads(same.stdout)["passed"], 1)
+            old.write_text(old.read_text().replace(prediction(self.row, [])["source_sha256"], "bad"))
+            stale_baseline = subprocess.run([*cmd, str(new)], capture_output=True, text=True)
+            self.assertEqual(stale_baseline.returncode, 2)
+            self.assertFalse(stale_baseline.stdout)
 
     def test_replay_exit_codes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -109,7 +146,7 @@ class TestSpanAssertions(unittest.TestCase):
             cmd = [sys.executable, oracle.__file__, "--fixture", str(fixture), "--predictions", str(saved)]
             for entities, code in [([entity(1, 4, "Zoë", "PER")], 0), ([], 1),
                                    ([entity(2, 5, "Zoë", "PER")], 2)]:
-                saved.write_text(json.dumps(dict(id="unicode", entities=entities)) + "\n")
+                saved.write_text(json.dumps(prediction(self.row, entities)) + "\n")
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 self.assertEqual(result.returncode, code, result.stderr)
                 if code < 2:
