@@ -5,11 +5,13 @@ from collections import Counter
 from datetime import date
 import hashlib
 from html import unescape
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
+from threading import Thread
 from urllib.request import urlopen
 
 CATALOGS = (
@@ -48,10 +50,68 @@ def check_spans(output, expected):
                          f"first unexpected: {next(iter(actual - gold), None)}")
 
 
+def check_rendered_catalog(doc, table, gold):
+    """Locate calendar cells by their row IDs in the text returned by the real URL CLI."""
+    text = doc["text"]
+    dates = Counter()
+    for signal in doc["signals"]:
+        if signal["label"] == "DATE":
+            span = signal["location"]["Text"]
+            start, end = span["start"], span["end"]
+            if not 0 <= start < end <= len(text) or text[start:end] != signal["surface"]:
+                raise ValueError(f"DATE surface disagrees with rendered text at {start}..{end}")
+            dates[start, end, signal["surface"]] += 1
+    expected = []
+    for row, (_, _, calendar) in zip(table.splitlines(), gold, strict=True):
+        # html2text displays linked row IDs as [09651][19]. Plain text also occurs.
+        row_id = re.escape(row[:5])
+        identifier = rf"(?:{row_id}|\[{row_id}\](?:\[\d+\])?)"
+        pattern = rf"(?m)^[ \t]*{identifier}[ \t]+({re.escape(calendar)})(?=[ \t]|$)"
+        matches = list(re.finditer(pattern, text))
+        if len(matches) != 1:
+            raise ValueError(f"expected one rendered calendar cell for row {row[:5]}, found {len(matches)}")
+        expected.append((*matches[0].span(1), calendar))
+    # Headers and other columns can legitimately contain additional dates.
+    # Score only predicted DATE spans that intersect an annotated calendar cell.
+    scoped = Counter({span: count for span, count in dates.items()
+                      if any(span[0] < end and start < span[1] for start, end, _ in expected)})
+    if scoped != Counter(expected):
+        hits = sum((scoped & Counter(expected)).values())
+        raise ValueError(f"{hits}/{len(expected)} exact rendered calendar dates; "
+                         f"first missing: {next(iter(Counter(expected) - scoped), None)}")
+
+
+def extract_page(anno_bin, raw):
+    class CatalogPage(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *args):
+            pass
+
+    with ThreadingHTTPServer(("127.0.0.1", 0), CatalogPage) as server:
+        worker = Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            output = subprocess.check_output([
+                anno_bin, "extract", "--url", f"http://127.0.0.1:{server.server_port}/catalog.html",
+                "--model", "pattern", "--format", "grounded",
+            ], timeout=120)
+            return json.loads(output)
+        finally:
+            server.shutdown()
+            worker.join()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--anno-bin", default="./target/debug/anno")
     parser.add_argument("--source-dir", type=Path, help="read the two named HTML files locally, without network access")
+    parser.add_argument("--web", action="store_true", help="also test HTML-to-text and model extraction through the URL CLI")
     args = parser.parse_args()
     for filename, count, digest in CATALOGS:
         if args.source_dir:
@@ -70,7 +130,10 @@ def main():
             check_spans(json.loads(output), expected)
         except ValueError as error:
             raise ValueError(f"{filename}: {error}") from error
-        print(f"{filename}: {count}/{count} exact dates")
+        print(f"{filename}: {count}/{count} exact dates in isolated rows")
+        if args.web:
+            check_rendered_catalog(extract_page(args.anno_bin, raw), text, expected)
+            print(f"{filename}: {count}/{count} exact dates at rendered page coordinates")
 
 
 if __name__ == "__main__":

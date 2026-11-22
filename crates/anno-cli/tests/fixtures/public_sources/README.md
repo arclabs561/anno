@@ -15,3 +15,16 @@ score all 457 NASA calendar cells. It verifies each source file's SHA-256 and
 uses each eclipse map's ISO date to check the visible date and character offsets.
 For offline replay, pass `--source-dir DIR` containing the original
 `LE1901-2000.html` and `LE2001-2100.html`. Select another binary with `--anno-bin`.
+
+To exercise full HTML ingestion, add `--web` and use a CLI built with URL
+support, for example:
+
+```sh
+cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
+python3 scripts/qa/check_nasa_dates.py --web --anno-bin target/debug/anno
+```
+
+The script serves the hash-checked HTML on loopback, then locates each date
+by catalog row ID in the CLI's rendered source. It scores exact character
+ranges within the 457 calendar cells. Dates in headers and other columns are
+outside this panel. Pass `--source-dir DIR` to reuse downloaded snapshots.
