@@ -125,6 +125,35 @@ The persistent and switched cases show whether a policy rediscovers a known
 quality failure or detects it after it moves. Neither creates a backend crash
 or an I/O error. The experiment does not estimate discovery rates on live data.
 
+### Reserve part of a trial for coverage
+
+For a bounded trial, `scripts/qa/run_matrix_slot.py` runs one existing selector
+per explicit, one-based slot. In the example, slots 1, 3, and 4 use
+`worst-first`, and slot 2 uses `estimate` with the same persistent cache.
+
+```bash
+for slot in 1 2 3 4; do
+  ANNO_MATRIX_TASK=ner ANNO_MATRIX_REQUIRE_CACHED=1 ANNO_NO_DOWNLOADS=1 \
+    python3 scripts/qa/run_matrix_slot.py --policy mixed --slot "$slot" \
+      --period 4 --coverage-slot 2 --seed "$((100 + slot))" \
+      --cache-dir .generated/mixed-cache --receipts ".generated/mixed/slot-$slot"
+done
+```
+
+The period repeats if the trial continues. The reserved fraction counts
+selection slots. Record observed cost and completed task/dataset/backend cells
+when choices run different numbers of examples. Each fresh receipt directory
+contains the requested schedule, native decision/outcome rows, and the strategy
+observed in those rows. Use `--test-binary PATH` to reuse a compiled evaluator.
+Use `--plan-only` with a copy of the starting state to inspect a choice before
+revealing its outcome.
+
+Run `--policy random` with the same slot numbers, seeds, and candidate panel
+in a separate copy of the initial cache. Preserve both the journal and scoped
+coverage state between slots within a policy. Comparing discovery at the same
+budget measures triage. Estimating overall quality requires a separate random
+sample or an independently scored complete panel.
+
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
