@@ -132,6 +132,12 @@ from the entities actually emitted after filtering and validation. It is omitted
 entity has source metadata. It does not infer a single producing model for stacked output, a
 model artifact version, or provider/device placement.
 
+`anno pipeline --coref --format json` and `--format grounded` record the successful
+resolver in each document’s optional `coref_backend` field. `fcoref` identifies the
+neural model and `mention-ranking` the heuristic fallback. Successful runs record
+the backend even when they produce zero tracks. Documents without a recorded
+coreference run omit this field.
+
 ## Evaluation (two layers)
 
 `anno` has two eval layers with very different runtimes:

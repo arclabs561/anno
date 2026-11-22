@@ -273,6 +273,9 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
                 for doc in &documents {
                     println!();
                     println!("{}", color("1;36", &format!("Document: {}", doc.id())));
+                    if let Some(backend) = doc.coref_backend() {
+                        println!("Coreference backend: {backend}");
+                    }
                     print_signals(doc, doc.text(), 0);
                 }
             }
