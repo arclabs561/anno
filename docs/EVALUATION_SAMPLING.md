@@ -24,7 +24,7 @@ datasets, and cold caches visible before interpreting adaptive choices.
 | `--mode measure` | `ml-only` | Eligible ML backends prioritized by the configured policy and available outcomes. Selection changes the sample, so use a fixed panel for a head-to-head quality comparison. |
 | `--mode coverage` | `estimate` | Backends with fewer recorded observations across the eligible dataset panel. |
 
-`--strategy random` supplies a seeded control. Use `--mode coverage` when filling gaps. The legacy spelling `--mode estimate` selects measure, while `--strategy estimate` selects coverage. In muxer itself, the stateful `Router` can change from normal operation to triage when a drift alarm fires. Anno's CLI selects its preset explicitly. [CLI definitions](../crates/anno-cli/src/cli/commands/muxer.rs) · [Upstream RouterMode](https://docs.rs/muxer/0.5.3/muxer/router/enum.RouterMode.html)
+`--strategy random` supplies a seeded control. Use `--mode coverage` when filling gaps. The legacy spelling `--mode estimate` selects measure, while `--strategy estimate` selects coverage. In muxer itself, the stateful `Router` can change from normal operation to triage when a drift alarm fires. Anno's CLI selects its preset explicitly. [CLI definitions](../crates/anno-cli/src/cli/commands/muxer.rs) · [Upstream RouterMode](https://docs.rs/muxer/0.5.3/muxer/enum.RouterMode.html)
 
 ## Reproducible smoke run
 
