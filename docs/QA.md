@@ -41,7 +41,7 @@ For discovery across publishers, choose an eval-enabled CLI and a bounded number
 ANNO=target/debug/anno python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed 42 --backends pattern
 ```
 
-The seed reproduces the choice among unchanged candidates. Publishers can change a page, redirect a URL or stop responding. Compare backend outputs only when their rendered source hashes agree. Scheduled or manually dispatched live QA keeps the reports when some pages fail. The standard contributor path uses local inputs.
+The pool combines standing pages and same-publisher articles discovered from RSS or Atom feeds. The sampler visits distinct publishers within each pass and bounds feed reads. Use `--no-rss` for standing pages only. The seed reproduces the choice among unchanged candidates. Publishers can change a page, redirect a URL or stop responding. Compare backend outputs only when their rendered source hashes agree. Scheduled or manually dispatched live QA keeps the reports when some pages fail. The standard contributor path uses local inputs.
 
 ## Find a dataset or add a case
 
