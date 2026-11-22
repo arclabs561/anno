@@ -694,6 +694,7 @@ jobs:
     timeout-minutes: 20
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     permissions:
+      actions: read # Restore trusted matrix checkpoints across workflow runs.
       contents: read
       id-token: write
     steps: *matrix-test-steps
