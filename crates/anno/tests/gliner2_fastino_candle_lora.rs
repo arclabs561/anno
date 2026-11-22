@@ -14,11 +14,11 @@
 //!
 //! Run with:
 //! ```bash
-//! cargo test -p anno --features gliner2-fastino-candle \
+//! cargo test -p anno --features gliner2-fastino-candle-cuda \
 //!     --test gliner2_fastino_candle_lora
 //! # plus, if you have a real adapter:
 //! GLINER2_TEST_ADAPTER_DIR=/path/to/adapter \
-//!     cargo test -p anno --features gliner2-fastino-candle \
+//!     cargo test -p anno --features gliner2-fastino-candle-cuda \
 //!     --test gliner2_fastino_candle_lora -- --ignored
 //! ```
 

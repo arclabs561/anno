@@ -6,7 +6,7 @@
 //!
 //! ```bash
 //! hf download fastino/gliner2-multi-v1 --revision ce747d79a8e362d3dee0b0b26d1201f7f1a8615a
-//! cargo test -p anno --features gliner2-fastino-candle \
+//! cargo test -p anno --features gliner2-fastino-candle-cuda \
 //!     --test gliner2_fastino_candle_integration -- --ignored --nocapture
 //! ```
 
