@@ -15,7 +15,8 @@ on:
         type: string
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let an active default-branch run finish publishing its measured policy state.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -629,7 +630,7 @@ jobs:
           echo "$digest  $RUNNER_TEMP/wikigold.conll" | sha256sum --check
           install -D "$RUNNER_TEMP/wikigold.conll" "$input"
       - name: Bootstrap a cold trusted run on the public WikiGold corpus
-        if: steps.prior.outputs.restored == 'false' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: steps.prior.outputs.restored == 'false' && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
           ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-bootstrap.jsonl
           ANNO_MATRIX_TASK: ner
@@ -704,7 +705,7 @@ jobs:
           python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
         id: checkpoint
-        if: success() && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        if: success() && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           python3 scripts/qa/matrix_checkpoint.py snapshot "$RUNNER_TEMP/matrix-checkpoint" \
             "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
@@ -715,13 +716,12 @@ jobs:
           name: ${{ env.MATRIX_CHECKPOINT }}
           path: ${{ runner.temp }}/matrix-checkpoint/
           if-no-files-found: error
-          overwrite: true
           retention-days: 60
       - name: Upload matrix decision and outcome log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: matrix-muxer-decisions
+          name: matrix-muxer-decisions${{ github.run_attempt != '1' && format('-attempt-{0}', github.run_attempt) || '' }}
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
             ${{ runner.temp }}/matrix-bootstrap.jsonl

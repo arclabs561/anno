@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from matrix_checkpoint import select_artifact, snapshot, unpack
+from matrix_checkpoint import select_checkpoints, snapshot, unpack
 
 
 class MatrixCheckpointTest(unittest.TestCase):
@@ -22,8 +22,10 @@ class MatrixCheckpointTest(unittest.TestCase):
                 "head_branch": "main", "conclusion": "failure",
                 "head_repository": {"full_name": "fork/anno" if n == 2 else "owner/anno"},
             }
-        self.assertEqual(select_artifact(artifacts, "main", "owner/anno", 6, run)["id"], 1)
-        self.assertIsNone(select_artifact(artifacts, "other", "owner/anno", 6, run))
+        previous, published = select_checkpoints(artifacts, "main", "owner/anno", 6, run)
+        self.assertEqual(previous["id"], 1)
+        self.assertIsNone(published)
+        self.assertEqual(select_checkpoints(artifacts, "other", "owner/anno", 6, run), (None, None))
 
     def test_same_run_retries_and_late_uploads_do_not_override_a_newer_producer(self):
         artifacts = [
@@ -33,7 +35,12 @@ class MatrixCheckpointTest(unittest.TestCase):
         def trusted(_run):
             return {"path": ".github/workflows/ci.yml", "event": "schedule",
                     "head_branch": "main", "head_repository": {"full_name": "owner/anno"}}
-        self.assertEqual(select_artifact(artifacts, "main", "owner/anno", 3, trusted)["id"], 20)
+        previous, published = select_checkpoints(artifacts, "main", "owner/anno", 3, trusted)
+        self.assertEqual(previous["id"], 20)
+        self.assertEqual(published, 4)
+        previous, published = select_checkpoints(artifacts[:3], "main", "owner/anno", 3, trusted)
+        self.assertEqual(previous["id"], 20)
+        self.assertEqual(published, 3)
 
     def test_no_outcome_does_not_republish_stale_state(self):
         with tempfile.TemporaryDirectory() as directory:

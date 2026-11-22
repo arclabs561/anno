@@ -58,6 +58,9 @@ workflow on the default branch. The artifact contains muxer windows, evaluation
 JSONL, and its SQLite index. Checkpoints expire after 60 days. A new cohort
 starts when the history or provenance implementation changes. PRs can read
 this state. Only default-branch runs with new external observations publish it.
+An active default-branch run can finish its checkpoint before the next run
+starts. A retry stays read-only if that run or a newer run already published
+the same cohort. Each retry retains its own sampling receipt.
 
 Both kinds of run measure five examples per dataset from a local cache. A
 checksum-pinned public WikiGold corpus supplies a real input even after cache
