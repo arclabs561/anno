@@ -91,6 +91,42 @@ pub struct TextChunk {
 /// This is the shared chunking primitive used by `extract_chunked_parallel`
 /// and LLM backends like UniversalNER.
 pub fn chunk_text(text: &str, config: &ChunkConfig) -> Vec<TextChunk> {
+    split_text(text, config, &[])
+}
+
+pub(crate) fn chunk_text_with_hints(
+    text: &str,
+    config: &ChunkConfig,
+    hints: &[usize],
+) -> Result<Vec<TextChunk>> {
+    if hints.is_empty() {
+        return Ok(chunk_text(text, config));
+    }
+    if hints.iter().any(|&hint| !text.is_char_boundary(hint)) {
+        return Err(crate::Error::InvalidInput(
+            "breakpoint hints must be UTF-8 byte positions in the source text".into(),
+        ));
+    }
+    let mut hints = hints.to_vec();
+    hints.sort_unstable();
+    hints.dedup();
+    let mut hints = hints.into_iter().peekable();
+    let mut char_hints = Vec::new();
+    for (char_offset, byte_offset) in text
+        .char_indices()
+        .map(|(i, _)| i)
+        .chain([text.len()])
+        .enumerate()
+    {
+        if hints.peek() == Some(&byte_offset) {
+            char_hints.push(char_offset);
+            hints.next();
+        }
+    }
+    Ok(split_text(text, config, &char_hints))
+}
+
+fn split_text(text: &str, config: &ChunkConfig, hints: &[usize]) -> Vec<TextChunk> {
     let chars: Vec<char> = text.chars().collect();
     let text_len = chars.len();
 
@@ -114,8 +150,14 @@ pub fn chunk_text(text: &str, config: &ChunkConfig) -> Vec<TextChunk> {
     while position < text_len {
         let chunk_end = position.saturating_add(chunk_size).min(text_len);
 
+        let preferred = hints[..hints.partition_point(|&hint| hint <= chunk_end)]
+            .last()
+            .copied()
+            .filter(|&hint| hint > previous_end);
         let actual_end = if chunk_end >= text_len {
             text_len
+        } else if let Some(end) = preferred {
+            end
         } else {
             // Search only new text. Include one lookahead character so the
             // sentence detector can distinguish "end. " from "e.g." at the cut.
@@ -486,6 +528,114 @@ mod tests {
         let chunks = chunk_text("A.       B", &config);
         let parts: Vec<_> = chunks.iter().map(|c| c.text.as_str()).collect();
         assert_eq!(parts, ["A.  ", "    ", " B"]);
+    }
+
+    #[test]
+    fn breakpoint_hints_empty_preserve_existing_chunking() {
+        for respect_sentences in [false, true] {
+            let config = ChunkConfig {
+                chunk_size: 12,
+                overlap: 2,
+                respect_sentences,
+                ..Default::default()
+            };
+            let text = "Éva went home. 李 stayed.\r\n";
+            let expected = chunk_text(text, &config);
+            let actual = chunk_text_with_hints(text, &config, &[]).unwrap();
+            assert_eq!(actual.len(), expected.len());
+            for (actual, expected) in actual.iter().zip(expected) {
+                assert_eq!(actual.text, expected.text);
+                assert_eq!(actual.char_offset, expected.char_offset);
+            }
+        }
+    }
+
+    #[test]
+    fn breakpoint_hints_reuse_preferred_ends_and_keep_overlap() {
+        let config = ChunkConfig {
+            chunk_size: 12,
+            overlap: 2,
+            respect_sentences: false,
+            ..Default::default()
+        };
+        let text = "alpha beta gamma delta";
+        assert_eq!(chunk_text(text, &config)[0].text, "alpha beta ");
+        let chunks = chunk_text_with_hints(text, &config, &[text.len(), 6, 0, 6]).unwrap();
+        assert_eq!(chunks[0].text, "alpha ");
+        assert_eq!(chunks[1].char_offset, 4);
+        for pair in chunks.windows(2) {
+            assert!(pair[0].char_offset < pair[1].char_offset);
+            assert!(
+                pair[0].char_offset + pair[0].text.chars().count()
+                    < pair[1].char_offset + pair[1].text.chars().count()
+            );
+        }
+    }
+
+    #[test]
+    fn breakpoint_hints_allow_further_splits_without_forcing_small_inputs() {
+        let config = ChunkConfig {
+            chunk_size: 4,
+            overlap: 1,
+            ..Default::default()
+        };
+        let text = "abcdefghij";
+        let chunks = chunk_text_with_hints(text, &config, &[text.len()]).unwrap();
+        assert_eq!(chunks.len(), 3);
+        assert!(chunks.iter().all(|chunk| chunk.text.chars().count() <= 4));
+        let small = chunk_text_with_hints("abc", &config, &[1]).unwrap();
+        assert_eq!(small.len(), 1);
+        assert_eq!(small[0].text, "abc");
+    }
+
+    #[test]
+    fn breakpoint_hints_reject_invalid_source_positions() {
+        let config = ChunkConfig::default();
+        for hint in [1, 50] {
+            assert!(chunk_text_with_hints("Éva", &config, &[hint]).is_err());
+        }
+        assert!(chunk_text_with_hints("Éva", &config, &[0, 4]).is_ok());
+        let zero = ChunkConfig {
+            chunk_size: 0,
+            ..Default::default()
+        };
+        let chunks = chunk_text_with_hints("Éva", &zero, &[2]).unwrap();
+        assert_eq!(
+            chunks.iter().map(|c| c.text.as_str()).collect::<Vec<_>>(),
+            ["É", "v", "a"]
+        );
+    }
+
+    #[test]
+    fn breakpoint_hints_preserve_unicode_source_coverage_and_size_limits() {
+        let text = "Éva met 李. She left. \r\n";
+        let chars: Vec<_> = text.chars().collect();
+        let hints: Vec<_> = text
+            .char_indices()
+            .map(|(i, _)| i)
+            .chain([text.len()])
+            .collect();
+        for overlap in [0, 3, 20] {
+            let config = ChunkConfig {
+                chunk_size: 7,
+                overlap,
+                ..Default::default()
+            };
+            let chunks = chunk_text_with_hints(text, &config, &hints).unwrap();
+            let mut covered = vec![false; chars.len()];
+            for chunk in chunks {
+                let count = chunk.text.chars().count();
+                assert!(count > 0 && count <= config.chunk_size);
+                assert_eq!(
+                    chunk.text,
+                    chars[chunk.char_offset..chunk.char_offset + count]
+                        .iter()
+                        .collect::<String>()
+                );
+                covered[chunk.char_offset..chunk.char_offset + count].fill(true);
+            }
+            assert!(covered.iter().all(|value| *value));
+        }
     }
 
     #[test]
