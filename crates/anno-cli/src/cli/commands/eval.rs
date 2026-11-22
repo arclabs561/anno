@@ -55,7 +55,12 @@ pub struct EvalArgs {
     pub metric: MetricKind,
 
     /// Gold annotation: "text:label:start:end" (repeatable)
-    #[arg(short, long = "gold", value_name = "SPEC")]
+    #[arg(
+        short,
+        long = "gold",
+        value_name = "SPEC",
+        conflicts_with = "gold_file"
+    )]
     pub gold_specs: Vec<String>,
 
     /// Load gold annotations from JSONL file
@@ -97,8 +102,13 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
     } else if !args.gold_specs.is_empty() {
         args.gold_specs
             .iter()
-            .filter_map(|s| parse_gold_spec(s))
-            .collect()
+            .enumerate()
+            .map(|(i, spec)| {
+                parse_gold_spec(spec).ok_or_else(|| {
+                    format!("Invalid --gold #{}: expected text:label:start:end with unsigned character offsets", i + 1)
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?
     } else {
         return Err(
             "No gold annotations. Use -g 'text:label:start:end' or --gold-file path.jsonl"
@@ -108,6 +118,27 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
 
     if gold.is_empty() {
         return Err("No valid gold annotations found".to_string());
+    }
+
+    let offsets = anno::offset::SpanConverter::new(&text);
+    let char_count = offsets.byte_to_char(text.len());
+    for (i, annotation) in gold.iter().enumerate() {
+        if annotation.label.trim().is_empty()
+            || annotation.start >= annotation.end
+            || annotation.end > char_count
+        {
+            return Err(format!("Invalid gold annotation #{}: expected a label and a nonempty character span within the input", i + 1));
+        }
+        if text[offsets.char_to_byte(annotation.start)..offsets.char_to_byte(annotation.end)]
+            != annotation.text
+        {
+            return Err(format!(
+                "Invalid gold annotation #{}: surface text does not match characters {}..{}",
+                i + 1,
+                annotation.start,
+                annotation.end
+            ));
+        }
     }
 
     let model = args.model.create_model()?;

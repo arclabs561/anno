@@ -222,7 +222,6 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
     let mut gold = Vec::new();
-    let mut warnings = Vec::new();
 
     for (line_num, line) in content.lines().enumerate() {
         if line.trim().is_empty() {
@@ -232,52 +231,36 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
         let entry: serde_json::Value = serde_json::from_str(line)
             .map_err(|e| format!("Invalid JSON in gold file at line {}: {}", line_num + 1, e))?;
 
-        if let Some(entities) = entry["entities"].as_array() {
-            for (i, ent) in entities.iter().enumerate() {
-                // Validate required fields are present
-                let start = match ent["start"].as_u64() {
-                    Some(v) => v as usize,
-                    None => {
-                        warnings.push(format!(
-                            "{}:{}: entity[{}] missing 'start' field, defaulting to 0",
-                            path,
-                            line_num + 1,
-                            i
-                        ));
-                        0
-                    }
-                };
-                let end = match ent["end"].as_u64() {
-                    Some(v) => v as usize,
-                    None => {
-                        warnings.push(format!(
-                            "{}:{}: entity[{}] missing 'end' field, defaulting to 0",
-                            path,
-                            line_num + 1,
-                            i
-                        ));
-                        0
-                    }
-                };
-
-                gold.push(GoldSpec {
-                    text: ent["text"].as_str().unwrap_or("").to_string(),
-                    label: ent["type"]
-                        .as_str()
-                        .or(ent["label"].as_str())
-                        .unwrap_or("UNK")
-                        .to_string(),
-                    start,
-                    end,
-                });
-            }
+        let entities = entry["entities"]
+            .as_array()
+            .ok_or_else(|| format!("{path}:{}: expected an entities array", line_num + 1))?;
+        for (i, ent) in entities.iter().enumerate() {
+            let invalid = |field: &str| {
+                format!(
+                    "{path}:{}: entity[{i}] has missing or invalid {field}",
+                    line_num + 1
+                )
+            };
+            let offset = |field: &str| {
+                ent[field]
+                    .as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .ok_or_else(|| invalid(field))
+            };
+            gold.push(GoldSpec {
+                text: ent["text"]
+                    .as_str()
+                    .ok_or_else(|| invalid("text"))?
+                    .to_owned(),
+                label: ent["type"]
+                    .as_str()
+                    .or_else(|| ent["label"].as_str())
+                    .ok_or_else(|| invalid("type or label"))?
+                    .to_owned(),
+                start: offset("start")?,
+                end: offset("end")?,
+            });
         }
-    }
-
-    // Report warnings to stderr
-    for warning in &warnings {
-        use super::output::color;
-        eprintln!("{} {}", color("33", "warning:"), warning);
     }
 
     Ok(gold)
