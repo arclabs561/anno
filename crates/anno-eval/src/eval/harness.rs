@@ -641,7 +641,7 @@ impl EvalHarness {
         };
 
         Ok(EvalResults {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: super::timestamp::now(),
             config: self.config.clone(),
             backends,
             by_difficulty,
@@ -719,7 +719,7 @@ impl EvalHarness {
             .collect();
 
         Ok(EvalResults {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: super::timestamp::now(),
             config: self.config.clone(),
             backends,
             by_difficulty: None,
@@ -797,7 +797,7 @@ impl EvalHarness {
             .collect();
 
         Ok(EvalResults {
-            timestamp: chrono::Utc::now().to_rfc3339(),
+            timestamp: super::timestamp::now(),
             config: self.config.clone(),
             backends,
             by_difficulty: None,

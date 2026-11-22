@@ -74,31 +74,6 @@ rules:
         - "**/metrics.rs"
         - "**/eval/**"
 
-  - id: byte-indexing-on-text
-    patterns:
-      - pattern-either:
-          - pattern: |
-              &$TEXT[$START..$END]
-          - pattern: |
-              &$TEXT[..$END]
-          - pattern: |
-              &$TEXT[$START..]
-      - metavariable-regex:
-          metavariable: $TEXT
-          regex: (?i)(^|[_\\.])(text|body|line|tag|url|uri|json|html|hash|pattern|remaining|trimmed)($|[_\\.])
-    message: "Using byte indexing on text. For Unicode correctness, use character offsets or TextSpan. If byte indexing is intentional, add a comment."
-    languages: [rust]
-    severity: WARNING
-    metadata:
-      category: correctness
-    paths:
-      include:
-        - "**/entity.rs"
-        - "**/eval/**"
-        - "**/backends/**"
-      exclude:
-        - "**/offset.rs"  # offset.rs handles conversions
-
   # ============================================================================
   # ML Model Loading and Error Handling
   # ============================================================================

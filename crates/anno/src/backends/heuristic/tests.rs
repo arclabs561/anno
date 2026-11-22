@@ -1036,3 +1036,39 @@ fn org_suffix_services_technologies() {
         );
     }
 }
+
+/// Entity text must be the source slice at its span, whatever whitespace
+/// separates the words of a name.
+#[test]
+fn entity_text_matches_source_span_with_irregular_whitespace() {
+    let ner = HeuristicNER::new();
+    for text in [
+        "Lynn\nConway worked at IBM.",
+        "Lynn  Conway worked at IBM.",
+        "Lynn\tConway worked at IBM.",
+        "She joined Bank of  America in May.",
+        "We met Dr.  Smith yesterday.",
+        "From Zürich  Switzerland by train.",
+        "(Lynn\n Conway) spoke.",
+    ] {
+        let entities = ner.extract_entities(text, None).unwrap();
+        assert!(!entities.is_empty(), "no entities for {text:?}");
+        for e in &entities {
+            let slice: String = text
+                .chars()
+                .skip(e.start())
+                .take(e.end() - e.start())
+                .collect();
+            assert_eq!(e.text, slice, "span {}..{} in {text:?}", e.start(), e.end());
+            assert!(e.validate(text).is_empty(), "{:?}", e.validate(text));
+        }
+    }
+    let entities = ner
+        .extract_entities("Lynn\nConway worked at IBM.", None)
+        .unwrap();
+    assert!(
+        entities.iter().any(|e| e.text == "Lynn\nConway"),
+        "{:?}",
+        entities.iter().map(|e| &e.text).collect::<Vec<_>>()
+    );
+}

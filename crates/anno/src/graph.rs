@@ -168,7 +168,6 @@ pub fn entities_to_knowledge_graph(
 
     let base = base_uri.trim_end_matches('/');
     let anno_ns = format!("{}/vocab#", base);
-    let entity_ns = format!("{}/entity/", base);
 
     const RDF_TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
     const RDFS_LABEL: &str = "http://www.w3.org/2000/01/rdf-schema#label";
@@ -176,21 +175,7 @@ pub fn entities_to_knowledge_graph(
     const XSD_INT: &str = "http://www.w3.org/2001/XMLSchema#integer";
     const XSD_FLOAT: &str = "http://www.w3.org/2001/XMLSchema#float";
 
-    // Stable per-doc entity IRIs used for both entity triples and relation arcs.
-    let entity_iris: Vec<String> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            format!(
-                "{}{}/{}_{}_{}/",
-                entity_ns,
-                uri_safe(&e.entity_type.as_label().to_lowercase()),
-                i,
-                uri_safe(&e.text),
-                e.start(),
-            )
-        })
-        .collect();
+    let entity_iris = crate::export::occurrence_iris(entities, doc_iri, base_uri);
 
     for (idx, entity) in entities.iter().enumerate() {
         let iri = &entity_iris[idx];
@@ -225,29 +210,17 @@ pub fn entities_to_knowledge_graph(
         ));
     }
 
-    // Build entity lookup by (text, start, end) for reliable relation matching.
-    let entity_lookup: std::collections::HashMap<(&str, usize, usize), usize> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| ((e.text.as_str(), e.start(), e.end()), i))
-        .collect();
-
-    // Semantic relation triples from RelationExtractor backends.
-    for rel in relations {
-        let head_iri = entity_lookup
-            .get(&(rel.head.text.as_str(), rel.head.start(), rel.head.end()))
-            .map(|&i| entity_iris[i].as_str());
-        let tail_iri = entity_lookup
-            .get(&(rel.tail.text.as_str(), rel.tail.start(), rel.tail.end()))
-            .map(|&i| entity_iris[i].as_str());
-        if let (Some(h), Some(t)) = (head_iri, tail_iri) {
-            let pred = format!("{}/rel/{}", base, uri_safe(&rel.relation_type));
-            let mut triple = Triple::new(h, pred.as_str(), t);
-            if rel.confidence.value().is_finite() {
-                triple = triple.with_confidence(f32::from(rel.confidence));
-            }
-            kg.add_triple(triple);
+    for (rel, h, t) in crate::export::resolved_relations(entities, relations) {
+        let pred = format!("{}/rel/{}", base, uri_safe(&rel.relation_type));
+        let mut triple = Triple::new(
+            entity_iris[h].as_str(),
+            pred.as_str(),
+            entity_iris[t].as_str(),
+        );
+        if rel.confidence.value().is_finite() {
+            triple = triple.with_confidence(f32::from(rel.confidence));
         }
+        kg.add_triple(triple);
     }
 
     kg

@@ -140,24 +140,12 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
             };
 
             if should_process {
-                // Check max files limit
-                if args.max_files > 0 && files_processed >= args.max_files {
-                    if !args.quiet {
-                        eprintln!(
-                            "{} Reached max files limit ({}), stopping",
-                            color("33", "[limit]"),
-                            args.max_files
-                        );
-                    }
-                    return Ok(());
-                }
-
                 // Process the file
                 match process_file(path, &*model, &args) {
                     Ok(entity_count) => {
                         files_processed += 1;
-                        let timestamp = chrono::Local::now().format("%H:%M:%S");
                         if !args.quiet {
+                            let now = jiff::Zoned::now();
                             let action = if file_states.contains_key(path) {
                                 "changed"
                             } else {
@@ -165,11 +153,22 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
                             };
                             eprintln!(
                                 "[{}] {}: {:?} → {} entities",
-                                timestamp,
+                                now.strftime("%T"),
                                 color("32", action),
                                 path.file_name().unwrap_or_default(),
                                 entity_count
                             );
+                        }
+
+                        if args.max_files > 0 && files_processed >= args.max_files {
+                            if !args.quiet {
+                                eprintln!(
+                                    "{} Reached max files limit ({}), stopping",
+                                    color("33", "[limit]"),
+                                    args.max_files
+                                );
+                            }
+                            return Ok(());
                         }
 
                         // Update state
@@ -205,10 +204,10 @@ pub fn run(args: WatchArgs) -> Result<(), String> {
 
         for path in deleted {
             if !args.quiet {
-                let timestamp = chrono::Local::now().format("%H:%M:%S");
+                let now = jiff::Zoned::now();
                 eprintln!(
                     "[{}] {}: {:?} removed from index",
-                    timestamp,
+                    now.strftime("%T"),
                     color("33", "deleted"),
                     path.file_name().unwrap_or_default()
                 );
