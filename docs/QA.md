@@ -55,3 +55,25 @@ anno dataset info --dataset WikiGold
 Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
 
 When a live run reveals a bug, preserve the original revision and rendering details, then reduce it to the smallest redistributable input that still fails. Put the expected behavior beside the test that consumes it. For a restricted source, use an independently authored reproducer or a permitted fetch recipe with a digest. Preserve the coordinate system of the original data, including whether source offsets address bytes, Unicode characters or token-reconstructed text. [Source and offset contract](CONTRACT.md)
+
+### Agency names in government publications
+
+Federal Register records provide an independent source of organization names.
+The following replay compares each issuing agency's metadata against its own
+document abstract. It scores exact, case-insensitive occurrences of multiword
+names, counts overlapping aliases once, and checks that every predicted span
+slices back to its reported text. The report gives the document and anchor
+denominators. Other mentions in the abstract have no gold labels, so this panel
+supports recall on those anchors only.
+
+```sh
+curl --fail --silent --show-error --get 'https://www.federalregister.gov/api/v1/documents.json' \
+  --data-urlencode 'conditions[publication_date][is]=2024-06-03' \
+  --data-urlencode 'per_page=1000' --data-urlencode 'order=document_number' -o /tmp/fr-june.json
+python3 scripts/qa/check_agency_spans.py target/debug/anno /tmp/fr-june.json
+```
+
+The June 3, 2024 issue yielded 53 anchors in 47 abstracts. A separate September 3,
+2024 issue yielded 50 in 44. Save each response and its reported SHA-256 for
+repeat comparisons. Use `--cases PATH` to inspect individual spans and look
+up the corresponding Federal Register document number.
