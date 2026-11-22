@@ -149,22 +149,17 @@ jobs:
       # All targets (lib + tests + bins + examples) so test code is also linted.
       - run: cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
   # ------------------------------------------------------------
-  # Clippy runs across feature combos that the default CI step
-  # doesn't exercise. Each combo is a separate job so a failure
-  # names the feature set directly.
-  # ------------------------------------------------------------
-  # Clippy on feature combos the primary (eval discourse) job doesn't cover.
-  # Scoped to lib + unit tests; integration tests live under the main job.
+  # Check each optional feature independently. The two lightweight checks
+  # share a runner and dependency artifacts. Candle has its own runner.
   clippy-extra:
-    name: Clippy (${{ matrix.features }})
+    name: Clippy (${{ matrix.label }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        features:
-          - "analysis"
-          - "schema"
-          - "candle"
+        include:
+          - { feature: analysis, label: 'analysis and schema' }
+          - { feature: candle, label: candle }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -174,9 +169,14 @@ jobs:
           toolchain: "stable"
           components: clippy
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        id: cache
         with:
           cache-all-crates: true
-      - run: cargo clippy -p anno --lib --features "${{ matrix.features }}" -- -D warnings
+      - name: Lint ${{ matrix.feature }}
+        run: cargo clippy -p anno --lib --features "${{ matrix.feature }}" -- -D warnings
+      - name: Lint schema
+        if: ${{ !cancelled() && matrix.feature == 'analysis' && steps.cache.outcome == 'success' }}
+        run: cargo clippy -p anno --lib --features schema -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
