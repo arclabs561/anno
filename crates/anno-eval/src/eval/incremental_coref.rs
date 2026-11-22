@@ -151,7 +151,10 @@ pub struct IncrementalConfig {
     pub similarity_threshold: f64,
     /// Use token-based windowing (vs character-based)
     pub token_based: bool,
-    /// Maximum distance (in windows) for pronoun antecedent search
+    /// Maximum distance in windows to a pronoun antecedent, inclusive.
+    /// Zero restricts the search to the current window. The default spans
+    /// `u32::MAX` windows and fits both 32-bit and 64-bit serialized configurations.
+    #[serde(default = "default_pronoun_search_windows")]
     pub max_pronoun_search_windows: usize,
     /// Whether to use exact string matching as a strong signal
     pub use_exact_match: bool,
@@ -162,6 +165,10 @@ pub struct IncrementalConfig {
     pub grouped_window_size: usize,
 }
 
+fn default_pronoun_search_windows() -> usize {
+    u32::MAX as usize
+}
+
 impl Default for IncrementalConfig {
     fn default() -> Self {
         Self {
@@ -170,7 +177,7 @@ impl Default for IncrementalConfig {
             memory_policy: MemoryPolicy::Unbounded,
             similarity_threshold: 0.7,
             token_based: true,
-            max_pronoun_search_windows: 3,
+            max_pronoun_search_windows: default_pronoun_search_windows(),
             use_exact_match: true,
             use_substring_match: true,
             grouped_window_size: 10,
@@ -227,7 +234,6 @@ struct MentionRecord {
     text: String,
     start: usize,
     end: usize,
-    #[allow(dead_code)]
     window_index: usize,
     mention_type: MentionType,
 }
@@ -318,12 +324,32 @@ impl EntityMemory {
         use_exact_match: bool,
         use_substring_match: bool,
     ) -> Option<u64> {
+        self.find_best_match_since(
+            mention_text,
+            mention_type,
+            similarity_threshold,
+            use_exact_match,
+            use_substring_match,
+            0,
+        )
+    }
+
+    fn find_best_match_since(
+        &self,
+        mention_text: &str,
+        mention_type: MentionType,
+        similarity_threshold: f64,
+        use_exact_match: bool,
+        use_substring_match: bool,
+        earliest_window: usize,
+    ) -> Option<u64> {
         let mention_key = name_key(mention_text);
         let mut best_match: Option<(u64, f64)> = None;
 
         for (id, cluster) in &self.clusters {
-            // Skip if types are incompatible
-            if !self.types_compatible(mention_type, cluster) {
+            if cluster.last_accessed_window < earliest_window
+                || !self.types_compatible(mention_type, cluster)
+            {
                 continue;
             }
 
@@ -617,21 +643,26 @@ impl IncrementalCorefResolver {
     /// Process a stream of entities (from external NER).
     ///
     /// Useful when NER is done separately and you just need coref linking.
+    /// Resolves mentions in source order and returns them in input order.
+    /// Without source tokens, window size and overlap are measured in characters.
     pub fn resolve_entities(&self, entities: &[Entity]) -> Vec<Entity> {
         let mut memory = EntityMemory::new(self.config.memory_policy);
         let mut resolved = entities.to_vec();
 
-        // Group entities by approximate window
-        let mut current_window_start = 0usize;
-        let mut window_idx = 0;
-
-        for (i, entity) in entities.iter().enumerate() {
-            // Check if we've moved to a new window
-            if entity.start() >= current_window_start + self.config.window_size {
-                window_idx += 1;
-                current_window_start = entity.start().saturating_sub(self.config.window_overlap);
-                memory.advance_window();
-            }
+        let window_size = self.config.window_size.max(1);
+        let step = window_size
+            .saturating_sub(self.config.window_overlap)
+            .max(1);
+        let mut ordered: Vec<_> = entities.iter().enumerate().collect();
+        ordered.sort_by_key(|(_, entity)| entity.start());
+        for (i, entity) in ordered {
+            // Assign a span to the first window containing its start, counting
+            // intervening windows even when none contain a supplied mention.
+            let window_idx = entity
+                .start()
+                .checked_sub(window_size)
+                .map_or(0, |offset| 1 + offset / step);
+            memory.current_window = window_idx;
 
             let mention = MentionRecord {
                 text: entity.text.clone(),
@@ -921,12 +952,20 @@ impl IncrementalCorefResolver {
     /// Process a single mention, linking to existing cluster or creating new.
     fn process_mention(&self, memory: &mut EntityMemory, mention: &MentionRecord) -> u64 {
         // Try to find matching cluster
-        if let Some(cluster_id) = memory.find_best_match(
+        let earliest_window = if mention.mention_type == MentionType::Pronominal {
+            mention
+                .window_index
+                .saturating_sub(self.config.max_pronoun_search_windows)
+        } else {
+            0
+        };
+        if let Some(cluster_id) = memory.find_best_match_since(
             &mention.text,
             mention.mention_type,
             self.config.similarity_threshold,
             self.config.use_exact_match,
             self.config.use_substring_match,
+            earliest_window,
         ) {
             memory.add_to_cluster(cluster_id, mention);
             cluster_id
@@ -967,6 +1006,9 @@ impl IncrementalCorefResolver {
                         memory.l_cache.retain(|&id| id != id_j);
                         memory.g_cache.retain(|&id| id != id_j);
                         if let Some(cluster_i) = memory.clusters.get_mut(&id_i) {
+                            cluster_i.last_accessed_window = cluster_i
+                                .last_accessed_window
+                                .max(cluster_j.last_accessed_window);
                             cluster_i.mentions.extend(cluster_j.mentions);
                             cluster_i.access_count += cluster_j.access_count;
                         }
@@ -990,6 +1032,24 @@ impl IncrementalCorefResolver {
             && cluster_a.entity_type != cluster_b.entity_type
         {
             return false;
+        }
+
+        // A pronoun can remain the representative after a shorter name joins.
+        // Grouped matching uses this representative, so enforce its horizon too.
+        let first = &cluster_b.mentions[0];
+        if first.window_index > self.config.max_pronoun_search_windows
+            && first.mention_type == MentionType::Pronominal
+            && first.text == cluster_b.representative
+        {
+            let first_window = first.window_index;
+            let earliest = first_window.saturating_sub(self.config.max_pronoun_search_windows);
+            if !cluster_a
+                .mentions
+                .iter()
+                .any(|m| (earliest..=first_window).contains(&m.window_index))
+            {
+                return false;
+            }
         }
 
         // Check name similarity
@@ -1267,6 +1327,106 @@ mod tests {
         // Should match "Smith" to "John Smith"
         let match_result = memory.find_best_match("Smith", MentionType::Proper, 0.7, true, true);
         assert!(match_result.is_some());
+    }
+
+    #[test]
+    fn omitted_pronoun_horizon_preserves_historical_search_and_fits_32_bits() {
+        let default = IncrementalConfig::default();
+        let mut saved = serde_json::to_value(&default).unwrap();
+        let wire_horizon: u32 =
+            serde_json::from_value(saved["max_pronoun_search_windows"].clone()).unwrap();
+        assert_eq!(wire_horizon, u32::MAX);
+        saved
+            .as_object_mut()
+            .unwrap()
+            .remove("max_pronoun_search_windows");
+        let omitted: IncrementalConfig = serde_json::from_value(saved.clone()).unwrap();
+        saved["max_pronoun_search_windows"] = serde_json::json!(3);
+        let explicit: IncrementalConfig = serde_json::from_value(saved).unwrap();
+        let entities = [
+            Entity::new("she", EntityType::Person, 0, 3, 1.0),
+            Entity::new("she", EntityType::Person, 10000, 10003, 1.0),
+        ];
+        for (cfg, linked) in [(default, true), (omitted, true), (explicit, false)] {
+            let result = IncrementalCorefResolver::new(cfg).resolve_entities(&entities);
+            assert_eq!(result[0].canonical_id == result[1].canonical_id, linked);
+        }
+    }
+
+    #[test]
+    fn pronoun_horizon_counts_empty_windows_and_includes_the_boundary() {
+        let entities = [
+            Entity::new("she", EntityType::Person, 0, 3, 1.0),
+            Entity::new("she", EntityType::Person, 40, 43, 1.0),
+        ];
+        for (horizon, linked) in [(3, false), (4, true)] {
+            let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+                window_size: 10,
+                window_overlap: 0,
+                max_pronoun_search_windows: horizon,
+                ..Default::default()
+            });
+            let result = resolver.resolve_entities(&entities);
+            assert_eq!(result[0].canonical_id == result[1].canonical_id, linked);
+        }
+    }
+
+    #[test]
+    fn externally_scored_entities_keep_input_order_but_use_earlier_antecedents() {
+        let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+            window_size: 10,
+            window_overlap: 0,
+            max_pronoun_search_windows: 0,
+            ..Default::default()
+        });
+        let result = resolver.resolve_entities(&[
+            Entity::new("she", EntityType::Person, 40, 43, 1.0),
+            Entity::new("she", EntityType::Person, 0, 3, 0.9),
+            Entity::new("she", EntityType::Person, 5, 8, 0.8),
+        ]);
+        assert_eq!(
+            result.iter().map(Entity::start).collect::<Vec<_>>(),
+            [40, 0, 5]
+        );
+        assert_ne!(result[0].canonical_id, result[1].canonical_id);
+        assert_eq!(result[1].canonical_id, result[2].canonical_id);
+    }
+
+    #[test]
+    fn grouped_pronoun_representative_with_a_named_alias_keeps_its_horizon() {
+        let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+            window_size: 2,
+            window_overlap: 0,
+            max_pronoun_search_windows: 0,
+            grouped_window_size: 4,
+            ..Default::default()
+        });
+        let chains = resolver.resolve_document("her sat on a big log herself Sel");
+        let surfaces: Vec<Vec<_>> = chains
+            .iter()
+            .map(|c| c.mentions.iter().map(|m| m.text.as_str()).collect())
+            .collect();
+        assert_eq!(surfaces, [vec!["her"], vec!["herself", "Sel"]]);
+    }
+
+    #[test]
+    fn grouped_pass_respects_pronoun_distance_but_names_can_recur() {
+        let text = "she Alice went to see the show and she Alice";
+        for group_size in [0, 5] {
+            let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+                window_size: 2,
+                window_overlap: 0,
+                max_pronoun_search_windows: 0,
+                grouped_window_size: group_size,
+                ..Default::default()
+            });
+            let chains = resolver.resolve_document(text);
+            let surfaces: Vec<Vec<_>> = chains
+                .iter()
+                .map(|c| c.mentions.iter().map(|m| m.text.as_str()).collect())
+                .collect();
+            assert_eq!(surfaces, [vec!["she"], vec!["Alice", "Alice"], vec!["she"]]);
+        }
     }
 
     #[test]
