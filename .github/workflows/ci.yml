@@ -86,8 +86,8 @@ jobs:
         run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
-      - name: Test fixed QA panel contracts (offline fixtures)
-        run: python3 -m unittest discover -s scripts/qa -p 'test_*.py'
+      - name: Test QA panels, matrix outcomes, and CI scripts
+        run: python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
       - name: Test BERT trace artifact identity (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_compare_bert_onnx_traces.py
       - name: Test HuggingFace downloader regression (offline fixtures)
@@ -597,8 +597,6 @@ jobs:
           key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
             anno-muxer-${{ runner.os }}-v1-
-      - name: Build matrix sampler harness (enable ML backends)
-        run: cargo build -p anno-eval --features "onnx,eval,discourse"
       - name: Check the offline sampler on a labeled fixture
         env:
           ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
@@ -616,10 +614,10 @@ jobs:
           ANNO_MAX_EXAMPLES: "1"
         run: |
           install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
       - name: Run randomized matrix test (NER)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
           ANNO_MATRIX_TASK: ner
           ANNO_SAMPLE_STRATEGY: random
@@ -629,7 +627,7 @@ jobs:
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (RE)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
           ANNO_MATRIX_TASK: re
           ANNO_SAMPLE_STRATEGY: random
@@ -638,7 +636,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Coref)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
           ANNO_MATRIX_TASK: intra-coref
           ANNO_SAMPLE_STRATEGY: random
@@ -647,7 +645,7 @@ jobs:
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Temporal)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
           ANNO_MATRIX_TASK: temporal
           ANNO_SAMPLE_STRATEGY: random
@@ -657,7 +655,7 @@ jobs:
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run worst-first matrix test (+ regression detection)
         run: |
-          cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}

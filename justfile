@@ -213,6 +213,7 @@ pre-tag: ci
 
 # Run randomized matrix test (backends x datasets x tasks)
 # Strategies: random, ml-only, worst-first, ml-all
+# The perspective is a sampling hint. Set ANNO_MATRIX_TASK for an exact task.
 # Example: just matrix worst-first 42
 matrix strategy="random" seed="" perspective="ner":
     #!/usr/bin/env bash
@@ -1030,7 +1031,7 @@ spot-upload-src:
     aws s3 cp /tmp/anno-src.tar.gz "s3://$bucket/src/anno-src.tar.gz"
     echo "Source uploaded to s3://$bucket/src/anno-src.tar.gz"
 
-# Run CI-style muxer-backed sampler locally.
+# Run the exploratory worst-first sampler locally with a soft task perspective.
 # Uses ~/.anno_cache to match the CI actions/cache path for both muxer state and eval history.
 # Override with ANNO_HISTORY_FILE, ANNO_EVAL_HISTORY, or ANNO_LINUCB_STATE_FILE for isolation.
 ci-matrix-local SEED="42" PERSPECTIVE="ner":
@@ -1053,7 +1054,7 @@ check-regressions SEED="42":
     ANNO_CI_SEED="{{SEED}}" \
     ANNO_MUXER_VERBOSE=1 \
     ANNO_CHECK_REGRESSIONS=1 \
-    ANNO_MATRIX_PERSPECTIVE=ner \
+    ANNO_MATRIX_TASK=ner \
     ANNO_MUXER_BACKENDS_PER_RUN=4 \
     ANNO_MUXER_FIXED_DATASETS=WikiGold,Wnut17,MasakhaNER \
     cargo test --release -p anno-eval --lib --features "eval onnx" \

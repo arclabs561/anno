@@ -22,20 +22,21 @@ commit, and `Cargo.lock` with the run. The legacy `muxer_version` log field is
 `unrecorded`; use the retained lockfile to identify the resolved dependency.
 
 ```bash
-mkdir -p .generated/sampler/smoke
+mkdir -p .generated/sampler
+receipt_dir=$(mktemp -d .generated/sampler/smoke.XXXXXX)
 
 ANNO_MATRIX_REQUIRE_CACHED=1 \
 ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=0 \
-ANNO_MATRIX_PERSPECTIVE=ner \
+ANNO_MATRIX_TASK=ner \
 ANNO_SAMPLE_STRATEGY=random \
 ANNO_CI_SEED=42 \
 ANNO_MAX_EXAMPLES=5 \
 ANNO_MUXER_FIXED_BACKEND=heuristic \
 ANNO_MUXER_FIXED_DATASETS=WikiGold \
-ANNO_HISTORY_FILE=.generated/sampler/smoke/history.json \
-ANNO_EVAL_HISTORY=.generated/sampler/smoke/eval-results.jsonl \
-ANNO_MUXER_DECISIONS_FILE=.generated/sampler/smoke/decisions.jsonl \
-cargo test -p anno-eval --lib --features "eval discourse" \
+ANNO_HISTORY_FILE="$receipt_dir/history.json" \
+ANNO_EVAL_HISTORY="$receipt_dir/eval-results.jsonl" \
+ANNO_MUXER_DECISIONS_FILE="$receipt_dir/decisions.jsonl" \
+cargo test --locked -p anno-eval --lib --features "eval discourse" \
   muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
 ```
 
