@@ -222,7 +222,8 @@ impl ErrorAnalysis {
         Self::default()
     }
 
-    /// Analyze predictions against ground truth.
+    /// Analyze predictions against contiguous gold samples. A discontinuous
+    /// prediction overlaps gold only on its covered segments.
     pub fn analyze(text: &str, predicted: &[Entity], gold: &[GoldEntity]) -> Self {
         let mut analysis = Self::new();
         analysis.total_predictions = predicted.len();
@@ -241,7 +242,9 @@ impl ErrorAnalysis {
                 }
 
                 // Check for exact match
-                if pred.start() == g.start && pred.end() == g.end {
+                let predicted_span = pred.coverage();
+                let gold_span = g.coverage();
+                if !gold_span.ranges().is_empty() && predicted_span.ranges() == gold_span.ranges() {
                     if pred.entity_type == g.entity_type {
                         // Correct - not an error
                         gold_matched[i] = true;
@@ -252,7 +255,7 @@ impl ErrorAnalysis {
                     }
                 }
                 // Check for overlap
-                else if pred.start() < g.end && pred.end() > g.start {
+                else if predicted_span.overlaps(&gold_span) {
                     let error = if pred.entity_type == g.entity_type {
                         ErrorType::BoundaryError
                     } else {
@@ -291,22 +294,7 @@ impl ErrorAnalysis {
                 });
                 *analysis.counts.entry(error_type).or_insert(0) += 1;
             } else {
-                // This prediction didn't match any unmatched gold entity.
-                // Check if it would have matched a gold that was already matched
-                // by a previous prediction - if so, this is a duplicate/spurious prediction.
-                //
-                // Note: We check gold_matched[i] to see if the gold was already matched.
-                // If a gold was already matched AND this prediction matches it exactly,
-                // then this prediction is a duplicate (spurious), not a correct match.
-                let _is_duplicate = gold.iter().enumerate().any(|(i, g)| {
-                    gold_matched[i]
-                        && pred.start() == g.start
-                        && pred.end() == g.end
-                        && pred.entity_type == g.entity_type
-                });
-
-                // This prediction is spurious (either duplicate or no match)
-                // Both duplicates and non-matching predictions are spurious
+                // An unmatched prediction is spurious, including duplicate predictions.
                 let char_count = text.chars().count();
                 let context_start = pred.start().saturating_sub(20);
                 let context_end = (pred.end() + 20).min(char_count);
@@ -504,7 +492,7 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
                 }
 
                 // Check for overlap
-                if pred.start() < gold.end && pred.end() > gold.start {
+                if pred.coverage().overlaps(&gold.coverage()) {
                     let gold_type = gold.entity_type.as_label().to_string();
                     matrix.add(&pred_type, &gold_type);
                     gold_matched[i] = true;
@@ -533,6 +521,24 @@ pub fn build_confusion_matrix(predictions: &[(Vec<Entity>, Vec<GoldEntity>)]) ->
 mod tests {
     use super::*;
     use anno::EntityType;
+
+    #[test]
+    fn discontinuous_predictions_get_no_diagnostic_credit_for_gaps() {
+        let mut prediction = Entity::new("Aé🦊B", anno::EntityType::Person, 0, 4, 1.0);
+        prediction.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![0..1, 3..4]));
+        let gap = GoldEntity::new("é🦊", anno::EntityType::Person, 1);
+        let preds = vec![prediction];
+        let golds = vec![gap];
+        let report = ErrorAnalysis::analyze("Aé🦊B", &preds, &golds);
+        assert_eq!(report.counts[&ErrorType::Spurious], 1);
+        assert_eq!(report.counts[&ErrorType::Missed], 1);
+        let whole = GoldEntity::new("Aé🦊B", anno::EntityType::Person, 0);
+        let report = ErrorAnalysis::analyze("Aé🦊B", &preds, &[whole]);
+        assert_eq!(report.counts[&ErrorType::BoundaryError], 1);
+        let matrix = build_confusion_matrix(&[(preds, golds)]);
+        assert_eq!(matrix.get("PER", "PER"), 0);
+        assert_eq!(matrix.get("MISSED", "PER"), 1);
+    }
 
     #[test]
     fn test_confusion_matrix() {
