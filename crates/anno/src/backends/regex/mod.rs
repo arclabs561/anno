@@ -230,6 +230,42 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bhttps?://[^\s<>\[\]{}|\\^`\x00-\x1f]+").expect("valid regex")
 });
 
+// In Japanese prose a parenthesized URL can run directly into the next word.
+// Mask only the matching outer delimiter while scanning for URLs. An ideographic
+// space has the same UTF-8 length, keeping both byte and character offsets intact.
+fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
+    let mut result = std::borrow::Cow::Borrowed(text);
+    if !text.contains('（') {
+        return result;
+    }
+    let mut depth = 0;
+    for (byte, ch) in text.char_indices() {
+        match ch {
+            '（' if depth > 0 => depth += 1,
+            '（' => {
+                let rest = &text.as_bytes()[byte + ch.len_utf8()..];
+                if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
+                    rest.get(..scheme.len())
+                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+                }) {
+                    depth = 1;
+                }
+            }
+            '）' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    result
+                        .to_mut()
+                        .replace_range(byte..byte + ch.len_utf8(), "　");
+                }
+            }
+            c if c.is_whitespace() => depth = 0,
+            _ => {}
+        }
+    }
+    result
+}
+
 static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
         .expect("valid regex")
@@ -387,7 +423,8 @@ impl Model for RegexNER {
         }
 
         // URLs (very high confidence)
-        for m in URL.find_iter(text) {
+        let urls = url_text(text);
+        for m in URL.find_iter(&urls) {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
@@ -859,6 +896,24 @@ mod tests {
     // ========================================================================
     // URL Tests
     // ========================================================================
+
+    #[test]
+    fn fullwidth_url_wrappers_preserve_internal_and_unwrapped_punctuation() {
+        let text = "（HTTPS://example.org/作品（上））続き（https://example.jp/資料）終。 https://example.org/作品（上）";
+        let urls: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Url)
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(
+            urls,
+            [
+                "HTTPS://example.org/作品（上）",
+                "https://example.jp/資料",
+                "https://example.org/作品（上）"
+            ]
+        );
+    }
 
     #[test]
     fn url_basic() {
