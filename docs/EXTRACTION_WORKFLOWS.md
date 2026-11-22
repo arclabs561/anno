@@ -35,6 +35,19 @@ layers. It does not download or select an ML model. Test an ML-backed
 stack separately and record the exact model artifact, configuration, runtime,
 and whether every requested backend actually ran.
 
+## Migrating RDF relation labels
+
+N-Triples, JSON-LD and graph N-Triples preserve letters, numbers, underscores
+and hyphens in relation IRIs, and percent-encode other characters as UTF-8.
+For example, `WORKS_AT` keeps `/rel/WORKS_AT`, `part:of` becomes
+`/rel/part%3Aof`, and literal `part%3Aof` becomes `/rel/part%253Aof`.
+
+Older releases replaced punctuation with underscores, so `part_of` and
+`part:of` both used `/rel/part_of`. To migrate, re-export the original labeled
+relations and update stored RDF and queries using those labels. If both labels
+occurred, the old predicate alone cannot identify which original label a
+particular edge used.
+
 ## Application workflow
 
 For an application, instantiate one model, retain it for the process lifetime,
