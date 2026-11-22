@@ -15,11 +15,12 @@
 //! | CoNLL   | Avg of MUC, B3, CEAF-e F1 scores | Pradhan et al., 2012 |
 //!
 //! This module is shared by both `anno` (analysis features) and `anno-eval` (evaluation harness).
-//! It is intentionally dependency-light: it relies only on `crate::core`, `serde`, and `std`.
+//! The paired significance test uses the Student’s t distribution from `statrs`.
 
 use super::coref::CorefChain;
 use super::types::CorefChainStats;
 use crate::MentionType;
+use statrs::distribution::{ContinuousCDF, StudentsT};
 use std::collections::{HashMap, HashSet};
 
 type SpanId = (usize, usize);
@@ -1401,7 +1402,7 @@ impl AggregateCorefEvaluation {
     }
 }
 
-/// Result of a paired significance test between two systems (very rough p-value approximation).
+/// Result of a paired significance test between two systems.
 #[derive(Debug, Clone)]
 pub struct SignificanceTest {
     /// System A mean score.
@@ -1414,7 +1415,7 @@ pub struct SignificanceTest {
     pub std_error: f64,
     /// t-statistic.
     pub t_statistic: f64,
-    /// p-value (two-tailed, approximate).
+    /// Two-tailed Student’s t p-value.
     pub p_value: f64,
     /// Number of samples.
     pub n: usize,
@@ -1425,7 +1426,11 @@ pub struct SignificanceTest {
 }
 
 impl SignificanceTest {
-    /// Perform a paired t-test on CoNLL F1 scores (approximate).
+    /// Compare paired scores using a two-tailed Student’s t-test.
+    ///
+    /// Fewer than two pairs or identical scores give t = 0 and p = 1.
+    /// A constant nonzero difference gives signed infinite t and p = 0.
+    /// Nonfinite scores propagate an undefined statistic and p-value for n >= 2.
     #[must_use]
     pub fn paired_t_test(scores_a: &[f64], scores_b: &[f64]) -> Self {
         assert_eq!(
@@ -1448,44 +1453,30 @@ impl SignificanceTest {
             };
         }
 
-        let differences: Vec<f64> = scores_a
-            .iter()
-            .zip(scores_b.iter())
-            .map(|(a, b)| a - b)
-            .collect();
-        let mean_diff = differences.iter().sum::<f64>() / n as f64;
+        // Center the paired differences online. An exactly constant difference
+        // retains exactly zero variance even when its repeated sum would round.
+        let mut mean_diff = 0.0;
+        let mut sum_squared_deviations = 0.0;
+        for (i, (a, b)) in scores_a.iter().zip(scores_b).enumerate() {
+            let difference = a - b;
+            let delta = difference - mean_diff;
+            mean_diff += delta / (i + 1) as f64;
+            sum_squared_deviations += delta * (difference - mean_diff);
+        }
         let mean_a = scores_a.iter().sum::<f64>() / n as f64;
         let mean_b = scores_b.iter().sum::<f64>() / n as f64;
-
-        let variance: f64 = differences
-            .iter()
-            .map(|&d| (d - mean_diff).powi(2))
-            .sum::<f64>()
-            / (n - 1) as f64;
-        let std_diff = variance.sqrt();
-        let std_error = std_diff / (n as f64).sqrt();
-        let t_stat = if std_error > 0.0 {
-            mean_diff / std_error
-        } else {
+        let df = (n - 1) as f64;
+        let std_error = (sum_squared_deviations / df / n as f64).sqrt();
+        let t_stat = if std_error == 0.0 && mean_diff == 0.0 {
             0.0
-        };
-
-        // Rough p-value approximation: use normal critical values for df>=30, else conservative.
-        let abs_t = t_stat.abs();
-        let p_value = if n >= 30 {
-            if abs_t >= 2.576 {
-                0.01
-            } else if abs_t >= 1.96 {
-                0.05
-            } else {
-                0.10
-            }
-        } else if abs_t >= 2.75 {
-            0.01
-        } else if abs_t >= 2.04 {
-            0.05
         } else {
-            0.10
+            mean_diff / std_error
+        };
+        let p_value = if t_stat.is_nan() {
+            f64::NAN
+        } else {
+            let distribution = StudentsT::new(0.0, 1.0, df).expect("n >= 2 gives positive df");
+            2.0 * distribution.sf(t_stat.abs())
         };
 
         Self {
@@ -1646,6 +1637,61 @@ impl WindowFragmentationStats {
 mod tests {
     use super::*;
     use crate::metrics::coref::{CorefChain, Mention};
+
+    #[test]
+    fn paired_t_uses_student_tails_and_degrees_of_freedom() {
+        // scipy.stats.ttest_rel reference values, compared with zeros.
+        for (scores, expected_t, expected_p) in [
+            (&[0.0, 1.0][..], 1.0, 0.5),
+            (
+                &[0.1, 0.2, 0.3, 0.4],
+                3.8729833462074175,
+                0.03046629166217096,
+            ),
+            (
+                &[0.0, 0.01, 0.02, 0.03, 0.08, 0.1],
+                2.4194335156365354,
+                0.060159441115201315,
+            ),
+            (
+                &[0.7, 0.65, 0.8, 0.6],
+                16.102351203650795,
+                0.0005209615055228169,
+            ),
+        ] {
+            let zeros = vec![0.0; scores.len()];
+            let test = SignificanceTest::paired_t_test(scores, &zeros);
+            let reverse = SignificanceTest::paired_t_test(&zeros, scores);
+            assert!((test.t_statistic - expected_t).abs() < 1e-12);
+            assert!((test.p_value - expected_p).abs() < 1e-12);
+            assert_eq!(test.significant_05, expected_p < 0.05);
+            assert_eq!(test.significant_01, expected_p < 0.01);
+            assert_eq!(test.p_value, reverse.p_value);
+            assert_eq!(test.t_statistic, -reverse.t_statistic);
+        }
+    }
+
+    #[test]
+    fn paired_t_handles_insufficient_constant_and_nonfinite_samples() {
+        for (a, b) in [
+            (&[][..], &[][..]),
+            (&[0.5], &[0.0]),
+            (&[0.5, 0.25], &[0.5, 0.25]),
+        ] {
+            let t = SignificanceTest::paired_t_test(a, b);
+            assert_eq!((t.t_statistic, t.p_value), (0.0, 1.0));
+            assert!(!t.significant_05);
+        }
+        let constant = SignificanceTest::paired_t_test(&[0.0; 5], &[0.1; 5]);
+        assert_eq!(
+            (constant.t_statistic, constant.p_value),
+            (f64::NEG_INFINITY, 0.0)
+        );
+        assert!(constant.b_better_than_a());
+        let invalid = SignificanceTest::paired_t_test(&[f64::NAN, 0.0], &[1.0, 1.0]);
+        assert!(invalid.p_value.is_nan());
+        assert!(!invalid.significant_05);
+    }
 
     // ---- helpers ----
 

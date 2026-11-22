@@ -437,81 +437,19 @@ impl NERSignificanceTest {
         system_b: &str,
         scores_b: &[f64],
     ) -> Self {
-        assert_eq!(
-            scores_a.len(),
-            scores_b.len(),
-            "Scores must have same length"
-        );
-        let n = scores_a.len();
-
-        if n < 2 {
-            return Self {
-                system_a: system_a.to_string(),
-                system_b: system_b.to_string(),
-                mean_a: scores_a.first().copied().unwrap_or(0.0),
-                mean_b: scores_b.first().copied().unwrap_or(0.0),
-                difference: 0.0,
-                std_error: 0.0,
-                t_statistic: 0.0,
-                p_value: 1.0,
-                n,
-                significant_05: false,
-                significant_01: false,
-            };
-        }
-
-        let differences: Vec<f64> = scores_a
-            .iter()
-            .zip(scores_b.iter())
-            .map(|(a, b)| a - b)
-            .collect();
-
-        let mean_diff = differences.iter().sum::<f64>() / n as f64;
-        let mean_a = scores_a.iter().sum::<f64>() / n as f64;
-        let mean_b = scores_b.iter().sum::<f64>() / n as f64;
-
-        let variance: f64 = differences
-            .iter()
-            .map(|&d| (d - mean_diff).powi(2))
-            .sum::<f64>()
-            / (n - 1) as f64;
-        let std_diff = variance.sqrt();
-        let std_error = std_diff / (n as f64).sqrt();
-
-        let t_stat = if std_error > 0.0 {
-            mean_diff / std_error
-        } else {
-            0.0
-        };
-
-        // Approximate p-value
-        let p_value = Self::approximate_p_value(t_stat.abs(), n - 1);
-
+        let test = super::SignificanceTest::paired_t_test(scores_a, scores_b);
         Self {
-            system_a: system_a.to_string(),
-            system_b: system_b.to_string(),
-            mean_a,
-            mean_b,
-            difference: mean_diff,
-            std_error,
-            t_statistic: t_stat,
-            p_value,
-            n,
-            significant_05: p_value < 0.05,
-            significant_01: p_value < 0.01,
-        }
-    }
-
-    fn approximate_p_value(t: f64, df: usize) -> f64 {
-        let critical_05 = if df >= 30 { 1.96 } else { 2.1 };
-        let critical_01 = if df >= 30 { 2.576 } else { 2.9 };
-
-        if t < critical_05 {
-            0.10
-        } else if t < critical_01 {
-            0.03
-        } else {
-            0.005
+            system_a: system_a.to_owned(),
+            system_b: system_b.to_owned(),
+            mean_a: test.mean_a,
+            mean_b: test.mean_b,
+            difference: test.difference,
+            std_error: test.std_error,
+            t_statistic: test.t_statistic,
+            p_value: test.p_value,
+            n: test.n,
+            significant_05: test.significant_05,
+            significant_01: test.significant_01,
         }
     }
 }
