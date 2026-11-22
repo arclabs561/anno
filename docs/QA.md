@@ -39,7 +39,7 @@ To investigate a result, pass the panel's printed output directory and the claim
 just qa-round "$OUT" "Does removing spaces inside parentheses change organization boundaries?"
 ```
 
-The same command accepts a matrix slot's receipt directory. Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
+The same command accepts a matrix slot's receipt directory. To time agent calls and their replay, follow the [traced round](ADVERSARIAL_QA.md#trace-one-author-and-one-replay). Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
 
 ### Check what a negative span means
 

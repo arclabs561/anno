@@ -18,7 +18,67 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
 
-For each actual agent call record the role, invocation tool, prompt or its digest, permitted evidence, revision, and available model and usage metadata. For each replay record its command, wall time, output and revision. Mark unavailable token usage or elapsed time as unknown. Use matched runner and model budgets when estimating cost effectiveness. Select an exact mention or a protected source range explicitly before replay. [Span assertion examples](QA.md#check-what-a-negative-span-means)
+### Trace one author and one replay
+
+Run from the repository root with a completed [panel or muxer slot](QA.md#run-a-check). Set `PANEL` to its receipt directory and `ANNO_BIN` to the executable to test. This example asks an independent reviewer to label one public synthetic sentence, then checks the actual CLI against the reviewer's answer.
+
+```sh
+umask 077
+round_dir=$(mktemp -d)
+db="$round_dir/round.sqlite3"
+trace() { python3 scripts/qa/round_trace.py "$db" "$@"; }
+just qa-round "$PANEL" 'Does pattern extraction report the email in Unicode scalar offsets?' \
+    "$db" > "$round_dir/handoff.md"
+cat > "$round_dir/oracle-prompt.txt" <<'PROMPT'
+Use only this text, including its leading emoji: 🦊 Email ada@example.org
+Return a JSON array with one object. Use id "mail", the exact text above
+(starting at the emoji), and an assertions array with this rule:
+{"kind":"exact_span","text":"ada@example.org","types":["EMAIL"],"start":N,"end":M}
+Determine N and M in half-open Unicode scalar offsets. Return plain JSON.
+PROMPT
+# Read handoff.md and prepare dispatch before starting the timer.
+span=$(trace start --role oracle --tool collaboration.spawn_agent \
+    --prompt-file "$round_dir/oracle-prompt.txt")
+```
+
+In a Codex session, call `collaboration.spawn_agent` with a fresh task name, `fork_turns="none"`, and `message` equal to the contents of `oracle-prompt.txt`. Give the oracle only that prompt. Wait for its final answer, then save the response body in `$round_dir/oracle.json`. Take the start timestamp immediately before dispatch and end the span when the answer arrives. Set `dispatch_status=ok` after saving the answer, `dispatch_status=error` if dispatch fails, or `dispatch_status=interrupted` if cancelled. Run the following block in the same shell.
+
+```sh
+(
+    set -eu
+    status=$dispatch_status
+    case "$status" in
+        ok)
+            trace end "$span" --status ok --result-file "$round_dir/oracle.json"
+            rc=0
+            trace run --role replay --tool anno --assertion-failure-code 1 --input-file "$round_dir/oracle.json" \
+                --result-file "$round_dir/replay.json" -- \
+                python3 scripts/qa/check_span_assertions.py --model pattern \
+                --binary "$ANNO_BIN" --fixture "$round_dir/oracle.json" \
+                > "$round_dir/replay.json" || rc=$?
+            case "$rc" in
+                0) ;;
+                1) status=assertion_failed ;;
+                *) status=error ;;
+            esac
+            ;;
+        error|interrupted)
+            trace end "$span" --status "$status"
+            if [ "$status" = interrupted ]; then rc=130; else rc=1; fi
+            ;;
+        *) echo "Expected dispatch_status=ok, error or interrupted" >&2; exit 2 ;;
+    esac
+    trace end round --status "$status"
+    trace report > "$round_dir/report.json"
+    exit "$rc"
+)
+```
+
+After writing the report, the subshell returns 0 for a pass, 1 for a failed assertion, or 2 for an invalid fixture. A failed or cancelled dispatch closes both spans and skips replay.
+
+The fixture can be checked against the source by hand: the email occupies characters 8–23. A passing replay reports one exact span. If the response is malformed or the extractor disagrees, keep the original answer and the exit status. Record a retry as a separate call. In a larger round, use the same start/end pair per agent so concurrent calls and the replay remain distinguishable.
+
+The coordinator measures elapsed time from dispatch to observed completion, including scheduling and waiting. Provider inference time, the resolved model, token counts and cost require separate evidence. Supply `--model`, `--input-tokens`, `--output-tokens` or `--cost-usd` on `end` only for values the host reports. The checker uses exit 1 for an unmet assertion and exit 2 for invalid input. The wrapper preserves the child's exit status. Only explicitly listed exit codes appear in `assertion_failed_spans`. Other unsuccessful commands appear in `failed_spans`. A missing result artifact appears in `recording_issues`; the span preserves the child's own outcome. Command duration uses a monotonic clock. Agent and round durations use the coordinator's UTC start and finish times. The usage report sums only observed costs and token counts and lists how many agent spans contributed each value. The trace records file digests. Keep raw prompts, responses and source documents in the private round directory. Review any report before sharing, and use public or approved material in prompts sent to an external model. [Span assertion contracts](QA.md#check-what-a-negative-span-means)
 
 ## From a panel to a decision
 

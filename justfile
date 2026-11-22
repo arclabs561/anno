@@ -278,8 +278,8 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
     python3 scripts/qa/run_panel.py --anno-bin "$ANNO_BIN" --suite "$SUITE" --output-dir "$OUT"
 
 # Prepare a coordinator prompt from a fixed panel or a muxer slot.
-qa-round $RECEIPTS $CLAIM:
-    python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"
+qa-round $RECEIPTS $CLAIM $TRACE="":
+    @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
 qa-spans $ANNO_BIN $MODEL="heuristic":
