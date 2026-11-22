@@ -127,6 +127,29 @@ Unicode character ranges. `start` and `end` bound the whole mention, and
 repeated mentions have the same surface. Offsets count Unicode code points,
 so a decomposed accent and its base character occupy two positions.
 
+## CoNLL offsets and the original source revision
+
+By default, `anno dataset import --format conll` counts Unicode characters in
+the token sequence reconstructed with one ASCII space between tokens. Blank
+lines and `-DOCSTART-` reset entity boundaries without adding characters.
+This convention retains offsets for existing token-only corpora.
+
+When original document offsets matter, supply the matching UTF-8 text for a
+single CoNLL file.
+
+```sh
+anno dataset import --format conll --input v1/report.conll \
+  --source-text v1/report.txt --output v1/rows.jsonl
+```
+
+Every token, including tokens tagged `O`, must match the next source text
+after any intervening Unicode whitespace. Adjacent tokens may touch in the
+original. The importer checks the whole document and preserves tabs, multiple
+spaces and line endings inside entities. The output ranges count Unicode
+scalar values from the start of the original file, with an exclusive end.
+CRLF counts as two characters. Keep the text revision and its digest alongside
+the CoNLL file in the corpus manifest. The row’s `source` identifies the CoNLL file.
+
 ## Identifying RDF source documents
 
 Provide the IRI of the exact source revision when exporting one file.

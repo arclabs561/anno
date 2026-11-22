@@ -30,6 +30,10 @@ pub struct ImportArgs {
     #[arg(short, long, default_value = "brat")]
     pub format: ExportFormat,
 
+    /// Align one CoNLL input to this original UTF-8 document for exact character offsets
+    #[arg(long, value_name = "PATH")]
+    pub source_text: Option<PathBuf>,
+
     /// Include source text. Multi-span brat records always need the matching .txt file.
     #[arg(long)]
     pub include_text: bool,
@@ -132,6 +136,24 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         .try_exists()
         .map_err(|e| format!("Failed to inspect output: {e}"))?;
 
+    let source_text = if let Some(path) = &args.source_text {
+        if !matches!(args.format, ExportFormat::Conll) || !args.input.is_file() {
+            return Err("--source-text requires a single CoNLL input file".into());
+        }
+        if output_exists && same_existing_file(path, &args.output)? {
+            return Err(format!(
+                "Output aliases the original source text: {}",
+                path.display()
+            ));
+        }
+        Some(
+            fs::read_to_string(path)
+                .map_err(|e| format!("Failed to read source text {}: {e}", path.display()))?,
+        )
+    } else {
+        None
+    };
+
     // Collect files to process
     let files: Vec<PathBuf> = if args.input.is_file() {
         if output_exists && same_existing_file(&args.input, &args.output)? {
@@ -215,7 +237,7 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
     let mut success_count = 0;
 
     for file in &files {
-        match import_file(file, args.format, args.include_text) {
+        match import_file(file, args.format, args.include_text, source_text.as_deref()) {
             Ok(annotations) => {
                 let count = annotations.len();
                 all_annotations.extend(annotations);
@@ -280,10 +302,11 @@ fn import_file(
     input: &PathBuf,
     format: ExportFormat,
     include_text: bool,
+    source_text: Option<&str>,
 ) -> Result<Vec<ImportedAnnotation>, String> {
     match format {
         ExportFormat::Brat => import_brat(input, include_text),
-        ExportFormat::Conll => import_conll(input),
+        ExportFormat::Conll => import_conll(input, source_text),
         ExportFormat::Jsonl => import_jsonl(input),
         ExportFormat::NTriples => import_ntriples(input),
         ExportFormat::JsonLd => import_jsonld(input),
@@ -428,14 +451,17 @@ fn import_brat_segments(
 }
 
 /// Import from CoNLL IOB format
-fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
+fn import_conll(
+    input: &Path,
+    mut remaining_source: Option<&str>,
+) -> Result<Vec<ImportedAnnotation>, String> {
     let content = fs::read_to_string(input).map_err(|e| format!("Failed to read file: {}", e))?;
 
     let mut annotations: Vec<ImportedAnnotation> = Vec::new();
     let mut inside_entity = false;
     let mut char_idx = 0;
 
-    for line in content.lines() {
+    for (index, line) in content.lines().enumerate() {
         let mut fields = line.split_whitespace();
         let Some(word) = fields.next() else {
             inside_entity = false;
@@ -446,6 +472,9 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             continue;
         }
         let Some(second) = fields.next() else {
+            if remaining_source.is_some() {
+                return Err(format!("Missing CoNLL tag on line {}", index + 1));
+            }
             continue;
         };
         // Anno exports word/tag pairs. CoNLL-2003 puts the NER tag last,
@@ -455,15 +484,35 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
         } else {
             fields.next_back().unwrap_or(second)
         };
-        let start = char_idx;
+        let label = tag.strip_prefix("B-").or_else(|| tag.strip_prefix("I-"));
+        if remaining_source.is_some() && tag != "O" && label.is_none_or(str::is_empty) {
+            return Err(format!("Invalid CoNLL tag {tag:?} on line {}", index + 1));
+        }
+        let gap = if let Some(remaining) = remaining_source {
+            let next = remaining.trim_start_matches(char::is_whitespace);
+            let whitespace = &remaining[..remaining.len() - next.len()];
+            let after_token = next.strip_prefix(word).ok_or_else(|| {
+                format!(
+                "CoNLL token {word:?} on line {} does not match the original text at character {}",
+                index + 1, char_idx + whitespace.chars().count()
+            )
+            })?;
+            remaining_source = Some(after_token);
+            whitespace
+        } else if char_idx == 0 {
+            ""
+        } else {
+            " "
+        };
+        let start = char_idx + gap.chars().count();
         let end = start + word.chars().count();
-        char_idx = end + 1;
+        char_idx = end;
 
         if let Some(label) = tag.strip_prefix("I-") {
             if let Some(entity) = annotations.last_mut() {
                 if inside_entity && entity.entity_type == label {
                     if let ImportedSpan::Contiguous(range) = &mut entity.span {
-                        entity.text.push(' ');
+                        entity.text.push_str(gap);
                         entity.text.push_str(word);
                         range.end = end;
                         continue;
@@ -471,7 +520,6 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
                 }
             }
         }
-        let label = tag.strip_prefix("B-").or_else(|| tag.strip_prefix("I-"));
         inside_entity = label.is_some();
         if let Some(label) = label {
             annotations.push(ImportedAnnotation {
@@ -484,6 +532,9 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
         }
     }
 
+    if remaining_source.is_some_and(|rest| !rest.trim().is_empty()) {
+        return Err("CoNLL input ends before the original text".into());
+    }
     Ok(annotations)
 }
 
@@ -949,7 +1000,7 @@ mod tests {
         let path = dir.path().join("unicode.conll");
         fs::write(&path, "東京\tB-LOC\n駅\tI-LOC\nopen\tO\n").unwrap();
 
-        let annotations = import_conll(&path).unwrap();
+        let annotations = import_conll(&path, None).unwrap();
         assert_eq!(annotations.len(), 1);
         assert_eq!(annotations[0].text, "東京 駅");
         assert_eq!(annotations[0].span.bounds(), 0..4);
@@ -965,6 +1016,7 @@ mod tests {
             input,
             output: output.clone(),
             format: ExportFormat::Jsonl,
+            source_text: None,
             include_text: false,
             allow_partial: false,
             quiet: true,
@@ -984,6 +1036,7 @@ mod tests {
             input: dir.path().into(),
             output: output.clone(),
             format: ExportFormat::Jsonl,
+            source_text: None,
             include_text: false,
             allow_partial: false,
             quiet: true,
@@ -1010,7 +1063,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let input = dir.path().join("sample.conll");
         fs::write(&input, "-DOCSTART- -X- O O\n\nZoë NNP B-NP I-PER\nLi NNP I-NP I-PER\nAcme NNP B-NP I-ORG\n\n東京 NNP B-NP I-ORG\n").unwrap();
-        let rows = import_conll(&input).unwrap();
+        let rows = import_conll(&input, None).unwrap();
         let spans: Vec<_> = rows
             .iter()
             .map(|a| {
