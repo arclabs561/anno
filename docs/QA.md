@@ -1,0 +1,45 @@
+# Fixtures, datasets and QA
+
+Choose the evidence for the question you want to answer. A source offset bug, a model comparison, and an unreadable web page each need a different test.
+
+| Question | Input and check |
+| --- | --- |
+| Did this code change break a known behavior? | Run a small checked-in input through the public API or CLI. The public-source suite checks exact text, label and Unicode character range on excerpts from NASA, the Spanish official gazette, Japanese literature and IANA. Include a negative example such as an entity-shaped string inside a gap. [Fixtures and source terms](../crates/anno-cli/tests/fixtures/public_sources/README.md) |
+| Does the scorer itself give the right answer? | Compare against an independent oracle. Examples include enumerating character masks, transforming Unicode or line endings while checking the original text, and replaying the official CorefUD scorer. Property tests exercise many inputs. The optional mutation job checks whether tests detect selected changes to span logic. [Reference scorer](../scripts/README.md) · [Mutation workflow](../.github/workflows/research.yml) |
+| Did extraction quality change on labeled documents? | Run the same examples, labels, backend configuration and scorer for both versions. The fixed panels cover WikiGold, CoNLL2003Sample, WNUT17 and GAP. The eight-document PII fixture measures masking errors on its authored examples. Use a separate representative held-out split for a model decision. [Panel manifest](../scripts/qa/core-panel.json) · [PII fixture and scoring](eval/pii-char-masking.md) |
+| Does extraction work on complete real documents? | Replay a pinned source with independent expected results. The NASA check derives 457 date labels from catalog link targets and checks their exact ranges on the rendered page. A score on those cells describes calendar dates in those two catalogs. [Full-page replay](../crates/anno-cli/tests/fixtures/public_sources/README.md) |
+| What breaks on unfamiliar sites? | Sample live pages from different publishers, languages and formats. Record the resolved URL, content identity, backend and failure stage. A page with zero entities can be valid. Live results measure retrieval, decoding and output integrity unless someone has supplied labels. [Live URL harness](../scripts/qa_random_urls.py) |
+| What should run in a limited CI budget? | Keep required regression checks deterministic. Fixed panels compare like with like. Muxer can give extra attempts to previously failing cells and direct coverage toward undersampled candidates. Track which cells actually ran, including missing data and infrastructure failures. [Sampling policies and controls](EVALUATION_SAMPLING.md) |
+
+## Run a check
+
+From the repository root, these checks use checked-in inputs. Cargo needs its dependencies installed or cached.
+
+```sh
+python3 -m unittest discover -s scripts/qa -p 'test_*.py'
+cargo test --locked -p anno-cli --no-default-features --features eval,extractor-html2text --test public_sources
+```
+
+To run the fixed WikiGold smoke panel, build the CLI and prepare its cache once. The preparation script verifies the pinned corpus digest and downloads it if needed. The panel disables dataset and model downloads. It expects a measured result from each of two backends on up to 20 examples at seed 42.
+
+```sh
+cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
+export ANNO_CACHE_DIR="$PWD/.generated/qa-cache"
+bash scripts/qa/prepare_matrix_wikigold.sh
+just qa-panel target/debug/anno smoke
+```
+
+Open the printed output directory. Read `panel-summary.md` for per-cell outcomes and `smoke-seed42.json` for the underlying measurements. The panel checks coverage and finite scores. A change in F1 needs a paired comparison on the same inputs. The one-sentence WikiGold-format CI fixture, the labeled WikiGold corpus, and a random Wikipedia page are three distinct sources.
+
+## Find a dataset or add a case
+
+Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
+
+```sh
+anno dataset list --task ner --loadable
+anno dataset info --dataset WikiGold
+```
+
+Check the upstream source, license, available split, loader and cache manifest before quoting a result. A catalog entry describes a dataset. A loader describes a supported format. A result requires actual examples, an identified backend and completed scoring. Record the revision or digest, exact split or sample IDs, seed, labels, feature flags, scorer policy and number of measured examples. Keep calibration documents separate from the held-out comparison.
+
+When a live run reveals a bug, preserve the original revision and rendering details, then reduce it to the smallest redistributable input that still fails. Put the expected behavior beside the test that consumes it. For a restricted source, use an independently authored reproducer or a permitted fetch recipe with a digest. Preserve the coordinate system of the original data, including whether source offsets address bytes, Unicode characters or token-reconstructed text. [Source and offset contract](CONTRACT.md)

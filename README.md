@@ -66,7 +66,7 @@ Anno supports Rust 1.91 and later.
 - [Quickstart and examples](docs/QUICKSTART.md)
 - [Source text, offsets and provenance](docs/CONTRACT.md)
 - [Backends and feature flags](docs/BACKENDS.md)
-- [Evaluation panels and sampling](docs/EVALUATION_SAMPLING.md)
+- [Fixtures, datasets and QA](docs/QA.md) and [evaluation sampling](docs/EVALUATION_SAMPLING.md)
 - [References](docs/REFERENCES.md) and [runnable examples](crates/anno/examples/)
 
 ## License

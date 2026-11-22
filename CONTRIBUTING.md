@@ -92,6 +92,8 @@ The `just check-feature-matrix` recipe sweeps the gating combinations that have 
 
 ## Testing
 
+Choose a fixture, labeled dataset or live page using the [QA guide](docs/QA.md). It includes cache preparation, runnable commands and guidance for turning a field failure into a regression test.
+
 - `just check`: fmt + clippy + quick tests.
 - `just test`: unit tests with `eval discourse` features.
 - `just test-all`: full workspace including integration.
