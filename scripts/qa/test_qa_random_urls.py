@@ -86,3 +86,53 @@ class ExtractionVerdict(unittest.TestCase):
     def test_empty_selection_fails(self):
         with patch("sys.argv", ["qa_random_urls", "--count", "0"]):
             self.assertEqual(qa.main(), 1)
+
+
+class CrossDomainSampling(unittest.TestCase):
+    def test_rotates_publishers_before_reusing_hosts(self):
+        pool = [qa.Source(f"{host}-{n}", f"https://{host}.example/{n}", "cross-domain", "en", "Latin")
+                for host in ("science", "law", "arts") for n in (1, 2)]
+        sampled = qa.sample_publishers(pool, 6, qa.random.Random(17))
+        self.assertEqual(sampled, qa.sample_publishers(pool, 6, qa.random.Random(17)))
+        self.assertEqual(set(sampled), set(pool))
+        for group in (sampled[:3], sampled[3:]):
+            self.assertEqual(len({qa.urlsplit(source.url).hostname for source in group}), 3)
+        self.assertEqual(len(qa.CROSS_DOMAIN_SOURCES), len({s.url for s in qa.CROSS_DOMAIN_SOURCES}))
+        self.assertGreaterEqual(len({qa.urlsplit(s.url).hostname for s in qa.CROSS_DOMAIN_SOURCES}), 6)
+
+    def test_oversized_filtered_request_fails_before_fetch(self):
+        with patch("sys.argv", ["qa", "--cross-domain", "--lang", "ja", "--count", "3"]), \
+             patch.object(qa, "resolve_url") as resolve:
+            self.assertEqual(qa.main(), 1)
+        resolve.assert_not_called()
+
+    def test_partial_failure_records_hosts_final_url_and_hash(self):
+        pool = [qa.Source("Test A", "https://a.example/doc", "cross-domain", "en", "Latin"),
+                qa.Source("Test B", "https://b.example/doc", "cross-domain", "en", "Latin")]
+
+        def extract(source, binary, url, backend, timeout, verbose):
+            if source == pool[0]:
+                return qa.RunResult(source, "https://final.example/new", "OK", backend=backend, text_hash="xxh3:abc")
+            return qa.RunResult(source, url, "timeout", backend=backend, error_msg="timed out")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            report_path = qa.Path(tmp) / "report.md"
+            with patch("sys.argv", ["qa", "--cross-domain", "--count", "2", "--seed", "5",
+                                    "--delay", "0", "--output", str(report_path)]), \
+                 patch.object(qa, "CROSS_DOMAIN_SOURCES", pool), \
+                 patch.object(qa, "run_anno", side_effect=extract) as calls:
+                self.assertEqual(qa.main(), 1)
+            self.assertEqual(calls.call_count, 2)
+            report = report_path.read_text()
+            for expected in ("| a.example | 1 | 0 |", "| b.example | 0 | 1 |", "https://a.example/doc",
+                             "https://final.example/new", "xxh3:abc", "timed out"):
+                self.assertIn(expected, report)
+
+    def test_cross_domain_success_requires_text_hash(self):
+        source = qa.CROSS_DOMAIN_SOURCES[0]
+        data = {"entities": [], "provenance": {"model": "pattern", "text_chars": 4, "entity_count": 0}}
+        proc = subprocess.CompletedProcess([], 0, json.dumps(data), "")
+        with patch.object(qa.subprocess, "run", return_value=proc):
+            result = qa.run_anno(source, "anno", source.url, "pattern", 1, False)
+        self.assertEqual(result.status, "error")
+        self.assertIn("hash", result.error_msg)

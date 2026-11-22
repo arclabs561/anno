@@ -17,6 +17,7 @@ Examples:
     uv run scripts/qa_random_urls.py --count 3 --no-rss --seed 42
     uv run scripts/qa_random_urls.py --count 10 --backends stacked,bert-onnx
     uv run scripts/qa_random_urls.py --category wikipedia --lang ja,zh,ar
+    uv run scripts/qa_random_urls.py --cross-domain --count 6 --seed 42 --backends pattern
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 
 # ---------------------------------------------------------------------------
 # Source pool
@@ -260,6 +262,44 @@ DOCUMENT_SOURCES = [
     Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
 ]
 
+# Each publisher uses one canonical hostname. Fixed page links allow a seed
+# to select the same pages without a feed snapshot or external crawler.
+CROSS_DOMAIN_SOURCES = [
+    Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin"),
+    Source("NASA lunar eclipses 2001–2100", "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html", "cross-domain", "en", "Latin"),
+    Source("US Constitution transcript", "https://www.archives.gov/founding-docs/constitution-transcript", "cross-domain", "en", "Latin"),
+    Source("Bill of Rights transcript", "https://www.archives.gov/founding-docs/bill-of-rights-transcript", "cross-domain", "en", "Latin"),
+    Source("Spanish Constitution", "https://www.boe.es/buscar/act.php?id=BOE-A-1978-31229", "cross-domain", "es", "Latin"),
+    Source("Spanish Civil Code", "https://www.boe.es/buscar/act.php?id=BOE-A-1889-4763", "cross-domain", "es", "Latin"),
+    Source("Aozora: Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "cross-domain", "ja", "CJK"),
+    Source("Aozora: I Am a Cat", "https://www.aozora.gr.jp/cards/000148/card789.html", "cross-domain", "ja", "CJK"),
+    Source("RFC 3339: timestamps", "https://www.rfc-editor.org/rfc/rfc3339.html", "cross-domain", "en", "Latin"),
+    Source("RFC 8259: JSON", "https://www.rfc-editor.org/rfc/rfc8259.html", "cross-domain", "en", "Latin"),
+    Source("IANA example domains", "https://www.iana.org/help/example-domains", "cross-domain", "en", "Latin"),
+    Source("IANA time zone database", "https://www.iana.org/time-zones", "cross-domain", "en", "Latin"),
+    Source("Python data structures", "https://docs.python.org/3/tutorial/datastructures.html", "cross-domain", "en", "Latin"),
+    Source("Python Unicode HOWTO", "https://docs.python.org/3/howto/unicode.html", "cross-domain", "en", "Latin"),
+]
+
+
+def sample_publishers(pool: list[Source], count: int, rng: random.Random) -> list[Source]:
+    """Take one page per publisher per pass, without replacement across passes."""
+    if count > len(pool):
+        raise ValueError(f"requested {count} cross-domain pages; only {len(pool)} match the filters")
+    by_host: dict[str, list[Source]] = defaultdict(list)
+    for source in pool:
+        by_host[urlsplit(source.url).netloc].append(source)
+    for pages in by_host.values():
+        rng.shuffle(pages)
+    selected = []
+    while len(selected) < count:
+        hosts = [host for host, pages in by_host.items() if pages]
+        rng.shuffle(hosts)
+        for host in hosts[:count - len(selected)]:
+            selected.append(by_host[host].pop())
+    return selected
+
+
 ALL_SOURCES = (WIKIPEDIA_SOURCES + CONLANG_SOURCES + WIKIMEDIA_SOURCES
                + OTHER_SOURCES + RSS_SOURCES + REFHOP_SOURCES + DOCUMENT_SOURCES)
 
@@ -476,6 +516,9 @@ def run_anno(
         result.url = prov.get("source_url") or url
         result.text_hash = prov.get("text_hash", "")
         result.detected_lang = prov.get("language", "")
+        if source.category == "cross-domain" and not result.text_hash:
+            result.error_msg = "missing rendered text hash"
+            return result
         if source.category == "documents" and result.detected_lang != source.lang:
             result.error_msg = f"expected {source.lang}, detected {result.detected_lang or 'unknown'}"
             return result
@@ -549,6 +592,16 @@ def generate_report(
     lines.append(f"- Entities found: {total_entities} total ({type_summary})")
     lines.append("")
 
+    if any(r.source.category == "cross-domain" for r in results):
+        lines.extend(["## Selected publishers", "", "| Selected host | Successful checks | Errors |",
+                      "|---|---:|---:|"])
+        counts: dict[str, Counter] = defaultdict(Counter)
+        for run in results:
+            counts[urlsplit(run.source.url).netloc][run.status] += 1
+        for host, statuses in sorted(counts.items()):
+            lines.append(f"| {host} | {statuses['OK']} | {sum(statuses.values()) - statuses['OK']} |")
+        lines.append("")
+
     # Results table
     lines.append("## Results")
     lines.append("")
@@ -561,8 +614,11 @@ def generate_report(
         time_str = f"{r.elapsed_secs:.1f}s"
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
         status_icon = "OK" if r.status == "OK" else f"**{r.status}**"
+        source_display = r.source.name
+        if r.source.category == "cross-domain":
+            source_display = f"[{r.source.name}]({r.source.url}) ({urlsplit(r.source.url).netloc})"
         lines.append(
-            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} / {r.detected_lang or '—'} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
+            f"| {i} | {source_display} | {url_display} | {r.source.lang} / {r.detected_lang or '—'} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
 
     lines.append("")
@@ -606,7 +662,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--backends", "-b", default="stacked", help="Comma-separated backends (default: stacked)")
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
     p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
-    p.add_argument("--category", "-c", default="all",
+    selection = p.add_mutually_exclusive_group()
+    selection.add_argument("--cross-domain", action="store_true",
+                           help="Sample fixed public pages from distinct publishers per pass, without replacement")
+    selection.add_argument("--category", "-c", default="all",
                    choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
                    help="Filter source category (default: all)")
     p.add_argument("--lang", help="Filter by language codes (comma-separated)")
@@ -728,11 +787,13 @@ def main() -> int:
         return 1
 
     # Seed
-    if args.seed is not None:
+    if args.cross_domain and args.seed is None:
+        args.seed = random.SystemRandom().getrandbits(64)
+    elif not args.cross_domain and args.seed is not None:
         random.seed(args.seed)
 
     # Filter sources
-    pool = list(ALL_SOURCES)
+    pool = list(CROSS_DOMAIN_SOURCES if args.cross_domain else ALL_SOURCES)
     if args.no_rss:
         pool = [s for s in pool if s.category not in ("rss", "refhop")]
     if args.category != "all":
@@ -746,8 +807,15 @@ def main() -> int:
         return 1
 
     # Sample
-    count = min(args.count, len(pool))
-    selected = random.sample(pool, count)
+    if args.cross_domain:
+        try:
+            selected = sample_publishers(pool, args.count, random.Random(args.seed))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+    else:
+        selected = random.sample(pool, min(args.count, len(pool)))
+    count = len(selected)
 
     print(f"QA random URL test: {count} URLs, backend(s): {', '.join(backends)}, seed: {args.seed}")
     print(f"Source pool: {len(pool)} sources after filters")
