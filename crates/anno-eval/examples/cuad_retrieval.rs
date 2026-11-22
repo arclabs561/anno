@@ -9,6 +9,7 @@
 //! number of suggested windows, including overlapping windows, and how many contain no full
 //! annotated answer. Returned-on-negative counts explicitly unanswerable questions that get
 //! at least one suggestion. A contract without the question is excluded from both methods.
+//! The matched comparison truncates both rankings to the shorter list for each question.
 use anno::offset::SpanConverter;
 use anno_eval::eval::cuad;
 use lexir::bm25::{Bm25Params, InvertedIndex};
@@ -108,6 +109,8 @@ fn evaluate(
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     let mut bm25 = Results::default();
     let mut phrase = Results::default();
+    let mut matched_bm25 = Results::default();
+    let mut matched_phrase = Results::default();
     let category_terms = terms(category);
     let mut questions = 0;
     let mut unanswerable = 0;
@@ -175,6 +178,9 @@ fn evaluate(
                     .collect();
                 bm25.score(&selected, &passages, &answers);
                 phrase.score(&phrase_hits, &passages, &answers);
+                let budget = selected.len().min(phrase_hits.len());
+                matched_bm25.score(&selected[..budget], &passages, &answers);
+                matched_phrase.score(&phrase_hits[..budget], &passages, &answers);
             }
         }
         contracts_with_question += usize::from(found_category);
@@ -191,6 +197,10 @@ fn evaluate(
     report["unanswerable"] = unanswerable.into();
     report["max_passages_per_question"] = REVIEW_LIMIT.into();
     report["category_phrase_baseline"] = phrase.summary();
+    report["matched_passages_per_question"] = serde_json::json!({
+        "bm25": matched_bm25.summary(),
+        "category_phrase": matched_phrase.summary(),
+    });
     Ok(report)
 }
 
@@ -245,5 +255,13 @@ mod tests {
         assert_eq!(phrase["passages_for_review"], 1);
         assert_eq!(phrase["passages_without_full_answer"], 1);
         assert_eq!(phrase["returned_on_negative"], 1);
+
+        let matched = &report["matched_passages_per_question"];
+        for method in ["bm25", "category_phrase"] {
+            assert_eq!(matched[method]["answers"], 1);
+            assert_eq!(matched[method]["passages_for_review"], 1);
+            assert_eq!(matched[method]["full_answers_in_top3"], 0);
+            assert_eq!(matched[method]["returned_on_negative"], 1);
+        }
     }
 }
