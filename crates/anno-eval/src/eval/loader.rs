@@ -3040,24 +3040,25 @@ impl DatasetLoader {
         for attempt in 0..=MAX_RETRIES {
             let timeout_secs = (INITIAL_TIMEOUT_SECS * (1 << attempt.min(2))).min(MAX_TIMEOUT_SECS);
 
-            match ureq::get(url)
+            let response = ureq::get(url)
                 .config()
                 .timeout_global(Some(std::time::Duration::from_secs(timeout_secs)))
                 .http_status_as_error(false)
                 .build()
                 .call()
-            {
-                Ok(response) => {
-                    if response.status() == 200 {
-                        // Success - read content
-                        let content = response.into_body().read_to_string().map_err(|e| {
-                            Error::InvalidInput(format!(
-                                "Failed to read response from {}: {}. \
-                                 Response may be too large or corrupted.",
-                                url, e
-                            ))
-                        })?;
-
+                .and_then(|response| {
+                    let status = response.status().as_u16();
+                    let body = response.into_body().read_to_string();
+                    if status == 200 {
+                        body.map(|content| (status, content))
+                    } else {
+                        // An unreadable error body must not hide the HTTP status.
+                        Ok((status, body.unwrap_or_default()))
+                    }
+                });
+            match response {
+                Ok((status, content)) => {
+                    if status == 200 {
                         // Heuristic guardrail: many registry URLs are dataset homepages. If we fetch HTML,
                         // treat it as a download failure so we don't silently cache garbage and then parse
                         // "0 sentences".
@@ -3076,9 +3077,7 @@ impl DatasetLoader {
                         return Ok(content);
                     }
 
-                    let status = response.status().as_u16();
-                    let body = response.into_body().read_to_string().unwrap_or_default();
-                    let body = body.trim();
+                    let body = content.trim();
                     let body_preview = if body.len() > 800 {
                         format!("{}…", &body[..800])
                     } else {
@@ -7528,7 +7527,12 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
-        for (first_status, expected_requests) in [(404, 1), (429, 2), (503, 2)] {
+        for (first_status, first_body, expected_requests) in [
+            (404, "ner", 1),
+            (429, "ner", 2),
+            (503, "ner", 2),
+            (200, "n", 2),
+        ] {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let address = listener.local_addr().unwrap();
             let server = std::thread::spawn(move || {
@@ -7545,8 +7549,12 @@ mod tests {
                         }
                     }
                     requests += 1;
-                    let status = if requests == 1 { first_status } else { 200 };
-                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: 3\r\nConnection: close\r\n\r\nner").unwrap();
+                    let (status, body) = if requests == 1 {
+                        (first_status, first_body)
+                    } else {
+                        (200, "ner")
+                    };
+                    write!(stream, "HTTP/1.1 {status} Test\r\nContent-Length: 3\r\nConnection: close\r\n\r\n{body}").unwrap();
                 }
                 requests
             });
