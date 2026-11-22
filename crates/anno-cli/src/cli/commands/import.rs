@@ -481,18 +481,36 @@ fn parse_iri_or_bnode(s: &str) -> Option<(String, &str)> {
 fn strip_literal(o: &str) -> &str {
     let o = o.trim();
     if let Some(inner) = o.strip_prefix('"') {
-        inner.find('"').map(|i| &inner[..i]).unwrap_or(inner)
+        inner.rfind('"').map(|i| &inner[..i]).unwrap_or(inner)
     } else {
         o.trim_start_matches('<').trim_end_matches('>')
     }
 }
 
 fn unescape_literal(s: &str) -> String {
-    s.replace("\\\"", "\"")
-        .replace("\\\\", "\\")
-        .replace("\\n", "\n")
-        .replace("\\r", "\r")
-        .replace("\\t", "\t")
+    // Consume each exporter escape once. A literal backslash followed by n
+    // must survive without becoming a newline.
+    let mut chars = s.chars();
+    let mut decoded = String::with_capacity(s.len());
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            decoded.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('"') => decoded.push('"'),
+            Some('\\') => decoded.push('\\'),
+            Some('n') => decoded.push('\n'),
+            Some('r') => decoded.push('\r'),
+            Some('t') => decoded.push('\t'),
+            Some(other) => {
+                decoded.push('\\');
+                decoded.push(other);
+            }
+            None => decoded.push('\\'),
+        }
+    }
+    decoded
 }
 
 // =============================================================================
@@ -625,5 +643,23 @@ mod tests {
                 ("東京", "ORG", 12, 14)
             ]
         );
+    }
+    #[test]
+    fn ntriples_recovers_quotes_and_distinguishes_backslashes_from_controls() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("labels.nt");
+        let text = "Zoë \"Z\" C:\\new\\tools\\report\r\n\tend\\";
+        let triples = format!(
+            "<urn:e> <http://www.w3.org/2000/01/rdf-schema#label> {} .\n\
+             <urn:e> <urn:v#startOffset> \"0\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n\
+             <urn:e> <urn:v#endOffset> \"{}\"^^<http://www.w3.org/2001/XMLSchema#integer> .\n",
+            serde_json::to_string(text).unwrap(),
+            text.chars().count()
+        );
+        fs::write(&path, triples).unwrap();
+        let rows = import_ntriples(&path).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].text, text);
+        assert_eq!(rows[0].end, text.chars().count());
     }
 }
