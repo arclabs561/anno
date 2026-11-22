@@ -2611,12 +2611,19 @@ fn dataset_is_usable(loader: &DatasetLoader, ds: DatasetId, require_cached: bool
     general_dataset_is_usable(loader, ds, require_cached)
 }
 
+#[derive(Clone, Copy)]
+struct EstimateDatasetSelection<'a> {
+    candidates: &'a [String],
+    fixed: Option<&'a [String]>,
+}
+
 fn choose_datasets_for_run(
     seed: u64,
     loader: &DatasetLoader,
     tasks: &[Task],
     require_cached: bool,
     datasets_per_run: usize,
+    estimate: Option<EstimateDatasetSelection<'_>>,
 ) -> Vec<DatasetId> {
     let mut candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
     if candidates.is_empty() || datasets_per_run == 0 {
@@ -2681,27 +2688,65 @@ fn choose_datasets_for_run(
         return Vec::new();
     }
 
-    // Deterministic pseudo-random order (stable hash), then take the first K that are
-    // usable under the current cache/download setting.
-    //
-    // This keeps selection stable while avoiding “wasted” runs on datasets that are nominally
-    // registered but cannot be loaded/downloaded (or parse to empty) in this environment.
-    let mut scored: Vec<(u64, DatasetId)> = candidates
+    // Estimate prioritizes the least-observed usable panel. Resolve it before deriving
+    // the history slice or filtering backends so both refer to the evaluated datasets.
+    let history = estimate
+        .and_then(|_| crate::eval::history::EvalHistory::new(eval_history_jsonl_path()).ok());
+    let salt = if estimate.is_some() {
+        0xE571
+    } else {
+        0xDADA_BEEF
+    };
+    let mut scored: Vec<_> = candidates
         .iter()
-        .copied()
-        .map(|d| (mh::stable_hash64(seed ^ 0xDADA_BEEF, &format!("{d:?}")), d))
+        .map(|&dataset| {
+            let observations: u64 = history.as_ref().map_or(0, |history| {
+                tasks
+                    .iter()
+                    .filter_map(|&task| {
+                        let key = policy_cohort_key(
+                            task,
+                            dataset,
+                            seed,
+                            Some(max_examples_per_dataset()),
+                            require_cached,
+                        )?;
+                        history
+                            .dataset_observation_counts_for_policy_cohort(&key)
+                            .ok()?
+                            .get(dataset.name())
+                            .copied()
+                    })
+                    .sum()
+            });
+            (
+                observations,
+                mh::stable_hash64(seed ^ salt, &format!("{dataset:?}")),
+                dataset,
+            )
+        })
         .collect();
-    scored.sort_by(|a, b| {
-        a.0.cmp(&b.0)
-            .then_with(|| format!("{:?}", a.1).cmp(&format!("{:?}", b.1)))
-    });
-
-    let mut chosen: Vec<DatasetId> = Vec::new();
-    for (_, ds) in scored {
-        if chosen.len() >= datasets_per_run {
+    scored.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    let mut common = estimate.map(|policy| policy.candidates.to_vec());
+    let mut chosen = Vec::new();
+    for (_, _, ds) in scored {
+        if chosen.len() == datasets_per_run {
             break;
         }
+        let compatible = |backend: &String| TaskEvaluator::is_backend_compatible(backend, ds);
+        if common
+            .as_ref()
+            .is_some_and(|arms| !arms.iter().any(compatible))
+            || estimate
+                .and_then(|policy| policy.fixed)
+                .is_some_and(|arms| !arms.iter().all(compatible))
+        {
+            continue;
+        }
         if dataset_is_usable(loader, ds, require_cached) {
+            if let Some(arms) = &mut common {
+                arms.retain(compatible);
+            }
             chosen.push(ds);
         }
     }
@@ -2959,6 +3004,39 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     {
         eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
     }
+    // Backends: choose a *tiny* subset per run (keep this test fast).
+    //
+    let mut candidates = backend_candidates(strategy, &tasks);
+    if candidates.is_empty() {
+        eprintln!("matrix-muxer: no backend candidates available for this feature set");
+        return;
+    }
+
+    // Filter backend candidates down to those that can actually serve the chosen tasks.
+    candidates.retain(|b| {
+        let ts = backend_tasks(b);
+        tasks.iter().any(|t| ts.contains(t))
+    });
+    if let Some(ref pinned) = pinned_backends_requested {
+        if pinned.is_empty() {
+            eprintln!("matrix-muxer: ANNO_MUXER_PIN_BACKEND is set but empty");
+            return;
+        }
+        candidates.retain(|b| pinned.iter().any(|p| p == b));
+    }
+    if candidates.is_empty() {
+        eprintln!(
+            "matrix-muxer: no backend candidates support tasks={:?} for this feature set",
+            tasks
+        );
+        return;
+    }
+
+    let estimate =
+        matches!(strategy, SampleStrategy::Estimate).then_some(EstimateDatasetSelection {
+            candidates: &candidates,
+            fixed: fixed_backends_requested.as_deref(),
+        });
     let mut chosen_datasets: Vec<DatasetId>;
 
     // Optional override: fixed datasets (comma-separated DatasetId debug names).
@@ -3030,11 +3108,18 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             &tasks,
             require_cached_for_run,
             datasets_per_run,
+            estimate,
         );
         if chosen_datasets.is_empty() {
             if require_cached_for_run && try_download_on_empty {
-                chosen_datasets =
-                    choose_datasets_for_run(seed, &loader, &tasks, false, datasets_per_run);
+                chosen_datasets = choose_datasets_for_run(
+                    seed,
+                    &loader,
+                    &tasks,
+                    false,
+                    datasets_per_run,
+                    estimate,
+                );
             }
             if chosen_datasets.is_empty() {
                 eprintln!(
@@ -3047,9 +3132,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             }
         }
     }
-
-    // Note: estimation-first dataset override is applied later, after backend
-    // candidates are resolved (see below).
 
     if let Some(ref fixed) = fixed_backends_requested {
         if fixed.is_empty() {
@@ -3077,13 +3159,14 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     .all(|b| TaskEvaluator::is_backend_compatible(b, *d))
             })
             .collect::<Vec<_>>();
-        if !also_fixed_ds && filtered.len() < want {
+        if !also_fixed_ds && estimate.is_none() && filtered.len() < want {
             let mut pool = choose_datasets_for_run(
                 seed ^ 0xF1E3_DA7A,
                 &loader,
                 &tasks,
                 require_cached_for_run,
                 want.saturating_mul(10).max(want),
+                None,
             );
             pool.retain(|d| {
                 fixed
@@ -3105,6 +3188,18 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             return;
         }
         chosen_datasets = filtered;
+    }
+
+    // Further filter by dataset-level compatibility (entity types, etc.) to avoid wasting
+    // matrix budget on expected incompatibilities (e.g., heuristic on WNUT-17).
+    candidates.retain(|b| {
+        chosen_datasets
+            .iter()
+            .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
+    });
+    if candidates.is_empty() {
+        eprintln!("matrix-muxer: no compatible backend for datasets={chosen_datasets:?}");
+        return;
     }
 
     // Make muxer history facet-aware by scoping to a coarse dataset slice.
@@ -3186,124 +3281,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
         None
     };
     let prior_calls = mh::prior_calls_from_env();
-
-    // Backends: choose a *tiny* subset per run (keep this test fast).
-    //
-    // Important: choose datasets first so MAB summaries can be dataset-scoped, reducing
-    // objective bleed across unrelated datasets.
-    let mut candidates = backend_candidates(strategy, &tasks);
-    if candidates.is_empty() {
-        eprintln!("matrix-muxer: no backend candidates available for this feature set");
-        return;
-    }
-
-    // Filter backend candidates down to those that can actually serve the chosen tasks.
-    candidates.retain(|b| {
-        let ts = backend_tasks(b);
-        tasks.iter().any(|t| ts.contains(t))
-    });
-    // Further filter by dataset-level compatibility (entity types, etc.) to avoid wasting
-    // matrix budget on expected incompatibilities (e.g., heuristic on WNUT-17).
-    candidates.retain(|b| {
-        chosen_datasets
-            .iter()
-            .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
-    });
-    if let Some(ref pinned) = pinned_backends_requested {
-        if pinned.is_empty() {
-            eprintln!("matrix-muxer: ANNO_MUXER_PIN_BACKEND is set but empty");
-            return;
-        }
-        candidates.retain(|b| pinned.iter().any(|p| p == b));
-    }
-    if candidates.is_empty() {
-        eprintln!(
-            "matrix-muxer: no backend candidates support tasks={:?} for this feature set",
-            tasks
-        );
-        return;
-    }
-
-    // Estimation-first: override dataset selection to prioritize least-observed datasets.
-    //
-    // For the Estimate strategy, query the SQLite eval-history DB for observation counts
-    // (the ground truth for matrix coverage), then pick the datasets with fewest
-    // total observations across all backends.  Falls back to muxer history if DB unavailable.
-    if matches!(strategy, SampleStrategy::Estimate) && fixed_datasets_requested.is_none() {
-        let all_ds = candidate_datasets_for_tasks(&loader, &tasks, require_cached_for_run);
-        if !all_ds.is_empty() {
-            // Try to get counts from SQLite eval-history DB (fast, accurate, uses all
-            // historical data).  This is the ground truth for matrix coverage.
-            // Path resolution uses ANNO_EVAL_HISTORY → ANNO_CACHE_DIR → platform cache dir
-            // so CI writes and reads from the same cached location.
-            let cohort_counts: Vec<std::collections::HashMap<String, u64>> = {
-                let hist_path = eval_history_jsonl_path();
-                crate::eval::history::EvalHistory::new(&hist_path)
-                    .ok()
-                    .map(|history| {
-                        tasks
-                            .iter()
-                            .flat_map(|task| {
-                                all_ds.iter().filter_map(|dataset| {
-                                    policy_cohort_key(
-                                        *task,
-                                        *dataset,
-                                        seed,
-                                        Some(max_examples_per_dataset()),
-                                        require_cached_for_run,
-                                    )
-                                    .and_then(|key| {
-                                        history
-                                            .dataset_observation_counts_for_policy_cohort(&key)
-                                            .ok()
-                                    })
-                                })
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default()
-            };
-
-            let mut scored: Vec<(u64, DatasetId)> = all_ds
-                .iter()
-                .map(|&d| {
-                    let name = d.name().to_string();
-                    let total = cohort_counts
-                        .iter()
-                        .map(|counts| counts.get(&name).copied().unwrap_or(0))
-                        .sum::<u64>();
-                    (total, d)
-                })
-                .collect();
-            scored.sort_by(|a, b| {
-                a.0.cmp(&b.0).then_with(|| {
-                    mh::stable_hash64(seed ^ 0xE571, &format!("{:?}", a.1))
-                        .cmp(&mh::stable_hash64(seed ^ 0xE571, &format!("{:?}", b.1)))
-                })
-            });
-            let override_ds: Vec<DatasetId> = scored
-                .into_iter()
-                .take(datasets_per_run)
-                .map(|(_, d)| d)
-                .collect();
-            if !override_ds.is_empty() {
-                if mh::env_bool("ANNO_MUXER_VERBOSE", false) {
-                    eprintln!(
-                        "matrix-muxer: estimate dataset override: {:?} -> {:?} (least-observed in eval DB)",
-                        chosen_datasets.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>(),
-                        override_ds.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>(),
-                    );
-                }
-                chosen_datasets = override_ds;
-                // Re-filter candidates for compatibility with the new datasets.
-                candidates.retain(|b| {
-                    chosen_datasets
-                        .iter()
-                        .all(|d| TaskEvaluator::is_backend_compatible(b, *d))
-                });
-            }
-        }
-    }
 
     let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
     let backends_per_run_default = if matches!(MlOnlyPolicy::from_env(), MlOnlyPolicy::LinUcb) {
@@ -4437,7 +4414,8 @@ fn test_matrix_sweep_all_backends_once() {
 
     let strict = mh::env_bool("ANNO_MATRIX_SWEEP_STRICT", true);
     let max_examples = mh::env_usize("ANNO_MATRIX_SWEEP_MAX_EXAMPLES", 5).max(1);
-    let chosen = choose_datasets_for_run(seed ^ 0x51EE_AAAA, &loader, &tasks, require_cached, 1);
+    let chosen =
+        choose_datasets_for_run(seed ^ 0x51EE_AAAA, &loader, &tasks, require_cached, 1, None);
     let Some(&dataset) = chosen.first() else {
         let msg = format!(
             "matrix-sweep: no eligible datasets for tasks={:?} (require_cached={} cache_dir={:?})",
