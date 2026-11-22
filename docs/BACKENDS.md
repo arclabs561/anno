@@ -183,6 +183,10 @@ The ONNX evaluator uses the pinned `jugaadsrl/gliner2-multi-v1-onnx`
 snapshot `4241d7c66b648e618c89c150bf4cf418d2f83159`; it requires about
 1.25 GB for the selected `fp32_v2` files on first use.
 
+For GLiNER2.5 Multi, the [Python import example](../scripts/gliner25_import.py)
+uses Fastino's boundary decoder to extract labels from a UTF-8 document. It
+writes one mention per JSONL row for `anno dataset import --format jsonl`.
+
 ### Features not validated in CI
 
 CI compile-checks the hardware-gated features a GitHub-hosted runner can build:
