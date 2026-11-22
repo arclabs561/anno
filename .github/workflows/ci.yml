@@ -620,15 +620,7 @@ jobs:
       - name: Prepare the pinned public WikiGold input
         # External sampling is advisory on PRs if the source and cache are unavailable.
         continue-on-error: ${{ github.event_name == 'pull_request' }}
-        run: |
-          input="$ANNO_CACHE_DIR/datasets/WikiGold.cache"
-          digest=c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
-          if [[ -f "$input" ]] && echo "$digest  $input" | sha256sum --check --status; then exit 0; fi
-          curl --fail --location --retry 2 --max-time 30 --max-filesize 1000000 \
-            https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt \
-            -o "$RUNNER_TEMP/wikigold.conll"
-          echo "$digest  $RUNNER_TEMP/wikigold.conll" | sha256sum --check
-          install -D "$RUNNER_TEMP/wikigold.conll" "$input"
+        run: bash scripts/qa/prepare_matrix_wikigold.sh
       - name: Bootstrap a cold trusted run on the public WikiGold corpus
         if: steps.prior.outputs.restored == 'false' && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
