@@ -172,10 +172,10 @@ jobs:
   test-eval:
     name: Test (eval)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &test-eval-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -236,6 +236,15 @@ jobs:
         run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
         run: cargo test -p anno --doc --features discourse
+  test-eval-trusted:
+    name: Test (eval) (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *test-eval-steps
+
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -298,10 +307,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
@@ -343,10 +352,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Build Candle backend
         run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
@@ -370,8 +379,8 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
@@ -392,8 +401,8 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
@@ -416,8 +425,8 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
@@ -533,10 +542,10 @@ jobs:
     name: Randomized Matrix Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &matrix-test-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -572,10 +581,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Cache datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -681,6 +690,17 @@ jobs:
             ${{ runner.temp }}/muxer-decisions.jsonl
             Cargo.lock
           if-no-files-found: warn
+  matrix-test-trusted:
+    name: Randomized Matrix Test (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      actions: read # Restore trusted matrix checkpoints across workflow runs.
+      contents: read
+      id-token: write
+    steps: *matrix-test-steps
+
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
@@ -717,10 +737,10 @@ jobs:
     name: Eval Sanity (small samples)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-sanity-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -751,10 +771,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Cache datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -792,20 +812,30 @@ jobs:
             reports/eval-sanity-report.md
             reports/eval-sanity-report.json
           if-no-files-found: warn
+  eval-sanity-trusted:
+    name: Eval Sanity (small samples) (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-sanity-steps
+
   # ==========================================================================
   # Full Evaluations (only on eval-* branches or manual trigger)
   # ==========================================================================
   eval-full:
     name: Eval Full (all combinations)
     runs-on: ubuntu-latest
-    if: |
-      startsWith(github.ref, 'refs/heads/eval-') ||
-      github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' &&
+      !startsWith(github.ref, 'refs/heads/eval-')
     timeout-minutes: 120
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-full-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -836,10 +866,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Cache datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -867,6 +897,20 @@ jobs:
         with:
           name: eval-full-report
           path: eval-full-report.md
+  eval-full-trusted:
+    name: Eval Full (all combinations) (trusted branch)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request' &&
+      (startsWith(github.ref, 'refs/heads/eval-') ||
+       (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')))
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-full-steps
+
   # ==========================================================================
   # Security audit
   # ==========================================================================
@@ -991,10 +1035,10 @@ jobs:
     runs-on: ubuntu-latest
     # Keep the job advisory until the remaining packs parse and their precision is measured.
     continue-on-error: true
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      security-events: write
-    steps:
+    steps: &opengrep-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1114,7 +1158,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
+        if: always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         continue-on-error: true
         with:
           sarif_file: opengrep-results.sarif
@@ -1150,6 +1194,15 @@ jobs:
             opengrep-error-results.json
             opengrep-memory-results.json
           if-no-files-found: error
+  opengrep-trusted:
+    name: OpenGrep Static Analysis (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps: *opengrep-steps
   # Code coverage (optional, runs on schedule or manual trigger)
   # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs).
   # PR coverage for the `analysis`/`schema` features runs in test-minimal instead.
