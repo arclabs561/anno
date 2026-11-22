@@ -204,10 +204,11 @@ sample or an independently scored complete panel.
 ## Coverage
 
 Use `--mode coverage` or `--strategy estimate` when the question is which
-eligible fixed-panel cells have the fewest recorded evaluation receipts. The
-implementation sums each backend's receipts across the selected datasets and
-chooses the lowest total. Skips, dataset preflight failures, and successful
-unscored runs all count. To measure scored coverage, count successful receipts
+eligible fixed-panel cells have the fewest completed evaluations. The
+implementation counts runs that evaluated at least one example without an error,
+sums each backend's counts across the selected datasets, and chooses the lowest
+total. Tasks with their own metrics can contribute coverage without a primary
+F1. The evaluation history also retains skipped and failed attempts for triage. To measure scored coverage, count successful receipts
 with a finite primary F1. Counts are scoped to a recorded policy cohort: task,
 dataset, example cap, cache policy, enabled evaluator features, and the
 primary-score contract. Seed remains in each receipt but does not split coverage
