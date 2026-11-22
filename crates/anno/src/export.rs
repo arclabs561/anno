@@ -260,16 +260,62 @@ fn uri_safe(s: &str) -> String {
         .collect()
 }
 
-fn entity_uri(base_uri: &str, entity_type: &str, idx: usize, text: &str, start: usize) -> String {
-    let base = base_uri.trim_end_matches('/');
+/// Encode a complete value as a single path segment, including literal percent signs.
+fn iri_component(value: &str) -> percent_encoding::PercentEncode<'_> {
+    percent_encoding::utf8_percent_encode(value, percent_encoding::NON_ALPHANUMERIC)
+}
+
+fn document_iri(base_uri: &str, label: &str) -> String {
     format!(
-        "<{}/entity/{}/{}_{}_{}>",
-        base,
-        uri_safe(&entity_type.to_lowercase()),
-        idx,
-        uri_safe(text),
-        start,
+        "{}/doc/{}",
+        base_uri.trim_end_matches('/'),
+        iri_component(label)
     )
+}
+
+fn additional_segments(entity: &Entity) -> &[std::ops::Range<usize>] {
+    let Some(span) = &entity.discontinuous_span else {
+        return &[];
+    };
+    match span.segments() {
+        [single] if single.start == entity.start() && single.end == entity.end() => &[],
+        segments => segments,
+    }
+}
+
+/// Each RDF subject identifies a typed occurrence in one document revision.
+/// Its identity survives reordering or rescoring the model output.
+pub(crate) fn occurrence_iris(entities: &[Entity], doc_iri: &str, base_uri: &str) -> Vec<String> {
+    use std::fmt::Write;
+    let prefix = format!(
+        "{}/mention/v2/{}",
+        base_uri.trim_end_matches('/'),
+        iri_component(doc_iri)
+    );
+    entities
+        .iter()
+        .map(|entity| {
+            let mut iri = format!(
+                "{prefix}/{}/{}-{}",
+                iri_component(entity.entity_type.as_label()),
+                entity.start(),
+                entity.end()
+            );
+            for range in additional_segments(entity) {
+                write!(iri, "/{}-{}", range.start, range.end).expect("write to String");
+            }
+            if let Some(visual) = &entity.visual_span {
+                // Visual-only entities use 0..0 for their text range. Preserve their
+                // complete page/geometry locator, including hybrid text and boxes.
+                let locator =
+                    serde_json::to_string(visual).expect("Span contains only scalar values");
+                write!(iri, "/visual/{}", iri_component(&locator)).expect("write to String");
+            } else if entity.start() == entity.end() {
+                write!(iri, "/empty/{}", iri_component(&entity.text)).expect("write to String");
+            }
+            iri
+        })
+        .collect()
 }
 
 fn rel_predicate_uri(base_uri: &str, rel_type: &str) -> String {
@@ -282,16 +328,34 @@ fn rel_predicate_uri(base_uri: &str, rel_type: &str) -> String {
 /// A relation owns cloned endpoint entities, so pointer identity is unavailable.
 /// Match the stable mention identity instead. When duplicate entities still share
 /// that identity, omit the relation rather than binding it arbitrarily.
-fn resolve_relation_endpoint(entities: &[Entity], endpoint: &Entity) -> Option<usize> {
-    let mut matches = entities.iter().enumerate().filter(|(_, entity)| {
-        entity.text == endpoint.text
-            && entity.start() == endpoint.start()
-            && entity.end() == endpoint.end()
-            && entity.entity_type == endpoint.entity_type
-            && entity.canonical_id == endpoint.canonical_id
-    });
-    let (idx, _) = matches.next()?;
-    matches.next().is_none().then_some(idx)
+pub(crate) fn resolved_relations<'a>(
+    entities: &'a [Entity],
+    relations: &'a [Relation],
+) -> impl Iterator<Item = (&'a Relation, usize, usize)> {
+    let mut by_span = std::collections::HashMap::new();
+    if !relations.is_empty() {
+        for (i, e) in entities.iter().enumerate() {
+            by_span
+                .entry((e.text.as_str(), e.start(), e.end()))
+                .or_insert_with(Vec::new)
+                .push(i);
+        }
+    }
+    let resolve = move |endpoint: &Entity| {
+        let indexes = by_span.get(&(endpoint.text.as_str(), endpoint.start(), endpoint.end()))?;
+        let mut matching = indexes.iter().copied().filter(|&i| {
+            let e = &entities[i];
+            e.entity_type == endpoint.entity_type
+                && e.canonical_id == endpoint.canonical_id
+                && additional_segments(e) == additional_segments(endpoint)
+                && e.visual_span == endpoint.visual_span
+        });
+        let first = matching.next()?;
+        matching.next().is_none().then_some(first)
+    };
+    relations
+        .iter()
+        .filter_map(move |rel| Some((rel, resolve(&rel.head)?, resolve(&rel.tail)?)))
 }
 
 /// Minimal CSV field escaping.
@@ -312,22 +376,33 @@ pub fn to_ntriples(
     doc_label: &str,
     base_uri: &str,
 ) -> String {
+    to_ntriples_for_document(
+        entities,
+        relations,
+        &document_iri(base_uri, doc_label),
+        base_uri,
+    )
+}
+
+/// Export N-Triples referring to the caller's absolute, versioned document IRI.
+pub fn to_ntriples_for_document(
+    entities: &[Entity],
+    relations: &[Relation],
+    doc_iri: &str,
+    base_uri: &str,
+) -> String {
     let mut lines = Vec::new();
     let base = base_uri.trim_end_matches('/');
     let anno_ns = format!("{}/vocab#", base);
-    let doc = format!("<{}/doc/{}>", base, uri_safe(doc_label));
+    let doc = format!("<{doc_iri}>");
 
     let rdf_type = "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>";
     let rdfs_label = "<http://www.w3.org/2000/01/rdf-schema#label>";
 
-    let ent_uri: Vec<String> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| entity_uri(base_uri, e.entity_type.as_label(), i, &e.text, e.start()))
-        .collect();
+    let ent_uri = occurrence_iris(entities, doc_iri, base_uri);
 
     for (idx, entity) in entities.iter().enumerate() {
-        let ent = &ent_uri[idx];
+        let ent = format!("<{}>", ent_uri[idx]);
         let type_uri = format!(
             "<{}{}Type>",
             anno_ns,
@@ -362,13 +437,9 @@ pub fn to_ntriples(
         ));
     }
 
-    for rel in relations {
-        let head_idx = resolve_relation_endpoint(entities, &rel.head);
-        let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
-        if let (Some(h), Some(t)) = (head_idx, tail_idx) {
-            let pred = rel_predicate_uri(base_uri, &rel.relation_type);
-            lines.push(format!("{} {} {} .", ent_uri[h], pred, ent_uri[t]));
-        }
+    for (rel, h, t) in resolved_relations(entities, relations) {
+        let pred = rel_predicate_uri(base_uri, &rel.relation_type);
+        lines.push(format!("<{}> {} <{}> .", ent_uri[h], pred, ent_uri[t]));
     }
 
     lines.join("\n")
@@ -384,39 +455,34 @@ pub fn to_jsonld(
     include_confidence: bool,
     base_uri: &str,
 ) -> String {
+    to_jsonld_for_document(
+        entities,
+        relations,
+        &document_iri(base_uri, doc_label),
+        include_confidence,
+        base_uri,
+    )
+}
+
+/// Export JSON-LD referring to the caller's absolute, versioned document IRI.
+pub fn to_jsonld_for_document(
+    entities: &[Entity],
+    relations: &[Relation],
+    doc_iri: &str,
+    include_confidence: bool,
+    base_uri: &str,
+) -> String {
     let base = base_uri.trim_end_matches('/');
-    let entity_ns = format!("{}/entity", base);
     let anno_ns = format!("{}/vocab#", base);
+    let entity_ids = occurrence_iris(entities, doc_iri, base_uri);
 
-    let entity_ids: Vec<String> = entities
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            format!(
-                "{}/{}/{}_{}_{}",
-                entity_ns,
-                uri_safe(&e.entity_type.as_label().to_lowercase()),
-                i,
-                uri_safe(&e.text),
-                e.start(),
-            )
-        })
-        .collect();
-
-    let mut rel_by_head: std::collections::HashMap<&str, Vec<serde_json::Value>> =
+    let mut rel_by_head: std::collections::HashMap<usize, Vec<serde_json::Value>> =
         std::collections::HashMap::new();
-    for rel in relations {
-        let head_idx = resolve_relation_endpoint(entities, &rel.head);
-        let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
-        if let (Some(h), Some(t)) = (head_idx, tail_idx) {
-            rel_by_head
-                .entry(&entity_ids[h])
-                .or_default()
-                .push(serde_json::json!({
-                    "@type": format!("{}/rel/{}", base, uri_safe(&rel.relation_type)),
-                    "target": { "@id": entity_ids[t] }
-                }));
-        }
+    for (rel, h, t) in resolved_relations(entities, relations) {
+        rel_by_head.entry(h).or_default().push(serde_json::json!({
+            "@type": format!("{}/rel/{}", base, uri_safe(&rel.relation_type)),
+            "target": { "@id": entity_ids[t] }
+        }));
     }
 
     let graph: Vec<serde_json::Value> = entities
@@ -431,13 +497,13 @@ pub fn to_jsonld(
                 "anno:startOffset": e.start(),
                 "anno:endOffset": e.end(),
                 "prov:hadPrimarySource": {
-                    "@id": format!("{}/doc/{}", base, uri_safe(doc_label))
+                    "@id": doc_iri
                 }
             });
             if include_confidence {
                 node["anno:confidence"] = serde_json::json!(e.confidence);
             }
-            if let Some(rels) = rel_by_head.get(id.as_str()) {
+            if let Some(rels) = rel_by_head.get(&i) {
                 node["anno:relations"] = serde_json::json!(rels);
             }
             node
@@ -449,6 +515,7 @@ pub fn to_jsonld(
             "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
             "prov": "http://www.w3.org/ns/prov#",
             "anno": anno_ns,
+            "target": "anno:target",
             "xsd": "http://www.w3.org/2001/XMLSchema#"
         },
         "@graph": graph
@@ -508,18 +575,14 @@ pub fn to_graph_csv(
     let mut edges = String::from("from,to,rel_type,confidence\n");
 
     if !relations.is_empty() {
-        for rel in relations {
-            let head_idx = resolve_relation_endpoint(entities, &rel.head);
-            let tail_idx = resolve_relation_endpoint(entities, &rel.tail);
-            if let (Some(h), Some(t)) = (head_idx, tail_idx) {
-                edges.push_str(&format!(
-                    "{},{},{},{:.4}\n",
-                    csv_escape(&entity_ids[h]),
-                    csv_escape(&entity_ids[t]),
-                    csv_escape(&rel.relation_type),
-                    rel.confidence,
-                ));
-            }
+        for (rel, h, t) in resolved_relations(entities, relations) {
+            edges.push_str(&format!(
+                "{},{},{},{:.4}\n",
+                csv_escape(&entity_ids[h]),
+                csv_escape(&entity_ids[t]),
+                csv_escape(&rel.relation_type),
+                rel.confidence,
+            ));
         }
     } else {
         const COOCCUR_WINDOW: usize = 200;
@@ -735,9 +798,15 @@ mod tests {
             "test.txt",
             "http://example.org",
         );
-        assert!(ntriples.contains(
-            "<http://example.org/entity/product/2_Apple_0> <http://example.org/rel/MAKES> <http://example.org/entity/per/3_Tim_Cook_10> ."
-        ));
+        let ids = occurrence_iris(
+            &entities,
+            &document_iri("http://example.org", "test.txt"),
+            "http://example.org",
+        );
+        assert!(ntriples.contains(&format!(
+            "<{}> <http://example.org/rel/MAKES> <{}> .",
+            ids[2], ids[3]
+        )));
 
         let jsonld = to_jsonld(
             &entities,
@@ -748,10 +817,7 @@ mod tests {
         );
         let jsonld: serde_json::Value = serde_json::from_str(&jsonld).unwrap();
         let relations = &jsonld["@graph"][2]["anno:relations"];
-        assert_eq!(
-            relations[0]["target"]["@id"],
-            "http://example.org/entity/per/3_Tim_Cook_10"
-        );
+        assert_eq!(relations[0]["target"]["@id"], ids[3]);
 
         let (_, csv) = to_graph_csv(&entities, &[relation], "test.txt", false);
         assert!(csv.contains("product:2_Apple,per:3_Tim_Cook,MAKES,0.8000"));

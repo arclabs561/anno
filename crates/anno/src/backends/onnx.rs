@@ -180,11 +180,42 @@ fn continues_bio_entity(
 }
 
 #[cfg(feature = "onnx")]
+fn local_model_dir(model_name: &str) -> Result<Option<&std::path::Path>> {
+    use std::{ffi::OsStr, io::ErrorKind, path::Path};
+
+    let path = Path::new(model_name);
+    match path.metadata() {
+        Ok(meta) if meta.is_dir() => Ok(Some(path)),
+        Ok(_) => Err(Error::Retrieval(format!(
+            "Model path is not a directory: {model_name}"
+        ))),
+        Err(error) => {
+            // Only a bare name or owner/name can refer to a Hub repository.
+            // Keep explicit paths local even when their directory is missing.
+            let mut parts = model_name.split('/');
+            let hub_shape = parts.clone().count() <= 2
+                && !model_name.contains(['\\', ':'])
+                && parts.all(|part| Path::new(part).file_name() == Some(OsStr::new(part)));
+            if hub_shape
+                && matches!(error.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory)
+                && !path.is_symlink()
+            {
+                Ok(None)
+            } else {
+                Err(Error::Retrieval(format!(
+                    "Cannot open model directory {model_name}: {error}"
+                )))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "onnx")]
 impl BertNEROnnx {
     /// Create a new BERT NER ONNX model with default config.
     ///
     /// # Arguments
-    /// * `model_name` - HuggingFace model identifier (e.g., "protectai/bert-base-NER-onnx")
+    /// * `model_name` - Hugging Face model ID (e.g., "protectai/bert-base-NER-onnx") or a local directory
     ///
     /// # Returns
     /// BERT NER ONNX model instance
@@ -198,6 +229,9 @@ impl BertNEROnnx {
     /// * `model_name` - HuggingFace model identifier or local directory path
     /// * `config` - Configuration for model loading
     ///
+    /// Existing directories take precedence over Hub IDs. Use `./owner/model`
+    /// to require a local directory even if it is missing.
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -209,10 +243,8 @@ impl BertNEROnnx {
     /// let model = BertNEROnnx::with_config("protectai/bert-base-NER-onnx", config)?;
     /// ```
     pub fn with_config(model_name: &str, config: BertNERConfig) -> Result<Self> {
-        // If model_name is a local directory, load directly from it.
-        let local_path = std::path::Path::new(model_name);
-        if local_path.is_dir() {
-            return Self::from_local(local_path, config);
+        if let Some(dir) = local_model_dir(model_name)? {
+            return Self::from_local(dir, config);
         }
 
         use crate::backends::hf_loader;
@@ -1246,9 +1278,74 @@ mod tests {
     use super::*;
 
     #[test]
-    fn from_local_rejects_nonexistent_dir() {
-        let result = BertNEROnnx::new("/nonexistent/path/to/model");
-        assert!(result.is_err());
+    fn constructor_reports_missing_model_directory() {
+        // Isolate the Hub's offline setting if the caller ever bypasses local lookup.
+        if !crate::backends::hf_loader::no_downloads() {
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "backends::onnx::tests::constructor_reports_missing_model_directory",
+                ])
+                .env("ANNO_NO_DOWNLOADS", "1")
+                .status()
+                .unwrap();
+            assert!(status.success());
+            return;
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("missing");
+        let name = path.to_str().unwrap();
+        let error = BertNEROnnx::new(name).err().expect("directory is missing");
+        assert!(
+            matches!(error, Error::Retrieval(msg) if msg.starts_with(&format!("Cannot open model directory {name}:")))
+        );
+    }
+
+    #[test]
+    fn model_source_rejects_missing_local_paths() {
+        let temp = tempfile::tempdir().unwrap();
+        let absolute = temp.path().join("missing");
+        for name in [
+            absolute.to_str().unwrap(),
+            "./missing-model",
+            "../missing-model",
+            "missing-model/",
+            "models/local/weights",
+            r"models\missing-model",
+            "C:/missing-model",
+            "C:missing-model",
+            r"\\server\share\missing-model",
+        ] {
+            let err = local_model_dir(name).unwrap_err();
+            assert!(err.to_string().contains(name), "{err}");
+        }
+    }
+
+    #[test]
+    fn model_source_leaves_missing_hub_ids_for_the_downloader() {
+        for id in ["anno-test-uncached-model", "anno-test-org/uncached-model"] {
+            assert_eq!(local_model_dir(id).unwrap(), None);
+        }
+    }
+
+    #[test]
+    fn model_source_prefers_an_existing_directory_and_rejects_a_file() {
+        let temp = tempfile::tempdir_in(".").unwrap();
+        let name = temp.path().file_name().unwrap().to_str().unwrap();
+        assert_eq!(
+            local_model_dir(name).unwrap(),
+            Some(std::path::Path::new(name))
+        );
+        let repo = std::path::Path::new(name).join("model");
+        std::fs::create_dir(&repo).unwrap();
+        assert_eq!(
+            local_model_dir(repo.to_str().unwrap()).unwrap(),
+            Some(repo.as_path())
+        );
+        let file = temp.path().join("model.onnx");
+        std::fs::write(&file, b"").unwrap();
+        let err = local_model_dir(file.to_str().unwrap()).unwrap_err();
+        assert!(err.to_string().contains("not a directory"), "{err}");
     }
 
     #[test]
