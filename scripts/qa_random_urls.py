@@ -371,6 +371,7 @@ class RunResult:
     backend: str = ""
     reported_model: str = ""
     text_hash: str = ""
+    detected_lang: str = ""
 
 
 def resolve_url(source: Source) -> Optional[str]:
@@ -413,6 +414,7 @@ def validate_extraction(data: object) -> None:
 
 
 def run_anno(
+    source: Source,
     anno_bin: str,
     url: str,
     backend: str,
@@ -420,9 +422,8 @@ def run_anno(
     verbose: bool,
 ) -> RunResult:
     """Run anno extract on a URL and parse the result."""
-    # placeholder -- filled by caller
     result = RunResult(
-        source=Source("", "", "", "", ""),
+        source=source,
         url=url,
         backend=backend,
         status="error",
@@ -470,11 +471,15 @@ def run_anno(
         except ValueError as e:
             result.error_msg = f"invalid extraction: {e}"
             return result
-        result.status = "OK"
         prov = data["provenance"]
         result.reported_model = prov["model"]
         result.url = prov.get("source_url") or url
         result.text_hash = prov.get("text_hash", "")
+        result.detected_lang = prov.get("language", "")
+        if source.category == "documents" and result.detected_lang != source.lang:
+            result.error_msg = f"expected {source.lang}, detected {result.detected_lang or 'unknown'}"
+            return result
+        result.status = "OK"
         result.entity_count = len(data["entities"])
         result.type_counts = dict(Counter(ent["type"] for ent in data["entities"]))
 
@@ -524,7 +529,7 @@ def generate_report(
     lines.append("## Summary")
     lines.append(f"- Successful checks: {ok_count}/{len(results)}")
     lines.append(f"- Failures: {err_count}" + (f" ({', '.join(r.status for r in results if r.status != 'OK')})" if err_count else ""))
-    lines.append(f"- Languages: {', '.join(all_langs)}")
+    lines.append(f"- Source languages: {', '.join(all_langs)}")
     lines.append(f"- Scripts: {', '.join(all_scripts)}")
     type_summary = ", ".join(f"{t}: {c}" for t, c in total_types.most_common())
     lines.append(f"- Entities found: {total_entities} total ({type_summary})")
@@ -533,7 +538,7 @@ def generate_report(
     # Results table
     lines.append("## Results")
     lines.append("")
-    lines.append("| # | Source | URL | Lang | Script | Text hash | Requested / reported model | Entities | Time | Status |")
+    lines.append("| # | Source | URL | Source / detected language | Script | Text hash | Requested / reported model | Entities | Time | Status |")
     lines.append("|---|--------|-----|------|--------|-----------|----------------------------|----------|------|--------|")
 
     for i, r in enumerate(results, 1):
@@ -543,7 +548,7 @@ def generate_report(
         ent_str = str(r.entity_count) if r.status == "OK" else "-"
         status_icon = "OK" if r.status == "OK" else f"**{r.status}**"
         lines.append(
-            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
+            f"| {i} | {r.source.name} | {url_display} | {r.source.lang} / {r.detected_lang or '—'} | {r.source.script} | {r.text_hash or '—'} | {r.backend or '—'} / {r.reported_model or '—'} | {ent_str} | {time_str} | {status_icon} |"
         )
 
     lines.append("")
@@ -759,8 +764,7 @@ def main() -> int:
 
         for backend in backends:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) -> {backend}...", end=" ", flush=True)
-            result = run_anno(anno_bin, url, backend, args.timeout, args.verbose)
-            result.source = source
+            result = run_anno(source, anno_bin, url, backend, args.timeout, args.verbose)
             if result.status == "OK":
                 # Reuse the article reached by the first backend on random redirects.
                 url = result.url
