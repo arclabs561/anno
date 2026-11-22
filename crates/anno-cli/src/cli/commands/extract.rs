@@ -163,7 +163,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
-    let mut raw_text = if let Some(url) = &args.url {
+    let (mut raw_text, source_url): (String, Option<String>) = if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
             use crate::cli::ingest::UrlResolver;
@@ -171,7 +171,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             let resolved = resolver
                 .resolve(url)
                 .map_err(|e| CliError::from(format!("Failed to fetch URL {}: {}", url, e)))?;
-            resolved.text
+            (resolved.text, Some(resolved.source_url))
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -182,8 +182,11 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
             ));
         }
     } else {
-        get_input_text(&args.text, args.file.as_deref(), &args.positional)
-            .map_err(CliError::from)?
+        (
+            get_input_text(&args.text, args.file.as_deref(), &args.positional)
+                .map_err(CliError::from)?,
+            None,
+        )
     };
 
     // Preprocess text if requested
@@ -552,6 +555,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 &entities_out,
                 elapsed,
                 detected_language.as_deref().and_then(Language::from_code),
+                source_url.as_deref(),
             );
             let output = serde_json::json!({
                 "provenance": provenance,
@@ -579,6 +583,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 &entities_out,
                 elapsed,
                 detected_language.as_deref().and_then(Language::from_code),
+                source_url.as_deref(),
             );
             println!("{}", serde_json::json!({ "provenance": provenance }));
             for obj in entities_out {
@@ -1037,6 +1042,7 @@ fn build_provenance(
     entities: &[serde_json::Value],
     elapsed: std::time::Duration,
     language: Option<Language>,
+    source_url: Option<&str>,
 ) -> serde_json::Value {
     // Result hash mirrors eval/property_tests.rs: sorted, order-independent, deterministic.
     #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1089,8 +1095,12 @@ fn build_provenance(
         "entity_count": ents.len(),
         "elapsed_ms": (elapsed.as_secs_f64() * 1000.0),
         "result_hash": result_hash,
+        "text_hash": format!("xxh3:{:016x}", xxh3_64(text.as_bytes())),
         "confidence_stats": confidence_stats,
     });
+    if let Some(url) = source_url {
+        prov["source_url"] = url.into();
+    }
     if let Some(lang) = language {
         prov["language"] = serde_json::Value::String(lang.to_string());
     }

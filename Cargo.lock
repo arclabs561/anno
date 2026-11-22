@@ -122,12 +122,14 @@ dependencies = [
  "clap_complete",
  "deformat",
  "dirs 5.0.1",
+ "encoding_rs",
  "glob",
  "indicatif",
  "itertools 0.14.0",
  "jiff",
  "libc",
  "log",
+ "mime",
  "muxer",
  "oxiri",
  "rayon",
@@ -1029,6 +1031,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84bb4809b79a422fe4f33bc60e84eed908d7eae8cbabaf24f01674f5205d4aec"
 dependencies = [
  "dom_smoothie",
+ "encoding_rs",
  "html2text",
  "memchr",
  "pdf_oxide",

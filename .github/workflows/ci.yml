@@ -22,6 +22,34 @@ env:
 permissions:
   contents: read
 jobs:
+  live-document-qa:
+    name: Live document extraction
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANNO: ./target/debug/anno
+      ANNO_NO_DOWNLOADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
+      - name: Build the offline models and URL reader
+        id: build
+        run: cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
+      - name: Standards, mixed-direction text and literature
+        run: python3 scripts/qa_random_urls.py --category documents --count 3 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --output qa/reports/documents.md
+      - name: Two articles from sampled feeds
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/qa_random_urls.py --category rss --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --output qa/reports/feeds.md
+      - name: Save live QA reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: live-document-qa
+          path: qa/reports/*.md
+          if-no-files-found: error
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
   # ==========================================================================

@@ -69,6 +69,10 @@ fn json_and_jsonl_preserve_emitted_entity_provenance_with_unicode_offsets() {
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
     assert_eq!(lines[0]["provenance"]["model"], "pattern");
+    let text_hash = format!("xxh3:{:016x}", xxhash_rust::xxh3::xxh3_64(text.as_bytes()));
+    assert_eq!(json["provenance"]["text_hash"], text_hash);
+    assert_eq!(lines[0]["provenance"]["text_hash"], text_hash);
+    assert!(json["provenance"].get("source_url").is_none());
     assert_eq!(
         lines[0]["provenance"]["entity_sources"],
         serde_json::json!(["pattern"])

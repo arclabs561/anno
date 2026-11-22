@@ -4,6 +4,7 @@
 //! library concern. The library takes `&str`; the CLI resolves formats into text.
 
 use std::collections::HashMap;
+use ureq::ResponseExt;
 
 /// Resolved content from a URL.
 #[derive(Debug, Clone)]
@@ -13,7 +14,7 @@ pub struct ResolvedContent {
     pub text: String,
     /// Metadata about the source (title, content-type, etc.)
     pub metadata: HashMap<String, String>,
-    /// The original URL
+    /// The final URL after redirects
     pub source_url: String,
 }
 
@@ -70,7 +71,30 @@ impl UrlResolver for HttpResolver {
             ));
         }
 
-        let content = response.into_body().read_to_string().map_err(|e| {
+        let source_url = response.get_uri().to_string();
+        let media_type = response
+            .headers()
+            .get(ureq::http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok()?.parse::<mime::Mime>().ok());
+        let is_html = media_type.as_ref().is_some_and(|media| {
+            matches!(media.essence_str(), "text/html" | "application/xhtml+xml")
+        });
+        let encoding = media_type
+            .as_ref()
+            .and_then(|media| media.get_param(mime::CHARSET))
+            .and_then(|charset| encoding_rs::Encoding::for_label(charset.as_str().as_bytes()));
+        let mut body = response.into_body();
+        let content = if let Some(encoding) = encoding {
+            // decode honors a byte order mark before the HTTP charset.
+            body.read_to_vec()
+                .map(|bytes| encoding.decode(&bytes).0.into_owned())
+        } else if is_html {
+            body.read_to_vec()
+                .map(|bytes| deformat::detect::decode_bytes(&bytes, "utf-8").into_owned())
+        } else {
+            body.read_to_string()
+        }
+        .map_err(|e| {
             format!(
                 "Failed to read response from {}: {}. \
                  Response may be too large or corrupted.",
@@ -85,7 +109,7 @@ impl UrlResolver for HttpResolver {
         let text = if deformat::detect::is_html(&content) {
             metadata.insert("content-type".to_string(), "text/html".to_string());
             // Routes between readability / html2text based on anno-cli features.
-            let result = crate::cli::utils::extract_html(&content, Some(url));
+            let result = crate::cli::utils::extract_html(&content, Some(&source_url));
             metadata.insert("extractor".to_string(), result.extractor.to_string());
             if let Some(title) = &result.title {
                 metadata.insert("title".to_string(), title.clone());
@@ -102,7 +126,7 @@ impl UrlResolver for HttpResolver {
         Ok(ResolvedContent {
             text,
             metadata,
-            source_url: url.to_string(),
+            source_url,
         })
     }
 }
@@ -161,6 +185,46 @@ mod tests {
         assert!(resolver.can_resolve("https://example.com"));
         assert!(resolver.can_resolve("http://example.com/path?query=1"));
         assert!(resolver.can_resolve("https://subdomain.example.com/path"));
+    }
+
+    #[test]
+    fn http_resolver_decodes_shift_jis_html() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        for (content_type, meta) in [
+            ("TeXt/HtMl", "Shift_JIS"),
+            ("text/html; CHARSET=\"Shift_JIS\"", "utf-8"),
+            ("application/xhtml+xml; charset=Shift_JIS", "utf-8"),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                for line in BufReader::new(&stream).lines() {
+                    if line.unwrap().is_empty() {
+                        break;
+                    }
+                }
+                let mut html =
+                    format!("<html><head><meta charset='{meta}'></head><body><p>").into_bytes();
+                html.extend_from_slice(b"\x93\xfa\x96\x7b</p></body></html>"); // 日本 in Shift_JIS
+                write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\n\r\n",
+                    html.len()
+                )
+                .unwrap();
+                stream.write_all(&html).unwrap();
+            });
+            let resolved = HttpResolver::new().resolve(&url).unwrap();
+            server.join().unwrap();
+            assert!(
+                resolved.text.contains("日本"),
+                "{content_type}: {}",
+                resolved.text
+            );
+        }
     }
 
     #[test]

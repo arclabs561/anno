@@ -52,13 +52,15 @@ muxer = { version = "0.5", default-features = false, features = [
 # vs extractor-html2text (no MPL deps, lower quality on boilerplate-heavy
 # pages).
 deformat = { workspace = true }
+encoding_rs = { version = "0.8", optional = true }
+mime = { version = "0.3", optional = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 rayon = { workspace = true }
 
 [features]
 default = ["onnx", "extractor-readability", "heuristic-fr"]
 # Evaluation + muxer tooling.
-eval = ["dep:muxer", "anno/analysis", "anno-eval/eval"]
+eval = ["dep:muxer", "anno/analysis", "anno-eval/eval", "deformat/encoding_rs", "dep:encoding_rs", "dep:mime"]
 eval-bias = ["eval", "anno-eval/eval-bias"]
 discourse = ["anno/discourse", "anno-eval/discourse"]
 instrument = []
