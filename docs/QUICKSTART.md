@@ -15,7 +15,14 @@ anno = "0.14"
 Install the CLI:
 
 ```bash
-cargo install anno-cli
+cargo install anno-cli --locked
+```
+
+For the English heuristic and pattern examples, this smaller build includes
+the Readability HTML extractor and skips the ONNX runtime.
+
+```bash
+cargo install anno-cli --locked --no-default-features --features extractor-readability
 ```
 
 Add `--features eval` if you need evaluation or cross-document clustering.
@@ -71,10 +78,11 @@ anno extract --extract-relations --model gliner-multitask \
 
 ## CLI: coreference
 
-Link pronouns to their referents:
+Group repeated mentions in a single document. With the smaller CLI build,
+the output includes a coreference track for the two mentions of “Curie”.
 
 ```bash
-anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+ANNO_NO_DOWNLOADS=1 anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
 ```
 
 ## CLI: batch processing
@@ -96,7 +104,8 @@ Only deterministic backends use the result cache: `pattern`, `heuristic`,
 `minimal`, and `heuristic-fr`. Runs using model weights, remote services, or
 coreference bypass it. Entries live under `{cache_dir}/results/v2/`; the cache
 key includes the document, CLI build, and extraction settings.
-`anno cache clear --confirm` deletes the result cache.
+`anno cache clear --confirm` deletes the entire CLI cache directory, including
+any models and batch results stored there.
 
 ## CLI: cross-document clustering
 

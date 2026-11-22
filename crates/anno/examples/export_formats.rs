@@ -3,30 +3,31 @@
 /// Demonstrates brat standoff, CoNLL BIO tags, JSONL, and graph CSV.
 ///
 /// ```sh
-/// cargo run --example export_formats
+/// cargo run -p anno --no-default-features --example export_formats
 /// ```
 ///
 /// Example output:
 ///
 /// ```text
 /// === brat ===
-/// T1  PER 0 12    Marie Curie
-/// T2  ORG 44 49   Nobel
+/// T1	PER 0 11	Lynn Conway
+/// T2	ORG 22 25	IBM
+/// ...
 ///
 /// === CoNLL ===
-/// Marie   B-PER
-/// Curie   I-PER
-/// won     O
+/// Lynn	B-PER
+/// Conway	I-PER
+/// worked	O
 /// ...
 ///
 /// === JSONL ===
-/// {"end":12,"source":"example","start":0,"text":"Marie Curie","type":"PER"}
+/// {"end":11,"source":"example","start":0,"text":"Lynn Conway","type":"PER"}
 /// ...
 /// ```
 fn main() -> anno::Result<()> {
     use anno::{export, Model, StackedNER};
 
-    let text = "Marie Curie won the Nobel Prize in Physics.";
+    let text = "Lynn Conway worked at IBM and Xerox PARC in California.";
     let m = StackedNER::default();
     let entities = m.extract_entities(text, None)?;
 
