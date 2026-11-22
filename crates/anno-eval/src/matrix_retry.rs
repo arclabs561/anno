@@ -18,12 +18,21 @@ pub(super) struct RetryCell {
     /// Weighted failure frequency over the bounded window used for the draw.
     risk: f64,
     observations: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    confirmation: Option<InfrastructureConfirmation>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct InfrastructureConfirmation {
+    fail_kind: &'static str,
+    previous_observation_id: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 enum Reason {
     OutstandingFailure,
+    RepeatedInfrastructure,
     RecurrentAfterRecovery,
 }
 
@@ -36,17 +45,82 @@ enum Health {
 }
 
 #[derive(Default)]
+pub(super) struct RetryPlan {
+    pub first: Option<RetryCell>,
+    // The ordinary within-slice selector must also respect the reserved probe budget.
+    deferred: Vec<(Task, DatasetId, String)>,
+}
+
+impl RetryPlan {
+    pub fn defer(&self, tasks: &[Task], datasets: Option<&[DatasetId]>, backend: &str) -> bool {
+        let Some(panel) = datasets.filter(|p| !p.is_empty()) else {
+            return false;
+        };
+        !tasks.is_empty()
+            && self
+                .first
+                .as_ref()
+                .is_none_or(|cell| cell.backend != backend)
+            && tasks.iter().all(|task| {
+                panel.iter().all(|ds| {
+                    self.deferred
+                        .iter()
+                        .any(|(t, d, arm)| t == task && d == ds && arm == backend)
+                })
+            })
+    }
+}
+
+fn infrastructure_diagnosis(error: &str) -> Option<&str> {
+    // Reporting also labels bare URLs as I/O. Only throttle explicit failed operations,
+    // including nested errors such as "backend initialization: Failed to download tokenizer".
+    if !matches!(mh::classify_failure_kind(error), "dataset" | "io") {
+        return None;
+    }
+    let message = error.trim();
+    let lower = message.to_ascii_lowercase();
+    let operations = [
+        "failed to fetch ",
+        "failed to download ",
+        "failed to load/download ",
+        "failed to load dataset",
+        "failed to load coreference dataset",
+        "failed to open dataset",
+        "failed to read dataset",
+        "failed to parse dataset",
+    ];
+    lower
+        .split(": ")
+        .any(|part| operations.iter().any(|prefix| part.starts_with(prefix)))
+        .then_some(message)
+}
+
+fn infrastructure_probe(seed: u64) -> bool {
+    // One shared bucket across all affected cells; more broken cells do not open more slots.
+    mh::stable_hash64(seed, "matrix-infrastructure-probe") % 8 == 0
+}
+
+#[derive(Default)]
 struct Recent {
     outcomes: VecDeque<(Health, String)>,
     pending: Option<(Health, String)>,
+    last_infrastructure_error: Option<String>,
+    repeated_infrastructure: bool,
 }
 
 impl Recent {
-    fn observe(&mut self, status: Health, id: String, cap: usize) {
+    fn observe(&mut self, status: Health, id: String, cap: usize, error: Option<&str>) {
         // A repeated receipt is still one attempt.
         if self.outcomes.iter().any(|(_, seen)| seen == &id) {
             return;
         }
+        let diagnosis = error
+            .filter(|_| status == Health::HardFailure)
+            .and_then(infrastructure_diagnosis);
+        self.repeated_infrastructure = cap >= 2
+            && diagnosis.is_some()
+            && diagnosis == self.last_infrastructure_error.as_deref();
+        self.last_infrastructure_error = diagnosis.map(str::to_owned);
         self.outcomes.push_back((status, id.clone()));
         if self.outcomes.len() > cap {
             self.outcomes.pop_front();
@@ -125,12 +199,15 @@ impl Recent {
                 config.soft_weight
             };
             if weight > 0.0 {
-                return Some((
-                    Reason::OutstandingFailure,
-                    self.risk(config),
-                    None,
-                    id.as_str(),
-                ));
+                let reason = if self.repeated_infrastructure {
+                    if !infrastructure_probe(seed) {
+                        return None;
+                    }
+                    Reason::RepeatedInfrastructure
+                } else {
+                    Reason::OutstandingFailure
+                };
+                return Some((reason, self.risk(config), None, id.as_str()));
             }
         }
         // Reserve three seed buckets out of four for ordinary worst-first exploration
@@ -165,7 +242,7 @@ pub(super) fn next_cell(
     fixed_datasets: Option<&str>,
     fixed_backends: Option<&[String]>,
     pinned_backends: Option<&[String]>,
-) -> Option<RetryCell> {
+) -> Option<RetryPlan> {
     let file = std::fs::File::open(eval_history_jsonl_path()).ok()?;
     let config = worst_first_config_from_env();
     let mut recent = HashMap::new();
@@ -209,10 +286,23 @@ pub(super) fn next_cell(
         recent
             .entry((result.task, result.dataset, result.backend))
             .or_insert_with(Recent::default)
-            .observe(status, observation_id, window_cap.max(1));
+            .observe(
+                status,
+                observation_id,
+                window_cap.max(1),
+                result.error.as_deref(),
+            );
     }
+    let mut plan = RetryPlan::default();
     let mut ranked = Vec::new();
     for ((task, dataset, backend), history) in recent {
+        if history.repeated_infrastructure
+            && !infrastructure_probe(seed)
+            && config.hard_weight > 0.0
+        {
+            plan.deferred.push((task, dataset, backend));
+            continue;
+        }
         let Some((reason, risk, recovered_episodes, id)) = history.selection(seed, config) else {
             continue;
         };
@@ -220,6 +310,20 @@ pub(super) fn next_cell(
             continue;
         }
         let key = format!("{}@@{dataset:?}@@{backend}", task.code());
+        // The retry already carries the latest observation ID. Publish the other
+        // matching receipt and its coarse category without exposing the diagnostic text.
+        let confirmation = if reason == Reason::RepeatedInfrastructure {
+            history
+                .last_infrastructure_error
+                .as_deref()
+                .zip(history.outcomes.iter().rev().nth(1))
+                .map(|(message, (_, previous))| InfrastructureConfirmation {
+                    fail_kind: mh::classify_failure_kind(message),
+                    previous_observation_id: previous.clone(),
+                })
+        } else {
+            None
+        };
         let cell = RetryCell {
             task,
             dataset,
@@ -229,15 +333,16 @@ pub(super) fn next_cell(
             recovered_episodes,
             risk,
             observations: history.outcomes.len(),
+            confirmation,
         };
         ranked.push((reason, draw(seed, &key, risk), key, cell));
     }
     if ranked.is_empty() {
-        return None;
+        return Some(plan);
     }
     ranked.sort_by(|(a_reason, a, a_key, _), (b_reason, b, b_key, _)| {
-        a_reason
-            .cmp(b_reason)
+        (*a_reason == Reason::RecurrentAfterRecovery)
+            .cmp(&(*b_reason == Reason::RecurrentAfterRecovery))
             .then_with(|| a.total_cmp(b))
             .then_with(|| a_key.cmp(b_key))
     });
@@ -275,15 +380,107 @@ pub(super) fn next_cell(
             continue;
         }
         if dataset_is_usable(loader, dataset, cached) {
-            return Some(cell);
+            plan.first = Some(cell);
+            break;
         }
     }
-    None
+    Some(plan)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_partly_affected_panel_keeps_its_backend_eligible() {
+        let mut plan = RetryPlan::default();
+        plan.deferred
+            .push((Task::NER, DatasetId::WikiGold, "heuristic".into()));
+        let panel = [DatasetId::WikiGold, DatasetId::Wnut17];
+        assert!(plan.defer(&[Task::NER], Some(&panel[..1]), "heuristic"));
+        assert!(!plan.defer(&[Task::NER], Some(&panel), "heuristic"));
+        assert!(!plan.defer(&[Task::NER], Some(&panel[..1]), "crf"));
+        assert!(!plan.defer(&[Task::NER], None, "heuristic"));
+        assert!(!plan.defer(&[Task::NER, Task::Temporal], Some(&panel[..1]), "heuristic"));
+        plan.deferred
+            .push((Task::NER, DatasetId::Wnut17, "heuristic".into()));
+        assert!(plan.defer(&[Task::NER], Some(&panel), "heuristic"));
+    }
+
+    #[test]
+    fn one_shared_budget_for_identical_infrastructure_failures() {
+        let cfg = WorstFirstConfig {
+            exploration_c: 0.0,
+            hard_weight: 1.0,
+            soft_weight: 0.0,
+        };
+        let off = (0..100).find(|&s| !infrastructure_probe(s)).unwrap();
+        let mut window = Recent::default();
+        let error = Some("failed to download model weights");
+        window.observe(Health::HardFailure, "one".into(), 5, error);
+        window.observe(Health::HardFailure, "one".into(), 5, error);
+        assert_eq!(
+            window.selection(off, cfg).unwrap().0,
+            Reason::OutstandingFailure
+        );
+        window.observe(Health::HardFailure, "two".into(), 5, error);
+        let slots = (0..4096)
+            .filter(|&s| {
+                window
+                    .selection(s, cfg)
+                    .is_some_and(|v| v.0 == Reason::RepeatedInfrastructure)
+            })
+            .count();
+        assert!((425..600).contains(&slots), "{slots} probes");
+        assert!(window.selection(off, cfg).is_none());
+
+        let new_fault = Some("failed to download a different artifact");
+        window.observe(Health::HardFailure, "changed".into(), 5, new_fault);
+        assert_eq!(
+            window.selection(off, cfg).unwrap().0,
+            Reason::OutstandingFailure
+        );
+        window.observe(Health::Healthy, "recovered".into(), 5, None);
+        window.observe(Health::HardFailure, "new episode".into(), 5, new_fault);
+        assert_eq!(
+            window.selection(off, cfg).unwrap().0,
+            Reason::OutstandingFailure
+        );
+        for (i, error) in [
+            None,
+            Some("backend inference failed"),
+            Some("unclassified"),
+            Some("backend tensor shape mismatch; see https://example.test/model"),
+            Some("backend output invalid for dataset JSON schema"),
+            Some("failed to download weights: timed out"),
+            Some("timeout"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            window.observe(Health::HardFailure, format!("a{i}"), 5, error);
+            window.observe(Health::HardFailure, format!("b{i}"), 5, error);
+            assert_eq!(
+                window.selection(off, cfg).unwrap().0,
+                Reason::OutstandingFailure
+            );
+        }
+        let mut dataset = Recent::default();
+        for id in ["a", "b"] {
+            dataset.observe(
+                Health::HardFailure,
+                id.into(),
+                5,
+                Some("failed to parse dataset CSV"),
+            );
+        }
+        for seed in 0..128 {
+            assert_eq!(
+                dataset.selection(seed, cfg).is_some(),
+                infrastructure_probe(seed)
+            );
+        }
+    }
 
     #[test]
     fn more_frequent_failures_get_more_draws_and_equal_risks_remain_reachable() {
@@ -295,10 +492,10 @@ mod tests {
         let history = |good: usize, bad: usize| {
             let mut window = Recent::default();
             for i in 0..good {
-                window.observe(Health::Healthy, format!("good-{i}"), 30);
+                window.observe(Health::Healthy, format!("good-{i}"), 30, None);
             }
             for i in 0..bad {
-                window.observe(Health::HardFailure, format!("bad-{i}"), 30);
+                window.observe(Health::HardFailure, format!("bad-{i}"), 30, None);
             }
             window
         };
@@ -320,16 +517,16 @@ mod tests {
     #[test]
     fn rechecks_close_on_recovery_and_cap_retained_evidence() {
         let mut history = Recent::default();
-        history.observe(Health::HardFailure, "fail".into(), 2);
-        history.observe(Health::Unscored, "completed".into(), 2);
+        history.observe(Health::HardFailure, "fail".into(), 2, None);
+        history.observe(Health::Unscored, "completed".into(), 2, None);
         assert!(history.pending.is_none());
-        history.observe(Health::LowScore, "low".into(), 2);
-        history.observe(Health::Unscored, "unmeasured".into(), 2);
+        history.observe(Health::LowScore, "low".into(), 2, None);
+        history.observe(Health::Unscored, "unmeasured".into(), 2, None);
         assert_eq!(
             history.pending.as_ref().map(|(_, id)| id.as_str()),
             Some("low")
         );
-        history.observe(Health::Healthy, "resolved".into(), 2);
+        history.observe(Health::Healthy, "resolved".into(), 2, None);
         assert!(history.pending.is_none());
         assert_eq!(history.outcomes.len(), 2);
     }
@@ -340,7 +537,7 @@ mod tests {
         let make = |rows: &[(Health, &str)]| {
             let mut h = Recent::default();
             for &(status, id) in rows {
-                h.observe(status, id.into(), 20);
+                h.observe(status, id.into(), 20, None);
             }
             h
         };
@@ -391,6 +588,7 @@ mod tests {
                     },
                     attempt.to_string(),
                     20,
+                    None,
                 );
             }
         }

@@ -97,6 +97,7 @@ def check(lines, report=False):
         retry = (first.get("worst_first_round") or {}).get("retry")
         if retry:
             reason = {"outstanding_failure": "unresolved failure",
+                      "repeated_infrastructure": "probe of repeated infrastructure failure",
                       "recurrent_after_recovery": "repeated failures after recovery"}.get(retry.get("reason"), "ranked")
             print(f"Retry evidence: {retry['observation_id']} "
                   f"(risk weight {retry['risk']:.3f} over {retry['observations']} observations).")

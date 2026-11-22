@@ -935,6 +935,8 @@ struct WorstFirstRoundLog {
     top_candidates: LogTopCandidates,
     #[serde(skip_serializing_if = "Option::is_none")]
     retry: Option<retry::RetryCell>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    deferred_infrastructure_arms: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -1478,7 +1480,7 @@ fn select_backends(
     cached_only: bool,
     k: usize,
     prior_calls: u64,
-    retry: Option<&retry::RetryCell>,
+    plan: Option<&retry::RetryPlan>,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -1848,10 +1850,16 @@ fn select_backends(
             let decisions_path = decisions_path();
             let decisions_top = mh::env_usize("ANNO_MUXER_DECISIONS_TOP", 8).max(1);
             let run_id = format!("seed={} slice={} strategy={:?}", seed, slice_tag, strategy);
-            let mut remaining: Vec<String> = candidates_in_order.to_vec();
+            let (mut deferred, mut remaining): (Vec<_>, Vec<_>) = candidates_in_order
+                .iter()
+                .cloned()
+                .partition(|arm| plan.is_some_and(|p| p.defer(tasks, datasets, arm)));
             let mut chosen: Vec<String> = Vec::new();
 
-            for round in 0..k.min(remaining.len()) {
+            for round in 0..k.min(candidates_in_order.len()) {
+                if remaining.is_empty() {
+                    std::mem::swap(&mut remaining, &mut deferred);
+                }
                 let summaries = history.summaries_for(
                     prior,
                     &remaining,
@@ -1861,7 +1869,9 @@ fn select_backends(
                 );
 
                 let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-                let retry = retry.filter(|cell| round == 0 && remaining.contains(&cell.backend));
+                let retry = plan
+                    .and_then(|p| p.first.as_ref())
+                    .filter(|cell| round == 0 && remaining.contains(&cell.backend));
                 let (pick, explore_first) = if let Some(cell) = retry {
                     (cell.backend.clone(), false)
                 } else {
@@ -2012,6 +2022,7 @@ fn select_backends(
                             exp3ix_rounds: None,
                             worst_first_round: Some(WorstFirstRoundLog {
                                 retry: retry.cloned(),
+                                deferred_infrastructure_arms: deferred.clone(),
                                 remaining: remaining.clone(),
                                 chosen: pick.clone(),
                                 explore_first,
@@ -3001,7 +3012,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     {
         eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
     }
-    let retry = if matches!(strategy, SampleStrategy::WorstFirst) {
+    let plan = if matches!(strategy, SampleStrategy::WorstFirst) {
         retry::next_cell(
             &loader,
             require_cached,
@@ -3014,7 +3025,8 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     } else {
         None
     };
-    let (slice_tag, tasks, require_cached_for_run) = if let Some(cell) = &retry {
+    let retry = plan.as_ref().and_then(|p| p.first.as_ref());
+    let (slice_tag, tasks, require_cached_for_run) = if let Some(cell) = retry {
         (
             cell.task.code().to_string(),
             vec![cell.task],
@@ -3148,7 +3160,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             return;
         }
         chosen_datasets = retained;
-    } else if let Some(cell) = &retry {
+    } else if let Some(cell) = retry {
         // Keep the replayed cell eligible for every backend in this batch.
         chosen_datasets = vec![cell.dataset];
         if datasets_per_run > 1 {
@@ -3891,7 +3903,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
-                retry.as_ref(),
+                plan.as_ref(),
             )
         } else {
             select_backends(
@@ -3907,10 +3919,12 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
-                retry.as_ref(),
+                plan.as_ref(),
             )
         }
-    } else if per_dataset {
+    } else if per_dataset || matches!(strategy, SampleStrategy::WorstFirst) {
+        // Worst-first needs the actual panel when deferring a fault, even if its
+        // statistical summaries are configured to use global backend history.
         select_backends(
             strategy,
             seed,
@@ -3924,7 +3938,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
-            retry.as_ref(),
+            plan.as_ref(),
         )
     } else {
         select_backends(
@@ -3940,7 +3954,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
-            retry.as_ref(),
+            plan.as_ref(),
         )
     };
 
