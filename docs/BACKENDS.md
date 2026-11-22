@@ -183,6 +183,13 @@ The ONNX evaluator uses the pinned `jugaadsrl/gliner2-multi-v1-onnx`
 snapshot `4241d7c66b648e618c89c150bf4cf418d2f83159`; it requires about
 1.25 GB for the selected `fp32_v2` files on first use.
 
+Use this ONNX backend for CPU inference with the multilingual GLiNER2
+checkpoint. Candle 0.11.1's CPU kernel takes a mutable slice of
+uninitialized values when DeBERTa broadcasts the scalar attention-mask
+fill. The ONNX export runs the attention operation in ONNX Runtime. For
+a LoRA adapter, this route requires an ONNX export with the adapter merged.
+[Dependency review](https://github.com/arclabs561/anno/pull/168)
+
 ### Features not validated in CI
 
 CI compile-checks the hardware-gated features a GitHub-hosted runner can build:
