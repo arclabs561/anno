@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::super::output::color;
-use super::export::ExportFormat;
+use super::export::{write_output, ExportFormat};
 
 /// Import annotations from different formats
 #[derive(Parser, Debug)]
@@ -21,7 +21,7 @@ pub struct ImportArgs {
     #[arg(short, long, value_name = "PATH")]
     pub input: PathBuf,
 
-    /// Output file (JSONL format)
+    /// JSONL destination, replaced atomically after successful import
     #[arg(short, long, value_name = "PATH")]
     pub output: PathBuf,
 
@@ -33,7 +33,12 @@ pub struct ImportArgs {
     #[arg(long)]
     pub include_text: bool,
 
-    /// Quiet mode
+    /// Skip files that fail to import and write the successful files' annotations.
+    /// Directory listing errors and an entirely failed import still abort.
+    #[arg(long)]
+    pub allow_partial: bool,
+
+    /// Suppress progress messages
     #[arg(short, long)]
     pub quiet: bool,
 }
@@ -81,12 +86,20 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
             .try_exists()
             .map_err(|e| format!("Failed to inspect output: {e}"))?;
         let mut inputs = Vec::new();
-        for path in fs::read_dir(&args.input)
-            .map_err(|e| format!("Failed to read directory: {}", e))?
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == ext))
-        {
+        let entries = fs::read_dir(&args.input)
+            .map_err(|e| format!("Failed to read directory {}: {e}", args.input.display()))?;
+        for entry in entries {
+            let path = entry
+                .map_err(|e| format!("Failed to list {}: {e}", args.input.display()))?
+                .path();
+            if path.extension().is_none_or(|e| e != ext) {
+                continue;
+            }
+            let metadata = fs::metadata(&path)
+                .map_err(|e| format!("Failed to inspect {}: {e}", path.display()))?;
+            if !metadata.is_file() {
+                continue;
+            }
             // A previous output is not input on the next directory import.
             if output_exists
                 && same_file::is_same_file(&path, &args.output)
@@ -141,16 +154,8 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
                     );
                 }
             }
-            Err(e) => {
-                if !args.quiet {
-                    eprintln!(
-                        "  {} {:?}: {}",
-                        color("31", "✗"),
-                        file.file_name().unwrap_or_default(),
-                        e
-                    );
-                }
-            }
+            Err(e) if args.allow_partial => eprintln!("Skipping {}: {e}", file.display()),
+            Err(e) => return Err(format!("Failed to import {}: {e}", file.display())),
         }
     }
 
@@ -175,8 +180,8 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
         .collect::<Vec<_>>()
         .join("\n");
 
-    fs::write(&args.output, output_content)
-        .map_err(|e| format!("Failed to write output: {}", e))?;
+    write_output(&args.output, output_content, true)
+        .map_err(|e| format!("Failed to write output {}: {e}", args.output.display()))?;
 
     if !args.quiet {
         eprintln!();
@@ -645,6 +650,7 @@ mod tests {
             output: output.clone(),
             format: ExportFormat::Jsonl,
             include_text: false,
+            allow_partial: false,
             quiet: true,
         })
         .is_err());
@@ -663,6 +669,7 @@ mod tests {
             output: output.clone(),
             format: ExportFormat::Jsonl,
             include_text: false,
+            allow_partial: false,
             quiet: true,
         };
         assert!(run(args()).is_err());
@@ -674,6 +681,7 @@ mod tests {
         assert!(run(args()).unwrap_err().contains("aliases an input file"));
         assert_eq!(fs::read_to_string(&alias).unwrap(), original);
         fs::remove_file(alias).unwrap();
+        fs::remove_file(dir.path().join("bad.jsonl")).unwrap();
 
         run(args()).unwrap();
         let contents = fs::read_to_string(output).unwrap();
