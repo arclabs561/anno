@@ -2954,6 +2954,10 @@ fn test_matrix_coverage_report() {
 /// - unit tests (CI harness)
 /// - developer tooling (`muxer_repeat`)
 pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
+    run_matrix_sample(seed, None);
+}
+
+fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     anno::env::load_dotenv();
     let strategy = SampleStrategy::from_env();
     // Default window cap: 50 observations per arm.
@@ -3987,6 +3991,18 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             seed, slice_tag_for_muxer, strategy
         )
     });
+    if let Some(path) = selection_receipt {
+        let file =
+            std::fs::File::create_new(path).expect("create fresh prospective selection receipt");
+        serde_json::to_writer(file, &serde_json::json!({
+            "strategy": strategy.id_str(),
+            "seed": seed,
+            "tasks": tasks.iter().map(|task| task.code()).collect::<Vec<_>>(),
+            "datasets": chosen_datasets.iter().map(|dataset| format!("{dataset:?}")).collect::<Vec<_>>(),
+            "backends": chosen_backends,
+        })).expect("write prospective selection");
+        return;
+    }
     let eval = TaskEvaluator::new()
         .expect("TaskEvaluator::new")
         .with_muxer_run_id(muxer_run_id);
@@ -4450,6 +4466,13 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 #[ignore] // Slow (often >60s); run with: cargo test -p anno-eval --lib test_randomized_matrix_sample -- --ignored --include-ignored
 fn test_randomized_matrix_sample() {
     run_randomized_matrix_sample_with_seed(ci_seed());
+}
+
+#[test]
+#[ignore] // Invoked by scripts/qa/compare_matrix_picks.py before revealing the held-out panel.
+fn prospective_first_pick() {
+    let path = std::env::var_os("ANNO_SELECTION_RECEIPT").expect("missing selection receipt path");
+    run_matrix_sample(ci_seed(), Some(std::path::Path::new(&path)));
 }
 
 #[test]

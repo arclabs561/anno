@@ -15,7 +15,7 @@ DATASETS = ("WikiGold", "CoNLL2003Sample")
 TEST = "muxer_matrix::test_randomized_matrix_sample"
 
 
-def sample(command, cache, strategy, output, fixed=None):
+def sampler_env(cache, strategy, output, fixed=None, seed=41):
     # A developer's defaults must not introduce another backend, seed, or history.
     env = {key: value for key, value in os.environ.items() if not key.startswith("ANNO_")}
     env.update(
@@ -23,7 +23,7 @@ def sample(command, cache, strategy, output, fixed=None):
         ANNO_EVAL_HISTORY=str(cache / "eval-results.jsonl"),
         ANNO_MUXER_DECISIONS_FILE=str(output),
         ANNO_SAMPLE_STRATEGY=strategy,
-        ANNO_CI_SEED="41",
+        ANNO_CI_SEED=str(seed),
         ANNO_MAX_EXAMPLES="1",
         ANNO_ML_IN_MATRIX="0",
         ANNO_MUXER_PIN_BACKEND="heuristic",
@@ -37,6 +37,11 @@ def sample(command, cache, strategy, output, fixed=None):
     )
     if fixed is not None:
         env.update(ANNO_MATRIX_TASK="ner", ANNO_MUXER_FIXED_DATASETS=fixed)
+    return env
+
+
+def sample(command, cache, strategy, output, fixed=None, seed=41):
+    env = sampler_env(cache, strategy, output, fixed, seed)
     result = subprocess.run(command, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, check=False)
     if result.returncode or not output.is_file():
