@@ -81,10 +81,6 @@ fn parity_onnx_candle_long_text_many_types() {
     // Validation: stress the pipeline with longer text + more entity
     // types than the basic parity test. If parity holds here, the
     // port works on realistic inputs.
-    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
-    let candle =
-        GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
-
     let text = "On January 15, 2026, Apple CEO Tim Cook met Google CEO Sundar Pichai in \
                 Seattle. The deal, worth EUR 3.2 billion, closes on March 15, 2026. \
                 Contact press@apple.com or call +1-555-867-5309. The European Central \
@@ -107,10 +103,14 @@ fn parity_onnx_candle_long_text_many_types() {
         "percentage",
     ];
 
-    let onnx_result =
-        ZeroShotNER::extract_with_types(&onnx, text, &types, 0.5).expect("ONNX extract long");
-    let candle_result =
-        ZeroShotNER::extract_with_types(&candle, text, &types, 0.5).expect("Candle extract long");
+    let onnx_result = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
+        .expect("load ONNX")
+        .extract_with_types(text, &types, 0.5)
+        .expect("ONNX extract long");
+    let candle_result = GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1")
+        .expect("load Candle")
+        .extract_with_types(text, &types, 0.5)
+        .expect("Candle extract long");
 
     eprintln!(
         "long-text onnx ({}) candle ({})",
@@ -163,15 +163,15 @@ fn parity_onnx_candle_classify() {
     // count_pred → classifier → softmax) must match the ONNX classify
     // path. Without this test, half of the Candle backend (the classify
     // half) is unverified.
-    let onnx = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL).expect("load ONNX");
-    let candle =
-        GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1").expect("load Candle");
-
     let text = "I absolutely loved every minute of the show — wonderful experience!";
     let labels = ["positive", "negative", "neutral"];
 
-    let onnx_result = onnx.classify(text, &labels, 0.5).expect("ONNX classify");
-    let candle_result = candle
+    let onnx_result = GLiNER2Fastino::from_pretrained(SUPPORTED_GLINER2_FASTINO_MODEL)
+        .expect("load ONNX")
+        .classify(text, &labels, 0.5)
+        .expect("ONNX classify");
+    let candle_result = GLiNER2FastinoCandle::from_pretrained("fastino/gliner2-multi-v1")
+        .expect("load Candle")
         .classify(text, &labels, 0.5)
         .expect("Candle classify");
 
