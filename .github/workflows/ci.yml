@@ -296,6 +296,8 @@ jobs:
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
         run: cargo test --workspace --lib --features onnx
+      - name: Check document-wide FCoref resolution
+        run: cargo test -p anno --no-default-features --features onnx --test fcoref_resolve_segments
       # gliner2-fastino is not in any other job's feature set; its processor
       # tests read testdata/gliner2_fastino/ fixtures and silently rot without
       # a CI run that enables the feature.
