@@ -38,6 +38,7 @@ percent-encoding = "2.3"
 log = { workspace = true }
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
+statrs = { version = "0.19.1", optional = true, default-features = false }
 
 # ML
 # `ort`'s ndarray interop is feature-gated in newer releases.
@@ -83,7 +84,7 @@ default = ["onnx", "heuristic-fr"]
 heuristic-fr = []
 # Metrics-only analysis helpers (preferred for research / diagnostics).
 # Exposes `anno::metrics::*` (coref scoring metrics, cluster encoders).
-analysis = []
+analysis = ["dep:statrs"]
 discourse = []
 schema = ["dep:schemars"]
 # Graph/KG export surface. Exposes `anno::graph::*` (lattix-backed
