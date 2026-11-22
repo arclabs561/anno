@@ -9,3 +9,9 @@ People, places and other learned labels are outside this test's scope.
 - **aozora.txt** — Natsume Sōseki, *吾輩は猫である* (*I Am a Cat*), opening line. This public-domain literary excerpt includes the full-width indentation and Aozora's inline pronunciation markup from the original CP932 transcription. It has no structured entities. [Aozora edition 789](https://www.aozora.gr.jp/cards/000148/card789.html), [pinned transcription](https://github.com/aozorahack/aozorabunko_text/blob/0984f7dc18a2270bdfd2ff99bf14fd1b3ebb4f65/cards/000148/files/789_ruby_5639/789_ruby_5639.txt).
 - **tzdb.txt** and **tzdb-midnight.txt** — IANA Time Zone Database release 2025b, release header and Iran correction respectively. In the latter, +0330 is a UTC offset and 24:00 is local end-of-day. Both excerpts are from the public-domain release notes. [NEWS](https://github.com/eggert/tz/blob/2025b/NEWS), [license](https://github.com/eggert/tz/blob/2025b/LICENSE).
 - **nasa-eclipse.txt** — Catalog row 09651, the lunar eclipse of January 9, 2001. The first column is its catalog number. Its map links to `LE2001-01-09T.gif`, independently specifying the calendar date. [Fred Espenak, NASA/GSFC, Catalog of Lunar Eclipses](https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html).
+
+With an Anno debug binary built, run `python3 scripts/qa/check_nasa_dates.py` to
+score all 457 NASA calendar cells. It verifies each source file's SHA-256 and
+uses each eclipse map's ISO date to check the visible date and character offsets.
+For offline replay, pass `--source-dir DIR` containing the original
+`LE1901-2000.html` and `LE2001-2100.html`. Select another binary with `--anno-bin`.
