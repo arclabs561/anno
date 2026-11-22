@@ -281,6 +281,10 @@ qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
 qa-round $RECEIPTS $CLAIM:
     python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"
 
+# Evaluate exact mentions and protected source ranges on the diagnostic panel.
+qa-spans $ANNO_BIN $MODEL="heuristic":
+    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL"
+
 # Run the offline Python QA contracts discovered by CI.
 qa-test:
     python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'

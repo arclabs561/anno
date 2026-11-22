@@ -41,6 +41,17 @@ just qa-round "$OUT" "Does removing spaces inside parentheses change organizatio
 
 The same command accepts a matrix slot's receipt directory. Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
 
+### Check what a negative span means
+
+Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.
+
+```sh
+just qa-spans target/debug/anno stacked
+python3 scripts/qa/check_span_assertions.py --fixture cases.json --predictions batch.jsonl
+```
+
+The [diagnostic fixture](../scripts/qa/fixtures/typed-span-assertions.json) includes credentials, a delivery channel and organization initials. Its failures expose current backend behavior. Exit 0 means all assertions passed, 1 means at least one assertion failed, and 2 means the input or run was invalid. For a custom assertion type, pass its exact spelling with `--allow-type LABEL`. Other custom predictions still appear in the overlap report. Keep saved batch output with its exact source fixture. The report lists overlapping entities so a reviewer can inspect both boundaries and labels.
+
 ## What runs in GitHub Actions
 
 The required Ubuntu CLI integration job runs against local fixtures, including public-source excerpts. The additional eval-feature job exercises the loopback HTTP cases. The Python QA job tests the harness itself with fixed inputs. A separate path-filtered benchmark fetches checksum-pinned WikiGold and records corpus scores. The full 457-date NASA replay is an explicit command. Fuzzing is available locally, and a maintainer can launch the bounded mutation job from a matching branch. [CI workflow](../.github/workflows/ci.yml) · [WikiGold benchmark](../.github/workflows/bench-extraction.yml) · [Fuzz target](../fuzz/README.md)

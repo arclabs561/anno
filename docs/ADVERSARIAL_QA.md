@@ -14,6 +14,12 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 >
 > Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
+## Assign a reviewer and account for the run
+
+Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
+
+For each actual agent call record the role, invocation tool, prompt or its digest, permitted evidence, revision, and available model and usage metadata. For each replay record its command, wall time, output and revision. Mark unavailable token usage or elapsed time as unknown. Use matched runner and model budgets when estimating cost effectiveness. Select an exact mention or a protected source range explicitly before replay. [Span assertion examples](QA.md#check-what-a-negative-span-means)
+
 ## From a panel to a decision
 
 The fixed WikiGold panel can stay green even if organization boundaries fail around punctuation. Two explanations are that the backend mishandles aliases generally or that token spacing masks the bug. Keep the ordinary corpus as the control. Have the scout remove only the spaces immediately inside parentheses and have the reviewer remap the gold offsets to the transformed text. Run both versions on both renderings.
