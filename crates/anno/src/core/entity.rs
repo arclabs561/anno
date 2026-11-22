@@ -302,7 +302,7 @@ impl EntityType {
             }
             "PRODUCT" | "PROD" => EntityType::custom("PRODUCT", EntityCategory::Misc),
             "EVENT" => EntityType::custom("EVENT", EntityCategory::Creative),
-            "CREATIVE-WORK" | "WORK_OF_ART" | "ART" => {
+            "CREATIVE-WORK" | "CREATIVE_WORK" | "WORK_OF_ART" | "ART" => {
                 EntityType::custom("CREATIVE_WORK", EntityCategory::Creative)
             }
             "GROUP" | "NORP" => EntityType::custom("GROUP", EntityCategory::Agent),
