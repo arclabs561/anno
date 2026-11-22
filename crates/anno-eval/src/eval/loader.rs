@@ -865,7 +865,8 @@ impl DatasetId {
             description: Some(self.description().to_string()),
             license: self.license().map(|s| s.to_string()),
             citation: self.citation().map(|s| s.to_string()),
-            split: Some("test".to_string()), // Default to test split
+            // The catalog describes the corpus, not the particular bytes being parsed.
+            split: None,
             language: Some(self.language().to_string()),
             domain: Some(self.domain().to_string()),
             original_source: Some(self.download_url().to_string()),
@@ -2375,7 +2376,10 @@ impl DatasetLoader {
         let source = entry.resolved_url.as_ref().unwrap_or(&entry.source_url);
         dataset.source_url = source.clone();
         dataset.metadata.original_source = Some(source.clone());
-        dataset.metadata.split = Self::evaluation_split_from_url(source);
+        dataset.metadata.split = entry
+            .resolved_url
+            .as_deref()
+            .and_then(Self::evaluation_split_from_url);
         dataset.metadata.version = Some(format!("sha256:{}", entry.sha256));
     }
 
@@ -3547,6 +3551,11 @@ impl DatasetLoader {
         }
 
         if sentences.is_empty() {
+            if id == DatasetId::CUAD {
+                return Err(Error::InvalidInput(
+                    "CUAD contains no token-labeled JSONL rows. For the official question/answer JSON, use anno_eval::eval::cuad::read.".into(),
+                ));
+            }
             return Err(Error::InvalidInput(format!(
                 "JSONL NER file for {:?} contains no valid sentences",
                 id
@@ -7657,6 +7666,8 @@ mod tests {
         let id = LoadableDatasetId(DatasetId::WikiGold);
         let content = "Alice B-PER\nworks O\n\n";
         std::fs::write(loader.cache_path(id), content).unwrap();
+        assert_eq!(DatasetId::WikiGold.splits(), &["all"]);
+        assert!(loader.load(id).unwrap().metadata.split.is_none());
         let entry = CacheManifestEntry {
             dataset_id: id.0.cache_filename().into(),
             source_url: id.0.download_url().into(),
@@ -7670,6 +7681,15 @@ mod tests {
             entity_count: 1,
             anno_version: "fixture".into(),
         };
+        // Older manifests retained the registry URL but did not capture the
+        // actual URL chosen by a fallback. Even a test-looking URL is insufficient.
+        let legacy = CacheManifestEntry {
+            source_url: "https://example.test/registry/test.conll".into(),
+            resolved_url: None,
+            ..entry.clone()
+        };
+        loader.manifest.write().unwrap().update_entry(legacy);
+        assert!(loader.load(id).unwrap().metadata.split.is_none());
         loader.manifest.write().unwrap().update_entry(entry.clone());
         let loaded = loader.load(id).unwrap();
         assert_eq!(loaded.source_url, entry.resolved_url.unwrap());
@@ -9335,6 +9355,7 @@ Blackburn NNP I-NP I-PER
 
         assert_ne!(DatasetId::DocRED.download_url(), crossre_ai_url);
         assert!(!LoadableDatasetId::is_loadable_dataset(DatasetId::DocRED));
+        assert!(!DatasetId::DocRED.is_automatable());
         let line = r#"{"doc_key":"t-1","sentence":["Ada","wrote","code","."],"ner":[[0,0,"researcher"]],"relations":[]}"#;
         let dir = tempfile::tempdir().unwrap();
         let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();

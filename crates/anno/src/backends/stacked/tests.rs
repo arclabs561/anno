@@ -266,33 +266,30 @@ fn test_union_keeps_all() {
 }
 
 #[test]
-fn test_highest_conf_multiple_overlaps_ties_prefer_existing() {
-    // Regression: when a candidate overlaps multiple existing entities, we pick a "best"
-    // existing entity to compare against. In tie cases, we must prefer earlier layers
-    // (existing) to match the design note in ConflictStrategy::resolve.
-    let text = "aaaaa     bbbbb"; // 5 + 5 + 5 = 15 chars
-
-    let layer1 = mock_model(
-        "l1",
-        vec![
-            mock_entity("aaaaa", 0, EntityType::Person, 0.9),
-            mock_entity("bbbbb", 10, EntityType::Person, 0.9), // same confidence
-        ],
-    );
-    // Candidate spans across both existing entities, but is low confidence.
-    let layer2 = mock_model("l2", vec![mock_entity(text, 0, EntityType::Person, 0.1)]);
-
-    let ner = StackedNER::builder()
-        .layer(layer1)
-        .layer(layer2)
-        .strategy(ConflictStrategy::HighestConf)
-        .build();
-
-    let e = ner.extract_entities(text, None).unwrap();
-    assert_eq!(e.len(), 1);
-    assert_eq!(e[0].text, "aaaaa", "should keep earliest existing entity");
-    assert_eq!(e[0].start(), 0);
-    assert_eq!(e[0].end(), 5);
+fn rejected_bridge_preserves_disjoint_spans() {
+    let text = "Paris and IBM";
+    for strategy in [ConflictStrategy::Priority, ConflictStrategy::HighestConf] {
+        let stack = StackedNER::builder()
+            .layer(mock_model(
+                "names",
+                vec![
+                    mock_entity("Paris", 0, EntityType::Location, 0.6),
+                    mock_entity("IBM", 10, EntityType::Organization, 0.95),
+                ],
+            ))
+            .layer(mock_model(
+                "phrase",
+                vec![mock_entity(text, 0, EntityType::Organization, 0.8)],
+            ))
+            .strategy(strategy)
+            .build();
+        let found = stack.extract_entities(text, None).unwrap();
+        let spans: Vec<_> = found
+            .iter()
+            .map(|e| (e.start(), e.end(), e.text.as_str()))
+            .collect();
+        assert_eq!(spans, [(0, 5, "Paris"), (10, 13, "IBM")], "{strategy:?}");
+    }
 }
 
 #[test]

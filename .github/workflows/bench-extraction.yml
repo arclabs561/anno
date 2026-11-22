@@ -1,0 +1,34 @@
+name: Offline extraction benchmark
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/bench-extraction.yml'
+      - 'crates/anno/src/backends/stacked/**'
+      - 'crates/anno/src/backends/heuristic/**'
+      - 'crates/anno/src/backends/regex/**'
+      - 'crates/anno-eval/examples/offline_extraction_profile.rs'
+permissions:
+  contents: read
+jobs:
+  wikigold:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Fetch pinned WikiGold corpus
+        run: |
+          curl --fail --location --retry 3 --output wikigold.conll https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt
+          echo 'c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f  wikigold.conll' | sha256sum --check
+      - name: Measure offline extraction and gold-span retention
+        shell: bash
+        run: |
+          cargo run --locked --release -p anno-eval --example offline_extraction_profile -- wikigold.conll | tee profile.md
+          cat profile.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wikigold-offline-extraction
+          path: profile.md
+          if-no-files-found: error

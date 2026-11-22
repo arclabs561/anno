@@ -39,6 +39,7 @@ use super::confidence::Confidence;
 use super::types::MentionType;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::ops::Range;
 
 // ============================================================================
 // Entity Category (OntoNotes-inspired)
@@ -812,6 +813,11 @@ pub trait Lexicon: Send + Sync {
     /// Returns `None` if the text is not in the lexicon.
     fn lookup(&self, text: &str) -> Option<(EntityType, Confidence)>;
 
+    /// Upper bound on key length in Unicode scalar values, if known.
+    fn max_entry_chars(&self) -> Option<usize> {
+        None
+    }
+
     /// Check if the lexicon contains this exact string.
     fn contains(&self, text: &str) -> bool {
         self.lookup(text).is_some()
@@ -835,6 +841,7 @@ pub trait Lexicon: Send + Sync {
 /// For larger lexicons, consider a trie-based or FST implementation.
 #[derive(Debug, Clone)]
 pub struct HashMapLexicon {
+    max_entry_chars: usize,
     entries: std::collections::HashMap<String, (EntityType, Confidence)>,
     source: String,
 }
@@ -844,6 +851,7 @@ impl HashMapLexicon {
     #[must_use]
     pub fn new(source: impl Into<String>) -> Self {
         Self {
+            max_entry_chars: 0,
             entries: std::collections::HashMap::new(),
             source: source.into(),
         }
@@ -856,8 +864,9 @@ impl HashMapLexicon {
         entity_type: EntityType,
         confidence: impl Into<Confidence>,
     ) {
-        self.entries
-            .insert(text.into(), (entity_type, confidence.into()));
+        let text = text.into();
+        self.max_entry_chars = self.max_entry_chars.max(text.chars().count());
+        self.entries.insert(text, (entity_type, confidence.into()));
     }
 
     /// Create from an iterator of (text, type, confidence) tuples.
@@ -881,6 +890,10 @@ impl HashMapLexicon {
 }
 
 impl Lexicon for HashMapLexicon {
+    fn max_entry_chars(&self) -> Option<usize> {
+        Some(self.max_entry_chars)
+    }
+
     fn lookup(&self, text: &str) -> Option<(EntityType, Confidence)> {
         self.entries.get(text).cloned()
     }
@@ -1165,6 +1178,87 @@ pub struct DiscontinuousSpan {
     /// Non-overlapping segments, sorted by start position.
     /// Each `Range<usize>` represents (start_char, end_char).
     segments: Vec<std::ops::Range<usize>>,
+}
+
+/// Character positions covered by one contiguous range or by canonical source segments.
+#[derive(Debug, Clone)]
+pub enum SpanCoverage<'a> {
+    /// One half-open range in Unicode character offsets.
+    Contiguous(Range<usize>),
+    /// Source segments sorted and merged by [`DiscontinuousSpan::new`].
+    Segmented(&'a DiscontinuousSpan),
+}
+
+impl<'a> SpanCoverage<'a> {
+    /// Ordered, disjoint, nonempty ranges. An empty span covers no characters.
+    #[must_use]
+    pub fn ranges(&self) -> &[Range<usize>] {
+        match self {
+            Self::Contiguous(range) if range.is_empty() => &[],
+            Self::Contiguous(range) => std::slice::from_ref(range),
+            Self::Segmented(span) => span.segments(),
+        }
+    }
+
+    /// Consume this view and iterate its canonical ranges without allocating.
+    pub fn into_ranges(self) -> impl Iterator<Item = Range<usize>> + 'a {
+        let (single, segments) = match self {
+            Self::Contiguous(range) => ((!range.is_empty()).then_some(range), &[][..]),
+            Self::Segmented(span) => (None, span.segments()),
+        };
+        single.into_iter().chain(segments.iter().cloned())
+    }
+
+    // Each step consumes the interval that ends first; canonical ranges cannot
+    // intersect any later interval of the other side before that endpoint.
+    fn intersections<'s>(&'s self, other: &'s Self) -> impl Iterator<Item = usize> + 's {
+        let mut left = self.ranges();
+        let mut right = other.ranges();
+        std::iter::from_fn(move || {
+            while let (Some((a, more_a)), Some((b, more_b))) =
+                (left.split_first(), right.split_first())
+            {
+                let len = a.end.min(b.end).saturating_sub(a.start.max(b.start));
+                if a.end <= b.end {
+                    left = more_a;
+                }
+                if b.end <= a.end {
+                    right = more_b;
+                }
+                if len > 0 {
+                    return Some(len);
+                }
+            }
+            None
+        })
+    }
+
+    /// Number of source characters shared by both coverages.
+    #[must_use]
+    pub fn intersection_len(&self, other: &Self) -> usize {
+        self.intersections(other).sum()
+    }
+
+    /// Whether at least one source character belongs to both coverages.
+    #[must_use]
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.intersections(other).next().is_some()
+    }
+
+    /// Intersection over union of covered characters. Empty unions score zero.
+    #[must_use]
+    pub fn iou(&self, other: &Self) -> f64 {
+        let intersection = self.intersection_len(other);
+        if intersection == 0 {
+            return 0.0;
+        }
+        let left: usize = self.ranges().iter().map(Range::len).sum();
+        let right: usize = other.ranges().iter().map(Range::len).sum();
+        // Subtract the shared portion before adding, so the sum fits in usize
+        // even when both coverages extend to usize::MAX.
+        let union = (left - intersection) + right;
+        intersection as f64 / union as f64
+    }
 }
 
 impl<'de> serde::Deserialize<'de> for DiscontinuousSpan {
@@ -2146,31 +2240,25 @@ impl Entity {
         self.entity_type.requires_ml()
     }
 
-    /// Check if this entity overlaps with another.
+    /// Exact character coverage, excluding gaps between a mention's source segments.
     #[must_use]
-    pub fn overlaps(&self, other: &Entity) -> bool {
-        !(self.end <= other.start || other.end <= self.start)
+    pub fn coverage(&self) -> SpanCoverage<'_> {
+        match &self.discontinuous_span {
+            Some(span) => SpanCoverage::Segmented(span),
+            None => SpanCoverage::Contiguous(self.start..self.end),
+        }
     }
 
-    /// Calculate overlap ratio (IoU) with another entity.
+    /// Whether the entities share at least one covered source character.
+    #[must_use]
+    pub fn overlaps(&self, other: &Entity) -> bool {
+        self.coverage().overlaps(&other.coverage())
+    }
+
+    /// Intersection over union of the entities' covered source characters.
     #[must_use]
     pub fn overlap_ratio(&self, other: &Entity) -> f64 {
-        let intersection_start = self.start.max(other.start);
-        let intersection_end = self.end.min(other.end);
-
-        if intersection_start >= intersection_end {
-            return 0.0;
-        }
-
-        let intersection = (intersection_end - intersection_start) as f64;
-        let union = ((self.end - self.start) + (other.end - other.start)
-            - (intersection_end - intersection_start)) as f64;
-
-        if union == 0.0 {
-            return 1.0;
-        }
-
-        intersection / union
+        self.coverage().iou(&other.coverage())
     }
 
     /// Set hierarchical confidence scores.
@@ -2851,6 +2939,55 @@ mod tests {
             let label = t.as_label();
             let parsed = EntityType::from_label(label);
             assert_eq!(t, parsed);
+        }
+    }
+
+    #[test]
+    fn entity_coverage_excludes_gaps_and_handles_max_offsets() {
+        let mut outer = Entity::new("A C", EntityType::Person, 0, 5, 1.0);
+        outer.set_discontinuous_span(DiscontinuousSpan::new(vec![0..1, 4..5]));
+        let gap = Entity::new(" B ", EntityType::Person, 1, 4, 1.0);
+        assert!(!outer.overlaps(&gap));
+        assert_eq!(outer.overlap_ratio(&gap), 0.0);
+        let partial = Entity::new(" B C", EntityType::Person, 1, 5, 1.0);
+        assert!(outer.overlaps(&partial));
+        assert_eq!(outer.overlap_ratio(&partial), 0.2);
+
+        let max = usize::MAX;
+        let full = SpanCoverage::Contiguous(0..max);
+        assert_eq!(full.intersection_len(&full), max);
+        assert_eq!(full.iou(&full), 1.0);
+        let edges = DiscontinuousSpan::new(vec![0..1, max - 1..max]);
+        let edges = SpanCoverage::Segmented(&edges);
+        assert_eq!(edges.intersection_len(&full), 2);
+        assert_eq!(edges.iou(&full), 2.0 / max as f64);
+        let empty = SpanCoverage::Contiguous(max..max);
+        assert!(!empty.overlaps(&full));
+        assert_eq!(empty.iou(&empty), 0.0);
+    }
+
+    #[test]
+    fn span_coverage_agrees_with_every_pair_of_six_character_masks() {
+        let masks: Vec<_> = (0_u8..64)
+            .map(|mask| {
+                let ranges = (0..6).filter(|i| mask & (1 << i) != 0).map(|i| i..i + 1);
+                (mask, DiscontinuousSpan::new(ranges.collect()))
+            })
+            .collect();
+        for (a, left) in &masks {
+            let left = SpanCoverage::Segmented(left);
+            assert!(left.clone().into_ranges().eq(left.ranges().iter().cloned()));
+            for (b, right) in &masks {
+                let right = SpanCoverage::Segmented(right);
+                let shared = (a & b).count_ones();
+                let covered = (a | b).count_ones();
+                assert_eq!(left.intersection_len(&right), shared as usize);
+                assert_eq!(left.overlaps(&right), shared != 0);
+                assert_eq!(
+                    left.iou(&right),
+                    f64::from(shared) / f64::from(covered.max(1))
+                );
+            }
         }
     }
 
@@ -3631,27 +3768,28 @@ mod proptests {
             prop_assert_eq!(&e.kb_id, &e2.kb_id);
         }
 
-        /// DiscontinuousSpan: total_len() == sum of merged segment lengths,
-        /// and merged segments are non-overlapping and sorted.
+        /// Normalizing source segments preserves their union, including gaps.
         #[test]
         fn discontinuous_span_total_length(
-            segments in proptest::collection::vec(
-                (0usize..5000, 1usize..500),
-                1..6
-            ),
+            origin in 0usize..5000,
+            endpoints in proptest::collection::vec((0usize..=32, 0usize..=32), 0..9),
         ) {
-            let ranges: Vec<std::ops::Range<usize>> = segments.iter()
-                .map(|&(start, len)| start..start + len)
+            let ranges = endpoints.iter()
+                .map(|&(start, end)| (origin + start)..(origin + end))
                 .collect();
             let span = DiscontinuousSpan::new(ranges);
-            // After merging, total_len must equal sum of the stored segments.
-            let expected_sum: usize = span.segments().iter().map(|r| r.end - r.start).sum();
-            prop_assert_eq!(span.total_len(), expected_sum,
-                "total_len must equal sum of merged segment lengths");
-            // Verify no overlaps in stored segments.
-            for w in span.segments().windows(2) {
-                prop_assert!(w[0].end <= w[1].start,
-                    "segments must not overlap: {:?} vs {:?}", w[0], w[1]);
+
+            // Compute the oracle from the original endpoints, before normalization.
+            let mut covered_count = 0;
+            for pos in 0..=32 {
+                let covered = endpoints.iter().any(|&(start, end)| start <= pos && pos < end);
+                prop_assert_eq!(span.contains(origin + pos), covered);
+                covered_count += usize::from(covered);
+            }
+            prop_assert_eq!(span.total_len(), covered_count);
+            prop_assert!(span.segments().iter().all(|r| r.start < r.end));
+            for pair in span.segments().windows(2) {
+                prop_assert!(pair[0].end < pair[1].start);
             }
         }
     }

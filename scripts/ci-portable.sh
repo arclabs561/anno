@@ -96,6 +96,7 @@ case "${lane}" in
         # The existing GitHub "Check" assertion, exposed through the same
         # provider-neutral receipt contract as the CodeBuild pilot.
         run_step cargo-check cargo check --workspace --all-targets
+        run_step analysis-report-contract bash scripts/test-analysis-reports.sh
         ;;
     blocking)
         # Inventory of unique assertions: check-cached owns docs/fmt/clippy and

@@ -65,7 +65,7 @@ pub struct LengthStats {
     pub mean: f64,
     /// Median entity length
     pub median: f64,
-    /// Standard deviation
+    /// Population standard deviation across the observed entity lengths.
     pub std_dev: f64,
     /// Minimum length
     pub min: usize,
@@ -167,7 +167,10 @@ pub fn compute_stats(examples: &[AnnotatedExample]) -> DatasetStats {
         sorted.sort_unstable();
 
         let mean = entity_lengths.iter().sum::<usize>() as f64 / entity_lengths.len() as f64;
-        let median = sorted[sorted.len() / 2] as f64;
+        // For an odd number of entities both indices select the same observation.
+        let lower_middle = sorted[(sorted.len() - 1) / 2] as f64;
+        let upper_middle = sorted[sorted.len() / 2] as f64;
+        let median = lower_middle.midpoint(upper_middle);
         let variance = entity_lengths
             .iter()
             .map(|&l| (l as f64 - mean).powi(2))
@@ -693,6 +696,22 @@ mod tests {
         assert!(stats.type_distribution.contains_key("PER"));
         assert!(stats.type_distribution.contains_key("ORG"));
         assert!(stats.type_distribution.contains_key("LOC"));
+    }
+
+    #[test]
+    fn entity_length_median_uses_both_middle_observations() {
+        let examples = [make_example(
+            "Ada moved to New York.",
+            vec![("Ada", "PER"), ("New York", "LOC")],
+        )];
+        let lengths = compute_stats(&examples).entity_length_stats;
+        assert_eq!(lengths.median, 1.5);
+        assert_eq!(lengths.std_dev, 0.5);
+
+        let single = [make_example("New York", vec![("New York", "LOC")])];
+        let lengths = compute_stats(&single).entity_length_stats;
+        assert_eq!(lengths.median, 2.0);
+        assert_eq!(lengths.std_dev, 0.0);
     }
 
     #[test]
