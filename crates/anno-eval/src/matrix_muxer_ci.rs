@@ -2777,7 +2777,7 @@ fn choose_datasets_for_run(
             )
         })
         .collect();
-    scored.sort_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    scored.sort_by_key(|row| (row.0, row.1));
     let mut common = estimate.map(|policy| policy.candidates.to_vec());
     let mut chosen = Vec::new();
     for (_, _, ds) in scored {
