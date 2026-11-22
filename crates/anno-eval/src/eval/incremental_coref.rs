@@ -754,10 +754,6 @@ impl IncrementalCorefResolver {
         } else {
             // Character-based windowing
             let text_char_len = text.chars().count();
-            let step = self
-                .config
-                .window_size
-                .saturating_sub(self.config.window_overlap);
 
             while offset < text_char_len {
                 let end = (offset + self.config.window_size).min(text_char_len);
@@ -807,7 +803,11 @@ impl IncrementalCorefResolver {
                 if adjusted_end >= text_char_len {
                     break;
                 }
-                offset += step.max(1);
+                // A word boundary can shorten the window. Base the next start
+                // on the text actually emitted so the gap never drops a mention.
+                offset = adjusted_end
+                    .saturating_sub(self.config.window_overlap)
+                    .max(offset + 1);
             }
         }
 
@@ -1214,6 +1214,26 @@ mod tests {
             "🎉(1) + space(1) + Dr.(2) + .(1) + space(1) = 6"
         );
         assert_eq!(john.end, 10);
+    }
+
+    #[test]
+    fn character_windows_keep_mentions_after_a_shortened_window() {
+        let text = "Zoë Ada Tom";
+        for overlap in [0, 1] {
+            let resolver = IncrementalCorefResolver::new(IncrementalConfig {
+                token_based: false,
+                window_size: 6,
+                window_overlap: overlap,
+                ..Default::default()
+            });
+            let mut spans: Vec<_> = resolver
+                .resolve_document(text)
+                .into_iter()
+                .flat_map(|chain| chain.mentions.into_iter().map(|m| (m.start, m.end)))
+                .collect();
+            spans.sort_unstable();
+            assert_eq!(spans, [(0, 3), (4, 7), (8, 11)], "overlap={overlap}");
+        }
     }
 
     #[test]
