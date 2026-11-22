@@ -73,6 +73,12 @@ static DATE_US: LazyLock<Regex> =
 static DATE_EU: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b").expect("valid regex"));
 
+// Unpunctuated calendar dates used in astronomical catalogs (2001 Jan 09).
+// A single inline space keeps a preceding column or line from supplying the year.
+static DATE_YEAR_MONTH_DAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b[0-9]{4} (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) (?:0?[1-9]|[12][0-9]|3[01])\b").expect("valid regex")
+});
+
 static DATE_WRITTEN_FULL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\b").expect("valid regex")
 });
@@ -169,7 +175,8 @@ static TIME_12H: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static TIME_24H: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\b").expect("valid regex")
+    Regex::new(r"\b(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|24:\d+(?::\d+)*)\b")
+        .expect("valid regex")
 });
 
 static TIME_SIMPLE: LazyLock<Regex> = LazyLock::new(|| {
@@ -227,8 +234,11 @@ static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static PHONE_INTL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b").expect("valid regex")
+    Regex::new(r"\+[1-9]\d{0,2}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b").expect("valid regex")
 });
+
+static SHORT_PLUS_NUMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+\d{4}$").expect("valid regex"));
 
 static PHONE_LOCAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{3}[-.\s]?\d{4}\b").expect("valid regex"));
@@ -286,6 +296,7 @@ impl Model for RegexNER {
             (&DATE_ISO, "DATE_ISO"),
             (&DATE_US, "DATE_US"),
             (&DATE_EU, "DATE_EU"),
+            (&DATE_YEAR_MONTH_DAY, "DATE_YEAR_MONTH_DAY"),
             (&DATE_WRITTEN_FULL, "DATE_WRITTEN_FULL"),
             (&DATE_WRITTEN_SHORT, "DATE_WRITTEN_SHORT"),
             (&DATE_WRITTEN_EU, "DATE_WRITTEN_EU"),
@@ -337,6 +348,14 @@ impl Model for RegexNER {
         ];
         for (pattern, name) in time_patterns {
             for m in pattern.find_iter(text) {
+                // Consume the whole 24:... token so 24:00:01 cannot yield
+                // either a partial midnight or a spurious 00:01.
+                if *name == "TIME_24H"
+                    && m.as_str().starts_with("24:")
+                    && !matches!(m.as_str(), "24:00" | "24:00:00")
+                {
+                    continue;
+                }
                 add_entity(m, EntityType::Time, 0.90, name);
             }
         }
@@ -370,12 +389,23 @@ impl Model for RegexNER {
         }
 
         // Phone numbers (medium confidence - can have false positives)
-        let phone_patterns: &[(&LazyLock<Regex>, &'static str)] =
-            &[(&PHONE_US, "PHONE_US"), (&PHONE_INTL, "PHONE_INTL")];
-        for (pattern, name) in phone_patterns {
-            for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Phone, 0.85, name);
+        for m in PHONE_US.find_iter(text) {
+            add_entity(m, EntityType::Phone, 0.85, "PHONE_US");
+        }
+        for m in PHONE_INTL.find_iter(text) {
+            // Short compact numbers can also be UTC offsets (+1100). Unicode
+            // code points use the explicitly marked U+hhhh form.
+            let prefix = &text[..m.start()];
+            let number = m.as_str();
+            let is_codepoint = prefix.ends_with(['U', 'u'])
+                && (5..=7).contains(&number.len())
+                && number[1..].bytes().all(|byte| byte.is_ascii_digit());
+            if is_codepoint
+                || (SHORT_PLUS_NUMBER.is_match(number) && !PHONE_CONTEXT.is_match(prefix))
+            {
+                continue;
             }
+            add_entity(m, EntityType::Phone, 0.85, "PHONE_INTL");
         }
         // Local 7-digit phone numbers -- only when preceded by phone-context words
         // to avoid matching page numbers, codes, zip codes, etc.
@@ -602,6 +632,36 @@ mod tests {
             let e = extract(case);
             assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
         }
+    }
+
+    #[test]
+    fn year_first_date_uses_inline_year_only() {
+        for date in ["2001 Jan 09", "2020 September 30", "2020 Jul 5"] {
+            assert!(find_text(&extract(date), date).is_some(), "{date}");
+        }
+        for text in ["2001\nJan 09", "2001    Jan 09"] {
+            let entities = extract(text);
+            assert!(find_text(&entities, text).is_none());
+            assert!(find_text(&entities, "Jan 09").is_some());
+        }
+    }
+
+    #[test]
+    fn end_of_day_requires_zero_minutes_and_seconds() {
+        for valid in ["24:00", "24:00:00"] {
+            assert!(find_text(&extract(valid), valid).is_some(), "{valid}");
+        }
+        for invalid in ["24:01", "24:00:01", "24:00:99"] {
+            assert!(!has_type(&extract(invalid), &EntityType::Time), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn utc_offsets_are_not_international_phones() {
+        for offset in ["+0330", "+1100", "+1245", "U+2069", "U+10000", "U+100000"] {
+            assert!(!has_type(&extract(offset), &EntityType::Phone), "{offset}");
+        }
+        assert!(has_type(&extract("tel: +1245"), &EntityType::Phone));
     }
 
     #[test]
