@@ -45,9 +45,32 @@ class TestSpanAssertions(unittest.TestCase):
                       dict(start=-1), dict(end=20), dict(text="Zo")]:
             with self.subTest(patch=patch), self.assertRaises(ValueError):
                 oracle.load_cases([{**self.row, "assertions": [{**self.positive, **patch}]}])
-        for prediction in [entity(4, 8, "Zoë", "PER"), entity(1, 4, "Zoë", "Persn")]:
+        for prediction in [entity(4, 8, "Zoë", "PER"), entity(1, 4, "Zoë", "  PER")]:
             with self.assertRaises(ValueError):
                 self.score([prediction])
+
+    def test_valid_custom_prediction_and_declared_assertion_type(self):
+        # Real `anno batch --model pattern` output on this source.
+        hashtag = entity(2, 9, "#Launch", "Hashtag")
+        check = dict(kind="no_overlap", start=2, end=9, text="#Launch", types=["ORG"])
+        case = dict(id="tag", text="🦊 #Launch at LHA.", assertions=[check])
+        predictions = [dict(id="tag", entities=[hashtag])]
+        finding = oracle.score(oracle.load_cases([case]), predictions)["findings"][0]
+        self.assertTrue(finding["passed"])
+        self.assertEqual(finding["overlaps"], [hashtag])
+        check["types"] = ["Hashtag"]
+        with self.assertRaises(ValueError):
+            oracle.load_cases([case])
+        self.assertEqual(oracle.score(oracle.load_cases([case], ["Hashtag"]), predictions)["passed"], 0)
+        check["kind"] = "exact_span"
+        self.assertEqual(oracle.score(oracle.load_cases([case], ["Hashtag"]), predictions)["passed"], 1)
+        check["types"] = ["HashTag"]
+        with self.assertRaises(ValueError):
+            oracle.load_cases([case], ["Hashtag"])
+        hashtag["end"] = 8
+        check["types"] = ["ORG"]
+        with self.assertRaises(ValueError):
+            oracle.score(oracle.load_cases([case]), predictions)
 
     def test_replay_requires_each_document_once(self):
         cases = oracle.load_cases([self.row])

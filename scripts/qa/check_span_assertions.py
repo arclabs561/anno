@@ -34,7 +34,14 @@ def check_range(item, text, key):
         raise ValueError(f"{key}: range [{start}, {end}) does not select {item.get('text')!r}")
 
 
-def load_cases(rows):
+def valid_label(label):
+    return isinstance(label, str) and bool(label) and label == label.strip() and label.isprintable()
+
+
+def load_cases(rows, custom_types=()):
+    if any(not valid_label(label) for label in custom_types):
+        raise ValueError("custom assertion labels must be nonempty printable names without outer spaces")
+    vocabulary = TYPES.union(custom_types)
     cases = indexed(rows, "fixture")
     if not cases:
         raise ValueError("empty fixture")
@@ -48,9 +55,9 @@ def load_cases(rows):
                 raise ValueError(f"{key}: unsupported assertion kind")
             labels = rule.get("types")
             if (not isinstance(labels, list) or not labels
-                    or any(not isinstance(label, str) or label not in TYPES for label in labels)
+                    or any(not isinstance(label, str) or label not in vocabulary for label in labels)
                     or len(set(labels)) != len(labels)):
-                raise ValueError(f"{key}: expected distinct built-in entity labels, got {labels!r}")
+                raise ValueError(f"{key}: expected distinct declared entity labels, got {labels!r}")
     return cases
 
 
@@ -64,8 +71,8 @@ def score(cases, predictions):
         for entity in entities:
             check_range(entity, case["text"], key)
             label = entity.get("type")
-            if not isinstance(label, str) or label not in TYPES:
-                raise ValueError(f"{key}: unsupported prediction type {label!r}")
+            if not valid_label(label):
+                raise ValueError(f"{key}: malformed prediction type {label!r}")
         for rule in case["assertions"]:
             overlaps = [
                 {field: entity[field] for field in ("start", "end", "text", "type")}
@@ -89,9 +96,11 @@ def main():
     source.add_argument("--binary", default="anno", help="anno CLI executable (default: anno)")
     source.add_argument("--predictions", type=Path, help="saved anno batch JSONL")
     parser.add_argument("--model", choices=("pattern", "heuristic", "stacked"), default="heuristic")
+    parser.add_argument("--allow-type", action="append", default=[], metavar="LABEL",
+                        help="declare a custom, case-sensitive assertion label (repeatable)")
     args = parser.parse_args()
     try:
-        cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")))
+        cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")), args.allow_type)
         if args.predictions:
             output = args.predictions.read_text(encoding="utf-8")
         else:
