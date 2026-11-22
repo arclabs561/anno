@@ -107,7 +107,8 @@ pub struct ExtractArgs {
     #[arg(long, value_name = "FORMAT")]
     pub export_graph: Option<String>,
 
-    /// URL to fetch content from (requires eval feature)
+    /// URL to fetch content from (requires eval feature). For HTTPS, SSL_CERT_FILE
+    /// selects a trusted PEM CA bundle in place of the default bundled roots.
     #[arg(long, value_name = "URL")]
     pub url: Option<String>,
 
