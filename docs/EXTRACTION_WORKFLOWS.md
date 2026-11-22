@@ -105,6 +105,25 @@ for regression assertions such as required mentions and minimum counts, but
 they do not contain exhaustive gold annotations. Do not compute precision from
 them.
 
+## Comparing contract passage suggestions
+
+Use the CUAD retrieval example's `matched_passages_per_question` field to
+compare BM25 and literal category lookup at equal suggestion volume. For each
+question both methods return as many windows as the shorter ranking. A hit
+requires a window to contain the complete annotated answer. Each annotation
+counts once even when windows overlap.
+[Runnable example](../crates/anno-eval/examples/cuad_retrieval.rs) · [Pinned CUAD release](https://github.com/TheAtticusProject/cuad/tree/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2)
+
+Across Governing Law, Termination For Convenience and Non-Compete on the 102
+test contracts, the unrestricted top-three lists recovered 100 answers with
+867 BM25 windows and 43 with 136 literal windows. At equal volume, BM25
+recovered 45 of 190 answers and literal lookup recovered 43, each in 136
+windows. Summing across the three categories per contract, BM25 gained one
+answer on six contracts and two on one, lost one on six and tied on 89.
+An exact two-sided sign test on the 13 non-ties gave *p* = 1.00. This sample
+provides little evidence that switching rankers improves recall at equal
+volume. The counts measure machine suggestions. [Replay and category results](https://github.com/arclabs561/anno/pull/217)
+
 ## Carrying source revisions through brat and dataset JSONL
 
 Keep one directory per source revision. From a common corpus root, export the

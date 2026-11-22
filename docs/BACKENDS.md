@@ -195,9 +195,22 @@ fill. The ONNX export runs the attention operation in ONNX Runtime. For
 a LoRA adapter, this route requires an ONNX export with the adapter merged.
 [Dependency review](https://github.com/arclabs561/anno/pull/168)
 
-For GLiNER2.5 Multi, the [Python import example](../scripts/gliner25_import.py)
-uses Fastino's boundary decoder to extract labels from a UTF-8 document. It
-writes one mention per JSONL row for `anno dataset import --format jsonl`.
+GLiNER2.5 Multi is an opt-in Python import path. Fastino's boundary decoder
+extracts caller-supplied labels from one UTF-8 document and writes character
+spans for `anno dataset import --format jsonl`. The example defaults to a
+confidence threshold of 0.50 and accepts `--threshold`.
+[Import example](../scripts/gliner25_import.py) · [Pinned checkpoint](https://huggingface.co/fastino/gliner2.5-multi-v1/tree/7b005274e82da37dcf1f5fd9d6a2ef413c6a004c)
+
+Calibrate each checkpoint on separate documents using the intended labels and
+the number of false suggestions the application can absorb. On 119 held-out
+Dutch CoNLL-2002 articles, the two upstream Python checkpoints scored about
+0.42 exact-span F1 at 0.50. At thresholds chosen for development F1, the older
+Multi model (0.95) returned 203 correct and 62 extra mentions. GLiNER2.5
+(0.90) returned 204 correct and 201 extra. On a separate English WikiGold
+panel, F1 moved from 0.723 to 0.741, with a paired 95% interval for the
+difference of −0.040 to +0.073. A target-domain comparison at an agreed
+recall floor or suggestion budget gives a firmer basis for choosing a model.
+[Thresholds, pinned datasets and per-label results](https://github.com/arclabs561/anno/pull/219)
 
 ### Features not validated in CI
 
