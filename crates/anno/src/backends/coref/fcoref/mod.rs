@@ -799,9 +799,9 @@ mod tests {
     // Integration tests require model download -- mark as #[ignore].
     // Run with: cargo test -p anno --features onnx -- fcoref --ignored
 
-    fn model_dir() -> String {
-        let manifest = env!("CARGO_MANIFEST_DIR");
-        format!("{}/fcoref_onnx", manifest)
+    pub(super) fn model_dir() -> String {
+        std::env::var("FCOREF_MODEL_PATH")
+            .unwrap_or_else(|_| format!("{}/fcoref_onnx", env!("CARGO_MANIFEST_DIR")))
     }
 
     #[test]
