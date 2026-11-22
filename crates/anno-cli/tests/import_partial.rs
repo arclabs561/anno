@@ -3,9 +3,13 @@ use std::path::Path;
 use std::process::{Command, Output};
 
 fn import(input: &Path, output: &Path, partial: bool) -> Output {
+    import_as("jsonl", input, output, partial)
+}
+
+fn import_as(format: &str, input: &Path, output: &Path, partial: bool) -> Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_anno"));
     cmd.args([
-        "dataset", "import", "--format", "jsonl", "--quiet", "--input",
+        "dataset", "import", "--format", format, "--quiet", "--input",
     ])
     .arg(input)
     .arg("--output")
@@ -81,4 +85,52 @@ fn failed_output_commit_cleans_up_staging() {
     assert!(String::from_utf8_lossy(&result.stderr).contains("occupied"));
     assert_eq!(fs::read(dest.join("existing")).unwrap(), b"previous");
     assert_eq!(fs::read_dir(root.path()).unwrap().count(), 2);
+}
+
+#[test]
+fn source_annotations_and_companions_cannot_be_replaced() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("corpus");
+    fs::create_dir(&source).unwrap();
+    let annotation = source.join("doc.ann");
+    let companion = source.join("doc.txt");
+    fs::write(&annotation, b"T1\tPER 0 3\tAda\n").unwrap();
+    for input in [&annotation, &source] {
+        assert!(!import_as("brat", input, &companion, false).status.success());
+        assert!(!companion.exists());
+    }
+    fs::write(&companion, b"Ada").unwrap();
+    for input in [&annotation, &source] {
+        for protected in [&annotation, &companion] {
+            let hard_link = root.path().join("alias.jsonl");
+            fs::hard_link(protected, &hard_link).unwrap();
+            let aliases = vec![protected.clone(), hard_link.clone()];
+            #[cfg(unix)]
+            let aliases = {
+                let symbolic = root.path().join("symbolic.jsonl");
+                std::os::unix::fs::symlink(protected, &symbolic).unwrap();
+                [aliases, vec![symbolic]].concat()
+            };
+            for alias in aliases {
+                let result = import_as("brat", input, &alias, true);
+                assert!(!result.status.success(), "{input:?} -> {alias:?}");
+                assert!(String::from_utf8_lossy(&result.stderr).contains("aliases"));
+                assert!(same_file::is_same_file(protected, &alias).unwrap());
+                if &alias != protected {
+                    fs::remove_file(alias).unwrap();
+                }
+            }
+            assert_eq!(fs::read(&annotation).unwrap(), b"T1\tPER 0 3\tAda\n");
+            assert_eq!(fs::read(&companion).unwrap(), b"Ada");
+        }
+    }
+
+    let output = source.join("result.jsonl");
+    for _ in 0..2 {
+        assert!(import_as("brat", &source, &output, false).status.success());
+    }
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&fs::read(output).unwrap()).unwrap()["text"],
+        "Ada"
+    );
 }
