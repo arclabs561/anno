@@ -705,9 +705,11 @@ jobs:
           python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Prepare updated policy history on the default branch
         id: checkpoint
+        env:
+          JOURNAL_START: ${{ steps.prior.outputs.journal_start }}
         if: success() && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
-          python3 scripts/qa/matrix_checkpoint.py snapshot "$RUNNER_TEMP/matrix-checkpoint" \
+          python3 scripts/qa/matrix_checkpoint.py snapshot --journal-start "$JOURNAL_START" "$RUNNER_TEMP/matrix-checkpoint" \
             "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
       - name: Publish trusted matrix checkpoint
         if: steps.checkpoint.outcome == 'success' && steps.checkpoint.outputs.observations != '0'

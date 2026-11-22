@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from zipfile import ZipFile
 
-from matrix_checkpoint import select_checkpoints, snapshot, unpack
+from matrix_checkpoint import journal_size, select_checkpoints, snapshot, unpack
 
 
 class MatrixCheckpointTest(unittest.TestCase):
@@ -56,9 +56,9 @@ class MatrixCheckpointTest(unittest.TestCase):
             root = Path(directory)
             (root / "muxer_history.ner.json").write_text('{"window": 1}')
             (root / "unrelated").write_text("excluded")
-            (root / "eval-results.jsonl").write_text('{"score": 0}\n')
+            (root / "eval-results.jsonl").write_text('{"observation_id": "current", "score": 0}\n')
             log = root / "current.jsonl"
-            log.write_text(json.dumps({"record_type": "outcome"}) + "\n")
+            log.write_text(json.dumps({"record_type": "outcome", "observation_id": "current"}) + "\n")
             with sqlite3.connect(root / "eval-history.db") as conn:
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.execute("CREATE TABLE observations(n)")
@@ -77,6 +77,26 @@ class MatrixCheckpointTest(unittest.TestCase):
             self.assertEqual((restored / "muxer_history.ner.json").read_text(), '{"window": 1}')
             with sqlite3.connect(restored / "eval-history.db") as conn:
                 self.assertEqual(conn.execute("SELECT n FROM observations").fetchone(), (7,))
+
+    def test_current_receipts_must_join_the_appended_journal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "muxer_history.ner.json").write_text("{}")
+            journal = root / "eval-results.jsonl"
+            journal.write_text('{"observation_id":"old"}\n')
+            start = journal_size(root)
+            log = root / "current.jsonl"
+            target = root / "saved"
+            log.write_text('{"record_type":"outcome","observation_id":"old"}\n')
+            with self.assertRaisesRegex(ValueError, "missing.*old"):
+                snapshot(root, target, [log], start)
+            log.write_text('{"record_type":"outcome","observation_id":"current"}\n')
+            with self.assertRaisesRegex(ValueError, "missing.*current"):
+                snapshot(root, target, [log], start)
+            self.assertFalse(target.exists())
+            with journal.open("a") as stream:
+                stream.write('{"observation_id":"current"}\n')
+            self.assertEqual(snapshot(root, target, [log, log], start), 1)
 
     def test_archive_rejects_paths_outside_the_state_directory(self):
         archive = io.BytesIO()
