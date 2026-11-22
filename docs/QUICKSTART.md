@@ -18,7 +18,8 @@ Install the CLI:
 cargo install anno-cli
 ```
 
-Add `--features eval` if you need evaluation or cross-document clustering.
+Single-text scoring with `anno eval` works in the standard CLI. Add
+`--features eval` for dataset benchmarks or cross-document clustering.
 To build from a local clone with those features:
 
 ```bash
@@ -48,11 +49,16 @@ anno extract --model gliner --extract-types "DRUG,SYMPTOM" \
   --text "Aspirin can treat headaches and reduce fever."
 ```
 
-Machine-readable output:
+## Save annotations with the source text
 
 ```bash
-anno extract --model heuristic --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
+anno extract --model pattern --format grounded --text '🦊 Email ada@example.org' > annotation.json
 ```
+
+The email signal has surface `ada@example.org`, source `pattern`, and character
+range `8..23`. The document includes the exact text used for extraction. Keep
+your source document ID and revision alongside this file. For a compact entity
+list use `--format json`. [Offset and provenance contract](CONTRACT.md)
 
 ## CLI: relation extraction
 

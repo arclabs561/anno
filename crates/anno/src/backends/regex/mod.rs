@@ -13,6 +13,8 @@
 //!
 //! For Person/Organization/Location, use ML models (BERT ONNX, GLiNER).
 
+mod table;
+
 use crate::{Entity, EntityType, Language, Model, Result};
 use regex::Regex;
 use std::sync::LazyLock;
@@ -72,6 +74,12 @@ static DATE_US: LazyLock<Regex> =
 
 static DATE_EU: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b").expect("valid regex"));
+
+// Unpunctuated calendar dates used in astronomical catalogs (2001 Jan 09).
+// A single inline space keeps a preceding column or line from supplying the year.
+static DATE_YEAR_MONTH_DAY: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b[0-9]{4} (?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) (?:0?[1-9]|[12][0-9]|3[01])\b").expect("valid regex")
+});
 
 static DATE_WRITTEN_FULL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\b").expect("valid regex")
@@ -169,7 +177,8 @@ static TIME_12H: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 static TIME_24H: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\b(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?\b").expect("valid regex")
+    Regex::new(r"\b(?:(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?|24:\d+(?::\d+)*)\b")
+        .expect("valid regex")
 });
 
 static TIME_SIMPLE: LazyLock<Regex> = LazyLock::new(|| {
@@ -221,14 +230,53 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bhttps?://[^\s<>\[\]{}|\\^`\x00-\x1f]+").expect("valid regex")
 });
 
+// In Japanese prose a parenthesized URL can run directly into the next word.
+// Mask only the matching outer delimiter while scanning for URLs. An ideographic
+// space has the same UTF-8 length, keeping both byte and character offsets intact.
+fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
+    let mut result = std::borrow::Cow::Borrowed(text);
+    if !text.contains('（') {
+        return result;
+    }
+    let mut depth = 0;
+    for (byte, ch) in text.char_indices() {
+        match ch {
+            '（' if depth > 0 => depth += 1,
+            '（' => {
+                let rest = &text.as_bytes()[byte + ch.len_utf8()..];
+                if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
+                    rest.get(..scheme.len())
+                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+                }) {
+                    depth = 1;
+                }
+            }
+            '）' if depth > 0 => {
+                depth -= 1;
+                if depth == 0 {
+                    result
+                        .to_mut()
+                        .replace_range(byte..byte + ch.len_utf8(), "　");
+                }
+            }
+            c if c.is_whitespace() => depth = 0,
+            _ => {}
+        }
+    }
+    result
+}
+
 static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
         .expect("valid regex")
 });
 
 static PHONE_INTL: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b").expect("valid regex")
+    Regex::new(r"\+[1-9]\d{0,2}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b").expect("valid regex")
 });
+
+static SHORT_PLUS_NUMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\+\d{4}$").expect("valid regex"));
 
 static PHONE_LOCAL: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{3}[-.\s]?\d{4}\b").expect("valid regex"));
@@ -270,7 +318,7 @@ impl Model for RegexNER {
                 let char_end = converter.byte_to_char(m.end());
                 if !overlaps(&entities, char_start, char_end) {
                     entities.push(Entity::with_provenance(
-                        m.as_str(),
+                        &text[m.range()],
                         entity_type,
                         char_start,
                         char_end,
@@ -281,17 +329,19 @@ impl Model for RegexNER {
             };
 
         // Dates (high confidence - very specific patterns)
+        let date_text = table::with_cell_boundaries(text);
         // English dates
         let date_patterns_en: &[(&LazyLock<Regex>, &'static str)] = &[
             (&DATE_ISO, "DATE_ISO"),
             (&DATE_US, "DATE_US"),
             (&DATE_EU, "DATE_EU"),
+            (&DATE_YEAR_MONTH_DAY, "DATE_YEAR_MONTH_DAY"),
             (&DATE_WRITTEN_FULL, "DATE_WRITTEN_FULL"),
             (&DATE_WRITTEN_SHORT, "DATE_WRITTEN_SHORT"),
             (&DATE_WRITTEN_EU, "DATE_WRITTEN_EU"),
         ];
         for (pattern, name) in date_patterns_en {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.95, name);
             }
         }
@@ -311,7 +361,7 @@ impl Model for RegexNER {
             (&DATE_RUSSIAN_EU, "DATE_RUSSIAN_EU"),
         ];
         for (pattern, name) in date_patterns_i18n {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.93, name); // Slightly lower confidence for i18n
             }
         }
@@ -324,7 +374,7 @@ impl Model for RegexNER {
             (&DATE_MONTH_YEAR_DE, "DATE_MONTH_YEAR_DE"),
         ];
         for (pattern, name) in date_month_year {
-            for m in pattern.find_iter(text) {
+            for m in pattern.find_iter(&date_text) {
                 add_entity(m, EntityType::Date, 0.90, name);
             }
         }
@@ -337,6 +387,14 @@ impl Model for RegexNER {
         ];
         for (pattern, name) in time_patterns {
             for m in pattern.find_iter(text) {
+                // Consume the whole 24:... token so 24:00:01 cannot yield
+                // either a partial midnight or a spurious 00:01.
+                if *name == "TIME_24H"
+                    && m.as_str().starts_with("24:")
+                    && !matches!(m.as_str(), "24:00" | "24:00:00")
+                {
+                    continue;
+                }
                 add_entity(m, EntityType::Time, 0.90, name);
             }
         }
@@ -365,17 +423,29 @@ impl Model for RegexNER {
         }
 
         // URLs (very high confidence)
-        for m in URL.find_iter(text) {
+        let urls = url_text(text);
+        for m in URL.find_iter(&urls) {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
         // Phone numbers (medium confidence - can have false positives)
-        let phone_patterns: &[(&LazyLock<Regex>, &'static str)] =
-            &[(&PHONE_US, "PHONE_US"), (&PHONE_INTL, "PHONE_INTL")];
-        for (pattern, name) in phone_patterns {
-            for m in pattern.find_iter(text) {
-                add_entity(m, EntityType::Phone, 0.85, name);
+        for m in PHONE_US.find_iter(text) {
+            add_entity(m, EntityType::Phone, 0.85, "PHONE_US");
+        }
+        for m in PHONE_INTL.find_iter(text) {
+            // Short compact numbers can also be UTC offsets (+1100). Unicode
+            // code points use the explicitly marked U+hhhh form.
+            let prefix = &text[..m.start()];
+            let number = m.as_str();
+            let is_codepoint = prefix.ends_with(['U', 'u'])
+                && (5..=7).contains(&number.len())
+                && number[1..].bytes().all(|byte| byte.is_ascii_digit());
+            if is_codepoint
+                || (SHORT_PLUS_NUMBER.is_match(number) && !PHONE_CONTEXT.is_match(prefix))
+            {
+                continue;
             }
+            add_entity(m, EntityType::Phone, 0.85, "PHONE_INTL");
         }
         // Local 7-digit phone numbers -- only when preceded by phone-context words
         // to avoid matching page numbers, codes, zip codes, etc.
@@ -574,6 +644,50 @@ mod tests {
     }
 
     #[test]
+    fn dates_stay_inside_underlined_table_cells() {
+        // RFC 3339 §5.7 has separate month-number, name and day-limit cells.
+        // Add genuine dates in prose and a table cell, plus a non-ASCII prefix.
+        let text = concat!(
+            "Préface: May\n  2020.\n\n",
+            "  Code  Designation       Data\n",
+            "  ----  ----------------  ----------\n",
+            "  01    January           31\n",
+            "  02    February, leap    29\n",
+            "  03    March 2020        31\n",
+            "  éà    14 juin 2020      30\r\n",
+            "\nAnnounced on April          12, 2021.\n",
+        );
+        let dates: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .collect();
+        let gold = [
+            "May\n  2020",
+            "March 2020",
+            "14 juin 2020",
+            "April          12, 2021",
+        ];
+        assert_eq!(dates.len(), gold.len(), "{dates:?}");
+        for expected in gold {
+            let start = text[..text.find(expected).unwrap()].chars().count();
+            let end = start + expected.chars().count();
+            assert!(dates
+                .iter()
+                .any(|e| e.text == expected && e.start() == start && e.end() == end));
+        }
+    }
+
+    #[test]
+    fn decorative_rules_do_not_split_prose() {
+        for text in [
+            "May          12\n---  -----\nNo date here.",
+            "Some  Text\n----  ----\nMay          12",
+        ] {
+            assert!(find_text(&extract(text), "May          12").is_some());
+        }
+    }
+
+    #[test]
     fn date_eu_written() {
         let cases = ["15 January 2024", "28th February", "1st March 2024"];
         for case in cases {
@@ -602,6 +716,36 @@ mod tests {
             let e = extract(case);
             assert!(has_type(&e, &EntityType::Time), "Failed: {}", case);
         }
+    }
+
+    #[test]
+    fn year_first_date_uses_inline_year_only() {
+        for date in ["2001 Jan 09", "2020 September 30", "2020 Jul 5"] {
+            assert!(find_text(&extract(date), date).is_some(), "{date}");
+        }
+        for text in ["2001\nJan 09", "2001    Jan 09"] {
+            let entities = extract(text);
+            assert!(find_text(&entities, text).is_none());
+            assert!(find_text(&entities, "Jan 09").is_some());
+        }
+    }
+
+    #[test]
+    fn end_of_day_requires_zero_minutes_and_seconds() {
+        for valid in ["24:00", "24:00:00"] {
+            assert!(find_text(&extract(valid), valid).is_some(), "{valid}");
+        }
+        for invalid in ["24:01", "24:00:01", "24:00:99"] {
+            assert!(!has_type(&extract(invalid), &EntityType::Time), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn utc_offsets_are_not_international_phones() {
+        for offset in ["+0330", "+1100", "+1245", "U+2069", "U+10000", "U+100000"] {
+            assert!(!has_type(&extract(offset), &EntityType::Phone), "{offset}");
+        }
+        assert!(has_type(&extract("tel: +1245"), &EntityType::Phone));
     }
 
     #[test]
@@ -752,6 +896,24 @@ mod tests {
     // ========================================================================
     // URL Tests
     // ========================================================================
+
+    #[test]
+    fn fullwidth_url_wrappers_preserve_internal_and_unwrapped_punctuation() {
+        let text = "（HTTPS://example.org/作品（上））続き（https://example.jp/資料）終。 https://example.org/作品（上）";
+        let urls: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Url)
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(
+            urls,
+            [
+                "HTTPS://example.org/作品（上）",
+                "https://example.jp/資料",
+                "https://example.org/作品（上）"
+            ]
+        );
+    }
 
     #[test]
     fn url_basic() {

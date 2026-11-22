@@ -56,6 +56,9 @@
 
 use serde::{Deserialize, Serialize};
 
+mod speaker_mentions;
+pub use speaker_mentions::resolve_speaker_mentions;
+
 // =============================================================================
 // Participant Types
 // =============================================================================
@@ -228,6 +231,7 @@ pub struct DialogueTurn {
     pub speaker: String,
 
     /// Type of participant (human or agent).
+    #[serde(default = "unknown_participant")]
     pub participant_type: ParticipantType,
 
     /// Pragmatic function of this turn.
@@ -239,15 +243,18 @@ pub struct DialogueTurn {
     /// - Whispered to co-participants
     /// - Gestured/mouthed rather than spoken
     /// - Explicitly directed at another human
+    #[serde(default)]
     pub is_aside: bool,
 
     /// Did this turn trigger an agent interruption/cutoff?
     ///
     /// Response tokens often trigger unwanted agent responses because
     /// VAD detects them as speech requiring a response.
+    #[serde(default)]
     pub triggered_cutoff: bool,
 
     /// Turn number in the dialogue (0-indexed).
+    #[serde(default)]
     pub turn_number: usize,
 
     /// Who this turn is addressed to (if known).
@@ -261,6 +268,10 @@ pub struct DialogueTurn {
 
     /// End character offset.
     pub end: usize,
+}
+
+fn unknown_participant() -> ParticipantType {
+    ParticipantType::Unknown
 }
 
 impl DialogueTurn {

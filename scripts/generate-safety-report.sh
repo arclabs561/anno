@@ -18,97 +18,47 @@ This report combines results from multiple static analysis tools to provide a co
 
 EOF
 
-# 1. Unsafe Code Statistics (cargo-geiger)
-if command -v cargo-geiger &> /dev/null; then
-    echo "## Unsafe Code Statistics (cargo-geiger)" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-    cargo geiger --output-format json > .geiger-tmp.json 2>/dev/null || echo "{}" > .geiger-tmp.json
-    
-    if command -v jq &> /dev/null; then
-        UNSAFE_COUNT=$(jq -r '[.packages[] | select(.geiger.unsafe_used > 0)] | length' .geiger-tmp.json 2>/dev/null || echo "0")
-        echo "- **Files with unsafe code**: $UNSAFE_COUNT" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo "### Detailed Breakdown" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo '```' >> "$REPORT_FILE"
-        jq -r '.packages[] | select(.geiger.unsafe_used > 0) | "- \(.name): \(.geiger.unsafe_used) unsafe uses"' .geiger-tmp.json >> "$REPORT_FILE" 2>/dev/null || echo "No unsafe code found" >> "$REPORT_FILE"
-        echo '```' >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        rm -f .geiger-tmp.json
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+{
+    echo "## Unsafe code in packages (cargo-geiger)"
+    if command -v cargo-geiger >/dev/null && cargo geiger --output-format json > "$work/geiger.json" &&
+       jq -e -L "$script_dir" 'include "scan_metrics"; geiger_rows' "$work/geiger.json" > "$work/packages.json"; then
+        jq -r '"Packages with unsafe code: " + (map(select(.count > 0)) | length | tostring), (.[] | select(.count > 0) | "- \(.name): \(.count) unsafe uses")' "$work/packages.json"
     else
-        echo "WARNING:  jq not installed, skipping detailed analysis" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
+        echo "Not measured. The scanner or its report was unavailable or incomplete."
     fi
-else
-    echo "WARNING:  cargo-geiger not installed. Install with: cargo install cargo-geiger" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-fi
-
-# 2. OpenGrep Security Findings
-if command -v opengrep &> /dev/null; then
-    echo "## Security Pattern Detection (OpenGrep)" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-    
-    opengrep scan --config auto --json --output .opengrep-tmp.json crates/anno/ 2>/dev/null || echo '{"results":[]}' > .opengrep-tmp.json
-    
-    if command -v jq &> /dev/null; then
-        FINDING_COUNT=$(jq -r '.results | length' .opengrep-tmp.json 2>/dev/null || echo "0")
-        echo "- **Security findings**: $FINDING_COUNT" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        
-        if [ "$FINDING_COUNT" -gt 0 ]; then
-            echo "### Top Issues" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-            echo '```' >> "$REPORT_FILE"
-            jq -r '.results[0:10][] | "\(.check_id): \(.path):\(.start.line)"' .opengrep-tmp.json >> "$REPORT_FILE" 2>/dev/null
-            echo '```' >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-        fi
-        rm -f .opengrep-tmp.json
+    echo
+    echo "## OpenGrep findings"
+    if command -v opengrep >/dev/null && opengrep scan --config auto --json crates/anno/ > "$work/scan.json" &&
+       jq -e -L "$script_dir" 'include "scan_metrics"; analyzed_findings' "$work/scan.json" > "$work/findings.json"; then
+        jq -r '"Findings: " + (length | tostring), (.[:10][] | "- \(.check_id): \(.path):\(.start.line)")' "$work/findings.json"
     else
-        echo "WARNING:  jq not installed, skipping detailed analysis" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
+        echo "Not measured. The scanner or its report was unavailable or incomplete."
     fi
-else
-    echo "WARNING:  opengrep not installed. Install with: curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-fi
-
-# 3. Unused Dependencies (cargo-machete)
-if command -v cargo-machete &> /dev/null; then
-    echo "## Unused Dependencies (cargo-machete)" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-    ./scripts/static-analysis-common.sh machete > .machete-tmp.txt 2>&1 || true
-    if [ -s .machete-tmp.txt ]; then
-        echo '```' >> "$REPORT_FILE"
-        cat .machete-tmp.txt >> "$REPORT_FILE"
-        echo '```' >> "$REPORT_FILE"
+    echo
+    echo "## Unused dependencies"
+    if ! command -v cargo-machete >/dev/null; then
+        echo "Not measured. cargo-machete is unavailable."
+    elif "$script_dir/static-analysis-common.sh" machete > "$work/machete" 2>&1; then
+        echo "cargo-machete completed successfully."
     else
-        echo "OK: No unused dependencies found" >> "$REPORT_FILE"
+        echo "cargo-machete exited $?; see its output."
+        head -30 "$work/machete"
     fi
-    echo "" >> "$REPORT_FILE"
-    rm -f .machete-tmp.txt
-else
-    echo "WARNING:  cargo-machete not installed. Install with: cargo install cargo-machete" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-fi
-
-# 4. Dependency Security (cargo-deny)
-if command -v cargo-deny &> /dev/null; then
-    echo "## Dependency Security (cargo-deny)" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-    cargo deny check > .deny-tmp.txt 2>&1 || true
-    if grep -q "advisory" .deny-tmp.txt || grep -q "license" .deny-tmp.txt; then
-        echo "WARNING:  Issues found. Run 'cargo deny check' for details." >> "$REPORT_FILE"
+    echo
+    echo "## Dependency policies"
+    if ! command -v cargo-deny >/dev/null; then
+        echo "Not measured. cargo-deny is unavailable."
+    elif cargo deny check > "$work/deny" 2>&1; then
+        echo "cargo-deny completed successfully."
     else
-        echo "OK: No dependency security issues found" >> "$REPORT_FILE"
+        echo "cargo-deny exited $?; see its output."
+        head -30 "$work/deny"
     fi
-    echo "" >> "$REPORT_FILE"
-    rm -f .deny-tmp.txt
-else
-    echo "WARNING:  cargo-deny not installed. Install with: cargo install --locked cargo-deny" >> "$REPORT_FILE"
-    echo "" >> "$REPORT_FILE"
-fi
+    echo
+} >> "$REPORT_FILE"
 
 cat >> "$REPORT_FILE" <<EOF
 ## Recommendations

@@ -1,0 +1,57 @@
+name: Optional research
+on:
+  push:
+    branches: ['research/**', 'mutation/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    name: Optional research experiment
+    if: >-
+      github.repository_id == '1104910992' && github.ref_type == 'branch' &&
+      ((github.event_name == 'push' && !github.event.deleted) || github.event_name == 'workflow_dispatch') &&
+      (startsWith(github.ref, 'refs/heads/research/') || startsWith(github.ref, 'refs/heads/mutation/'))
+    # Share one hosted slot across both lanes. A new request replaces an older
+    # pending request, while a running experiment gets to finish.
+    concurrency:
+      group: anno-optional-research
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ANNO_NO_DOWNLOADS: '1'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Select the research task
+        id: route
+        shell: bash
+        run: |
+          # Actions string comparisons ignore case. Match the branch exactly
+          # before checking out any code, including on a manual dispatch.
+          case "$GITHUB_REF" in
+            refs/heads/research/?*) echo 'lane=research' >> "$GITHUB_OUTPUT" ;;
+            refs/heads/mutation/?*) echo 'lane=mutation' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'Select a research/ or mutation/ branch.' >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Measure mention-ranking coreference
+        if: steps.route.outputs.lane == 'research'
+        run: cargo bench --locked -p anno --no-default-features --bench coref -- --quick --noplot
+      - name: Install pinned cargo-mutants
+        if: steps.route.outputs.lane == 'mutation'
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl --fail --silent --show-error --location --retry 2 --output cargo-mutants.tar.gz \
+            https://github.com/sourcefrog/cargo-mutants/releases/download/v27.1.0/cargo-mutants-x86_64-unknown-linux-gnu.tar.gz
+          echo 'dfe6dc37d0342c891d2829b5a695aa57c2d0edecef7e7d0399a30cc6e206411e  cargo-mutants.tar.gz' | sha256sum --check
+          mkdir -p mutation-tools
+          tar -xzf cargo-mutants.tar.gz -C mutation-tools cargo-mutants
+          echo "$PWD/mutation-tools" >> "$GITHUB_PATH"
+      - name: Check discontinuous span mutants
+        if: steps.route.outputs.lane == 'mutation'
+        run: scripts/mutants-fast.sh

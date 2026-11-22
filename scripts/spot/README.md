@@ -155,14 +155,14 @@ aws s3 ls s3://arc-anno-data/results/
 
 The spot evaluation complements the CI randomized matrix tests:
 
-| Aspect | CI (`matrix_muxer_ci::test_randomized_matrix_sample`) | Spot Evaluation |
+| Aspect | CI (`muxer_matrix::test_randomized_matrix_sample`) | Spot Evaluation |
 |--------|----------------------------|-----------------|
-| **When** | Every PR, every push | On-demand, nightly, pre-release |
-| **Scope** | Small cached-only slice | Many backends × datasets × seeds |
+| **When** | PRs targeting main/master, pushes to those branches, weekly and manual runs | On-demand, nightly, pre-release |
+| **Scope** | One offline fixture plus four named tasks and worst-first when inputs are available | Many backends × datasets × seeds |
 | **Examples** | Small cap per dataset | Larger caps per dataset |
 | **Duration** | Bounded by CI timeouts | Depends on fleet size and workload |
 | **Cost** | Covered by CI | Billed by AWS usage |
-| **Goal** | Catch regressions fast | Comprehensive coverage |
+| **Goal** | Gate the labeled fixture and report external task coverage | Comprehensive coverage |
 
 ### Integration Points
 
@@ -171,12 +171,13 @@ The spot evaluation complements the CI randomized matrix tests:
    can share artifacts in `reports/`, but a direct “spot → muxer history” export is not wired up
    by default in this directory.
 
-2. **CI Seeds Trace Back to Spot**:
-   When CI finds a regression, reproduce it in spot:
+2. **Repeat a sampled NER cell**. Match the observed backend and dataset,
+   the CI seed, and the example cap. For example, preview the Spot task:
    ```bash
-   # CI failed with seed 12345 on gliner×WikiGold
-   just spot-eval-custom "gliner" "WikiGold" 1
+   uv run scripts/spot/orchestrate.py generate --dry-run \
+       --backends heuristic --datasets WikiGold --seeds 12345 --max-examples 5
    ```
+   Reproducing the score also requires the same dataset, model, and code revisions.
 
 3. **Pre-Release Checklist**:
    ```bash

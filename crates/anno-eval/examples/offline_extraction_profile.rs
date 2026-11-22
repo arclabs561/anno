@@ -6,13 +6,17 @@
 //!
 //! ```sh
 //! cargo run -p anno-eval --example offline_extraction_profile
+//! cargo run -p anno-eval --example offline_extraction_profile -- wikigold.conll
 //! ```
 //!
 //! The fixture is deliberately small and synthetic. It is useful for a
 //! deterministic smoke measurement, not for a production-quality claim.
 
+use anno_eval::eval::dataset_registry::DatasetId;
+use anno_eval::eval::loader::DatasetLoader;
 use anno_eval::eval::ner_metrics::{evaluate_entities, NerEvalResults};
 use anno_eval::eval::synthetic::{news_dataset, AnnotatedExample};
+use anno_eval::eval::{entity_type_matches, GoldEntity};
 use anno_eval::{Entity, HeuristicNER, Model, RegexNER, Result, StackedNER};
 use std::time::{Duration, Instant};
 
@@ -75,15 +79,87 @@ fn profile<M: Model>(
     })
 }
 
+fn offline_stack() -> StackedNER {
+    StackedNER::builder()
+        .layer(RegexNER::new())
+        .layer(HeuristicNER::new())
+        .build()
+}
+
+fn contains_gold(entities: &[Entity], gold: &GoldEntity) -> bool {
+    entities.iter().any(|e| {
+        e.start() == gold.start
+            && e.end() == gold.end
+            && entity_type_matches(&e.entity_type, &gold.entity_type)
+    })
+}
+
+fn report_retention(examples: &[AnnotatedExample]) -> Result<()> {
+    let regex = RegexNER::new();
+    let heuristic = HeuristicNER::new();
+    let stack = offline_stack();
+    let (mut retained, mut lost, mut gained, mut missed) = (0, 0, 0, 0);
+    let mut surface_mismatches = 0;
+    for example in examples {
+        let mut proposed = regex.extract_entities(&example.text, None)?;
+        proposed.extend(heuristic.extract_entities(&example.text, None)?);
+        let output = stack
+            .extract_entities_with_report(
+                &example.text,
+                None,
+                anno::StackedExtractionPolicy::Strict,
+            )
+            .map_err(|e| e.into_error())?;
+        for gold in &example.entities {
+            match (
+                contains_gold(&proposed, gold),
+                contains_gold(output.entities(), gold),
+            ) {
+                (true, true) => retained += 1,
+                (true, false) => lost += 1,
+                (false, true) => gained += 1,
+                (false, false) => missed += 1,
+            }
+        }
+        surface_mismatches += output
+            .entities()
+            .iter()
+            .filter(|e| e.extract_text(&example.text) != e.text)
+            .count();
+    }
+    println!("gold spans: retained={retained} lost_in_stack={lost} gained_in_stack={gained} missed_by_both={missed}");
+    println!("output spans with source-text mismatches: {surface_mismatches}");
+    Ok(())
+}
+
 fn main() -> Result<()> {
-    let examples = news_dataset();
+    let (fixture, examples) = if let Some(path) = std::env::args_os().nth(1) {
+        let content = std::fs::read_to_string(path)?;
+        let dataset = DatasetLoader::new()?.parse_content_str(&content, DatasetId::WikiGold)?;
+        (
+            "WikiGold",
+            dataset
+                .sentences
+                .into_iter()
+                .map(|s| AnnotatedExample::new(s.text(), s.entities()))
+                .collect(),
+        )
+    } else {
+        ("anno_eval::synthetic::news_dataset", news_dataset())
+    };
     let gold_count = examples
         .iter()
         .map(|example| example.entities.len())
         .sum::<usize>();
 
+    if gold_count == 0 {
+        return Err(anno::Error::InvalidInput(
+            "no labeled spans to evaluate".into(),
+        ));
+    }
+
     println!(
-        "fixture=anno_eval::synthetic::news_dataset examples={} gold_spans={} match=strict-exact-span-and-label",
+        "fixture={fixture} examples={} gold_spans={} match=strict-exact-span-and-label",
         examples.len(),
         gold_count
     );
@@ -94,16 +170,7 @@ fn main() -> Result<()> {
     let profiles = [
         profile("regex", RegexNER::new, &examples)?,
         profile("heuristic", HeuristicNER::new, &examples)?,
-        profile(
-            "stacked",
-            || {
-                StackedNER::builder()
-                    .layer(RegexNER::new())
-                    .layer(HeuristicNER::new())
-                    .build()
-            },
-            &examples,
-        )?,
+        profile("stacked", offline_stack, &examples)?,
     ];
 
     for profile in profiles {
@@ -119,5 +186,5 @@ fn main() -> Result<()> {
         );
     }
 
-    Ok(())
+    report_retention(&examples)
 }

@@ -87,14 +87,14 @@ def build_scorer_heads(config) -> dict[str, nn.Module]:
     return heads
 
 
-def load_fcoref_model(model_id: str = "biu-nlp/f-coref"):
+def load_fcoref_model(model_id: str = "biu-nlp/f-coref", revision: str | None = None):
     """Load f-coref model weights directly via transformers."""
     from huggingface_hub import hf_hub_download
 
-    config = AutoConfig.from_pretrained(model_id)
+    config = AutoConfig.from_pretrained(model_id, revision=revision)
 
     # Load the full state dict from the HF checkpoint
-    weights_path = hf_hub_download(model_id, "pytorch_model.bin")
+    weights_path = hf_hub_download(model_id, "pytorch_model.bin", revision=revision)
     state_dict = torch.load(weights_path, map_location="cpu", weights_only=True)
 
     # Separate encoder vs scorer head weights
@@ -122,7 +122,7 @@ def load_fcoref_model(model_id: str = "biu-nlp/f-coref"):
 
     # Load encoder
     # Try loading the base DistilRoBERTa model
-    encoder = AutoModel.from_pretrained(model_id, config=config)
+    encoder = AutoModel.from_pretrained(model_id, config=config, revision=revision)
 
     # Build and load scorer heads
     heads = build_scorer_heads(config)
@@ -215,9 +215,9 @@ def export_scorer_weights(heads: dict, output_dir: Path):
     return weights_path
 
 
-def export_tokenizer(output_dir: Path, model_id: str = "biu-nlp/f-coref"):
+def export_tokenizer(output_dir: Path, model_id: str = "biu-nlp/f-coref", revision: str | None = None):
     """Save the tokenizer."""
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
     tokenizer.save_pretrained(str(output_dir))
     # Keep only essential files
     keep = {"tokenizer.json", "encoder.onnx", "scorer_weights.safetensors",
@@ -299,6 +299,7 @@ def main():
         "--output-dir", type=Path, default=Path("fcoref_onnx"),
         help="Output directory (default: fcoref_onnx)",
     )
+    parser.add_argument("--revision", help="Hugging Face revision for the model, config, and tokenizer")
     parser.add_argument("--quantize", action="store_true", help="Also produce INT8 quantized encoder")
     parser.add_argument("--opset", type=int, default=14, help="ONNX opset version (default: 14)")
     args = parser.parse_args()
@@ -307,7 +308,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading f-coref model (via transformers, no spacy)...")
-    encoder, heads, config = load_fcoref_model()
+    encoder, heads, config = load_fcoref_model(revision=args.revision)
 
     print("Exporting encoder to ONNX...")
     encoder_path = export_encoder(encoder, output_dir, opset=args.opset)
@@ -316,7 +317,7 @@ def main():
     export_scorer_weights(heads, output_dir)
 
     print("Saving tokenizer...")
-    export_tokenizer(output_dir)
+    export_tokenizer(output_dir, revision=args.revision)
 
     print("Saving config...")
     export_config(config, output_dir)

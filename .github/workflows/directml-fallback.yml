@@ -1,0 +1,68 @@
+name: DirectML registration fallback
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - ".github/workflows/directml-fallback.yml"
+      - "crates/anno/examples/onnx_directml_fallback.rs"
+      - "crates/anno/src/backends/hf_loader.rs"
+      - "crates/anno/tests/bughunt7_data/bert_cjk/model.onnx"
+      - "crates/anno/Cargo.toml"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: directml-fallback-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cpu-runtime:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify pinned CPU runtime and exercise Anno's explicit provider path
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'anno-ort-cpu'
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $url = 'https://files.pythonhosted.org/packages/8b/f4/6b89e297b93704345f0f3f8c62229bee323ef25682a3f9b4f89a39324950/onnxruntime-1.24.4-cp312-cp312-win_amd64.whl'
+          $wheel = Join-Path $dir 'runtime.zip'
+          Invoke-WebRequest -Uri $url -OutFile $wheel
+          $wheelHash = (Get-FileHash $wheel -Algorithm SHA256).Hash
+          if ($wheelHash -ne '535b29475ca42b593c45fbb2152fbf1cdf3f287315bf650e6a724a0a1d065cdb') {
+            throw 'ONNX Runtime wheel digest mismatch'
+          }
+          Expand-Archive -Path $wheel -DestinationPath $dir
+          $env:ORT_DYLIB_PATH = Join-Path $dir 'onnxruntime/capi/onnxruntime.dll'
+          $modelHash = (Get-FileHash 'crates/anno/tests/bughunt7_data/bert_cjk/model.onnx' -Algorithm SHA256).Hash
+          $receipt = Join-Path $dir 'receipt.json'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $result = cargo run --locked -p anno --no-default-features --features onnx-directml,ort/load-dynamic --example onnx_directml_fallback
+          $exitCode = $LASTEXITCODE
+          $evidence = @{
+            sha = $env:GITHUB_SHA
+            runner_image = $env:ImageVersion
+            wheel_url = $url
+            wheel_sha256 = $wheelHash
+            runtime_dll_sha256 = (Get-FileHash $env:ORT_DYLIB_PATH -Algorithm SHA256).Hash
+            model_sha256 = $modelHash
+            exit_code = $exitCode
+          }
+          if ($exitCode -eq 0) { $evidence.probe = $result | ConvertFrom-Json }
+          $evidence | ConvertTo-Json -Depth 4 | Tee-Object -FilePath $receipt
+          exit $exitCode
+      - name: Retain runtime and registration evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: directml-fallback-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/anno-ort-cpu/receipt.json
+          retention-days: 7
+          if-no-files-found: warn

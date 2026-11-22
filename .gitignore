@@ -219,3 +219,7 @@ docs/generated/
 # Tracked documentation that would otherwise match the generated-docs rule.
 !.github/COMMIT_CHECKLIST.md
 !crates/anno/src/backends/gliner2_fastino/PORT_NOTES.md
+
+# Live website and PDF captures for local extraction checks
+/testdata/real_world/*
+!/testdata/real_world/README.md
