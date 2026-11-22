@@ -1292,6 +1292,8 @@ impl Identity {
 struct GroundedDocumentWire {
     id: String,
     text: String,
+    #[serde(default)]
+    coref_backend: Option<String>,
     signals: Vec<Signal<Location>>,
     tracks: HashMap<TrackId, Track>,
     identities: HashMap<IdentityId, Identity>,
@@ -1313,6 +1315,7 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
+            coref_backend: wire.coref_backend,
             signals: wire.signals,
             tracks: wire.tracks,
             identities: wire.identities,
@@ -1404,6 +1407,9 @@ pub struct GroundedDocument {
     id: String,
     /// Raw text content
     text: String,
+    /// Most recent successful coreference backend recorded for this document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coref_backend: Option<String>,
     /// Level 1: Raw signals (detections)
     signals: Vec<Signal<Location>>,
     /// Level 2: Tracks (within-document coreference chains)
@@ -1439,6 +1445,7 @@ impl GroundedDocument {
         Self {
             id: id.into(),
             text: text.into(),
+            coref_backend: None,
             signals: Vec::new(),
             tracks: HashMap::new(),
             identities: HashMap::new(),
@@ -1460,6 +1467,17 @@ impl GroundedDocument {
     #[must_use]
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Get the last successful coreference backend, when recorded by the producer.
+    #[must_use]
+    pub fn coref_backend(&self) -> Option<&str> {
+        self.coref_backend.as_deref()
+    }
+
+    /// Record a successful coreference run, including a run that yielded zero tracks.
+    pub fn set_coref_backend(&mut self, backend: impl Into<String>) {
+        self.coref_backend = Some(backend.into());
     }
 
     /// Get a mutable reference to the signals vector.

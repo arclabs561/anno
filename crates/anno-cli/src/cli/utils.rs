@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read};
 
+use anno::backends::coref::CorefBackend;
 use anno::{GroundedDocument, Identity, IdentityId, SignalId, TrackId};
 
 #[cfg(not(any(feature = "extractor-readability", feature = "extractor-html2text")))]
@@ -308,7 +309,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
                 match FCoref::from_path(path) {
                     Ok(model) => match model.resolve(text) {
                         Ok(clusters) => {
-                            fcoref_clusters_to_tracks(doc, &clusters, text);
+                            clusters_to_tracks(doc, &clusters, model.name());
                             return;
                         }
                         Err(e) => {
@@ -326,7 +327,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
         match FCoref::from_pretrained("biu-nlp/f-coref") {
             Ok(model) => match model.resolve(text) {
                 Ok(clusters) => {
-                    fcoref_clusters_to_tracks(doc, &clusters, text);
+                    clusters_to_tracks(doc, &clusters, model.name());
                     return;
                 }
                 Err(e) => {
@@ -341,18 +342,21 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
 
     // Fallback: heuristic mention-ranking
     let coref = anno::backends::coref::mention_ranking::MentionRankingCoref::new();
-    if let Err(e) = coref.resolve_into_document(text, doc) {
-        use super::output::color;
-        eprintln!("{} coref failed: {}", color("33", "warning:"), e);
+    match coref.resolve_into_document(text, doc) {
+        Ok(_) => doc.set_coref_backend(coref.name()),
+        Err(e) => {
+            use super::output::color;
+            eprintln!("{} coref failed: {}", color("33", "warning:"), e);
+        }
     }
 }
 
-/// Convert f-coref clusters into GroundedDocument tracks.
-#[cfg(feature = "onnx")]
-fn fcoref_clusters_to_tracks(
+/// Convert coreference clusters into GroundedDocument tracks.
+#[cfg(any(feature = "onnx", feature = "discourse"))]
+pub(super) fn clusters_to_tracks(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
-    _text: &str,
+    backend_name: &str,
 ) {
     for cluster in clusters {
         if cluster.mentions.len() < 2 || cluster.spans.len() != cluster.mentions.len() {
@@ -375,6 +379,7 @@ fn fcoref_clusters_to_tracks(
         let new_ids = doc.add_signals(signals);
         doc.create_track_from_signals(cluster.canonical.clone(), &new_ids);
     }
+    doc.set_coref_backend(backend_name);
 }
 
 /// Attach demo KB-style identities to tracks.

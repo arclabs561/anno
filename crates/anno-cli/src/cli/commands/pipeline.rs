@@ -32,6 +32,13 @@ pub struct PipelineArgs {
     #[arg(long)]
     pub coref: bool,
 
+    /// Select speaker-only coreference (English first-person singular) in place of general coreference.
+    /// General name and third-person chains are omitted.
+    /// Each turn has speaker, text, start and end (character offsets in one input document).
+    #[cfg(feature = "discourse")]
+    #[arg(long, requires = "coref", value_name = "JSON")]
+    pub speaker_turns: Option<std::path::PathBuf>,
+
     /// Link tracks to KB identities
     #[arg(long)]
     pub link_kb: bool,
@@ -115,6 +122,22 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         );
     }
 
+    #[cfg(feature = "discourse")]
+    let speaker_clusters = if let Some(path) = &args.speaker_turns {
+        let [(_, text)] = texts.as_slice() else {
+            return Err("--speaker-turns requires exactly one input document".into());
+        };
+        let file = fs::File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let turns: Vec<anno::discourse::dialogue::DialogueTurn> =
+            serde_json::from_reader(file).map_err(|e| format!("{}: {e}", path.display()))?;
+        Some(
+            anno::discourse::dialogue::resolve_speaker_mentions(text, &turns)
+                .map_err(|e| format!("{}: {e}", path.display()))?,
+        )
+    } else {
+        None
+    };
+
     // Process each document
     let model = args.model.create_model()?;
     let mut documents: Vec<GroundedDocument> = Vec::new();
@@ -145,6 +168,13 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
 
         // Apply enhancements
         if args.coref {
+            #[cfg(feature = "discourse")]
+            if let Some(clusters) = &speaker_clusters {
+                super::super::utils::clusters_to_tracks(&mut doc, clusters, "speaker-turns");
+            } else {
+                resolve_coreference(&mut doc, text, &signal_ids);
+            }
+            #[cfg(not(feature = "discourse"))]
             resolve_coreference(&mut doc, text, &signal_ids);
         }
 
@@ -273,6 +303,9 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
                 for doc in &documents {
                     println!();
                     println!("{}", color("1;36", &format!("Document: {}", doc.id())));
+                    if let Some(backend) = doc.coref_backend() {
+                        println!("Coreference backend: {backend}");
+                    }
                     print_signals(doc, doc.text(), 0);
                 }
             }
