@@ -123,3 +123,56 @@ fn extract_once_then_rescore_the_same_unicode_source() {
     std::fs::write(&file, "{}").unwrap();
     rejection(SOURCE, "parse GroundedDocument JSON");
 }
+
+#[test]
+fn coincident_labels_keep_exact_matches_before_type_and_boundary_diagnostics() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("predictions.json");
+    let filename = file.to_str().unwrap();
+    let doc = json_output(&[
+        "extract", "--model", "pattern", "--text", SOURCE, "--format", "grounded",
+    ]);
+    let gold_org = "x@y.com:ORG:2:9";
+    for gold in [[GOLD, gold_org], [gold_org, GOLD]] {
+        let base = [
+            "eval", "--text", SOURCE, "--gold", gold[0], "--gold", gold[1], "--json",
+        ];
+        std::fs::write(&file, doc.to_string()).unwrap();
+        for source in [["--model", "pattern"], ["--predictions", filename]] {
+            let score = json_output(&[base.as_slice(), source.as_slice()].concat());
+            assert_eq!(score["correct"], 1);
+            assert_eq!(score["precision"], 1.0);
+            assert_eq!(score["recall"], 0.5);
+            assert_eq!(score["f1"], 2.0 / 3.0);
+        }
+
+        let email = doc["signals"][0].clone();
+        let mut wrong = email.clone();
+        wrong["id"] = json!(7);
+        wrong["label"] = json!("DATE");
+        let mut partial = email.clone();
+        partial["id"] = json!(11);
+        partial["location"]["Text"]["end"] = json!(3);
+        partial["surface"] = json!("x");
+        for predictions in [
+            vec![wrong.clone(), partial.clone(), email.clone()],
+            vec![email.clone(), partial.clone(), wrong.clone()],
+        ] {
+            let mut saved = doc.clone();
+            saved["signals"] = json!(predictions);
+            std::fs::write(&file, saved.to_string()).unwrap();
+            let score = json_output(&[base.as_slice(), &["--predictions", filename]].concat());
+            let matches = score["matches"].as_array().unwrap();
+            assert_eq!(matches.len(), 3);
+            assert!(matches
+                .iter()
+                .any(|m| m["type"] == "correct" && m["pred_id"] == 0));
+            assert!(matches.iter().any(|m| m["type"] == "type_mismatch"
+                && m["pred_id"] == 7
+                && m["gold_label"] == "ORG"));
+            assert!(matches
+                .iter()
+                .any(|m| m["type"] == "false_positive" && m["pred_id"] == 11));
+        }
+    }
+}

@@ -3742,45 +3742,50 @@ impl EvalComparison {
         let mut gold_matched = vec![false; gold.len()];
         let mut pred_matched = vec![false; predicted.len()];
 
-        // First pass: find exact matches and type mismatches
-        for (pi, pred) in predicted.iter().enumerate() {
-            let pred_offsets = match pred.location.text_offsets() {
-                Some(o) => o,
-                None => continue,
-            };
-
-            for (gi, g) in gold.iter().enumerate() {
-                if gold_matched[gi] {
+        // Reserve all exact (location, label) matches before assigning type errors.
+        // Stable IDs break ties between interchangeable occurrences at the same span.
+        let mut gold_order: Vec<_> = (0..gold.len()).collect();
+        gold_order.sort_unstable_by_key(|&i| gold[i].id);
+        let mut pred_order: Vec<_> = (0..predicted.len()).collect();
+        pred_order.sort_unstable_by_key(|&i| predicted[i].id);
+        for same_label in [true, false] {
+            for &pi in &pred_order {
+                if pred_matched[pi] {
                     continue;
                 }
-                let gold_offsets = match g.location.text_offsets() {
-                    Some(o) => o,
-                    None => continue,
+                let pred = &predicted[pi];
+                let Some(offsets) = pred.location.text_offsets() else {
+                    continue;
                 };
-
-                // Exact span match
-                if pred_offsets == gold_offsets {
-                    if pred.label == g.label {
-                        matches.push(EvalMatch::Correct {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                        });
-                    } else {
-                        matches.push(EvalMatch::TypeMismatch {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                            gold_label: g.label.to_string(),
-                            pred_label: pred.label.to_string(),
-                        });
+                let Some(&gi) = gold_order.iter().find(|&&gi| {
+                    let g = &gold[gi];
+                    !gold_matched[gi]
+                        && (g.label == pred.label) == same_label
+                        && g.location.text_offsets() == Some(offsets)
+                }) else {
+                    continue;
+                };
+                let g = &gold[gi];
+                let matched = if same_label {
+                    EvalMatch::Correct {
+                        gold_id: g.id,
+                        pred_id: pred.id,
                     }
-                    gold_matched[gi] = true;
-                    pred_matched[pi] = true;
-                    break;
-                }
+                } else {
+                    EvalMatch::TypeMismatch {
+                        gold_id: g.id,
+                        pred_id: pred.id,
+                        gold_label: g.label.to_string(),
+                        pred_label: pred.label.to_string(),
+                    }
+                };
+                matches.push(matched);
+                gold_matched[gi] = true;
+                pred_matched[pi] = true;
             }
         }
 
-        // Second pass: find boundary errors (overlapping but not exact)
+        // Assign boundary errors after the exact-location matches.
         for (pi, pred) in predicted.iter().enumerate() {
             if pred_matched[pi] {
                 continue;
