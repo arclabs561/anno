@@ -101,6 +101,9 @@
 // This module is compiled under `anno-eval`'s `eval` feature.
 // Tests within this file are still `#[cfg(test)]` as usual.
 
+#[path = "matrix_retry.rs"]
+mod retry;
+
 use crate::eval::backend_factory::BackendFactory;
 use crate::eval::loader::{DatasetId, DatasetLoader, LoadableDatasetId};
 use crate::eval::provenance::policy_cohort_key;
@@ -930,6 +933,8 @@ struct WorstFirstRoundLog {
     hard_weight: f64,
     soft_weight: f64,
     top_candidates: LogTopCandidates,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry: Option<retry::RetryCell>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -1191,14 +1196,11 @@ fn eligible_tasks_for_run(loader: &DatasetLoader, require_cached: bool) -> Vec<T
     out
 }
 
-fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool) -> Option<Task> {
+fn candidate_tasks_for_run(loader: &DatasetLoader, require_cached: bool) -> Vec<Task> {
     if let Some(t) = matrix_task_override() {
-        return Some(t);
+        return vec![t];
     }
     let mut tasks = eligible_tasks_for_run(loader, require_cached);
-    if tasks.is_empty() {
-        return None;
-    }
 
     // Optional coarse “perspective” hint for task selection.
     //
@@ -1231,6 +1233,11 @@ fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool
             }
         }
     }
+    tasks
+}
+
+fn selected_task_for_run(seed: u64, loader: &DatasetLoader, require_cached: bool) -> Option<Task> {
+    let tasks = candidate_tasks_for_run(loader, require_cached);
     let items: Vec<String> = tasks.iter().map(|t| t.code().to_string()).collect();
     let chosen = mh::pick_random_subset(seed ^ 0xC0DE_CAFE, &items, 1)
         .into_iter()
@@ -1471,6 +1478,7 @@ fn select_backends(
     cached_only: bool,
     k: usize,
     prior_calls: u64,
+    retry: Option<&retry::RetryCell>,
 ) -> Vec<String> {
     if candidates_in_order.is_empty() || k == 0 {
         return Vec::new();
@@ -1853,21 +1861,26 @@ fn select_backends(
                 );
 
                 let per_dataset = mh::env_bool("ANNO_MUXER_PER_DATASET", true);
-                let (pick, explore_first) = mh::worst_first_pick_one(
-                    seed ^ 0x574F_5253 ^ (round as u64),
-                    &remaining,
-                    mh::WorstFirstConfig {
-                        exploration_c: wcfg.exploration_c,
-                        hard_weight: wcfg.hard_weight,
-                        soft_weight: wcfg.soft_weight,
-                    },
-                    |b| history.observed_summary_for(b, datasets, per_dataset).calls,
-                    |b| {
-                        let s = summaries.get(b).copied().unwrap_or_default();
-                        (s.calls, s.hard_junk_rate(), s.soft_junk_rate())
-                    },
-                )
-                .unwrap_or_else(|| (remaining[round].clone(), false));
+                let retry = retry.filter(|cell| round == 0 && remaining.contains(&cell.backend));
+                let (pick, explore_first) = if let Some(cell) = retry {
+                    (cell.backend.clone(), false)
+                } else {
+                    mh::worst_first_pick_one(
+                        seed ^ 0x574F_5253 ^ (round as u64),
+                        &remaining,
+                        mh::WorstFirstConfig {
+                            exploration_c: wcfg.exploration_c,
+                            hard_weight: wcfg.hard_weight,
+                            soft_weight: wcfg.soft_weight,
+                        },
+                        |b| history.observed_summary_for(b, datasets, per_dataset).calls,
+                        |b| {
+                            let s = summaries.get(b).copied().unwrap_or_default();
+                            (s.calls, s.hard_junk_rate(), s.soft_junk_rate())
+                        },
+                    )
+                    .expect("remaining contains at least one backend")
+                };
 
                 // Keep verbose candidate debug: compute the same rows as before for printing.
                 let total_calls: f64 = summaries
@@ -1886,7 +1899,18 @@ fn select_backends(
                         wcfg.hard_weight * hard_junk + wcfg.soft_weight * soft_junk + exploration;
                     rows.push((score, b.clone(), s));
                 }
-                rows.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+                // List the actual pick first even when it came from replay or unseen-arm
+                // exploration. Break remaining score ties the same way as the selector.
+                rows.sort_by(|a, b| {
+                    (b.1 == pick)
+                        .cmp(&(a.1 == pick))
+                        .then_with(|| b.0.total_cmp(&a.0))
+                        .then_with(|| {
+                            mh::stable_hash64(seed ^ round as u64, &a.1)
+                                .cmp(&mh::stable_hash64(seed ^ round as u64, &b.1))
+                        })
+                        .then_with(|| a.1.cmp(&b.1))
+                });
 
                 if verbose {
                     eprintln!(
@@ -1987,6 +2011,7 @@ fn select_backends(
                             mab_k_round: None,
                             exp3ix_rounds: None,
                             worst_first_round: Some(WorstFirstRoundLog {
+                                retry: retry.cloned(),
                                 remaining: remaining.clone(),
                                 chosen: pick.clone(),
                                 explore_first,
@@ -2617,19 +2642,12 @@ struct EstimateDatasetSelection<'a> {
     fixed: Option<&'a [String]>,
 }
 
-fn choose_datasets_for_run(
-    seed: u64,
+fn pinned_dataset_candidates(
     loader: &DatasetLoader,
     tasks: &[Task],
     require_cached: bool,
-    datasets_per_run: usize,
-    estimate: Option<EstimateDatasetSelection<'_>>,
 ) -> Vec<DatasetId> {
     let mut candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
-    if candidates.is_empty() || datasets_per_run == 0 {
-        return Vec::new();
-    }
-
     // Optional facet pins for dataset selection.
     //
     // This is intentionally simple and coarse: it constrains which datasets we *sample* so muxer
@@ -2684,6 +2702,18 @@ fn choose_datasets_for_run(
             lang_ok && dom_ok
         });
     }
+    candidates
+}
+
+fn choose_datasets_for_run(
+    seed: u64,
+    loader: &DatasetLoader,
+    tasks: &[Task],
+    require_cached: bool,
+    datasets_per_run: usize,
+    estimate: Option<EstimateDatasetSelection<'_>>,
+) -> Vec<DatasetId> {
+    let candidates = pinned_dataset_candidates(loader, tasks, require_cached);
     if candidates.is_empty() {
         return Vec::new();
     }
@@ -2935,39 +2965,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
 
     let try_download_on_empty = mh::env_bool("ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY", false);
 
-    let (slice_tag, tasks, require_cached_for_run) =
-        if let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, require_cached) {
-            (slice_tag, tasks, require_cached)
-        } else if require_cached && try_download_on_empty {
-            // Cache-only selection yielded nothing. Fall back to “try to fetch once” so CI
-            // doesn't silently become a no-op when caches are cold.
-            //
-            // This will still use S3 first if configured.
-            let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, false) else {
-                eprintln!(
-                    "matrix-muxer: no eligible tasks even after download fallback (cache_dir={:?})",
-                    loader.cache_dir()
-                );
-                return;
-            };
-            (slice_tag, tasks, false)
-        } else {
-            eprintln!(
-                "matrix-muxer: no eligible tasks (require_cached={} cache_dir={:?})",
-                require_cached,
-                loader.cache_dir()
-            );
-            return;
-        };
-
-    // Datasets: choose a small number of compatible datasets.
-    //
-    // Local default is “try to fetch”: we pay the download cost once and reuse cache later.
-    // CI prefers cache, but may fall back to downloads when caches are cold.
-    let datasets_per_run_default = if require_cached_for_run { 2 } else { 3 };
-    let datasets_per_run =
-        env_usize("ANNO_MUXER_DATASETS_PER_RUN", datasets_per_run_default).max(1);
-
     // Optional override: force evaluation of a specific backend (or comma-separated list).
     // When set, we also bias dataset sampling toward datasets compatible with that backend so
     // measure-mode results stay meaningful.
@@ -3004,6 +3001,57 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
     {
         eprintln!("matrix-muxer: both FIXED_BACKEND and PIN_BACKEND are set; FIXED will win for selection");
     }
+    let retry = if matches!(strategy, SampleStrategy::WorstFirst) {
+        retry::next_cell(
+            &loader,
+            require_cached,
+            seed,
+            window_cap,
+            fixed_datasets_requested.as_deref(),
+            fixed_backends_requested.as_deref(),
+            pinned_backends_requested.as_deref(),
+        )
+    } else {
+        None
+    };
+    let (slice_tag, tasks, require_cached_for_run) = if let Some(cell) = &retry {
+        (
+            cell.task.code().to_string(),
+            vec![cell.task],
+            require_cached,
+        )
+    } else if let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, require_cached) {
+        (slice_tag, tasks, require_cached)
+    } else if require_cached && try_download_on_empty {
+        // Cache-only selection yielded nothing. Fall back to “try to fetch once” so CI
+        // doesn't silently become a no-op when caches are cold.
+        //
+        // This will still use S3 first if configured.
+        let Some((slice_tag, tasks)) = slice_for_run(seed, &loader, false) else {
+            eprintln!(
+                "matrix-muxer: no eligible tasks even after download fallback (cache_dir={:?})",
+                loader.cache_dir()
+            );
+            return;
+        };
+        (slice_tag, tasks, false)
+    } else {
+        eprintln!(
+            "matrix-muxer: no eligible tasks (require_cached={} cache_dir={:?})",
+            require_cached,
+            loader.cache_dir()
+        );
+        return;
+    };
+
+    // Datasets: choose a small number of compatible datasets.
+    //
+    // Local default is “try to fetch”: we pay the download cost once and reuse cache later.
+    // CI prefers cache, but may fall back to downloads when caches are cold.
+    let datasets_per_run_default = if require_cached_for_run { 2 } else { 3 };
+    let datasets_per_run =
+        env_usize("ANNO_MUXER_DATASETS_PER_RUN", datasets_per_run_default).max(1);
+
     // Backends: choose a *tiny* subset per run (keep this test fast).
     //
     let mut candidates = backend_candidates(strategy, &tasks);
@@ -3100,6 +3148,26 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             return;
         }
         chosen_datasets = retained;
+    } else if let Some(cell) = &retry {
+        // Keep the replayed cell eligible for every backend in this batch.
+        chosen_datasets = vec![cell.dataset];
+        if datasets_per_run > 1 {
+            for ds in choose_datasets_for_run(
+                seed,
+                &loader,
+                &tasks,
+                require_cached_for_run,
+                datasets_per_run,
+                None,
+            ) {
+                if chosen_datasets.len() == datasets_per_run {
+                    break;
+                }
+                if ds != cell.dataset && TaskEvaluator::is_backend_compatible(&cell.backend, ds) {
+                    chosen_datasets.push(ds);
+                }
+            }
+        }
     } else {
         // Default: choose a small number of compatible datasets.
         chosen_datasets = choose_datasets_for_run(
@@ -3823,6 +3891,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
+                retry.as_ref(),
             )
         } else {
             select_backends(
@@ -3838,6 +3907,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                 require_cached_for_run,
                 backends_per_run,
                 prior_calls,
+                retry.as_ref(),
             )
         }
     } else if per_dataset {
@@ -3854,6 +3924,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
+            retry.as_ref(),
         )
     } else {
         select_backends(
@@ -3869,17 +3940,11 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             require_cached_for_run,
             backends_per_run,
             prior_calls,
+            retry.as_ref(),
         )
     };
 
     // Degenerate-slice diagnostics: log when the bandit machinery is vacuous.
-    if chosen_backends.len() <= 1 {
-        eprintln!(
-            "matrix-muxer: WARN degenerate slice: |arms|={} for slice={} -- bandit selection is vacuous (single arm, nothing to learn)",
-            chosen_backends.len(),
-            slice_tag_for_muxer
-        );
-    }
     if candidates.len() <= 1 && chosen_backends.len() <= 1 {
         eprintln!(
             "matrix-muxer: WARN only {} candidate backend(s) available for this task/feature set -- consider enabling more features (e.g. --features onnx)",
@@ -4716,6 +4781,7 @@ fn test_latency_guardrail_require_measured_uses_observed_calls() {
         false,
         1,
         6,
+        None,
     );
 
     // With require_measured=1 and no observed calls, we must not pick it.
@@ -4805,6 +4871,7 @@ fn test_latency_guardrail_require_measured_prefers_observed_measured_arm() {
         false,
         1,
         6,
+        None,
     );
     assert_eq!(chosen, vec!["measured_fast".to_string()]);
 }
@@ -4852,6 +4919,7 @@ fn test_control_k_prefix_is_deterministic_and_reserved() {
         false,
         2,
         0,
+        None,
     );
     assert!(!chosen.is_empty());
     assert_eq!(chosen[0], expected);
@@ -4922,6 +4990,7 @@ fn test_novelty_still_triggers_under_priors() {
         false,
         1,
         6,
+        None,
     );
     assert_eq!(
         chosen.as_slice(),
@@ -4997,6 +5066,7 @@ fn test_measure_mode_default_control_does_not_bypass_ml_when_k_is_one() {
         false,
         1,
         0,
+        None,
     );
 
     let s = std::fs::read_to_string(&tmp).expect("read decisions log");
@@ -5042,6 +5112,7 @@ fn test_coverage_decision_log_keeps_all_selected_arms() {
         false,
         2,
         0,
+        None,
     );
     let log = std::fs::read_to_string(&tmp).expect("read decisions log");
     let record: serde_json::Value = serde_json::from_str(log.trim()).expect("parse decision");
@@ -5120,6 +5191,7 @@ fn test_control_only_still_writes_minimal_decision_log_row() {
         false,
         2, // n=2: max_control = min(1, 2-1) = 1 → 1 control arm + 1 MAB pick
         0,
+        None,
     );
 
     let s = std::fs::read_to_string(&tmp).expect("read decisions log");
