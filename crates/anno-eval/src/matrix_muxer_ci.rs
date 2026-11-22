@@ -4103,9 +4103,6 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
             } else {
                 None
             };
-            let f1 = r.primary_f1().unwrap_or(0.0);
-            let thr = junk_f1_threshold(r.task);
-
             let mon_cfg = mh::monitored_mab_config_from_env();
             let mon_enabled = monitoring_enabled(&mon_cfg);
             let monitor_recent_cap = mh::env_usize("ANNO_MUXER_MONITOR_RECENT_CAP", 20);
@@ -4147,7 +4144,7 @@ pub fn run_randomized_matrix_sample_with_seed(seed: u64) {
                     dataset: format!("{:?}", r.dataset),
                     backend: r.backend.clone(),
                     backend_display: r.backend_display.clone(),
-                    primary_f1: Some(f1),
+                    primary_f1: o.quality_score,
                     junk_f1_threshold: Some(thr),
                     ok,
                     junk,

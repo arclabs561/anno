@@ -34,18 +34,11 @@ fn simulated_outcome(backend: &str, round: usize) -> (Outcome, Option<&'static s
         }
         // Low-latency structured backend with occasional hard failure.
         _ => {
-            let hard_fail = round.is_multiple_of(3);
-            (
-                Outcome::with_quality(
-                    !hard_fail,
-                    hard_fail,
-                    hard_fail,
-                    4,
-                    90,
-                    if hard_fail { 0.0 } else { 0.35 },
-                ),
-                if hard_fail { Some("timeout") } else { None },
-            )
+            if round.is_multiple_of(3) {
+                (Outcome::new(false, true, true, 4, 90), Some("timeout"))
+            } else {
+                (Outcome::with_quality(true, false, false, 4, 90, 0.35), None)
+            }
         }
     }
 }
@@ -106,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "junk": outcome.junk,
             "hard_junk": outcome.hard_junk,
             "fail_kind": fail_kind,
-            "primary_f1": outcome.quality_score.unwrap_or(0.0),
+            "primary_f1": outcome.quality_score,
             "elapsed_ms": outcome.elapsed_ms,
             "cost_units": outcome.cost_units
         });

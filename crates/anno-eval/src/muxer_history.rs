@@ -560,6 +560,8 @@ mod tests {
                 h.push_with_fail_kind(&BackendHistory::dataset_key("a", dataset), outcome, None);
             }
         }
+        h.save(&tmp.path);
+        let h = BackendHistory::try_load(&tmp.path, 10).unwrap();
         let scoped = h.observed_summary_for("a", Some(&[first, second]), true);
         assert_eq!((scoped.calls, scoped.mean_quality_score), (4, Some(0.5)));
         let facet = h.facet_prior_summary_for("a", first.language(), first.domain());
