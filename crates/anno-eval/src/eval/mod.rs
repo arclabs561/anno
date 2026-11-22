@@ -288,6 +288,7 @@ mod history_clock;
 pub mod incremental_coref;
 pub mod inter_doc_coref;
 pub mod loader;
+mod matching;
 pub mod metrics;
 pub mod modes;
 pub mod ner_metrics;
@@ -747,6 +748,11 @@ pub fn entity_type_matches(a: &EntityType, b: &EntityType) -> bool {
         | ("LOCATION", "LOC") | ("LOC", "LOCATION")
         | ("LOCATION", "GPE") | ("GPE", "LOCATION")
         | ("LOC", "GPE") | ("GPE", "LOC")
+        // The WNUT loader emits CREATIVE_WORK and SchemaMapper emits WORK_OF_ART.
+        | (
+            "CREATIVE-WORK" | "CREATIVE_WORK" | "WORK_OF_ART",
+            "CREATIVE-WORK" | "CREATIVE_WORK" | "WORK_OF_ART"
+        )
         // MISC variations
         | ("MISC", "MISCELLANEOUS") | ("MISCELLANEOUS", "MISC")
         | ("MISC", "OTHER") | ("OTHER", "MISC")
