@@ -9,6 +9,7 @@
 
 use clap::Parser;
 use std::fs;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use super::super::output::color;
@@ -43,6 +44,44 @@ pub struct ImportArgs {
     pub quiet: bool,
 }
 
+/// Exact BRAT character offsets. Unlike an entity's normalized DiscontinuousSpan,
+/// source segments can have empty endpoints marking leading/trailing line breaks.
+#[derive(Debug, Clone)]
+struct SourceSegments(Vec<Range<usize>>);
+
+impl SourceSegments {
+    fn new(ranges: Vec<Range<usize>>) -> Result<Self, String> {
+        if ranges.len() < 2 {
+            return Err("expected at least two source segments".into());
+        }
+        for (i, range) in ranges.iter().enumerate() {
+            if range.start > range.end || (i > 0 && ranges[i - 1].end > range.start) {
+                return Err(format!("invalid or out-of-order source segment {range:?}"));
+            }
+        }
+        Ok(Self(ranges))
+    }
+
+    fn bounds(&self) -> Range<usize> {
+        self.0[0].start..self.0[self.0.len() - 1].end
+    }
+}
+
+#[derive(Debug, Clone)]
+enum ImportedSpan {
+    Contiguous(Range<usize>),
+    Segmented(SourceSegments),
+}
+
+impl ImportedSpan {
+    fn bounds(&self) -> Range<usize> {
+        match self {
+            Self::Contiguous(range) => range.clone(),
+            Self::Segmented(segments) => segments.bounds(),
+        }
+    }
+}
+
 /// Imported annotation from external format.
 #[derive(Debug, Clone)]
 pub struct ImportedAnnotation {
@@ -50,10 +89,7 @@ pub struct ImportedAnnotation {
     pub text: String,
     /// Entity type label
     pub entity_type: String,
-    /// Start character offset
-    pub start: usize,
-    /// End character offset
-    pub end: usize,
+    span: ImportedSpan,
     /// Source annotation system
     pub source: String,
     /// Optional confidence score
@@ -167,15 +203,19 @@ pub fn run(args: ImportArgs) -> Result<(), String> {
     let output_content: String = all_annotations
         .iter()
         .map(|a| {
-            serde_json::json!({
+            let bounds = a.span.bounds();
+            let mut row = serde_json::json!({
                 "text": a.text,
                 "type": a.entity_type,
-                "start": a.start,
-                "end": a.end,
+                "start": bounds.start,
+                "end": bounds.end,
                 "source": a.source,
                 "confidence": a.confidence,
-            })
-            .to_string()
+            });
+            if let ImportedSpan::Segmented(segments) = &a.span {
+                row["segments"] = serde_json::json!(segments.0);
+            }
+            row.to_string()
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -263,7 +303,7 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
                 let tid = parts[0];
                 if let Some((entity_type, spans)) = parts[1].trim().split_once(char::is_whitespace)
                 {
-                    let (start, end, text) = if spans.contains(';') {
+                    let (span, text) = if spans.contains(';') {
                         let (source, bytes) = read_source().map_err(|e| {
                             format!(
                                 "{tid}: need {} to check the gaps in a multi-span mention: {e}",
@@ -273,7 +313,8 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
                         import_brat_segments(spans, parts[2], source, bytes)
                             .map_err(|e| format!("{tid}: {e}"))?
                     } else {
-                        let (start, end) = brat_span(spans)?;
+                        let range = brat_span(spans)?;
+                        let (start, end) = (range.start, range.end);
                         let text = if !parts[2].is_empty() {
                             parts[2].to_string()
                         } else if let Some((txt, _)) =
@@ -283,14 +324,13 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
                         } else {
                             format!("[{start}:{end}]")
                         };
-                        (start, end, text)
+                        (ImportedSpan::Contiguous(range), text)
                     };
 
                     annotations.push(ImportedAnnotation {
                         text,
                         entity_type: entity_type.to_string(),
-                        start,
-                        end,
+                        span,
                         source: input.to_string_lossy().to_string(),
                         confidence: confidences.get(tid).copied(),
                     });
@@ -302,7 +342,7 @@ fn import_brat(input: &PathBuf, include_text: bool) -> Result<Vec<ImportedAnnota
     Ok(annotations)
 }
 
-fn brat_span(span: &str) -> Result<(usize, usize), String> {
+fn brat_span(span: &str) -> Result<Range<usize>, String> {
     let mut fields = span.split_whitespace();
     let start = fields
         .next()
@@ -315,7 +355,7 @@ fn brat_span(span: &str) -> Result<(usize, usize), String> {
     if start > end || fields.next().is_some() {
         return Err(format!("Invalid brat span '{span}'"));
     }
-    Ok((start, end))
+    Ok(start..end)
 }
 
 fn import_brat_segments(
@@ -323,35 +363,29 @@ fn import_brat_segments(
     reference: &str,
     source: &str,
     bytes: &[usize],
-) -> Result<(usize, usize, String), String> {
-    let mut first = None;
-    let mut previous_end = 0;
-    let mut pieces = Vec::new();
-    for span in spans.split(';') {
-        let (start, end) = brat_span(span)?;
-        if end >= bytes.len() || (first.is_some() && start < previous_end) {
-            return Err(format!("Invalid or out-of-order brat span '{span}'"));
-        }
-        if first.is_some()
-            && !source[bytes[previous_end]..bytes[start]]
-                .chars()
-                .all(|c| matches!(c, '\r' | '\n'))
-        {
-            return Err("Discontinuous brat mention skips source text; cannot represent it as a single entity".into());
-        }
-        first.get_or_insert(start);
-        pieces.push(&source[bytes[start]..bytes[end]]);
-        previous_end = end;
+) -> Result<(ImportedSpan, String), String> {
+    let segments = SourceSegments::new(spans.split(';').map(brat_span).collect::<Result<_, _>>()?)?;
+    let bounds = segments.bounds();
+    if bounds.end >= bytes.len() {
+        return Err("brat span exceeds source length".into());
     }
-    if !reference.is_empty() && reference != pieces.join(" ") {
+    let slice = |range: &Range<usize>| &source[bytes[range.start]..bytes[range.end]];
+    let pieces: Vec<_> = segments.0.iter().map(slice).collect();
+    let joined = pieces.join(" ");
+    if !reference.is_empty() && reference != joined {
         return Err("brat reference text does not match its source spans".into());
     }
-    let first = first.ok_or("Missing brat span")?;
-    Ok((
-        first,
-        previous_end,
-        source[bytes[first]..bytes[previous_end]].to_string(),
-    ))
+    let only_line_breaks = segments.0.windows(2).all(|pair| {
+        slice(&(pair[0].end..pair[1].start))
+            .chars()
+            .all(|c| matches!(c, '\r' | '\n'))
+    });
+    let text = if only_line_breaks {
+        slice(&bounds).to_owned()
+    } else {
+        joined
+    };
+    Ok((ImportedSpan::Segmented(segments), text))
 }
 
 /// Import from CoNLL IOB format
@@ -389,10 +423,12 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
         if let Some(label) = tag.strip_prefix("I-") {
             if let Some(entity) = annotations.last_mut() {
                 if inside_entity && entity.entity_type == label {
-                    entity.text.push(' ');
-                    entity.text.push_str(word);
-                    entity.end = end;
-                    continue;
+                    if let ImportedSpan::Contiguous(range) = &mut entity.span {
+                        entity.text.push(' ');
+                        entity.text.push_str(word);
+                        range.end = end;
+                        continue;
+                    }
                 }
             }
         }
@@ -402,8 +438,7 @@ fn import_conll(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             annotations.push(ImportedAnnotation {
                 text: word.to_string(),
                 entity_type: label.to_string(),
-                start,
-                end,
+                span: ImportedSpan::Contiguous(start..end),
                 source: input.to_string_lossy().into_owned(),
                 confidence: None,
             });
@@ -427,11 +462,27 @@ fn import_jsonl(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
         let obj: serde_json::Value =
             serde_json::from_str(line).map_err(|e| format!("Invalid JSON: {}", e))?;
 
+        let span = if let Some(raw) = obj.get("segments") {
+            let ranges = serde_json::from_value(raw.clone())
+                .map_err(|e| format!("Invalid JSONL segments: {e}"))?;
+            let segments = SourceSegments::new(ranges)?;
+            let bounds = segments.bounds();
+            if obj["start"].as_u64() != Some(bounds.start as u64)
+                || obj["end"].as_u64() != Some(bounds.end as u64)
+            {
+                return Err("JSONL start/end must match the bounds of segments".into());
+            }
+            ImportedSpan::Segmented(segments)
+        } else {
+            let start = obj["start"].as_u64().unwrap_or(0) as usize;
+            let end = obj["end"].as_u64().unwrap_or(0) as usize;
+            ImportedSpan::Contiguous(start..end)
+        };
+
         annotations.push(ImportedAnnotation {
             text: obj["text"].as_str().unwrap_or("").to_string(),
             entity_type: obj["type"].as_str().unwrap_or("").to_string(),
-            start: obj["start"].as_u64().unwrap_or(0) as usize,
-            end: obj["end"].as_u64().unwrap_or(0) as usize,
+            span,
             source: obj["source"]
                 .as_str()
                 .unwrap_or(&input.to_string_lossy())
@@ -531,15 +582,14 @@ fn import_ntriples(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             annotations.push(ImportedAnnotation {
                 text,
                 entity_type,
-                start,
-                end,
+                span: ImportedSpan::Contiguous(start..end),
                 source,
                 confidence,
             });
         }
     }
 
-    annotations.sort_unstable_by_key(|a| a.start);
+    annotations.sort_unstable_by_key(|a| a.span.bounds().start);
     Ok(annotations)
 }
 
@@ -678,15 +728,14 @@ fn import_jsonld(input: &PathBuf) -> Result<Vec<ImportedAnnotation>, String> {
             annotations.push(ImportedAnnotation {
                 text,
                 entity_type,
-                start,
-                end,
+                span: ImportedSpan::Contiguous(start..end),
                 source,
                 confidence,
             });
         }
     }
 
-    annotations.sort_unstable_by_key(|a| a.start);
+    annotations.sort_unstable_by_key(|a| a.span.bounds().start);
     Ok(annotations)
 }
 
@@ -720,7 +769,7 @@ mod tests {
                 let rows = import_brat(&path, include_text).unwrap();
                 assert_eq!(rows.len(), 1);
                 assert_eq!(rows[0].text, mention);
-                assert_eq!((rows[0].start, rows[0].end), (2, end));
+                assert_eq!(rows[0].span.bounds(), 2..end);
                 assert_eq!(rows[0].confidence, Some(0.85));
             }
         }
@@ -734,8 +783,9 @@ mod tests {
         let err = import_brat(&path, false).unwrap_err();
         assert!(err.contains("gap.txt"), "{err}");
         fs::write(path.with_extension("txt"), "New and York").unwrap();
-        let err = import_brat(&path, false).unwrap_err();
-        assert!(err.contains("Discontinuous brat mention"), "{err}");
+        let rows = import_brat(&path, false).unwrap();
+        assert_eq!(rows[0].text, "New York");
+        assert_eq!(rows[0].span.bounds(), 0..12);
 
         fs::write(path.with_extension("txt"), "New\nYork").unwrap();
         for (spans, reference) in [
@@ -751,6 +801,39 @@ mod tests {
     }
 
     #[test]
+    fn jsonl_segment_validation_preserves_exact_offsets() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("entity.jsonl");
+        let row = serde_json::json!({
+            "text": "first last",
+            "start": 1,
+            "end": 12,
+            "segments": [{"start":1,"end":6}, {"start":8,"end":12}]
+        });
+        fs::write(&path, row.to_string()).unwrap();
+        let rows = import_jsonl(&path).unwrap();
+        let ImportedSpan::Segmented(segments) = &rows[0].span else {
+            panic!("missing segments")
+        };
+        assert_eq!(segments.0, [1..6, 8..12]);
+        for invalid in [
+            serde_json::json!(null),
+            serde_json::json!([]),
+            serde_json::json!([{"start": 1, "end": 12}]),
+            serde_json::json!([{"start": 8, "end": 12}, {"start": 1, "end": 6}]),
+            serde_json::json!([{"start": 1, "end": 9}, {"start": 8, "end": 12}]),
+            serde_json::json!([{"start": 1, "end": 6}, {"start": 13, "end": 12}]),
+            serde_json::json!([{"start": 1, "end": 6}, {"start": 8, "end": 11}]),
+            serde_json::json!([{"start": 1, "end": 6}, {"start": 8}]),
+        ] {
+            let mut bad = row.clone();
+            bad["segments"] = invalid;
+            fs::write(&path, bad.to_string()).unwrap();
+            assert!(import_jsonl(&path).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
     fn conll_import_uses_character_offsets_for_unicode_tokens() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("unicode.conll");
@@ -759,7 +842,7 @@ mod tests {
         let annotations = import_conll(&path).unwrap();
         assert_eq!(annotations.len(), 1);
         assert_eq!(annotations[0].text, "東京 駅");
-        assert_eq!((annotations[0].start, annotations[0].end), (0, 4));
+        assert_eq!(annotations[0].span.bounds(), 0..4);
     }
     #[test]
     fn failed_import_preserves_existing_output() {
@@ -820,7 +903,14 @@ mod tests {
         let rows = import_conll(&input).unwrap();
         let spans: Vec<_> = rows
             .iter()
-            .map(|a| (a.text.as_str(), a.entity_type.as_str(), a.start, a.end))
+            .map(|a| {
+                (
+                    a.text.as_str(),
+                    a.entity_type.as_str(),
+                    a.span.bounds().start,
+                    a.span.bounds().end,
+                )
+            })
             .collect();
         assert_eq!(
             spans,
@@ -847,6 +937,6 @@ mod tests {
         let rows = import_ntriples(&path).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].text, text);
-        assert_eq!(rows[0].end, text.chars().count());
+        assert_eq!(rows[0].span.bounds().end, text.chars().count());
     }
 }
