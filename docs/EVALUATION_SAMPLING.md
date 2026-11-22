@@ -46,12 +46,20 @@ The harness records failures and can return early when nothing is runnable;
 an exit code of zero alone is not acceptance. Check that outcome rows exist,
 the expected cells ran, and recorded failures are understood.
 
-CI pins each randomized lane with `ANNO_MATRIX_TASK` and requires at least one
-completed evaluation with a positive example count for each of NER, relation
-extraction, intra-document coreference, and temporal extraction. A completed
-zero score counts toward coverage. The separate worst-first lane can surface
-hard failures, but must record an attempted evaluation. To check a downloaded
-CI artifact, run `python3 scripts/qa/check_matrix_outcomes.py muxer-decisions.jsonl`.
+CI first runs the sampler with the heuristic backend on one checked-in sentence
+with known entity spans. The fixture is the dataset registry's WikiGold format
+example. It lives in a separate temporary cache, with downloads disabled, and
+must produce one completed result with F1 of 1. Its receipt is separate from
+evaluation results on real corpora.
+
+CI then samples four exact tasks (NER, relation extraction, intra-document
+coreference, and temporal extraction) plus worst-first. PRs use restored data
+and model caches. Main and scheduled runs can fetch missing inputs. The job
+summary lists completions, hard failures, and empty or missing observations
+for each lane. These samples are advisory. To require full coverage on a
+provisioned runner, use `python3 scripts/qa/check_matrix_outcomes.py
+muxer-decisions.jsonl` on the external-sample artifact. It requires a completed
+sample with examples on every named task and an attempted worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
 policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke

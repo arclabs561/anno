@@ -549,6 +549,9 @@ jobs:
           {
             echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
             echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
+            # PRs use restored datasets and weights. Main and scheduled runs can refill them.
+            echo "ANNO_NO_DOWNLOADS=${{ github.event_name == 'pull_request' && '1' || '0' }}"
+            echo "ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=${{ github.event_name == 'pull_request' && '0' || '1' }}"
             # Keep current-run evidence outside restored cache state so the outcome gate cannot
             # pass on decision records from an earlier workflow run.
             echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
@@ -596,6 +599,25 @@ jobs:
             anno-muxer-${{ runner.os }}-v1-
       - name: Build matrix sampler harness (enable ML backends)
         run: cargo build -p anno-eval --features "onnx,eval,discourse"
+      - name: Check the offline sampler on a labeled fixture
+        env:
+          ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
+          ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-smoke/eval-results.jsonl
+          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
+          ANNO_MATRIX_TASK: ner
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: "42"
+          ANNO_MUXER_PIN_BACKEND: heuristic
+          ANNO_ML_IN_MATRIX: "0"
+          ANNO_MATRIX_REQUIRE_CACHED: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_S3_CACHE: "0"
+          ANNO_MAX_EXAMPLES: "1"
+        run: |
+          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
+          cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
       - name: Run randomized matrix test (NER)
         run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
         env:
@@ -603,8 +625,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          # Prefer cache in PRs, but fall back to downloads if empty.
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
@@ -615,7 +635,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Coref)
@@ -625,7 +644,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Temporal)
@@ -635,7 +653,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run worst-first matrix test (+ regression detection)
@@ -645,7 +662,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
           ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
           # Enable eval-history regression detection. It compares each cell's last 5
@@ -657,9 +673,12 @@ jobs:
           # failing on it would gate PRs on noise. Promote to a failing check only after
           # alerts are reproduced on a fixed panel. See docs/EVALUATION_SAMPLING.md.
           ANNO_CHECK_REGRESSIONS: "1"
-      - name: Verify matrix decision log
+      - name: Report sampled coverage and unavailable tasks
         if: always()
-        run: python3 scripts/qa/check_matrix_outcomes.py "$ANNO_MUXER_DECISIONS_FILE"
+        run: |
+          set -o pipefail
+          touch "$ANNO_MUXER_DECISIONS_FILE"
+          python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload matrix decision and outcome log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -667,6 +686,7 @@ jobs:
           name: matrix-muxer-decisions
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
+            ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             Cargo.lock
           if-no-files-found: warn
   # ==========================================================================
