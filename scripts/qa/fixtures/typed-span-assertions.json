@@ -1,0 +1,95 @@
+[
+  {
+    "id": "credential-cpa",
+    "text": "The consultant Iona Tress (CPA) signed the audit.",
+    "assertions": [
+      {
+        "kind": "exact_span",
+        "start": 15,
+        "end": 25,
+        "text": "Iona Tress",
+        "types": [
+          "PER"
+        ]
+      },
+      {
+        "kind": "no_overlap",
+        "start": 27,
+        "end": 30,
+        "text": "CPA",
+        "types": [
+          "PER",
+          "ORG",
+          "LOC"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "credential-peng",
+    "text": "Surveyor Teo Miran (P.Eng.) certified the new boundary.",
+    "assertions": [
+      {
+        "kind": "exact_span",
+        "start": 9,
+        "end": 18,
+        "text": "Teo Miran",
+        "types": [
+          "PER"
+        ]
+      },
+      {
+        "kind": "no_overlap",
+        "start": 20,
+        "end": 26,
+        "text": "P.Eng.",
+        "types": [
+          "PER",
+          "ORG",
+          "LOC"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "message-channel",
+    "text": "The observatory director sent the warning by short message service (SMS) before dawn.",
+    "assertions": [
+      {
+        "kind": "no_overlap",
+        "start": 68,
+        "end": 71,
+        "text": "SMS",
+        "types": [
+          "PER",
+          "ORG",
+          "LOC"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "agency-initials",
+    "text": "The Lantern Harbor Authority (LHA) delayed the ferry inspection.",
+    "assertions": [
+      {
+        "kind": "exact_span",
+        "start": 4,
+        "end": 28,
+        "text": "Lantern Harbor Authority",
+        "types": [
+          "ORG"
+        ]
+      },
+      {
+        "kind": "exact_span",
+        "start": 30,
+        "end": 33,
+        "text": "LHA",
+        "types": [
+          "ORG"
+        ]
+      }
+    ]
+  }
+]
