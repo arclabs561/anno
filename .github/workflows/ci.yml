@@ -362,6 +362,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        id: toolchain
         with:
           toolchain: "stable"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
@@ -376,6 +377,12 @@ jobs:
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
+      # Reuse the workspace test build and retain the dedicated 100-case run.
+      - name: Run property tests
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cargo test --workspace --lib --features "eval discourse" -- proptest
+        env:
+          PROPTEST_CASES: 100
   test-candle-eval:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest
@@ -506,26 +513,6 @@ jobs:
           bundled-crf-weights bundled-hmm-params chunking parallel"
         env:
           RUSTDOCFLAGS: -D warnings
-  # ==========================================================================
-  # Property tests (proptest)
-  # ==========================================================================
-  proptest:
-    name: Property Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-        with:
-          cache-all-crates: true
-      - name: Run property tests
-        run: cargo test --workspace --lib --features "eval discourse" -- proptest
-        env:
-          PROPTEST_CASES: 100
   # ==========================================================================
   # Randomized Matrix Test (backends x datasets x tasks)
   # ==========================================================================
@@ -1199,6 +1186,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        id: toolchain
         with:
           toolchain: "stable"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
@@ -1208,27 +1196,17 @@ jobs:
         run: |
           set -o pipefail
           scripts/validate-publish.sh 2>&1 | tee publish-validation.log
+      # bundled-* features include_str! these; the include whitelist once
+      # shipped without them (broken on crates.io despite green local builds)
+      - name: bundled assets in cargo package
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: |
+          cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
+          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
+          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
       - name: Upload publish validation log
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: publish-validation-report
           path: publish-validation.log
-
-  packaged-assets:
-    name: Packaged assets present
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      # bundled-* features include_str! these; the include whitelist once
-      # shipped without them (broken on crates.io despite green local builds)
-      - name: bundled assets in cargo package
-        run: |
-          cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
-          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
-          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
