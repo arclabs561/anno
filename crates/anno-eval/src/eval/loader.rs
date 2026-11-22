@@ -1708,7 +1708,7 @@ impl DatasetLoader {
             resolved_url: Some(resolved_url.clone()),
             sha256,
             file_size,
-            downloaded_at: chrono::Utc::now().to_rfc3339(),
+            downloaded_at: super::timestamp::now(),
             sentence_count: dataset.sentences.len(),
             entity_count: dataset.entity_count(),
             anno_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -1723,7 +1723,7 @@ impl DatasetLoader {
                 resolved_url: Some(resolved_url),
                 sha256: self.compute_sha256(&content),
                 file_size: content.len() as u64,
-                downloaded_at: chrono::Utc::now().to_rfc3339(),
+                downloaded_at: super::timestamp::now(),
                 sentence_count: dataset.sentences.len(),
                 entity_count: dataset.entity_count(),
                 anno_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -1906,7 +1906,7 @@ impl DatasetLoader {
         let pointer_json = serde_json::json!({
             "dataset": id.cache_filename(),
             "sha256": manifest_entry.sha256,
-            "updated_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": super::timestamp::now(),
             "source_url": manifest_entry.source_url,
             "resolved_url": manifest_entry.resolved_url,
             "file_size": manifest_entry.file_size,
@@ -3468,7 +3468,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         Ok(LoadedDataset {
             id,
@@ -3553,7 +3553,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -3859,7 +3859,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4082,7 +4082,7 @@ impl DatasetLoader {
             }
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4182,7 +4182,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4300,7 +4300,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4355,7 +4355,7 @@ impl DatasetLoader {
             }
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4444,7 +4444,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4516,7 +4516,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4667,7 +4667,7 @@ impl DatasetLoader {
             }
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4847,7 +4847,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4927,7 +4927,7 @@ impl DatasetLoader {
             });
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -4991,7 +4991,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -5048,7 +5048,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -5120,7 +5120,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -5141,7 +5141,7 @@ impl DatasetLoader {
     fn parse_litbank(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         // LitBank .ann format: each line is T<id>\t<Type> <start> <end>\t<text>
         // Extract entity mentions as NER annotations
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         let mut sentences = Vec::new();
         let mut entities: Vec<(usize, usize, String, String)> = Vec::new(); // (start, end, text, label)
 
@@ -5358,7 +5358,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -6123,7 +6123,7 @@ impl DatasetLoader {
             )));
         }
 
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         Ok(LoadedDataset {
             id,
             sentences,
@@ -6299,7 +6299,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/afrisenti-semeval/afrisent-semeval-2023>
     fn parse_afrisenti(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         for line in content.lines() {
             let line = line.trim();
@@ -6351,7 +6351,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/masakhane-io/afriqa>
     fn parse_afriqa(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         // AfriQA data can be JSON array or JSONL
         let docs: Vec<serde_json::Value> = if content.trim().starts_with('[') {
@@ -6448,7 +6448,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/masakhane-io/masakhane-news>
     fn parse_masakhanews(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         for line in content.lines() {
             let line = line.trim();
@@ -6508,7 +6508,7 @@ impl DatasetLoader {
     /// Source: <https://cogcomp.seas.upenn.edu/Data/QA/QC/>
     fn parse_trec(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         for line in content.lines() {
             let line = line.trim();
@@ -6563,7 +6563,7 @@ impl DatasetLoader {
     /// Source: <https://huggingface.co/datasets/ag_news>
     fn parse_agnews(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         let label_map = ["World", "Sports", "Business", "Sci/Tech"];
 
@@ -6618,7 +6618,7 @@ impl DatasetLoader {
     /// Source: <https://huggingface.co/datasets/dbpedia_14>
     fn parse_dbpedia14(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         let label_map = [
             "Company",
@@ -6690,7 +6690,7 @@ impl DatasetLoader {
     /// Source: <https://huggingface.co/datasets/yahoo_answers_topics>
     fn parse_yahoo_answers(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         let label_map = [
             "Society",
@@ -6773,7 +6773,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/THU-KEG/MAVEN-dataset>
     fn parse_maven(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         // Try parsing as JSONL (full MAVEN format)
         let mut is_jsonl = false;
@@ -6929,7 +6929,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/Ebiquity/CASIE>
     fn parse_casie(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         // Handle JSONL format (multiple documents)
         for line in content.lines() {
@@ -7067,7 +7067,7 @@ impl DatasetLoader {
     /// Source: <https://github.com/THU-KEG/MAVEN-Argument>
     fn parse_maven_arg(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         for line in content.lines() {
             let line = line.trim();
@@ -7175,7 +7175,7 @@ impl DatasetLoader {
     /// Source: <https://nlp.jhu.edu/rams/>
     fn parse_rams(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         for line in content.lines() {
             let line = line.trim();
@@ -7292,7 +7292,7 @@ impl DatasetLoader {
     /// Source: <https://huggingface.co/datasets/cardiffnlp/tweet_topic_single>
     fn parse_tweettopic(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
 
         // Label mapping if label_name not present
         let label_map = [
@@ -7366,7 +7366,7 @@ impl DatasetLoader {
     /// Source: <https://universaldependencies.org/format.html>
     fn parse_conllu(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let now = chrono::Utc::now().to_rfc3339();
+        let now = super::timestamp::now();
         let mut current_tokens = Vec::new();
 
         for line in content.lines() {
