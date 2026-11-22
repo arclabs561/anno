@@ -1,7 +1,6 @@
 //! Eval command - Evaluate predictions against gold annotations
 
 use clap::{Parser, ValueEnum};
-use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -11,7 +10,7 @@ use super::super::output::print_matches;
 use super::super::output::{color, metric_colored};
 use super::super::parser::ModelBackend;
 use super::super::utils::{
-    get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document,
+    get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document, source_sha256,
 };
 
 use anno::core::grounded::{
@@ -115,10 +114,10 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
     let text = get_input_text(&args.text, args.file.as_deref(), &args.positional)?;
 
     // Load gold from file or args
-    let gold = if let Some(gold_file) = &args.gold_file {
-        load_gold_from_file(gold_file)?
+    let (gold, gold_id) = if let Some(gold_file) = &args.gold_file {
+        load_gold_from_file(gold_file, &text)?
     } else if !args.gold_specs.is_empty() {
-        args.gold_specs
+        let annotations = args.gold_specs
             .iter()
             .enumerate()
             .map(|(i, spec)| {
@@ -126,7 +125,8 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                     format!("Invalid --gold #{}: expected text:label:start:end with unsigned character offsets", i + 1)
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Result<Vec<_>, _>>()?;
+        (annotations, None)
     } else {
         return Err(
             "No gold annotations. Use -g 'text:label:start:end' or --gold-file path.jsonl"
@@ -163,6 +163,9 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
         let json = fs::read_to_string(path)
             .map_err(|e| format!("Failed to read predictions {}: {e}", path.display()))?;
         let doc = parse_grounded_document(&json)?;
+        if gold_id.as_deref().is_some_and(|id| id != doc.id()) {
+            return Err("Gold document ID differs from saved prediction document ID".into());
+        }
         if doc.text() != text {
             return Err("Prediction source text differs from evaluation input".into());
         }
@@ -298,13 +301,9 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             PredictionSource::Saved { document_id } => {
                 output["model"] = serde_json::Value::Null;
                 output["elapsed_ms"] = serde_json::Value::Null;
-                let digest: String = Sha256::digest(text.as_bytes())
-                    .iter()
-                    .map(|b| format!("{b:02x}"))
-                    .collect();
                 output["predictions"] = serde_json::json!({
                     "document_id": document_id,
-                    "source_sha256": digest,
+                    "source_sha256": source_sha256(&text),
                 });
             }
         }

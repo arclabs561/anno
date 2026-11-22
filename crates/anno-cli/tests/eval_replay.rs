@@ -176,3 +176,56 @@ fn coincident_labels_keep_exact_matches_before_type_and_boundary_diagnostics() {
         }
     }
 }
+
+#[test]
+fn gold_records_bind_to_the_evaluated_source_and_saved_document_when_identified() {
+    let dir = tempfile::tempdir().unwrap();
+    let predictions = dir.path().join("predictions.json");
+    let gold = dir.path().join("gold.jsonl");
+    let mut doc = json_output(&[
+        "extract", "--model", "pattern", "--text", SOURCE, "--format", "grounded",
+    ]);
+    doc["id"] = json!("revision-a");
+    std::fs::write(&predictions, doc.to_string()).unwrap();
+    let args = [
+        "eval",
+        "--text",
+        SOURCE,
+        "--predictions",
+        predictions.to_str().unwrap(),
+        "--gold-file",
+        gold.to_str().unwrap(),
+        "--json",
+    ];
+    let valid = json!({"id":"revision-a", "text":SOURCE,
+        "source_sha256":"154527a734e13c9a3e2a5735553f36eebd46c6457513317e17bae2aa5ca5434e",
+        "entities":[{"text":"x@y.com","label":"EMAIL","start":2,"end":9}]});
+    std::fs::write(&gold, valid.to_string()).unwrap();
+    assert_eq!(json_output(&args)["f1"], 1.0);
+    for (field, value, error) in [
+        ("text", "📬 x@y.com NEW", "gold source text differs"),
+        ("id", "revision-b", "Gold document ID differs"),
+        ("source_sha256", "incorrect", "gold source_sha256 differs"),
+    ] {
+        let mut wrong = valid.clone();
+        wrong[field] = json!(value);
+        std::fs::write(&gold, wrong.to_string()).unwrap();
+        let result = cli(&args);
+        assert!(!result.status.success());
+        assert!(result.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&result.stderr).contains(error));
+    }
+    let other = json!({"document_id":"revision-b","text":SOURCE,"entities":[]});
+    std::fs::write(&gold, format!("{valid}\n{other}")).unwrap();
+    let result = cli(&args);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("conflicting gold document IDs"));
+    // String and integer document IDs are common in existing JSONL corpora.
+    doc["id"] = json!("42");
+    std::fs::write(&predictions, doc.to_string()).unwrap();
+    let mut numbered = valid;
+    numbered["id"] = json!(42);
+    numbered["doc_id"] = json!("42");
+    std::fs::write(&gold, numbered.to_string()).unwrap();
+    assert_eq!(json_output(&args)["f1"], 1.0);
+}

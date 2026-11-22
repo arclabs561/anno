@@ -214,14 +214,27 @@ pub fn parse_gold_spec(s: &str) -> Option<GoldSpec> {
     })
 }
 
+pub(crate) fn source_sha256(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 /// Load gold-standard annotations from a JSONL file.
 ///
 /// Each line should be a JSON object with an `entities` array.
 /// Entities are objects with `text`, `label`, `start`, and `end` fields.
-pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
+pub fn load_gold_from_file(
+    path: &str,
+    source: &str,
+) -> Result<(Vec<GoldSpec>, Option<String>), String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
     let mut gold = Vec::new();
+    let mut document_id = None;
+    let digest = std::cell::LazyCell::new(|| source_sha256(source));
 
     for (line_num, line) in content.lines().enumerate() {
         if line.trim().is_empty() {
@@ -230,6 +243,52 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
 
         let entry: serde_json::Value = serde_json::from_str(line)
             .map_err(|e| format!("Invalid JSON in gold file at line {}: {}", line_num + 1, e))?;
+
+        let location = || format!("{path}:{}", line_num + 1);
+        if entry
+            .get("text")
+            .is_some_and(|text| text.as_str() != Some(source))
+        {
+            return Err(format!(
+                "{}: gold source text differs from evaluation input",
+                location()
+            ));
+        }
+        if let Some(hash) = entry.get("source_sha256") {
+            if !hash
+                .as_str()
+                .is_some_and(|s| s.eq_ignore_ascii_case(&digest))
+            {
+                return Err(format!(
+                    "{}: gold source_sha256 differs from evaluation input",
+                    location()
+                ));
+            }
+        }
+        for field in ["id", "doc_id", "document_id"] {
+            if let Some(id) = entry.get(field) {
+                let id = match id {
+                    serde_json::Value::String(s) if !s.is_empty() => s.clone(),
+                    serde_json::Value::Number(n) if n.is_i64() || n.is_u64() => n.to_string(),
+                    _ => {
+                        return Err(format!(
+                            "{}: expected a nonempty string or integer {field}",
+                            location()
+                        ))
+                    }
+                };
+                if document_id
+                    .as_deref()
+                    .is_some_and(|previous| previous != id)
+                {
+                    return Err(format!(
+                        "{}: conflicting gold document IDs in a single-text evaluation",
+                        location()
+                    ));
+                }
+                document_id.get_or_insert(id);
+            }
+        }
 
         let entities = entry["entities"]
             .as_array()
@@ -263,7 +322,7 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
         }
     }
 
-    Ok(gold)
+    Ok((gold, document_id))
 }
 
 /// Resolve coreference by grouping signals into tracks.
