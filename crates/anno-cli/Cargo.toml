@@ -24,7 +24,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
-ureq = { workspace = true, features = ["json", "charset"] }
+ureq = { workspace = true, features = ["json"] }
 chrono = { workspace = true }
 dirs = { workspace = true }
 regex = { workspace = true }
@@ -47,14 +47,14 @@ muxer = { version = "0.5", default-features = false, features = [
 # (default, best quality, pulls cssparser/selectors MPL-2.0 transitives)
 # vs extractor-html2text (no MPL deps, lower quality on boilerplate-heavy
 # pages).
-deformat = { workspace = true, features = ["encoding_rs"] }
+deformat = { workspace = true }
 xxhash-rust = { version = "0.8.15", features = ["xxh3"] }
 rayon = { workspace = true }
 
 [features]
 default = ["onnx", "extractor-readability", "heuristic-fr"]
 # Evaluation + muxer tooling.
-eval = ["dep:muxer", "anno/analysis", "anno-eval/eval"]
+eval = ["dep:muxer", "anno/analysis", "anno-eval/eval", "deformat/encoding_rs", "ureq/charset"]
 eval-bias = ["eval", "anno-eval/eval-bias"]
 discourse = ["anno/discourse", "anno-eval/discourse"]
 instrument = []
