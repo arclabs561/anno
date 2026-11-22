@@ -68,13 +68,15 @@ pub trait UrlResolver: std::fmt::Debug {
 ///
 /// Fetches content from HTTP/HTTPS URLs and extracts text from HTML if needed.
 #[derive(Debug, Default)]
-pub struct HttpResolver;
+pub struct HttpResolver {
+    read_declared_language: bool,
+}
 
 impl HttpResolver {
     /// Create a new HTTP resolver.
     #[must_use]
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
@@ -143,6 +145,11 @@ impl UrlResolver for HttpResolver {
         // Check if content looks like HTML
         let text = if deformat::detect::is_html(&content) {
             metadata.insert("content-type".to_string(), "text/html".to_string());
+            if self.read_declared_language {
+                if let Some(language) = deformat::html::extract_metadata(&content).language {
+                    metadata.insert("declared_language".to_owned(), language);
+                }
+            }
             // Routes between readability / html2text based on anno-cli features.
             let result = crate::cli::utils::extract_html(&content, Some(&source_url));
             metadata.insert("extractor".to_string(), result.extractor.to_string());
@@ -183,7 +190,13 @@ impl CompositeResolver {
     /// Create a new composite resolver with default resolvers.
     #[must_use]
     pub fn new() -> Self {
-        let resolvers = vec![Box::new(HttpResolver::new()) as Box<dyn UrlResolver>];
+        Self::with_declared_language(false)
+    }
+
+    pub(crate) fn with_declared_language(read_declared_language: bool) -> Self {
+        let mut http = HttpResolver::new();
+        http.read_declared_language = read_declared_language;
+        let resolvers = vec![Box::new(http) as Box<dyn UrlResolver>];
         Self { resolvers }
     }
 }

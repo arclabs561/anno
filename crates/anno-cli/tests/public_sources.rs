@@ -60,11 +60,11 @@ fn published_excerpts_have_expected_pattern_spans() {
 }
 
 #[cfg(feature = "eval")]
-fn verify_http(
+fn with_http_fixture(
     body: &'static [u8],
     content_type: &'static str,
     path: &str,
-    gold: &[(&str, &str, usize, usize)],
+    check: impl FnOnce(&str),
 ) {
     use std::io::{BufRead, BufReader, Write};
     use std::net::TcpListener;
@@ -81,28 +81,59 @@ fn verify_http(
         write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
         stream.write_all(body).unwrap();
     });
-    verify("--url", &format!("http://{address}/{path}"), gold);
+    check(&format!("http://{address}/{path}"));
     responder.join().unwrap();
 }
 
 #[cfg(feature = "eval")]
 #[test]
 fn fetch_published_span_over_http() {
-    verify_http(
+    with_http_fixture(
         include_bytes!("fixtures/public_sources/boe.txt"),
         "text/plain; charset=utf-8",
         "boe.txt",
-        BOE,
+        |url| verify("--url", url, BOE),
     );
 }
 
 #[cfg(feature = "eval")]
 #[test]
 fn aozora_colophon_url_ends_at_its_fullwidth_delimiter() {
-    verify_http(
+    with_http_fixture(
         include_bytes!("fixtures/public_sources/aozora-footer.html.utf8"),
         "text/html; charset=utf-8",
         "footer.html",
-        &[("http://www.aozora.gr.jp/", "URL", 25, 49)],
+        |url| verify("--url", url, &[("http://www.aozora.gr.jp/", "URL", 25, 49)]),
     );
+}
+
+#[cfg(feature = "eval")]
+#[test]
+fn url_language_provenance_distinguishes_declarations_from_text_estimates() {
+    const DECLARED: &[u8] = b"<html lang='es-ES'><body><p>El derecho civil.</p></body></html>";
+    const UNKNOWN: &[u8] = b"<html lang='und'><body><p>El derecho civil.</p></body></html>";
+    for (body, detect, expected, origin) in [
+        (DECLARED, true, Some("es"), Some("html_declaration")),
+        (UNKNOWN, true, Some("en"), Some("text_heuristic")),
+        (DECLARED, false, None, None),
+    ] {
+        with_http_fixture(body, "text/html; charset=utf-8", "sample", |url| {
+            let mut cmd = Command::new(env!("CARGO_BIN_EXE_anno"));
+            cmd.args([
+                "extract", "--url", url, "--model", "pattern", "--format", "json",
+            ]);
+            if detect {
+                cmd.arg("--detect-lang");
+            }
+            let output = cmd.output().unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(value["provenance"]["language"].as_str(), expected);
+            assert_eq!(value["provenance"]["language_source"].as_str(), origin);
+        });
+    }
 }

@@ -74,6 +74,12 @@ top-level `provenance.model`. Each emitted entity that carries library provenanc
 nested `provenance` object with its actual `source`, extraction `method`, and available
 pattern, raw-confidence, model-version, and timestamp metadata.
 
+With `--detect-lang`, a fetched HTML page's recognized language declaration
+supplies `provenance.language` (its primary language code) and
+`provenance.language_source = "html_declaration"`. Other inputs use
+`"text_heuristic"`, which estimates language from Unicode scripts and can
+identify Latin-script languages as English. These fields describe the input.
+
 Top-level `provenance.entity_sources`, when present, is a sorted unique list of source names
 from the entities actually emitted after filtering and validation. It is omitted when no emitted
 entity has source metadata. It does not infer a single producing model for stacked output, a

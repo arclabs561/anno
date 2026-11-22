@@ -118,7 +118,7 @@ pub struct ExtractArgs {
     #[arg(long)]
     pub normalize: bool,
 
-    /// Detect and record language
+    /// Record the declared language of a fetched HTML page, or detect it from text
     #[arg(long)]
     pub detect_lang: bool,
 
@@ -162,15 +162,28 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
-    let (mut raw_text, source_url): (String, Option<String>) = if let Some(url) = &args.url {
+    let (mut raw_text, source_url, declared_language) = if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
             use crate::cli::ingest::UrlResolver;
-            let resolver = CompositeResolver::new();
+            let resolver = CompositeResolver::with_declared_language(args.detect_lang);
             let resolved = resolver
                 .resolve(url)
                 .map_err(|e| CliError::from(format!("Failed to fetch URL {}: {}", url, e)))?;
-            (resolved.text, Some(resolved.source_url))
+            let declared = resolved.metadata.get("declared_language").and_then(|tag| {
+                let mut subtags = tag.trim().split('-');
+                let primary = subtags.next()?;
+                if !(2..=3).contains(&primary.len())
+                    || !subtags.all(|part| {
+                        (1..=8).contains(&part.len())
+                            && part.bytes().all(|b| b.is_ascii_alphanumeric())
+                    })
+                {
+                    return None;
+                }
+                Language::from_code(primary)
+            });
+            (resolved.text, Some(resolved.source_url), declared)
         }
         #[cfg(not(feature = "eval"))]
         {
@@ -184,21 +197,31 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
         (
             get_input_text(&args.text, args.file.as_deref(), &args.positional)
                 .map_err(CliError::from)?,
-            None,
+            None::<String>,
+            None::<Language>,
         )
     };
 
     // Preprocess text if requested
-    let mut detected_language: Option<String> = None;
-    if args.clean || args.normalize || args.detect_lang {
+    let mut language = declared_language
+        .filter(|_| args.detect_lang)
+        .map(|language| (language, "html_declaration"));
+    let infer_language = args.detect_lang && language.is_none();
+    if args.clean || args.normalize || infer_language {
         let preprocessor = DocumentPreprocessor {
             clean_whitespace: args.clean,
             normalize_unicode: args.normalize,
-            detect_language: args.detect_lang,
+            detect_language: infer_language,
             chunk_size: None,
         };
         let prepared = preprocessor.prepare(&raw_text);
-        detected_language = prepared.metadata.get("detected_language").cloned();
+        if let Some(detected) = prepared
+            .metadata
+            .get("detected_language")
+            .and_then(|s| Language::from_code(s))
+        {
+            language = Some((detected, "text_heuristic"));
+        }
         raw_text = prepared.text;
         if args.verbose >= 1 && !prepared.metadata.is_empty() {
             log_info(
@@ -554,7 +577,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 model.name(),
                 &entities_out,
                 elapsed,
-                detected_language.as_deref().and_then(Language::from_code),
+                language,
                 source_url.as_deref(),
             );
             let output = serde_json::json!({
@@ -576,7 +599,7 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
                 model.name(),
                 &entities_out,
                 elapsed,
-                detected_language.as_deref().and_then(Language::from_code),
+                language,
                 source_url.as_deref(),
             );
             println!("{}", serde_json::json!({ "provenance": provenance }));
@@ -1046,7 +1069,7 @@ fn build_provenance(
     model: &str,
     entities: &[serde_json::Value],
     elapsed: std::time::Duration,
-    language: Option<Language>,
+    language: Option<(Language, &'static str)>,
     source_url: Option<&str>,
 ) -> serde_json::Value {
     // Result hash mirrors eval/property_tests.rs: sorted, order-independent, deterministic.
@@ -1106,7 +1129,8 @@ fn build_provenance(
     if let Some(url) = source_url {
         prov["source_url"] = url.into();
     }
-    if let Some(lang) = language {
+    if let Some((lang, origin)) = language {
+        prov["language_source"] = origin.into();
         prov["language"] = serde_json::Value::String(lang.to_string());
     }
     let entity_sources: std::collections::BTreeSet<&str> = entities
