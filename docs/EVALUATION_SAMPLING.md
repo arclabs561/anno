@@ -53,14 +53,26 @@ example. It lives in a separate temporary cache, with downloads disabled, and
 must produce one completed result with F1 of 1. Its receipt is separate from
 evaluation results on real corpora.
 
-CI then samples four exact tasks (NER, relation extraction, intra-document
-coreference, and temporal extraction) plus worst-first. PRs use restored data
-and model caches. Main and scheduled runs can fetch missing inputs. The job
-summary lists completions, hard failures, and empty or missing observations
-for each lane. These samples are advisory. To require full coverage on a
-provisioned runner, use `python3 scripts/qa/check_matrix_outcomes.py
-muxer-decisions.jsonl` on the external-sample artifact. It requires a completed
-sample with examples on every named task and an attempted worst-first outcome.
+External sampling restores the newest compatible checkpoint produced by this
+workflow on the default branch. The artifact contains muxer windows, evaluation
+JSONL, and its SQLite index. Checkpoints expire after 60 days. A new cohort
+starts when the history or provenance implementation changes. PRs can read
+this state. Only default-branch runs with new external observations publish it.
+
+Both kinds of run measure five examples per dataset from a local cache. A
+checksum-pinned public WikiGold corpus supplies a real input even after cache
+eviction. A cold default-branch run records a heuristic baseline on that corpus.
+The synthetic offline fixture uses separate storage. Worst-first runs before
+the four randomized task controls (NER, relation extraction, intra-document
+coreference, and temporal extraction). On the default branch, a named control
+may fetch data when that task's local cache is empty. The job summary links
+the restored run and reports the first worst-first selection, its observed
+result, and completed or missing coverage by task.
+
+To require full external coverage on a provisioned runner, use
+`python3 scripts/qa/check_matrix_outcomes.py muxer-decisions.jsonl`. It
+requires a completed sample with examples on each named task and an attempted
+worst-first outcome.
 
 `ANNO_MUXER_PIN_BACKEND` filters the normal candidate set, so the selected
 policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke

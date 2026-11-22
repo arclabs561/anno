@@ -3,7 +3,7 @@ import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
-from check_matrix_outcomes import RANDOM_TASKS, check, check_smoke
+from check_matrix_outcomes import RANDOM_TASKS, check, check_wikigold
 
 
 def outcome(task, strategy="random", hard=False, examples=1):
@@ -56,7 +56,19 @@ class CoverageTest(unittest.TestCase):
     def test_smoke_requires_exact_fixture_result(self):
         row = dict(outcome("ner"), backend="heuristic", dataset="WikiGold", primary_f1=1.0)
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-            self.assertTrue(check_smoke([json.dumps(row)]))
-            self.assertFalse(check_smoke([]))
+            self.assertTrue(check_wikigold([json.dumps(row)]))
+            self.assertFalse(check_wikigold([]))
             for mutation in ({"primary_f1": 0.0}, {"backend": "crf"}, {"cost_units": 0}):
-                self.assertFalse(check_smoke([json.dumps(row | mutation)]))
+                self.assertFalse(check_wikigold([json.dumps(row | mutation)]))
+
+    def test_reports_first_decision_and_matching_observation(self):
+        decision = {"strategy": "worst-first", "chosen": "heuristic", "slice": "ner",
+                    "run_id": "run", "datasets": ["WikiGold"], "explore_first": False,
+                    "top_candidates": {"rows": [{"arm": "heuristic", "calls": 2}]}}
+        wrong = dict(outcome("ner", "worst-first"), backend="crf", dataset="WikiGold", run_id="run")
+        matching = dict(wrong, backend="heuristic", hard_junk=True)
+        for rows, result in (([decision, wrong], "no outcome"), ([decision, wrong, matching], "hard failure")):
+            output = io.StringIO()
+            with redirect_stdout(output), redirect_stderr(io.StringIO()):
+                check(map(json.dumps, rows), report=True)
+            self.assertIn(f"heuristic (ranked, prior calls 2) — {result}", output.getvalue())

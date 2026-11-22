@@ -3,6 +3,7 @@
 import argparse
 from collections import Counter
 import json
+import math
 from pathlib import Path
 import sys
 
@@ -10,11 +11,14 @@ import sys
 RANDOM_TASKS = ("ner", "re", "intra-coref", "temporal")
 
 
-def outcomes(lines):
+def outcomes(lines, decisions=None):
     for number, line in enumerate(lines, 1):
         try:
             row = json.loads(line)
             if row.get("record_type") != "outcome":
+                if (decisions is not None and not decisions
+                        and row.get("strategy") == "worst-first" and row.get("chosen")):
+                    decisions.append(row)
                 continue
             strategy = row["strategy"]
             task = row["slice"].split(".", 1)[0]
@@ -32,7 +36,7 @@ def outcomes(lines):
         yield task if strategy == "random" else strategy, row
 
 
-def check_smoke(lines):
+def check_wikigold(lines, bootstrap=False):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
@@ -41,12 +45,17 @@ def check_smoke(lines):
             and row.get("backend") == "heuristic"
             and row.get("dataset") == "WikiGold"
             and row["hard_junk"] is False
-            and row["cost_units"] == 1
-            and row.get("primary_f1") == 1.0
+            and row["cost_units"] == (5 if bootstrap else 1)
+            and type(row.get("primary_f1")) in (float, int)
+            and math.isfinite(row["primary_f1"])
+            and (bootstrap or row["primary_f1"] == 1.0)
         ):
-            print("Offline sampler scored all labeled spans correctly on the fixture.")
+            if bootstrap:
+                print(f"Cold-start WikiGold baseline: heuristic, 5 examples, F1 {row['primary_f1']:.4f}.")
+            else:
+                print("Offline sampler scored all labeled spans correctly on the fixture.")
             return True
-    print("Expected one complete heuristic NER outcome with F1=1 on the fixture.", file=sys.stderr)
+    print("Unexpected WikiGold baseline result." if bootstrap else "Unexpected offline fixture result.", file=sys.stderr)
     return False
 
 
@@ -54,8 +63,12 @@ def check(lines, report=False):
     attempts = Counter()
     completions = Counter()
     failures = Counter()
-    for lane, row in outcomes(lines):
+    decisions = []
+    observed = {}
+    for lane, row in outcomes(lines, decisions):
         attempts[lane] += 1
+        if lane == "worst-first":
+            observed[(row.get("run_id"), row.get("backend"), row.get("dataset"))] = row
         if row["hard_junk"]:
             failures[lane] += 1
         elif row["cost_units"] > 0:
@@ -67,6 +80,22 @@ def check(lines, report=False):
         empty = attempts[lane] - completions[lane] - failures[lane]
         label = lane if attempts[lane] else f"{lane} (no outcome)"
         print(f"| {label} | {completions[lane]} | {failures[lane]} | {empty} |")
+
+    if decisions:
+        first = decisions[0]
+        backend = first["chosen"]
+        candidates = first.get("top_candidates", {}).get("rows", [])
+        selected = next((r for r in candidates if r["arm"] == backend), {})
+        prior_calls = selected.get("calls", "unknown")
+        reason = "exploration" if first.get("explore_first") else "ranked"
+        for dataset in first.get("datasets", []):
+            row = observed.get((first.get("run_id"), backend, dataset))
+            result = "no outcome"
+            if row is not None:
+                result = "hard failure" if row["hard_junk"] else f"{row['cost_units']} examples, F1 {row.get('primary_f1')}"
+            print(f"First worst-first selection: {first['slice']} / {dataset} / {backend} ({reason}, prior calls {prior_calls}) — {result}.")
+    else:
+        print("No worst-first selection recorded.")
 
     missing = [task for task in RANDOM_TASKS if not completions[task]]
     if missing:
@@ -82,12 +111,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("log", type=Path)
     mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--bootstrap", action="store_true", help="require five real WikiGold examples")
     mode.add_argument("--smoke", action="store_true", help="require the exact offline fixture result")
     mode.add_argument("--report", action="store_true", help="report missing external coverage without failing")
     args = parser.parse_args()
     try:
         with args.log.open(encoding="utf-8") as stream:
-            passed = check_smoke(stream) if args.smoke else check(stream, args.report)
+            passed = (check_wikigold(stream, args.bootstrap) if args.smoke or args.bootstrap
+                      else check(stream, args.report))
             sys.exit(0 if passed else 1)
     except (OSError, ValueError) as error:
         sys.exit(str(error))

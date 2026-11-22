@@ -532,6 +532,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -547,6 +548,10 @@ jobs:
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           {
+            echo "MATRIX_CHECKPOINT=matrix-feedback-v1-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('crates/anno-eval/src/eval/provenance.rs', 'crates/anno-eval/src/muxer_history.rs') }}"
+            # Keep the measurement cohort compatible across PR and default-branch runs.
+            echo "ANNO_MATRIX_REQUIRE_CACHED=1"
+            echo "ANNO_MAX_EXAMPLES=5"
             echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
             echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
             # PRs use restored datasets and weights. Main and scheduled runs can refill them.
@@ -577,26 +582,13 @@ jobs:
           key: hf-models-${{ runner.os }}-v2
           restore-keys: |
             hf-models-${{ runner.os }}-
-      - name: Cache datasets
+      - name: Cache external datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
+          path: ~/.anno_cache/datasets
+          key: anno-matrix-datasets-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-v3-
-      # Preserve state used by the randomized and worst-first samples when a matching cache is
-      # available. Cache restoration is best-effort and does not prove selector convergence.
-      - name: Cache matrix history for later sampled runs (best effort)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.anno_cache/muxer_history.*.json
-            ~/.anno_cache/linucb_global_state.json
-            ~/.anno_cache/eval-results.jsonl
-            ~/.anno_cache/eval-history.db
-          key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
-          restore-keys: |
-            anno-muxer-${{ runner.os }}-v1-
+            anno-matrix-datasets-${{ runner.os }}-v1-
       - name: Check the offline sampler on a labeled fixture
         env:
           ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
@@ -616,6 +608,59 @@ jobs:
           install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
           cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
           python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
+      - name: Restore the latest compatible default-branch checkpoint
+        id: prior
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 scripts/qa/matrix_checkpoint.py restore
+      - name: Prepare the pinned public WikiGold input
+        # External sampling is advisory on PRs if the source and cache are unavailable.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: |
+          input="$ANNO_CACHE_DIR/datasets/WikiGold.cache"
+          digest=c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f
+          if [[ -f "$input" ]] && echo "$digest  $input" | sha256sum --check --status; then exit 0; fi
+          curl --fail --location --retry 2 --max-time 30 --max-filesize 1000000 \
+            https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/8522f4b39cf9ed323b77f2d8a5005628f8861908/data/wikigold/CONLL-format/data/wikigold.conll.txt \
+            -o "$RUNNER_TEMP/wikigold.conll"
+          echo "$digest  $RUNNER_TEMP/wikigold.conll" | sha256sum --check
+          install -D "$RUNNER_TEMP/wikigold.conll" "$input"
+      - name: Bootstrap a cold trusted run on the public WikiGold corpus
+        if: steps.prior.outputs.restored == 'false' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-bootstrap.jsonl
+          ANNO_MATRIX_TASK: ner
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: "42"
+          ANNO_MUXER_PIN_BACKEND: heuristic
+          ANNO_MUXER_FIXED_DATASETS: WikiGold
+          ANNO_ML_IN_MATRIX: "0"
+          ANNO_MATRIX_REQUIRE_CACHED: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_MAX_EXAMPLES: "5"
+        run: |
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          python3 scripts/qa/check_matrix_outcomes.py --bootstrap "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run worst-first matrix test (+ regression detection)
+        run: |
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+        env:
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+          ANNO_SAMPLE_STRATEGY: worst-first
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+          # Enable eval-history regression detection. It compares each cell's last 5
+          # observations against its pre-existing mean and alerts when Cohen's d >= 2.0
+          # (requires >= 20 historical observations per cell).
+          # ADVISORY ONLY: alerts are printed to stderr and the step does not fail.
+          # The history is restored from a trusted checkpoint and seeds/subsets vary per run, so
+          # the detector is a heuristic without an established false-positive rate;
+          # failing on it would gate PRs on noise. Promote to a failing check only after
+          # alerts are reproduced on a fixed panel. See docs/EVALUATION_SAMPLING.md.
+          ANNO_CHECK_REGRESSIONS: "1"
       - name: Run randomized matrix test (NER)
         run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
@@ -623,7 +668,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           # Keep downloads bounded if enabled.
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (RE)
@@ -633,7 +677,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Coref)
         run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
@@ -642,7 +685,6 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
       - name: Run randomized matrix test (Temporal)
         run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
@@ -651,32 +693,28 @@ jobs:
           ANNO_SAMPLE_STRATEGY: random
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
-      - name: Run worst-first matrix test (+ regression detection)
-        run: |
-          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
-        env:
-          ANNO_SAMPLE_STRATEGY: worst-first
-          ANNO_CI_SEED: ${{ github.run_id }}
-          ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
-          ANNO_MAX_DOWNLOAD_BYTES: 8000000
-          # Enable eval-history regression detection. It compares each cell's last 5
-          # observations against its pre-existing mean and alerts when Cohen's d >= 2.0
-          # (requires >= 20 historical observations per cell).
-          # ADVISORY ONLY: alerts are printed to stderr and the step does not fail.
-          # The history is cache-restored across runs and seeds/subsets vary per run, so
-          # the detector is a heuristic without an established false-positive rate;
-          # failing on it would gate PRs on noise. Promote to a failing check only after
-          # alerts are reproduced on a fixed panel. See docs/EVALUATION_SAMPLING.md.
-          ANNO_CHECK_REGRESSIONS: "1"
       - name: Report sampled coverage and unavailable tasks
         if: always()
         run: |
           set -o pipefail
           touch "$ANNO_MUXER_DECISIONS_FILE"
           python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Prepare updated policy history on the default branch
+        id: checkpoint
+        if: success() && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          python3 scripts/qa/matrix_checkpoint.py snapshot "$RUNNER_TEMP/matrix-checkpoint" \
+            "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
+      - name: Publish trusted matrix checkpoint
+        if: steps.checkpoint.outcome == 'success' && steps.checkpoint.outputs.observations != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.MATRIX_CHECKPOINT }}
+          path: ${{ runner.temp }}/matrix-checkpoint/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 60
       - name: Upload matrix decision and outcome log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -684,6 +722,7 @@ jobs:
           name: matrix-muxer-decisions
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
+            ${{ runner.temp }}/matrix-bootstrap.jsonl
             ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             Cargo.lock
           if-no-files-found: warn
