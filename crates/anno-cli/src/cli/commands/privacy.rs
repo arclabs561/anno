@@ -145,8 +145,37 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
         }
         PrivacyAction::Pseudonymize => {
             let (pseudonymized, mapping) = pseudonymize_text(&text, &pii_entities);
+            if let (Some(output), Some(map)) = (&args.output, &args.export_map) {
+                if super::import::same_entry(output, map)? {
+                    return Err("--output and --export-map must be different files".into());
+                }
+            }
+            let map_file = args
+                .export_map
+                .as_deref()
+                .map(open_pii_map)
+                .transpose()
+                .map_err(|e| format!("Failed to open map: {e}"))?;
             if let Some(path) = &args.output {
-                fs::write(path, &pseudonymized).map_err(|e| format!("Failed to write: {}", e))?;
+                let mut output = fs::OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(path)
+                    .map_err(|e| format!("Failed to open output: {e}"))?;
+                if let Some(map) = &map_file {
+                    let identity =
+                        |f: &fs::File| f.try_clone().and_then(same_file::Handle::from_file);
+                    let output_id = identity(&output).map_err(|e| e.to_string())?;
+                    let map_id = identity(map).map_err(|e| e.to_string())?;
+                    if output_id == map_id {
+                        return Err("--output and --export-map must be different files".into());
+                    }
+                }
+                output
+                    .set_len(0)
+                    .and_then(|()| output.write_all(pseudonymized.as_bytes()))
+                    .map_err(|e| format!("Failed to write: {e}"))?;
                 if !args.quiet {
                     eprintln!(
                         "{} Pseudonymized {} PII entities, saved to {:?}",
@@ -160,13 +189,13 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
             }
 
             // Export mapping if requested
-            if let Some(map_path) = &args.export_map {
+            if let (Some(map_path), Some(map_file)) = (&args.export_map, map_file) {
                 let map_content = mapping
                     .iter()
                     .map(|(orig, fake)| format!("{}\t{}", orig, fake))
                     .collect::<Vec<_>>()
                     .join("\n");
-                write_pii_map(map_path, &map_content)
+                write_pii_map(map_file, &map_content)
                     .map_err(|e| format!("Failed to write map: {}", e))?;
                 if !args.quiet {
                     eprintln!(
@@ -183,7 +212,7 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
     Ok(())
 }
 
-fn write_pii_map(path: &Path, content: &str) -> std::io::Result<()> {
+fn open_pii_map(path: &Path) -> std::io::Result<fs::File> {
     let mut options = fs::OpenOptions::new();
     options.write(true).create(true);
     #[cfg(unix)]
@@ -194,13 +223,17 @@ fn write_pii_map(path: &Path, content: &str) -> std::io::Result<()> {
             .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
     }
-    let mut file = options.open(path)?;
+    let file = options.open(path)?;
     if !file.metadata()?.is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "PII map destination must be a regular file",
         ));
     }
+    Ok(file)
+}
+
+fn write_pii_map(mut file: fs::File, content: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -417,9 +450,7 @@ fn redact_text(text: &str, mut entities: Vec<PIIEntity>) -> String {
 fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<String, String>) {
     let mut result = text.to_string();
     let mut mapping: HashMap<String, String> = HashMap::new();
-    let mut name_counter = 0;
-    let mut date_counter = 0;
-    let mut addr_counter = 0;
+    let mut counters = HashMap::new();
 
     // Fake names pool
     let fake_names = [
@@ -443,30 +474,29 @@ fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<Str
         let fake = if let Some(existing) = mapping.get(&entity.text) {
             existing.clone()
         } else {
-            let fake = match entity.pii_type.as_str() {
-                "PERSON" => {
-                    let name = fake_names[name_counter % fake_names.len()];
-                    name_counter += 1;
-                    name.to_string()
+            let kind = match entity.pii_type.as_str() {
+                "CONTACT" if entity.text.contains('@') => "EMAIL",
+                other => other,
+            };
+            let counter = counters.entry(kind).or_insert(0usize);
+            let fake = loop {
+                *counter += 1;
+                let n = *counter;
+                let candidate = match kind {
+                    "PERSON" if n <= fake_names.len() => fake_names[n - 1].to_string(),
+                    "PERSON" => format!("Person {n}"),
+                    "DOB" => format!("{}-01-{:02}", 1990 + n / 28, n % 28 + 1),
+                    "ADDRESS" => format!("{} Main St", 100 + n),
+                    "EMAIL" if n == 1 => "contact@example.com".to_string(),
+                    "EMAIL" => format!("contact{n}@example.com"),
+                    "CONTACT" => format!("555-000-{:04}", 1000 + n),
+                    "ID_NUMBER" if n == 1 => "XXX-XX-XXXX".to_string(),
+                    "ID_NUMBER" => format!("XXX-XX-{n:04}"),
+                    _ => format!("[{kind}_{n}]"),
+                };
+                if !text.contains(&candidate) {
+                    break candidate;
                 }
-                "DOB" => {
-                    date_counter += 1;
-                    format!("1990-01-{:02}", (date_counter % 28) + 1)
-                }
-                "ADDRESS" => {
-                    addr_counter += 1;
-                    format!("{} Main St", 100 + addr_counter)
-                }
-                "CONTACT" => {
-                    if entity.text.contains('@') {
-                        "contact@example.com".to_string()
-                    } else {
-                        // Phone-like replacement: deterministic per-entity
-                        format!("555-000-{:04}", (entity.start % 9000) + 1000)
-                    }
-                }
-                "ID_NUMBER" => "XXX-XX-XXXX".to_string(),
-                _ => "[REDACTED]".to_string(),
             };
             mapping.insert(entity.text.clone(), fake.clone());
             fake
