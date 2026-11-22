@@ -309,7 +309,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
                 match FCoref::from_path(path) {
                     Ok(model) => match model.resolve(text) {
                         Ok(clusters) => {
-                            fcoref_clusters_to_tracks(doc, &clusters, model.name());
+                            clusters_to_tracks(doc, &clusters, model.name());
                             return;
                         }
                         Err(e) => {
@@ -327,7 +327,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
         match FCoref::from_pretrained("biu-nlp/f-coref") {
             Ok(model) => match model.resolve(text) {
                 Ok(clusters) => {
-                    fcoref_clusters_to_tracks(doc, &clusters, model.name());
+                    clusters_to_tracks(doc, &clusters, model.name());
                     return;
                 }
                 Err(e) => {
@@ -351,9 +351,9 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
     }
 }
 
-/// Convert f-coref clusters into GroundedDocument tracks.
-#[cfg(feature = "onnx")]
-fn fcoref_clusters_to_tracks(
+/// Convert coreference clusters into GroundedDocument tracks.
+#[cfg(any(feature = "onnx", feature = "discourse"))]
+pub(super) fn clusters_to_tracks(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
     backend_name: &str,

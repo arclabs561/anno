@@ -374,6 +374,8 @@ jobs:
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
+      - name: Test speaker turn sidecar through the CLI
+        run: cargo test -p anno-cli --features "onnx,eval,discourse" --test pipeline_speaker_turns
   test-candle-eval:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest

@@ -138,6 +138,19 @@ neural model and `mention-ranking` the heuristic fallback. Successful runs recor
 the backend even when they produce zero tracks. Documents without a recorded
 coreference run omit this field.
 
+### Speaker-attributed first person
+
+Build the CLI with `--features discourse` to use `anno pipeline --coref --speaker-turns turns.json --files transcript.txt --format json`.
+Use one transcript per invocation. For example, the text `Éva: I took my bag.` takes this sidecar:
+
+```json
+[{"speaker": "channel-A", "text": "I took my bag.", "start": 5, "end": 19}]
+```
+
+Offsets count Unicode scalar values in the original text, with an exclusive end. Turns must be in order and disjoint. Leave turns with unknown speakers out of the array. For a recorder that supplies audio times, compute text offsets as you assemble the transcript and keep the audio times separately.
+
+Providing this sidecar selects a speaker-only resolver. General name and third-person chains from the ordinary resolver are omitted. The resolver records `speaker-turns` in `coref_backend` and uses document-local speaker IDs as track names. It groups English `I`, `me`, `my`, `mine`, and `myself` when at least two mentions belong to one speaker. A missing turn language defaults to English. Turns bearing quotation marks and turns marked with another language are skipped. The resolver leaves second-person references unresolved. Its output depends on the accuracy of the supplied speaker annotations.
+
 ## Evaluation (two layers)
 
 `anno` has two eval layers with very different runtimes:
