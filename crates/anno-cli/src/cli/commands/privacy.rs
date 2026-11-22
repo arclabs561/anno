@@ -20,8 +20,8 @@ use anno::Entity;
 /// Privacy analysis and redaction
 #[derive(Parser, Debug)]
 pub struct PrivacyArgs {
-    /// Input file or text
-    #[arg(short, long)]
+    /// Read UTF-8 text from this file
+    #[arg(short, long, value_name = "PATH")]
     pub input: Option<PathBuf>,
 
     /// Input text directly
@@ -61,7 +61,7 @@ pub enum PrivacyAction {
     /// Report PII detected (no modification)
     #[default]
     Report,
-    /// Replace PII with type tokens (\[PERSON_1\], \[DATE_3\], etc.)
+    /// Replace PII with type tokens such as `[CONTACT_1]` and `[ID_NUMBER_1]`
     Redact,
     /// Replace with consistent fake values
     Pseudonymize,

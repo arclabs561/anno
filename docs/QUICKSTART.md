@@ -61,6 +61,21 @@ Machine-readable output:
 anno extract --model heuristic --format json --text "Lynn Conway worked at IBM and Xerox PARC in California."
 ```
 
+## CLI: redact a document
+
+`anno extract --threshold` filters which entities appear in the extraction
+result. To produce a copy of the text with structured PII replaced, use the
+offline privacy command.
+
+```console
+$ anno privacy --model pattern --action redact --text "Send a message to sample@example.org. Reference 123-45-6789."
+Send a message to [CONTACT_1]. Reference [ID_NUMBER_1].
+```
+
+For a UTF-8 file, use `--input ./note.txt` in place of `--text`. The command
+prints the redacted text by default. Add `--output ./redacted.txt` to write it
+to a file.
+
 ## CLI: relation extraction
 
 Extract typed `(head, relation, tail)` triples with a `RelationCapable` backend:
