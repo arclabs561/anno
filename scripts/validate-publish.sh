@@ -35,7 +35,11 @@ cat "$log_file"
 # registry, including those already staged when a later crate fails to build.
 for archive in "$work_dir"/target/package/tmp-registry/*.crate; do
     [[ -f "$archive" ]] || continue
-    sha256sum "$archive"
+    if command -v sha256sum >/dev/null; then
+        sha256sum "$archive"
+    else
+        shasum -a 256 "$archive"
+    fi
 done
 if ((status != 0)); then
     exit "$status"
