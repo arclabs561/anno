@@ -35,6 +35,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
+percent-encoding = "2.3"
 log = { workspace = true }
 ureq = { workspace = true, optional = true }
 dirs = { workspace = true }
