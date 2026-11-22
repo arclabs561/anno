@@ -89,6 +89,32 @@ policy still runs. `ANNO_MUXER_FIXED_BACKEND` is for a direct backend smoke
 test: it bypasses the policy and must not be used to evaluate it. Similarly,
 `ANNO_MUXER_FIXED_DATASETS` fixes the dataset panel when comparing policies.
 
+## Checked-in public evidence
+
+The [compact sampler summary](eval/muxer-public-summary.json) records two offline
+NER backends on pinned WikiGold. Each cell reports three completed seed trials,
+the number of example evaluations and the unweighted mean of trial-level
+strict span-and-type F1. Sentences can recur across trials. The evaluator Git
+revision and the public corpus checksum identify the code and data used for the snapshot.
+Trusted default-branch checkpoints supply operational feedback to the sampler.
+The public summary is for inspecting changes across revisions.
+
+To refresh, start from a clean checkout and run the public replay. The exporter
+verifies the input checksum, evaluates each backend at seeds 41, 42 and 43
+using 32 examples per trial, and joins completed outcomes to the evaluator
+journal by observation ID. Repeated receipts count once per backend and seed.
+Only the fixed public cell names and aggregate metrics enter the snapshot.
+
+```bash
+cache=$(mktemp -d)
+ANNO_CACHE_DIR="$cache" bash scripts/qa/prepare_matrix_wikigold.sh
+python3 scripts/qa/export_muxer_summary.py "$cache/datasets/WikiGold.cache" > "$cache/summary.json"
+diff -u docs/eval/muxer-public-summary.json "$cache/summary.json"
+```
+
+After inspecting the revision and per-cell differences, copy the refreshed JSON
+into `docs/eval/muxer-public-summary.json` to retain it in version control.
+
 ## Adaptive triage
 
 Use the same cache, fixed datasets, candidate panel, example cap, and seed set
@@ -124,6 +150,15 @@ slots containing the same synthetic text. Only the gold annotations vary.
 The persistent and switched cases show whether a policy rediscovers a known
 quality failure or detects it after it moves. Neither creates a backend crash
 or an I/O error. The experiment does not estimate discovery rates on live data.
+
+In the seed-zero control, giving the WikiGold slot the earlier zero-F1 result
+made both selectors choose WikiGold. Moving that result to the CoNLL2003Sample
+slot switched the worst-first pick to CoNLL2003Sample. The random pick stayed
+WikiGold. Across eight seeds and two mirrored histories, worst-first found the
+zero-F1 slot on its first pick in 16/16 persistent cases and 0/16 switched
+cases. Random found it in 8/16 cases under either condition. The checked-in
+[paired control](../scripts/qa/compare_matrix_picks.py) reproduces these
+synthetic decisions. Dataset names here designate fixture slots.
 
 ### Reserve part of a trial for coverage
 
