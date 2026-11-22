@@ -73,8 +73,9 @@ jobs:
 
   publish:
     if: >-
-      startsWith(github.ref, 'refs/tags/anno-py-v') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish == 'publish')
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/anno-py-v')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish == 'publish' &&
+       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/anno-py-v')))
     needs: [build, sdist]
     runs-on: ubuntu-latest
     # PyPI trusted publisher is configured against this environment name.
