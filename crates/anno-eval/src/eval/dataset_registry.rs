@@ -7494,9 +7494,9 @@ define_datasets! {
         citation: "Hendrycks et al. (2021)",
         paper_url: "https://arxiv.org/abs/2103.06268",
         year: 2021,
-        format: "JSONL",
+        format: "SQuAD JSON",
         size_hint: "510 contracts, 13k+ annotations, 41 clause types",
-        notes: "Contract clause extraction; covers indemnification, IP, termination clauses",
+        notes: "Official nested question/answer release: use anno_eval::eval::cuad::read for character spans and unanswerable questions. Token-level JSONL uses the generic NER loader.",
         categories: [ner],
     },
 

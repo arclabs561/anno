@@ -273,6 +273,7 @@ pub mod cross_context_eval;
 pub mod coref_resolver {
     pub use anno::metrics::coref_resolver::*;
 }
+pub mod cuad;
 pub mod dataset;
 pub mod dataset_metadata;
 pub mod dataset_registry;
