@@ -88,6 +88,15 @@ receipt before treating missing cells as the next work item. Coverage decisions
 now record each candidate's count and deterministic tie-break selection; each
 outcome carries the same opaque observation ID as its evaluation-history row.
 
+In worst-first mode, comparable unresolved failures have priority. When none is
+eligible, one quarter of stable seed buckets also consider cells with at least
+two recovered episodes of the same kind in the retained window. An unscored
+completion can close an execution failure. Only a scored measurement can close
+a low-F1 episode. For recovered cells the draw weight is the configured
+hard/soft weight times `episodes / (relevant attempts + 4)`.
+The decision records the reason, number of recovered episodes and latest
+supporting failure ID. Other buckets use the usual worst-first exploration.
+
 ## Interpreting receipts
 
 A low F1 is an observed quality result, not automatically a code regression.
