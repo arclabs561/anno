@@ -1,8 +1,12 @@
 """Prepare a coordinator's challenge from an existing QA run."""
 import argparse
 import json
+import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
+from round_trace import initialize
 from run_panel import render_markdown
 
 GUIDE = Path(__file__).resolve().parents[2] / "docs" / "ADVERSARIAL_QA.md"
@@ -40,14 +44,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("receipts", type=Path)
     parser.add_argument("claim")
+    parser.add_argument("--trace", type=Path, help="create a local round trace at a new SQLite path")
     args = parser.parse_args()
     try:
         summary = evidence(args.receipts)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+        handoff = (f"# Coordinator handoff\n\nClaim to investigate: {args.claim}\n\n"
+                   f"Starting evidence from {args.receipts}\n\n{summary}\n\n{GUIDE.read_text()}\n")
+        if args.trace:
+            trace_id = initialize(args.trace, handoff)
+            print(f"QA trace {trace_id} at {args.trace}", file=sys.stderr)
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error, subprocess.CalledProcessError) as exc:
         parser.exit(1, f"Cannot prepare QA round: {exc}\n")
-    print(f"# Coordinator handoff\n\nClaim to investigate: {args.claim}\n")
-    print(f"Starting evidence from {args.receipts}\n\n{summary}\n")
-    print(GUIDE.read_text())
+    print(handoff, end="")
 
 
 if __name__ == "__main__":
