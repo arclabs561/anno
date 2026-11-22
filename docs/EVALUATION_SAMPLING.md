@@ -14,6 +14,18 @@ The sampler is useful for three separate jobs:
 Start with the fixed panel. It makes missing model features, incompatible
 datasets, and cold caches visible before interpreting adaptive choices.
 
+## Choose a mode
+
+`anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.
+
+| CLI mode | Default strategy | What gets the next test |
+| --- | --- | --- |
+| `--mode triage` | `worst-first` | Cells with unresolved failures or comparable evidence of recurring problems. |
+| `--mode measure` | `ml-only` | Eligible ML backends prioritized by the configured policy and available outcomes. Selection changes the sample, so use a fixed panel for a head-to-head quality comparison. |
+| `--mode coverage` | `estimate` | Backends with fewer recorded observations across the eligible dataset panel. |
+
+`--strategy random` supplies a seeded control. Use `--mode coverage` when filling gaps. The legacy spelling `--mode estimate` selects measure, while `--strategy estimate` selects coverage. In muxer itself, the stateful `Router` can change from normal operation to triage when a drift alarm fires. Anno's CLI selects its preset explicitly. [CLI definitions](../crates/anno-cli/src/cli/commands/muxer.rs) · [Upstream RouterMode](https://docs.rs/muxer/0.5.3/muxer/router/enum.RouterMode.html)
+
 ## Reproducible smoke run
 
 Create a fresh receipt directory and keep history, results, and decision logs
