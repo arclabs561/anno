@@ -39,11 +39,16 @@ jobs:
       - name: Build the offline models and URL reader
         id: build
         run: cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
-      - name: Standards, mixed-direction text and literature
-        run: python3 scripts/qa_random_urls.py --category documents --count 3 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --output qa/reports/documents.md
-      - name: Two articles from sampled feeds
+      # Sample six pages per run. Keep the document and feed checks, then
+      # exercise three distinct publishers using the pattern backend.
+      - name: Sample two published documents
+        run: python3 scripts/qa_random_urls.py --category documents --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/documents.md
+      - name: Sample one article from a feed
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 scripts/qa_random_urls.py --category rss --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --output qa/reports/feeds.md
+        run: python3 scripts/qa_random_urls.py --category rss --count 1 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/feeds.md
+      - name: Compare extraction across three publishers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output qa/reports/publishers.md
       - name: Save live QA reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
