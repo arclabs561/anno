@@ -6,8 +6,8 @@
 """
 QA random URL testing for anno extract.
 
-Picks random URLs from a pool of multilingual sources (Wikipedia, Wikimedia,
-RSS feeds, etc.) and runs `anno extract --url` on each, producing a markdown
+Samples topical domains and publishers by default. Explicit category and language
+filters can select the broader multilingual pool. Runs `anno extract --url` on each, producing a markdown
 report with entity counts, timing, and error details.
 
 Usage:
@@ -23,9 +23,11 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 import time
@@ -38,6 +40,11 @@ from pathlib import Path
 from typing import Optional
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit
+
+if __package__:
+    from .qa.domain_coverage import coverage_summary, render_coverage
+else:
+    from qa.domain_coverage import coverage_summary, render_coverage
 
 # ---------------------------------------------------------------------------
 # Source pool
@@ -58,6 +65,7 @@ class Source:
     lang: str      # ISO 639-1 or "multi"
     script: str    # Latin, Cyrillic, CJK, Arabic, Devanagari, etc.
     discover_from_feed: bool = False
+    domain: str = "unclassified"
 
 
 # Language -> script mapping for Wikipedia/Wikimedia sources
@@ -263,47 +271,59 @@ DOCUMENT_SOURCES = [
     Source("Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "documents", "ja", "CJK"),
 ]
 
-# One canonical hostname per publisher. Fixed links replay without discovery.
+# Each curated publisher has one canonical hostname and one catalog topic.
+# The topic labels the selected section, including for feeds. Fixed links replay without discovery.
 # For feeds the selected article depends on both the seed and current entries.
 CROSS_DOMAIN_SOURCES = [
-    Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin"),
-    Source("NASA lunar eclipses 2001–2100", "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html", "cross-domain", "en", "Latin"),
-    Source("US Constitution transcript", "https://www.archives.gov/founding-docs/constitution-transcript", "cross-domain", "en", "Latin"),
-    Source("Bill of Rights transcript", "https://www.archives.gov/founding-docs/bill-of-rights-transcript", "cross-domain", "en", "Latin"),
-    Source("Spanish Constitution", "https://www.boe.es/buscar/act.php?id=BOE-A-1978-31229", "cross-domain", "es", "Latin"),
-    Source("Spanish Civil Code", "https://www.boe.es/buscar/act.php?id=BOE-A-1889-4763", "cross-domain", "es", "Latin"),
-    Source("Aozora: Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "cross-domain", "ja", "CJK"),
-    Source("Aozora: I Am a Cat", "https://www.aozora.gr.jp/cards/000148/card789.html", "cross-domain", "ja", "CJK"),
-    Source("RFC 3339: timestamps", "https://www.rfc-editor.org/rfc/rfc3339.html", "cross-domain", "en", "Latin"),
-    Source("RFC 8259: JSON", "https://www.rfc-editor.org/rfc/rfc8259.html", "cross-domain", "en", "Latin"),
-    Source("IANA example domains", "https://www.iana.org/help/example-domains", "cross-domain", "en", "Latin"),
-    Source("IANA time zone database", "https://www.iana.org/time-zones", "cross-domain", "en", "Latin"),
-    Source("Python data structures", "https://docs.python.org/3/tutorial/datastructures.html", "cross-domain", "en", "Latin"),
-    Source("Python Unicode HOWTO", "https://docs.python.org/3/howto/unicode.html", "cross-domain", "en", "Latin"),
-    Source("Quanta Magazine", "https://www.quantamagazine.org/feed/", "cross-domain", "en", "Latin", True),
-    Source("Library of Congress blog", "https://blogs.loc.gov/loc/feed/", "cross-domain", "en", "Latin", True),
-    Source("MIT News", "https://news.mit.edu/rss/feed", "cross-domain", "en", "Latin", True),
-    Source("Rust project blog", "https://blog.rust-lang.org/feed.xml", "cross-domain", "en", "Latin", True),
-    Source("The Guardian world news", "https://www.theguardian.com/world/rss", "cross-domain", "en", "Latin", True),
-    Source("STAT health news", "https://www.statnews.com/feed/", "cross-domain", "en", "Latin", True),
+    Source("NASA lunar eclipses 1901–2000", "https://eclipse.gsfc.nasa.gov/LEcat5/LE1901-2000.html", "cross-domain", "en", "Latin", domain="science"),
+    Source("NASA lunar eclipses 2001–2100", "https://eclipse.gsfc.nasa.gov/LEcat5/LE2001-2100.html", "cross-domain", "en", "Latin", domain="science"),
+    Source("US Constitution transcript", "https://www.archives.gov/founding-docs/constitution-transcript", "cross-domain", "en", "Latin", domain="law"),
+    Source("Bill of Rights transcript", "https://www.archives.gov/founding-docs/bill-of-rights-transcript", "cross-domain", "en", "Latin", domain="law"),
+    Source("Spanish Constitution", "https://www.boe.es/buscar/act.php?id=BOE-A-1978-31229", "cross-domain", "es", "Latin", domain="law"),
+    Source("Spanish Civil Code", "https://www.boe.es/buscar/act.php?id=BOE-A-1889-4763", "cross-domain", "es", "Latin", domain="law"),
+    Source("Aozora: Night on the Galactic Railroad", "https://www.aozora.gr.jp/cards/000081/files/456_15050.html", "cross-domain", "ja", "CJK", domain="literature"),
+    Source("Aozora: I Am a Cat", "https://www.aozora.gr.jp/cards/000148/card789.html", "cross-domain", "ja", "CJK", domain="literature"),
+    Source("RFC 3339: timestamps", "https://www.rfc-editor.org/rfc/rfc3339.html", "cross-domain", "en", "Latin", domain="computing"),
+    Source("RFC 8259: JSON", "https://www.rfc-editor.org/rfc/rfc8259.html", "cross-domain", "en", "Latin", domain="computing"),
+    Source("IANA example domains", "https://www.iana.org/help/example-domains", "cross-domain", "en", "Latin", domain="computing"),
+    Source("IANA time zone database", "https://www.iana.org/time-zones", "cross-domain", "en", "Latin", domain="computing"),
+    Source("Python data structures", "https://docs.python.org/3/tutorial/datastructures.html", "cross-domain", "en", "Latin", domain="computing"),
+    Source("Python Unicode HOWTO", "https://docs.python.org/3/howto/unicode.html", "cross-domain", "en", "Latin", domain="computing"),
+    Source("Quanta Magazine", "https://www.quantamagazine.org/feed/", "cross-domain", "en", "Latin", True, domain="science"),
+    Source("Library of Congress blog", "https://blogs.loc.gov/loc/feed/", "cross-domain", "en", "Latin", True, domain="history"),
+    Source("MIT News", "https://news.mit.edu/rss/feed", "cross-domain", "en", "Latin", True, domain="science"),
+    Source("Rust project blog", "https://blog.rust-lang.org/feed.xml", "cross-domain", "en", "Latin", True, domain="computing"),
+    Source("The Guardian world news", "https://www.theguardian.com/world/rss", "cross-domain", "en", "Latin", True, domain="world-news"),
+    Source("STAT health news", "https://www.statnews.com/feed/", "cross-domain", "en", "Latin", True, domain="health"),
+    Source("MedlinePlus health literacy", "https://medlineplus.gov/healthliteracy.html", "cross-domain", "en", "Latin", domain="health"),
+    Source("Federal Reserve open market operations", "https://www.federalreserve.gov/monetarypolicy/openmarket.htm", "cross-domain", "en", "Latin", domain="economics"),
+    Source("FAA Aeronautical Information Manual", "https://www.faa.gov/air_traffic/publications/atpubs/aim_html/", "cross-domain", "en", "Latin", domain="transport"),
+    Source("Louvre palace history", "https://www.louvre.fr/decouvrir/le-palais", "cross-domain", "fr", "Latin", domain="arts"),
+    Source("FAO agroecology overview", "https://www.fao.org/agroecology/overview/en/", "cross-domain", "en", "Latin", domain="agriculture"),
+    Source("Metropolitan Museum collection record", "https://www.metmuseum.org/art/collection/search/436532", "cross-domain", "en", "Latin", domain="arts"),
 ]
 
 
 def sample_publishers(pool: list[Source], count: int, rng: random.Random) -> list[Source]:
-    """Take one page per publisher per pass, without replacement across passes."""
-    if count > len(pool):
+    """Rotate publishers and prefer the least represented topic in each pass."""
+    if not 1 <= count <= len(pool):
         raise ValueError(f"requested {count} cross-domain pages; only {len(pool)} match the filters")
     by_host: dict[str, list[Source]] = defaultdict(list)
     for source in pool:
         by_host[urlsplit(source.url).netloc].append(source)
     for pages in by_host.values():
         rng.shuffle(pages)
-    selected = []
+    selected: list[Source] = []
+    topics: Counter[str] = Counter()
     while len(selected) < count:
         hosts = [host for host, pages in by_host.items() if pages]
         rng.shuffle(hosts)
-        for host in hosts[:count - len(selected)]:
-            selected.append(by_host[host].pop())
+        while hosts and len(selected) < count:
+            host = min(hosts, key=lambda h: topics[by_host[h][-1].domain])
+            hosts.remove(host)
+            source = by_host[host].pop()
+            selected.append(source)
+            topics[source.domain] += 1
     return selected
 
 
@@ -347,6 +367,16 @@ def feed_entry_links(data: bytes) -> list[str]:
 MAX_PUBLISHER_FEED_BYTES = 2 * 1024 * 1024
 
 
+def is_publisher_article(source: Source, entry: str) -> bool:
+    if entry == source.url or "\\" in entry or any(ch.isspace() or ord(ch) < 32 for ch in entry):
+        return False
+    try:
+        url = urlsplit(entry)
+        return url.scheme == "https" and url.netloc == urlsplit(source.url).netloc
+    except ValueError:
+        return False
+
+
 def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
     """Read one bounded feed and choose one same-host HTTPS article, without crawling."""
     request = urllib.request.Request(source.url, headers={"User-Agent": "anno-qa/1.0"})
@@ -354,12 +384,7 @@ def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
         data = response.read(MAX_PUBLISHER_FEED_BYTES + 1)
     if len(data) > MAX_PUBLISHER_FEED_BYTES:
         raise ValueError("feed exceeds 2 MiB limit")
-    origin = urlsplit(source.url).netloc
-    candidates = []
-    for entry in feed_entry_links(data):
-        url = urlsplit(entry)
-        if url.scheme == "https" and url.netloc == origin and entry != source.url:
-            candidates.append(entry)
+    candidates = [entry for entry in feed_entry_links(data) if is_publisher_article(source, entry)]
     if not candidates:
         raise ValueError("feed has no same-host HTTPS article links")
     # Sorting and per-publisher randomness keep feed order and other publishers'
@@ -462,10 +487,13 @@ def validate_extraction(data: object) -> None:
     prov = data.get("provenance")
     if not isinstance(prov, dict) or not isinstance(prov.get("model"), str) or not prov["model"].strip():
         raise ValueError("missing provenance model")
-    if "source_url" in prov and not (
-        isinstance(prov["source_url"], str) and prov["source_url"].startswith(("http://", "https://"))
-    ):
-        raise ValueError("invalid provenance.source_url")
+    if "source_url" in prov:
+        url = prov["source_url"]
+        if not isinstance(url, str) or any(ch.isspace() or ord(ch) < 32 for ch in url):
+            raise ValueError("invalid provenance.source_url")
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.hostname or parts.username is not None or parts.password is not None:
+            raise ValueError("invalid provenance.source_url")
     if "text_hash" in prov and not isinstance(prov["text_hash"], str):
         raise ValueError("invalid provenance.text_hash")
     size = prov.get("text_chars")
@@ -548,9 +576,13 @@ def run_anno(
         result.url = prov.get("source_url") or url
         result.text_hash = prov.get("text_hash", "")
         result.detected_lang = prov.get("language", "")
-        if source.category == "cross-domain" and not result.text_hash:
-            result.error_msg = "missing rendered text hash"
-            return result
+        if source.category == "cross-domain":
+            if not re.fullmatch(r"xxh3:[0-9a-f]{16}", result.text_hash):
+                result.error_msg = "missing or invalid rendered text hash"
+                return result
+            if "source_url" not in prov or not result.url.startswith("https://"):
+                result.error_msg = "final publisher URL is not HTTPS"
+                return result
         if source.category == "documents" and result.detected_lang != source.lang:
             result.error_msg = f"expected {source.lang}, detected {result.detected_lang or 'unknown'}"
             return result
@@ -615,6 +647,8 @@ def generate_report(
                 lines.append(f"- Incomplete input comparison: {source.name}")
             elif len({r.text_hash for r in runs}) > 1:
                 lines.append(f"- Different input text across backends: {source.name}")
+            elif len({r.url for r in runs}) > 1:
+                lines.append(f"- Different final URLs across backends: {source.name}")
             else:
                 matched += 1
         lines.append(f"- Same input verified across all backends: {matched}/{len(by_source)} sources")
@@ -693,16 +727,17 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="QA random URL testing for anno extract",
     )
-    p.add_argument("--count", "-n", type=int, default=10, help="Number of URLs to test (default: 10)")
-    p.add_argument("--backends", "-b", default="stacked", help="Comma-separated backends (default: stacked)")
+    p.add_argument("--count", "-n", type=int, help="Number of URLs to select (default: 10)")
+    p.add_argument("--backends", "-b", help="Comma-separated backends (default: stacked)")
     p.add_argument("--timeout", type=int, default=60, help="Per-URL timeout in seconds (default: 60)")
     p.add_argument("--output", "-o", help="Report file path (default: qa/reports/qa-random-<timestamp>.md)")
     selection = p.add_mutually_exclusive_group()
-    selection.add_argument("--cross-domain", action="store_true",
+    selection.add_argument("--cross-domain", dest="category", action="store_const", const="cross-domain",
                            help="Sample pages and feed entries from distinct publishers per pass; use --no-rss for fixed pages only")
-    selection.add_argument("--category", "-c", default="all",
-                   choices=["wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
-                   help="Filter source category (default: all)")
+    selection.add_argument("--replay", type=Path, help="Revisit exact article URLs in a cross-domain receipt and compare rendered text hashes")
+    selection.add_argument("--category", "-c",
+                   choices=["cross-domain", "wikipedia", "conlang", "wikimedia", "rss", "other", "refhop", "documents", "all"],
+                   help="Select a legacy source pool; without a category the sampler balances cross-domain topics and publishers")
     p.add_argument("--lang", help="Filter by language codes (comma-separated)")
     p.add_argument("--seed", "-s", type=int, help="Repeat source selection; live page contents may change")
     p.add_argument("--no-rss", action="store_true", help="Skip RSS and refhop sources (faster, no feed/API fetching)")
@@ -755,12 +790,27 @@ def self_test() -> int:
     if unmapped:
         errors.append(f"Languages without script mapping (defaulting to Latin): {sorted(unmapped)}")
 
+    topics_by_publisher = defaultdict(set)
+    for source in CROSS_DOMAIN_SOURCES:
+        topics_by_publisher[urlsplit(source.url).netloc].add(source.domain)
+        if (source.domain == "unclassified" or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", source.domain)
+                or not source.url.startswith("https://")):
+            errors.append(f"Cross-domain source needs a subject and HTTPS URL: {source.name}")
+    for host, topics in topics_by_publisher.items():
+        if len(topics) > 1:
+            errors.append(f"Multiple catalog topics for publisher {host}: {sorted(topics)}")
+    if len({s.url for s in CROSS_DOMAIN_SOURCES}) != len(CROSS_DOMAIN_SOURCES):
+        errors.append("Duplicate cross-domain catalog URL")
+
     # Summary stats
     categories = Counter(s.category for s in ALL_SOURCES)
     scripts = sorted(set(s.script for s in ALL_SOURCES))
     langs = sorted(set(s.lang for s in ALL_SOURCES))
 
-    print(f"Source pool: {len(ALL_SOURCES)} total")
+    print(f"Cross-domain pool: {len(CROSS_DOMAIN_SOURCES)} pages, "
+          f"{len({s.domain for s in CROSS_DOMAIN_SOURCES})} topics, "
+          f"{len({urlsplit(s.url).hostname for s in CROSS_DOMAIN_SOURCES})} publishers")
+    print(f"Legacy source pool: {len(ALL_SOURCES)} total")
     print(f"Categories: {dict(categories.most_common())}")
     print(f"Languages ({len(langs)}): {', '.join(langs)}")
     print(f"Scripts ({len(scripts)}): {', '.join(scripts)}")
@@ -807,60 +857,129 @@ def self_test() -> int:
     return 0
 
 
+def replay_sources(receipt):
+    """Only pass catalog URLs or same-publisher article URLs to the extractor."""
+    coverage_summary(receipt)
+    catalog = {s.url: s for s in CROSS_DOMAIN_SOURCES}
+    urls = {}
+    for row in receipt["sources"]:
+        source = catalog.get(row["source_url"])
+        if source is None or row["domain"] != source.domain:
+            raise ValueError("receipt source or domain is outside the cross-domain catalog")
+        article = row["selected_url"]
+        if source.discover_from_feed:
+            if article is not None and not is_publisher_article(source, article):
+                raise ValueError("receipt feed article must belong to its catalog publisher")
+        elif article != source.url:
+            raise ValueError("receipt fixed page must equal its catalog URL")
+        urls[source] = article
+    return urls
+
+
+def verified_input(row):
+    checks = row["checks"]
+    if not checks or any(check["status"] != "ok" for check in checks):
+        return None
+    identities = {(check["text_hash"], check["final_url"]) for check in checks}
+    return identities.pop() if len(identities) == 1 else None
+
+
+def cross_domain_receipt(seed, backends, eligible, urls, results):
+    checks = defaultdict(list)
+    for run in results:
+        if run.backend:
+            checks[run.source].append({"backend": run.backend, "status": run.status.lower(),
+                                       "final_url": run.url if run.status == "OK" else None,
+                                       "text_hash": run.text_hash if run.status == "OK" else None})
+    return {"kind": "anno.qa.cross-domain", "schema_version": 1, "seed": seed,
+            "backends": backends, "eligible_sources": eligible,
+            "sources": [{"domain": source.domain, "source_url": source.url,
+                         "selected_url": url, "checks": checks[source]} for source, url in urls.items()]}
+
+
+def same_file(left, right):
+    return (left.resolve() == right.resolve()
+            or (left.exists() and right.exists() and left.samefile(right)))
+
+
 def main() -> int:
     args = parse_args()
-
     if args.self_test:
         return self_test()
 
     start_time = datetime.now(timezone.utc)
     anno_bin = os.environ.get("ANNO", "./target/release/anno")
-    backends = [b.strip() for b in args.backends.split(",")]
-
-    if args.count < 1 or not all(backends):
-        print("error: expected a positive count and a nonempty backend name", file=sys.stderr)
+    category = args.category or ("all" if args.lang else "cross-domain")
+    cross_domain = category == "cross-domain"
+    pool = list(CROSS_DOMAIN_SOURCES if cross_domain else ALL_SOURCES)
+    reference = None
+    ts = start_time.strftime("%Y%m%d-%H%M%S-%f")
+    out_path = Path(args.output) if args.output else Path("qa/reports") / f"qa-random-{ts}.md"
+    json_path = out_path.with_suffix(".json")
+    try:
+        if args.replay:
+            if args.count is not None or args.seed is not None or args.lang or args.no_rss:
+                raise ValueError("--replay uses the recorded selection; omit count, seed and source filters")
+            if same_file(args.replay, json_path) or same_file(args.replay, out_path):
+                raise ValueError("choose a new report path for the replay")
+            raw_reference = args.replay.read_bytes()
+            reference = json.loads(raw_reference)
+            replay_urls = replay_sources(reference)
+            selected = list(replay_urls)
+            args.seed = reference["seed"]
+            eligible = reference["eligible_sources"]
+        else:
+            if args.no_rss:
+                pool = [s for s in pool if s.category not in ("rss", "refhop") and not s.discover_from_feed]
+            if category not in ("all", "cross-domain"):
+                pool = [s for s in pool if s.category == category]
+            if args.lang:
+                lang_set = {lang.strip() for lang in args.lang.split(",")}
+                pool = [s for s in pool if s.lang in lang_set]
+            if not pool:
+                raise ValueError("no sources match the given filters")
+            count = 10 if args.count is None else args.count
+            if count < 1:
+                raise ValueError("expected a positive count")
+            if cross_domain:
+                if args.seed is None:
+                    args.seed = random.SystemRandom().getrandbits(64)
+                selected = sample_publishers(pool, count, random.Random(args.seed))
+                eligible = dict(Counter(s.domain for s in pool))
+            else:
+                if args.seed is not None:
+                    random.seed(args.seed)
+                selected = random.sample(pool, min(count, len(pool)))
+        if cross_domain and same_file(out_path, json_path):
+            raise ValueError("choose a Markdown output path separate from its .json receipt")
+        if args.backends is None:
+            backends = reference["backends"] if reference is not None else ["stacked"]
+        else:
+            backends = [b.strip() for b in args.backends.split(",")]
+        if (len(set(backends)) != len(backends)
+                or any(not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", b) for b in backends)):
+            raise ValueError("expected distinct backend names")
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
-
-    # Seed
-    if args.cross_domain and args.seed is None:
-        args.seed = random.SystemRandom().getrandbits(64)
-    elif not args.cross_domain and args.seed is not None:
-        random.seed(args.seed)
-
-    # Filter sources
-    pool = list(CROSS_DOMAIN_SOURCES if args.cross_domain else ALL_SOURCES)
-    if args.no_rss:
-        pool = [s for s in pool if s.category not in ("rss", "refhop") and not s.discover_from_feed]
-    if args.category != "all":
-        pool = [s for s in pool if s.category == args.category]
-    if args.lang:
-        lang_set = {l.strip() for l in args.lang.split(",")}
-        pool = [s for s in pool if s.lang in lang_set]
-
-    if not pool:
-        print("error: No sources match the given filters.", file=sys.stderr)
-        return 1
-
-    # Sample
-    if args.cross_domain:
-        try:
-            selected = sample_publishers(pool, args.count, random.Random(args.seed))
-        except ValueError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 1
-    else:
-        selected = random.sample(pool, min(args.count, len(pool)))
     count = len(selected)
 
     print(f"QA random URL test: {count} URLs, backend(s): {', '.join(backends)}, seed: {args.seed}")
-    print(f"Source pool: {len(pool)} sources after filters")
+    if reference is None:
+        print(f"Source pool: {len(pool)} sources after filters")
+    else:
+        print(f"Revisiting the selection from {args.replay}")
     print()
 
     all_results: list[RunResult] = []
+    urls = {}
     for i, source in enumerate(selected, 1):
         error = "URL resolution failed"
         try:
-            if source.discover_from_feed:
+            if reference is not None:
+                url = replay_urls[source]
+                error = "reference did not resolve an article"
+            elif source.discover_from_feed:
                 url = discover_publisher_article(source, args.seed, args.timeout)
             else:
                 url = resolve_url(source)
@@ -868,8 +987,10 @@ def main() -> int:
             url = None
             error = f"feed discovery failed: {exc}"
 
+        urls[source] = url
         if args.dry_run:
-            print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{source.category}]")
+            group = source.domain if cross_domain else source.category
+            print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{group}]")
             if url != source.url:
                 print(f"           source: {source.url}")
             print(f"           url:  {url or error}")
@@ -885,8 +1006,8 @@ def main() -> int:
             print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) -> {backend}...", end=" ", flush=True)
             result = run_anno(source, anno_bin, url, backend, args.timeout, args.verbose)
             result.selected_article = selected_article
-            if result.status == "OK":
-                # Reuse the article reached by the first backend on random redirects.
+            # Legacy random endpoints need the article reached by the first backend.
+            if result.status == "OK" and not cross_domain:
                 url = result.url
 
             if result.status == "OK":
@@ -902,28 +1023,47 @@ def main() -> int:
             time.sleep(args.delay)
 
     if args.dry_run:
-        return 1 if args.cross_domain and all_results else 0
+        return 1 if cross_domain and all_results else 0
 
     # Generate report
     report = generate_report(all_results, args.seed, backends, start_time)
 
-    # Output
-    if args.output:
-        out_path = Path(args.output)
-    else:
-        ts = start_time.strftime("%Y%m%d-%H%M%S")
-        out_path = Path("qa/reports") / f"qa-random-{ts}.md"
-
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    verified = True
+    if cross_domain:
+        receipt = cross_domain_receipt(args.seed, backends, eligible, urls, all_results)
+        if reference is not None:
+            outcomes = {}
+            for original, current in zip(reference["sources"], receipt["sources"], strict=True):
+                before, after = verified_input(original), verified_input(current)
+                if before is None or after is None:
+                    outcome = "unverified"
+                else:
+                    outcome = "matched" if before == after else "changed"
+                outcomes[current["source_url"]] = outcome
+            receipt["replay"] = {"reference_sha256": hashlib.sha256(raw_reference).hexdigest(),
+                                 "outcomes": outcomes}
+            verified = all(outcome == "matched" for outcome in outcomes.values())
+        report += "\n\n## Domain coverage\n\n" + render_coverage(receipt) + "\n"
+        matched = coverage_summary(receipt)["matched"]
+        verified = verified and matched == count
+        json_path.write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"Round receipt written to {json_path}")
     out_path.write_text(report, encoding="utf-8")
     print(f"\nReport written to {out_path}")
 
     # Summary
     ok_count = sum(1 for r in all_results if r.status == "OK")
     total = len(all_results)
-    print(f"Done: {ok_count}/{total} OK")
+    print(f"Done: {ok_count}/{total} checks OK")
+    if cross_domain:
+        print(f"Verified inputs: {matched}/{count} selected sources")
+        if reference is not None:
+            counts = Counter(receipt["replay"]["outcomes"].values())
+            print(f"Reference comparison: {counts['matched']} matched, {counts['changed']} changed, "
+                  f"{counts['unverified']} unverified")
 
-    return 0 if ok_count == total else 1
+    return 0 if verified and ok_count == total else 1
 
 
 if __name__ == "__main__":

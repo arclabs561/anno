@@ -116,6 +116,9 @@ class TestSpanAssertions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             rows = [{**self.row, "id": str(i), "assertions": [self.positive]} for i in range(4)]
+            rows[0]["domain"] = "arts"
+            for row in rows[1:3]:
+                row["domain"] = "finance"
             fixture = root / "fixture.json"
             fixture.write_text(json.dumps(rows))
             old, new = root / "old.jsonl", root / "new.jsonl"
@@ -127,8 +130,15 @@ class TestSpanAssertions(unittest.TestCase):
                    "--baseline-predictions", str(old), "--predictions"]
             changed = subprocess.run([*cmd, str(new)], capture_output=True, text=True)
             self.assertEqual(changed.returncode, 1, changed.stderr)
-            self.assertEqual(json.loads(changed.stdout)["comparison"],
+            report = json.loads(changed.stdout)
+            self.assertEqual(report["comparison"],
                              {"baseline_passed": 1, "gained": 2, "lost": 1})
+            groups = {row["domain"]: row for row in report["domains"]}
+            self.assertEqual(groups["arts"]["comparison"], {"baseline_passed": 1, "gained": 0, "lost": 1})
+            self.assertEqual(groups["finance"]["documents"], 2)
+            self.assertEqual(groups["finance"]["comparison"], {"baseline_passed": 0, "gained": 2, "lost": 0})
+            self.assertEqual(groups[None]["exact_span"], {"passed": 0, "total": 1})
+            self.assertEqual(groups[None]["no_overlap"], {"passed": 0, "total": 0})
             same = subprocess.run([*cmd, str(old)], capture_output=True, text=True)
             self.assertEqual(same.returncode, 0, same.stderr)
             self.assertEqual(json.loads(same.stdout)["passed"], 1)
@@ -136,6 +146,23 @@ class TestSpanAssertions(unittest.TestCase):
             stale_baseline = subprocess.run([*cmd, str(new)], capture_output=True, text=True)
             self.assertEqual(stale_baseline.returncode, 2)
             self.assertFalse(stale_baseline.stdout)
+
+    def test_domain_counts_keep_empty_predictions_and_separate_negative_controls(self):
+        fixture = oracle.DEFAULT_FIXTURE.with_name("domain-span-assertions.json")
+        cases = oracle.load_cases(json.loads(fixture.read_text()))
+        report = oracle.score(cases, [prediction(row, []) for row in cases.values()])
+        domains = oracle.summarize_domains(cases, report["findings"])
+        self.assertGreaterEqual(len(domains), 8)
+        for row in domains:
+            self.assertGreaterEqual(row["documents"], 2)
+            self.assertGreaterEqual(row["exact_span"]["total"], 2)
+            self.assertEqual(row["exact_span"]["passed"], 0)
+            self.assertGreaterEqual(row["no_overlap"]["total"], 2)
+            self.assertEqual(row["no_overlap"]["passed"], row["no_overlap"]["total"])
+            self.assertNotIn("comparison", row)
+        for invalid in ["", "law\npolicy", 4]:
+            with self.subTest(domain=invalid), self.assertRaisesRegex(ValueError, "domain"):
+                oracle.load_cases([{**self.row, "domain": invalid}])
 
     def test_replay_exit_codes(self):
         with tempfile.TemporaryDirectory() as directory:

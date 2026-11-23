@@ -14,6 +14,18 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 >
 > Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
+## Start from a rotating domain sample
+
+The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. Pass that file directly to the coordinator. The scheduled live QA job includes both the receipt and a handoff in its artifact.
+
+```sh
+just qa-round qa/reports/publishers.json 'Which selected topic needs a new source or independent labels?'
+```
+
+Check for duplicate text and redirects before assigning a scout. Two publisher URLs returning the same notice provide one rendered input. A valid page with zero extracted entities can still contribute to retrieval coverage. For quality comparisons freeze the source revision, use independent positive and protected-range labels, and report gains and losses separately by domain. Keep deliberately challenging punctuation or alias cases separate from a sample intended to describe ordinary documents.
+
+For a labeled round, pass the [domain span checker’s JSON report](DOMAIN_QA.md) to the same command. The handoff includes exact hits, protected-range passes and paired changes for each group. It omits the original mentions. A receipt with repeated subjects from one publisher can support a genre-specific result; evidence of transfer to other publishers requires separate source families.
+
 ## Assign a reviewer and account for the run
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
@@ -104,3 +116,5 @@ For a policy comparison, give the seeded random control the same candidate set, 
 - **Muxer** can spend a triage slot on a previously broken cell and a coverage slot on a different compatible cell. Keep a fixed panel for comparisons and a seeded random control for policy experiments. Feed it measured execution outcomes. Keep retrieval failures and disputed annotations distinct from model errors.
 
 Record the baseline and candidate separately even when their outputs match. A count such as “3 gained, 0 lost across 175 anchors in 92 contracts” lets the next reviewer audit a claim; whole-document precision requires labels for the other mentions too. [Fixtures and dataset commands](QA.md) · [Muxer modes](EVALUATION_SAMPLING.md)
+
+The weekly and manual live QA job also scores up to eight discovery anchors per group on pinned English, Dutch, Spanish and Chinese datasets. The `live-document-qa` artifact includes the source pins and split counts in `domain-manifest.json`, the revision, backend and aggregate scores in `domain-discovery.json`, and the reviewer prompt in `labeled-round.md`. Source text, individual predictions and reserved examples stay on the ephemeral runner. Use the same fixture digest for comparisons over time. A missed anchor counts toward the reported error rate. Failure to download, verify, run or score the fixture fails the job.

@@ -121,6 +121,16 @@ pub fn artifact_receipt_from_paths(
 /// Factory for creating backend instances from names.
 pub struct BackendFactory;
 
+// Keep true capability skips while retaining context for broken or unreadable models.
+#[cfg(any(feature = "onnx", feature = "candle", test))]
+fn model_load_error(cause: &anno::Error, message: String) -> anno::Error {
+    if matches!(cause, anno::Error::FeatureNotAvailable(_)) {
+        anno::Error::FeatureNotAvailable(message)
+    } else {
+        anno::Error::ModelInit(message)
+    }
+}
+
 impl BackendFactory {
     /// Construct a backend and retain only the assets it actually selected.
     ///
@@ -136,7 +146,7 @@ impl BackendFactory {
                 use crate::DEFAULT_BERT_ONNX_MODEL;
                 use anno::backends::onnx::BertNEROnnx;
                 let model = BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL).map_err(|e| {
-                    anno::Error::FeatureNotAvailable(format!("Failed to create BertNEROnnx: {e}"))
+                    model_load_error(&e, format!("Failed to create BertNEROnnx: {e}"))
                 })?;
                 let paths = model.artifact_paths();
                 let mut files = vec![
@@ -160,7 +170,7 @@ impl BackendFactory {
                 use crate::DEFAULT_GLINER_MODEL;
                 use anno::backends::gliner_onnx::GLiNEROnnx;
                 let model = GLiNEROnnx::new(DEFAULT_GLINER_MODEL).map_err(|e| {
-                    anno::Error::FeatureNotAvailable(format!("Failed to create GLiNEROnnx: {e}"))
+                    model_load_error(&e, format!("Failed to create GLiNEROnnx: {e}"))
                 })?;
                 let paths = model.artifact_paths();
                 let mut files = vec![
@@ -197,9 +207,7 @@ impl BackendFactory {
                         .with_model_revision(SUPPORTED_GLINER2_FASTINO_REVISION),
                 )
                 .map_err(|e| {
-                    anno::Error::FeatureNotAvailable(format!(
-                        "Failed to create GLiNER2 Fastino (ONNX): {e}"
-                    ))
+                    model_load_error(&e, format!("Failed to create GLiNER2 Fastino (ONNX): {e}"))
                 })?;
                 let paths = model.artifact_paths();
                 let mut files = vec![("tokenizer".to_string(), paths.tokenizer)];
@@ -288,7 +296,7 @@ impl BackendFactory {
                 BertNEROnnx::new(DEFAULT_BERT_ONNX_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        anno::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create BertNEROnnx: {}",
                             e
                         ))
@@ -307,7 +315,7 @@ impl BackendFactory {
                 GLiNEROnnx::new(DEFAULT_GLINER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        anno::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create GLiNER (onnx): {}",
                             e
                         ))
@@ -321,7 +329,7 @@ impl BackendFactory {
                 GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        anno::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create GLiNER (candle): {}",
                             e
                         ))
@@ -339,7 +347,7 @@ impl BackendFactory {
                 GLiNEROnnx::new(DEFAULT_GLINER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create GLiNEROnnx: {}",
                             e
                         ))
@@ -366,7 +374,7 @@ impl BackendFactory {
                 GLiNEROnnx::new(anno::models::GLINER_PII)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "GLiNER PII Edge model unavailable: {}",
                             e
                         ))
@@ -384,7 +392,7 @@ impl BackendFactory {
                 GLiNEROnnx::new(anno::models::GLINER_RELEX)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "GLiNER-RelEx model unavailable: {}\n\n\
                              Export: uv run scripts/export_glirel_onnx.py",
                             e
@@ -403,7 +411,7 @@ impl BackendFactory {
                 NuNER::from_pretrained(DEFAULT_NUNER_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!("Failed to create NuNER: {}", e))
+                        model_load_error(&e, format!("Failed to create NuNER: {}", e))
                     })
             }
             #[cfg(not(feature = "onnx"))]
@@ -417,7 +425,7 @@ impl BackendFactory {
                 NuNER::from_pretrained("numind/NuNER_Zero-4k")
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create NuNER 4k: {}",
                             e
                         ))
@@ -438,7 +446,7 @@ impl BackendFactory {
                 W2NER::from_pretrained(&model_path)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "W2NER model unavailable: {}\n\n\
                              Options:\n\
                              1. Set W2NER_MODEL_PATH to a local model directory\n\
@@ -460,7 +468,7 @@ impl BackendFactory {
                 GLiNERMultitaskOnnx::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create GLiNER multi-task (ONNX): {}",
                             e
                         ))
@@ -484,7 +492,7 @@ impl BackendFactory {
                 )
                 .map(|m| Box::new(m) as Box<dyn Model>)
                 .map_err(|e| {
-                    crate::Error::FeatureNotAvailable(format!(
+                    model_load_error(&e, format!(
                         "Failed to create GLiNER2 Fastino (ONNX): {e}"
                     ))
                 })
@@ -504,7 +512,7 @@ impl BackendFactory {
                 CandleNER::from_pretrained(DEFAULT_CANDLE_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "CandleNER model unavailable: {}",
                             e
                         ))
@@ -522,7 +530,7 @@ impl BackendFactory {
                 GLiNERCandle::from_pretrained(DEFAULT_GLINER_CANDLE_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "GLiNERCandle model unavailable: {}",
                             e
                         ))
@@ -540,7 +548,7 @@ impl BackendFactory {
                 GLiNERMultitaskCandle::from_pretrained(DEFAULT_GLINER_MULTITASK_MODEL)
                     .map(|m| Box::new(m) as Box<dyn Model>)
                     .map_err(|e| {
-                        crate::Error::FeatureNotAvailable(format!(
+                        model_load_error(&e, format!(
                             "Failed to create GLiNER multi-task (Candle): {}",
                             e
                         ))
@@ -808,6 +816,21 @@ pub fn available_coref_backends() -> Vec<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn model_load_preserves_typed_capability_skip_and_corrupt_model_failure() {
+        let detail = "Feature not available while parsing model".to_string();
+        let broken = anno::Error::Parse(detail.clone());
+        assert!(matches!(
+            super::model_load_error(&broken, detail.clone()),
+            anno::Error::ModelInit(_)
+        ));
+        let skipped = anno::Error::FeatureNotAvailable(detail.clone());
+        assert!(matches!(
+            super::model_load_error(&skipped, detail),
+            anno::Error::FeatureNotAvailable(_)
+        ));
+    }
+
     use super::*;
 
     #[test]

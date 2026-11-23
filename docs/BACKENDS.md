@@ -191,7 +191,9 @@ snapshot `4241d7c66b648e618c89c150bf4cf418d2f83159`; it requires about
 Use this ONNX backend for CPU inference with the multilingual GLiNER2
 checkpoint. Candle 0.11.1's CPU kernel takes a mutable slice of
 uninitialized values when DeBERTa broadcasts the scalar attention-mask
-fill. The ONNX export runs the attention operation in ONNX Runtime. For
+fill. The Candle loader rejects CPU devices before loading weights. Enable
+`gliner2-fastino-candle-cuda` or `gliner2-fastino-candle-metal` to load
+the Candle backend on an accelerator. The ONNX export runs the attention operation in ONNX Runtime. For
 a LoRA adapter, this route requires an ONNX export with the adapter merged.
 [Dependency review](https://github.com/arclabs561/anno/pull/168)
 
