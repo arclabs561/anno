@@ -4095,7 +4095,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
     }
 
     let verbose = mh::env_bool("ANNO_MUXER_VERBOSE", false);
-    if verbose {
+    // Leave the selected inputs in the job log even if execution never returns an outcome.
+    if verbose || decisions_path().is_some() {
         eprintln!(
             "matrix-muxer: slice={} strategy={:?} seed={} per_dataset={} datasets={:?} backends={:?}",
             slice_tag_for_muxer,
@@ -4105,6 +4106,8 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
             chosen_datasets,
             chosen_backends
         );
+    }
+    if verbose {
         let profile = std::env::var("ANNO_MUXER_PROFILE")
             .ok()
             .unwrap_or_else(|| "off".to_string());

@@ -95,7 +95,9 @@ the four randomized task controls (NER, relation extraction, intra-document
 coreference, and temporal extraction). On the default branch, a named control
 may fetch data when that task's local cache is empty. The job summary links
 the restored run and reports the first worst-first selection, its observed
-result, and completed or missing coverage by task.
+result, completed or missing coverage by task, and which dataset/backend pairs
+failed. The job log names the selected datasets and backends before evaluation
+starts, so an interrupted run can still identify its intended inputs.
 
 To replay the cross-run feedback test locally, run
 `python3 scripts/qa/replay_matrix_feedback.py`. Two isolated histories use the

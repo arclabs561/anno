@@ -64,6 +64,7 @@ def check(lines, report=False):
     completions = Counter()
     failures = Counter()
     failure_kinds = Counter()
+    failed_cells = Counter()
     decisions = []
     observed = {}
     for lane, row in outcomes(lines, decisions):
@@ -72,7 +73,11 @@ def check(lines, report=False):
             observed[(row.get("run_id"), row.get("backend"), row.get("dataset"))] = row
         if row["hard_junk"]:
             failures[lane] += 1
-            failure_kinds[row.get("fail_kind") or "unknown"] += 1
+            kind = row.get("fail_kind") or "unknown"
+            failure_kinds[kind] += 1
+            if row.get("dataset") and row.get("backend"):
+                task = row["slice"].split(".", 1)[0]
+                failed_cells[(task, row["dataset"], row["backend"], kind)] += 1
         elif row["cost_units"] > 0:
             completions[lane] += 1
 
@@ -86,6 +91,13 @@ def check(lines, report=False):
     if failure_kinds:
         print("Hard failures by recorded kind: " + ", ".join(
             f"{kind} {count}" for kind, count in sorted(failure_kinds.items())))
+
+    if failed_cells:
+        print("Hard failures by task, dataset and backend (up to 10):")
+        for (task, dataset, backend, kind), attempts_count in failed_cells.most_common(10):
+            print(f"- {task} / {dataset} / {backend}: {kind} ({attempts_count})")
+        if len(failed_cells) > 10:
+            print(f"{len(failed_cells) - 10} additional combinations are in the decision log.")
 
     if decisions:
         first = decisions[0]
