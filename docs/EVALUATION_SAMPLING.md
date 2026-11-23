@@ -382,7 +382,7 @@ Gold JSONL records may carry their source `text`, `source_sha256`, and a documen
 
 The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection. The resolver receives the spans in document order and any type attached to each mention. On corpora with many singletons, report correct links and total gold links alongside CoNLL F1. A system that places every mention in a separate chain can score well on B³ and CEAF-e while recovering zero links.
 
-Matrix rows record `matched_coref_links`, `predicted_coref_links` and `gold_coref_links`. For resolvers that take mention spans, divide `matched_input_mentions` by `input_mentions` for exact mention precision and by `gold_mentions` for recall. Divide `reachable_gold_links` by `gold_coref_links` to see how many gold links the resolver could form from its inputs. Counts sum distinct spans and pairs within each document. A zero denominator leaves the corresponding rate undefined. Raw-text FCoref exposes its final clusters only, so its rows omit input coverage.
+Matrix decision logs store the following counts in the `structural_counts` object on each scored outcome. Coreference rows record `matched_coref_links`, `predicted_coref_links` and `gold_coref_links`. For resolvers that take mention spans, divide `matched_input_mentions` by `input_mentions` for exact mention precision and by `gold_mentions` for recall. Divide `reachable_gold_links` by `gold_coref_links` to see how many gold links the resolver could form from its inputs. Counts sum distinct spans and pairs within each document. A zero denominator leaves the corresponding rate undefined. Raw-text FCoref exposes its final clusters only, so its rows omit input coverage.
 
 The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. To compare the modes on the full PreCo validation split, run the same cached command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`:
 
@@ -399,8 +399,12 @@ This supplies the entity resolver with NER proposals plus exact source spans fro
 Anno's English pronoun detector. Existing NER types take precedence on matching
 spans. Compare proposal coverage, correct and extra links, link precision and
 corpus CoNLL F1 on the same documents. Repeated pronouns, quoted tokens and
-complementizers such as “that” can introduce false links. External tests on
-literary prose found a substantial pair-precision loss for the simple resolver.
+complementizers such as “that” can introduce false links. Tests on
+397 held-back PreCo documents raised simple-resolver link recall from 1.55% to
+28.30% and precision from 47.17% to 55.02%. On 12 independently selected LitBank
+excerpts, recall rose from 0.96% to 22.25% while precision fell from 69.13% to
+45.83%. The extra false links exceeded the three-percentage-point precision
+limit set before testing. [LitBank source](https://github.com/dbamman/litbank/tree/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/coref)
 The sampler keeps a separate history cohort for this opt-in research mode.
 Gold mentions and raw-text FCoref runs have their own mention sources and reject
 the additional proposals.
