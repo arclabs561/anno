@@ -171,24 +171,37 @@ def require_current_provenance(result: dict[str, Any], cell: Cell, max_examples:
         raise ContractError(f"{cell}: provenance backend does not match result backend")
 
 
-def incompatible_result(result: dict[str, Any], cell: Cell) -> bool:
-    if result.get("success") is not False:
-        return False
-    provenance = result.get("provenance", {})
+def receipt_outcome(result: dict[str, Any], cell: Cell) -> str:
+    """Read a TaskEvalResult using the producer's versioned skip semantics."""
+    success = result.get("success")
+    if type(success) is not bool:
+        raise ContractError(f"{cell}: invalid success flag")
+    provenance = result.get("provenance", {"schema_version": 0})
     if not isinstance(provenance, dict):
         raise ContractError(f"{cell}: invalid result provenance")
-    version = provenance.get("schema_version", 0)
-    if type(version) is not int or version < 0:
+    version = provenance.get("schema_version")
+    if type(version) is not int or not 0 <= version <= 0xFFFFFFFF:
         raise ContractError(f"{cell}: invalid receipt version")
+    if success:
+        return "success"
     if version < 2:
-        return str(result.get("error", "")).startswith("incompatible:")
-    runtime = provenance.get("runtime")
-    scheduling = runtime.get("scheduling") if isinstance(runtime, dict) else None
-    return (
-        isinstance(scheduling, dict)
-        and scheduling.get("strategy") == "not_run"
-        and scheduling.get("reason") == "incompatible_entity_types"
-    )
+        error = result.get("error")
+        if error is None:
+            return "failed"
+        if not isinstance(error, str):
+            raise ContractError(f"{cell}: invalid result error")
+        if error.startswith("incompatible:") or "Incompatible entity types" in error:
+            return "incompatible_entity_types"
+        if "Feature not available" in error or "requires '" in error:
+            return "capability_unavailable"
+    else:
+        runtime = provenance.get("runtime")
+        scheduling = runtime.get("scheduling") if isinstance(runtime, dict) else None
+        if isinstance(scheduling, dict) and scheduling.get("strategy") == "not_run":
+            reason = scheduling.get("reason")
+            if reason in ("incompatible_entity_types", "capability_unavailable"):
+                return reason
+    return "failed"
 
 
 def validate_suite(suite: dict[str, Any], artifact: dict[str, Any]) -> list[dict[str, Any]]:
@@ -217,13 +230,14 @@ def validate_suite(suite: dict[str, Any], artifact: dict[str, Any]) -> list[dict
     rendered: list[dict[str, Any]] = []
     for cell in sorted(expected):
         result = observed[cell]
+        receipt = receipt_outcome(result, cell)
         if cell in allowed:
-            if not incompatible_result(result, cell):
+            if receipt != "incompatible_entity_types":
                 raise ContractError(f"{cell}: declared incompatibility must be an incompatible skipped result")
             outcome = "declared-incompatible"
         else:
-            if result.get("success") is not True:
-                raise ContractError(f"{cell}: expected success, got {result.get('error')!r}")
+            if receipt != "success":
+                raise ContractError(f"{cell}: expected success, got {receipt}: {result.get('error')!r}")
             if not isinstance(result.get("num_examples"), int) or result["num_examples"] <= 0:
                 raise ContractError(f"{cell}: successful result is empty")
             require_finite_metrics(result, cell)
@@ -236,7 +250,7 @@ def validate_suite(suite: dict[str, Any], artifact: dict[str, Any]) -> list[dict
             "seed": cell.seed,
             "outcome": outcome,
             "num_examples": result.get("num_examples", 0),
-            "metrics": result.get("metrics", {}),
+            "metrics": result["metrics"] if receipt == "success" else {},
             "provenance": result.get("provenance"),
         })
     return rendered

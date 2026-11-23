@@ -1,0 +1,135 @@
+[
+  {
+    "name": "original pre-provenance failure",
+    "version": 0,
+    "outcome": "failed",
+    "replace": {}
+  },
+  {
+    "name": "archived version 1 success",
+    "version": 1,
+    "outcome": "success",
+    "replace": {}
+  },
+  {
+    "name": "archived version 2 success",
+    "version": 2,
+    "outcome": "success",
+    "replace": {}
+  },
+  {
+    "name": "old explicit incompatibility",
+    "version": 0,
+    "outcome": "incompatible_entity_types",
+    "replace": {
+      "/error": "incompatible: labels"
+    }
+  },
+  {
+    "name": "old embedded incompatibility",
+    "version": 1,
+    "outcome": "incompatible_entity_types",
+    "replace": {
+      "/success": false,
+      "/error": "Backend error: Incompatible entity types"
+    }
+  },
+  {
+    "name": "old missing feature",
+    "version": 0,
+    "outcome": "capability_unavailable",
+    "replace": {
+      "/error": "Feature not available: onnx"
+    }
+  },
+  {
+    "name": "old ambiguous diagnostic",
+    "version": 1,
+    "outcome": "capability_unavailable",
+    "replace": {
+      "/success": false,
+      "/error": "Inference failed: dependency requires 'onnx'"
+    }
+  },
+  {
+    "name": "modern same diagnostic is a failure",
+    "version": 2,
+    "outcome": "failed",
+    "replace": {
+      "/success": false,
+      "/error": "Inference failed: dependency requires 'onnx'"
+    }
+  },
+  {
+    "name": "unsupported language recorded by the backend",
+    "version": 2,
+    "outcome": "capability_unavailable",
+    "replace": {
+      "/success": false,
+      "/error": "The backend has no model for the requested language",
+      "/provenance/runtime/scheduling": {
+        "strategy": "not_run",
+        "reason": "capability_unavailable"
+      }
+    }
+  },
+  {
+    "name": "typed incompatible labels",
+    "version": 2,
+    "outcome": "incompatible_entity_types",
+    "replace": {
+      "/success": false,
+      "/error": "labels differ",
+      "/provenance/runtime/scheduling": {
+        "strategy": "not_run",
+        "reason": "incompatible_entity_types"
+      }
+    }
+  },
+  {
+    "name": "unknown not-run reason is a failure",
+    "version": 2,
+    "outcome": "failed",
+    "replace": {
+      "/success": false,
+      "/error": "incompatible: stale diagnostic",
+      "/provenance/runtime/scheduling": {
+        "strategy": "not_run",
+        "reason": "unrecognized_reason"
+      }
+    }
+  },
+  {
+    "name": "successful row with stale diagnostic",
+    "version": 1,
+    "outcome": "success",
+    "replace": {
+      "/error": "Incompatible entity types"
+    }
+  },
+  {
+    "name": "completed extraction with no predictions",
+    "version": 2,
+    "outcome": "success",
+    "panel_success": true,
+    "replace": {
+      "/metrics": {
+        "f1": 0.0,
+        "num_predicted": 0.0
+      },
+      "/provenance/runtime/cached_only": true
+    }
+  },
+  {
+    "name": "successful empty input without a measurement",
+    "version": 2,
+    "outcome": "success",
+    "scored": false,
+    "replace": {
+      "/metrics": {},
+      "/num_examples": 0,
+      "/provenance/dataset/sentence_count": 0,
+      "/provenance/runtime/cached_only": true
+    }
+  }
+]
