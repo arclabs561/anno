@@ -86,6 +86,9 @@
 //! - CDLKT: Cross-document Language-Knowledge Transfer
 //! - Groma: Grounded multimodal assistant
 
+mod projection;
+pub use projection::EntityProjectionError;
+
 use super::confidence::Confidence;
 use super::entity::{
     DiscontinuousSpan, Entity, EntityType, HierarchicalConfidence, Provenance, Span,
@@ -383,12 +386,28 @@ impl<L> Signal<L> {
         label: impl Into<super::types::TypeLabel>,
         confidence: f32,
     ) -> Self {
-        Self {
-            id: id.into(),
+        Self::with_score(
+            id.into(),
             location,
-            surface: surface.into(),
-            label: label.into(),
-            confidence: Confidence::new(confidence as f64),
+            surface.into(),
+            label.into(),
+            confidence.into(),
+        )
+    }
+
+    fn with_score(
+        id: SignalId,
+        location: L,
+        surface: String,
+        label: super::types::TypeLabel,
+        confidence: Confidence,
+    ) -> Self {
+        Self {
+            id,
+            location,
+            surface,
+            label,
+            confidence,
             hierarchical: None,
             provenance: None,
             modality: Modality::default(),
@@ -696,7 +715,7 @@ impl std::error::Error for SignalValidationError {}
 /// Preserves text segments, normalization, provenance and hierarchical confidence.
 impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
-        let mut signal = Signal::new(
+        let mut signal = Signal::with_score(
             SignalId::ZERO,
             e.discontinuous_span.as_ref().map_or_else(
                 || Location::text(e.start(), e.end()),
@@ -704,9 +723,9 @@ impl From<&Entity> for Signal<Location> {
                     segments: span.segments().iter().map(|r| (r.start, r.end)).collect(),
                 },
             ),
-            &e.text,
-            e.entity_type.as_label(),
-            f32::from(e.confidence),
+            e.text.clone(),
+            e.entity_type.as_label().into(),
+            e.confidence,
         );
         signal.normalized = e.normalized.clone();
         signal.provenance = e.provenance.clone();
@@ -1782,7 +1801,11 @@ impl GroundedDocument {
     // Conversion utilities
     // -------------------------------------------------------------------------
 
-    /// Convert to legacy Entity format for backwards compatibility.
+    /// Project each signal into a flat entity in signal order.
+    ///
+    /// The track ID becomes the entity's document-local canonical ID, including for
+    /// singleton tracks. Each member of a linked track receives the same KB ID.
+    /// Mention type is absent, and the entity category is inferred from the label.
     #[must_use]
     pub fn to_entities(&self) -> Vec<Entity> {
         self.signals
@@ -1816,7 +1839,7 @@ impl GroundedDocument {
             .collect()
     }
 
-    /// Create a document with full-fidelity signals from extracted entities.
+    /// Create a document with detection signals from extracted entities.
     ///
     /// This preserves entity locations, normalized values, provenance, and hierarchical
     /// confidence without creating tracks or identities. Use this when a later pipeline stage
@@ -1837,7 +1860,9 @@ impl GroundedDocument {
     /// Create from a legacy Entity slice, including tracks and identities.
     ///
     /// Entities with the same canonical ID share a track. Entities without one receive
-    /// singleton tracks. Use [`from_entity_signals`](Self::from_entity_signals) when callers
+    /// singleton tracks. The first populated KB ID in a group becomes its identity link.
+    /// Use [`try_from_entities`](Self::try_from_entities) to detect conflicting links and
+    /// unrepresentable mention metadata. Use [`from_entity_signals`](Self::from_entity_signals) when callers
     /// need signals only.
     #[must_use]
     pub fn from_entities(

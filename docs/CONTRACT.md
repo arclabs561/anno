@@ -37,6 +37,19 @@ tracks and identities. For custom entity types use `extract_with_types` or CLI
 feature exposes `GraphDocument` and N-Triples export. Keep training, document parsing and downstream graph algorithms in their
 respective tools. [Backend selection](BACKENDS.md) · [Constituency interchange](CONSTITUENCY.md)
 
+## Grouping flat entities
+
+`GroundedDocument::from_entities` groups mentions with equal canonical IDs and
+gives each unassigned mention a singleton track. Track IDs are allocated in
+first-seen order. The first populated KB ID in each group becomes its link.
+`to_entities()` gives every member the track ID and the shared KB link.
+
+Use `GroundedDocument::try_from_entities` to detect conflicting populated KB IDs,
+mention types, visual spans, and labels that decode to a different entity type.
+Errors identify the original input indices. A populated link and a missing link
+in the same group are compatible. Both constructors use the same grouping and
+preserve the detection confidence.
+
 ## PII pattern limits
 
 Pattern-based redaction recognizes these formats:
