@@ -99,17 +99,17 @@ class ValidateSuiteTests(unittest.TestCase):
         artifact["results"][0] = result("heuristic", success=False, error="incompatible: labels")
         self.assertEqual(2, len(panel.validate_suite(suite, artifact)))
 
-    def test_current_incompatibility_uses_typed_execution(self) -> None:
+    def test_current_incompatibility_uses_typed_scheduling(self) -> None:
         suite = copy.deepcopy(SUITE)
         suite["allowed_incompatibilities"] = [{"task": "NER", "dataset": "WikiGold", "backend": "heuristic"}]
         artifact = self.valid()
         row = result("heuristic", success=False, error="unsupported labels")
         artifact["results"][0] = row
         row["provenance"]["schema_version"] = 2
-        row["provenance"]["backend"]["execution"] = {"status": "skipped", "reason": "incompatible_entity_types"}
+        row["provenance"]["runtime"]["scheduling"] = {"strategy": "not_run", "reason": "incompatible_entity_types"}
         self.assertEqual(2, len(panel.validate_suite(suite, artifact)))
         row["error"] = "incompatible: old diagnostic"
-        row["provenance"]["backend"]["execution"] = {"status": "unknown", "reason": "model failed"}
+        row["provenance"]["runtime"]["scheduling"] = {"strategy": "unknown", "reason": "model failed"}
         with self.assertRaises(panel.ContractError):
             panel.validate_suite(suite, artifact)
 

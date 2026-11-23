@@ -305,8 +305,8 @@ impl Default for ArtifactProvenanceStatus {
 }
 
 /// Why a backend could not evaluate a task and dataset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EvalSkipReason {
     /// The requested capability or feature was unavailable.
     CapabilityUnavailable,
@@ -314,15 +314,19 @@ pub enum EvalSkipReason {
     IncompatibleEntityTypes,
 }
 
+impl EvalSkipReason {
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            Self::CapabilityUnavailable => "capability_unavailable",
+            Self::IncompatibleEntityTypes => "incompatible_entity_types",
+        }
+    }
+}
+
 /// Explicit absence is preferable to claiming an accelerator or fallback layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ExecutionProvenanceStatus {
-    /// The evaluator identified an unsupported combination before it could score the task.
-    Skipped {
-        /// Machine-readable reason, independent of diagnostic wording.
-        reason: EvalSkipReason,
-    },
     /// The backend does not expose effective provider or layer selection.
     Unknown {
         /// Why a trustworthy execution receipt is unavailable.
@@ -361,6 +365,21 @@ pub enum EvaluationScheduling {
         /// Distinct Rayon worker threads that ran at least one sentence.
         effective_threads: usize,
     },
+}
+
+impl EvaluationScheduling {
+    /// Typed reason for a scheduling skip recorded by a version 2 producer.
+    pub fn skip_reason(&self) -> Option<EvalSkipReason> {
+        let Self::NotRun { reason } = self else {
+            return None;
+        };
+        [
+            EvalSkipReason::CapabilityUnavailable,
+            EvalSkipReason::IncompatibleEntityTypes,
+        ]
+        .into_iter()
+        .find(|candidate| candidate.code() == reason)
+    }
 }
 
 impl Default for EvaluationScheduling {

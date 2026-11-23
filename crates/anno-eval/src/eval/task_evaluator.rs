@@ -352,14 +352,8 @@ impl TaskEvalResult {
         if self.success {
             return false;
         }
-        if matches!(
-            self.provenance.backend.execution,
-            ExecutionProvenanceStatus::Skipped { .. }
-        ) {
-            return true;
-        }
         if self.provenance.schema_version >= EXPLICIT_SKIP_SCHEMA_VERSION {
-            return false;
+            return self.provenance.runtime.scheduling.skip_reason().is_some();
         }
         // Historical receipts predate explicit skip reasons. Preserve their interpretation.
         if let Some(ref err) = self.error {
@@ -833,8 +827,8 @@ impl TaskEvaluator {
         let backend = provenance.effective_backend_name.to_string();
         let mut provenance = self.run_provenance(provenance);
         if matches!(error, crate::Error::FeatureNotAvailable(_)) {
-            provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
-                reason: EvalSkipReason::CapabilityUnavailable,
+            provenance.runtime.scheduling = EvaluationScheduling::NotRun {
+                reason: EvalSkipReason::CapabilityUnavailable.code().into(),
             };
         }
         TaskEvalResult {
@@ -1092,16 +1086,13 @@ impl TaskEvaluator {
                     if !backends_tested.contains(backend_name) {
                         backends_tested.push(backend_name.clone());
                     }
-                    let mut provenance = self.unavailable_dataset_provenance(
+                    let provenance = self.unavailable_dataset_provenance(
                         *task,
                         *dataset,
                         backend_name,
                         &config,
-                        "candidate was incompatible before dataset load",
+                        EvalSkipReason::IncompatibleEntityTypes.code(),
                     );
-                    provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
-                        reason: EvalSkipReason::IncompatibleEntityTypes,
-                    };
                     let dataset_entity_types = dataset.entity_types();
                     results.push(TaskEvalResult {
                         task: *task,
@@ -4835,12 +4826,14 @@ mod tests {
             .unwrap()
             .contains("cannot evaluate gold mentions"));
 
-        assert!(matches!(
-            report.results[0].provenance.backend.execution,
-            ExecutionProvenanceStatus::Skipped {
-                reason: EvalSkipReason::CapabilityUnavailable
-            }
-        ));
+        assert_eq!(
+            report.results[0]
+                .provenance
+                .runtime
+                .scheduling
+                .skip_reason(),
+            Some(EvalSkipReason::CapabilityUnavailable)
+        );
         assert!(report.results[0].is_skipped());
         #[cfg(not(feature = "onnx"))]
         {
@@ -5592,8 +5585,8 @@ mod tests {
             !row.is_skipped(),
             "a failed inference must count as a failure"
         );
-        row.provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
-            reason: EvalSkipReason::CapabilityUnavailable,
+        row.provenance.runtime.scheduling = EvaluationScheduling::NotRun {
+            reason: EvalSkipReason::CapabilityUnavailable.code().into(),
         };
         row.error = Some("operator disabled".into());
         let decoded: TaskEvalResult =
@@ -5602,8 +5595,8 @@ mod tests {
 
         let mut legacy = serde_json::to_value(&row).unwrap();
         legacy["provenance"]["schema_version"] = 1.into();
-        legacy["provenance"]["backend"]["execution"] =
-            serde_json::json!({"status":"unknown","reason":"legacy"});
+        legacy["provenance"]["runtime"]["scheduling"] =
+            serde_json::json!({"strategy":"unknown","reason":"legacy"});
         legacy["error"] = "Feature not available".into();
         let decoded: TaskEvalResult = serde_json::from_value(legacy).unwrap();
         assert!(decoded.is_skipped());
