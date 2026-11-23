@@ -7,6 +7,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+from domain_coverage import valid_domain_name
+
 DEFAULT_FIXTURE = Path(__file__).with_name("fixtures") / "typed-span-assertions.json"
 # Built-in labels from EntityType::as_label used for assertion type sets.
 TYPES = set("PER ORG LOC DATE TIME MONEY PERCENT QUANTITY CARDINAL ORDINAL EMAIL URL PHONE".split())
@@ -47,6 +49,8 @@ def load_cases(rows, custom_types=()):
     if not cases:
         raise ValueError("empty fixture")
     for key, case in cases.items():
+        if "domain" in case and not valid_domain_name(case["domain"]):
+            raise ValueError(f"{key}: expected a nonempty printable domain name")
         text = case.get("text")
         if not isinstance(text, str) or not text or not objects(case.get("assertions"), key):
             raise ValueError(f"{key}: missing source text or assertions")
@@ -114,7 +118,7 @@ def score(cases, predictions):
                 passed = any((e["start"], e["end"]) == (rule["start"], rule["end"]) for e in typed)
             else:
                 passed = not typed
-            findings.append({"id": key, **rule, "passed": passed, "overlaps": overlaps})
+            findings.append({**rule, "id": key, "passed": passed, "overlaps": overlaps})
     return {"passed": sum(row["passed"] for row in findings), "total": len(findings),
             "findings": findings}
 
@@ -134,6 +138,33 @@ def compare_predictions(cases, baseline_jsonl, candidate):
     return {"baseline_passed": baseline["passed"], "gained": gained, "lost": lost}
 
 
+def summarize_domains(cases, findings):
+    """Keep positive and protected-range denominators visible for each labeled domain."""
+    if not any("domain" in case for case in cases.values()):
+        return []
+    groups = {}
+    for case in cases.values():
+        domain = case.get("domain")
+        if domain not in groups:
+            groups[domain] = {
+                "domain": domain, "documents": 0,
+                "exact_span": {"passed": 0, "total": 0},
+                "no_overlap": {"passed": 0, "total": 0},
+            }
+        groups[domain]["documents"] += 1
+    for finding in findings:
+        group = groups[cases[finding["id"]].get("domain")]
+        counts = group[finding["kind"]]
+        counts["total"] += 1
+        counts["passed"] += finding["passed"]
+        if "baseline_passed" in finding:
+            changes = group.setdefault("comparison", {"baseline_passed": 0, "gained": 0, "lost": 0})
+            changes["baseline_passed"] += finding["baseline_passed"]
+            changes["gained"] += finding["passed"] and not finding["baseline_passed"]
+            changes["lost"] += finding["baseline_passed"] and not finding["passed"]
+    return list(groups.values())
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixture", type=Path, default=DEFAULT_FIXTURE)
@@ -151,7 +182,8 @@ def main():
     if args.save_predictions and args.predictions:
         parser.error("--save-predictions requires a live run; use --binary")
     try:
-        cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")), args.allow_type)
+        fixture = args.fixture.read_bytes()
+        cases = load_cases(json.loads(fixture.decode("utf-8")), args.allow_type)
         if args.predictions:
             predictions = jsonl_rows(args.predictions.read_text(encoding="utf-8"))
         else:
@@ -160,6 +192,10 @@ def main():
         if args.baseline_predictions:
             report["comparison"] = compare_predictions(
                 cases, args.baseline_predictions.read_text(encoding="utf-8"), report)
+        domains = summarize_domains(cases, report["findings"])
+        if domains:
+            report.update(kind="anno.qa.domain-spans", schema_version=1,
+                          fixture_sha256=hashlib.sha256(fixture).hexdigest(), domains=domains)
         if args.save_predictions:
             with args.save_predictions.open("x", encoding="utf-8") as capture:
                 for row in predictions:

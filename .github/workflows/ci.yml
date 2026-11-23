@@ -39,22 +39,50 @@ jobs:
       - name: Build the offline models and URL reader
         id: build
         run: cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
-      # Sample six pages per run. Keep the document and feed checks, then
-      # exercise three distinct publishers using the pattern backend.
+      # Keep the format-specific checks alongside the rotating topical sample.
       - name: Sample two published documents
         run: python3 scripts/qa_random_urls.py --category documents --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/documents.md
       - name: Sample one article from a feed
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: python3 scripts/qa_random_urls.py --category rss --count 1 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/feeds.md
-      - name: Compare extraction across three publishers
+      - name: Sample eight catalog topics
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output qa/reports/publishers.md
+        run: python3 scripts/qa_random_urls.py --count 8 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output qa/reports/publishers.md
+      - name: Prepare coordinator handoff
+        if: ${{ !cancelled() && hashFiles('qa/reports/publishers.json') != '' }}
+        run: |
+          python3 scripts/qa/brief_round.py qa/reports/publishers.json \
+            "Which sampled topics still need a distinct verified input or an independent label?" > qa/reports/round.md
+      - name: Score pinned discovery examples across topics and languages
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          sources="$RUNNER_TEMP/domain-sources"
+          panel="$RUNNER_TEMP/domain-panel"
+          mkdir -p qa/reports
+          python3 scripts/qa/prepare_domain_fixtures.py fetch "$sources" --group all
+          python3 scripts/qa/prepare_domain_fixtures.py prepare "$sources" "$panel" --group all --per-split 8
+          rc=0
+          python3 scripts/qa/check_span_assertions.py --fixture "$panel/discovery.json" \
+            --binary "$ANNO" --model stacked > "$panel/scores.json" || rc=$?
+          # An unmet labeled assertion is a measurement. Invalid inputs and execution errors fail the job.
+          if (( rc > 1 )); then exit "$rc"; fi
+          jq --arg revision "$GITHUB_SHA" \
+            '{kind, schema_version, fixture_sha256, passed, total, domains, backend: "stacked", revision: $revision}' \
+            "$panel/scores.json" > qa/reports/domain-discovery.json
+          cp "$panel/manifest.json" qa/reports/domain-manifest.json
+          python3 scripts/qa/brief_round.py qa/reports/domain-discovery.json \
+            "Which source group needs a new positive or protected control?" > qa/reports/labeled-round.md
       - name: Save live QA reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: live-document-qa
-          path: qa/reports/*.md
+          path: |
+            qa/reports/*.md
+            qa/reports/publishers.json
+            qa/reports/domain-discovery.json
+            qa/reports/domain-manifest.json
           if-no-files-found: error
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
@@ -316,6 +344,11 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
+      - name: Check labeled extraction controls across domains
+        if: runner.os == 'Linux'
+        run: >-
+          python3 scripts/qa/check_span_assertions.py --fixture scripts/qa/fixtures/domain-span-assertions.json
+          --binary ./target/debug/anno --model stacked
       - name: Run portable CLI integration tests
         shell: bash
         run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test '*'
