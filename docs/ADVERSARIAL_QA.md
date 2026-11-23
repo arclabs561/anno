@@ -14,6 +14,16 @@ Use a round when a result could change what a maintainer ships, reverts, or meas
 >
 > Return the revisions, receipt path, seed or source hash, command, expected and observed result, gains, losses, ties, denominator and runner cost. Classify the claim as confirmed and fixed, confirmed and open, disproved, or inconclusive. Group variants by root cause. Finish by identifying the next decision and the cheapest experiment that could change it.
 
+## Start from a rotating domain sample
+
+The default URL sampler balances catalog topics and publishers. Its JSON receipt records which subjects were eligible, which sources were selected, and which actually yielded a comparable rendered input. Pass that file directly to the coordinator. The scheduled live QA job includes both the receipt and a handoff in its artifact.
+
+```sh
+just qa-round qa/reports/publishers.json 'Which selected topic needs a new source or independent labels?'
+```
+
+Check for duplicate text and redirects before assigning a scout. Two publisher URLs returning the same notice provide one rendered input. A valid page with zero extracted entities can still contribute to retrieval coverage. For quality comparisons freeze the source revision, use independent positive and protected-range labels, and report gains and losses separately by domain. Keep deliberately challenging punctuation or alias cases separate from a sample intended to describe ordinary documents.
+
 ## Assign a reviewer and account for the run
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
