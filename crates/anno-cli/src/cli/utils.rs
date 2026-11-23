@@ -813,6 +813,40 @@ mod tests {
         assert!(super::validate_coref_clusters(text, &[cluster]).is_err());
     }
 
+    #[test]
+    fn alias_publication_preserves_original_scalar_spans_transactionally() {
+        use anno::backends::coref::resolve::CorefCluster;
+
+        let mut doc = GroundedDocument::new("aliases", "👩‍💻 e\u{301}. Zoë / Léa. End.");
+        let aliases = CorefCluster {
+            id: 1,
+            canonical: "Zoë".into(),
+            mentions: vec!["Zoë".into(), "Léa".into()],
+            spans: vec![(8, 11), (14, 17)],
+        };
+        assert_eq!(
+            super::append_coref_clusters(&mut doc, std::slice::from_ref(&aliases)).unwrap(),
+            1
+        );
+        let signals: Vec<_> = doc
+            .signals()
+            .iter()
+            .map(|s| (s.surface(), s.text_offsets()))
+            .collect();
+        assert_eq!(signals, [("Zoë", Some((8, 11))), ("Léa", Some((14, 17)))]);
+        let original = serde_json::to_value(&doc).unwrap();
+
+        let mut shifted = aliases.clone();
+        // UTF-16 start and end after the woman-technologist emoji.
+        shifted.spans[1] = (16, 19);
+        let mut normalized = aliases.clone();
+        normalized.mentions[1] = "Le\u{301}a".into();
+        for invalid in [shifted, normalized] {
+            assert!(super::append_coref_clusters(&mut doc, &[aliases.clone(), invalid]).is_err());
+            assert_eq!(serde_json::to_value(&doc).unwrap(), original);
+        }
+    }
+
     use super::*;
     #[cfg(feature = "eval")]
     use anno::{Entity, EntityType};
