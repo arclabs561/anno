@@ -73,6 +73,26 @@ class DomainFixturesTest(unittest.TestCase):
                 panel.prepare(root, root / "bad", **kwargs)
             self.assertFalse((root / "bad").exists())
 
+    def test_sparse_domains_balance_splits_after_deduplication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for available in (0, 1, 3, 4, 31):
+                with self.subTest(available=available):
+                    names = [f"Name{i}" for i in range(available)]
+                    # Give every eligible source a duplicate to exercise allocation from unique texts.
+                    raw = ("Empty O\n\n" + "".join(f"{name} B-person\n\n" for name in names * 2)).encode()
+                    (root / "ai.bio").write_bytes(raw)
+                    out = root / str(available)
+                    manifest = panel.prepare(root, out, seed="s", per_split=32, domains=["ai"],
+                                             pins={"ai.bio": {"sha256": panel.digest(raw)}})
+                    row = manifest["groups"]["ai"]
+                    discovery = json.loads((out / "discovery.json").read_bytes())
+                    reserved = json.loads((out / "reserved.json").read_bytes())
+                    self.assertEqual((len(discovery), row["discovery"]), ((available + 1) // 2,) * 2)
+                    self.assertEqual((len(reserved), row["reserved"]), (available // 2,) * 2)
+                    self.assertEqual(row["shortfall"], 64 - available)
+                    self.assertCountEqual([case["text"] for case in discovery + reserved], names)
+
     def test_prepared_fixture_reports_each_domains_paired_changes(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

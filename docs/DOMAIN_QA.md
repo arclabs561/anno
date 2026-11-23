@@ -25,7 +25,7 @@ just qa-prepare-domains "$data" "$panel"
 
 The default selects up to 32 discovery and 32 reserved inputs per domain. Set the two trailing recipe arguments to change the per-split budget and seed. Preparation requires a new output directory. To use only selected local sources, run `python3 scripts/qa/prepare_domain_fixtures.py prepare "$data" "$panel" --domain atis --domain snips`.
 
-`manifest.json` records the source families, SHA-256 pins, seed, eligible records, unique eligible texts after exclusions, actual split sizes and any shortfall per domain. Cases are ranked deterministically within each group. Exact duplicate inputs are allocated once across the panel. Changing the source selection can therefore change membership. Token/tag sources reconstruct text with one space between tokens and preserve case. The resulting offsets refer to that exact UTF-8 source interpreted as Unicode characters. Different sentences can come from the same article.
+`manifest.json` records the source families, SHA-256 pins, seed, eligible records, unique eligible texts after exclusions, actual split sizes and any shortfall per domain. Cases are ranked deterministically within each group. When a group falls short of budget, the available inputs are divided evenly, with the odd extra input assigned to discovery. Exact duplicate inputs are allocated once across the panel. Changing the source selection can therefore change membership. Token/tag sources reconstruct text with one space between tokens and preserve case. The resulting offsets refer to that exact UTF-8 source interpreted as Unicode characters. Different sentences can come from the same article.
 
 ## Run a paired comparison
 

@@ -152,25 +152,26 @@ def prepare(data_dir, output, *, seed, per_split, domains, pins):
         eligible = [(i, row) for i, row in enumerate(rows) if row is not None]
         eligible.sort(key=lambda item: rank(seed, domain, item[1].key))
         unique = set()
-        picked = 0
+        picked = []
         for index, row in eligible:
             text_hash = digest(row.text.encode("utf-8"))
             if text_hash in selected_texts or text_hash in unique:
                 continue
             unique.add(text_hash)
-            if picked == 2 * per_split:
+            if len(picked) == 2 * per_split:
                 continue
             rule = {"kind": "exact_span", "start": row.start, "end": row.end, "types": [row.label],
                     "text": row.text[row.start:row.end]}
-            part = "discovery" if picked < per_split else "reserved"
-            parts[part].append({"id": f"{domain}/{text_hash[:20]}", "domain": domain, "text": row.text,
-                                "source_record": index, "source_sha256": text_hash, "assertions": [rule]})
-            picked += 1
+            picked.append({"id": f"{domain}/{text_hash[:20]}", "domain": domain, "text": row.text,
+                           "source_record": index, "source_sha256": text_hash, "assertions": [rule]})
             selected_texts.add(text_hash)
+        boundary = (len(picked) + 1) // 2
+        parts["discovery"].extend(picked[:boundary])
+        parts["reserved"].extend(picked[boundary:])
         groups[domain] = {"source_family": FAMILIES[domain], "files": files,
                           "source_records": len(rows), "eligible_records": len(eligible),
-                          "unique_eligible": len(unique), "discovery": min(picked, per_split),
-                          "reserved": max(0, picked - per_split), "shortfall": 2 * per_split - picked}
+                          "unique_eligible": len(unique), "discovery": boundary,
+                          "reserved": len(picked) - boundary, "shortfall": 2 * per_split - len(picked)}
     manifest = {"seed": seed, "per_split": per_split, "groups": groups,
                 "sources": {name: pins[name]["sha256"] for name in sorted(source_names)}}
     output.parent.mkdir(parents=True, exist_ok=True)
