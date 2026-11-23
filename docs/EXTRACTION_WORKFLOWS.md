@@ -165,11 +165,13 @@ anno dataset import --format jsonl --input mentions.jsonl \
   --source-text post.txt --output checked.jsonl
 ```
 
-Segmented rows may use space-joined pieces. When the gaps contain only line
+JSONL export preserves discontinuous character ranges. Segmented rows may use space-joined pieces. When the gaps contain only line
 breaks, the original multiline surface also passes. The row's `source` field
-remains producer metadata. Only the file named by `--source-text` is read for
-validation. A changed passage outside all mentions can still pass, so keep the
-document ID and digest of its original bytes in your corpus manifest.
+is an optional producer string. The optional `confidence` field accepts a number
+or null. The importer validates mention rows against the file named by
+`--source-text`. Additional row fields, including document IDs and hashes, are
+ignored. A changed passage outside all mentions can still pass, so verify the
+document ID and digest of the original bytes against your corpus manifest.
 
 A successfully processed document with no predictions has an empty JSONL file.
 Record its completion and zero mention count against the same ID and source

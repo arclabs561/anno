@@ -602,12 +602,24 @@ fn parse_jsonl_row(
         if label.trim().is_empty() {
             return Err("expected a nonempty type label".into());
         }
+        if obj.get("source").is_some_and(|value| !value.is_string()) {
+            return Err("expected source to be a string".into());
+        }
+        if obj
+            .get("confidence")
+            .is_some_and(|value| !value.is_null() && !value.is_number())
+        {
+            return Err("expected confidence to be a number or null".into());
+        }
         let matches = match &span {
             ImportedSpan::Contiguous(_) => {
                 text == &original[bytes[bounds.start]..bytes[bounds.end]]
             }
             ImportedSpan::Segmented(segments) => {
                 let (joined, envelope) = segments.surfaces(original, bytes)?;
+                if envelope.is_none() && segments.0.iter().all(Range::is_empty) {
+                    return Err("empty segments cover no source text".into());
+                }
                 text == joined || Some(text) == envelope
             }
         };
