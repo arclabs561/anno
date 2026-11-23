@@ -1,0 +1,178 @@
+{
+      "task": "NER",
+      "dataset": "WikiGold",
+      "backend": "heuristic",
+      "backend_display": "heuristic",
+      "seed": 42,
+      "success": true,
+      "error": null,
+      "metrics": {
+        "chars_per_second": 8180271.016633485,
+        "recall": 0.40384615384615385,
+        "f1": 0.38888888888888895,
+        "exact_precision": 0.75,
+        "partial_precision": 0.8035714285714286,
+        "num_predicted": 56.0,
+        "num_gold": 52.0,
+        "dataset_label_closed_recall": 0.40384615384615385,
+        "exact_f1": 0.7777777777777779,
+        "predictions_outside_dataset_labels": 0.0,
+        "pred_duplication_rate": 0.0,
+        "pred_noise_rate": 0.0,
+        "pred_duplicates": 0.0,
+        "type_precision": 0.4107142857142857,
+        "partial_recall": 0.8653846153846154,
+        "type_recall": 0.4423076923076923,
+        "dataset_label_closed_precision": 0.375,
+        "dataset_label_closed_f1": 0.38888888888888895,
+        "precision": 0.375,
+        "type_f1": 0.42592592592592593,
+        "exact_recall": 0.8076923076923077,
+        "gold_outside_dataset_labels": 0.0,
+        "pred_noisy": 0.0,
+        "partial_f1": 0.8333333333333334
+      },
+      "num_examples": 20,
+      "duration_ms": 0.498042,
+      "label_shift": null,
+      "robustness": null,
+      "stratified": {
+        "by_entity_type": {
+          "PER": {
+            "mean": 0.16180555555555556,
+            "std_dev": 0.3327889072522152,
+            "ci_95": [
+              0.0,
+              0.324872120109141
+            ],
+            "n": 16
+          },
+          "LOC": {
+            "mean": 0.35833333333333334,
+            "std_dev": 0.4621261798043972,
+            "ci_95": [
+              0.09686083250988409,
+              0.6198058341567826
+            ],
+            "n": 12
+          },
+          "MISC": {
+            "mean": 0.0,
+            "std_dev": 0.0,
+            "ci_95": [
+              0.0,
+              0.0
+            ],
+            "n": 5
+          },
+          "ORG": {
+            "mean": 0.3466666666666667,
+            "std_dev": 0.45736766958890435,
+            "ci_95": [
+              0.06318724811791077,
+              0.6301460852154226
+            ],
+            "n": 10
+          }
+        },
+        "by_temporal_stratum": null,
+        "by_surface_form": null,
+        "by_mention_char": null
+      },
+      "confidence_intervals": {
+        "f1_ci": [
+          0.20689655172413793,
+          0.6086956521739131
+        ],
+        "precision_ci": [
+          0.2,
+          0.5873015873015873
+        ],
+        "recall_ci": [
+          0.21621621621621623,
+          0.6326530612244898
+        ]
+      },
+      "kb_version": null,
+      "provenance": {
+        "schema_version": 2,
+        "build": {
+          "package_version": "0.15.0",
+          "enabled_features": [
+            "default",
+            "eval",
+            "onnx",
+            "hf-hub",
+            "heuristic-fr",
+            "bundled-crf-weights",
+            "bundled-hmm-params"
+          ]
+        },
+        "dataset": {
+          "source_url": "https://raw.githubusercontent.com/juand-r/entity-recognition-datasets/master/data/wikigold/CONLL-format/data/wikigold.conll.txt",
+          "data_source": "original URL",
+          "version": "sha256:c797a64d0cf73ed058363f77671486bcfd413e70fda1726ad4a6ba624455225f",
+          "language": "en",
+          "domain": "wikipedia",
+          "sentence_count": 20,
+          "entity_count": 52
+        },
+        "backend": {
+          "requested": "heuristic",
+          "effective": "heuristic",
+          "display_name": "heuristic",
+          "model_artifacts": {
+            "status": "unknown",
+            "reason": "backend did not expose artifact paths and hashes"
+          },
+          "execution": {
+            "status": "unknown",
+            "reason": "backend did not expose effective provider or layer selection"
+          }
+        },
+        "runtime": {
+          "seed": 42,
+          "cached_only": false,
+          "max_examples": 20,
+          "confidence_intervals": true,
+          "robustness": false,
+          "relation_threshold": 0.5,
+          "ner_inference": {
+            "threshold": {
+              "status": "unknown",
+              "reason": "evaluator did not supply a NER threshold for this backend"
+            },
+            "chunking": {
+              "status": "unknown",
+              "reason": "evaluator did not supply this NER setting and backend did not expose it"
+            },
+            "nms": {
+              "status": "unknown",
+              "reason": "evaluator did not supply this NER setting and backend did not expose it"
+            }
+          },
+          "scheduling": {
+            "strategy": "sequential"
+          }
+        },
+        "policy_cohort_key": "{\"schema\":\"anno-eval-policy-cohort-v1\",\"task\":\"NER\",\"dataset\":\"WikiGold\",\"max_examples\":20,\"cached_only\":false,\"enabled_features\":[\"default\",\"eval\",\"onnx\",\"hf-hub\",\"heuristic-fr\",\"bundled-crf-weights\",\"bundled-hmm-params\"],\"scorer\":\"anno-eval-primary-score-v1\"}",
+        "ner_label_policy": {
+          "primary_policy": "strict span-and-type micro score over all emitted entities; no label filtering",
+          "dataset_label_space": [
+            "LOC",
+            "MISC",
+            "ORG",
+            "PER"
+          ],
+          "operational_gold_outside_dataset_labels": 0,
+          "operational_predictions_outside_dataset_labels": 0,
+          "dataset_label_closed_diagnostic": {
+            "strict_precision": 0.375,
+            "strict_recall": 0.40384615384615385,
+            "strict_f1": 0.38888888888888895,
+            "gold_entities_scored": 52,
+            "predicted_entities_scored": 56
+          }
+        }
+      }
+    }
