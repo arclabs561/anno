@@ -38,6 +38,7 @@ def coverage_summary(receipt):
     matched = Counter()
     failures = Counter()
     seen_urls = set()
+    matched_urls = set()
     final_hosts = set()
     domains_per_hash = defaultdict(set)
     texts_per_domain = defaultdict(set)
@@ -91,10 +92,26 @@ def coverage_summary(receipt):
         final_url, digest = identities.pop()
         final_hosts.add(_host(final_url))
         matched[topic] += 1
+        matched_urls.add(url)
         texts_per_domain[topic].add(digest)
         domains_per_hash[digest].add(topic)
+    replay_counts = None
+    if "replay" in receipt:
+        replay = receipt["replay"]
+        if (not isinstance(replay, dict) or not isinstance(replay.get("reference_sha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", replay["reference_sha256"])):
+            raise ValueError("replay needs the digest of its reference receipt")
+        outcomes = replay.get("outcomes")
+        if not isinstance(outcomes, dict) or outcomes.keys() != seen_urls:
+            raise ValueError("replay outcomes must cover exactly the selected sources")
+        for url, outcome in outcomes.items():
+            if outcome not in ("matched", "changed", "unverified"):
+                raise ValueError("invalid replay outcome")
+            if url not in matched_urls and outcome != "unverified":
+                raise ValueError("replay agreement requires a verified current input")
+        replay_counts = dict(Counter(outcomes.values()))
     return {
-        "selected": len(sources), "matched": sum(matched.values()), "failures": dict(failures),
+        "replay": replay_counts, "selected": len(sources), "matched": sum(matched.values()), "failures": dict(failures),
         "final_hosts": len(final_hosts), "distinct_texts": len(domains_per_hash),
         "shared_across_domains": sum(len(domains) > 1 for domains in domains_per_hash.values()),
         "domains": {topic: {
@@ -124,6 +141,10 @@ def render_coverage(receipt):
     for topic, values in domains.items():
         lines.append(f"| {topic} | {values['eligible']} | {values['selected']} | {values['matched']} | "
                      f"{values['distinct_texts']} | {values['exclusive_texts']} |")
+    if summary["replay"] is not None:
+        replay = summary["replay"]
+        lines.extend(["", f"Compared with the reference receipt: {replay.get('matched', 0)} matched, "
+                      f"{replay.get('changed', 0)} changed, {replay.get('unverified', 0)} unverified."])
     lines.extend(["", "Topics describe the catalog. Check the rendered content and independent labels "
                   "before drawing conclusions about extraction accuracy."])
     return "\n".join(lines)

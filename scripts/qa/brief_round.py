@@ -7,12 +7,15 @@ import sys
 from pathlib import Path
 
 from round_trace import initialize
+from domain_coverage import render_coverage
 from run_panel import render_markdown
 
 GUIDE = Path(__file__).resolve().parents[2] / "docs" / "ADVERSARIAL_QA.md"
 
 
 def evidence(directory):
+    if directory.is_file():
+        return render_coverage(json.loads(directory.read_text(encoding="utf-8")))
     panel = directory / "panel-summary.json"
     schedule = directory / "schedule.json"
     if panel.exists() and schedule.exists():
@@ -20,7 +23,7 @@ def evidence(directory):
     if panel.is_file():
         return render_markdown(json.loads(panel.read_text())["results"]).rstrip()
     if not schedule.is_file():
-        raise ValueError("expected panel-summary.json or schedule.json in the run directory")
+        raise ValueError("expected panel-summary.json or schedule.json in the run directory, or a cross-domain receipt file")
     plan = json.loads(schedule.read_text())
     lines = [f"Matrix slot {plan['slot']}, requested {plan['requested_strategy']}, seed {plan['seed']}."]
     result = directory / "result.json"
