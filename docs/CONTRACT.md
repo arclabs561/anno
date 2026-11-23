@@ -45,7 +45,8 @@ first-seen order. The first populated KB ID in each group becomes its link.
 `to_entities()` gives every member the track ID and the shared KB link.
 
 Use `GroundedDocument::try_from_entities` to detect conflicting populated KB IDs,
-mention types, visual spans, and labels that decode to a different entity type.
+mention types, visual spans, labels that decode to a different entity type, and
+flat offsets that would change when reconstructed from discontinuous segments.
 Errors identify the original input indices. A populated link and a missing link
 in the same group are compatible. Both constructors use the same grouping and
 preserve the detection confidence.

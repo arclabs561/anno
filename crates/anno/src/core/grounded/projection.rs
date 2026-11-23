@@ -26,6 +26,12 @@ pub enum EntityProjectionError {
         /// Zero-based index in the input slice.
         index: usize,
     },
+    /// The flat offsets differ from those reconstructed from the segments.
+    #[error("entity {index} has flat offsets that cannot round-trip through its segments")]
+    SegmentBounds {
+        /// Zero-based index in the input slice.
+        index: usize,
+    },
     /// Two entities assigned to one track carry different populated KB IDs.
     #[error(
         "entities {first_index} and {index} in canonical group {group} have conflicting KB IDs"
@@ -48,12 +54,13 @@ impl GroundedDocument {
     /// have different links.
     ///
     /// As with [`Self::from_entities`], track IDs are allocated in first-seen order.
-    /// This check does not validate source offsets or preserve input canonical ID numbers.
+    /// Segment bounds are compared to the supplied flat offsets. This check does
+    /// not validate offsets against the source text or preserve input canonical ID numbers.
     ///
     /// # Errors
     ///
-    /// Returns the first entity with a mention type, visual span, lossy type label,
-    /// or KB link that conflicts with an earlier member of its canonical group.
+    /// Returns the first entity with a mention type, visual span, incompatible segment
+    /// bounds, lossy type label, or conflicting KB link within its canonical group.
     pub fn try_from_entities(
         id: impl Into<String>,
         text: impl Into<String>,
@@ -66,6 +73,12 @@ impl GroundedDocument {
             }
             if entity.visual_span.is_some() {
                 return Err(EntityProjectionError::VisualSpan { index });
+            }
+            if let Some(span) = &entity.discontinuous_span {
+                let reconstructed = span.bounding_range().unwrap_or(0..0);
+                if reconstructed != (entity.start()..entity.end()) {
+                    return Err(EntityProjectionError::SegmentBounds { index });
+                }
             }
             if EntityType::from_label(entity.entity_type.as_label()) != entity.entity_type {
                 return Err(EntityProjectionError::LabelMapping { index });
@@ -163,5 +176,34 @@ mod tests {
             GroundedDocument::try_from_entities("d", "A", &[e]).unwrap_err(),
             EntityProjectionError::MentionType { index: 0 }
         );
+    }
+
+    #[test]
+    fn checked_grouping_preserves_flat_offsets_for_imported_segments() {
+        let mut e = Entity::new("A B", EntityType::Person, 2, 7, 1.0);
+        e.set_discontinuous_span(crate::DiscontinuousSpan::new(vec![2..3, 6..7]));
+        let wire = serde_json::to_value(&e).unwrap();
+        for (start, end, segments, preserved) in [
+            (2, 7, wire["discontinuous_span"].clone(), true),
+            (2, 8, wire["discontinuous_span"].clone(), false),
+            (2, 2, serde_json::json!({"segments": []}), false),
+            (0, 0, serde_json::json!({"segments": []}), true),
+        ] {
+            let mut row = wire.clone();
+            row["start"] = start.into();
+            row["end"] = end.into();
+            row["discontinuous_span"] = segments;
+            let input: Entity = serde_json::from_value(row).unwrap();
+            let grouped = GroundedDocument::try_from_entities("d", "..A...B.", &[input]);
+            if preserved {
+                let out = grouped.unwrap().to_entities();
+                assert_eq!((out[0].start(), out[0].end()), (start, end));
+            } else {
+                assert_eq!(
+                    grouped.unwrap_err(),
+                    EntityProjectionError::SegmentBounds { index: 0 }
+                );
+            }
+        }
     }
 }
