@@ -5,7 +5,6 @@
 [advisories]
 ignore = [
     # No safe upgrade available (transitive).
-    { id = "RUSTSEC-2025-0119", reason = "number_prefix is unmaintained; no safe upgrade is available." },
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; no safe upgrade is available." },
 ]
 
