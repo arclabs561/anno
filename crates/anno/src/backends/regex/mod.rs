@@ -230,37 +230,41 @@ static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?i)\bhttps?://[^\s<>\[\]{}|\\^`\x00-\x1f]+").expect("valid regex")
 });
 
-// In Japanese prose a parenthesized URL can run directly into the next word.
-// Mask only the matching outer delimiter while scanning for URLs. An ideographic
-// space has the same UTF-8 length, keeping both byte and character offsets intact.
+// Mask a matching outer parenthesis before scanning: Markdown and Japanese
+// prose can place another word or link immediately after it. Replacing the
+// delimiter with a space of the same UTF-8 width preserves source offsets.
 fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     let mut result = std::borrow::Cow::Borrowed(text);
-    if !text.contains('（') {
+    if !text.contains(['(', '（']) {
         return result;
     }
+    let mut wrapper = None;
     let mut depth = 0;
     for (byte, ch) in text.char_indices() {
-        match ch {
-            '（' if depth > 0 => depth += 1,
-            '（' => {
-                let rest = &text.as_bytes()[byte + ch.len_utf8()..];
-                if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
-                    rest.get(..scheme.len())
-                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
-                }) {
-                    depth = 1;
-                }
-            }
-            '）' if depth > 0 => {
+        if let Some((open, close)) = wrapper {
+            if ch == open {
+                depth += 1;
+            } else if ch == close {
                 depth -= 1;
                 if depth == 0 {
+                    let space = if close == ')' { " " } else { "　" };
                     result
                         .to_mut()
-                        .replace_range(byte..byte + ch.len_utf8(), "　");
+                        .replace_range(byte..byte + ch.len_utf8(), space);
+                    wrapper = None;
                 }
+            } else if ch.is_whitespace() {
+                wrapper = None;
             }
-            c if c.is_whitespace() => depth = 0,
-            _ => {}
+        } else if matches!(ch, '(' | '（') {
+            let rest = &text.as_bytes()[byte + ch.len_utf8()..];
+            if [b"http://".as_slice(), b"https://"].iter().any(|scheme| {
+                rest.get(..scheme.len())
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case(scheme))
+            }) {
+                wrapper = Some((ch, if ch == '(' { ')' } else { '）' }));
+                depth = 1;
+            }
         }
     }
     result
@@ -896,6 +900,29 @@ mod tests {
     // ========================================================================
     // URL Tests
     // ========================================================================
+
+    #[test]
+    fn markdown_url_wrappers_preserve_literal_parentheses_and_source_ranges() {
+        let text = "🦊 [doc](HTTPS://example.org/guide)[ref](http://example.org/A_(B)) bare https://example.org/A_(B)";
+        let urls: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Url)
+            .map(|e| (e.start(), e.end(), e.text))
+            .collect();
+        let expected: Vec<_> = [
+            "HTTPS://example.org/guide",
+            "http://example.org/A_(B)",
+            "https://example.org/A_(B)",
+        ]
+        .iter()
+        .map(|&url| {
+            let byte = text.find(url).unwrap();
+            let start = text[..byte].chars().count();
+            (start, start + url.chars().count(), url.to_string())
+        })
+        .collect();
+        assert_eq!(urls, expected);
+    }
 
     #[test]
     fn fullwidth_url_wrappers_preserve_internal_and_unwrapped_punctuation() {
