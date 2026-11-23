@@ -17,6 +17,8 @@ on:
       - 'crates/anno-cli/src/cli/utils.rs'
       - 'crates/anno-cli/tests/pipeline_coref_backend.rs'
       - 'scripts/export_fcoref.py'
+      - 'scripts/qa/fcoref_cgroup/**'
+      - 'crates/anno/examples/fcoref_resource_profile.rs'
 
 permissions:
   contents: read
@@ -28,7 +30,7 @@ concurrency:
 jobs:
   pipeline:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
       MODEL_REVISION: e91dfff12879495d882ba9460d0c5d5dd44ade59
       FCOREF_MODEL_PATH: ${{ github.workspace }}/fcoref_onnx
@@ -81,3 +83,28 @@ jobs:
         run: >-
           cargo test --locked -p anno-cli --no-default-features --features onnx,extractor-html2text
           --test pipeline_coref_backend -- --include-ignored
+      - name: Build the release-profile FCoref benchmark
+        run: |
+          python3 -m unittest discover -s scripts/qa/fcoref_cgroup
+          cargo build --locked --release -p anno --no-default-features --features onnx,ort/load-dynamic --example fcoref_resource_profile
+      - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
+        env:
+          RUNTIME_IMAGE: ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
+        run: |
+          wheel_dir=$(mktemp -d)
+          python3 -m pip download --no-deps --only-binary=:all: --platform manylinux_2_27_x86_64 --implementation cp --python-version 3.12 --abi cp312 -d "$wheel_dir" 'onnxruntime==1.24.4'
+          wheel=$(find "$wheel_dir" -name '*.whl')
+          echo "0d640eb9f3782689b55cfa715094474cd5662f2f137be6a6f847a594b6e9705c  $wheel" | sha256sum -c -
+          ort="$wheel_dir/libonnxruntime.so.1.24.4"
+          unzip -p "$wheel" 'onnxruntime/capi/libonnxruntime.so.1.24.4' > "$ort"
+          docker pull "$RUNTIME_IMAGE"
+          cpu=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
+          python3 scripts/qa/fcoref_cgroup/replay.py \
+            --binary target/release/examples/fcoref_resource_profile --model "$FCOREF_MODEL_PATH" \
+            --ort "$ort" --image "$RUNTIME_IMAGE" --cpu "$cpu" --output fcoref-cgroup.json
+      - name: Upload the container resource receipt
+        if: always() && hashFiles('fcoref-cgroup.json') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fcoref-cgroup
+          path: fcoref-cgroup.json
