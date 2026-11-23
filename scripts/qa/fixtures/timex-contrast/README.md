@@ -25,6 +25,13 @@ the number of gold-empty documents with at least one temporal prediction.
 The prefixes `authored-` identify the original examples. The SHA-256 of the frozen JSONL is
 `c1718c1749c528234fe2007f903bfa48bad3e1da5ff1f25e9b1fd5d5554ec4f9`.
 
+On the frozen panel the native pattern backend matched 4 of 16 annotated spans with 4 predictions.
+GLiNER Multitask matched 9 with 12 predictions. One of its extra predictions fell in a date-free
+document: Defoe’s character Friday. It also marked “July” inside “July 4, 1776” and “delivery date”
+inside a document containing a separate date. Pattern raised no alarm in the 21 date-free texts.
+The GLiNER evaluation used the FP32 ONNX graph and the label `time expression` at threshold 0.5.
+[Pinned model](https://huggingface.co/onnx-community/gliner-multitask-large-v0.5/tree/c1b022a51e6bc8535702b6b37fc38a3ed7fe00c6)
+
 Run the native temporal scorer from the repository root with an eval-enabled Anno CLI. Use an
 isolated cache so the panel gets its own input digest and history.
 
