@@ -81,6 +81,13 @@ class DomainScoreHandoffTest(unittest.TestCase):
             handoff = evidence(receipt)
         self.assertIn(r"| Public Health \| NHS | 1 | 1/1 | 1/2 | 1 | 1 |", handoff)
         self.assertNotIn("PRIVATE_DOCUMENT", handoff)
+        self.assertIn("did not record", handoff)
+        report["prediction_coverage"] = {"scope": "supplied_assertions", "total": 5, "unassessed": 2}
+        self.assertIn("2 remain unassessed", render_domain_scores(report))
+        report["prediction_coverage"]["unassessed"] = 6
+        with self.assertRaisesRegex(ValueError, "coverage"):
+            render_domain_scores(report)
+        del report["prediction_coverage"]
         report["comparison"]["lost"] = 0
         with self.assertRaisesRegex(ValueError, "disagrees"):
             render_domain_scores(report)

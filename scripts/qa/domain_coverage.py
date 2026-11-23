@@ -219,4 +219,15 @@ def render_domain_scores(report):
         raise ValueError("per-domain comparison disagrees with report")
     lines.extend(["", "Each denominator counts the supplied assertions. Review source families "
                   "and annotation coverage before generalizing beyond this fixture."])
+    if "prediction_coverage" in report:
+        coverage = report["prediction_coverage"]
+        total = _count(coverage, "total")
+        unassessed = _count(coverage, "unassessed")
+        if coverage.get("scope") != "supplied_assertions" or unassessed > total:
+            raise ValueError("invalid prediction coverage for supplied assertions")
+        lines.append(f"Of {total} emitted predictions, {total - unassessed} matched a typed exact "
+                     f"assertion or violated a typed protected range. {unassessed} remain unassessed.")
+    else:
+        lines.append("This receipt did not record how many predictions the assertions assessed.")
+    lines.append("Whole-document precision requires judgments for additional predictions.")
     return "\n".join(lines)

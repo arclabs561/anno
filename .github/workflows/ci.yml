@@ -68,7 +68,7 @@ jobs:
           # An unmet labeled assertion is a measurement. Invalid inputs and execution errors fail the job.
           if (( rc > 1 )); then exit "$rc"; fi
           jq --arg revision "$GITHUB_SHA" \
-            '{kind, schema_version, fixture_sha256, passed, total, domains, backend: "stacked", revision: $revision}' \
+            '{kind, schema_version, fixture_sha256, passed, total, domains, prediction_coverage, backend: "stacked", revision: $revision}' \
             "$panel/scores.json" > qa/reports/domain-discovery.json
           cp "$panel/manifest.json" qa/reports/domain-manifest.json
           python3 scripts/qa/brief_round.py qa/reports/domain-discovery.json \

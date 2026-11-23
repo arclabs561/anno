@@ -20,13 +20,55 @@ pub use lattix::{GraphDocument, GraphExportFormat, KnowledgeGraph};
 
 /// Convert a `GroundedDocument` into a `lattix::exchange::GraphDocument`.
 ///
-/// **Note**: Relations are not currently stored in `GroundedDocument`, so this
-/// conversion only produces entity nodes and track-based edges. To include
+/// Mentions of the same catalog record share a node. A KB ID is used verbatim when
+/// it belongs to one catalog in this document. If multiple catalogs use the same ID,
+/// their nodes receive distinct IDs derived from the catalog and record ID.
+/// Relations are not currently stored in `GroundedDocument`. To include
 /// extraction-time relations, use [`entities_to_graph_document`] directly with
 /// the `Relation` slice from the extraction backend.
 #[must_use]
 pub fn grounded_to_graph_document(doc: &crate::GroundedDocument) -> GraphDocument {
-    let entities = doc.to_entities();
+    use std::collections::{HashMap, HashSet};
+
+    let mut entities = doc.to_entities();
+    let mut catalogs = HashMap::new();
+    let mut ambiguous = HashSet::new();
+    for track in doc.tracks().filter(|track| !track.signals().is_empty()) {
+        let Some(identity) = doc.identity_for_track(track.id) else {
+            continue;
+        };
+        if let Some(id) = identity.kb_id() {
+            let catalog = identity.kb_name();
+            if catalogs
+                .insert(id, catalog)
+                .is_some_and(|prior| prior != catalog)
+            {
+                ambiguous.insert(id);
+            }
+        }
+    }
+
+    if !ambiguous.is_empty() {
+        let mut aliases = HashMap::new();
+        for (signal, entity) in doc.signals().iter().zip(&mut entities) {
+            let Some(identity) = doc.identity_for_signal(signal.id) else {
+                continue;
+            };
+            let Some(id) = identity.kb_id().filter(|id| ambiguous.contains(id)) else {
+                continue;
+            };
+            // The JSON pair distinguishes missing and empty catalog names and arbitrary
+            // punctuation. Its closing bracket cannot occur at the end of a fallback node ID.
+            let alias = aliases.entry((identity.kb_name(), id)).or_insert_with(|| {
+                let mut candidate = serde_json::json!([identity.kb_name(), id]).to_string();
+                while catalogs.contains_key(candidate.as_str()) {
+                    candidate.insert(0, '~');
+                }
+                candidate
+            });
+            entity.kb_id = Some(alias.clone());
+        }
+    }
     entities_to_graph_document(&entities, &[])
 }
 
@@ -233,6 +275,42 @@ mod tests {
 
     fn ent(text: &str, start: usize, end: usize, ty: EntityType) -> Entity {
         Entity::new(text, ty, start, end, 0.9)
+    }
+
+    #[test]
+    fn grounded_graph_separates_catalogs_that_reuse_an_id() {
+        use crate::{GroundedDocument, Identity, Location, Signal};
+
+        let mut doc = GroundedDocument::new("d", "X X X X X");
+        let catalog_links = [
+            ("alpha", "42"),
+            ("alpha", "42"),
+            ("beta", "42"),
+            ("alpha", "unique"),
+            // A raw ID may look exactly like a generated scoped ID.
+            ("alpha", r#"["alpha","42"]"#),
+        ];
+        for (i, (catalog, id)) in catalog_links.into_iter().enumerate() {
+            let signal = doc.add_signal(Signal::new(
+                0,
+                Location::text(i * 2, i * 2 + 1),
+                "X",
+                "PER",
+                1.0,
+            ));
+            let track = doc.create_track_from_signals("X", &[signal]).unwrap();
+            let identity = doc.add_identity(Identity::from_kb(0, "X", catalog, id));
+            doc.link_track_to_identity(track, identity);
+        }
+        let graph = grounded_to_graph_document(&doc);
+        assert_eq!(graph.nodes.len(), 4);
+        let nodes = &graph.nodes;
+        assert_eq!(nodes[0].properties["mentions_count"], 2);
+        assert_eq!(nodes[1].properties["mentions_count"], 1);
+        assert_ne!(nodes[0].id, nodes[1].id);
+        assert_eq!(nodes[2].id, "unique");
+        assert_eq!(nodes[3].id, r#"["alpha","42"]"#);
+        assert_ne!(nodes[0].id, nodes[3].id);
     }
 
     #[test]

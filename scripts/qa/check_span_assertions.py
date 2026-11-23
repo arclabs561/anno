@@ -93,6 +93,7 @@ def score(cases, predictions):
     if outputs.keys() != cases.keys():
         raise ValueError(f"prediction IDs differ from fixture: {sorted(outputs.keys() ^ cases.keys())}")
     findings = []
+    predicted = unassessed = 0
     for key, case in cases.items():
         row = outputs[key]
         if "source_sha256" not in row:
@@ -107,19 +108,28 @@ def score(cases, predictions):
             label = entity.get("type")
             if not valid_label(label):
                 raise ValueError(f"{key}: malformed prediction type {label!r}")
+        assessed = set()
         for rule in case["assertions"]:
+            overlapping_indices = [i for i, e in enumerate(entities)
+                                   if e["start"] < rule["end"] and rule["start"] < e["end"]]
             overlaps = [
-                {field: entity[field] for field in ("start", "end", "text", "type")}
-                for entity in entities
-                if entity["start"] < rule["end"] and rule["start"] < entity["end"]
+                {field: entities[i][field] for field in ("start", "end", "text", "type")}
+                for i in overlapping_indices
             ]
-            typed = [e for e in overlaps if e["type"] in rule["types"]]
+            matches = [i for i in overlapping_indices if entities[i]["type"] in rule["types"]]
             if rule["kind"] == "exact_span":
-                passed = any((e["start"], e["end"]) == (rule["start"], rule["end"]) for e in typed)
+                matches = [i for i in matches if (entities[i]["start"], entities[i]["end"])
+                           == (rule["start"], rule["end"])]
+                passed = bool(matches)
             else:
-                passed = not typed
+                passed = not matches
+            assessed.update(matches)
             findings.append({**rule, "id": key, "passed": passed, "overlaps": overlaps})
+        predicted += len(entities)
+        unassessed += len(entities) - len(assessed)
     return {"passed": sum(row["passed"] for row in findings), "total": len(findings),
+            "prediction_coverage": {"scope": "supplied_assertions", "total": predicted,
+                                    "unassessed": unassessed},
             "findings": findings}
 
 

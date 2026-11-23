@@ -153,6 +153,52 @@ pub struct RobustnessResults {
     pub coverage_complete: bool,
 }
 
+/// Counts and mean strict F1 restricted to variants whose text actually changed.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ChangedVariantEvidence {
+    /// Changed inputs before gold projection or inference.
+    pub attempted: usize,
+    /// Changed inputs successfully scored.
+    pub scored: usize,
+    /// Mean absolute F1 on these scored inputs, including genuine zero scores.
+    pub f1: Option<f64>,
+}
+
+/// Evidence for comparing perturbed and original predictions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum RetentionAssessment {
+    /// Configure one baseline and at least one non-baseline perturbation, with no duplicates.
+    InvalidConfiguration,
+    /// At least one baseline or perturbed input was excluded.
+    IncompleteCoverage,
+    /// At least one configured non-baseline perturbation had no changed, scored input.
+    NoChangedSupport,
+    /// The baseline F1 on matched inputs is zero, making retention undefined.
+    ZeroBaseline,
+    /// Macro means over perturbations, each evaluated on the same changed inputs as its baseline.
+    /// The ratio measures relative retention. Absolute quality is reported separately.
+    Measured {
+        /// Average baseline F1 over the matched subsets.
+        baseline_f1: f64,
+        /// Average perturbed F1 over the matched subsets.
+        changed_f1: f64,
+        /// Changed F1 divided by baseline F1.
+        ratio: f64,
+    },
+}
+
+/// Original metrics, changed-text coverage, and eligibility for a paired comparison.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RobustnessReport {
+    /// The same summaries as [`RobustnessEvaluator::evaluate`], including unchanged texts.
+    pub results: RobustnessResults,
+    /// Changed-text evidence for each configured non-baseline perturbation.
+    pub changed: HashMap<String, ChangedVariantEvidence>,
+    /// Retention over changed inputs when every arm has support and coverage is complete.
+    pub retention: RetentionAssessment,
+}
+
 /// Metrics for a single perturbation type.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerturbationMetrics {
@@ -413,35 +459,49 @@ impl RobustnessEvaluator {
         }
     }
 
-    /// Evaluate model robustness on test cases.
+    /// Evaluate model robustness on test cases, including perturbations that leave text unchanged.
+    /// Use [`Self::evaluate_with_evidence`] for paired retention on changed, scored examples.
     pub fn evaluate(
         &self,
         model: &dyn Model,
         test_cases: &[(String, Vec<Entity>)],
     ) -> RobustnessResults {
+        self.evaluate_with_evidence(model, test_cases).results
+    }
+
+    /// Evaluate once and distinguish absolute quality from retention on changed text.
+    /// This report withholds retention when missing scores would leave only surviving examples.
+    /// A measured ratio of 1.0 can describe any level of absolute accuracy. Callers can
+    /// apply their own minimum F1 and changed-sample requirements using the report.
+    pub fn evaluate_with_evidence(
+        &self,
+        model: &dyn Model,
+        test_cases: &[(String, Vec<Entity>)],
+    ) -> RobustnessReport {
         #[derive(Default)]
         struct PerturbationSamples {
             metrics: Vec<(f64, f64, f64)>,
             exclusions: HashMap<String, usize>,
+            changed: ChangedVariantEvidence,
+            changed_f1_sum: f64,
+            paired_baseline_sum: f64,
         }
 
-        let mut by_perturbation: HashMap<String, PerturbationSamples> = self
+        let mut by_perturbation: HashMap<Perturbation, PerturbationSamples> = self
             .perturbations
             .iter()
-            .map(|perturbation| {
-                (
-                    format!("{:?}", perturbation),
-                    PerturbationSamples::default(),
-                )
-            })
+            .map(|&arm| (arm, PerturbationSamples::default()))
             .collect();
 
+        let mut changed_arms = Vec::with_capacity(self.perturbations.len());
         for (text, gold_entities) in test_cases {
+            let mut baseline = None;
+            changed_arms.clear();
             for &perturbation in &self.perturbations {
                 let perturbed = self.apply_perturbation(text, perturbation);
-                let samples = by_perturbation
-                    .entry(format!("{:?}", perturbation))
-                    .or_default();
+                let samples = by_perturbation.entry(perturbation).or_default();
+                let changed = perturbed != *text;
+                samples.changed.attempted += usize::from(changed);
                 // Gold offsets and surface forms belong to the original text. Project them
                 // through the perturbation before scoring; otherwise changes before an entity
                 // shift its offsets and changes inside it make its old surface form invalid.
@@ -470,13 +530,25 @@ impl RobustnessEvaluator {
 
                 let (precision, recall, f1) = compute_simple_metrics(&predicted, &perturbed_gold);
                 samples.metrics.push((precision, recall, f1));
+                if perturbation == Perturbation::None {
+                    baseline = Some(f1);
+                } else if changed {
+                    samples.changed.scored += 1;
+                    samples.changed_f1_sum += f1;
+                    changed_arms.push(perturbation);
+                }
+            }
+            if let Some(f1) = baseline {
+                for arm in &changed_arms {
+                    by_perturbation.get_mut(arm).unwrap().paired_baseline_sum += f1;
+                }
             }
         }
 
         // Aggregate metrics
         let mut aggregated: HashMap<String, PerturbationMetrics> = HashMap::new();
         let baseline_f1 = by_perturbation
-            .get("None")
+            .get(&Perturbation::None)
             .and_then(|samples| average_metrics(&samples.metrics).map(|(_, _, f1)| f1))
             .unwrap_or(0.0);
 
@@ -490,7 +562,7 @@ impl RobustnessEvaluator {
             };
 
             aggregated.insert(
-                name.clone(),
+                format!("{name:?}"),
                 PerturbationMetrics {
                     f1: avg_f1,
                     precision: avg_precision,
@@ -542,7 +614,42 @@ impl RobustnessEvaluator {
             0.0
         };
 
-        RobustnessResults {
+        let mut changed = HashMap::new();
+        let mut paired_baseline = 0.0;
+        let mut changed_f1 = 0.0;
+        for (name, samples) in by_perturbation {
+            if name == Perturbation::None {
+                continue;
+            }
+            let mut evidence = samples.changed;
+            if evidence.scored > 0 {
+                let mean = samples.changed_f1_sum / evidence.scored as f64;
+                evidence.f1 = Some(mean);
+                changed_f1 += mean;
+                paired_baseline += samples.paired_baseline_sum / evidence.scored as f64;
+            }
+            changed.insert(format!("{name:?}"), evidence);
+        }
+        let arms = changed.len() as f64;
+        let retention = if !aggregated.contains_key("None")
+            || changed.is_empty()
+            || self.perturbations.len() != aggregated.len()
+        {
+            RetentionAssessment::InvalidConfiguration
+        } else if !coverage_complete {
+            RetentionAssessment::IncompleteCoverage
+        } else if changed.values().any(|e| e.scored == 0) {
+            RetentionAssessment::NoChangedSupport
+        } else if paired_baseline == 0.0 {
+            RetentionAssessment::ZeroBaseline
+        } else {
+            RetentionAssessment::Measured {
+                baseline_f1: paired_baseline / arms,
+                changed_f1: changed_f1 / arms,
+                ratio: changed_f1 / paired_baseline,
+            }
+        };
+        let results = RobustnessResults {
             baseline_f1,
             by_perturbation: aggregated,
             avg_perturbed_f1,
@@ -551,6 +658,11 @@ impl RobustnessEvaluator {
             best_perturbation: best,
             total_examples: test_cases.len(),
             coverage_complete,
+        };
+        RobustnessReport {
+            results,
+            changed,
+            retention,
         }
     }
 }
@@ -875,7 +987,8 @@ fn compute_simple_metrics(predicted: &[Entity], gold: &[Entity]) -> (f64, f64, f
     )
 }
 
-/// Grade robustness score.
+/// Label a relative F1 ratio. This helper cannot assess absolute quality, changed-text
+/// support, or exclusions. Use [`RobustnessEvaluator::evaluate_with_evidence`] for those checks.
 pub fn robustness_grade(score: f64) -> &'static str {
     if score >= 0.95 {
         "Excellent robustness"
@@ -897,6 +1010,100 @@ pub fn robustness_grade(score: f64) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn person(text: &str) -> Entity {
+        Entity::new(
+            text,
+            crate::EntityType::Person,
+            0,
+            text.chars().count(),
+            1.0,
+        )
+    }
+
+    fn examples(names: &[&str]) -> Vec<(String, Vec<Entity>)> {
+        names
+            .iter()
+            .map(|&name| (name.to_string(), vec![person(name)]))
+            .collect()
+    }
+
+    #[test]
+    fn retention_compares_changed_inputs_with_their_own_baseline() {
+        let model = anno::AnyModel::new("alice", "recognizes one name", vec![], |text, _| {
+            Ok(if text.eq_ignore_ascii_case("Alice") {
+                vec![person(text)]
+            } else {
+                vec![]
+            })
+        });
+        let evaluator = RobustnessEvaluator::new(vec![Perturbation::CaseUpper, Perturbation::None]);
+        let cases = examples(&["Alice", "Bob", "CAROL"]);
+        let report = evaluator.evaluate_with_evidence(&model, &cases);
+        assert_eq!(report.results.baseline_f1, 1.0 / 3.0);
+        let changes = &report.changed["CaseUpper"];
+        assert_eq!(
+            (changes.attempted, changes.scored, changes.f1),
+            (2, 2, Some(0.5))
+        );
+        assert_eq!(
+            report.retention,
+            RetentionAssessment::Measured {
+                baseline_f1: 0.5,
+                changed_f1: 0.5,
+                ratio: 1.0
+            }
+        );
+    }
+
+    #[test]
+    fn incomplete_or_absent_changed_support_cannot_earn_retention() {
+        use Perturbation::{CaseUpper, None as Baseline, PunctuationExtra};
+        let model = anno::AnyModel::new("partial", "fails uppercase BOB", vec![], |text, _| {
+            if text == "BOB" {
+                return Err(anno::Error::Inference("unavailable".into()));
+            }
+            Ok(vec![person(text)])
+        });
+        let eval = RobustnessEvaluator::new(vec![Baseline, CaseUpper]);
+        let partial = eval.evaluate_with_evidence(&model, &examples(&["Alice", "Bob"]));
+        assert_eq!(partial.retention, RetentionAssessment::IncompleteCoverage);
+        assert_eq!(partial.results.robustness_score, 1.0);
+        let arm = &partial.changed["CaseUpper"];
+        assert_eq!((arm.attempted, arm.scored), (2, 1));
+        assert_eq!(
+            partial.results.by_perturbation["CaseUpper"].exclusion_reasons["inference_error"],
+            1
+        );
+        for cases in [examples(&["ALICE"]), vec![]] {
+            let report = eval.evaluate_with_evidence(&model, &cases);
+            assert_eq!(report.retention, RetentionAssessment::NoChangedSupport);
+            assert_eq!(report.changed["CaseUpper"].f1, None);
+        }
+        for arms in [
+            vec![Baseline],
+            vec![CaseUpper],
+            vec![Baseline, CaseUpper, CaseUpper],
+        ] {
+            let report = RobustnessEvaluator::new(arms)
+                .evaluate_with_evidence(&model, &examples(&["Alice"]));
+            assert_eq!(report.retention, RetentionAssessment::InvalidConfiguration);
+        }
+        let punctuation = RobustnessEvaluator {
+            intensity: 1.0,
+            ..RobustnessEvaluator::new(vec![Baseline, PunctuationExtra])
+        };
+        let report = punctuation.evaluate_with_evidence(&model, &examples(&["!", "Alice"]));
+        assert_eq!(report.retention, RetentionAssessment::IncompleteCoverage);
+        let arm = &report.changed["PunctuationExtra"];
+        assert_eq!((arm.attempted, arm.scored, arm.f1), (1, 0, None));
+        let empty = anno::AnyModel::new("empty", "predicts no entities", vec![], |_, _| Ok(vec![]));
+        assert_eq!(
+            eval.evaluate_with_evidence(&empty, &examples(&["Alice"]))
+                .retention,
+            RetentionAssessment::ZeroBaseline
+        );
+    }
 
     #[test]
     fn test_typo_swap() {
