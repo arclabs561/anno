@@ -22,13 +22,14 @@ use crate::eval::loader::{DatasetId, DatasetLoader, LoadedDataset};
 use crate::eval::profiling;
 use crate::eval::provenance::{
     artifact_status, canonical_entity_type_label, current_build_provenance,
-    legacy_eval_run_provenance, policy_cohort_key,
+    legacy_eval_run_provenance, policy_cohort_key, EXPLICIT_SKIP_SCHEMA_VERSION,
 };
 pub use crate::eval::provenance::{
     ArtifactProvenanceStatus, BackendRunProvenance, ClosedLabelDiagnostic, DatasetRunProvenance,
-    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvaluatedSampleProvenance,
-    EvaluatedSampleUnit, EvaluationScheduling, ExecutionProvenanceStatus,
-    InferenceSettingProvenance, NerInferenceProvenance, NerLabelPolicyReport,
+    EvalBuildProvenance, EvalRunProvenance, EvalRuntimeProvenance, EvalSkipReason,
+    EvaluatedSampleProvenance, EvaluatedSampleUnit, EvaluationScheduling,
+    ExecutionProvenanceStatus, InferenceSettingProvenance, NerInferenceProvenance,
+    NerLabelPolicyReport,
 };
 use crate::eval::task_mapping::{
     dataset_tasks, get_task_backends, get_task_datasets, Task, TaskMapping,
@@ -351,6 +352,16 @@ impl TaskEvalResult {
         if self.success {
             return false;
         }
+        if matches!(
+            self.provenance.backend.execution,
+            ExecutionProvenanceStatus::Skipped { .. }
+        ) {
+            return true;
+        }
+        if self.provenance.schema_version >= EXPLICIT_SKIP_SCHEMA_VERSION {
+            return false;
+        }
+        // Historical receipts predate explicit skip reasons. Preserve their interpretation.
         if let Some(ref err) = self.error {
             err.starts_with("incompatible:")
                 || err.contains("Feature not available")
@@ -816,12 +827,20 @@ impl TaskEvaluator {
         sentences_to_use: usize,
         duration_ms: f64,
         provenance: ProvenanceInput<'_>,
-        error: impl std::fmt::Display,
+        error: crate::Error,
     ) -> TaskEvalResult {
+        let task = provenance.task;
+        let backend = provenance.effective_backend_name.to_string();
+        let mut provenance = self.run_provenance(provenance);
+        if matches!(error, crate::Error::FeatureNotAvailable(_)) {
+            provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
+                reason: EvalSkipReason::CapabilityUnavailable,
+            };
+        }
         TaskEvalResult {
-            task: provenance.task,
+            task,
             dataset,
-            backend: provenance.effective_backend_name.to_string(),
+            backend,
             backend_display: None,
             seed,
             success: false,
@@ -837,13 +856,13 @@ impl TaskEvaluator {
             stratified: None,
             confidence_intervals: None,
             kb_version: None,
-            provenance: self.run_provenance(provenance),
+            provenance,
         }
     }
 
     fn run_provenance(&self, input: ProvenanceInput<'_>) -> EvalRunProvenance {
         let mut provenance = EvalRunProvenance {
-            schema_version: 1,
+            schema_version: EXPLICIT_SKIP_SCHEMA_VERSION,
             build: current_build_provenance(),
             dataset: DatasetRunProvenance {
                 source_url: input.dataset.source_url.clone(),
@@ -932,7 +951,7 @@ impl TaskEvaluator {
         reason: &str,
     ) -> EvalRunProvenance {
         let mut provenance = EvalRunProvenance {
-            schema_version: 1,
+            schema_version: EXPLICIT_SKIP_SCHEMA_VERSION,
             build: current_build_provenance(),
             dataset: DatasetRunProvenance {
                 source_url: dataset.download_url().to_string(),
@@ -1073,6 +1092,16 @@ impl TaskEvaluator {
                     if !backends_tested.contains(backend_name) {
                         backends_tested.push(backend_name.clone());
                     }
+                    let mut provenance = self.unavailable_dataset_provenance(
+                        *task,
+                        *dataset,
+                        backend_name,
+                        &config,
+                        "candidate was incompatible before dataset load",
+                    );
+                    provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
+                        reason: EvalSkipReason::IncompatibleEntityTypes,
+                    };
                     let dataset_entity_types = dataset.entity_types();
                     results.push(TaskEvalResult {
                         task: *task,
@@ -1096,13 +1125,7 @@ impl TaskEvaluator {
                         stratified: None,
                         confidence_intervals: None,
                         kb_version: None,
-                        provenance: self.unavailable_dataset_provenance(
-                            *task,
-                            *dataset,
-                            backend_name,
-                            &config,
-                            "candidate was incompatible before dataset load",
-                        ),
+                        provenance,
                     });
                 }
 
@@ -4812,6 +4835,12 @@ mod tests {
             .unwrap()
             .contains("cannot evaluate gold mentions"));
 
+        assert!(matches!(
+            report.results[0].provenance.backend.execution,
+            ExecutionProvenanceStatus::Skipped {
+                reason: EvalSkipReason::CapabilityUnavailable
+            }
+        ));
         assert!(report.results[0].is_skipped());
         #[cfg(not(feature = "onnx"))]
         {
@@ -5554,26 +5583,30 @@ mod tests {
 
     #[test]
     fn test_task_eval_result_is_skipped() {
-        let skipped = TaskEvalResult {
-            task: Task::NER,
-            dataset: DatasetId::WikiGold,
-            backend: "missing".to_string(),
-            backend_display: None,
-            seed: 42,
-            success: false,
-            error: Some("Feature not available".to_string()),
-            metrics: HashMap::new(),
-            num_examples: 0,
-            duration_ms: None,
-            label_shift: None,
-            robustness: None,
-            stratified: None,
-            confidence_intervals: None,
-            kb_version: None,
-            provenance: EvalRunProvenance::default(),
+        let mut row = make_test_result(
+            false,
+            Some("Inference failed: dependency requires 'onnx'"),
+            None,
+        );
+        assert!(
+            !row.is_skipped(),
+            "a failed inference must count as a failure"
+        );
+        row.provenance.backend.execution = ExecutionProvenanceStatus::Skipped {
+            reason: EvalSkipReason::CapabilityUnavailable,
         };
+        row.error = Some("operator disabled".into());
+        let decoded: TaskEvalResult =
+            serde_json::from_value(serde_json::to_value(&row).unwrap()).unwrap();
+        assert!(decoded.is_skipped());
 
-        assert!(skipped.is_skipped());
+        let mut legacy = serde_json::to_value(&row).unwrap();
+        legacy["provenance"]["schema_version"] = 1.into();
+        legacy["provenance"]["backend"]["execution"] =
+            serde_json::json!({"status":"unknown","reason":"legacy"});
+        legacy["error"] = "Feature not available".into();
+        let decoded: TaskEvalResult = serde_json::from_value(legacy).unwrap();
+        assert!(decoded.is_skipped());
     }
 
     #[test]

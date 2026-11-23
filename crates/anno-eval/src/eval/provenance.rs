@@ -17,6 +17,9 @@ pub(crate) fn canonical_entity_type_label(entity_type: &EntityType) -> String {
         .to_string()
 }
 
+/// Version 2 records evaluation skips at their source. Earlier receipts used diagnostics.
+pub(super) const EXPLICIT_SKIP_SCHEMA_VERSION: u32 = 2;
+
 /// Reproducibility receipt attached to a single task/dataset/backend result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvalRunProvenance {
@@ -61,7 +64,7 @@ pub struct EvalRunProvenance {
 impl Default for EvalRunProvenance {
     fn default() -> Self {
         Self {
-            schema_version: 1,
+            schema_version: EXPLICIT_SKIP_SCHEMA_VERSION,
             build: current_build_provenance(),
             dataset: DatasetRunProvenance::default(),
             backend: BackendRunProvenance::default(),
@@ -301,10 +304,25 @@ impl Default for ArtifactProvenanceStatus {
     }
 }
 
+/// Why a backend could not evaluate a task and dataset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalSkipReason {
+    /// The requested capability or feature was unavailable.
+    CapabilityUnavailable,
+    /// The backend cannot score the entity types in this dataset.
+    IncompatibleEntityTypes,
+}
+
 /// Explicit absence is preferable to claiming an accelerator or fallback layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum ExecutionProvenanceStatus {
+    /// The evaluator identified an unsupported combination before it could score the task.
+    Skipped {
+        /// Machine-readable reason, independent of diagnostic wording.
+        reason: EvalSkipReason,
+    },
     /// The backend does not expose effective provider or layer selection.
     Unknown {
         /// Why a trustworthy execution receipt is unavailable.
