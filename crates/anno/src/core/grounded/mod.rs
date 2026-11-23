@@ -86,6 +86,9 @@
 //! - CDLKT: Cross-document Language-Knowledge Transfer
 //! - Groma: Grounded multimodal assistant
 
+pub mod html_source;
+use html_source::HtmlSource;
+
 mod projection;
 pub use projection::EntityProjectionError;
 
@@ -1426,6 +1429,8 @@ pub enum CorefRunReport {
 /// during deserialization.
 #[derive(Deserialize)]
 struct GroundedDocumentWire {
+    #[serde(default)]
+    html_source: Option<Box<HtmlSource>>,
     id: String,
     text: String,
     #[serde(default)]
@@ -1457,7 +1462,11 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
             }
             coref_backend = Some(backend.clone());
         }
+        if let Some(source) = &wire.html_source {
+            source.validate(&wire.text)?;
+        }
         let mut doc = Self {
+            html_source: wire.html_source,
             id: wire.id,
             text: wire.text,
             coref_backend,
@@ -1550,6 +1559,9 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(try_from = "GroundedDocumentWire")]
 pub struct GroundedDocument {
+    /// Original UTF-8 HTML coordinates of spans projected at extraction time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    html_source: Option<Box<HtmlSource>>,
     /// Document identifier
     id: String,
     /// Raw text content
@@ -1596,6 +1608,7 @@ impl GroundedDocument {
     #[must_use]
     pub fn new(id: impl Into<String>, text: impl Into<String>) -> Self {
         Self {
+            html_source: None,
             id: id.into(),
             text: text.into(),
             coref_backend: None,
@@ -1610,6 +1623,19 @@ impl GroundedDocument {
             corpus_managed: false,
             next_identity_id: IdentityId::ZERO,
         }
+    }
+
+    /// Attach HTML source projections after checking the rendered text identity and ranges.
+    pub fn record_html_source(&mut self, source: HtmlSource) -> Result<(), String> {
+        source.validate(&self.text)?;
+        self.html_source = Some(Box::new(source));
+        Ok(())
+    }
+
+    /// Original HTML coordinates recorded for spans in this document.
+    #[must_use]
+    pub fn html_source(&self) -> Option<&HtmlSource> {
+        self.html_source.as_deref()
     }
 
     /// Get the document identifier.

@@ -113,6 +113,13 @@ pub fn get_input_text(
     Err("No input text provided. Use -t 'text' or -f file or pipe via stdin".to_string())
 }
 
+pub(crate) fn is_html_file(path: &str, content: &str) -> bool {
+    path.ends_with(".html")
+        || path.ends_with(".htm")
+        || path.ends_with(".xhtml")
+        || deformat::detect::is_html(content)
+}
+
 /// Validate a user-supplied name used as one filename component.
 pub(crate) fn validate_path_component<'a>(value: &'a str, kind: &str) -> Result<&'a str, String> {
     use std::path::{Component, Path};
@@ -168,8 +175,7 @@ pub fn read_input_file(path: &str) -> Result<String, String> {
         .map_err(|e| format_error("read file", &format!("{}: {}", path, e)))?;
 
     // Detect HTML by extension or content
-    let is_html_ext = path.ends_with(".html") || path.ends_with(".htm") || path.ends_with(".xhtml");
-    if is_html_ext || deformat::detect::is_html(&content) {
+    if is_html_file(path, &content) {
         eprintln!(
             "note: detected HTML content in '{}', converting to text",
             path
@@ -240,13 +246,7 @@ pub fn parse_gold_spec(s: &str) -> Option<GoldSpec> {
     })
 }
 
-pub(crate) fn source_sha256(text: &str) -> String {
-    use sha2::{Digest, Sha256};
-    Sha256::digest(text.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
-}
+pub(crate) use anno::core::grounded::html_source::source_sha256;
 
 /// Load gold-standard annotations from a JSONL file.
 ///
@@ -261,6 +261,7 @@ pub fn load_gold_from_file(
     let offsets = std::cell::LazyCell::new(|| anno::offset::build_char_to_byte_map(source));
     let mut gold = Vec::new();
     let mut document_id = None;
+    let mut saw_record = false;
     let digest = std::cell::LazyCell::new(|| source_sha256(source));
 
     for (line_num, line) in content.lines().enumerate() {
@@ -320,6 +321,7 @@ pub fn load_gold_from_file(
         let entities = entry["entities"]
             .as_array()
             .ok_or_else(|| format!("{path}:{}: expected an entities array", line_num + 1))?;
+        saw_record = true;
         for (i, ent) in entities.iter().enumerate() {
             let invalid = |field: &str| {
                 format!(
@@ -379,6 +381,11 @@ pub fn load_gold_from_file(
         }
     }
 
+    if !saw_record {
+        return Err(format!(
+            "{path}: expected a gold document with an entities array"
+        ));
+    }
     Ok((gold, document_id))
 }
 

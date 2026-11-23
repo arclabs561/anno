@@ -941,19 +941,23 @@ pub fn blanc_score(predicted: &[CorefChain], gold: &[CorefChain]) -> (f64, f64, 
 /// Corpus BLANC totals. Links are formed only between mentions in the same document.
 #[derive(Default)]
 pub struct BlancCounts {
-    coreferent: LinkCounts,
-    noncoreferent: LinkCounts,
+    coreferent: CorefLinkCounts,
+    noncoreferent: CorefLinkCounts,
     different_mentions: bool,
 }
 
-#[derive(Default)]
-struct LinkCounts {
-    matched: u128,
-    predicted: u128,
-    gold: u128,
+/// Counts of unordered mention pairs in one link class, summed within documents.
+#[derive(Default, Debug, PartialEq, Eq)]
+pub struct CorefLinkCounts {
+    /// Pairs present in both prediction and gold in the same document.
+    pub matched: u128,
+    /// Pairs present in the prediction.
+    pub predicted: u128,
+    /// Pairs present in gold.
+    pub gold: u128,
 }
 
-impl LinkCounts {
+impl CorefLinkCounts {
     fn add(&mut self, matched: u128, predicted: u128, gold: u128) {
         self.matched += matched;
         self.predicted += predicted;
@@ -1337,16 +1341,34 @@ fn std_dev(values: &[f64]) -> f64 {
 impl AggregateCorefEvaluation {
     /// Compute aggregate metrics over multiple document pairs.
     ///
-    /// Each pair is `(predicted_chains, gold_chains)`.
+    /// Each pair is `(predicted_chains, gold_chains)`. The mean weights every
+    /// document equally, including documents with no mentions on either side
+    /// (CoNLL F1 = 0).
     #[must_use]
     pub fn compute(document_pairs: &[(&[CorefChain], &[CorefChain])]) -> Self {
+        Self::compute_with_link_counts(document_pairs).0
+    }
+
+    /// Compute the same document-macro scores and count coreferent mention
+    /// pairs across the corpus. Coordinates are local to each document.
+    #[must_use]
+    pub fn compute_with_link_counts(
+        document_pairs: &[(&[CorefChain], &[CorefChain])],
+    ) -> (Self, CorefLinkCounts) {
+        let mut links = CorefLinkCounts::default();
         if document_pairs.is_empty() {
-            return Self::default();
+            return (Self::default(), links);
         }
 
         let evaluations: Vec<CorefEvaluation> = document_pairs
             .iter()
-            .map(|(pred, gold)| CorefEvaluation::compute(pred, gold))
+            .map(|(pred, gold)| {
+                let mut counts = BlancCounts::default();
+                counts.add_document(pred, gold);
+                let coref = &counts.coreferent;
+                links.add(coref.matched, coref.predicted, coref.gold);
+                CorefEvaluation::compute_with_blanc_counts(pred, gold, &counts)
+            })
             .collect();
 
         let n = evaluations.len() as f64;
@@ -1381,20 +1403,23 @@ impl AggregateCorefEvaluation {
         let std_blanc = std_dev(&evaluations.iter().map(|e| e.blanc.f1).collect::<Vec<_>>());
         let std_conll = std_dev(&evaluations.iter().map(|e| e.conll_f1).collect::<Vec<_>>());
 
-        Self {
-            per_document: evaluations,
-            mean,
-            std_dev: CorefScoreStdDev {
-                muc: std_muc,
-                b_cubed: std_b3,
-                ceaf_e: std_ceafe,
-                ceaf_m: std_ceafm,
-                lea: std_lea,
-                blanc: std_blanc,
-                conll: std_conll,
+        (
+            Self {
+                per_document: evaluations,
+                mean,
+                std_dev: CorefScoreStdDev {
+                    muc: std_muc,
+                    b_cubed: std_b3,
+                    ceaf_e: std_ceafe,
+                    ceaf_m: std_ceafm,
+                    lea: std_lea,
+                    blanc: std_blanc,
+                    conll: std_conll,
+                },
+                num_documents: document_pairs.len(),
             },
-            num_documents: document_pairs.len(),
-        }
+            links,
+        )
     }
 }
 
@@ -2311,6 +2336,28 @@ mod tests {
         let aggregate =
             AggregateCorefEvaluation::compute(&[(&linked, &partial), (&partial, &linked)]);
         assert!(approx_eq(aggregate.mean.muc.f1, 2.0 / 3.0));
+    }
+
+    #[test]
+    fn link_counts_preserve_document_identity_and_macro_includes_empty_documents() {
+        let linked = chains(vec![vec![("A", 0, 1), ("B", 2, 3)]]);
+        // Equal local offsets in all three nonempty documents.
+        let (scores, links) = AggregateCorefEvaluation::compute_with_link_counts(&[
+            (&linked, &linked),
+            (&linked, &[]),
+            (&[], &linked),
+            (&[], &[]),
+        ]);
+        assert_eq!(
+            links,
+            CorefLinkCounts {
+                matched: 1,
+                predicted: 2,
+                gold: 2
+            }
+        );
+        assert!(approx_eq(scores.per_document[3].conll_f1, 0.0));
+        assert!(approx_eq(scores.mean.conll_f1, 0.25));
     }
 
     #[test]

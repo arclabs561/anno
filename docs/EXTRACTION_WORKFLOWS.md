@@ -154,6 +154,29 @@ Unicode character ranges. `start` and `end` bound the whole mention, and
 repeated mentions have the same surface. Offsets count Unicode code points,
 so a decomposed accent and its base character occupy two positions.
 
+## Verify mention JSONL against a source document
+
+For one document and one entity per JSONL row, supply the exact UTF-8 text used
+during extraction. The command checks every surface against its half-open
+Unicode character offsets and preserves the supplied type label.
+
+```sh
+anno dataset import --format jsonl --input mentions.jsonl \
+  --source-text post.txt --output checked.jsonl
+```
+
+JSONL export preserves discontinuous character ranges. Segmented rows may use space-joined pieces. When the gaps contain only line
+breaks, the original multiline surface also passes. The row's `source` field
+is an optional producer string. The optional `confidence` field accepts a number
+or null. The importer validates mention rows against the file named by
+`--source-text`. Additional row fields, including document IDs and hashes, are
+ignored. A changed passage outside all mentions can still pass, so verify the
+document ID and digest of the original bytes against your corpus manifest.
+
+A successfully processed document with no predictions has an empty JSONL file.
+Record its completion and zero mention count against the same ID and source
+digest when scoring. A missing or failed run has no measured count.
+
 ## CoNLL offsets and the original source revision
 
 By default, `anno dataset import --format conll` counts Unicode characters in
@@ -198,3 +221,25 @@ to find the original annotation and its new ID. Several annotations can have
 the same type and outer span. A previously merged graph can contain several
 occurrences under one old ID. Rebuild from the originals to recover them.
 An external reference that recorded only the old ID can remain ambiguous.
+
+## Trace a signal to its original HTML
+
+`anno extract --file page.html --model pattern --html-source-spans` renders a
+local UTF-8 HTML file with deformat's mapped strip renderer and writes grounded
+JSON. Use `--export result.json` to save it. The renderer choice can change which
+page content the model sees. For a fetched page, save the UTF-8 HTML you want to
+identify and pass that file to `--file`. Its digest and offsets refer to the
+saved bytes.
+
+The document's `html_source` records SHA-256 digests of the source file and
+rendered `text`. Match a signal's half-open character range to a `spans` entry's
+`rendered_chars`. Discontinuous mentions have a separate entry for each component.
+Each fragment identifies UTF-8 byte ranges in both the rendered text and the
+original file. An inline tag can split one mention into several fragments.
+`direct` means byte-for-byte correspondence. `entity_decoded` points to the
+complete character reference, such as `&#64;`. `whitespace_collapsed`,
+`synthetic`, and `unknown` identify an approximate origin, which can include
+an entire text run or tag. For a gap in the renderer map, `unmapped` has a rendered byte
+range and `null` source bytes. Check the source digest before using these byte ranges. Direct
+fragments can be compared byte for byte with the rendered text. The CLI
+rejects `--clean` and `--normalize` because those transformations can move offsets.
