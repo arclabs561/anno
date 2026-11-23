@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import urllib.request
+import zipfile
 
 import prepare_domain_fixtures as panel
 from check_span_assertions import load_cases
@@ -21,6 +23,61 @@ class DomainFixturesTest(unittest.TestCase):
         record, = panel.records("atis", "seed", ["to new york", "O B-toloc.city_name I-toloc.city_name"])
         self.assertEqual((record.text[record.start:record.end], record.label), ("new york", "LOC"))
         self.assertIsNone(panel.sentence("snips", "s", ["band"], ["B-artist"]))
+
+    def test_fetch_and_prepare_select_the_same_source_group(self):
+        selections = [([], panel.ENGLISH), (["--group", "multilingual"], panel.MULTILINGUAL),
+                      (["--group", "all"], panel.FAMILIES), (["--domain", "weibo-zh"], ["weibo-zh"])]
+        for flags, domains in selections:
+            with self.subTest(flags=flags):
+                with patch.object(sys, "argv", ["qa", "fetch", "data", *flags]), patch.object(panel, "fetch") as fetch:
+                    panel.main()
+                files = set(name for domain in domains for name in panel.domain_files(domain))
+                self.assertEqual(set(fetch.call_args.args[1]), files)
+                with patch.object(sys, "argv", ["qa", "prepare", "data", "out", *flags]), patch.object(
+                    panel, "prepare", return_value={"groups": {}}
+                ) as prepare:
+                    panel.main()
+                self.assertEqual(list(prepare.call_args.kwargs["domains"]), list(domains))
+
+    def test_weibo_uses_source_scalars_and_projects_named_entities(self):
+        data = ("🛰0\tO\n��0\tO\n50\tO\n 0\tO\n北10\tB-GPE.NAM\n京11\tI-GPE.NAM\n"
+                "人0\tB-PER.NOM\n\n部0\tB-ORG.NAM\n\n她0\tB-PER.NOM\n")
+        place, organization, nominal = panel.records("weibo-zh", "s", [data])
+        self.assertEqual((place.text, place.start, place.end, place.label), ("🛰��5 北京人", 5, 7, "LOC"))
+        self.assertEqual(organization, panel.Record("部", "部", 0, 1, "ORG"))
+        self.assertIsNone(nominal)
+        with self.assertRaisesRegex(ValueError, "Weibo"):
+            list(panel.records("weibo-zh", "s", ["missing-position\tO"]))
+
+    def test_conll_members_share_verified_archive_and_prepare_offline(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            archive = root / "source.zip"
+            data = {"conll2002-nl": ("ned", "-DOCSTART- -DOCSTART- O\nZoë N B-PER\n"),
+                    "conll2002-es": ("esp", "La DA B-LOC\nCoruña NC I-LOC\n")}
+            with zipfile.ZipFile(archive, "w") as z:
+                for member, source in data.values():
+                    z.writestr(f"conll2002/{member}.testb", source.encode())
+            pins = {domain + ".bio": {"url": archive.as_uri(), "member": f"conll2002/{member}.testb",
+                                       "download_bytes": archive.stat().st_size,
+                                       "archive_sha256": panel.digest(archive.read_bytes()),
+                                       "sha256": panel.digest(source.encode())}
+                    for domain, (member, source) in data.items()}
+            cache = root / "cache"
+            with patch("urllib.request.urlopen", wraps=urllib.request.urlopen) as opening:
+                panel.fetch(cache, pins)
+                opening.assert_called_once()
+            with patch("urllib.request.urlopen", side_effect=AssertionError("unexpected network")):
+                panel.fetch(cache, pins)
+                panel.prepare(cache, root / "panel", seed="s", per_split=1,
+                              domains=list(data), pins=pins)
+            cases = json.loads((root / "panel/discovery.json").read_bytes())
+            pairs = [(c["text"], c["assertions"][0]["types"]) for c in cases]
+            self.assertEqual(pairs, [("Zoë", ["PER"]), ("La Coruña", ["LOC"])])
+            pins["conll2002-nl.bio"]["archive_sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "archive differs"):
+                panel.fetch(root / "bad", pins)
+            self.assertFalse((root / "bad/conll2002-nl.bio").exists())
 
     def test_contract_preserves_source_window_and_rejects_misaligned_gold(self):
         text = "🦊" * 301 + "Acme Inc." + "x" * 301

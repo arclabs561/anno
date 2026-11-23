@@ -12,12 +12,17 @@ import zipfile
 
 DEFAULT_SEED = "anno-domain-transfer-20261123-v1"
 SOURCES = Path(__file__).with_name("domain-sources.json")
-FAMILIES = {
+ENGLISH = {
     "ai": "CrossNER Wikipedia", "literature": "CrossNER Wikipedia",
     "music": "CrossNER Wikipedia", "politics": "CrossNER Wikipedia", "science": "CrossNER Wikipedia",
     "conll2003": "Reuters news", "wnut": "WNUT social posts", "atis": "ATIS flight queries",
     "snips": "SNIPS assistant queries", "cuad": "CUAD contracts",
 }
+MULTILINGUAL = {
+    "conll2002-nl": "CoNLL-2002 Dutch news", "conll2002-es": "CoNLL-2002 Spanish news",
+    "weibo-zh": "WeiboNER Chinese social posts",
+}
+FAMILIES = {**ENGLISH, **MULTILINGUAL}
 LABELS = {"person": "PER", "per": "PER", "organisation": "ORG", "organization": "ORG",
           "org": "ORG", "corporation": "ORG", "location": "LOC", "loc": "LOC"}
 COMPANY_SUFFIX = re.compile(r"\b(incorporated|inc|llc|ltd|limited|plc|corp|corporation)\.?$", re.I)
@@ -45,11 +50,14 @@ def coarse_label(domain, role):
         return "LOC" if role.split(".")[-1] in {"city_name", "state_name", "country_name"} else None
     if domain == "snips":
         return "LOC" if role in {"city", "state", "country"} else None
+    if domain == "weibo-zh":
+        return {"PER.NAM": "PER", "ORG.NAM": "ORG", "LOC.NAM": "LOC", "GPE.NAM": "LOC"}.get(role)
     return LABELS.get(role.lower())
 
 
 def sentence(domain, seed, tokens, tags):
-    text = " ".join(tokens)
+    separator = "" if domain == "weibo-zh" else " "
+    text = separator.join(tokens)
     offset = 0
     spans = []
     current = None
@@ -67,7 +75,7 @@ def sentence(domain, seed, tokens, tags):
                 spans.append(current)
             else:
                 current[1] = end
-        offset = end + 1
+        offset = end + len(separator)
     anchors = [(s, e, label) for s, e, role in spans if (label := coarse_label(domain, role))]
     if anchors:
         best = min(anchors, key=lambda a: rank(seed, text, *a))
@@ -111,6 +119,21 @@ def domain_files(domain):
     return [domain + ".bio"]
 
 
+def tagged_token(domain, line):
+    if domain == "weibo-zh":
+        annotated, tag = line.split("\t")
+        # One source character precedes the word-position digits. The pin also
+        # contains 16 rows with two literal replacement characters as their text.
+        match = re.fullmatch(r"(.|\ufffd\ufffd)[0-9]+", annotated)
+        if not match:
+            raise ValueError("invalid Weibo source character or position")
+        return match[1], tag
+    if domain in {"conll2002-nl", "conll2002-es"}:
+        token, _pos, tag = line.split()
+        return token, tag
+    return line.rsplit(maxsplit=1)
+
+
 def records(domain, seed, inputs):
     if domain == "cuad":
         for doc in json.loads(inputs[0])["data"]:
@@ -121,9 +144,12 @@ def records(domain, seed, inputs):
             yield sentence(domain, seed, text.split(), labels.split())
     else:
         tokens, tags = [], []
-        for line in inputs[0].splitlines() + [""]:
+        lines = inputs[0].split("\n") if domain == "weibo-zh" else inputs[0].splitlines()
+        for line in lines + [""]:
+            if domain in {"conll2002-nl", "conll2002-es"} and line.startswith("-DOCSTART- "):
+                line = ""
             if line.strip():
-                token, tag = line.rsplit(maxsplit=1)
+                token, tag = tagged_token(domain, line)
                 tokens.append(token)
                 tags.append(tag)
             elif tokens:
@@ -189,27 +215,33 @@ def prepare(data_dir, output, *, seed, per_split, domains, pins):
 
 def fetch(data_dir, pins):
     data_dir.mkdir(parents=True, exist_ok=True)
+    pending = {}
     for name, source in pins.items():
         target = data_dir / name
         if target.exists():
             read_source(data_dir, name, pins)
             continue
-        with urllib.request.urlopen(source["url"], timeout=60) as response:
-            raw = response.read(source["download_bytes"] + 1)
-        if len(raw) != source["download_bytes"]:
-            raise ValueError(f"{name}: unexpected download size")
-        if "member" in source:
-            if digest(raw) != source["archive_sha256"]:
-                raise ValueError(f"{name}: downloaded archive differs from the pin")
-            with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-                raw = archive.read(source["member"])
-        if digest(raw) != source["sha256"]:
-            raise ValueError(f"{name}: downloaded source SHA-256 differs from the pin")
-        # Only publish a complete, verified snapshot to concurrent readers.
-        with tempfile.TemporaryDirectory(dir=data_dir) as temp:
-            staged = Path(temp) / name
-            staged.write_bytes(raw)
-            staged.replace(target)
+        pending.setdefault(source["url"], []).append(name)
+    for url, names in pending.items():
+        with urllib.request.urlopen(url, timeout=60) as response:
+            download = response.read(pins[names[0]]["download_bytes"] + 1)
+        for name in names:
+            source = pins[name]
+            raw = download
+            if len(raw) != source["download_bytes"]:
+                raise ValueError(f"{name}: unexpected download size")
+            if "member" in source:
+                if digest(raw) != source["archive_sha256"]:
+                    raise ValueError(f"{name}: downloaded archive differs from the pin")
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    raw = archive.read(source["member"])
+            if digest(raw) != source["sha256"]:
+                raise ValueError(f"{name}: downloaded source SHA-256 differs from the pin")
+            # Only publish a complete, verified snapshot to concurrent readers.
+            with tempfile.TemporaryDirectory(dir=data_dir) as temp:
+                staged = Path(temp) / name
+                staged.write_bytes(raw)
+                staged.replace(data_dir / name)
 
 
 def main():
@@ -222,15 +254,23 @@ def main():
     make.add_argument("output", type=Path)
     make.add_argument("--per-split", type=int, default=32, help="budget per domain per split")
     make.add_argument("--seed", default=DEFAULT_SEED)
-    make.add_argument("--domain", action="append", choices=FAMILIES,
-                      help="limit to these domains (repeatable); default: all")
+    groups = {"english": ENGLISH, "multilingual": MULTILINGUAL, "all": FAMILIES}
+    for cmd in (download, make):
+        selection = cmd.add_mutually_exclusive_group()
+        selection.add_argument("--group", choices=groups, default="english",
+                               help="source group (default: english)")
+        selection.add_argument("--domain", action="append", choices=FAMILIES,
+                               help="select individual domains (repeatable)")
     args = parser.parse_args()
     pins = json.loads(SOURCES.read_bytes())
+    domains = groups[args.group]
+    if args.domain:
+        domains = [d for d in FAMILIES if d in args.domain]
     try:
         if args.command == "fetch":
-            fetch(args.data, pins)
+            files = dict.fromkeys(name for d in domains for name in domain_files(d))
+            fetch(args.data, {name: pins[name] for name in files})
         else:
-            domains = [d for d in FAMILIES if args.domain is None or d in args.domain]
             manifest = prepare(args.data, args.output, seed=args.seed, per_split=args.per_split,
                                domains=domains, pins=pins)
             for domain, row in manifest["groups"].items():

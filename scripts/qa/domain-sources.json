@@ -14,6 +14,20 @@
     "sha256": "a4690d6bceadc06876d1ff99bc401744aa981cb321e598ae12a3859d7be53254",
     "download_bytes": 81238
   },
+  "conll2002-es.bio": {
+    "url": "https://raw.githubusercontent.com/nltk/nltk_data/5f09e470fe339e1a119dd174ca284129a3c7a5bb/packages/corpora/conll2002.zip",
+    "sha256": "1f8f7a392c6d4979a5592a5794eed43d7869b46da6851bbcde99714149f1d016",
+    "member": "conll2002/esp.testb",
+    "download_bytes": 1867449,
+    "archive_sha256": "64440e49236d0d393e08e0b266284966d68e2d2a82a50cc41b8e96d98c03b5c8"
+  },
+  "conll2002-nl.bio": {
+    "url": "https://raw.githubusercontent.com/nltk/nltk_data/5f09e470fe339e1a119dd174ca284129a3c7a5bb/packages/corpora/conll2002.zip",
+    "sha256": "2aa748edb82e6f9c4d82e57a4bed69ded18cfa4803122c75070335d513517488",
+    "member": "conll2002/ned.testb",
+    "download_bytes": 1867449,
+    "archive_sha256": "64440e49236d0d393e08e0b266284966d68e2d2a82a50cc41b8e96d98c03b5c8"
+  },
   "conll2003.bio": {
     "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/conll2003/test.txt",
     "sha256": "18d9d738defc506ebc5d6748cb580245327ef5c4357b026d7d9ba7c6e55fe841",
@@ -55,6 +69,11 @@
     "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/snips/test/seq.out",
     "sha256": "58c07c9097d5e1f78889765c2a535a160f6455b90b3142055c8051847afcca47",
     "download_bytes": 50918
+  },
+  "weibo-zh.bio": {
+    "url": "https://raw.githubusercontent.com/hltcoe/golden-horse/7a73c08e45ed94312af4ef2d97cc35a47d029e99/data/weiboNER_2nd_conll.test",
+    "sha256": "faaf6c0ebde5348b935cfd5c89f0f22c9e0779d60667d8b5efbc647b6707d50e",
+    "download_bytes": 108767
   },
   "wnut.bio": {
     "url": "https://raw.githubusercontent.com/leondz/emerging_entities_17/e52a2d2a71ac1a051ca2d532eef28653c5c02603/emerging.test.annotated",

@@ -1,4 +1,4 @@
-# Compare extraction on ten labeled domains
+# Compare extraction on labeled domains
 
 Use this panel to ask whether a change recovers exact entity mentions across subjects and genres. Each eligible input contributes one independently annotated mention. The discovery and reserved halves have the same per-domain budget and disjoint input texts. Keep the reserved fixtures sealed until the candidate and the decision rule are frozen.
 
@@ -25,7 +25,21 @@ just qa-prepare-domains "$data" "$panel"
 
 The default selects up to 32 discovery and 32 reserved inputs per domain. Set the two trailing recipe arguments to change the per-split budget and seed. Preparation requires a new output directory. To use only selected local sources, run `python3 scripts/qa/prepare_domain_fixtures.py prepare "$data" "$panel" --domain atis --domain snips`.
 
-`manifest.json` records the source families, SHA-256 pins, seed, eligible records, unique eligible texts after exclusions, actual split sizes and any shortfall per domain. Cases are ranked deterministically within each group. When a group falls short of budget, the available inputs are divided evenly, with the odd extra input assigned to discovery. Exact duplicate inputs are allocated once across the panel. Changing the source selection can therefore change membership. Token/tag sources reconstruct text with one space between tokens and preserve case. The resulting offsets refer to that exact UTF-8 source interpreted as Unicode characters. Different sentences can come from the same article.
+`manifest.json` records the source families, SHA-256 pins, seed, eligible records, unique eligible texts after exclusions, actual split sizes and any shortfall per domain. Cases are ranked deterministically within each group. When a group falls short of budget, the available inputs are divided evenly, with the odd extra input assigned to discovery. Exact duplicate inputs are allocated once across the panel. Changing the source selection can therefore change membership. The English token/tag sources reconstruct text with one space between tokens and preserve case. The resulting offsets refer to that exact UTF-8 source interpreted as Unicode characters. Different sentences can come from the same article.
+
+## Add Dutch, Spanish and Chinese
+
+The optional `multilingual` group selects Dutch and Spanish CoNLL-2002 news and Chinese WeiboNER social posts. Use a separate output directory. Use `--group all` on both commands to include all thirteen domains. The default selects the ten English domains.
+
+```sh
+panel=.generated/anno-qa/multilingual-panel
+python3 scripts/qa/prepare_domain_fixtures.py fetch "$data" --group multilingual
+python3 scripts/qa/prepare_domain_fixtures.py prepare "$data" "$panel" --group multilingual
+```
+
+Offline, extract `conll2002/ned.testb` and `conll2002/esp.testb` from the pinned archive as `conll2002-nl.bio` and `conll2002-es.bio`. Save the pinned Weibo test file as `weibo-zh.bio`. The news inputs discard document markers and POS columns, join tokens with a single space and retain PER, ORG and LOC. The Weibo inputs remove each character's word-position digits and join the source characters without spaces. They preserve literal spaces, digits and replacement characters. Named people, organizations and locations are eligible, with named geopolitical entities included under LOC. Nominal mentions are excluded. The public test sets have different annotation conventions and their overlap with model training data is generally unknown. [CoNLL-2002 archive](https://github.com/nltk/nltk_data/blob/5f09e470fe339e1a119dd174ca284129a3c7a5bb/packages/corpora/conll2002.zip) · [WeiboNER second-release test file](https://github.com/hltcoe/golden-horse/blob/7a73c08e45ed94312af4ef2d97cc35a47d029e99/data/weiboNER_2nd_conll.test)
+
+Run the paired checker below on these fixtures to measure one exact positive anchor per input. The earlier 192-record multilingual experiment selected 64 records per language before looking at their annotations, included gold-empty records and scored every eligible gold mention and prediction. Its precision, recall and F1 have different denominators.
 
 ## Run a paired comparison
 
