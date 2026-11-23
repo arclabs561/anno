@@ -939,13 +939,6 @@ impl Model for UniversalNER {
         "UniversalNER: LLM-based zero-shot NER (requires `llm` feature + API key)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
-    }
-
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
         Some(self)
     }

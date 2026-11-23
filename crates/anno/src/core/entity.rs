@@ -369,12 +369,26 @@ impl std::str::FromStr for EntityType {
     }
 }
 
-// Flatten EntityType to its label string for JSON serialization.
-// `Custom { name: "MISC", .. }` -> `"MISC"`, `Person` -> `"PER"`, etc.
-// Deserialization accepts both the flat string (new format) and the
-// tagged-enum object (backward compat with existing serialized data).
+// Keep the compact string when the label alone reconstructs this type.
+// The legacy tagged form carries exact names and category overrides.
 impl Serialize for EntityType {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if let Self::Custom { name, category } = self {
+            if Self::from_label(name) != *self {
+                #[derive(Serialize)]
+                enum Explicit<'a> {
+                    Custom {
+                        name: &'a str,
+                        category: EntityCategory,
+                    },
+                }
+                return Explicit::Custom {
+                    name,
+                    category: *category,
+                }
+                .serialize(serializer);
+            }
+        }
         serializer.serialize_str(self.as_label())
     }
 }
@@ -689,39 +703,17 @@ pub enum ExtractionMethod {
 }
 
 impl ExtractionMethod {
-    /// Returns true if this extraction method produces probabilistically calibrated
-    /// confidence scores suitable for calibration analysis (ECE, Brier score, etc.).
+    /// Historical selector for predictions produced by neural methods.
     ///
-    /// # Calibrated Methods
-    ///
-    /// - **Neural**: Softmax outputs are intended to be probabilistic (though may need
-    ///   temperature scaling for true calibration)
-    ///
-    /// # Uncalibrated Methods
-    ///
-    /// - **Pattern**: Binary (match/no-match); confidence is typically hardcoded
-    /// - **Heuristic**: Arbitrary scores from hand-crafted rules
-    /// - **Consensus**: Agreement count, not a probability
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use anno::ExtractionMethod;
-    ///
-    /// assert!(ExtractionMethod::Neural.is_calibrated());
-    /// assert!(!ExtractionMethod::Pattern.is_calibrated());
-    /// assert!(!ExtractionMethod::Heuristic.is_calibrated());
-    /// ```
+    /// Calibration measures agreement between predicted probabilities and observed
+    /// outcomes on a specified population. The extraction method alone cannot
+    /// establish that agreement.
+    #[deprecated(
+        note = "Select neural provenance with matches!(method, ExtractionMethod::Neural). Measure calibration against observed outcomes."
+    )]
     #[must_use]
     pub const fn is_calibrated(&self) -> bool {
-        match self {
-            ExtractionMethod::Neural => true,
-            // Everything else is not calibrated
-            ExtractionMethod::Pattern => false,
-            ExtractionMethod::Consensus => false,
-            ExtractionMethod::Heuristic => false,
-            ExtractionMethod::Unknown => false,
-        }
+        matches!(self, ExtractionMethod::Neural)
     }
 
     /// Returns the confidence interpretation for this extraction method.
@@ -1002,30 +994,10 @@ impl Provenance {
 
 /// A span locator for text and visual modalities.
 ///
-/// `Span` is a **simplified subset** of [`grounded::Location`] designed for
-/// the detection layer (`Entity`). It covers the most common cases:
-///
-/// - Text offsets (traditional NER)
-/// - Bounding boxes (visual document understanding)
-/// - Hybrid (OCR with both text and visual location)
-///
-/// # Relationship to `Location`
-///
-/// | `Span` variant | `Location` equivalent |
-/// |----------------|-----------------------|
-/// | `Text` | `Location::Text` |
-/// | `BoundingBox` | `Location::BoundingBox` |
-/// | `Hybrid` | `Location::TextWithBbox` |
-///
-/// For modalities not covered by `Span` (temporal, cuboid, genomic, discontinuous),
-/// use `Location` directly via the canonical `Signal` → `Track` → `Identity` pipeline.
-///
-/// # Conversion
-///
-/// - `Span → Location`: Always succeeds via `Location::from(&span)`
-/// - `Location → Span`: Use `location.to_span()`, returns `None` for unsupported variants
-///
-/// [`grounded::Location`]: super::grounded::Location
+/// [`Location`](super::grounded::Location) stores contiguous or discontinuous text.
+/// Use `Location::try_from(&span)` for a lossless conversion of `Span::Text`.
+/// `Location::project_text(&span)` also accepts the text component of a hybrid
+/// span. A pure bounding box has no text coordinates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Span {
     /// Text span with **character offsets** (start, end).
@@ -1259,6 +1231,47 @@ impl<'a> SpanCoverage<'a> {
         let union = (left - intersection) + right;
         intersection as f64 / union as f64
     }
+}
+
+/// Match a surface against its bounding text or canonical segments joined with spaces.
+/// The optional byte-offset map lets batch validators reuse their source index.
+pub(super) fn surface_mismatch(
+    source: &str,
+    surface: &str,
+    bounds: Range<usize>,
+    segments: Option<impl Iterator<Item = (usize, usize)>>,
+    offsets: Option<&[usize]>,
+) -> Option<String> {
+    if let Some(segments) = segments {
+        let offsets = offsets.map_or_else(
+            || Cow::Owned(crate::offset::build_char_to_byte_map(source)),
+            Cow::Borrowed,
+        );
+        // Both callers supply canonical segments contained in the bounding range.
+        if bounds.end < offsets.len() {
+            let joined = segments.enumerate().flat_map(|(index, (start, end))| {
+                let separator = if index == 0 { "" } else { " " };
+                separator
+                    .bytes()
+                    .chain(source[offsets[start]..offsets[end]].bytes())
+            });
+            if joined.eq(surface.bytes()) {
+                return None;
+            }
+        }
+    }
+
+    let actual = match offsets {
+        Some(map) => Cow::Borrowed(&source[map[bounds.start]..map[bounds.end]]),
+        None => Cow::Owned(
+            source
+                .chars()
+                .skip(bounds.start)
+                .take(bounds.len())
+                .collect(),
+        ),
+    };
+    (actual != surface).then(|| actual.into_owned())
 }
 
 impl<'de> serde::Deserialize<'de> for DiscontinuousSpan {
@@ -1794,7 +1807,9 @@ pub struct Entity {
     ///
     /// Access via [`Entity::end()`] / [`Entity::set_end()`].
     end: usize,
-    /// Confidence score (0.0-1.0, calibrated).
+    /// Bounded confidence score (0.0–1.0). Its interpretation depends on the
+    /// producing backend; probability calibration requires evaluation against
+    /// observed outcomes.
     ///
     /// Construction via [`Confidence::new`] clamps to `[0.0, 1.0]`.
     /// Use `.value()` or `Into<f64>` to extract the raw score.
@@ -2467,8 +2482,17 @@ impl Entity {
 
         // 2. Text match (only if span is valid)
         if self.start < self.end && self.end <= text_char_count {
-            let actual = self.extract_text_with_len(source_text, text_char_count);
-            if actual != self.text {
+            let segments = self.discontinuous_span.as_ref().and_then(|span| {
+                (span.bounding_range() == Some(self.start..self.end))
+                    .then(|| span.segments().iter().map(|r| (r.start, r.end)))
+            });
+            if let Some(actual) = surface_mismatch(
+                source_text,
+                &self.text,
+                self.start..self.end,
+                segments,
+                None,
+            ) {
                 issues.push(ValidationIssue::TextMismatch {
                     expected: self.text.clone(),
                     actual,
@@ -3889,12 +3913,17 @@ mod proptests {
     }
 
     #[test]
-    fn test_custom_entity_type_serializes_flat() {
+    fn custom_entity_type_uses_flat_wire_when_lossless() {
         let misc = EntityType::custom("MISC", EntityCategory::Misc);
         assert_eq!(serde_json::to_string(&misc).unwrap(), r#""MISC""#);
 
         let disease = EntityType::custom("DISEASE", EntityCategory::Agent);
-        assert_eq!(serde_json::to_string(&disease).unwrap(), r#""DISEASE""#);
+        let json = serde_json::to_value(&disease).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"Custom": {"name": "DISEASE", "category": "Agent"}})
+        );
+        assert_eq!(serde_json::from_value::<EntityType>(json).unwrap(), disease);
     }
 
     #[test]
@@ -3970,14 +3999,7 @@ mod proptests {
         for t in &types {
             let json = serde_json::to_string(t).unwrap();
             let back: EntityType = serde_json::from_str(&json).unwrap();
-            // All variants roundtrip through from_label, so Custom types
-            // survive as Custom (not as a built-in variant).
-            assert_eq!(
-                t.as_label(),
-                back.as_label(),
-                "roundtrip failed for {:?}",
-                t
-            );
+            assert_eq!(t, &back, "roundtrip failed for {t:?}");
         }
     }
 }

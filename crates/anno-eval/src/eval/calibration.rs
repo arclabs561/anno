@@ -6,18 +6,16 @@
 //!
 //! # ⚠️ Important: Confidence Score Semantics
 //!
-//! Calibration metrics are only meaningful for **probabilistically calibrated**
-//! confidence scores (i.e., scores that approximate P(correct|prediction)).
+//! The input is a set of forecasts of a specified event, paired with observed
+//! outcomes. A bounded model score can be evaluated as a forecast when that is
+//! its intended interpretation. Calibration measures agreement between the
+//! forecast probabilities and the observed event frequencies.
 //!
-//! | Backend | `ExtractionMethod` | Calibrated? | Notes |
-//! |---------|-------------------|-------------|-------|
-//! | BertNEROnnx, GLiNEROnnx | `Neural` | ✓ Yes | Softmax probabilities |
-//! | RegexNER | `Pattern` | ✗ No | Hardcoded values (e.g., 0.95) |
-//! | HeuristicNER | `Heuristic` | ✗ No | Rule-based scores |
-//! | StackedNER | Mixed | Partial | Depends on entity type |
-//!
-//! **Running calibration analysis on RegexNER or HeuristicNER produces
-//! meaningless results.** Use `ExtractionMethod::is_calibrated()` to check.
+//! The unified report uses exact mention correctness and records which
+//! predictions were selected. Its default population is predictions with
+//! explicit neural provenance. Callers may evaluate every prediction via
+//! [`CalibrationPopulation::AllPredictions`](super::report::CalibrationPopulation::AllPredictions)
+//! when all their scores are intended as probabilities.
 //!
 //! # Research Background
 //!

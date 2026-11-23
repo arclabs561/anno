@@ -101,15 +101,35 @@ pub struct TypeMetrics {
     pub correct: usize,
 }
 
+/// A measured value, an explanation of why the check was unavailable, or an
+/// older report's scalar. Older writers used zero and false for unperformed
+/// checks, so a legacy scalar alone cannot establish that the check ran.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReportedMeasurement<T> {
+    /// A check was performed and yielded this value.
+    Measured {
+        /// Result of the check, including a measured zero or negative result.
+        measured: T,
+    },
+    /// This check could not be performed.
+    Unavailable {
+        /// Missing input or analysis.
+        unavailable: String,
+    },
+    /// Historical value whose measurement status was not recorded.
+    Legacy(T),
+}
+
 /// Error analysis summary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorSummary {
     /// Total errors
     pub total_errors: usize,
     /// Boundary errors (correct type, wrong span)
-    pub boundary_errors: usize,
+    pub boundary_errors: ReportedMeasurement<usize>,
     /// Type errors (correct span, wrong type)
-    pub type_errors: usize,
+    pub type_errors: ReportedMeasurement<usize>,
     /// False positives (spurious entities)
     pub false_positives: usize,
     /// False negatives (missed entities)
@@ -168,16 +188,41 @@ pub struct LengthBiasMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataQualitySummary {
     /// Potential train/test leakage detected
-    pub leakage_detected: bool,
+    pub leakage_detected: ReportedMeasurement<bool>,
     /// Percentage of redundant examples
     pub redundancy_rate: f64,
     /// Ambiguous entity annotations found
     pub ambiguous_count: usize,
 }
 
+/// How predictions are selected for the calibration report.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CalibrationPopulation {
+    /// Include predictions with explicit neural provenance (the historical population).
+    #[default]
+    NeuralProvenance,
+    /// Treat every predicted score as a forecast of exact-match correctness.
+    AllPredictions,
+}
+
+/// Population underlying the reported calibration metrics.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalibrationSample {
+    /// Selection applied after matching predictions against the gold annotations.
+    pub population: CalibrationPopulation,
+    /// Number of predictions included.
+    pub included: usize,
+    /// Number of predictions excluded by the selected population.
+    pub excluded: usize,
+}
+
 /// Calibration analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalibrationSummary {
+    /// Older reports did not record the selected sample.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<CalibrationSample>,
     /// Expected Calibration Error
     pub ece: f64,
     /// Maximum Calibration Error
@@ -239,6 +284,7 @@ pub struct ReportBuilder {
     include_bias: bool,
     include_data_quality: bool,
     include_calibration: bool,
+    calibration_population: CalibrationPopulation,
     test_data: Option<Vec<TestCase>>,
 }
 
@@ -303,6 +349,7 @@ impl ReportBuilder {
             include_bias: false,
             include_data_quality: false,
             include_calibration: false,
+            calibration_population: CalibrationPopulation::default(),
             test_data: None,
         }
     }
@@ -338,6 +385,12 @@ impl ReportBuilder {
     /// Only meaningful for models that provide confidence scores.
     pub fn with_calibration(mut self, include: bool) -> Self {
         self.include_calibration = include;
+        self
+    }
+
+    /// Select the population to analyze when calibration is enabled.
+    pub fn with_calibration_population(mut self, population: CalibrationPopulation) -> Self {
+        self.calibration_population = population;
         self
     }
 
@@ -391,58 +444,19 @@ impl ReportBuilder {
 
     /// Run calibration analysis.
     #[cfg(feature = "eval")]
-    fn run_calibration_analysis<M: Model>(
-        model: &M,
-        test_cases: &[TestCase],
+    fn run_calibration_analysis(
+        observations: &[(f64, bool)],
+        population: CalibrationPopulation,
+        total_predicted: usize,
     ) -> Result<CalibrationSummary> {
         use crate::eval::calibration::CalibrationEvaluator;
 
-        // Collect predictions with confidence scores
-        let mut predictions = Vec::new();
-        let mut has_calibrated_entities = false;
-
-        for (case_index, case) in test_cases.iter().enumerate() {
-            let entities = model.extract_entities(&case.text, None).map_err(|e| {
-                crate::Error::Inference(format!(
-                    "calibration extraction failed for test_case={}: {}",
-                    case_index, e
-                ))
-            })?;
-
-            for entity in &entities {
-                // Check if this entity's extraction method is calibrated
-                let is_calibrated = entity
-                    .provenance
-                    .as_ref()
-                    .map(|p| p.method.is_calibrated())
-                    .unwrap_or(false);
-
-                if !is_calibrated {
-                    continue; // Skip uncalibrated entities
-                }
-
-                has_calibrated_entities = true;
-
-                // Match to gold to determine correctness
-                let is_correct = case.gold_entities.iter().any(|gold| {
-                    entity.start() == gold.start
-                        && entity.end() == gold.end
-                        && entity.entity_type.as_label() == gold.entity_type
-                });
-
-                predictions.push((entity.confidence.into(), is_correct));
-            }
+        if observations.is_empty() {
+            return Err(crate::Error::InvalidInput(format!(
+                "calibration requested but population {population:?} included no predictions (total {total_predicted})"
+            )));
         }
-
-        // Calibration cannot be measured without calibrated predictions.
-        if !has_calibrated_entities || predictions.is_empty() {
-            return Err(crate::Error::InvalidInput(
-                "calibration requested but no calibrated predictions were produced".to_string(),
-            ));
-        }
-
-        // Compute calibration metrics
-        let results = CalibrationEvaluator::compute(&predictions);
+        let results = CalibrationEvaluator::compute(observations);
 
         // Find optimal threshold (highest accuracy with reasonable coverage)
         let optimal_threshold = results
@@ -467,6 +481,11 @@ impl ReportBuilder {
         };
 
         Ok(CalibrationSummary {
+            sample: Some(CalibrationSample {
+                population,
+                included: observations.len(),
+                excluded: total_predicted - observations.len(),
+            }),
             ece: results.ece,
             mce: results.mce,
             optimal_threshold,
@@ -478,14 +497,6 @@ impl ReportBuilder {
     #[cfg(feature = "eval")]
     fn run_data_quality_checks(test_cases: &[TestCase]) -> Result<DataQualitySummary> {
         use std::collections::{HashMap, HashSet};
-
-        if test_cases.is_empty() {
-            return Ok(DataQualitySummary {
-                leakage_detected: false,
-                redundancy_rate: 0.0,
-                ambiguous_count: 0,
-            });
-        }
 
         // Convert test cases to format expected by DatasetQualityAnalyzer
         // Since we only have test data (no train), we check for redundancy within test set
@@ -535,7 +546,9 @@ impl ReportBuilder {
         // This would require access to training data, which is not available in this context
 
         Ok(DataQualitySummary {
-            leakage_detected: false, // Cannot determine without train data
+            leakage_detected: ReportedMeasurement::Unavailable {
+                unavailable: "Training data was not supplied.".into(),
+            },
             redundancy_rate,
             ambiguous_count,
         })
@@ -559,6 +572,8 @@ impl ReportBuilder {
         let mut total_correct = 0;
         let mut per_type_stats: HashMap<String, (usize, usize, usize)> = HashMap::new();
         let mut all_errors = Vec::new();
+        #[cfg(feature = "eval")]
+        let mut calibration_observations = Vec::new();
 
         for (case_index, case) in test_cases.iter().enumerate() {
             let predictions = model.extract_entities(&case.text, None).map_err(|e| {
@@ -574,21 +589,38 @@ impl ReportBuilder {
             // Match predictions to gold one-to-one. A model can emit duplicate entities, and a
             // test set can contain duplicate annotations, so a prediction must not credit more
             // than one gold entity.
-            let matched_predictions = match_prediction_indices(&case.gold_entities, &predictions);
+            let (matched_gold, matched_predictions) =
+                exact_matches(&case.gold_entities, &predictions);
             for (gold_index, gold) in case.gold_entities.iter().enumerate() {
                 let type_key = gold.entity_type.clone();
                 let entry = per_type_stats.entry(type_key.clone()).or_insert((0, 0, 0));
                 entry.0 += 1; // gold count
 
-                let matched = matched_predictions[gold_index];
-
-                if matched {
+                if matched_gold[gold_index] {
                     total_correct += 1;
                     entry.2 += 1; // correct count
                 } else {
                     all_errors.push(format!("Missed: {} ({})", gold.text, gold.entity_type));
                 }
             }
+
+            #[cfg(feature = "eval")]
+            if self.include_calibration {
+                for (prediction, matched) in predictions.iter().zip(&matched_predictions) {
+                    let included = match self.calibration_population {
+                        CalibrationPopulation::NeuralProvenance => prediction
+                            .provenance
+                            .as_ref()
+                            .is_some_and(|p| p.method == anno::ExtractionMethod::Neural),
+                        CalibrationPopulation::AllPredictions => true,
+                    };
+                    if included {
+                        calibration_observations.push((prediction.confidence.value(), *matched));
+                    }
+                }
+            }
+            #[cfg(not(feature = "eval"))]
+            let _ = matched_predictions;
 
             for pred in &predictions {
                 let type_key = pred.entity_type.as_label().to_string();
@@ -686,8 +718,12 @@ impl ReportBuilder {
             let false_positives = total_predicted - total_correct;
             Some(ErrorSummary {
                 total_errors: false_negatives + false_positives,
-                boundary_errors: 0, // Would need span comparison
-                type_errors: 0,     // Would need type comparison
+                boundary_errors: ReportedMeasurement::Unavailable {
+                    unavailable: "This report only matches exact span and type.".into(),
+                },
+                type_errors: ReportedMeasurement::Unavailable {
+                    unavailable: "This report only matches exact span and type.".into(),
+                },
                 false_positives,
                 false_negatives,
                 top_patterns: all_errors.into_iter().take(5).collect(),
@@ -716,7 +752,11 @@ impl ReportBuilder {
         let calibration = if self.include_calibration {
             #[cfg(feature = "eval")]
             {
-                Some(Self::run_calibration_analysis(model, &test_cases)?)
+                Some(Self::run_calibration_analysis(
+                    &calibration_observations,
+                    self.calibration_population,
+                    total_predicted,
+                )?)
             }
             #[cfg(not(feature = "eval"))]
             {
@@ -817,6 +857,25 @@ impl EvalReport {
             out.push('\n');
         }
 
+        if let Some(calibration) = &self.calibration {
+            out.push_str("## Calibration\n");
+            out.push_str(&format!(
+                "  Expected calibration error: {:.3}\n",
+                calibration.ece
+            ));
+            if let Some(sample) = &calibration.sample {
+                let population = match sample.population {
+                    CalibrationPopulation::NeuralProvenance => "predictions with neural provenance",
+                    CalibrationPopulation::AllPredictions => "all predictions",
+                };
+                out.push_str(&format!(
+                    "  Population: {population} ({} included, {} excluded)\n",
+                    sample.included, sample.excluded
+                ));
+            }
+            out.push('\n');
+        }
+
         // Recommendations
         if !self.recommendations.is_empty() {
             out.push_str("## Recommendations\n");
@@ -868,17 +927,17 @@ fn chrono_lite_timestamp() -> String {
     format!("{}s since epoch", duration.as_secs())
 }
 
-/// Return the gold entities that can be credited by a distinct exact-match prediction.
+/// Return matched flags in gold order and in prediction order for the same assignment.
 ///
 /// Predictions are reserved in gold order, which makes the result deterministic for duplicate
 /// annotations while preserving the report's exact-span, exact-label metric definition.
-fn match_prediction_indices(
+fn exact_matches(
     gold_entities: &[SimpleGoldEntity],
     predictions: &[Entity],
-) -> Vec<bool> {
+) -> (Vec<bool>, Vec<bool>) {
     let mut used_predictions = vec![false; predictions.len()];
 
-    gold_entities
+    let matched_gold = gold_entities
         .iter()
         .map(|gold| {
             let Some((index, _)) = predictions.iter().enumerate().find(|(index, prediction)| {
@@ -892,7 +951,8 @@ fn match_prediction_indices(
             used_predictions[index] = true;
             true
         })
-        .collect()
+        .collect();
+    (matched_gold, used_predictions)
 }
 
 fn default_synthetic_cases() -> Vec<TestCase> {
@@ -1230,36 +1290,105 @@ mod tests {
 
     #[cfg(feature = "eval")]
     #[test]
-    fn report_builder_propagates_calibration_extraction_failure() {
+    fn report_uses_one_prediction_pass_and_assignment_for_calibration() {
         use std::sync::{
             atomic::{AtomicUsize, Ordering},
             Arc,
         };
 
         let calls = Arc::new(AtomicUsize::new(0));
-        let calls_for_model = Arc::clone(&calls);
-        let model = anno::AnyModel::new(
-            "stateful",
-            "fails during calibration",
-            vec![],
-            move |_, _| {
-                if calls_for_model.fetch_add(1, Ordering::SeqCst) == 0 {
-                    Ok(vec![])
-                } else {
-                    Err(anno::Error::Inference(
-                        "calibration pass unavailable".to_string(),
-                    ))
-                }
-            },
-        );
-        let error = ReportBuilder::new("stateful")
-            .with_calibration(true)
-            .with_test_data(vec![TestCase {
-                text: "Alice".to_string(),
-                gold_entities: vec![],
-            }])
+        let model_calls = Arc::clone(&calls);
+        let model =
+            anno::AnyModel::new("stateful", "duplicate predictions", vec![], move |_, _| {
+                model_calls.fetch_add(1, Ordering::SeqCst);
+                let neural = Entity::with_provenance(
+                    "Alice",
+                    anno::EntityType::Person,
+                    0,
+                    5,
+                    0.9,
+                    anno::Provenance::ml("test", 0.9),
+                );
+                Ok(vec![
+                    neural.clone(),
+                    neural,
+                    Entity::new("Bob", anno::EntityType::Person, 6, 9, 0.9),
+                ])
+            });
+        for (index, (population, included, ece)) in [
+            (CalibrationPopulation::NeuralProvenance, 2, 0.9 - 0.5),
+            (CalibrationPopulation::AllPredictions, 3, 0.9 - 1.0 / 3.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let report = ReportBuilder::new("stateful")
+                .with_calibration(true)
+                .with_calibration_population(population)
+                .with_test_data(vec![TestCase {
+                    text: "Alice Bob".into(),
+                    gold_entities: vec![SimpleGoldEntity {
+                        text: "Alice".into(),
+                        entity_type: "PER".into(),
+                        start: 0,
+                        end: 5,
+                    }],
+                }])
+                .build(&model)
+                .unwrap();
+
+            assert_eq!(calls.load(Ordering::SeqCst), index + 1);
+            assert_eq!(report.core.total_correct, 1);
+            assert_eq!(report.core.total_predicted, 3);
+            let calibration = report.calibration.unwrap();
+            assert_eq!(
+                calibration.sample,
+                Some(CalibrationSample {
+                    population,
+                    included,
+                    excluded: 3 - included
+                }),
+            );
+            assert!((calibration.ece - ece).abs() < 1e-12);
+        }
+    }
+
+    #[cfg(feature = "eval")]
+    #[test]
+    fn report_distinguishes_unavailable_measurements_from_historical_scalars() {
+        let model = anno::AnyModel::new("empty", "", vec![], |_, _| Ok(vec![]));
+        let report = ReportBuilder::new("empty")
+            .with_data_quality(true)
+            .with_test_data(vec![])
             .build(&model)
-            .expect_err("calibration extraction failure must fail the report");
-        assert!(error.to_string().contains("calibration pass unavailable"));
+            .unwrap();
+        let mut json = serde_json::to_value(report).unwrap();
+        let fresh: EvalReport = serde_json::from_value(json.clone()).unwrap();
+        assert!(matches!(
+            fresh.data_quality.unwrap().leakage_detected,
+            ReportedMeasurement::Unavailable { .. }
+        ));
+        let errors = fresh.errors.unwrap();
+        assert!(matches!(
+            errors.boundary_errors,
+            ReportedMeasurement::Unavailable { .. }
+        ));
+        assert!(matches!(
+            errors.type_errors,
+            ReportedMeasurement::Unavailable { .. }
+        ));
+
+        json["data_quality"]["leakage_detected"] = false.into();
+        json["errors"]["boundary_errors"] = 0.into();
+        json["errors"]["type_errors"] = 0.into();
+        let legacy: EvalReport = serde_json::from_value(json).unwrap();
+        assert_eq!(
+            legacy.data_quality.unwrap().leakage_detected,
+            ReportedMeasurement::Legacy(false)
+        );
+        assert_eq!(
+            legacy.errors.unwrap().boundary_errors,
+            ReportedMeasurement::Legacy(0)
+        );
     }
 }

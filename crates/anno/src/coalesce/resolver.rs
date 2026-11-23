@@ -39,7 +39,7 @@
 //! - **Embedding similarity** (cosine): \( \cos(\mathbf{a}, \mathbf{b}) = \frac{\mathbf{a} \cdot \mathbf{b}}{||\mathbf{a}|| \cdot ||\mathbf{b}||} \)
 //! - **String similarity** (Jaccard on words): \( J(A, B) = \frac{|A \cap B|}{|A \cup B|} \)
 //!
-//! If both tracks have embeddings, cosine is used; otherwise, Jaccard on word sets.
+//! Compatible nonempty embeddings use cosine. Other pairs use Jaccard on word sets.
 //!
 //! ## Example
 //!
@@ -58,7 +58,7 @@
 //! ```
 
 use crate::core::{Corpus, Identity, IdentityId, IdentitySource, TrackRef};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Coalescer for inter-document entity resolution.
 #[derive(Debug, Clone)]
@@ -90,26 +90,12 @@ impl Resolver {
 
     /// Coalesce inter-document entities across all documents in a corpus.
     ///
-    /// This method clusters tracks from different documents that refer to the same
-    /// real-world entity, creating `Identity` instances without KB links.
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Extract all tracks from all documents
-    /// 2. Compute track embeddings (if available) or use string similarity
-    /// 3. Cluster tracks using similarity threshold
-    /// 4. Create Identity for each cluster
-    /// 5. Link tracks to identities
-    ///
-    /// # Parameters
-    ///
-    /// * `corpus` - The corpus containing documents to resolve
-    /// * `similarity_threshold` - Minimum similarity (0.0-1.0) to cluster tracks
-    /// * `require_type_match` - Only cluster tracks with same entity type
-    ///
-    /// # Returns
-    ///
-    /// Vector of created identities, each linked to tracks from multiple documents.
+    /// Cluster by thresholded pairwise similarity and take the transitive closure.
+    /// Tracks with KB links stay assigned to their existing identities. The resolver
+    /// evaluates the remaining tracks again, reusing IDs for unchanged memberships.
+    /// Newly similar tracks can join an unanchored cluster on subsequent runs.
+    /// Returns the current coreference IDs, including KB-linked clusters from earlier
+    /// runs, in deterministic order. A singleton has no measured pairwise support.
     pub fn resolve_inter_doc_coref(
         &self,
         corpus: &mut Corpus,
@@ -125,32 +111,66 @@ impl Resolver {
             track_ref: TrackRef,
             canonical_surface: String,
             entity_type: Option<crate::TypeLabel>,
-            cluster_confidence: crate::Confidence,
             embedding: Option<Vec<f32>>,
         }
 
-        let mut track_data: Vec<TrackData> = Vec::new();
-        // Collect document IDs first to avoid borrow checker issues
-        let doc_ids: Vec<String> = corpus.documents().map(|d| d.id().to_owned()).collect();
-        for doc_id in doc_ids {
-            if let Some(doc) = corpus.get_document(&doc_id) {
-                for track in doc.tracks() {
-                    if let Some(track_ref) = doc.track_ref(track.id) {
-                        track_data.push(TrackData {
-                            track_ref,
-                            canonical_surface: track.canonical_surface.clone(),
-                            entity_type: track.entity_type.clone(),
-                            cluster_confidence: track.cluster_confidence,
-                            embedding: track.embedding.clone(),
-                        });
-                    }
+        fn similarity(a: &TrackData, b: &TrackData) -> f32 {
+            match (&a.embedding, &b.embedding) {
+                (Some(left), Some(right)) if !left.is_empty() && left.len() == right.len() => {
+                    embedding_similarity(left, right)
                 }
+                _ => string_similarity(&a.canonical_surface, &b.canonical_surface),
             }
         }
 
-        if track_data.is_empty() {
-            return vec![];
+        let mut track_data = Vec::new();
+        for doc in corpus.documents() {
+            for track in doc.tracks() {
+                if doc
+                    .identity_for_track(track.id)
+                    .is_some_and(|identity| identity.kb_id.is_some())
+                {
+                    continue;
+                }
+                track_data.push(TrackData {
+                    track_ref: TrackRef {
+                        doc_id: doc.id().to_owned(),
+                        track_id: track.id,
+                    },
+                    canonical_surface: track.canonical_surface.clone(),
+                    entity_type: track.entity_type.clone(),
+                    embedding: track
+                        .embedding
+                        .as_ref()
+                        .filter(|vector| {
+                            !vector.is_empty()
+                                && vector.iter().all(|v| v.is_finite())
+                                && vector.iter().any(|&v| v != 0.0)
+                        })
+                        .cloned(),
+                });
+            }
         }
+        track_data.sort_by(|a, b| {
+            (&a.track_ref.doc_id, a.track_ref.track_id)
+                .cmp(&(&b.track_ref.doc_id, b.track_ref.track_id))
+        });
+        let existing_coref: Vec<_> = corpus
+            .identities()
+            .values()
+            .filter_map(|identity| {
+                identity
+                    .source
+                    .as_ref()
+                    .filter(|source| !source.track_refs().is_empty())
+                    .map(|_| identity.id)
+            })
+            .collect();
+        let previous = corpus.current_coref_clusters();
+        let by_members: HashMap<_, _> = previous
+            .iter()
+            .map(|(id, members)| (members.as_slice(), *id))
+            .collect();
 
         // 2. Cluster tracks using string similarity or embeddings
         // Uses embeddings if available (from track.embedding), otherwise falls back to string similarity
@@ -190,27 +210,14 @@ impl Resolver {
                     continue;
                 }
 
-                // Compute similarity: prefer embeddings if BOTH available, fallback to string similarity
-                // Edge case: If only one track has an embedding, we can't compare embeddings directly,
-                // so we fall back to string similarity for consistency.
-                let similarity =
-                    if let (Some(emb_a), Some(emb_b)) = (&track_a.embedding, &track_b.embedding) {
-                        // Both have embeddings: use cosine similarity
-                        embedding_similarity(emb_a, emb_b)
-                    } else {
-                        // One or both missing embeddings: fallback to string similarity
-                        // This handles: (Some, None), (None, Some), (None, None)
-                        string_similarity(&track_a.canonical_surface, &track_b.canonical_surface)
-                    };
-
-                if similarity >= threshold {
+                if similarity(track_a, track_b) >= threshold {
                     union(&mut union_find, &mut rank, i, j);
                 }
             }
         }
 
         // 3. Build clusters
-        let mut cluster_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        let mut cluster_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for i in 0..track_data.len() {
             let root = find(&mut union_find, i);
             cluster_map.entry(root).or_default().push(i);
@@ -219,51 +226,53 @@ impl Resolver {
         // 4. Create identities for each cluster
         // Note: Singleton clusters (clusters with only one track) still create identities.
         // This allows tracking entities that appear only once across documents.
-        let mut created_ids = Vec::new();
-        for member_indices in cluster_map.values() {
-            if member_indices.is_empty() {
+        for members in cluster_map.values() {
+            let first = &track_data[members[0]];
+            let refs: Vec<_> = members
+                .iter()
+                .map(|&i| track_data[i].track_ref.clone())
+                .collect();
+            let minimum = members
+                .iter()
+                .enumerate()
+                .flat_map(|(position, left)| {
+                    let left = &track_data[*left];
+                    let data = &track_data;
+                    members[position + 1..]
+                        .iter()
+                        .map(move |right| similarity(left, &data[*right]))
+                })
+                .min_by(f32::total_cmp)
+                .map(crate::Confidence::from);
+            let score = minimum.unwrap_or(crate::Confidence::ZERO);
+            if let Some(id) = by_members.get(refs.as_slice()) {
+                let mut identity = corpus.get_identity(*id).expect("current identity").clone();
+                identity.minimum_pair_similarity = minimum;
+                identity.confidence = score;
+                identity.source = Some(IdentitySource::CrossDocCoref { track_refs: refs });
+                corpus.update_shared_identity(identity);
                 continue;
             }
 
-            // Safe: we just checked is_empty() above, so member_indices[0] is valid
-            let first_idx = member_indices[0];
-            let first_track = &track_data[first_idx];
-
-            // Collect all track refs in this cluster
-            let track_refs_in_cluster: Vec<TrackRef> = member_indices
-                .iter()
-                .map(|&idx| track_data[idx].track_ref.clone())
-                .collect();
-
-            // Create identity
-            let identity = Identity {
-                id: corpus.next_identity_id(), // Will be set by add_identity
-                canonical_name: first_track.canonical_surface.clone(),
-                entity_type: first_track.entity_type.clone(),
-                kb_id: None,
-                kb_name: None,
-                description: None,
-                embedding: first_track.embedding.clone(),
-                aliases: Vec::new(),
-                confidence: first_track.cluster_confidence,
-                source: Some(IdentitySource::CrossDocCoref {
-                    track_refs: track_refs_in_cluster.clone(),
-                }),
-            };
-
-            if let Some(identity_id) =
-                corpus.add_identity_for_tracks(identity, &track_refs_in_cluster)
-            {
-                created_ids.push(identity_id);
-            } else {
-                log::warn!(
-                    "Could not bind coalesced identity for tracks {:?}",
-                    track_refs_in_cluster
-                );
+            let mut identity = Identity::new(IdentityId::ZERO, &first.canonical_surface);
+            identity.entity_type = first.entity_type.clone();
+            identity.embedding = first.embedding.clone();
+            identity.minimum_pair_similarity = minimum;
+            identity.confidence = score;
+            identity.source = Some(IdentitySource::CrossDocCoref {
+                track_refs: refs.clone(),
+            });
+            if corpus.add_identity_for_tracks(identity, &refs).is_none() {
+                log::warn!("Could not bind coalesced identity for tracks {:?}", refs);
             }
         }
 
-        created_ids
+        corpus.refresh_coref_membership(&existing_coref);
+        corpus
+            .current_coref_clusters()
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
     }
 }
 
@@ -344,17 +353,23 @@ pub fn embedding_similarity(emb_a: &[f32], emb_b: &[f32]) -> f32 {
         return 0.0;
     }
 
-    // Cosine similarity
-    let dot_product: f32 = emb_a.iter().zip(emb_b.iter()).map(|(a, b)| a * b).sum();
-    let norm_a: f32 = emb_a.iter().map(|a| a * a).sum::<f32>().sqrt();
-    let norm_b: f32 = emb_b.iter().map(|b| b * b).sum::<f32>().sqrt();
-
-    if norm_a == 0.0 || norm_b == 0.0 {
+    // Accumulate in f64 so finite f32 coordinates can be squared safely.
+    let mut dot = 0.0_f64;
+    let mut square_a = 0.0_f64;
+    let mut square_b = 0.0_f64;
+    for (&a, &b) in emb_a.iter().zip(emb_b) {
+        if !a.is_finite() || !b.is_finite() {
+            return 0.0;
+        }
+        let (a, b) = (f64::from(a), f64::from(b));
+        dot += a * b;
+        square_a += a * a;
+        square_b += b * b;
+    }
+    if square_a == 0.0 || square_b == 0.0 {
         return 0.0;
     }
-
-    // Normalize to [0, 1] range (cosine similarity is [-1, 1])
-    (dot_product / (norm_a * norm_b) + 1.0) / 2.0
+    ((dot / (square_a.sqrt() * square_b.sqrt()) + 1.0) / 2.0).clamp(0.0, 1.0) as f32
 }
 
 #[cfg(test)]
@@ -594,6 +609,226 @@ mod tests {
             );
             assert!(document.invariants_hold());
         }
+    }
+
+    fn add_track_doc(corpus: &mut Corpus, doc_id: &str, surface: &str) -> TrackRef {
+        let mut doc = GroundedDocument::new(doc_id, surface);
+        let track = doc.add_track(Track::new(TrackId::ZERO, surface));
+        corpus.add_document(doc);
+        corpus
+            .get_document(doc_id)
+            .unwrap()
+            .track_ref(track)
+            .unwrap()
+    }
+
+    #[test]
+    fn retries_reuse_current_identity_and_singleton_has_no_pair_score() {
+        let mut corpus = Corpus::new();
+        add_track_doc(&mut corpus, "a", "Ada");
+        let resolver = Resolver::new();
+        let first = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(first.len(), 1);
+        assert_eq!(
+            resolver.resolve_inter_doc_coref(&mut corpus, None, None),
+            first
+        );
+        assert_eq!(corpus.identities().len(), 1);
+        assert_eq!(
+            corpus
+                .get_identity(first[0])
+                .unwrap()
+                .minimum_pair_similarity,
+            None
+        );
+
+        add_track_doc(&mut corpus, "b", "Ada Byron");
+        add_track_doc(&mut corpus, "c", "Byron");
+        let merged = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.5), None);
+        assert_eq!(merged.len(), 1);
+        assert_eq!(corpus.identities().len(), 1);
+        let id = corpus.get_identity(merged[0]).unwrap();
+        assert_eq!(id.minimum_pair_similarity, Some(crate::Confidence::ZERO));
+        assert_eq!(id.source.as_ref().unwrap().track_refs().len(), 3);
+        let split = resolver.resolve_inter_doc_coref(&mut corpus, Some(0.9), None);
+        assert_eq!(split.len(), 3);
+        assert!(corpus.get_identity(merged[0]).is_none());
+        assert!(corpus.documents().all(|doc| doc.invariants_hold()));
+    }
+
+    #[test]
+    fn resolving_preserves_anchors_and_repeated_kb_updates_preserve_membership() {
+        let mut corpus = Corpus::new();
+        let ada = add_track_doc(&mut corpus, "a", "Ada");
+        let resolver = Resolver::new();
+        let first = resolver.resolve_inter_doc_coref(&mut corpus, None, None)[0];
+        for _ in 0..2 {
+            assert_eq!(
+                corpus.link_track_to_kb(&ada, "kb", "a", "Ada").unwrap(),
+                first
+            );
+            let id = corpus.get_identity(first).unwrap();
+            assert!(
+                matches!(&id.source, Some(IdentitySource::Hybrid { track_refs, .. }) if track_refs == std::slice::from_ref(&ada))
+            );
+        }
+        let grace = add_track_doc(&mut corpus, "b", "Grace");
+        let grace_id = corpus.link_track_to_kb(&grace, "kb", "g", "Grace").unwrap();
+        assert_eq!(
+            resolver.resolve_inter_doc_coref(&mut corpus, Some(0.0), None),
+            vec![first]
+        );
+        assert_eq!(corpus.get_identity(grace_id).unwrap().kb_id(), Some("g"));
+        assert_eq!(corpus.current_coref_clusters(), vec![(first, vec![ada])]);
+    }
+
+    #[test]
+    fn replacing_a_document_retires_old_track_handles_and_updates_provenance() {
+        let mut corpus = Corpus::new();
+        let first = add_track_doc(&mut corpus, "a", "Ada");
+        let second = add_track_doc(&mut corpus, "b", "Ada");
+        let id = Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None)[0];
+        assert_eq!(
+            corpus.get_identity(id).unwrap().minimum_pair_similarity,
+            Some(crate::Confidence::ONE)
+        );
+        let mut replacement = GroundedDocument::new("a", "Grace");
+        replacement.add_track(Track::new(TrackId::ZERO, "Grace"));
+        corpus.add_document(replacement);
+        let doc = corpus.get_document("a").unwrap();
+        assert!(doc.get_track(first.track_id).is_none());
+        assert!(corpus.link_track_to_kb(&first, "kb", "ada", "Ada").is_err());
+        assert_eq!(
+            corpus.current_coref_clusters(),
+            vec![(id, vec![second.clone()])]
+        );
+        let remaining = corpus.get_identity(id).unwrap();
+        assert_eq!(remaining.source.as_ref().unwrap().track_refs(), &[second]);
+        assert_eq!(remaining.minimum_pair_similarity, None);
+        assert_eq!(
+            Some(remaining),
+            corpus.get_document("b").unwrap().get_identity(id)
+        );
+        corpus.add_document(GroundedDocument::new("a", ""));
+        let new_id = corpus
+            .get_document_mut("a")
+            .unwrap()
+            .add_track(Track::new(TrackId::ZERO, "New"));
+        assert!(new_id > first.track_id);
+        corpus.add_document(GroundedDocument::new("b", ""));
+        assert!(corpus.get_identity(id).is_none());
+    }
+
+    #[test]
+    fn replacement_track_floor_survives_local_identity_collision_and_empty_document() {
+        let mut corpus = Corpus::new();
+        let original = add_track_doc(&mut corpus, "same-id", "Ada");
+        let corpus_id = corpus.add_identity(Identity::new(0, "corpus"));
+        let mut replacement = GroundedDocument::new("same-id", "");
+        let local_id = replacement.add_identity(Identity::new(0, "local"));
+        assert_eq!(local_id, corpus_id);
+        corpus.add_document(replacement);
+        let doc = corpus.get_document_mut("same-id").unwrap();
+        assert!(doc.get_identity(local_id).is_none());
+        doc.rebuild_indexes();
+        let fresh = doc.add_track(Track::new(0, "Grace"));
+        assert!(fresh > original.track_id);
+        assert!(doc.invariants_hold());
+    }
+
+    #[test]
+    fn replacement_preserves_sparse_ids_and_prunes_imported_local_provenance() {
+        let mut corpus = Corpus::new();
+        let retired = add_track_doc(&mut corpus, "d", "Ada");
+        let mut other = GroundedDocument::new("other", "Ada");
+        let mut local = Identity::new(0, "local");
+        local.source = Some(IdentitySource::CrossDocCoref {
+            track_refs: vec![retired.clone()],
+        });
+        let local_id = other.add_identity(local);
+        corpus.add_document(other);
+
+        let mut replacement = GroundedDocument::new("d", "");
+        replacement.add_track(Track::new(0, "new"));
+        let sparse = TrackId::new(u64::MAX - 1);
+        replacement
+            .tracks_map_mut()
+            .insert(sparse, Track::new(sparse, "sparse"));
+        replacement.rebuild_indexes();
+        corpus.add_document(replacement);
+        let doc = corpus.get_document("d").unwrap();
+        assert!(doc.get_track(retired.track_id).is_none());
+        assert!(doc.get_track(1).is_some());
+        assert!(doc.get_track(sparse).is_some());
+        assert!(doc.invariants_hold());
+        let other = corpus.get_document("other").unwrap();
+        assert!(other.get_identity(local_id).unwrap().source.is_none());
+    }
+
+    #[test]
+    fn importing_a_shared_hybrid_refreshes_live_and_persisted_refs() {
+        let mut corpus = Corpus::new();
+        let first = add_track_doc(&mut corpus, "a", "Ada");
+        let id = Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None)[0];
+        corpus.link_track_to_kb(&first, "kb", "1", "Ada").unwrap();
+        let shared = corpus.get_identity(id).unwrap().clone();
+        let mut imported = GroundedDocument::new("b", "Ada");
+        assert!(imported.insert_identity_with_id(shared));
+        let second_id = imported.add_track(Track::new(0, "Ada").with_identity(id));
+        let second = imported.track_ref(second_id).unwrap();
+        corpus.add_document(imported);
+        let identity = corpus.get_identity(id).unwrap();
+        assert_eq!(
+            identity.source.as_ref().unwrap().track_refs(),
+            &[first, second]
+        );
+        assert_eq!(
+            Some(identity),
+            corpus.get_document("b").unwrap().get_identity(id)
+        );
+    }
+
+    #[test]
+    fn nan_embeddings_do_not_break_retries_or_kb_updates_to_shared_copies() {
+        let mut corpus = Corpus::new();
+        let track_ref = add_track_doc(&mut corpus, "a", "Ada");
+        corpus
+            .get_document_mut("a")
+            .unwrap()
+            .get_track_mut(track_ref.track_id)
+            .unwrap()
+            .embedding = Some(vec![f32::NAN]);
+        let resolver = Resolver::new();
+        let ids = resolver.resolve_inter_doc_coref(&mut corpus, None, None);
+        assert_eq!(ids.len(), 1);
+        assert_eq!(
+            resolver.resolve_inter_doc_coref(&mut corpus, None, None),
+            ids
+        );
+        assert!(corpus.get_identity(ids[0]).unwrap().embedding.is_none());
+
+        let direct = add_track_doc(&mut corpus, "b", "Grace");
+        corpus
+            .get_document_mut("b")
+            .unwrap()
+            .get_track_mut(direct.track_id)
+            .unwrap()
+            .embedding = Some(vec![f32::NAN]);
+        let linked = corpus
+            .link_track_to_kb(&direct, "kb", "g", "Grace")
+            .unwrap();
+        assert_eq!(
+            corpus.get_identity(linked).unwrap().confidence,
+            crate::Confidence::ZERO
+        );
+        assert_eq!(
+            corpus
+                .link_track_to_kb(&direct, "kb", "g", "Grace")
+                .unwrap(),
+            linked
+        );
+        assert_eq!(corpus.identities().len(), 2);
+        assert_eq!(embedding_similarity(&[f32::MAX], &[f32::MAX]), 1.0);
     }
 
     #[test]

@@ -587,13 +587,6 @@ impl crate::Model for GLiNER2FastinoCandle {
         "fastino-ai GLiNER2 (NER + classification, Candle, runtime LoRA)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
-    }
-
     fn as_zero_shot(&self) -> Option<&dyn ZeroShotNER> {
         Some(self)
     }

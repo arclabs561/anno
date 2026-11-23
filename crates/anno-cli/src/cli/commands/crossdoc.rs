@@ -1,7 +1,7 @@
 //! CrossDoc command - Cross-document entity coalescing: cluster entities across multiple documents
 
 #[cfg(feature = "eval")]
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 #[cfg(feature = "eval")]
 use std::fs;
 #[cfg(feature = "eval")]
@@ -14,10 +14,7 @@ use anno::coalesce::Resolver;
 #[cfg(feature = "eval")]
 use anno::offset::TextSpan;
 #[cfg(feature = "eval")]
-use anno::{
-    Corpus, Entity, EntityCategory, EntityType, GroundedDocument, Identity, IdentitySource,
-    Location, Signal, SignalId,
-};
+use anno::{Corpus, GroundedDocument, Signal, SignalId};
 #[cfg(feature = "eval")]
 use anno_eval::cdcr::{CDCRConfig, CDCRResolver, CrossDocCluster, Document};
 
@@ -137,12 +134,80 @@ fn context_snippet<'a>(
     }
 }
 
+/// Build the import view from current track assignments. Entity indices in
+/// CLI output refer to the signal's position in the document's flat projection.
+#[cfg(feature = "eval")]
+fn corpus_clusters(corpus: &Corpus) -> Vec<CrossDocCluster> {
+    #[derive(Hash, PartialEq, Eq)]
+    enum Key<'a> {
+        Kb(&'a str, &'a str),
+        Shared(anno::IdentityId),
+        Local(&'a str, anno::IdentityId),
+    }
+    let mut indices = HashMap::new();
+    let mut clusters: Vec<CrossDocCluster> = Vec::new();
+    let mut documents: Vec<_> = corpus.documents().collect();
+    documents.sort_by_key(|doc| doc.id());
+
+    // The output format uses numeric IDs. Reserve corpus IDs and assign local-only
+    // keys unused report IDs in deterministic order.
+    let mut report_ids = (0u64..).filter(|id| corpus.get_identity((*id).into()).is_none());
+    for doc in documents {
+        let mut tracks: Vec<_> = doc.tracks().collect();
+        tracks.sort_by_key(|track| track.id);
+        let mut track_indices = HashMap::new();
+        for track in tracks {
+            let Some(identity) = doc.identity_for_track(track.id) else {
+                continue;
+            };
+            let shared = corpus.is_shared_identity(identity);
+            let key = match identity.qualified_kb_ref() {
+                Some((namespace, accession)) => Key::Kb(namespace, accession),
+                None if shared => Key::Shared(identity.id),
+                None => Key::Local(doc.id(), identity.id),
+            };
+            let index = *indices.entry(key).or_insert_with(|| {
+                let id = if shared {
+                    identity.id.get()
+                } else {
+                    report_ids.next().expect("available report ID")
+                };
+                let mut cluster = CrossDocCluster::new(id, &identity.canonical_name);
+                cluster.kb_id = identity.kb_id.clone();
+                cluster.kb_name = identity.kb_name.clone();
+                cluster.confidence = identity.confidence.value();
+                cluster.minimum_pair_similarity = identity.minimum_pair_similarity;
+                cluster.entity_type = identity
+                    .entity_type
+                    .as_ref()
+                    .map(|label| label.to_entity_type());
+                clusters.push(cluster);
+                clusters.len() - 1
+            });
+            // A pairwise score only describes its original membership. A report-level
+            // group joined through matching KB IDs has no cross-document measurement.
+            let cluster = &mut clusters[index];
+            if !shared || cluster.id != identity.id.get() {
+                cluster.minimum_pair_similarity = None;
+                cluster.confidence = 0.0;
+            }
+            track_indices.insert(track.id, index);
+        }
+        for (index, signal) in doc.signals().iter().enumerate() {
+            if let Some(cluster_idx) = doc
+                .track_for_signal(signal.id)
+                .and_then(|track| track_indices.get(&track.id))
+            {
+                clusters[*cluster_idx].add_mention(doc.id(), index);
+            }
+        }
+    }
+    clusters
+}
+
 #[cfg(feature = "eval")]
 /// Execute the crossdoc command.
 pub fn run(args: CrossDocArgs) -> Result<(), String> {
-    // Create model
-    let model = args.model.create_model()?;
-
     if args.verbose {
         if let Some(ref dir) = args.directory {
             eprintln!("Scanning directory: {}", dir);
@@ -186,109 +251,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let mut corpus = Corpus::new();
     let mut documents: Vec<Document> = Vec::new(); // Only used in normal mode, but declared here for output formatting
 
-    // Helper function to convert Identity to CrossDocCluster with proper mention extraction
-    fn identity_to_cluster(identity: &Identity, corpus: &Corpus) -> CrossDocCluster {
-        let mut cluster = CrossDocCluster::new(identity.id, &identity.canonical_name);
-        cluster.kb_id = identity.kb_id.clone();
-        cluster.confidence = f64::from(identity.confidence);
-        if let Some(ref entity_type) = identity.entity_type {
-            cluster.entity_type = Some(entity_type.to_entity_type());
-        }
-
-        // Extract mentions from TrackRefs if available
-        if let Some(IdentitySource::CrossDocCoref { ref track_refs }) = &identity.source {
-            let mut doc_set = HashSet::new();
-            for track_ref in track_refs {
-                // Get the track and extract signal IDs
-                if let Some(doc) = corpus.get_document(&track_ref.doc_id) {
-                    if let Some(track) = doc.get_track(track_ref.track_id) {
-                        // For each signal in the track, we need to find its entity index
-                        // Since we're converting from GroundedDocument, we need to map signals to entities
-                        // For now, use signal positions as entity indices (approximation)
-                        for (pos, signal_ref) in track.signals.iter().enumerate() {
-                            if let Some(_signal) = doc.get_signal(signal_ref.signal_id) {
-                                // Find entity index by matching signal text and position
-                                // This is approximate - in a perfect world, we'd track the mapping
-                                let entity_idx = pos; // Use position as approximation
-                                cluster
-                                    .mentions
-                                    .push((track_ref.doc_id.clone(), entity_idx));
-                                doc_set.insert(track_ref.doc_id.clone());
-                            }
-                        }
-                    }
-                }
-            }
-            cluster.documents = doc_set.into_iter().collect();
-        }
-
-        cluster
-    }
-
-    // Legacy helper for CDCR Document conversion (used when not using Corpus)
-    fn load_grounded_doc_legacy(doc: &GroundedDocument, _source_path: &str) -> (Document, usize) {
-        // Prefer tracks if available (Level 2), otherwise use signals (Level 1)
-        let tracks_vec: Vec<_> = doc.tracks().collect();
-        let entities: Vec<_> = if !tracks_vec.is_empty() {
-            // Use tracks: each track represents a within-doc coreference chain
-            // Extract canonical mention from each track
-            tracks_vec
-                .iter()
-                .filter_map(|track| {
-                    // Get the first signal in the track as the canonical mention
-                    let signal_ids: Vec<_> = track.signals.iter().map(|sr| sr.signal_id).collect();
-                    signal_ids
-                        .first()
-                        .and_then(|signal_id| {
-                            doc.get_signal(*signal_id).map(|signal| {
-                                let (start, end) = signal.text_offsets().unwrap_or((0, 0));
-                                Entity::new(
-                                    signal.surface(),
-                                    EntityType::from_label(signal.label()),
-                                    start,
-                                    end,
-                                    f64::from(signal.confidence),
-                                )
-                            })
-                        })
-                        .or_else(|| {
-                            // Fallback: create entity from track canonical
-                            Some(Entity::new(
-                                &track.canonical_surface,
-                                track
-                                    .entity_type
-                                    .as_ref()
-                                    .map(|t| t.to_entity_type())
-                                    .unwrap_or(EntityType::custom("UNKNOWN", EntityCategory::Misc)),
-                                0,
-                                0,
-                                f64::from(track.cluster_confidence),
-                            ))
-                        })
-                })
-                .collect()
-        } else {
-            // Fallback to signals
-            doc.signals()
-                .iter()
-                .map(|s| {
-                    let (start, end) = s.text_offsets().unwrap_or((0, 0));
-                    Entity::new(
-                        s.surface(),
-                        EntityType::from_label(s.label()),
-                        start,
-                        end,
-                        f64::from(s.confidence),
-                    )
-                })
-                .collect()
-        };
-
-        let entity_count = entities.len();
-        let cdcr_doc = Document::new(doc.id(), doc.text()).with_entities(entities);
-        (cdcr_doc, entity_count)
-    }
-
     let clusters_from_corpus: Option<Vec<CrossDocCluster>> = if !args.import.is_empty()
         || args.stdin
     {
@@ -311,31 +273,16 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                 }
                 let doc: GroundedDocument = serde_json::from_str(&line)
                     .map_err(|e| format!("Failed to parse stdin line {}: {}", line_num + 1, e))?;
-                // Ensure tracks exist - if not, create them from signals for better clustering
-                if doc.tracks_map().is_empty() && !doc.signals().is_empty() {
-                    // Could run within-doc coref here, but for now just use signals
-                    // The Corpus will cluster based on signals if no tracks
-                }
-                corpus.add_document(doc);
-                doc_paths.insert(
-                    corpus
-                        .get_document(&format!("stdin:{}", line_num + 1))
-                        .map(|d| d.id().to_owned())
-                        .unwrap_or_else(|| format!("stdin:{}", line_num + 1)),
-                    format!("stdin:{}", line_num + 1),
-                );
                 if args.verbose {
-                    let stats = corpus
-                        .get_document(&format!("stdin:{}", line_num + 1))
-                        .map(|d| d.stats())
-                        .unwrap_or_default();
                     eprintln!(
                         "  Imported {} signals, {} tracks from stdin line {}",
-                        stats.signal_count,
-                        stats.track_count,
+                        doc.signals().len(),
+                        doc.tracks_map().len(),
                         line_num + 1
                     );
                 }
+                let id = corpus.add_document(doc);
+                doc_paths.insert(id, format!("stdin:{}", line_num + 1));
             }
         } else {
             // Collect files from import paths (support glob patterns)
@@ -443,16 +390,9 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     )
                 })?;
 
-                let (_cdcr_doc, entity_count) =
-                    load_grounded_doc_legacy(&doc, &file_path.display().to_string());
-                corpus.add_document(doc);
-                doc_paths.insert(
-                    corpus
-                        .get_document(&file_path.display().to_string())
-                        .map(|d| d.id().to_owned())
-                        .unwrap_or_else(|| file_path.display().to_string()),
-                    file_path.display().to_string(),
-                );
+                let entity_count = doc.signals().len();
+                let id = corpus.add_document(doc);
+                doc_paths.insert(id, file_path.display().to_string());
 
                 if args.verbose {
                     eprintln!(
@@ -498,55 +438,23 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
 
         if args.verbose {
             eprintln!(
-                "Created {} identities from inter-doc coref",
+                "Resolved {} identities from inter-doc coref",
                 identity_ids.len()
             );
         }
 
-        // Convert identities to CrossDocCluster for output compatibility
-        // Extract mentions from TrackRefs in Identity
-        let mut clusters: Vec<CrossDocCluster> = Vec::new();
-        for &id in &identity_ids {
-            if let Some(identity) = corpus.get_identity(id) {
-                let mut cluster = identity_to_cluster(identity, &corpus);
-
-                // Populate mentions from TrackRefs
-                if let Some(IdentitySource::CrossDocCoref { ref track_refs }) = &identity.source {
-                    let mut doc_set = HashSet::new();
-                    for track_ref in track_refs {
-                        if let Some(doc) = corpus.get_document(&track_ref.doc_id) {
-                            if let Some(track) = doc.get_track(track_ref.track_id) {
-                                // Add each signal in the track as a mention
-                                // Use signal position as entity index (approximation)
-                                for (pos, _signal_ref) in track.signals.iter().enumerate() {
-                                    cluster.mentions.push((track_ref.doc_id.clone(), pos));
-                                    doc_set.insert(track_ref.doc_id.clone());
-                                }
-                            }
-                        }
-                    }
-                    cluster.documents = doc_set.into_iter().collect();
-                }
-
-                // Apply filters
-                if cluster.len() >= args.min_cluster_size
-                    && (!args.cross_doc_only || cluster.doc_count() > 1)
-                    && (args.entity_types.is_empty()
-                        || cluster
-                            .entity_type
-                            .as_ref()
-                            .map(|et| {
-                                let type_label = et.as_label().to_uppercase();
-                                args.entity_types
-                                    .iter()
-                                    .any(|t| t.to_uppercase() == type_label)
-                            })
-                            .unwrap_or(false))
-                {
-                    clusters.push(cluster);
-                }
-            }
-        }
+        let mut clusters = corpus_clusters(&corpus);
+        clusters.retain(|cluster| {
+            cluster.len() >= args.min_cluster_size
+                && (!args.cross_doc_only || cluster.doc_count() > 1)
+                && (args.entity_types.is_empty()
+                    || cluster.entity_type.as_ref().is_some_and(|entity_type| {
+                        let label = entity_type.as_label().to_uppercase();
+                        args.entity_types
+                            .iter()
+                            .any(|query| query.to_uppercase() == label)
+                    }))
+        });
 
         // Sort by importance
         clusters.sort_by(|a, b| {
@@ -564,6 +472,7 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         Some(clusters)
     } else {
         // Normal mode: extract from text files, use CDCRResolver (legacy path)
+        let model = args.model.create_model()?;
         // Normal mode: extract entities from text files
         // Directory is required in normal mode
         let dir = if let Some(ref dir_str) = args.directory {
@@ -646,10 +555,12 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
         }
 
         if args.verbose {
-            let total_entities: usize = documents.iter().map(|d| d.entities.len()).sum();
             eprintln!(
                 "Clustering {} entities across {} documents...",
-                total_entities,
+                documents
+                    .iter()
+                    .map(|doc| doc.entities.len())
+                    .sum::<usize>(),
                 documents.len()
             );
         }
@@ -722,24 +633,29 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
     let final_clusters: Vec<CrossDocCluster> = clusters_from_corpus
         .ok_or_else(|| "No clusters generated. This should not happen.".to_string())?;
 
+    let (doc_count, total_entities) = if use_corpus {
+        (
+            corpus.documents().count(),
+            corpus
+                .documents()
+                .map(|doc| doc.signals().len())
+                .sum::<usize>(),
+        )
+    } else {
+        (
+            documents.len(),
+            documents
+                .iter()
+                .map(|doc| doc.entities.len())
+                .sum::<usize>(),
+        )
+    };
+
     // Prepare output
     let output_text = match args.format {
         OutputFormat::Json => {
             // Enhanced JSON with metadata
             let mut output = serde_json::Map::new();
-            let doc_count = if use_corpus {
-                corpus.documents().count()
-            } else {
-                documents.len()
-            };
-            let total_entities = if use_corpus {
-                corpus
-                    .documents()
-                    .map(|d| d.stats().signal_count)
-                    .sum::<usize>()
-            } else {
-                documents.iter().map(|d| d.entities.len()).sum::<usize>()
-            };
             output.insert("metadata".to_string(), serde_json::json!({
                 "documents_processed": doc_count,
                 "total_entities": total_entities,
@@ -797,19 +713,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             output.push('\n');
 
             // Summary header
-            let doc_count = if use_corpus {
-                corpus.documents().count()
-            } else {
-                documents.len()
-            };
-            let total_entities = if use_corpus {
-                corpus
-                    .documents()
-                    .map(|d| d.stats().signal_count)
-                    .sum::<usize>()
-            } else {
-                documents.iter().map(|d| d.entities.len()).sum::<usize>()
-            };
             let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
             let singleton_clusters = final_clusters.len() - cross_doc_clusters;
 
@@ -887,13 +790,19 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     cluster.doc_count(),
                     if cluster.doc_count() == 1 { "" } else { "s" }
                 ));
-                if cluster.confidence < 1.0 {
+                if let Some(similarity) = cluster.minimum_pair_similarity {
+                    meta_parts.push(format!("min pair similarity: {similarity:.2}"));
+                } else if !use_corpus && cluster.confidence < 1.0 {
                     meta_parts.push(format!("conf: {:.2}", cluster.confidence));
                 }
                 output.push_str(&format!("  {}\n", meta_parts.join(" • ")));
 
                 if let Some(ref kb_id) = cluster.kb_id {
-                    output.push_str(&format!("  KB: {}\n", color("36", kb_id)));
+                    let reference = cluster
+                        .kb_name
+                        .as_ref()
+                        .map_or_else(|| kb_id.clone(), |name| format!("{name}/{kb_id}"));
+                    output.push_str(&format!("  KB: {}\n", color("36", &reference)));
                 }
 
                 // Show documents with paths (truncate if too many)
@@ -932,36 +841,45 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
                     };
 
                     for (doc_id, entity_idx) in cluster.mentions.iter().take(sample_size) {
-                        if let Some(doc) = doc_index.get(doc_id.as_str()) {
-                            if let Some(entity) = doc.entities.get(*entity_idx) {
-                                if args.verbose {
-                                    let snippet = context_snippet(
-                                        &doc.text,
-                                        entity.start(),
-                                        entity.end(),
-                                        50,
-                                    );
-
-                                    output.push_str(&format!(
-                                        "    {} {}: {}{}[{}]{}{}\n",
-                                        color("90", "•"),
-                                        color("36", doc_id),
-                                        snippet.before_marker,
-                                        snippet.before,
-                                        color("1;32", snippet.entity_text),
-                                        snippet.after,
-                                        snippet.after_marker
-                                    ));
-                                } else {
-                                    // Non-verbose: just show entity text
-                                    output.push_str(&format!(
-                                        "    {} {}: \"{}\"\n",
-                                        color("90", "•"),
-                                        color("36", doc_id),
-                                        entity.text
-                                    ));
-                                }
-                            }
+                        let mention = if use_corpus {
+                            corpus.get_document(doc_id).and_then(|doc| {
+                                let signal = doc.signals().get(*entity_idx)?;
+                                let (start, end) = signal.text_offsets()?;
+                                Some((doc.text(), signal.surface(), start, end))
+                            })
+                        } else {
+                            doc_index.get(doc_id.as_str()).and_then(|doc| {
+                                let entity = doc.entities.get(*entity_idx)?;
+                                Some((
+                                    doc.text.as_str(),
+                                    entity.text.as_str(),
+                                    entity.start(),
+                                    entity.end(),
+                                ))
+                            })
+                        };
+                        let Some((text, surface, start, end)) = mention else {
+                            continue;
+                        };
+                        if args.verbose {
+                            let snippet = context_snippet(text, start, end, 50);
+                            output.push_str(&format!(
+                                "    {} {}: {}{}[{}]{}{}\n",
+                                color("90", "•"),
+                                color("36", doc_id),
+                                snippet.before_marker,
+                                snippet.before,
+                                color("1;32", snippet.entity_text),
+                                snippet.after,
+                                snippet.after_marker
+                            ));
+                        } else {
+                            output.push_str(&format!(
+                                "    {} {}: \"{}\"\n",
+                                color("90", "•"),
+                                color("36", doc_id),
+                                surface
+                            ));
                         }
                     }
 
@@ -991,7 +909,6 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             output
         }
         OutputFormat::Summary => {
-            let total_entities: usize = documents.iter().map(|d| d.entities.len()).sum();
             let cross_doc_clusters = final_clusters.iter().filter(|c| c.doc_count() > 1).count();
             let singleton_clusters = final_clusters.len() - cross_doc_clusters;
             let avg_cluster_size = if final_clusters.is_empty() {
@@ -1037,19 +954,14 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
             ));
             output.push('\n');
             output.push_str(&format!("{}\n", color("1;33", "Document Statistics:")));
-            let doc_count = if use_corpus {
-                corpus.documents().count()
-            } else {
-                documents.len()
-            };
             output.push_str(&format!("  Documents processed: {}\n", doc_count));
             output.push_str(&format!("  Total entities extracted: {}\n", total_entities));
             output.push_str(&format!(
                 "  Average entities per document: {:.1}\n",
-                if documents.is_empty() {
+                if doc_count == 0 {
                     0.0
                 } else {
-                    total_entities as f64 / documents.len() as f64
+                    total_entities as f64 / doc_count as f64
                 }
             ));
             output.push('\n');
@@ -1116,6 +1028,106 @@ pub fn run(args: CrossDocArgs) -> Result<(), String> {
 mod tests {
     use super::context_snippet;
     use anno::offset::TextSpan;
+
+    #[test]
+    fn imported_clusters_use_flat_indices_once_after_enrichment() {
+        use super::{corpus_clusters, Corpus, GroundedDocument, Resolver, Signal};
+        use anno::Location;
+
+        let mut doc = GroundedDocument::new("d", "x Ada Ada");
+        doc.add_signal(Signal::new(0, Location::text(0, 1), "x", "OTHER", 0.5));
+        let first = doc.add_signal(Signal::new(0, Location::text(2, 5), "Ada", "PER", 0.9));
+        let second = doc.add_signal(Signal::new(0, Location::text(6, 9), "Ada", "PER", 0.9));
+        let track = doc
+            .create_track_from_signals("Ada", &[first, second])
+            .unwrap();
+        let track_ref = doc.track_ref(track).unwrap();
+        let mut corpus = Corpus::new();
+        corpus.add_document(doc);
+        Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None);
+        corpus
+            .link_track_to_kb(&track_ref, "catalog", "1", "Ada")
+            .unwrap();
+
+        let clusters = corpus_clusters(&corpus);
+        assert_eq!(clusters.len(), 1);
+        assert_eq!(clusters[0].documents, ["d"]);
+        assert_eq!(clusters[0].kb_id.as_deref(), Some("1"));
+        assert_eq!(clusters[0].mentions, [("d".into(), 1), ("d".into(), 2)]);
+    }
+
+    fn linked_document(id: &str, namespace: &str) -> anno::GroundedDocument {
+        use anno::{GroundedDocument, Identity, Location, Signal};
+        let mut doc = GroundedDocument::new(id, "Ada");
+        let mention = doc.add_signal(Signal::new(0, Location::text(0, 3), "Ada", "PER", 1.0));
+        let track = doc.create_track_from_signals("Ada", &[mention]).unwrap();
+        let identity = doc.add_identity(Identity::from_kb(0, "Ada", namespace, "42"));
+        doc.link_track_to_identity(track, identity);
+        doc
+    }
+
+    #[test]
+    fn import_groups_only_qualified_kb_links_across_documents() {
+        use super::{corpus_clusters, Corpus, Resolver};
+        let mut corpus = Corpus::new();
+        for (id, namespace) in [
+            ("a", "foo"),
+            ("b", "foo"),
+            ("c", "bar"),
+            ("d", "unknown"),
+            ("e", "unknown"),
+        ] {
+            corpus.add_document(linked_document(id, namespace));
+        }
+        Resolver::new().resolve_inter_doc_coref(&mut corpus, None, None);
+        assert!(corpus.current_coref_clusters().is_empty());
+        let clusters = corpus_clusters(&corpus);
+        assert_eq!(clusters.len(), 4);
+        assert_eq!(clusters[0].kb_name.as_deref(), Some("foo"));
+        assert_eq!(clusters[0].mentions, [("a".into(), 0), ("b".into(), 0)]);
+        assert_eq!(clusters[0].minimum_pair_similarity, None);
+        assert_eq!(clusters[1].kb_name.as_deref(), Some("bar"));
+        for (cluster, doc) in clusters[1..].iter().zip(["c", "d", "e"]) {
+            assert_eq!(cluster.documents, [doc]);
+        }
+        assert_eq!(
+            clusters
+                .iter()
+                .map(|cluster| cluster.id)
+                .collect::<std::collections::HashSet<_>>()
+                .len(),
+            4
+        );
+    }
+
+    #[test]
+    fn summary_uses_imported_document_and_mention_counts() {
+        use clap::Parser;
+        let dir = tempfile::tempdir().unwrap();
+        let input = dir.path().join("doc.json");
+        let output = dir.path().join("summary.txt");
+        std::fs::write(
+            &input,
+            serde_json::to_vec(&linked_document("doc", "test")).unwrap(),
+        )
+        .unwrap();
+        let args = super::CrossDocArgs::parse_from([
+            "cross-doc",
+            "--model",
+            "pattern",
+            "--format",
+            "summary",
+            "--import",
+            input.to_str().unwrap(),
+            "--output",
+            output.to_str().unwrap(),
+        ]);
+        super::run(args).unwrap();
+        let summary = std::fs::read_to_string(output).unwrap();
+        assert!(summary.contains("Documents processed: 1"));
+        assert!(summary.contains("Total entities extracted: 1"));
+        assert!(summary.contains("Average entities per document: 1.0"));
+    }
 
     #[test]
     fn test_context_snippet_uses_char_offsets_and_is_unicode_safe() {

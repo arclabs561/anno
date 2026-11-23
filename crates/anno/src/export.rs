@@ -279,7 +279,7 @@ fn uri_safe(s: &str) -> String {
 }
 
 /// Encode a complete value as a single path segment, including literal percent signs.
-fn iri_component(value: &str) -> percent_encoding::PercentEncode<'_> {
+pub(crate) fn iri_component(value: &str) -> percent_encoding::PercentEncode<'_> {
     percent_encoding::utf8_percent_encode(value, percent_encoding::NON_ALPHANUMERIC)
 }
 
@@ -365,6 +365,10 @@ pub(crate) fn resolved_relations<'a>(
             let e = &entities[i];
             e.entity_type == endpoint.entity_type
                 && e.canonical_id == endpoint.canonical_id
+                && endpoint
+                    .kb_id
+                    .as_ref()
+                    .is_none_or(|id| e.kb_id.as_ref() == Some(id))
                 && additional_segments(e) == additional_segments(endpoint)
                 && e.visual_span == endpoint.visual_span
         });

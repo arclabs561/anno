@@ -281,14 +281,13 @@ pub trait Model: sealed::Sealed + Send + Sync {
 
     /// Get capability summary for this model.
     ///
-    /// Override this in implementations that support additional capabilities
-    /// (relations, zero-shot types, discontinuous entities) to enable runtime discovery.
-    ///
-    /// # Default
-    ///
-    /// Returns a [`ModelCapabilities`] with all fields set to `false`/`None`.
+    /// Capability flags are derived from the operations available through this model.
     fn capabilities(&self) -> ModelCapabilities {
-        ModelCapabilities::default()
+        ModelCapabilities {
+            zero_shot: self.as_zero_shot().is_some(),
+            relation_capable: self.as_relation_extractor().is_some(),
+            discontinuous_capable: self.as_discontinuous().is_some(),
+        }
     }
 
     /// Extract entities from multiple texts.
@@ -358,6 +357,11 @@ pub trait Model: sealed::Sealed + Send + Sync {
     /// }
     /// ```
     fn as_zero_shot(&self) -> Option<&dyn backends::inference::ZeroShotNER> {
+        None
+    }
+
+    /// Access discontinuous extraction when the loaded backend supports it.
+    fn as_discontinuous(&self) -> Option<&dyn backends::inference::DiscontinuousNER> {
         None
     }
 
@@ -527,14 +531,6 @@ impl Model for AnyModel {
 
     fn description(&self) -> &'static str {
         self.description
-    }
-
-    fn capabilities(&self) -> ModelCapabilities {
-        ModelCapabilities {
-            zero_shot: self.zero_shot_extractor.is_some(),
-            relation_capable: self.relation_extractor.is_some(),
-            ..ModelCapabilities::default()
-        }
     }
 
     fn version(&self) -> String {
@@ -1095,8 +1091,11 @@ mod any_model_tests {
                 })
                 .collect())
         });
-        assert!(m.capabilities().zero_shot);
-        let ents = m
+        let model: &dyn Model = &m;
+        assert!(model.capabilities().zero_shot);
+        let ents = model
+            .as_zero_shot()
+            .unwrap()
             .extract_with_types("hello world", &["GREETING", "NOUN"], 0.5)
             .unwrap();
         assert_eq!(ents.len(), 2);
