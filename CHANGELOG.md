@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Schema 2 evaluation receipts use `provenance.runtime.scheduling` to record
+  skips. The existing `not_run` strategy carries a reason of
+  `capability_unavailable` or `incompatible_entity_types`.
+  `EvaluationScheduling::skip_reason()` returns the typed reason.
+  `TaskEvalResult::is_skipped()` also handles schema 0 and 1 diagnostics.
+
 ## [0.15.0]
 
 ### Changed
