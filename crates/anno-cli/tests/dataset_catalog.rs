@@ -103,3 +103,33 @@ fn sampler_explains_cached_sources_filtered_by_policy_and_pins() {
         (false, "facet_pin".into())
     );
 }
+
+#[test]
+fn googlere_download_loads_snippets_and_relation_eval_explains_missing_offsets() {
+    let cache = tempfile::tempdir().unwrap();
+    let datasets = cache.path().join("datasets");
+    std::fs::create_dir(&datasets).unwrap();
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_anno"))
+            .arg("dataset")
+            .args(args)
+            .env("ANNO_CACHE_DIR", cache.path())
+            .env("ANNO_NO_DOWNLOADS", "1")
+            .env("ANNO_S3_CACHE", "0")
+            .output()
+            .unwrap()
+    };
+    let evaluation = run(&["eval", "--dataset", "GoogleRE", "--task", "relation"]);
+    assert!(!evaluation.status.success());
+    assert!(String::from_utf8_lossy(&evaluation.stderr)
+        .contains("without gold subject/object character spans"));
+    std::fs::write(datasets.join("GoogleRE.cache"),
+        r#"{"pred":"/people/person/place_of_birth","sub":"/m/person","obj":"/m/place","evidences":[{"url":"https://example.org/story","snippet":"Mara was born in Oslo."}],"judgments":[{"rater":"r1","judgment":"yes"}]}"#).unwrap();
+    let download = run(&["download", "--dataset", "GoogleRE"]);
+    assert!(
+        download.status.success(),
+        "{}",
+        String::from_utf8_lossy(&download.stderr)
+    );
+    assert!(String::from_utf8_lossy(&download.stdout).contains("Google-RE (sentences=1)"));
+}

@@ -856,7 +856,8 @@ impl TryFrom<DatasetId> for LoadableDatasetId {
 // Extension methods for DatasetId that delegate to registry
 impl DatasetId {
     /// An advertised relation corpus can still lack the gold spans required by the scorer.
-    pub(crate) fn relation_span_limitation(self) -> Option<&'static str> {
+    #[must_use]
+    pub fn relation_span_limitation(self) -> Option<&'static str> {
         match self {
             Self::GoogleRE => Some("GoogleRE supplies entity IDs, judgments and evidence snippets without gold subject/object character spans; use the standard loader for snippets"),
             _ => None,

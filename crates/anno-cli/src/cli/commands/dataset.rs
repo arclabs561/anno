@@ -336,6 +336,11 @@ pub fn run(args: DatasetArgs) -> Result<(), String> {
                     {
                         use anno_eval::eval::loader::DatasetLoader;
 
+                        if matches!(task, EvalTask::Relation) {
+                            if let Some(reason) = dataset_id.relation_span_limitation() {
+                                return Err(reason.into());
+                            }
+                        }
                         let loader = DatasetLoader::new()
                             .map_err(|e| format!("Failed to init dataset loader: {}", e))?;
 
@@ -1316,7 +1321,7 @@ fn run_download(dataset: &str) -> Result<(), String> {
     let loader =
         DatasetLoader::new().map_err(|e| format!("Failed to init dataset loader: {}", e))?;
 
-    if dataset_id.is_relation_extraction() {
+    if dataset_id.is_relation_extraction() && dataset_id.relation_span_limitation().is_none() {
         let docs = loader
             .load_or_download_relation(dataset_id)
             .map_err(|e| format!("Failed to load relation dataset: {}", e))?;
