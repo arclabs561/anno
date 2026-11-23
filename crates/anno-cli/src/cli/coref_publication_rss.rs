@@ -1,14 +1,16 @@
 //! Opt-in process high-water measurement for the CLI's atomic cluster publication.
 //! Run on Linux with `cargo test -p anno-cli --no-default-features --features
 //! extractor-html2text --bin anno publication_peak_rss -- --ignored --nocapture`.
+//! Set `ANNO_COREF_RSS_SIGNAL_STRIDE` to seed one signal every N eight-byte blocks.
+//! The original sparse fixture uses 128. A stride of 8 gives 16 times as many signals.
 
 use anno::backends::coref::resolve::CorefCluster;
 use anno::{GroundedDocument, Location, Signal, TypeLabel};
-use std::{env, fs, process::Command};
+use std::{env, fs, num::NonZeroUsize, process::Command};
 
 const CHILD: &str = "ANNO_COREF_RSS_CASE";
 
-fn measure(case: &str, bytes: usize, encoding: &str) {
+fn measure(case: &str, bytes: usize, encoding: &str, stride: NonZeroUsize) {
     // Both blocks occupy eight bytes. Only the second needs Unicode offset tables.
     let block = match encoding {
         "ascii" => "Ada Lea!",
@@ -18,7 +20,7 @@ fn measure(case: &str, bytes: usize, encoding: &str) {
     let blocks = bytes / block.len();
     let mut doc = GroundedDocument::new("rss", block.repeat(blocks));
     let chars = block.chars().count();
-    for index in (0..blocks).step_by(128) {
+    for index in (0..blocks).step_by(stride.get()) {
         let start = index * chars;
         doc.add_signal(Signal::new(
             0u64,
@@ -48,6 +50,7 @@ fn measure(case: &str, bytes: usize, encoding: &str) {
         }
     }
     let before = doc.signals().len();
+    assert_eq!(before, blocks.div_ceil(stride.get()));
     let added = match case {
         "baseline" => 0,
         "empty" => super::append_coref_clusters(&mut doc, &clusters[..0]).unwrap(),
@@ -82,18 +85,28 @@ fn measure(case: &str, bytes: usize, encoding: &str) {
 #[test]
 #[ignore = "opt-in Linux process peak RSS measurement"]
 fn publication_peak_rss() {
+    let stride = env::var("ANNO_COREF_RSS_SIGNAL_STRIDE")
+        .unwrap_or_else(|_| "128".into())
+        .parse::<NonZeroUsize>()
+        .expect("ANNO_COREF_RSS_SIGNAL_STRIDE must be a positive integer");
     if let Ok(case) = env::var(CHILD) {
         let bytes = env::var("ANNO_COREF_RSS_BYTES").unwrap().parse().unwrap();
-        measure(&case, bytes, &env::var("ANNO_COREF_RSS_ENCODING").unwrap());
+        measure(
+            &case,
+            bytes,
+            &env::var("ANNO_COREF_RSS_ENCODING").unwrap(),
+            stride,
+        );
         return;
     }
 
     let binary = env::current_exe().unwrap();
     let thread = std::thread::current();
     let name = thread.name().unwrap();
-    println!("encoding,source_bytes,case,median_peak_kib,raw_peak_kib");
+    println!("encoding,source_bytes,signal_stride_blocks,existing_signals,case,median_peak_kib,raw_peak_kib");
     for encoding in ["ascii", "unicode"] {
-        for bytes in [65_536, 1_048_576, 4_194_304] {
+        for bytes in [65_536usize, 1_048_576, 4_194_304] {
+            let existing_signals = (bytes / 8).div_ceil(stride.get());
             for case in ["baseline", "empty", "singleton", "invalid", "success"] {
                 let mut peaks = [0u64; 3];
                 for peak in &mut peaks {
@@ -118,7 +131,7 @@ fn publication_peak_rss() {
                 let mut sorted = peaks;
                 sorted.sort_unstable();
                 println!(
-                    "{encoding},{bytes},{case},{},{}|{}|{}",
+                    "{encoding},{bytes},{stride},{existing_signals},{case},{},{}|{}|{}",
                     sorted[1], peaks[0], peaks[1], peaks[2]
                 );
             }
