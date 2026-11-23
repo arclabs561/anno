@@ -18,6 +18,10 @@ contract before integrating the results.
 
 - `generated/DATASETS_GENERATED.md`: generated dataset registry (run `just regenerate-datasets` to create)
 
+## Design records
+
+- [Grounded extraction and evaluation decisions](dev-notes/grounded-extraction-decisions.md)
+
 ## Historical material
 
 Earlier design and research notes are available in Git history.
