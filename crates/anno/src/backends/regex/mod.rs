@@ -270,6 +270,22 @@ fn url_text(text: &str) -> std::borrow::Cow<'_, str> {
     result
 }
 
+// A percent escape is exactly '%' followed by two ASCII hex digits in the URL.
+fn is_url_escape(m: regex::Match<'_>, urls: &[regex::Match<'_>]) -> bool {
+    if !m.as_str().ends_with('%') {
+        return false;
+    }
+    let next = urls.partition_point(|url| url.end() <= m.start());
+    let Some(url) = urls.get(next).filter(|url| url.start() <= m.start()) else {
+        return false;
+    };
+    let after_percent = m.end() - url.start();
+    url.as_str()
+        .as_bytes()
+        .get(after_percent..after_percent + 2)
+        .is_some_and(|pair| pair.iter().all(u8::is_ascii_hexdigit))
+}
+
 static PHONE_US: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:\+1[-.\s]?\(?|\b1[-.\s]?\(?|\(|\b)\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
         .expect("valid regex")
@@ -416,8 +432,13 @@ impl Model for RegexNER {
             }
         }
 
-        // Percentages
+        // Preserve numeric substrings before a percent-encoded octet in the address.
+        let url_input = url_text(text);
+        let urls: Vec<_> = URL.find_iter(&url_input).collect();
         for m in PERCENT.find_iter(text) {
+            if is_url_escape(m, &urls) {
+                continue;
+            }
             add_entity(m, EntityType::Percent, 0.95, "PERCENT");
         }
 
@@ -426,9 +447,7 @@ impl Model for RegexNER {
             add_entity(m, EntityType::Email, 0.98, "EMAIL");
         }
 
-        // URLs (very high confidence)
-        let urls = url_text(text);
-        for m in URL.find_iter(&urls) {
+        for m in urls {
             add_entity(m, EntityType::Url, 0.98, "URL");
         }
 
@@ -900,6 +919,33 @@ mod tests {
     // ========================================================================
     // URL Tests
     // ========================================================================
+
+    #[test]
+    fn url_percent_escapes_do_not_hide_the_address_or_an_outside_percentage() {
+        let url = "https://example.org/search?q=75%25%20cocoa";
+        let text = format!("🦊 {url} (12.5% of recipes)");
+        let entities = extract(&text);
+        assert!(entities.iter().any(|e| e.entity_type == EntityType::Url
+            && e.text == url
+            && e.start() == 2
+            && e.end() == 2 + url.chars().count()));
+        let percentages: Vec<_> = entities
+            .iter()
+            .filter(|e| e.entity_type == EntityType::Percent)
+            .map(|e| e.text.as_str())
+            .collect();
+        assert_eq!(percentages, ["12.5%"]);
+    }
+
+    #[test]
+    fn incomplete_or_nonhex_escape_keeps_percentage_detection() {
+        for suffix in ["", "F", "0G"] {
+            let text = format!("https://example.org/path/17%{suffix}");
+            assert!(extract(&text)
+                .iter()
+                .any(|e| e.entity_type == EntityType::Percent && e.text == "17%"));
+        }
+    }
 
     #[test]
     fn markdown_url_wrappers_preserve_literal_parentheses_and_source_ranges() {
