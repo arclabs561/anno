@@ -171,6 +171,26 @@ def require_current_provenance(result: dict[str, Any], cell: Cell, max_examples:
         raise ContractError(f"{cell}: provenance backend does not match result backend")
 
 
+def incompatible_result(result: dict[str, Any], cell: Cell) -> bool:
+    if result.get("success") is not False:
+        return False
+    provenance = result.get("provenance", {})
+    if not isinstance(provenance, dict):
+        raise ContractError(f"{cell}: invalid result provenance")
+    version = provenance.get("schema_version", 0)
+    if type(version) is not int or version < 0:
+        raise ContractError(f"{cell}: invalid receipt version")
+    if version < 2:
+        return str(result.get("error", "")).startswith("incompatible:")
+    backend = provenance.get("backend")
+    execution = backend.get("execution") if isinstance(backend, dict) else None
+    return (
+        isinstance(execution, dict)
+        and execution.get("status") == "skipped"
+        and execution.get("reason") == "incompatible_entity_types"
+    )
+
+
 def validate_suite(suite: dict[str, Any], artifact: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(artifact, dict):
         raise ContractError(f"suite {suite['id']!r}: artifact must be an object")
@@ -198,7 +218,7 @@ def validate_suite(suite: dict[str, Any], artifact: dict[str, Any]) -> list[dict
     for cell in sorted(expected):
         result = observed[cell]
         if cell in allowed:
-            if result.get("success") is not False or not str(result.get("error", "")).startswith("incompatible:"):
+            if not incompatible_result(result, cell):
                 raise ContractError(f"{cell}: declared incompatibility must be an incompatible skipped result")
             outcome = "declared-incompatible"
         else:
