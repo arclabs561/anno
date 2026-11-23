@@ -347,23 +347,27 @@ struct CachedBackendAny {
 }
 
 impl TaskEvalResult {
-    /// Check if this is a "skipped" result (feature not available or incompatible) vs actual failure
-    pub fn is_skipped(&self) -> bool {
+    /// Why evaluation was skipped. Historical receipts used the diagnostic alone.
+    pub fn skip_reason(&self) -> Option<EvalSkipReason> {
         if self.success {
-            return false;
+            return None;
         }
         if self.provenance.schema_version >= EXPLICIT_SKIP_SCHEMA_VERSION {
-            return self.provenance.runtime.scheduling.skip_reason().is_some();
+            return self.provenance.runtime.scheduling.skip_reason();
         }
-        // Historical receipts predate explicit skip reasons. Preserve their interpretation.
-        if let Some(ref err) = self.error {
-            err.starts_with("incompatible:")
-                || err.contains("Feature not available")
-                || err.contains("requires '")
-                || err.contains("Incompatible entity types")
+        let error = self.error.as_deref()?;
+        if error.starts_with("incompatible:") || error.contains("Incompatible entity types") {
+            Some(EvalSkipReason::IncompatibleEntityTypes)
+        } else if error.contains("Feature not available") || error.contains("requires '") {
+            Some(EvalSkipReason::CapabilityUnavailable)
         } else {
-            false
+            None
         }
+    }
+
+    /// Whether evaluation was skipped because a capability or compatible labels were unavailable.
+    pub fn is_skipped(&self) -> bool {
+        self.skip_reason().is_some()
     }
 
     /// Get primary F1 metric for ranking
@@ -3681,6 +3685,7 @@ impl ComprehensiveEvalResults {
         let ner_policy_rows: Vec<_> = self
             .results
             .iter()
+            .filter(|r| r.success)
             .filter_map(|result| {
                 result
                     .provenance
@@ -3715,10 +3720,7 @@ impl ComprehensiveEvalResults {
             use std::collections::HashMap;
             let mut by_task_backend: HashMap<(Task, String), Vec<f64>> = HashMap::new();
             for r in &self.results {
-                if !r.success {
-                    continue;
-                }
-                if let Some(v) = r.primary_f1() {
+                if let Some(v) = r.measured_primary_f1() {
                     by_task_backend
                         .entry((r.task, r.backend.clone()))
                         .or_default()
@@ -3864,7 +3866,7 @@ impl ComprehensiveEvalResults {
         md.push_str("- `incompatible`: Backend doesn't support dataset entity types (expected for non-zero-shot backends on fine-grained datasets)\n");
         md.push_str("- `load-failed`: Dataset failed to download/load (HuggingFace API errors, network issues, etc.)\n");
         md.push_str("- `empty-dataset`: Dataset loaded but contains no sentences\n");
-        md.push_str("- `0.0 F1` with N>0: Backend doesn't support dataset entity types\n");
+        md.push_str("- `0.0 F1` is a measured score. A dash indicates an unreported metric.\n");
         md.push_str("- `N=0` or `N=1`: Dataset parsing issue or insufficient data\n\n");
 
         // Group results by task, filtering out skipped
@@ -3931,100 +3933,22 @@ impl ComprehensiveEvalResults {
                 if show_metrics && result.success {
                     match task {
                         Task::NER | Task::DiscontinuousNER => {
-                            let f1 = result.metrics.get("f1").map(|v| *v * 100.0).unwrap_or(0.0);
-                            let p = result
-                                .metrics
-                                .get("precision")
-                                .map(|v| *v * 100.0)
-                                .unwrap_or(0.0);
-                            let r = result
-                                .metrics
-                                .get("recall")
-                                .map(|v| *v * 100.0)
-                                .unwrap_or(0.0);
-
-                            // Add familiarity note for zero-shot backends
-                            let mut note_parts = Vec::new();
-                            if let Some(ref label_shift) = result.label_shift {
-                                if label_shift.is_inflated() {
-                                    note_parts.push(format!(
-                                        "⚠ familiarity={:.0}%",
-                                        label_shift.familiarity * 100.0
-                                    ));
-                                }
-                            }
-
-                            // Add note for 0.0 F1 scores
-                            let note = if f1 < 0.1 && result.num_examples > 0 {
-                                // Check if it's an incompatible entity type issue
-                                let dataset_entity_types = result.dataset.entity_types();
-                                let backend_name = &result.backend;
-                                if backend_name == "stacked"
-                                    || backend_name == "heuristic"
-                                    || backend_name == "pattern"
-                                {
-                                    // Stacked/heuristic/pattern have limited entity type support
-                                    let normalized_types: Vec<String> = dataset_entity_types
-                                        .iter()
-                                        .map(|t| t.to_lowercase())
-                                        .collect();
-                                    let supports_structured = normalized_types.iter().any(|t| {
-                                        t.contains("date")
-                                            || t.contains("time")
-                                            || t.contains("money")
-                                            || t.contains("percent")
-                                            || t.contains("email")
-                                            || t.contains("url")
-                                            || t.contains("phone")
-                                    });
-                                    let supports_named = normalized_types.iter().any(|t| {
-                                        t.contains("person")
-                                            || t.contains("organization")
-                                            || t.contains("location")
-                                    });
-                                    let supports_biomedical = normalized_types.iter().any(|t| {
-                                        t.contains("disease")
-                                            || t.contains("chemical")
-                                            || t.contains("gene")
-                                            || t.contains("protein")
-                                            || t.contains("anatomy")
-                                    });
-
-                                    if backend_name == "pattern" && !supports_structured {
-                                        " (pattern: no structured entities)"
-                                    } else if backend_name == "heuristic" && !supports_named {
-                                        " (heuristic: no PER/ORG/LOC)"
-                                    } else if backend_name == "stacked"
-                                        && !supports_structured
-                                        && !supports_named
-                                    {
-                                        if supports_biomedical {
-                                            " (stacked: biomedical not supported)"
-                                        } else {
-                                            " (stacked: incompatible types)"
-                                        }
-                                    } else {
-                                        ""
-                                    }
-                                } else if result.num_examples == 0 {
-                                    " (N=0: no data)"
-                                } else {
-                                    ""
-                                }
-                            } else {
-                                ""
+                            let percentage = |key: &str| {
+                                result
+                                    .metrics
+                                    .get(key)
+                                    .filter(|v| v.is_finite())
+                                    .map_or_else(|| "-".into(), |v| format!("{:.1}", v * 100.0))
                             };
-
                             md.push_str(&format!(
-                                "| {:?} | {} | {:.1} | {:.1} | {:.1} | {} | {} |{}\n",
+                                "| {:?} | {} | {} | {} | {} | {} | {} |\n",
                                 result.dataset,
                                 result.backend,
-                                f1,
-                                p,
-                                r,
+                                percentage("f1"),
+                                percentage("precision"),
+                                percentage("recall"),
                                 result.num_examples,
                                 time_str,
-                                note
                             ));
 
                             // Add stratified metrics section if available
@@ -4245,39 +4169,45 @@ impl ComprehensiveEvalResults {
         }
 
         // Backend summary (compact)
-        let mut backend_stats: HashMap<String, (usize, usize, usize, f64)> = HashMap::new();
+        #[derive(Default)]
+        struct BackendSummary {
+            successful: usize,
+            skipped: usize,
+            failed: usize,
+            scored: usize,
+            total_f1: f64,
+        }
+        let mut backend_stats: HashMap<&str, BackendSummary> = HashMap::new();
         for result in &self.results {
-            let entry = backend_stats
-                .entry(result.backend.clone())
-                .or_insert((0, 0, 0, 0.0));
+            let entry = backend_stats.entry(&result.backend).or_default();
             if result.success {
-                entry.0 += 1;
-                if let Some(f1) = result.primary_f1() {
-                    entry.3 += f1;
+                entry.successful += 1;
+                if let Some(f1) = result.measured_primary_f1() {
+                    entry.total_f1 += f1;
+                    entry.scored += 1;
                 }
             } else if result.is_skipped() {
-                entry.1 += 1;
+                entry.skipped += 1;
             } else {
-                entry.2 += 1;
+                entry.failed += 1;
             }
         }
 
         if !backend_stats.is_empty() {
             md.push_str("## Backend Summary\n\n");
-            md.push_str("| Backend | ✓ | ⊘ | ✗ | Avg F1 |\n");
-            md.push_str("|---------|---|---|---|--------|\n");
-            let mut backends: Vec<_> = backend_stats.iter().collect();
-            backends.sort_by_key(|(_, (success, _, _, _))| *success);
-            backends.reverse();
-            for (backend, (success, skipped, failed, total_f1)) in backends {
-                let avg_f1 = if *success > 0 {
-                    total_f1 / *success as f64 * 100.0
+            md.push_str("| Backend | ✓ | ⊘ | ✗ | Avg F1 | Scored |\n");
+            md.push_str("|---------|---|---|---|--------|--------|\n");
+            let mut backends: Vec<_> = backend_stats.into_iter().collect();
+            backends.sort_by_key(|(name, stats)| (std::cmp::Reverse(stats.successful), *name));
+            for (backend, stats) in backends {
+                let avg_f1 = if stats.scored > 0 {
+                    format!("{:.1}", 100.0 * stats.total_f1 / stats.scored as f64)
                 } else {
-                    0.0
+                    "-".into()
                 };
                 md.push_str(&format!(
-                    "| {} | {} | {} | {} | {:.1} |\n",
-                    backend, success, skipped, failed, avg_f1
+                    "| {} | {} | {} | {} | {} | {} |\n",
+                    backend, stats.successful, stats.skipped, stats.failed, avg_f1, stats.scored
                 ));
             }
             md.push('\n');
@@ -5600,6 +5530,69 @@ mod tests {
         legacy["error"] = "Feature not available".into();
         let decoded: TaskEvalResult = serde_json::from_value(legacy).unwrap();
         assert!(decoded.is_skipped());
+    }
+
+    #[test]
+    fn historical_receipts_keep_skip_reasons_and_scoring_denominators() {
+        let fixtures = [
+            include_str!("../../fixtures/receipt-compat/v0.json"),
+            include_str!("../../fixtures/receipt-compat/v1.json"),
+            include_str!("../../fixtures/receipt-compat/v2.json"),
+        ];
+        #[derive(Deserialize)]
+        struct Case {
+            name: String,
+            version: usize,
+            outcome: String,
+            scored: Option<bool>,
+            replace: HashMap<String, serde_json::Value>,
+        }
+        let cases: Vec<Case> =
+            serde_json::from_str(include_str!("../../fixtures/receipt-compat/cases.json")).unwrap();
+        let mut results = Vec::new();
+        for case in cases {
+            let mut raw: serde_json::Value = serde_json::from_str(fixtures[case.version]).unwrap();
+            for (pointer, value) in case.replace {
+                *raw.pointer_mut(&pointer).unwrap() = value;
+            }
+            let row: TaskEvalResult = serde_json::from_value(raw).unwrap();
+            let outcome = match (row.success, row.skip_reason()) {
+                (true, _) => "success",
+                (false, Some(reason)) => reason.code(),
+                (false, None) => "failed",
+            };
+            assert_eq!(outcome, case.outcome, "{}", case.name);
+            assert_eq!(
+                row.is_skipped(),
+                row.skip_reason().is_some(),
+                "{}",
+                case.name
+            );
+            assert_eq!(
+                row.measured_primary_f1().is_some(),
+                case.scored.unwrap_or(case.outcome == "success"),
+                "{}",
+                case.name
+            );
+            results.push(row);
+        }
+        let report = ComprehensiveEvalResults {
+            results,
+            summary: EvalSummary {
+                total_combinations: 14,
+                successful: 5,
+                failed: 3,
+                skipped: 6,
+                tasks: vec![Task::NER],
+                datasets: vec![DatasetId::WikiGold],
+                backends: vec!["heuristic".into(), "stacked".into()],
+            },
+        }
+        .to_markdown();
+        assert!(report.contains("| heuristic | 5 | 4 | 2 | 29.2 | 4 |"));
+        assert!(report.contains("| stacked | 0 | 2 | 1 | - | 0 |"));
+        assert!(report.contains("| WikiGold | heuristic | 0.0 | - | - | 20 |"));
+        assert!(report.contains("| WikiGold | heuristic | - | - | - | 0 |"));
     }
 
     #[test]

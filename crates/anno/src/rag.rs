@@ -607,8 +607,24 @@ pub fn preprocess(
     model: &dyn crate::Model,
     config: Option<RagPreprocessConfig>,
 ) -> crate::Result<Vec<RagChunk>> {
+    preprocess_with_hints(text, model, config, &[])
+}
+
+/// Preprocess with preferred chunk ends, expressed as UTF-8 byte offsets in `text`.
+///
+/// An offset must fall on a character boundary in the exact input string. Order
+/// and duplicates do not matter. A hint can end a chunk early when the remaining
+/// text exceeds the size limit. Without a suitable hint, ordinary chunking applies.
+/// Returned chunk ranges are measured in characters.
+pub fn preprocess_with_hints(
+    text: &str,
+    model: &dyn crate::Model,
+    config: Option<RagPreprocessConfig>,
+    hints: &[usize],
+) -> crate::Result<Vec<RagChunk>> {
     let config = config.unwrap_or_default();
-    let chunks = crate::backends::chunking::chunk_text(text, &config.chunk_config);
+    let chunks =
+        crate::backends::chunking::chunk_text_with_hints(text, &config.chunk_config, hints)?;
 
     let mut result = Vec::with_capacity(chunks.len());
     for chunk in &chunks {
@@ -767,6 +783,49 @@ fn is_pronoun_for_language(text: &str, lang: Language) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preprocess_reuses_upstream_breakpoints_with_defaultable_options() {
+        let text = "alpha beta gamma delta";
+        let model = crate::backends::regex::RegexNER;
+        let config = RagPreprocessConfig {
+            chunk_config: crate::backends::chunking::ChunkConfig {
+                chunk_size: 12,
+                overlap: 2,
+                respect_sentences: false,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let chunks = preprocess_with_hints(text, &model, Some(config), &[6]).unwrap();
+        assert_eq!(chunks[0].original_text, "alpha ");
+        assert_eq!(chunks[0].char_start, 0);
+        assert_eq!(chunks[0].char_end, 6);
+        assert_eq!(chunks[1].char_start, 4);
+        for chunk in chunks {
+            assert_eq!(
+                chunk.original_text,
+                text.chars()
+                    .skip(chunk.char_start)
+                    .take(chunk.char_end - chunk.char_start)
+                    .collect::<String>()
+            );
+        }
+    }
+
+    #[test]
+    fn preprocess_rejects_invalid_breakpoint_bytes() {
+        let config = RagPreprocessConfig {
+            ..Default::default()
+        };
+        assert!(preprocess_with_hints(
+            "Éva",
+            &crate::backends::regex::RegexNER,
+            Some(config),
+            &[1]
+        )
+        .is_err());
+    }
 
     #[test]
     fn test_empty_entities() {

@@ -6,6 +6,7 @@ import contextlib
 import copy
 import importlib.util
 import io
+import json
 import math
 import os
 import stat
@@ -98,6 +99,48 @@ class ValidateSuiteTests(unittest.TestCase):
         artifact = self.valid()
         artifact["results"][0] = result("heuristic", success=False, error="incompatible: labels")
         self.assertEqual(2, len(panel.validate_suite(suite, artifact)))
+
+    def test_archived_receipt_outcomes(self) -> None:
+        directory = MODULE_PATH.parents[2] / "crates/anno-eval/fixtures/receipt-compat"
+        for case in json.loads((directory / "cases.json").read_text()):
+            with self.subTest(case=case["name"]):
+                row = json.loads((directory / f"v{case['version']}.json").read_text())
+                for pointer, value in case["replace"].items():
+                    fields = pointer.strip("/").split("/")
+                    target = row
+                    for field in fields[:-1]:
+                        target = target[field]
+                    target[fields[-1]] = value
+                cell = panel.Cell.from_result(row)
+                self.assertEqual(panel.receipt_outcome(row, cell), case["outcome"])
+
+                # Panel admission also requires cached, current provenance for successes.
+                # These original successes were measured with cached_only=false.
+                suite = {**SUITE, "backends": [cell.backend], "allowed_incompatibilities": [
+                    {"task": cell.task, "dataset": cell.dataset, "backend": cell.backend},
+                ]}
+                if case["outcome"] == "success":
+                    suite["allowed_incompatibilities"] = []
+                if case.get("panel_success"):
+                    rendered = panel.validate_suite(suite, {"results": [row]})
+                    self.assertEqual(rendered[0]["metrics"]["f1"], 0.0)
+                    self.assertIn("0.0000", panel.render_markdown(rendered))
+                elif case["outcome"] == "incompatible_entity_types":
+                    rendered = panel.validate_suite(suite, {"results": [row]})
+                    self.assertEqual(rendered[0]["outcome"], "declared-incompatible")
+                    self.assertEqual(rendered[0]["metrics"], {})
+                    self.assertTrue(panel.render_markdown(rendered).splitlines()[-1].endswith(" |  |"))
+                else:
+                    with self.assertRaises(panel.ContractError):
+                        panel.validate_suite(suite, {"results": [row]})
+
+    def test_invalid_provenance_version_is_not_a_legacy_receipt(self) -> None:
+        row = result("heuristic", success=False, error="incompatible: labels")
+        cell = panel.Cell.from_result(row)
+        for provenance in ({}, None, {"schema_version": None}, {"schema_version": True},
+                           {"schema_version": -1}, {"schema_version": 2**32}):
+            with self.subTest(provenance=provenance), self.assertRaises(panel.ContractError):
+                panel.receipt_outcome({**row, "provenance": provenance}, cell)
 
     def test_current_incompatibility_uses_typed_scheduling(self) -> None:
         suite = copy.deepcopy(SUITE)

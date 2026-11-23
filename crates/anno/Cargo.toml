@@ -13,6 +13,7 @@ keywords = ["ner", "nlp", "extraction", "coreference", "pii"]
 categories = ["text-processing", "artificial-intelligence"]
 include = [
   "/src/**/*.rs",
+  "/examples/fcoref_word_spans.rs",
   # bundled-hmm-params / bundled-crf-weights include_str! these; an .rs-only
   # whitelist shipped 0.10.0 without them, breaking those features on crates.io
   "/src/backends/hmm_params.json",
@@ -195,3 +196,8 @@ features = [
   "parallel",
 ]
 rustdoc-args = ["--cfg", "docsrs"]
+
+[[example]]
+name = "fcoref_word_spans"
+test = true
+required-features = ["onnx"]

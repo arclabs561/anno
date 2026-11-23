@@ -177,7 +177,7 @@ impl ScorerWeights {
 /// * `hidden` - Encoder hidden states [seq_len, hidden_size]
 /// * `weights` - Scorer weights
 /// * `max_span_length` - Maximum span width
-/// * `top_lambda` - Fraction of sequence to keep as mentions
+/// * `max_candidates` - Maximum number of spans to pass to antecedent scoring
 ///
 /// # Returns
 ///
@@ -186,7 +186,7 @@ pub(crate) fn score_mentions(
     hidden: &Array2<f32>,
     weights: &ScorerWeights,
     max_span_length: usize,
-    top_lambda: f32,
+    max_candidates: usize,
 ) -> MentionScoringResult {
     let seq_len = hidden.nrows();
 
@@ -222,9 +222,8 @@ pub(crate) fn score_mentions(
     }
 
     // Top-k selection
-    let k = ((seq_len as f32 * top_lambda).ceil() as usize).max(1);
     candidates.sort_by(|a, b| b.2.total_cmp(&a.2));
-    candidates.truncate(k);
+    candidates.truncate(max_candidates);
     // Re-sort by position for deterministic ordering
     candidates.sort_by_key(|&(start, end, _)| (start, end));
 
