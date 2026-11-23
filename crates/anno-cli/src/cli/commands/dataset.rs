@@ -1707,18 +1707,8 @@ fn coref_doc_to_oracle_mentions(doc: &anno_eval::eval::coref::CorefDocument) -> 
     let mut entities: Vec<Entity> = Vec::new();
 
     for chain in &doc.chains {
-        let label = chain
-            .entity_type
-            .as_deref()
-            .or_else(|| {
-                chain
-                    .mentions
-                    .first()
-                    .and_then(|m| m.entity_type.as_deref())
-            })
-            .unwrap_or("COREF");
-
         for m in &chain.mentions {
+            let label = m.entity_type.as_deref().unwrap_or("COREF");
             let e = Entity::new(
                 m.text.clone(),
                 EntityType::custom(label, EntityCategory::Misc),
@@ -3805,4 +3795,42 @@ fn run_facets(touched_report: Option<&str>, gaps: bool) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(all(test, feature = "eval"))]
+mod oracle_mention_tests {
+    use super::coref_doc_to_oracle_mentions;
+    use anno_eval::eval::{CorefChain, CorefDocument, Mention};
+
+    #[test]
+    fn oracle_input_is_independent_of_gold_cluster_membership() {
+        let mut ada = Mention::new("Ada", 0, 3);
+        ada.entity_type = Some("person".into());
+        let bob = Mention::new("Bob", 8, 11);
+        let she = Mention::new("she", 16, 19);
+        let project = |chains: Vec<CorefChain>| {
+            let doc = CorefDocument::new("Ada met Bob and she left", chains);
+            coref_doc_to_oracle_mentions(&doc)
+                .into_iter()
+                .map(|e| (e.start(), e.end(), e.entity_type.as_label().to_string()))
+                .collect::<Vec<_>>()
+        };
+        let first = project(vec![
+            CorefChain::new(vec![ada.clone(), she.clone()]),
+            CorefChain::singleton(bob.clone()),
+        ]);
+        let second = project(vec![
+            CorefChain::new(vec![bob, she]),
+            CorefChain::singleton(ada),
+        ]);
+        assert_eq!(first, second);
+        assert_eq!(
+            first,
+            [
+                (0, 3, "person".into()),
+                (8, 11, "COREF".into()),
+                (16, 19, "COREF".into())
+            ]
+        );
+    }
 }
