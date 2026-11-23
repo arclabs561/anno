@@ -493,17 +493,18 @@ pub fn get_dataset_tasks(dataset: DatasetId) -> Vec<Task> {
     dataset_tasks(dataset)
 }
 
-/// Get all datasets suitable for a task.
-pub fn get_task_datasets(task: Task) -> Vec<DatasetId> {
-    // Defensive: keep the curated task→datasets list, but only return datasets that
-    // *actually* declare support for the task in the registry metadata.
-    //
-    // This prevents the benchmark/matrix from turning red due to mapping drift
-    // (e.g., dataset listed for a task but missing `tasks: [...]` in the registry).
+/// Curated datasets whose registry metadata declares the task, including unscorable sources.
+pub(crate) fn catalogued_task_datasets(task: Task) -> impl Iterator<Item = DatasetId> {
     task_datasets(task)
         .iter()
         .copied()
-        .filter(|d| dataset_tasks(*d).contains(&task))
+        .filter(move |d| dataset_tasks(*d).contains(&task))
+}
+
+/// Get datasets suitable for evaluation of this task.
+pub fn get_task_datasets(task: Task) -> Vec<DatasetId> {
+    catalogued_task_datasets(task)
+        .filter(|d| task != Task::RelationExtraction || d.relation_span_limitation().is_none())
         .collect()
 }
 

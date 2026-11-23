@@ -1080,24 +1080,37 @@ impl TaskEvaluator {
 
                 // Further filter by dataset-level compatibility (entity types, etc.).
                 // Track incompatible backends for better error reporting.
+                let span_limitation = match task {
+                    Task::RelationExtraction => dataset.relation_span_limitation(),
+                    _ => None,
+                };
                 let (compatible_backends, incompatible_backends): (Vec<String>, Vec<String>) =
-                    backends
-                        .into_iter()
-                        .partition(|b| Self::is_backend_compatible(b, *dataset));
+                    backends.into_iter().partition(|b| {
+                        span_limitation.is_none() && Self::is_backend_compatible(b, *dataset)
+                    });
 
                 // Add incompatible backends as results with clear error message
                 for backend_name in &incompatible_backends {
                     if !backends_tested.contains(backend_name) {
                         backends_tested.push(backend_name.clone());
                     }
+                    let (skip_reason, detail) = match span_limitation {
+                        Some(reason) => (EvalSkipReason::CapabilityUnavailable, reason.to_string()),
+                        None => (
+                            EvalSkipReason::IncompatibleEntityTypes,
+                            format!(
+                            "incompatible: backend '{}' doesn't support dataset entity types: {:?}",
+                            backend_name, dataset.entity_types()
+                        ),
+                        ),
+                    };
                     let provenance = self.unavailable_dataset_provenance(
                         *task,
                         *dataset,
                         backend_name,
                         &config,
-                        EvalSkipReason::IncompatibleEntityTypes.code(),
+                        skip_reason.code(),
                     );
-                    let dataset_entity_types = dataset.entity_types();
                     results.push(TaskEvalResult {
                         task: *task,
                         dataset: *dataset,
@@ -1105,10 +1118,7 @@ impl TaskEvaluator {
                         backend_display: None,
                         seed,
                         success: false,
-                        error: Some(format!(
-                            "incompatible: backend '{}' doesn't support dataset entity types: {:?}",
-                            backend_name, dataset_entity_types
-                        )),
+                        error: Some(detail),
                         metrics: HashMap::new(),
                         num_examples: 0,
                         duration_ms: None,
@@ -4530,6 +4540,30 @@ mod tests {
             temporal_metadata: None,
             metadata: DatasetMetadata::default(),
         }
+    }
+
+    #[test]
+    fn explicitly_requested_googlere_span_scoring_is_skipped_before_loading() {
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        let report = evaluator
+            .evaluate_all(TaskEvalConfig {
+                datasets: vec![DatasetId::GoogleRE],
+                tasks: vec![Task::RelationExtraction],
+                backends: vec!["tplinker".into()],
+                require_cached: true,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(report.results.len(), 1);
+        let row = &report.results[0];
+        assert!(row.is_skipped());
+        assert!(row
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("without gold subject/object character spans"));
+        assert_eq!(row.num_examples, 0);
     }
 
     #[cfg(feature = "eval-parallel")]
