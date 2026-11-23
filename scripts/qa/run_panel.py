@@ -246,7 +246,7 @@ def render_markdown(rows: Iterable[dict[str, Any]]) -> str:
     if any(row["task"] == "IntraDocCoref" for row in rows):
         lines.extend([
             "",
-            "Coreference uses conll_f1. GAP annotations are partial and CEAF alignment is approximate; "
+            "Coreference uses conll_f1 with exact-span mention matching. GAP provides partial annotations; "
             "these diagnostic scores are not official benchmark results.",
         ])
     return "\n".join(lines) + "\n"

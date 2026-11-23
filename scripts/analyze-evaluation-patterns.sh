@@ -24,6 +24,15 @@ EVAL_TASK_RS="crates/anno-eval/src/eval/task_evaluator.rs"
 EVAL_DIR="crates/anno-eval/src/eval/"
 METRICS_RS="crates/anno-eval/src/eval/metrics.rs"
 
+# An unmatched expression is an observation. An unavailable input is an error.
+[[ -r "$EVAL_TASK_RS" && -r "$METRICS_RS" ]] || { echo "Missing evaluation source" >&2; exit 1; }
+rg --version >/dev/null
+count_matches() {
+    local rc=0
+    rg -c -- "$1" "$2" || rc=$?
+    if (( rc == 1 )); then echo 0; elif (( rc > 1 )); then return "$rc"; fi
+}
+
 if rg -q "for.*in.*\{.*BackendFactory::create" --type rust "$EVAL_TASK_RS" 2>/dev/null; then
     echo "WARNING: **Backend Recreation in Loops**" >> "$ANALYSIS_FILE"
     echo "Found backend creation inside loops. This is inefficient." >> "$ANALYSIS_FILE"
@@ -38,7 +47,7 @@ echo "" >> "$ANALYSIS_FILE"
 echo "### Per-Example Score Caching" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
 if rg -q "per_example_scores_cache" --type rust "$EVAL_TASK_RS" 2>/dev/null; then
-    CACHE_USES=$(rg -c "per_example_scores_cache" --type rust "$EVAL_TASK_RS" 2>/dev/null || echo "0")
+    CACHE_USES=$(count_matches "per_example_scores_cache" "$EVAL_TASK_RS")
     echo "OK: Per-example score caching implemented ($CACHE_USES uses)" >> "$ANALYSIS_FILE"
 else
     echo "WARNING: No per-example score caching found" >> "$ANALYSIS_FILE"
@@ -88,9 +97,9 @@ echo "" >> "$ANALYSIS_FILE"
 # 6. Check for metric computation patterns
 echo "### Metric Computation Patterns" >> "$ANALYSIS_FILE"
 echo "" >> "$ANALYSIS_FILE"
-F1_CALCS=$(rg -c "f1.*=.*2.*\*|2.*\*.*precision.*recall" --type rust "$METRICS_RS" 2>/dev/null || echo "0")
+F1_CALCS=$(count_matches "f1.*=.*2.*\*|2.*\*.*precision.*recall" "$METRICS_RS")
 if [ "$F1_CALCS" -gt 0 ]; then
-    ZERO_CHECKS=$(rg -c "if.*==.*0|if.*\+.*==.*0" --type rust "$METRICS_RS" 2>/dev/null || echo "0")
+    ZERO_CHECKS=$(count_matches "if.*==.*0|if.*\+.*==.*0" "$METRICS_RS")
     if [ "$ZERO_CHECKS" -lt "$F1_CALCS" ]; then
         echo "WARNING: Some F1 calculations may lack zero-checks" >> "$ANALYSIS_FILE"
     else

@@ -769,96 +769,21 @@ impl StackedNER {
                             }
                         }
                     }
+                    _ if self.strategy == ConflictStrategy::Union => entities.push(candidate),
                     _ => {
-                        // Multiple overlaps - need to handle carefully
-                        // Strategy: resolve with the "best" existing entity based on strategy,
-                        // then check if candidate should replace it
-                        let best_idx = overlapping_indices
-                            .iter()
-                            .max_by(|&&a, &&b| {
-                                // Find the "best" existing entity to compare against
-                                match self.strategy {
-                                    ConflictStrategy::Priority => {
-                                        // Earlier in list = higher priority
-                                        a.cmp(&b).reverse()
-                                    }
-                                    ConflictStrategy::LongestSpan => {
-                                        let len_a = entities[a].end() - entities[a].start();
-                                        let len_b = entities[b].end() - entities[b].start();
-                                        len_a.cmp(&len_b).then_with(|| b.cmp(&a))
-                                    }
-                                    ConflictStrategy::HighestConf => entities[a]
-                                        .confidence
-                                        .total_cmp(&entities[b].confidence)
-                                        .then_with(|| b.cmp(&a)),
-                                    ConflictStrategy::Union => {
-                                        // For union, we'll keep all, so just pick first
-                                        a.cmp(&b)
-                                    }
-                                }
-                            })
-                            .copied()
-                            .unwrap_or(overlapping_indices[0]);
-
-                        match self.strategy {
-                            ConflictStrategy::Union => {
-                                // Keep candidate and all existing overlapping entities
-                                entities.push(candidate);
+                        // Replacing only some incumbents would leave a conflicting span.
+                        // Decide before mutating so a rejected candidate removes nothing.
+                        if overlapping_indices.iter().all(|&idx| {
+                            matches!(
+                                self.strategy.resolve(&entities[idx], &candidate),
+                                Resolution::Replace
+                            )
+                        }) {
+                            let first = overlapping_indices[0];
+                            for &idx in overlapping_indices[1..].iter().rev() {
+                                entities.remove(idx);
                             }
-                            _ => {
-                                // Resolve with best existing entity
-                                match self.strategy.resolve(&entities[best_idx], &candidate) {
-                                    Resolution::KeepExisting => {
-                                        // Remove other overlapping entities (they're subsumed)
-                                        // Sort indices descending to remove from end
-                                        let mut to_remove: Vec<usize> = overlapping_indices
-                                            .into_iter()
-                                            .filter(|&idx| idx != best_idx)
-                                            .collect();
-                                        // Performance: Use unstable sort (we don't need stable sort here)
-                                        to_remove.sort_unstable_by(|a, b| b.cmp(a));
-                                        for idx in to_remove {
-                                            entities.remove(idx);
-                                        }
-                                    }
-                                    Resolution::Replace => {
-                                        // Replace best and remove others
-                                        let mut to_remove: Vec<usize> = overlapping_indices
-                                            .into_iter()
-                                            .filter(|&idx| idx != best_idx)
-                                            .collect();
-                                        // Performance: Use unstable sort (we don't need stable sort here)
-                                        to_remove.sort_unstable_by(|a, b| b.cmp(a));
-
-                                        // Adjust best_idx based on how many entities we remove before it
-                                        let removed_before_best =
-                                            to_remove.iter().filter(|&&idx| idx < best_idx).count();
-                                        let adjusted_best_idx = best_idx - removed_before_best;
-
-                                        // Remove entities (in descending order to preserve indices)
-                                        for idx in to_remove {
-                                            entities.remove(idx);
-                                        }
-
-                                        // Now use adjusted index
-                                        entities[adjusted_best_idx] = candidate;
-                                    }
-                                    Resolution::KeepBoth => {
-                                        // Remove others, keep best and candidate
-                                        let mut to_remove: Vec<usize> = overlapping_indices
-                                            .into_iter()
-                                            .filter(|&idx| idx != best_idx)
-                                            .collect();
-                                        // Performance: Use unstable sort (we don't need stable sort here)
-                                        to_remove.sort_unstable_by(|a, b| b.cmp(a));
-                                        // Remove entities (best_idx remains valid since we don't remove it)
-                                        for idx in to_remove {
-                                            entities.remove(idx);
-                                        }
-                                        entities.push(candidate);
-                                    }
-                                }
-                            }
+                            entities[first] = candidate;
                         }
                     }
                 }

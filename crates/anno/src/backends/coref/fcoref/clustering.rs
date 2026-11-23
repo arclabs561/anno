@@ -122,12 +122,17 @@ pub(crate) fn build_clusters(mentions: &[MentionSpan], antecedents: &[usize]) ->
         })
         .collect();
 
-    clusters.sort_by_key(|c| c.spans.first().map(|s| s.0).unwrap_or(0));
-    // Re-assign IDs after sorting
+    assign_cluster_ids(&mut clusters);
+    clusters
+}
+
+fn assign_cluster_ids(clusters: &mut [CorefCluster]) {
+    // Nested mentions can share a start offset. Compare the full span sequences
+    // so HashMap iteration order never decides which cluster receives an ID.
+    clusters.sort_by(|a, b| a.spans.cmp(&b.spans));
     for (i, c) in clusters.iter_mut().enumerate() {
         c.id = i as u32;
     }
-    clusters
 }
 
 #[cfg(test)]
@@ -186,6 +191,24 @@ mod tests {
         assert!(clusters[0].mentions.contains(&"John".to_string()));
         assert!(clusters[0].mentions.contains(&"He".to_string()));
         assert_eq!(clusters[0].canonical, "John");
+    }
+
+    #[test]
+    fn nested_first_spans_get_ids_in_document_order() {
+        let cluster = |spans: Vec<(usize, usize)>| CorefCluster {
+            id: 0,
+            mentions: Vec::new(),
+            spans,
+            canonical: String::new(),
+        };
+        // HashMap iteration can supply the longer first mention first.
+        let mut clusters = [
+            cluster(vec![(7, 21), (35, 39)]),
+            cluster(vec![(7, 12), (42, 44)]),
+        ];
+        assign_cluster_ids(&mut clusters);
+        assert_eq!((clusters[0].id, clusters[0].spans[0]), (0, (7, 12)));
+        assert_eq!((clusters[1].id, clusters[1].spans[0]), (1, (7, 21)));
     }
 
     #[test]

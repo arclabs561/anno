@@ -17,7 +17,7 @@ between these packages must be updated together for a release.
 
 ## Publish command
 
-The publish workflow (`.github/workflows/publish.yml`) fires on `v*` tag push and on workflow_dispatch with `confirm=publish`. Authentication uses crates.io trusted publishing (OIDC), no API tokens.
+The publish workflow (`.github/workflows/publish.yml`) fires on `v*` tag push and on workflow_dispatch from `main` with `confirm=publish`. Authentication uses crates.io trusted publishing (OIDC), no API tokens.
 
 ```bash
 # Dispatch after pushing the release commit and verifying its CI:
