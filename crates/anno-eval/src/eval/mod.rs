@@ -525,7 +525,8 @@ pub use calibration::{
 
 #[cfg(feature = "eval")]
 pub use robustness::{
-    robustness_grade, Perturbation, PerturbationMetrics, RobustnessEvaluator, RobustnessResults,
+    robustness_grade, ChangedVariantEvidence, Perturbation, PerturbationMetrics,
+    RetentionAssessment, RobustnessEvaluator, RobustnessReport, RobustnessResults,
 };
 
 #[cfg(feature = "eval")]
