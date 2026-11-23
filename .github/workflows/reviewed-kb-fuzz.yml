@@ -1,0 +1,57 @@
+name: Reviewed catalog fuzzing
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/reviewed-kb-fuzz.yml'
+      - 'fuzz/**'
+      - 'crates/anno/src/core/grounded/**'
+      - 'crates/anno/src/coalesce/**'
+      - 'crates/anno/tests/reviewed_kb*.rs'
+      - 'crates/anno/tests/support/reviewed_kb*.rs'
+      - 'crates/anno/Cargo.toml'
+      - 'Cargo.toml'
+  schedule:
+    - cron: '35 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Reviewed assignment fuzz campaign
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de
+        with:
+          toolchain: nightly-2026-05-01
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
+        with:
+          workspaces: fuzz
+      - name: Install cargo-fuzz
+        run: cargo install --locked cargo-fuzz --version 0.13.2
+      - name: Resolve locked fuzz dependencies
+        run: cargo +nightly-2026-05-01 fetch --locked --manifest-path fuzz/Cargo.toml
+      - name: Exercise reviewed assignments
+        shell: bash
+        run: |
+          mkdir -p fuzz/corpus/reviewed_kb
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            budget=-runs=1000
+          else
+            budget=-max_total_time=300
+          fi
+          cargo +nightly-2026-05-01 fuzz run --dev --sanitizer address reviewed_kb \
+            fuzz/corpus/reviewed_kb fuzz/seeds/reviewed_kb -- "$budget" -max_len=48
+      - name: Save failing inputs and resolved dependencies
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: reviewed-kb-fuzz-reproducer
+          path: |
+            fuzz/artifacts/reviewed_kb/
+            fuzz/Cargo.lock

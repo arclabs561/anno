@@ -22,3 +22,10 @@ path = "fuzz_targets/pii.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "reviewed_kb"
+path = "fuzz_targets/reviewed_kb.rs"
+test = false
+doc = false
+bench = false
