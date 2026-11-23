@@ -39,6 +39,8 @@ respective tools. [Backend selection](BACKENDS.md) · [Constituency interchange]
 
 ## Grouping flat entities
 
+For reviewed catalog writes, `Corpus::preview_kb_assignment` identifies the track bindings in scope. `Corpus::apply_kb_assignment` checks the preview's owner and revision before applying it. [Executable verification contract](../verification/reviewed_kb/README.md)
+
 `GroundedDocument::from_entities` groups mentions with equal canonical IDs and
 gives each unassigned mention a singleton track. Track IDs are allocated in
 first-seen order. The first populated KB ID in each group becomes its link.

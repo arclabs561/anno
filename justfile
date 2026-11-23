@@ -102,6 +102,10 @@ test-all:
     cargo test --features "eval discourse"
     fi
 
+# Verify catalog assignment scope and stale-review protection (requires Z3).
+verify-reviewed-kb:
+    bash scripts/verification/check_reviewed_kb.sh
+
 # Quick single-test run with filter (e.g., just t test_name)
 # Uses nextest with minimal features to avoid full workspace scan
 t FILTER:
