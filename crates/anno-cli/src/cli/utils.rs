@@ -498,7 +498,12 @@ pub(super) fn append_coref_clusters(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
 ) -> Result<usize, String> {
-    let text_len = doc.text().chars().count();
+    if clusters.is_empty() {
+        return Ok(0);
+    }
+    let text = doc.text();
+    let offsets = anno::offset::SpanConverter::new(text);
+    let text_len = offsets.byte_to_char(text.len());
     for cluster in clusters {
         if cluster.spans.len() != cluster.mentions.len() {
             return Err(format!(
@@ -511,7 +516,12 @@ pub(super) fn append_coref_clusters(
         if cluster
             .spans
             .iter()
-            .any(|&(start, end)| start >= end || end > text_len)
+            .zip(&cluster.mentions)
+            .any(|(&(start, end), mention)| {
+                start >= end
+                    || end > text_len
+                    || text[offsets.char_to_byte(start)..offsets.char_to_byte(end)] != *mention
+            })
         {
             return Err(format!(
                 "coreference cluster {} has an invalid source span",
@@ -758,6 +768,26 @@ mod tests {
         assert!(doc.signals().is_empty());
         assert_eq!(doc.tracks().count(), 0);
         assert!(doc.coref_backend().is_none());
+    }
+
+    #[test]
+    fn in_bounds_coref_surface_must_match_its_source_before_attachment() {
+        use anno::backends::coref::resolve::CorefCluster;
+        let mut doc = anno::GroundedDocument::new("doc", "🦊 Ada Ada");
+        let valid = CorefCluster {
+            id: 1,
+            canonical: "Ada".into(),
+            mentions: vec!["Ada".into(), "Ada".into()],
+            spans: vec![(2, 5), (6, 9)],
+        };
+        let mut stale = valid.clone();
+        stale.id = 2;
+        stale.mentions[1] = "Eve".into();
+        assert!(super::append_coref_clusters(&mut doc, &[valid.clone(), stale]).is_err());
+        assert!(doc.signals().is_empty());
+        assert_eq!(doc.tracks().count(), 0);
+        assert_eq!(super::append_coref_clusters(&mut doc, &[valid]).unwrap(), 1);
+        assert!(doc.validate().is_empty());
     }
 
     use super::*;
