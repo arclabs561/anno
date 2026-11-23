@@ -10,6 +10,8 @@ on:
       - 'crates/anno/Cargo.toml'
       - 'crates/anno-cli/Cargo.toml'
       - 'crates/anno/src/backends/coref/fcoref/**'
+      - 'crates/anno/tests/fcoref_word_budget.rs'
+      - 'crates/anno/tests/fixtures/fcoref_word_budget.json'
       - 'crates/anno/src/core/grounded/**'
       - 'crates/anno-cli/src/cli/commands/pipeline.rs'
       - 'crates/anno-cli/src/cli/utils.rs'
@@ -66,6 +68,13 @@ jobs:
         env:
           ANNO_NO_DOWNLOADS: '1'
         run: cargo test --locked -p anno --no-default-features --features onnx --lib fcoref -- --ignored --test-threads=1
+      - name: Check word-aligned mention scores against the pinned reference
+        env:
+          ANNO_NO_DOWNLOADS: '1'
+          FCOREF_MODEL_DIR: ${{ env.FCOREF_MODEL_PATH }}
+        run: >-
+          cargo test --locked -p anno --no-default-features --features onnx
+          --test fcoref_word_budget -- --ignored
       - name: Check neural and fallback output through the CLI
         env:
           ANNO_NO_DOWNLOADS: '1'
