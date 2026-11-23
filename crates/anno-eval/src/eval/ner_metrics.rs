@@ -44,9 +44,10 @@
 //! - OntoNotes Errors (2024): <https://arxiv.org/abs/2406.19172>
 //! - TMR - Tough Mentions Recall (2021): <https://arxiv.org/abs/2103.12312>
 
-use anno::{Entity, EntityType};
+use anno::{Entity, EntityType, SpanCoverage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::Range;
 
 /// A gold or predicted entity span for evaluation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -90,12 +91,10 @@ impl EvalSpan {
     pub fn type_match(&self, other: &Self) -> bool {
         super::entity_type_matches(&self.entity_type, &other.entity_type)
     }
-
-    fn type_key(&self) -> String {
-        format!("{:?}", EntityType::from_label(self.entity_type.as_label()))
-    }
 }
 
+/// Projects an entity onto its bounding interval. Use [`evaluate_entities`] for
+/// entities that may contain discontinuous mentions.
 impl From<&Entity> for EvalSpan {
     fn from(entity: &Entity) -> Self {
         Self {
@@ -104,6 +103,21 @@ impl From<&Entity> for EvalSpan {
             end: entity.end(),
             text: entity.text.clone(),
         }
+    }
+}
+
+struct ScoringSpan<'a> {
+    entity_type: &'a EntityType,
+    coverage: SpanCoverage<'a>,
+}
+
+impl ScoringSpan<'_> {
+    fn ranges(&self) -> &[Range<usize>] {
+        self.coverage.ranges()
+    }
+
+    fn type_key(&self) -> String {
+        format!("{:?}", EntityType::from_label(self.entity_type.as_label()))
     }
 }
 
@@ -349,6 +363,19 @@ pub struct NerEvalSummary {
 /// ```
 #[must_use]
 pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults {
+    fn views(spans: &[EvalSpan]) -> Vec<ScoringSpan<'_>> {
+        spans
+            .iter()
+            .map(|s| ScoringSpan {
+                entity_type: &s.entity_type,
+                coverage: SpanCoverage::Contiguous(s.start..s.end),
+            })
+            .collect()
+    }
+    score_spans(&views(gold), &views(predicted))
+}
+
+fn score_spans(gold: &[ScoringSpan<'_>], predicted: &[ScoringSpan<'_>]) -> NerEvalResults {
     let mut results = NerEvalResults::new();
 
     // Track which predictions have been matched
@@ -356,9 +383,29 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
 
     // Stable span order also fixes which equally good assignment is frozen
     // before the next priority is considered.
-    fn canonical_order(spans: &[EvalSpan]) -> Vec<usize> {
+    fn canonical_order(spans: &[ScoringSpan<'_>]) -> Vec<usize> {
         let mut indices: Vec<_> = (0..spans.len()).collect();
-        indices.sort_by_cached_key(|&i| (spans[i].start, spans[i].end, spans[i].type_key()));
+        let keys: Vec<_> = spans
+            .iter()
+            .map(|span| {
+                let ranges = span.ranges();
+                (
+                    ranges.first().map(|r| r.start),
+                    ranges.last().map(|r| r.end),
+                    span.type_key(),
+                )
+            })
+            .collect();
+        indices.sort_by(|&i, &j| {
+            keys[i].cmp(&keys[j]).then_with(|| {
+                let boundaries = |r: &Range<usize>| (r.start, r.end);
+                spans[i]
+                    .ranges()
+                    .iter()
+                    .map(boundaries)
+                    .cmp(spans[j].ranges().iter().map(boundaries))
+            })
+        });
         indices
     }
     let gold_order = canonical_order(gold);
@@ -411,7 +458,7 @@ pub fn evaluate_ner(gold: &[EvalSpan], predicted: &[EvalSpan]) -> NerEvalResults
                         .or_default()
                         .spurious += 1;
                 }
-                update_counts(&mut results, gold_span, pred_span, match_type);
+                update_counts(&mut results, match_type);
             }
             None => {
                 // Missing: gold entity not found
@@ -460,33 +507,39 @@ enum MatchType {
 }
 
 /// Classify the match type between gold and predicted spans.
-fn classify_match(gold: &EvalSpan, pred: &EvalSpan) -> MatchType {
-    let exact_boundary = gold.exact_boundary_match(pred);
-    let has_overlap = gold.has_overlap(pred);
-    let type_match = gold.type_match(pred);
-
-    if exact_boundary && type_match {
-        MatchType::ExactBoth
-    } else if exact_boundary && !type_match {
-        MatchType::ExactBoundaryWrongType
-    } else if has_overlap && type_match {
-        MatchType::PartialBoundaryCorrectType
-    } else if has_overlap && !type_match {
-        MatchType::PartialBoundaryWrongType
-    } else {
-        MatchType::None
+fn classify_match(gold: &ScoringSpan<'_>, pred: &ScoringSpan<'_>) -> MatchType {
+    let (gold_ranges, pred_ranges) = (gold.ranges(), pred.ranges());
+    if gold_ranges.is_empty() || pred_ranges.is_empty() {
+        return MatchType::None;
     }
+    let same_type = super::entity_type_matches(gold.entity_type, pred.entity_type);
+    if gold_ranges == pred_ranges {
+        return if same_type {
+            MatchType::ExactBoth
+        } else {
+            MatchType::ExactBoundaryWrongType
+        };
+    }
+    if gold.coverage.overlaps(&pred.coverage) {
+        return if same_type {
+            MatchType::PartialBoundaryCorrectType
+        } else {
+            MatchType::PartialBoundaryWrongType
+        };
+    }
+    MatchType::None
 }
 
 /// Update counts based on match type.
-fn update_counts(
-    results: &mut NerEvalResults,
-    gold: &EvalSpan,
-    pred: &EvalSpan,
-    match_type: MatchType,
-) {
-    let exact_boundary = gold.exact_boundary_match(pred);
-    let type_match = gold.type_match(pred);
+fn update_counts(results: &mut NerEvalResults, match_type: MatchType) {
+    let exact_boundary = matches!(
+        match_type,
+        MatchType::ExactBoth | MatchType::ExactBoundaryWrongType
+    );
+    let type_match = matches!(
+        match_type,
+        MatchType::ExactBoth | MatchType::PartialBoundaryCorrectType
+    );
 
     // Strict: both boundary and type must be exact
     if exact_boundary && type_match {
@@ -516,24 +569,97 @@ fn update_counts(
     }
 
     // Type: overlap required + type must match
-    if type_match && (exact_boundary || gold.has_overlap(pred)) {
+    if type_match {
         results.ent_type.correct += 1;
     } else {
         results.ent_type.incorrect += 1;
     }
 }
 
-/// Convenience function to evaluate Entity slices directly.
+/// Evaluate entity mentions directly, retaining every covered segment.
+/// Exact matching requires identical covered ranges. Partial and type matching
+/// require at least one covered position in common.
 #[must_use]
 pub fn evaluate_entities(gold: &[Entity], predicted: &[Entity]) -> NerEvalResults {
-    let gold_spans: Vec<EvalSpan> = gold.iter().map(EvalSpan::from).collect();
-    let pred_spans: Vec<EvalSpan> = predicted.iter().map(EvalSpan::from).collect();
-    evaluate_ner(&gold_spans, &pred_spans)
+    fn views(entities: &[Entity]) -> Vec<ScoringSpan<'_>> {
+        entities
+            .iter()
+            .map(|e| ScoringSpan {
+                entity_type: &e.entity_type,
+                coverage: e.coverage(),
+            })
+            .collect()
+    }
+    score_spans(&views(gold), &views(predicted))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn four_character_support_agrees_with_a_bitset_oracle_in_all_schemas() {
+        let text = "Aé🦊B";
+        let mention = |mask: u8, label: EntityType, store_segments: bool| -> Vec<Entity> {
+            if mask == 0 {
+                return vec![];
+            }
+            let covered: Vec<_> = (0..4).filter(|i| mask & (1 << i) != 0).collect();
+            let start = covered[0];
+            let end = covered.last().unwrap() + 1;
+            let surface: String = text.chars().skip(start).take(end - start).collect();
+            let mut entity = Entity::new(surface, label, start, end, 1.0);
+            if store_segments || end - start != covered.len() {
+                let ranges = covered.into_iter().map(|i| i..i + 1).collect();
+                entity.set_discontinuous_span(anno::DiscontinuousSpan::new(ranges));
+            }
+            vec![entity]
+        };
+        for g in 0..16 {
+            for p in 0..16 {
+                for same_type in [false, true] {
+                    let gold = mention(g, EntityType::Person, false);
+                    let label = if same_type {
+                        EntityType::Person
+                    } else {
+                        EntityType::Organization
+                    };
+                    let predicted = mention(p, label, true);
+                    let metrics = evaluate_entities(&gold, &predicted);
+                    let exact = g != 0 && g == p;
+                    let overlap = g & p != 0;
+                    let expected_partial = if exact {
+                        1.0
+                    } else if overlap {
+                        0.5
+                    } else {
+                        0.0
+                    };
+                    let scores = metrics.summary();
+                    assert_eq!(
+                        (
+                            scores.strict_f1,
+                            scores.exact_f1,
+                            scores.partial_f1,
+                            scores.type_f1
+                        ),
+                        (
+                            f64::from(exact && same_type),
+                            f64::from(exact),
+                            expected_partial,
+                            f64::from(overlap && same_type)
+                        ),
+                        "gold={g:04b}, prediction={p:04b}, same_type={same_type}"
+                    );
+                    if g != 0 {
+                        let person = &metrics.by_type["Person"];
+                        assert_eq!(person.correct, usize::from(exact && same_type));
+                        assert_eq!(person.missed, usize::from(!overlap || !same_type));
+                    }
+                }
+            }
+        }
+    }
 
     /// nervaluate matches a prediction to an exact gold span before any
     /// overlapping one, so an outer nested gold span cannot take the inner

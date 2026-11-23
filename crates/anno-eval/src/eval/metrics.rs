@@ -7,7 +7,7 @@
 //! - Cross-dataset comparison utilities
 
 use super::datasets::GoldEntity;
-use anno::Entity;
+use anno::{Entity, SpanCoverage};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -39,22 +39,7 @@ pub fn calculate_overlap(
     gt_start: usize,
     gt_end: usize,
 ) -> f64 {
-    let intersection_start = pred_start.max(gt_start);
-    let intersection_end = pred_end.min(gt_end);
-
-    if intersection_start >= intersection_end {
-        return 0.0;
-    }
-
-    let intersection = (intersection_end - intersection_start) as f64;
-    let union = ((pred_end - pred_start) + (gt_end - gt_start)
-        - (intersection_end - intersection_start)) as f64;
-
-    if union == 0.0 {
-        return 1.0; // Both spans are empty
-    }
-
-    intersection / union
+    SpanCoverage::Contiguous(pred_start..pred_end).iou(&SpanCoverage::Contiguous(gt_start..gt_end))
 }
 
 /// Calculate partial match metrics.
@@ -92,13 +77,13 @@ pub fn calculate_partial_match_metrics(
             }
 
             // Calculate overlap
-            let overlap = calculate_overlap(pred.start(), pred.end(), gt.start, gt.end);
+            let overlap = pred.coverage().iou(&gt.coverage());
 
             let should_update = match best_match {
                 None => true,
                 Some((_, best_overlap)) => best_overlap < overlap,
             };
-            if overlap >= overlap_threshold && should_update {
+            if overlap > 0.0 && overlap >= overlap_threshold && should_update {
                 best_match = Some((gt_idx, overlap));
             }
         }
@@ -764,14 +749,12 @@ pub fn evaluate_char_masking(
     let char_count = text.chars().count();
     let gold_ranges = union_char_ranges(
         gold.iter()
-            .filter_map(|entity| entity_char_range(entity, char_count)),
-        char_count,
+            .flat_map(|entity| entity_char_ranges(entity, char_count)),
     );
     let predicted_ranges = union_char_ranges(
         predicted
             .iter()
-            .filter_map(|entity| entity_char_range(entity, char_count)),
-        char_count,
+            .flat_map(|entity| entity_char_ranges(entity, char_count)),
     );
 
     let gold_chars = covered_char_count(&gold_ranges);
@@ -869,30 +852,20 @@ pub fn evaluate_char_masking_documents(
     metrics
 }
 
-fn entity_char_range(entity: &Entity, char_count: usize) -> Option<(usize, usize)> {
-    let start = entity.start();
-    let end = entity.end();
-    if start >= end || start >= char_count {
-        return None;
-    }
-    let clipped_end = end.min(char_count);
-    (start < clipped_end).then_some((start, clipped_end))
+// Native entity segments are sorted, disjoint character ranges. Clip each one
+// independently so a gap never contributes masked characters.
+fn entity_char_ranges(
+    entity: &Entity,
+    char_count: usize,
+) -> impl Iterator<Item = (usize, usize)> + '_ {
+    entity.coverage().into_ranges().filter_map(move |range| {
+        let end = range.end.min(char_count);
+        (range.start < end).then_some((range.start, end))
+    })
 }
 
-fn union_char_ranges<I>(ranges: I, char_count: usize) -> Vec<(usize, usize)>
-where
-    I: IntoIterator<Item = (usize, usize)>,
-{
-    let mut ranges: Vec<(usize, usize)> = ranges
-        .into_iter()
-        .filter_map(|(start, end)| {
-            if start >= end || start >= char_count {
-                return None;
-            }
-            let clipped_end = end.min(char_count);
-            (start < clipped_end).then_some((start, clipped_end))
-        })
-        .collect();
+fn union_char_ranges(ranges: impl IntoIterator<Item = (usize, usize)>) -> Vec<(usize, usize)> {
+    let mut ranges: Vec<_> = ranges.into_iter().collect();
     ranges.sort_unstable();
 
     let mut merged: Vec<(usize, usize)> = Vec::with_capacity(ranges.len());
@@ -937,7 +910,7 @@ fn per_type_char_masking(
 ) -> HashMap<String, CharMaskingTypeMetrics> {
     let mut gold_by_type: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for entity in gold {
-        if let Some(range) = entity_char_range(entity, char_count) {
+        for range in entity_char_ranges(entity, char_count) {
             gold_by_type
                 .entry(entity.entity_type.as_label().to_string())
                 .or_default()
@@ -945,19 +918,17 @@ fn per_type_char_masking(
         }
     }
     for ranges in gold_by_type.values_mut() {
-        *ranges = union_char_ranges(ranges.iter().copied(), char_count);
+        *ranges = union_char_ranges(ranges.iter().copied());
     }
 
     // Attribute each raw predicted span to the gold type it overlaps most. This keeps
     // overlapping predictions in one bucket and avoids inflating every type's count.
     let mut predicted_by_type: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
     for entity in predicted {
-        let Some(predicted_range) = entity_char_range(entity, char_count) else {
-            continue;
-        };
+        let predicted_ranges: Vec<_> = entity_char_ranges(entity, char_count).collect();
         let mut best: Option<(usize, String)> = None;
         for (label, ranges) in &gold_by_type {
-            let overlap = intersection_char_count(&[predicted_range], ranges);
+            let overlap = intersection_char_count(&predicted_ranges, ranges);
             if overlap == 0 {
                 continue;
             }
@@ -975,17 +946,15 @@ fn per_type_char_masking(
             predicted_by_type
                 .entry(label)
                 .or_default()
-                .push(predicted_range);
+                .extend(predicted_ranges);
         }
     }
 
     gold_by_type
         .into_iter()
         .map(|(label, gold_ranges)| {
-            let predicted_ranges = union_char_ranges(
-                predicted_by_type.remove(&label).unwrap_or_default(),
-                char_count,
-            );
+            let predicted_ranges =
+                union_char_ranges(predicted_by_type.remove(&label).unwrap_or_default());
             let gold_chars = covered_char_count(&gold_ranges);
             let predicted_chars = covered_char_count(&predicted_ranges);
             let true_positive_chars = intersection_char_count(&gold_ranges, &predicted_ranges);
@@ -1053,6 +1022,18 @@ fn bootstrap_char_masking_ci(document_counts: &[CharMaskingCounts]) -> Option<Ch
 mod tests {
     use super::*;
     use anno::{EntityCategory, EntityType};
+
+    #[test]
+    fn classification_f1_handles_empty_and_disjoint_labels() {
+        let mut metrics = ClassificationMetrics::new();
+        assert_eq!(metrics.micro_f1(), 0.0);
+        assert_eq!(metrics.class_f1("A"), 0.0);
+        metrics.add("A", "B");
+        assert_eq!(metrics.micro_f1(), 0.0);
+        assert_eq!(metrics.class_f1("A"), 0.0);
+        metrics.add("A", "A");
+        assert_eq!(metrics.micro_f1(), 0.5);
+    }
 
     #[test]
     fn test_classification_metrics() {
@@ -1286,6 +1267,30 @@ mod tests {
         // The span scorer still sees two boundary errors, which is exactly the
         // divergence the character metric is meant to expose.
         assert_close(metrics.strict_span_f1, 0.0);
+    }
+
+    #[test]
+    fn char_masking_excludes_discontinuous_gaps_from_counts_and_attribution() {
+        let text = "Aé🦊B";
+        let mut split = char_entity(text, EntityType::Person, 0, 4);
+        split.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![0..1, 3..4]));
+        let gap = char_entity("é🦊", EntityType::Organization, 1, 3);
+        let miss = evaluate_char_masking(
+            text,
+            std::slice::from_ref(&split),
+            std::slice::from_ref(&gap),
+        );
+        assert_eq!(miss.counts.gold_chars, 2);
+        assert_eq!(miss.counts.predicted_chars, 2);
+        assert_eq!(miss.counts.true_positive_chars, 0);
+        assert_close(miss.false_positive_rate, 1.0);
+        assert_eq!(miss.by_entity_type["PER"].predicted_chars, 0);
+
+        let gold = [char_entity("A", EntityType::Person, 0, 1), gap];
+        let score = evaluate_char_masking(text, &gold, std::slice::from_ref(&split));
+        assert_eq!(score.counts.true_positive_chars, 1);
+        assert_eq!(score.by_entity_type["PER"].predicted_chars, 2);
+        assert_eq!(score.by_entity_type["ORG"].predicted_chars, 0);
     }
 
     #[test]

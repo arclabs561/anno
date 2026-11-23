@@ -12,13 +12,18 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   publish:
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     environment: crates-io
     steps:

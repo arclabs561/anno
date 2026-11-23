@@ -25,6 +25,7 @@ def test_extract_email():
     e = emails[0]
     assert e.text == "support@example.com"
     # char offsets index directly into the Python string
+    assert e.segments == [(e.start, e.end)]
     assert text[e.start : e.end] == e.text
     assert 0.0 <= e.confidence <= 1.0
     # Provenance names the layer that produced this entity. It does not claim

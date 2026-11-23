@@ -189,38 +189,39 @@ impl Location {
         }
     }
 
-    /// Check if two locations overlap.
-    #[must_use]
-    pub fn overlaps(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Text { start: s1, end: e1 }, Self::Text { start: s2, end: e2 }) => {
-                s1 < e2 && s2 < e1
-            }
-            _ => false, // Different types don't overlap
+    fn coverage(&self) -> LocationCoverage {
+        match self {
+            Self::Text { start, end } => LocationCoverage::Contiguous(*start..*end),
+            Self::Discontinuous { segments } => LocationCoverage::Segmented(
+                DiscontinuousSpan::new(segments.iter().map(|&(s, e)| s..e).collect()),
+            ),
         }
     }
 
-    /// Calculate IoU (Intersection over Union) for compatible location types.
-    ///
-    /// Returns None if the locations are incompatible (e.g., text vs bbox).
+    /// Check for a shared covered character.
+    #[must_use]
+    pub fn overlaps(&self, other: &Self) -> bool {
+        self.coverage().view().overlaps(&other.coverage().view())
+    }
+
+    /// Character-level intersection over union of the two locations.
     #[must_use]
     pub fn iou(&self, other: &Self) -> Option<f64> {
-        match (self, other) {
-            (Self::Text { start: s1, end: e1 }, Self::Text { start: s2, end: e2 }) => {
-                let intersection_start = (*s1).max(*s2);
-                let intersection_end = (*e1).min(*e2);
-                if intersection_start >= intersection_end {
-                    return Some(0.0);
-                }
-                let intersection = (intersection_end - intersection_start) as f64;
-                let union = ((*e1).max(*e2) - (*s1).min(*s2)) as f64;
-                if union == 0.0 {
-                    Some(0.0)
-                } else {
-                    Some(intersection / union)
-                }
-            }
-            _ => None,
+        Some(self.coverage().view().iou(&other.coverage().view()))
+    }
+}
+
+// Store contiguous coordinates inline and normalize legacy segmented locations once.
+enum LocationCoverage {
+    Contiguous(std::ops::Range<usize>),
+    Segmented(DiscontinuousSpan),
+}
+
+impl LocationCoverage {
+    fn view(&self) -> crate::SpanCoverage<'_> {
+        match self {
+            Self::Contiguous(range) => crate::SpanCoverage::Contiguous(range.clone()),
+            Self::Segmented(span) => crate::SpanCoverage::Segmented(span),
         }
     }
 }
@@ -459,6 +460,8 @@ impl Signal<Location> {
 
     /// Validate that this signal's location matches its surface text.
     ///
+    /// Discontinuous surfaces may contain the source segments joined with a space
+    /// or the full bounding substring stored by older callers.
     /// Returns `None` if valid, or a description of the mismatch.
     ///
     /// # Example
@@ -475,9 +478,19 @@ impl Signal<Location> {
     /// ```
     #[must_use]
     pub fn validate_against(&self, source_text: &str) -> Option<SignalValidationError> {
-        let (start, end) = self.location.text_offsets()?;
+        self.validate_with_offsets(source_text, None)
+    }
 
-        let char_count = source_text.chars().count();
+    fn validate_with_offsets(
+        &self,
+        source_text: &str,
+        offsets: Option<&[usize]>,
+    ) -> Option<SignalValidationError> {
+        use std::borrow::Cow;
+        // An empty segment list has no source span.
+        let (start, end) = self.location.text_offsets().unwrap_or((0, 0));
+
+        let char_count = offsets.map_or_else(|| source_text.chars().count(), |map| map.len() - 1);
 
         // Check bounds
         if end > char_count {
@@ -496,14 +509,44 @@ impl Signal<Location> {
             });
         }
 
-        // Extract actual text at offsets
-        let actual: String = source_text.chars().skip(start).take(end - start).collect();
+        if let Location::Discontinuous { segments } = &self.location {
+            // The bounding end checked above is the maximum of all segment ends.
+            if let Some(&(start, end)) = segments.iter().find(|(s, e)| s >= e) {
+                return Some(SignalValidationError::InvalidSpan {
+                    signal_id: self.id,
+                    start,
+                    end,
+                });
+            }
+            // Entity conversion sorts segments and coalesces touching ranges.
+            // A joined surface must use that same order and segmentation.
+            if segments.windows(2).all(|pair| pair[0].1 < pair[1].0) {
+                let offsets = offsets.map_or_else(
+                    || Cow::Owned(crate::offset::build_char_to_byte_map(source_text)),
+                    Cow::Borrowed,
+                );
+                let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
+                    let separator = if index == 0 { "" } else { " " };
+                    separator
+                        .bytes()
+                        .chain(source_text[offsets[s]..offsets[e]].bytes())
+                });
+                if joined.eq(self.surface.bytes()) {
+                    return None;
+                }
+            }
+        }
+
+        let actual: Cow<'_, str> = match offsets {
+            Some(map) => Cow::Borrowed(&source_text[map[start]..map[end]]),
+            None => Cow::Owned(source_text.chars().skip(start).take(end - start).collect()),
+        };
 
         if actual != self.surface {
             return Some(SignalValidationError::TextMismatch {
                 signal_id: self.id,
                 expected: self.surface.clone(),
-                actual,
+                actual: actual.into_owned(),
                 start,
                 end,
             });
@@ -650,14 +693,17 @@ impl std::error::Error for SignalValidationError {}
 
 /// Convert an [`Entity`] to a [`Signal<Location>`].
 ///
-/// Uses `Location::Text` for the span and preserves `normalized`, `provenance`,
-/// and `hierarchical_confidence` fields. Discontinuous and visual spans are not
-/// handled; use [`GroundedDocument::from_entities`] for full fidelity.
+/// Preserves text segments, normalization, provenance and hierarchical confidence.
 impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
         let mut signal = Signal::new(
             SignalId::ZERO,
-            Location::text(e.start(), e.end()),
+            e.discontinuous_span.as_ref().map_or_else(
+                || Location::text(e.start(), e.end()),
+                |span| Location::Discontinuous {
+                    segments: span.segments().iter().map(|r| (r.start, r.end)).collect(),
+                },
+            ),
             &e.text,
             e.entity_type.as_label(),
             f32::from(e.confidence),
@@ -1265,6 +1311,8 @@ impl Identity {
 struct GroundedDocumentWire {
     id: String,
     text: String,
+    #[serde(default)]
+    coref_backend: Option<String>,
     signals: Vec<Signal<Location>>,
     tracks: HashMap<TrackId, Track>,
     identities: HashMap<IdentityId, Identity>,
@@ -1286,6 +1334,7 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
+            coref_backend: wire.coref_backend,
             signals: wire.signals,
             tracks: wire.tracks,
             identities: wire.identities,
@@ -1377,6 +1426,9 @@ pub struct GroundedDocument {
     id: String,
     /// Raw text content
     text: String,
+    /// Most recent successful coreference backend recorded for this document.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coref_backend: Option<String>,
     /// Level 1: Raw signals (detections)
     signals: Vec<Signal<Location>>,
     /// Level 2: Tracks (within-document coreference chains)
@@ -1412,6 +1464,7 @@ impl GroundedDocument {
         Self {
             id: id.into(),
             text: text.into(),
+            coref_backend: None,
             signals: Vec::new(),
             tracks: HashMap::new(),
             identities: HashMap::new(),
@@ -1433,6 +1486,17 @@ impl GroundedDocument {
     #[must_use]
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Get the last successful coreference backend, when recorded by the producer.
+    #[must_use]
+    pub fn coref_backend(&self) -> Option<&str> {
+        self.coref_backend.as_deref()
+    }
+
+    /// Record a successful coreference run, including a run that yielded zero tracks.
+    pub fn set_coref_backend(&mut self, backend: impl Into<String>) {
+        self.coref_backend = Some(backend.into());
     }
 
     /// Get a mutable reference to the signals vector.
@@ -1856,30 +1920,10 @@ impl GroundedDocument {
     }
 
     fn signal_from_entity(entity: &Entity) -> Signal<Location> {
-        let location = if let Some(discontinuous_span) = &entity.discontinuous_span {
-            Location::Discontinuous {
-                segments: discontinuous_span
-                    .segments()
-                    .iter()
-                    .map(|range| (range.start, range.end))
-                    .collect(),
-            }
-        } else if let Some(visual_span) = &entity.visual_span {
-            Location::from(visual_span)
-        } else {
-            Location::text(entity.start(), entity.end())
-        };
-
-        let mut signal = Signal::new(
-            SignalId::ZERO,
-            location,
-            &entity.text,
-            entity.entity_type.as_label(),
-            f32::from(entity.confidence),
-        );
-        signal.normalized = entity.normalized.clone();
-        signal.provenance = entity.provenance.clone();
-        signal.hierarchical = entity.hierarchical_confidence;
+        let mut signal = Signal::from(entity);
+        if let (None, Some(visual)) = (&entity.discontinuous_span, &entity.visual_span) {
+            signal.location = Location::from(visual);
+        }
         signal
     }
 
@@ -2186,6 +2230,25 @@ impl GroundedDocument {
             return Err(err);
         }
         Ok(self.add_signal(signal))
+    }
+
+    /// Validate signals in input order, adding valid signals and returning all errors.
+    /// Reuse a single character-offset index for a batch.
+    pub fn add_signals_validated(
+        &mut self,
+        signals: Vec<Signal<Location>>,
+    ) -> Vec<SignalValidationError> {
+        let offsets =
+            (signals.len() > 1).then(|| crate::offset::build_char_to_byte_map(&self.text));
+        let mut errors = Vec::new();
+        for signal in signals {
+            if let Some(error) = signal.validate_with_offsets(&self.text, offsets.as_deref()) {
+                errors.push(error);
+            } else {
+                self.add_signal(signal);
+            }
+        }
+        errors
     }
 
     /// Add a signal by finding text in document (safe construction).
@@ -3742,66 +3805,65 @@ impl EvalComparison {
         let mut gold_matched = vec![false; gold.len()];
         let mut pred_matched = vec![false; predicted.len()];
 
-        // First pass: find exact matches and type mismatches
-        for (pi, pred) in predicted.iter().enumerate() {
-            let pred_offsets = match pred.location.text_offsets() {
-                Some(o) => o,
-                None => continue,
-            };
+        let gold_coverage: Vec<_> = gold.iter().map(|s| s.location.coverage()).collect();
+        let pred_coverage: Vec<_> = predicted.iter().map(|s| s.location.coverage()).collect();
 
-            for (gi, g) in gold.iter().enumerate() {
-                if gold_matched[gi] {
+        // Reserve all exact (location, label) matches before assigning type errors.
+        // Stable IDs break ties between interchangeable occurrences at the same span.
+        let mut gold_order: Vec<_> = (0..gold.len()).collect();
+        gold_order.sort_unstable_by_key(|&i| gold[i].id);
+        let mut pred_order: Vec<_> = (0..predicted.len()).collect();
+        pred_order.sort_unstable_by_key(|&i| predicted[i].id);
+        for same_label in [true, false] {
+            for &pi in &pred_order {
+                if pred_matched[pi] {
                     continue;
                 }
-                let gold_offsets = match g.location.text_offsets() {
-                    Some(o) => o,
-                    None => continue,
-                };
-
-                // Exact span match
-                if pred_offsets == gold_offsets {
-                    if pred.label == g.label {
-                        matches.push(EvalMatch::Correct {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                        });
-                    } else {
-                        matches.push(EvalMatch::TypeMismatch {
-                            gold_id: g.id,
-                            pred_id: pred.id,
-                            gold_label: g.label.to_string(),
-                            pred_label: pred.label.to_string(),
-                        });
-                    }
-                    gold_matched[gi] = true;
-                    pred_matched[pi] = true;
-                    break;
+                let pred = &predicted[pi];
+                let coverage = pred_coverage[pi].view();
+                if coverage.ranges().is_empty() {
+                    continue;
                 }
+                let Some(&gi) = gold_order.iter().find(|&&gi| {
+                    let g = &gold[gi];
+                    !gold_matched[gi]
+                        && (g.label == pred.label) == same_label
+                        && gold_coverage[gi].view().ranges() == coverage.ranges()
+                }) else {
+                    continue;
+                };
+                let g = &gold[gi];
+                let matched = if same_label {
+                    EvalMatch::Correct {
+                        gold_id: g.id,
+                        pred_id: pred.id,
+                    }
+                } else {
+                    EvalMatch::TypeMismatch {
+                        gold_id: g.id,
+                        pred_id: pred.id,
+                        gold_label: g.label.to_string(),
+                        pred_label: pred.label.to_string(),
+                    }
+                };
+                matches.push(matched);
+                gold_matched[gi] = true;
+                pred_matched[pi] = true;
             }
         }
 
-        // Second pass: find boundary errors (overlapping but not exact)
+        // Assign boundary errors after the exact-location matches.
         for (pi, pred) in predicted.iter().enumerate() {
             if pred_matched[pi] {
                 continue;
             }
-            let pred_offsets = match pred.location.text_offsets() {
-                Some(o) => o,
-                None => continue,
-            };
 
             for (gi, g) in gold.iter().enumerate() {
                 if gold_matched[gi] {
                     continue;
                 }
-                let gold_offsets = match g.location.text_offsets() {
-                    Some(o) => o,
-                    None => continue,
-                };
-
-                // Check overlap
-                if pred_offsets.0 < gold_offsets.1 && pred_offsets.1 > gold_offsets.0 {
-                    let iou = pred.location.iou(&g.location).unwrap_or(0.0);
+                let iou = pred_coverage[pi].view().iou(&gold_coverage[gi].view());
+                if iou > 0.0 {
                     matches.push(EvalMatch::BoundaryError {
                         gold_id: g.id,
                         pred_id: pred.id,
@@ -4046,39 +4108,28 @@ tr:hover{background:var(--hover)}
 
     // Gold panel
     html.push_str("<div class=\"panel\"><h2>gold (ground truth)</h2><div class=\"text-box\">");
-    let gold_spans: Vec<EvalHtmlSpan> = cmp
-        .gold
-        .iter()
-        .map(|s| {
-            let (start, end) = s.location.text_offsets().unwrap_or((0, 0));
-            EvalHtmlSpan {
-                start,
-                end,
-                label: s.label.to_string(),
-                class: "e-gold",
-                id: format!("G{}", s.id),
+    let spans = |signals: &[Signal<Location>], class, prefix| {
+        let mut result = Vec::new();
+        for signal in signals {
+            for range in signal.location.coverage().view().ranges() {
+                result.push(EvalHtmlSpan {
+                    start: range.start,
+                    end: range.end,
+                    label: signal.label.to_string(),
+                    class,
+                    id: format!("{prefix}{}", signal.id),
+                });
             }
-        })
-        .collect();
+        }
+        result
+    };
+    let gold_spans = spans(&cmp.gold, "e-gold", "G");
     html.push_str(&annotate_text_spans(&cmp.text, &gold_spans));
     html.push_str("</div></div>");
 
     // Predicted panel
     html.push_str("<div class=\"panel\"><h2>predicted</h2><div class=\"text-box\">");
-    let pred_spans: Vec<EvalHtmlSpan> = cmp
-        .predicted
-        .iter()
-        .map(|s| {
-            let (start, end) = s.location.text_offsets().unwrap_or((0, 0));
-            EvalHtmlSpan {
-                start,
-                end,
-                label: s.label.to_string(),
-                class: "e-pred",
-                id: format!("P{}", s.id),
-            }
-        })
-        .collect();
+    let pred_spans = spans(&cmp.predicted, "e-pred", "P");
     html.push_str(&annotate_text_spans(&cmp.text, &pred_spans));
     html.push_str("</div></div>");
 
@@ -4801,6 +4852,56 @@ mod tests {
     use crate::EntityCategory;
 
     #[test]
+    fn exact_typed_counts_equal_multiset_intersection_for_all_small_inputs() {
+        // Every ordered sequence of up to three signals drawn from two spans
+        // and two labels, including empty sequences and repeated occurrences.
+        let mut cases = Vec::new();
+        for length in 0..=3 {
+            for mut code in 0..4usize.pow(length) {
+                let mut counts = [0usize; 4];
+                let mut signals = Vec::new();
+                for id in 0..length {
+                    let kind = code % 4;
+                    code /= 4;
+                    counts[kind] += 1;
+                    let start = kind / 2;
+                    signals.push(Signal::new(
+                        SignalId::new(u64::from(id)),
+                        Location::text(start, start + 1),
+                        ["A", "B"][start],
+                        ["PER", "ORG"][kind % 2],
+                        1.0,
+                    ));
+                }
+                cases.push((signals, counts));
+            }
+        }
+        for (gold, gold_counts) in &cases {
+            for (predicted, pred_counts) in &cases {
+                // The oracle uses only per-kind multiplicities and never pairs signals.
+                let expected: usize = gold_counts
+                    .iter()
+                    .zip(pred_counts)
+                    .map(|(g, p)| g.min(p))
+                    .sum();
+                let score = EvalComparison::compare("AB", gold.clone(), predicted.clone());
+                assert_eq!(
+                    score.correct_count(),
+                    expected,
+                    "gold={gold_counts:?}, predicted={pred_counts:?}"
+                );
+                let n = gold.len() + predicted.len();
+                let f1 = if n == 0 {
+                    0.0
+                } else {
+                    2.0 * expected as f64 / n as f64
+                };
+                assert!((score.f1() - f1).abs() < 1e-12);
+            }
+        }
+    }
+
+    #[test]
     fn test_render_eval_html_has_interactive_hooks_and_is_unicode_safe() {
         // CJK example (multi-byte, no spaces)
         let text = "習近平在北京會見了普京。";
@@ -5080,6 +5181,114 @@ mod tests {
         assert!(doc.tracks_map().is_empty());
         assert!(doc.identities_map().is_empty());
         assert!(doc.validate_invariants().is_empty());
+    }
+
+    #[test]
+    fn discontinuous_document_roundtrips_joined_and_bounding_surfaces() {
+        for (source, segments, joined, bounding) in [
+            ("A B C", vec![0..1, 4..5], "A C", "A B C"),
+            (
+                "🦊 été — 東京!",
+                vec![2..5, 8..10],
+                "été 東京",
+                "été — 東京",
+            ),
+        ] {
+            let span = DiscontinuousSpan::new(segments);
+            for surface in [joined, bounding] {
+                let mut entity = Entity::new(surface, EntityType::Location, 0, 1, 0.9);
+                entity.set_discontinuous_span(span.clone());
+                let doc = GroundedDocument::from_entity_signals("spans", source, &[entity]);
+                let json = serde_json::to_string(&doc).unwrap();
+                let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
+                let restored_entity = &restored.to_entities()[0];
+                assert_eq!(restored_entity.text, surface);
+                assert_eq!(restored_entity.discontinuous_span.as_ref(), Some(&span));
+            }
+        }
+    }
+
+    #[test]
+    fn batch_validation_matches_individual_unicode_and_discontinuous_signals() {
+        let text = "é🦊 中 Ω";
+        let segments = |pairs: &[(usize, usize)]| Location::Discontinuous {
+            segments: pairs.to_vec(),
+        };
+        let signals: Vec<_> = [
+            (Location::text(0, 2), "é🦊"),
+            (segments(&[(1, 2), (5, 6)]), "🦊 Ω"),
+            (segments(&[(1, 2), (5, 6)]), "🦊 中 Ω"),
+            (segments(&[(5, 6), (1, 2)]), "🦊 中 Ω"),
+            (segments(&[(5, 6), (1, 2)]), "Ω 🦊"),
+            (segments(&[(0, 1), (3, 2)]), "é"),
+            (segments(&[]), ""),
+            (Location::text(4, 9), "Ω"),
+            (Location::text(3, 4), "中"),
+        ]
+        .into_iter()
+        .map(|(loc, surface)| Signal::new(0, loc, surface, "LOC", 0.9))
+        .collect();
+        let mut single = GroundedDocument::new("doc", text);
+        let mut batch = GroundedDocument::new("doc", text);
+        let expected: Vec<_> = signals
+            .iter()
+            .cloned()
+            .filter_map(|s| single.add_signal_validated(s).err())
+            .collect();
+        assert_eq!(expected.len(), 4);
+        assert_eq!(expected, batch.add_signals_validated(signals));
+        assert_eq!(
+            serde_json::to_value(single.signals()).unwrap(),
+            serde_json::to_value(batch.signals()).unwrap()
+        );
+    }
+
+    #[test]
+    fn discontinuous_document_retains_legacy_bounding_surface_for_unsorted_segments() {
+        let mut doc = GroundedDocument::new("spans", "A B C");
+        doc.add_signal(Signal::new(
+            0,
+            Location::Discontinuous {
+                segments: vec![(4, 5), (0, 1)],
+            },
+            "A B C",
+            "LOC",
+            0.9,
+        ));
+        let json = serde_json::to_string(&doc).unwrap();
+        let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
+        let entity = &restored.to_entities()[0];
+        assert_eq!(entity.text, "A B C");
+        assert_eq!(
+            entity.discontinuous_span,
+            Some(DiscontinuousSpan::new(vec![0..1, 4..5]))
+        );
+    }
+
+    #[test]
+    fn discontinuous_document_rejects_mismatched_surfaces_and_invalid_segments() {
+        for (segments, surface) in [
+            (vec![(0, 1), (4, 5)], "A B"),
+            (vec![(4, 5), (0, 1)], "C A"),
+            (vec![(0, 3), (2, 5)], "A B B C"),
+            (vec![(0, 1), (3, 2), (4, 5)], "A B C"),
+            (vec![(0, 1), (4, 6)], "A C"),
+            (vec![], ""),
+        ] {
+            let mut doc = GroundedDocument::new("spans", "A B C");
+            doc.add_signal(Signal::new(
+                0,
+                Location::Discontinuous { segments },
+                surface,
+                "LOC",
+                0.9,
+            ));
+            let json = serde_json::to_string(&doc).unwrap();
+            assert!(
+                serde_json::from_str::<GroundedDocument>(&json).is_err(),
+                "{json}"
+            );
+        }
     }
 
     #[test]
