@@ -54,6 +54,11 @@ python3 scripts/qa/check_span_assertions.py --fixture cases.json --predictions b
 
 The [diagnostic fixture](../scripts/qa/fixtures/typed-span-assertions.json) includes credentials, a delivery channel and organization initials. Its failures expose current backend behavior. Exit 0 means all assertions passed, 1 means at least one assertion failed, and 2 means the input or run was invalid. For a custom assertion type, pass its exact spelling with `--allow-type LABEL`. Other custom predictions still appear in the overlap report. Saved batch JSONL must include a per-document `source_sha256` matching the exact UTF-8 fixture text, including line endings. The report lists overlapping entities so a reviewer can inspect both boundaries and labels.
 
+To compare weekday handling, run `just qa-spans target/debug/anno pattern scripts/qa/fixtures/weekday-span-assertions.json`.
+Each case protects a person or film title and checks a date in the same sentence. The two weekday
+dates expose known misses in the pattern backend. The offline matrix smoke test also protects
+“Wednesday Addams” in a sentence with no date.
+
 For a change to a partially passing backend, add `--baseline-predictions old.jsonl` to the replay command. Both versions must match the same source revision. For an older CLI that omits the digest, capture a fresh baseline from the original binary with `python3 scripts/qa/check_span_assertions.py --fixture cases.json --binary /path/to/old/anno --model stacked --save-predictions old.jsonl`. Use a new output path. The checker saves valid predictions even when assertions fail. Older saved files without a source digest require a new run. In comparison mode exit 1 means a previously passing assertion was lost, even when the total improved. Unchanged failures remain visible in the report. The fixture includes the same string, `CPA`, as a credential and as the initials of Coastal Planning Authority. A blanket suppression can improve the credential count while losing the organization.
 
 ## What runs in GitHub Actions

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "weekday-person",
+    "text": "Wednesday Addams returns on Wednesday.",
+    "assertions": [
+      {"kind": "no_overlap", "start": 0, "end": 16, "text": "Wednesday Addams", "types": ["DATE", "TIME"]},
+      {"kind": "exact_span", "start": 28, "end": 37, "text": "Wednesday", "types": ["DATE", "TIME"]}
+    ]
+  },
+  {
+    "id": "weekday-title",
+    "text": "We screened the film ‘Friday’ on Friday.",
+    "assertions": [
+      {"kind": "no_overlap", "start": 22, "end": 28, "text": "Friday", "types": ["DATE", "TIME"]},
+      {"kind": "exact_span", "start": 33, "end": 39, "text": "Friday", "types": ["DATE", "TIME"]}
+    ]
+  },
+  {
+    "id": "weekday-date-control",
+    "text": "Wednesday Addams arrived on 2031-04-07.",
+    "assertions": [
+      {"kind": "no_overlap", "start": 0, "end": 16, "text": "Wednesday Addams", "types": ["DATE", "TIME"]},
+      {"kind": "exact_span", "start": 28, "end": 38, "text": "2031-04-07", "types": ["DATE", "TIME"]}
+    ]
+  }
+]
