@@ -151,6 +151,7 @@ pub(crate) fn policy_cohort_key(
     _seed: u64,
     max_examples: Option<usize>,
     cached_only: bool,
+    coref_use_gold_mentions: bool,
 ) -> Option<String> {
     let build = current_build_provenance();
     serde_json::to_string(&PolicyCohortConditions {
@@ -160,10 +161,14 @@ pub(crate) fn policy_cohort_key(
         max_examples,
         cached_only,
         enabled_features: &build.enabled_features,
-        scorer: if task == Task::Temporal {
-            "anno-timex-source-spans-v1"
-        } else {
-            "anno-eval-primary-score-v1"
+        // Legacy coreference rows did not record whether the resolver received gold mentions.
+        scorer: match task {
+            Task::Temporal => "anno-timex-source-spans-v1",
+            Task::IntraDocCoref | Task::AbstractAnaphora if coref_use_gold_mentions => {
+                "anno-coref-gold-mentions-document-order-v1"
+            }
+            Task::IntraDocCoref | Task::AbstractAnaphora => "anno-coref-predicted-mentions-v1",
+            _ => "anno-eval-primary-score-v1",
         },
     })
     .ok()
@@ -177,9 +182,30 @@ mod tests {
 
     #[test]
     fn policy_cohort_allows_repeated_seed_coverage() {
-        let first = policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(20), true);
-        let replay = policy_cohort_key(Task::NER, DatasetId::WikiGold, 73, Some(20), true);
+        let first = policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(20), true, false);
+        let replay = policy_cohort_key(Task::NER, DatasetId::WikiGold, 73, Some(20), true, false);
         assert_eq!(first, replay);
+    }
+
+    #[test]
+    fn coref_cohorts_distinguish_mention_sources_and_legacy_rows() {
+        for task in [Task::IntraDocCoref, Task::AbstractAnaphora] {
+            let key =
+                |gold| policy_cohort_key(task, DatasetId::PreCo, 42, Some(5), true, gold).unwrap();
+            let predicted = key(false);
+            let supplied = key(true);
+            let mut legacy: serde_json::Value = serde_json::from_str(&predicted).unwrap();
+            legacy["scorer"] = "anno-eval-primary-score-v1".into();
+            for current in [&predicted, &supplied] {
+                assert_ne!(
+                    serde_json::from_str::<serde_json::Value>(current).unwrap(),
+                    legacy
+                );
+            }
+            assert_ne!(predicted, supplied);
+        }
+        let ner = |gold| policy_cohort_key(Task::NER, DatasetId::WikiGold, 42, Some(5), true, gold);
+        assert_eq!(ner(false), ner(true));
     }
 }
 

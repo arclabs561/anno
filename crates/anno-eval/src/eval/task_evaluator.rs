@@ -899,6 +899,7 @@ impl TaskEvaluator {
                 input.config.seed.unwrap_or(42),
                 input.config.max_examples,
                 input.config.require_cached,
+                input.config.coref_use_gold_mentions,
             ),
             ner_label_policy: input.ner_label_policy,
         };
@@ -982,6 +983,7 @@ impl TaskEvaluator {
                 config.seed.unwrap_or(42),
                 config.max_examples,
                 config.require_cached,
+                config.coref_use_gold_mentions,
             ),
             ner_label_policy: None,
         };
