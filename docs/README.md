@@ -32,7 +32,7 @@ Run `just regenerate-datasets` to produce the dataset registry in the generated 
 
 ## Understand a design decision
 
-Versioned decisions in `docs/decisions/` connect a choice to its public verification, `docs/dev-notes/` holds implementation plans, and private research and raw experiment records stay in the project workspace.
+Versioned decisions in `docs/decisions/` connect a choice to its public verification, and `docs/dev-notes/` holds implementation plans. Use a durable project archive for private research and raw receipts. A cloud workspace is only a working copy.
 
 - [Grounded extraction and evaluation decisions](decisions/grounded-extraction.md)
 - [Fastino backend implementation plan](dev-notes/fastino-backend-plan.md)
