@@ -170,7 +170,12 @@ pub fn run(args: PipelineArgs) -> Result<(), String> {
         if args.coref {
             #[cfg(feature = "discourse")]
             if let Some(clusters) = &speaker_clusters {
-                super::super::utils::clusters_to_tracks(&mut doc, clusters, "speaker-turns");
+                let tracks_added = super::super::utils::append_coref_clusters(&mut doc, clusters)?;
+                doc.record_coref_run(anno::CorefRunReport::Completed {
+                    backend: "speaker-turns".into(),
+                    tracks_added,
+                    prior_failures: Vec::new(),
+                });
             } else {
                 resolve_coreference(&mut doc, text, &signal_ids);
             }

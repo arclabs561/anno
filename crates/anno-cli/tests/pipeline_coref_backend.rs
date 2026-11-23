@@ -38,6 +38,7 @@ fn pipeline_reports_the_successful_offline_resolver_even_for_zero_tracks() {
     let run = |text, coref| pipeline(text, coref, missing_model.path());
     let without = run("Alice saw Alice.", false);
     assert!(without.get("coref_backend").is_none());
+    assert!(without.get("coref_run").is_none());
     let old: GroundedDocument = serde_json::from_value(without).unwrap();
     assert!(serde_json::to_value(old)
         .unwrap()
@@ -48,12 +49,51 @@ fn pipeline_reports_the_successful_offline_resolver_even_for_zero_tracks() {
         let doc = run(text, true);
         assert_eq!(doc["coref_backend"], "mention-ranking");
         assert_eq!(!doc["tracks"].as_object().unwrap().is_empty(), has_tracks);
+        let report = &doc["coref_run"];
+        assert_eq!(report["status"], "completed");
+        assert_eq!(report["backend"], "mention-ranking");
+        assert_eq!(
+            report["tracks_added"],
+            doc["tracks"].as_object().unwrap().len()
+        );
+        #[cfg(feature = "onnx")]
+        assert_eq!(
+            report["prior_failures"].as_array().unwrap().last().unwrap(),
+            &serde_json::json!({"stage": "load", "backend": "fcoref"})
+        );
+        let mut inconsistent = doc.clone();
+        inconsistent["coref_backend"] = "other-backend".into();
+        assert!(serde_json::from_value::<GroundedDocument>(inconsistent).is_err());
         let round_trip: GroundedDocument = serde_json::from_value(doc).unwrap();
         assert_eq!(
             serde_json::to_value(round_trip).unwrap()["coref_backend"],
             "mention-ranking"
         );
     }
+}
+
+#[test]
+fn failed_retry_preserves_last_success_and_replaces_attempt_evidence() {
+    use anno::{CorefAttemptFailure, CorefRunReport};
+    let mut doc = GroundedDocument::new("doc", "");
+    doc.set_coref_backend("earlier");
+    let legacy: GroundedDocument =
+        serde_json::from_value(serde_json::to_value(doc).unwrap()).unwrap();
+    assert_eq!(legacy.coref_backend(), Some("earlier"));
+    assert!(legacy.coref_run().is_none());
+
+    let mut doc = legacy;
+    let report = CorefRunReport::Failed {
+        last_failure: CorefAttemptFailure::Inference {
+            backend: "attempted".into(),
+        },
+        prior_failures: Vec::new(),
+    };
+    doc.record_coref_run(report.clone());
+    let read: GroundedDocument =
+        serde_json::from_value(serde_json::to_value(doc).unwrap()).unwrap();
+    assert_eq!(read.coref_run(), Some(&report));
+    assert_eq!(read.coref_backend(), Some("earlier"));
 }
 
 #[test]

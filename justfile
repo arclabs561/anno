@@ -265,6 +265,10 @@ eval-wide MAX_EXAMPLES="50":
 eval-sanity:
     ./scripts/eval-sanity.sh
 
+# Prepare local pinned sources for paired exact-span QA.
+qa-prepare-domains $DATA $OUT $PER_SPLIT="32" $SEED="anno-domain-transfer-20261123-v1":
+    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --per-split "$PER_SPLIT" --seed "$SEED"
+
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
 qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
@@ -282,8 +286,11 @@ qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
-qa-spans $ANNO_BIN $MODEL="heuristic":
-    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL"
+qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":
+    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL" --fixture "$FIXTURE"
+
+# Check authored typed spans and protected ranges across eight document domains.
+qa-domain-spans ANNO_BIN MODEL="stacked": (qa-spans ANNO_BIN MODEL "scripts/qa/fixtures/domain-span-assertions.json")
 
 # Run the offline Python QA contracts discovered by CI.
 qa-test:
@@ -351,7 +358,7 @@ eval-results:
 # === QA Random URL Testing ===
 
 # Sample URLs with the selected backends. Set ANNO to reuse a built CLI.
-qa-random $count="10" $backends="stacked" $seed="" $category="all":
+qa-random $count="10" $backends="stacked" $seed="" $category="cross-domain":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -z "${ANNO:-}" ]]; then

@@ -37,6 +37,20 @@ tracks and identities. For custom entity types use `extract_with_types` or CLI
 feature exposes `GraphDocument` and N-Triples export. Keep training, document parsing and downstream graph algorithms in their
 respective tools. [Backend selection](BACKENDS.md) · [Constituency interchange](CONSTITUENCY.md)
 
+## Grouping flat entities
+
+`GroundedDocument::from_entities` groups mentions with equal canonical IDs and
+gives each unassigned mention a singleton track. Track IDs are allocated in
+first-seen order. The first populated KB ID in each group becomes its link.
+`to_entities()` gives every member the track ID and the shared KB link.
+
+Use `GroundedDocument::try_from_entities` to detect conflicting populated KB IDs,
+mention types, visual spans, labels that decode to a different entity type, and
+flat offsets that would change when reconstructed from discontinuous segments.
+Errors identify the original input indices. A populated link and a missing link
+in the same group are compatible. Both constructors use the same grouping and
+preserve the detection confidence.
+
 ## PII pattern limits
 
 Pattern-based redaction recognizes these formats:
@@ -89,7 +103,16 @@ model artifact version, or provider/device placement.
 resolver in each document’s optional `coref_backend` field. `fcoref` identifies the
 neural model and `mention-ranking` the heuristic fallback. Successful runs record
 the backend even when they produce zero tracks. Documents without a recorded
-coreference run omit this field.
+successful coreference run omit this field.
+
+The optional `coref_run` object describes the latest reported invocation. A
+`completed` result includes the producing `backend` and `tracks_added`, even
+when that count is zero. On `failed` results, `last_failure` identifies the
+terminal backend and stage. Either outcome can include `prior_failures` in
+attempt order. Each failure identifies a backend and the stage (`load`,
+`inference`, or `invalid_output`). A failed retry preserves the earlier
+successful `coref_backend`. Older documents can have a producer without an
+attempt report.
 
 ### Speaker-attributed first person
 
