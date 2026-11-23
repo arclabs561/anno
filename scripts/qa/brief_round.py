@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from round_trace import initialize
-from domain_coverage import render_coverage
+from domain_coverage import render_coverage, render_domain_scores
 from run_panel import render_markdown
 
 GUIDE = Path(__file__).resolve().parents[2] / "docs" / "ADVERSARIAL_QA.md"
@@ -15,7 +15,10 @@ GUIDE = Path(__file__).resolve().parents[2] / "docs" / "ADVERSARIAL_QA.md"
 
 def evidence(directory):
     if directory.is_file():
-        return render_coverage(json.loads(directory.read_text(encoding="utf-8")))
+        receipt = json.loads(directory.read_text(encoding="utf-8"))
+        if isinstance(receipt, dict) and receipt.get("kind") == "anno.qa.domain-spans":
+            return render_domain_scores(receipt)
+        return render_coverage(receipt)
     panel = directory / "panel-summary.json"
     schedule = directory / "schedule.json"
     if panel.exists() and schedule.exists():

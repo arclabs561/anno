@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from brief_round import evidence
-from domain_coverage import coverage_summary, render_coverage
+from domain_coverage import coverage_summary, render_coverage, render_domain_scores
 
 
 def site(topic, host, digest="0", final_host="common.example"):
@@ -65,3 +65,25 @@ class CoverageTest(unittest.TestCase):
         self.rows[0]["checks"].append(self.rows[0]["checks"][0])
         with self.assertRaisesRegex(ValueError, "duplicate"):
             coverage_summary(self.data)
+
+
+class DomainScoreHandoffTest(unittest.TestCase):
+    def test_paired_results_preserve_losses_and_exclude_raw_material(self):
+        report = {"kind": "anno.qa.domain-spans", "schema_version": 1, "fixture_sha256": "a" * 64,
+                  "passed": 2, "total": 3, "comparison": {"baseline_passed": 2, "gained": 1, "lost": 1},
+                  "findings": [{"text": "PRIVATE_DOCUMENT"}], "domains": [
+                      {"domain": "law", "documents": 1, "exact_span": {"passed": 1, "total": 1},
+                       "no_overlap": {"passed": 1, "total": 2},
+                       "comparison": {"baseline_passed": 2, "gained": 1, "lost": 1}}]}
+        with TemporaryDirectory() as tmp:
+            receipt = Path(tmp) / "score.json"
+            receipt.write_text(json.dumps(report))
+            handoff = evidence(receipt)
+        self.assertIn("| law | 1 | 1/1 | 1/2 | 1 | 1 |", handoff)
+        self.assertNotIn("PRIVATE_DOCUMENT", handoff)
+        report["comparison"]["lost"] = 0
+        with self.assertRaisesRegex(ValueError, "disagrees"):
+            render_domain_scores(report)
+        report["domains"][0]["exact_span"]["passed"] = 2
+        with self.assertRaisesRegex(ValueError, "denominator"):
+            render_domain_scores(report)

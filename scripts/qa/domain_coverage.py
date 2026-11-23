@@ -148,3 +148,67 @@ def render_coverage(receipt):
     lines.extend(["", "Topics describe the catalog. Check the rendered content and independent labels "
                   "before drawing conclusions about extraction accuracy."])
     return "\n".join(lines)
+
+
+def _count(row, field):
+    value = row.get(field) if isinstance(row, dict) else None
+    if type(value) is not int or value < 0:
+        raise ValueError(f"invalid {field} count in labeled QA report")
+    return value
+
+
+def render_domain_scores(report):
+    """Use aggregate scores for the handoff, keeping the fixture text and model output local."""
+    digest = report.get("fixture_sha256")
+    if (type(report.get("schema_version")) is not int or report["schema_version"] != 1
+            or not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest)):
+        raise ValueError("expected a version 1 labeled QA report with its fixture SHA-256")
+    groups = report.get("domains")
+    if not isinstance(groups, list) or not groups:
+        raise ValueError("labeled QA report is missing its domain counts")
+    paired = "comparison" in report
+    lines = [f"Labeled span assertions for fixture `{digest}`.",
+             "", "| Domain | Documents | Exact spans | Protected ranges | Gains | Losses |",
+             "|---|---:|---:|---:|---:|---:|"]
+    totals = Counter()
+    seen = set()
+    for row in groups:
+        if not isinstance(row, dict):
+            raise ValueError("invalid domain summary")
+        topic = row.get("domain")
+        if (topic is not None and not _label(topic)) or topic in seen:
+            raise ValueError("expected distinct domain identifiers in labeled QA report")
+        seen.add(topic)
+        docs = _count(row, "documents")
+        columns = []
+        passes = count = 0
+        for field in ("exact_span", "no_overlap"):
+            hit, n = _count(row.get(field), "passed"), _count(row.get(field), "total")
+            if hit > n:
+                raise ValueError("passed count exceeds its denominator")
+            passes += hit
+            count += n
+            columns.append(f"{hit}/{n}")
+        if not 0 < docs <= count:
+            raise ValueError("invalid labeled document count")
+        totals.update(passed=passes, total=count)
+        if paired != ("comparison" in row):
+            raise ValueError("incomplete per-domain comparison")
+        if paired:
+            comparison = row["comparison"]
+            base, gained, lost = (_count(comparison, key) for key in ("baseline_passed", "gained", "lost"))
+            if base > count or lost > base or gained > count - base or base + gained - lost != passes:
+                raise ValueError("inconsistent paired outcomes")
+            totals.update(baseline_passed=base, gained=gained, lost=lost)
+            columns.extend([str(gained), str(lost)])
+        else:
+            columns.extend(["—", "—"])
+        lines.append("| " + " | ".join([topic if topic is not None else "(unlabeled domain)", str(docs), *columns]) + " |")
+    if any(totals[key] != _count(report, key) for key in ("passed", "total")):
+        raise ValueError("per-domain totals disagree with report")
+    if paired and any(totals[key] != _count(report["comparison"], key)
+                      for key in ("baseline_passed", "gained", "lost")):
+        raise ValueError("per-domain comparison disagrees with report")
+    lines.extend(["", "Each denominator counts the supplied assertions. Review source families "
+                  "and annotation coverage before generalizing beyond this fixture."])
+    return "\n".join(lines)

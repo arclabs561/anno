@@ -180,7 +180,8 @@ def main():
     if args.save_predictions and args.predictions:
         parser.error("--save-predictions requires a live run; use --binary")
     try:
-        cases = load_cases(json.loads(args.fixture.read_text(encoding="utf-8")), args.allow_type)
+        fixture = args.fixture.read_bytes()
+        cases = load_cases(json.loads(fixture.decode("utf-8")), args.allow_type)
         if args.predictions:
             predictions = jsonl_rows(args.predictions.read_text(encoding="utf-8"))
         else:
@@ -191,7 +192,8 @@ def main():
                 cases, args.baseline_predictions.read_text(encoding="utf-8"), report)
         domains = summarize_domains(cases, report["findings"])
         if domains:
-            report["domains"] = domains
+            report.update(kind="anno.qa.domain-spans", schema_version=1,
+                          fixture_sha256=hashlib.sha256(fixture).hexdigest(), domains=domains)
         if args.save_predictions:
             with args.save_predictions.open("x", encoding="utf-8") as capture:
                 for row in predictions:

@@ -24,6 +24,8 @@ just qa-round qa/reports/publishers.json 'Which selected topic needs a new sourc
 
 Check for duplicate text and redirects before assigning a scout. Two publisher URLs returning the same notice provide one rendered input. A valid page with zero extracted entities can still contribute to retrieval coverage. For quality comparisons freeze the source revision, use independent positive and protected-range labels, and report gains and losses separately by domain. Keep deliberately challenging punctuation or alias cases separate from a sample intended to describe ordinary documents.
 
+For a labeled round, pass the [domain span checker’s JSON report](DOMAIN_QA.md) to the same command. The handoff includes exact hits, protected-range passes and paired changes for each group. It omits the original mentions. A receipt with repeated subjects from one publisher can support a genre-specific result; evidence of transfer to other publishers requires separate source families.
+
 ## Assign a reviewer and account for the run
 
 Start a routine round with one author and the executable replay. Bring in an independent labeler when the annotation convention is disputed or the change affects the scorer. Give fresh-history authors just the public contract and a common output budget in a historical trial. Keep the revision pair, patch and known regression with the executor until proposals are frozen. Score a historical rediscovery only when the proposed check separates the old and repaired behavior. An expectation that fails on both revisions may identify another defect.
