@@ -110,7 +110,7 @@ use crate::eval::provenance::policy_cohort_key;
 use crate::eval::provenance::EvaluationScheduling;
 use crate::eval::task_evaluator::{TaskEvalConfig, TaskEvalResult, TaskEvaluator};
 use crate::eval::task_mapping::{
-    backend_tasks, dataset_tasks, get_task_backends, get_task_datasets, Task,
+    backend_tasks, catalogued_task_datasets, dataset_tasks, get_task_backends, Task,
 };
 use crate::muxer_harness as mh;
 #[cfg(test)]
@@ -2382,7 +2382,7 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
 fn task_dataset_catalog(tasks: &[Task]) -> Vec<DatasetId> {
     let mut datasets: Vec<_> = tasks
         .iter()
-        .flat_map(|&task| get_task_datasets(task))
+        .flat_map(|&task| catalogued_task_datasets(task))
         .collect();
     datasets.sort_by_key(|d| format!("{d:?}"));
     datasets.dedup();
@@ -2395,6 +2395,7 @@ enum DatasetExclusion {
     NonAutomatableSource,
     SlowInFastProfile,
     TemporalEvaluatorNeedsNer,
+    MissingRelationSpans,
     NoLoader,
     CacheRequired,
     FacetPin,
@@ -2404,6 +2405,7 @@ struct DatasetPolicy {
     allow_non_automatable: bool,
     exclude_slow: bool,
     temporal_requested: bool,
+    relation_requested: bool,
     require_cached: bool,
 }
 
@@ -2418,11 +2420,15 @@ impl DatasetPolicy {
             allow_non_automatable: mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false),
             exclude_slow: fast && !mh::env_bool("ANNO_MATRIX_INCLUDE_SLOW_DATASETS", false),
             temporal_requested: tasks.contains(&Task::Temporal),
+            relation_requested: tasks.contains(&Task::RelationExtraction),
             require_cached,
         }
     }
 
     fn exclusion(&self, loader: &DatasetLoader, ds: DatasetId) -> Option<DatasetExclusion> {
+        if self.relation_requested && ds.relation_span_limitation().is_some() {
+            return Some(DatasetExclusion::MissingRelationSpans);
+        }
         // Source policy applies even to a local cache hit. Some registered
         // sources have known-bad parses or require manual acquisition.
         if !self.allow_non_automatable && !ds.is_automatable_download() {
@@ -3243,6 +3249,12 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
         let mut rejected: Vec<(DatasetId, &'static str)> = Vec::new();
         let mut retained = Vec::new();
         for ds in fixed {
+            if tasks.contains(&Task::RelationExtraction) {
+                if let Some(reason) = ds.relation_span_limitation() {
+                    rejected.push((ds, reason));
+                    continue;
+                }
+            }
             if !tasks.iter().all(|t| dataset_tasks(ds).contains(t)) {
                 rejected.push((
                     ds,

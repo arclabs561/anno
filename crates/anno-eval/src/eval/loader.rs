@@ -405,7 +405,6 @@ impl LoadableDatasetId {
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
-            | DatasetId::GoogleRE
             | DatasetId::BioRED
             | DatasetId::SciER
             | DatasetId::MixRED
@@ -856,6 +855,14 @@ impl TryFrom<DatasetId> for LoadableDatasetId {
 
 // Extension methods for DatasetId that delegate to registry
 impl DatasetId {
+    /// An advertised relation corpus can still lack the gold spans required by the scorer.
+    #[must_use]
+    pub fn relation_span_limitation(self) -> Option<&'static str> {
+        match self {
+            Self::GoogleRE => Some("GoogleRE supplies entity IDs, judgments and evidence snippets without gold subject/object character spans; use the standard loader for snippets"),
+            _ => None,
+        }
+    }
     /// Get default metadata for this dataset.
     ///
     /// Delegates to registry methods.
@@ -5752,6 +5759,9 @@ impl DatasetLoader {
     ///
     /// Use this for CrossRE (`CrossREAI`) and ReTACRED datasets.
     pub fn load_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
+        if let Some(reason) = id.relation_span_limitation() {
+            return Err(Error::InvalidInput(reason.into()));
+        }
         if !id.is_relation_extraction() {
             return Err(Error::InvalidInput(format!(
                 "{:?} is not a relation extraction dataset",
@@ -5785,7 +5795,6 @@ impl DatasetLoader {
             | DatasetId::ReTACRED
             | DatasetId::NYTFB
             | DatasetId::WEBNLG
-            | DatasetId::GoogleRE
             | DatasetId::BioRED
             | DatasetId::SciER
             | DatasetId::MixRED
@@ -5830,6 +5839,9 @@ impl DatasetLoader {
     /// Load relation extraction dataset, downloading if needed.
     #[cfg(feature = "eval")]
     pub fn load_or_download_relation(&self, id: DatasetId) -> Result<Vec<RelationDocument>> {
+        if let Some(reason) = id.relation_span_limitation() {
+            return Err(Error::InvalidInput(reason.into()));
+        }
         if !self.is_cached_for(id) {
             let (content, _) = self.download_with_resolved_url(id)?;
             self.validate_and_cache_relation_content(id, &content)?;
@@ -7522,6 +7534,64 @@ fn map_entity_type(original: &str) -> EntityType {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn googlere_keeps_evidence_snippets_without_fabricating_relation_spans() {
+        use crate::eval::task_mapping::{dataset_tasks, get_task_datasets, Task};
+        let id = DatasetId::GoogleRE;
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let cache = dir.path().join(id.cache_filename());
+        let reason = "without gold subject/object character spans";
+        assert!(
+            id.is_relation_extraction() && dataset_tasks(id).contains(&Task::RelationExtraction)
+        );
+        assert!(!get_task_datasets(Task::RelationExtraction).contains(&id));
+        assert!(loader
+            .load_relation(id)
+            .unwrap_err()
+            .to_string()
+            .contains(reason));
+        #[cfg(feature = "eval")]
+        {
+            assert!(loader
+                .load_or_download_relation(id)
+                .unwrap_err()
+                .to_string()
+                .contains(reason));
+            assert!(!cache.exists());
+        }
+        let line = r#"{"pred":"/people/person/place_of_birth","sub":"/m/person","obj":"/m/place","evidences":[{"url":"https://example.org/story","snippet":"Ayşe grew up near İzmir."}],"judgments":[{"rater":"annotator","judgment":"yes"}]}"#;
+        std::fs::write(&cache, line).unwrap();
+        let data = loader
+            .load(LoadableDatasetId::try_from(id).unwrap())
+            .unwrap();
+        assert_eq!(data.sentences.len(), 1);
+        assert_eq!(data.sentences[0].text(), "Ayşe grew up near İzmir.");
+        assert!(data.sentences[0].entities().is_empty());
+        assert!(loader
+            .load_relation(id)
+            .unwrap_err()
+            .to_string()
+            .contains(reason));
+        #[cfg(feature = "eval")]
+        {
+            let report = crate::muxer_matrix::dataset_eligibility_report(
+                &loader,
+                Task::RelationExtraction,
+                true,
+            );
+            let row = report["datasets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["dataset"] == "GoogleRE")
+                .unwrap();
+            assert_eq!(row["locally_cached"], true);
+            assert_eq!(row["eligible"], false);
+            assert_eq!(row["exclusion"], "missing_relation_spans");
+        }
+    }
 
     /// Relation gold spans are character offsets: a non-ASCII token before an
     /// entity must not shift later spans.

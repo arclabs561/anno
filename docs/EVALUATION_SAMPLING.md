@@ -25,6 +25,8 @@ anno sampler eligibility --task ner --require-cached |
 
 An automatic run applies the registry's source policy before checking the cache. For example, cached WNUT17 can report `non_automatable_source`. To include a known, verified local source in an offline comparison, scope `ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE=1`, `ANNO_NO_DOWNLOADS=1` and `ANNO_S3_CACHE=0` to both the preflight and run commands, using an isolated dataset cache. Language/domain environment pins and fast-profile limits affect the reported pool. When S3 cache is enabled, `require_cached` permits a remote cache lookup during execution. The preflight itself neither downloads data nor parses corpus contents. Backend compatibility, fixed-dataset overrides, and successful loading are checked at run time.
 
+GoogleRE provides judged entity-ID pairs and evidence snippets. The standard loader reads its snippets; `anno sampler eligibility --task re` reports `missing_relation_spans` because the span scorer needs gold character offsets for both arguments.
+
 ## Choose a mode
 
 `anno sampler` (also `anno muxer`) exposes three presets. An explicit `--strategy` overrides the preset.
