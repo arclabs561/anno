@@ -501,34 +501,7 @@ pub(super) fn append_coref_clusters(
     if clusters.is_empty() {
         return Ok(0);
     }
-    let text = doc.text();
-    let offsets = anno::offset::SpanConverter::new(text);
-    let text_len = offsets.byte_to_char(text.len());
-    for cluster in clusters {
-        if cluster.spans.len() != cluster.mentions.len() {
-            return Err(format!(
-                "coreference cluster {} has {} mentions and {} spans",
-                cluster.id,
-                cluster.mentions.len(),
-                cluster.spans.len()
-            ));
-        }
-        if cluster
-            .spans
-            .iter()
-            .zip(&cluster.mentions)
-            .any(|(&(start, end), mention)| {
-                start >= end
-                    || end > text_len
-                    || text[offsets.char_to_byte(start)..offsets.char_to_byte(end)] != *mention
-            })
-        {
-            return Err(format!(
-                "coreference cluster {} has an invalid source span",
-                cluster.id
-            ));
-        }
-    }
+    validate_coref_clusters(doc.text(), clusters)?;
     let mut groups = clusters
         .iter()
         .filter(|cluster| cluster.mentions.len() >= 2)
@@ -561,6 +534,41 @@ pub(super) fn append_coref_clusters(
     }
     *doc = staged;
     Ok(tracks_added)
+}
+
+/// Source spans are in characters. Only character-to-byte lookups are needed.
+#[cfg(any(test, feature = "onnx", feature = "discourse"))]
+fn validate_coref_clusters(
+    text: &str,
+    clusters: &[anno::backends::coref::resolve::CorefCluster],
+) -> Result<(), String> {
+    let offsets = (!text.is_ascii()).then(|| anno::offset::build_char_to_byte_map(text));
+    let text_len = offsets.as_ref().map_or(text.len(), |map| map.len() - 1);
+    let byte = |i: usize| offsets.as_ref().map_or(i, |map| map[i]);
+    for cluster in clusters {
+        if cluster.spans.len() != cluster.mentions.len() {
+            return Err(format!(
+                "coreference cluster {} has {} mentions and {} spans",
+                cluster.id,
+                cluster.mentions.len(),
+                cluster.spans.len()
+            ));
+        }
+        if cluster
+            .spans
+            .iter()
+            .zip(&cluster.mentions)
+            .any(|(&(start, end), mention)| {
+                start >= end || end > text_len || text[byte(start)..byte(end)] != *mention
+            })
+        {
+            return Err(format!(
+                "coreference cluster {} has an invalid source span",
+                cluster.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Attach demo KB-style identities to tracks.
@@ -788,6 +796,21 @@ mod tests {
         assert_eq!(doc.tracks().count(), 0);
         assert_eq!(super::append_coref_clusters(&mut doc, &[valid]).unwrap(), 1);
         assert!(doc.validate().is_empty());
+    }
+
+    #[test]
+    fn unicode_coref_span_can_end_at_eof_but_cannot_exceed_it() {
+        use anno::backends::coref::resolve::CorefCluster;
+        let text = "🦊é🦊";
+        let mut cluster = CorefCluster {
+            id: 1,
+            canonical: "🦊".into(),
+            mentions: vec!["🦊".into(), "🦊".into()],
+            spans: vec![(0, 1), (2, 3)],
+        };
+        assert!(super::validate_coref_clusters(text, std::slice::from_ref(&cluster)).is_ok());
+        cluster.spans[1].1 = 4;
+        assert!(super::validate_coref_clusters(text, &[cluster]).is_err());
     }
 
     use super::*;

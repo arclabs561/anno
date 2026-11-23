@@ -1,4 +1,6 @@
 //! Opt-in process high-water measurement for the CLI's atomic cluster publication.
+//! Run on Linux with `cargo test -p anno-cli --no-default-features --features
+//! extractor-html2text --bin anno publication_peak_rss -- --ignored --nocapture`.
 
 use anno::backends::coref::resolve::CorefCluster;
 use anno::{GroundedDocument, Location, Signal, TypeLabel};

@@ -10,6 +10,8 @@
   `EvaluationScheduling::skip_reason()` returns the typed reason.
   `TaskEvalResult::is_skipped()` also handles schema 0 and 1 diagnostics.
 
+- CLI coreference uses less peak memory while validating character offsets in Unicode documents.
+
 ## [0.15.0]
 
 ### Changed
