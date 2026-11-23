@@ -1487,8 +1487,8 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
 /// **Prefer mutation via provided methods** (`add_signal`, `add_track`, `add_signal_to_track`,
 /// `link_track_to_identity`) rather than direct field manipulation to preserve invariants.
 ///
-/// Use [`validate_invariants()`](Self::validate_invariants) to check structural consistency
-/// after external modifications.
+/// After raw edits, call [`Self::rebuild_indexes`] and then [`Self::validate_invariants`]
+/// before using the document. [`Self::validate`] reports source span errors.
 ///
 /// ## Serialization
 ///
@@ -1592,7 +1592,8 @@ impl GroundedDocument {
         self.coref_run = Some(report);
     }
 
-    /// Get a mutable reference to the signals vector.
+    /// Edit raw signals. After changing IDs or membership, call [`Self::rebuild_indexes`]
+    /// before using reverse lookups or allocating IDs.
     pub fn signals_mut(&mut self) -> &mut Vec<Signal<Location>> {
         &mut self.signals
     }
@@ -1627,11 +1628,15 @@ impl GroundedDocument {
 
     /// Rebuild all internal indexes from the data fields.
     ///
-    /// Call this after deserializing a `GroundedDocument` or after mutating
-    /// via `signals_mut()`, `tracks_map_mut()`, or `identities_map_mut()`. The method recomputes:
-    /// - `signal_to_track` from each track's signal list
-    /// - `track_to_identity` from each track's `identity_id`
-    /// - `next_signal_id`, `next_track_id`, `next_identity_id` counters
+    /// After raw collection edits, call this before querying reverse links or
+    /// allocating IDs. It derives both reverse indexes from the tracks and
+    /// sets each next ID from the greatest remaining ID in that namespace.
+    /// Removing the greatest ID can therefore make it available again.
+    ///
+    /// This leaves the supplied collections intact. Use [`Self::validate_invariants`]
+    /// to check for invalid references, duplicate membership, mismatched keys, or
+    /// IDs that leave no room for allocation. Use [`Self::validate`] to check
+    /// signal spans against the source text. Deserialization runs both checks.
     pub fn rebuild_indexes(&mut self) {
         self.signal_to_track.clear();
         self.track_to_identity.clear();
@@ -1650,19 +1655,23 @@ impl GroundedDocument {
             .iter()
             .map(|s| s.id)
             .max()
-            .map_or(SignalId::ZERO, |id| id + 1);
+            .map_or(SignalId::ZERO, |id| {
+                SignalId::new(id.get().saturating_add(1))
+            });
         self.next_track_id = self
             .tracks
             .keys()
             .copied()
             .max()
-            .map_or(TrackId::ZERO, |id| id + 1);
+            .map_or(TrackId::ZERO, |id| TrackId::new(id.get().saturating_add(1)));
         self.next_identity_id = self
             .identities
             .keys()
             .copied()
             .max()
-            .map_or(IdentityId::ZERO, |id| id + 1);
+            .map_or(IdentityId::ZERO, |id| {
+                IdentityId::new(id.get().saturating_add(1))
+            });
     }
 
     // -------------------------------------------------------------------------
@@ -1670,11 +1679,15 @@ impl GroundedDocument {
     // -------------------------------------------------------------------------
 
     /// Add a signal and return its ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics before insertion if the signal ID namespace is exhausted.
     pub fn add_signal(&mut self, mut signal: Signal<Location>) -> SignalId {
         let id = self.next_signal_id;
+        self.next_signal_id = SignalId::new(id.get().checked_add(1).expect("signal IDs exhausted"));
         signal.id = id;
         self.signals.push(signal);
-        self.next_signal_id += 1;
         id
     }
 
@@ -1773,7 +1786,8 @@ impl GroundedDocument {
         self.tracks.get(&id.into())
     }
 
-    /// Get a mutable reference to a track by ID.
+    /// Edit a track. After changing its signal or identity links, call
+    /// [`Self::rebuild_indexes`] before using reverse lookups.
     #[must_use]
     pub fn get_track_mut(&mut self, id: impl Into<TrackId>) -> Option<&mut Track> {
         self.tracks.get_mut(&id.into())
@@ -1820,11 +1834,16 @@ impl GroundedDocument {
     // -------------------------------------------------------------------------
 
     /// Add an identity and return its ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics before insertion if the identity ID namespace is exhausted.
     pub fn add_identity(&mut self, mut identity: Identity) -> IdentityId {
         let id = self.next_identity_id;
+        self.next_identity_id =
+            IdentityId::new(id.get().checked_add(1).expect("identity IDs exhausted"));
         identity.id = id;
         self.identities.insert(id, identity);
-        self.next_identity_id += 1;
         id
     }
 
@@ -1836,7 +1855,7 @@ impl GroundedDocument {
     /// persisted identity ambiguous.
     pub(crate) fn insert_identity_with_id(&mut self, identity: Identity) -> bool {
         let id = identity.id;
-        if self.identities.contains_key(&id) {
+        if id == IdentityId::new(u64::MAX) || self.identities.contains_key(&id) {
             return false;
         }
         self.identities.insert(id, identity);
@@ -2229,6 +2248,7 @@ impl GroundedDocument {
     /// 3. `signal_to_track` index consistency
     /// 4. `track_to_identity` index consistency
     /// 5. Track identity references point to existing identities
+    /// 6. Stored IDs precede the next IDs used for allocation
     ///
     /// Use this after any direct field manipulation to ensure consistency.
     ///
@@ -2248,6 +2268,12 @@ impl GroundedDocument {
         // 1. Signal ID uniqueness
         let mut seen_ids = std::collections::HashSet::new();
         for signal in &self.signals {
+            if signal.id >= self.next_signal_id {
+                errors.push(format!(
+                    "Signal ID {} must precede the next signal ID {}",
+                    signal.id, self.next_signal_id
+                ));
+            }
             if !seen_ids.insert(signal.id) {
                 errors.push(format!("Duplicate signal ID: {}", signal.id));
             }
@@ -2259,6 +2285,12 @@ impl GroundedDocument {
         // 2. Track signal references point to existing signals
         let mut assigned_signals = std::collections::HashSet::new();
         for (track_id, track) in &self.tracks {
+            if *track_id >= self.next_track_id {
+                errors.push(format!(
+                    "Track ID {track_id} must precede the next track ID {}",
+                    self.next_track_id
+                ));
+            }
             if track.id != *track_id {
                 errors.push(format!(
                     "Track map key {} differs from its ID {}",
@@ -2334,6 +2366,12 @@ impl GroundedDocument {
 
         // 5. Track identity references point to existing identities
         for (identity_id, identity) in &self.identities {
+            if *identity_id >= self.next_identity_id {
+                errors.push(format!(
+                    "Identity ID {identity_id} must precede the next identity ID {}",
+                    self.next_identity_id
+                ));
+            }
             if identity.id != *identity_id {
                 errors.push(format!(
                     "Identity map key {} differs from its ID {}",
@@ -2517,7 +2555,8 @@ impl GroundedDocument {
 
     /// Add multiple signals at once.
     ///
-    /// Returns the IDs of all added signals.
+    /// Returns the assigned IDs in iteration order. If the ID range is exhausted,
+    /// the call panics and earlier insertions in the batch remain.
     pub fn add_signals(
         &mut self,
         signals: impl IntoIterator<Item = Signal<Location>>,
@@ -5577,6 +5616,18 @@ mod tests {
 
     // Note: Tests that depend on anno::eval::coref types have been moved to anno crate
     // (test_coref_chain_conversion, test_from_coref_document, test_coref_roundtrip)
+
+    #[test]
+    fn explicit_identity_insertion_rejects_an_unallocatable_id() {
+        let mut doc = GroundedDocument::new("doc", "");
+        let reserved = IdentityId::new(u64::MAX);
+        assert!(!doc.insert_identity_with_id(Identity::new(reserved, "invalid")));
+        assert!(doc.identities_map().is_empty());
+        assert_eq!(
+            doc.add_identity(Identity::new(0, "first")),
+            IdentityId::ZERO
+        );
+    }
 
     #[test]
     fn test_document_stats() {
