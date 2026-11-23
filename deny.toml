@@ -3,9 +3,9 @@
 # Run: cargo deny check
 
 [advisories]
+unused-ignored-advisory = "deny"
 ignore = [
     # No safe upgrade available (transitive).
-    { id = "RUSTSEC-2025-0119", reason = "number_prefix is unmaintained; no safe upgrade is available." },
     { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained; no safe upgrade is available." },
 ]
 
@@ -71,12 +71,3 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
-
-# `arclabs561` is the maintainer's GitHub org. Crates pulled from there
-# (e.g. local development overrides via `[patch.crates-io]`) bypass the
-# `unknown-git = deny` rule. This is a deliberate supply-chain exception
-# scoped to crates we own; do not extend without an explicit audit.
-[sources.allow-org]
-github = ["arclabs561"]
-gitlab = []
-bitbucket = []
