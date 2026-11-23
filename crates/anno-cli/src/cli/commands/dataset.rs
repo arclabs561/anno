@@ -1730,6 +1730,8 @@ fn coref_doc_to_oracle_mentions(doc: &anno_eval::eval::coref::CorefDocument) -> 
         }
     }
 
+    // A resolver receives mention positions, not the annotation's chain ordering.
+    entities.sort_by_key(|entity| (entity.start(), entity.end()));
     entities
 }
 
