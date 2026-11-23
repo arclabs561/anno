@@ -89,6 +89,11 @@
 pub mod html_source;
 use html_source::HtmlSource;
 
+mod kb_assignment;
+pub use kb_assignment::{
+    KbAssignment, KbAssignmentError, KbAssignmentPreview, KbAssignmentPrior, KbAssignmentReceipt,
+};
+
 mod projection;
 pub use projection::EntityProjectionError;
 
@@ -1300,10 +1305,7 @@ impl Identity {
     #[must_use]
     pub fn qualified_kb_ref(&self) -> Option<(&str, &str)> {
         let (name, accession) = self.kb_name().zip(self.kb_id())?;
-        (!name.trim().is_empty()
-            && !name.trim().eq_ignore_ascii_case("unknown")
-            && !accession.trim().is_empty())
-        .then_some((name, accession))
+        kb_assignment::qualified_key(name, accession)
     }
 
     /// Get the aliases.
@@ -4819,6 +4821,9 @@ impl ProcessResult {
 /// across multiple documents.
 #[derive(Debug, Clone)]
 pub struct Corpus {
+    // Invalidate outstanding reviews before returning mutable document access and on
+    // changes to bindings, records, or corpus membership (including internal writers).
+    kb_review_version: kb_assignment::ReviewVersion,
     documents: std::collections::HashMap<String, GroundedDocument>,
     identities: std::collections::HashMap<IdentityId, Identity>,
     next_identity_id: IdentityId,
@@ -4829,6 +4834,7 @@ impl Corpus {
     #[must_use]
     pub fn new() -> Self {
         Self {
+            kb_review_version: Default::default(),
             documents: std::collections::HashMap::new(),
             identities: std::collections::HashMap::new(),
             next_identity_id: IdentityId::ZERO,
@@ -4898,6 +4904,7 @@ impl Corpus {
         if identity.matches_copy(self.identities.get(&id)) {
             return;
         }
+        self.kb_review_version.invalidate();
         let previous = self
             .identities
             .insert(id, identity.clone())
@@ -4939,6 +4946,7 @@ impl Corpus {
             if members.is_empty()
                 && matches!(previous.source, Some(IdentitySource::CrossDocCoref { .. }))
             {
+                self.kb_review_version.invalidate();
                 self.identities.remove(id);
                 for document in self.documents.values_mut() {
                     if previous.matches_copy(document.identities.get(id)) {
@@ -4971,6 +4979,7 @@ impl Corpus {
             .next_unbound_identity_id()
             .expect("identity IDs must leave room for the next allocation");
         identity.id = id;
+        self.kb_review_version.invalidate();
         self.identities.insert(id, identity);
         self.next_identity_id = id + 1;
         id
@@ -5050,6 +5059,7 @@ impl Corpus {
         }) {
             return None;
         }
+        self.kb_review_version.invalidate();
         for document_id in &document_ids {
             let document = self
                 .documents
@@ -5105,7 +5115,9 @@ impl Corpus {
     /// or manually reinserting retired track IDs can rebind old handles.
     /// Returns `None` if the document doesn't exist.
     pub fn get_document_mut(&mut self, doc_id: &str) -> Option<&mut GroundedDocument> {
-        self.documents.get_mut(doc_id)
+        let document = self.documents.get_mut(doc_id)?;
+        self.kb_review_version.invalidate();
+        Some(document)
     }
 
     /// Merge tracks in one document and reconcile references to their retired IDs.
@@ -5116,6 +5128,7 @@ impl Corpus {
     pub fn merge_tracks(&mut self, doc_id: &str, track_ids: &[TrackId]) -> Option<TrackId> {
         let document = self.documents.get_mut(doc_id)?;
         let merged = document.merge_tracks(track_ids)?;
+        self.kb_review_version.invalidate();
         if track_ids.len() == 1 {
             return Some(merged);
         }
@@ -5153,6 +5166,7 @@ impl Corpus {
     /// that could name a previous track receive fresh IDs; obtain new references
     /// from the stored document. Returns the document ID.
     pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
+        self.kb_review_version.invalidate();
         let mut affected = HashSet::new();
         document.corpus_managed = true;
         let replacing = self.documents.contains_key(document.id());
@@ -5323,6 +5337,8 @@ impl Corpus {
     /// an identity with KB information. A newly created KB identity receives the
     /// legacy score zero (unmeasured). An existing cluster retains its measured
     /// evidence when its current track membership matches the recorded membership.
+    /// To inspect the affected tracks before committing a write, use
+    /// [`Corpus::preview_kb_assignment`] and [`Corpus::apply_kb_assignment`].
     ///
     /// # Parameters
     ///
@@ -5349,71 +5365,49 @@ impl Corpus {
     ) -> super::Result<IdentityId> {
         use super::error::Error;
 
-        let document = self.documents.get(&track_ref.doc_id).ok_or_else(|| {
-            Error::track_ref(format!(
-                "Document '{}' not found in corpus",
-                track_ref.doc_id
-            ))
-        })?;
-        let track = document.get_track(track_ref.track_id).ok_or_else(|| {
-            Error::track_ref(format!(
-                "Track {} not found in document '{}'",
-                track_ref.track_id, track_ref.doc_id
-            ))
-        })?;
-        let existing_identity_id = track.identity_id;
-        let local_identity = existing_identity_id
-            .and_then(|identity_id| document.get_identity(identity_id))
-            .cloned();
-        let entity_type = track.entity_type.clone();
-        let embedding = track.embedding.clone();
+        let (track, local_identity) = self.kb_link_track(track_ref)?;
         let kb_name_str = kb_name.into();
         let kb_id_str = kb_id.into();
         let canonical_name_str = canonical_name.into();
 
-        if let (Some(existing_id), Some(local_identity), Some(canonical_identity)) = (
-            existing_identity_id,
-            local_identity,
-            existing_identity_id.and_then(|id| self.identities.get(&id).cloned()),
-        ) {
-            if canonical_identity.matches_copy(Some(&local_identity)) {
-                let mut updated_identity = canonical_identity.clone();
-                updated_identity.kb_id = Some(kb_id_str.clone());
-                updated_identity.kb_name = Some(kb_name_str.clone());
-                updated_identity.canonical_name = canonical_name_str.clone();
-                updated_identity.source = Some(match updated_identity.source.take() {
-                    Some(
-                        IdentitySource::CrossDocCoref { track_refs }
-                        | IdentitySource::Hybrid { track_refs, .. },
-                    ) => IdentitySource::Hybrid {
-                        track_refs,
-                        kb_name: kb_name_str.clone(),
-                        kb_id: kb_id_str.clone(),
-                    },
-                    _ => IdentitySource::KnowledgeBase {
-                        kb_name: kb_name_str.clone(),
-                        kb_id: kb_id_str.clone(),
-                    },
-                });
-                let has_coref_members =
-                    matches!(updated_identity.source, Some(IdentitySource::Hybrid { .. }));
-                self.update_shared_identity(updated_identity);
-                if has_coref_members {
-                    // A direct document edit may have changed the live links since resolution.
-                    self.refresh_coref_membership(&[existing_id]);
-                }
-                return Ok(existing_id);
+        if let Some(canonical_identity) = self.shared_kb_record(track, local_identity) {
+            let existing_id = canonical_identity.id;
+            let mut updated_identity = canonical_identity.clone();
+            updated_identity.kb_id = Some(kb_id_str.clone());
+            updated_identity.kb_name = Some(kb_name_str.clone());
+            updated_identity.canonical_name = canonical_name_str.clone();
+            updated_identity.source = Some(match updated_identity.source.take() {
+                Some(
+                    IdentitySource::CrossDocCoref { track_refs }
+                    | IdentitySource::Hybrid { track_refs, .. },
+                ) => IdentitySource::Hybrid {
+                    track_refs,
+                    kb_name: kb_name_str.clone(),
+                    kb_id: kb_id_str.clone(),
+                },
+                _ => IdentitySource::KnowledgeBase {
+                    kb_name: kb_name_str.clone(),
+                    kb_id: kb_id_str.clone(),
+                },
+            });
+            let has_coref_members =
+                matches!(updated_identity.source, Some(IdentitySource::Hybrid { .. }));
+            self.update_shared_identity(updated_identity);
+            if has_coref_members {
+                // A direct document edit may have changed the live links since resolution.
+                self.refresh_coref_membership(&[existing_id]);
             }
+            return Ok(existing_id);
         }
 
         let identity = Identity {
             id: IdentityId::ZERO,
             canonical_name: canonical_name_str,
-            entity_type,
+            entity_type: track.entity_type.clone(),
             kb_id: Some(kb_id_str.clone()),
             kb_name: Some(kb_name_str.clone()),
             description: None,
-            embedding,
+            embedding: track.embedding.clone(),
             aliases: Vec::new(),
             minimum_pair_similarity: None,
             confidence: Confidence::ZERO,
