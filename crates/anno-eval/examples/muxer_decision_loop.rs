@@ -34,18 +34,11 @@ fn simulated_outcome(backend: &str, round: usize) -> (Outcome, Option<&'static s
         }
         // Low-latency structured backend with occasional hard failure.
         _ => {
-            let hard_fail = round.is_multiple_of(3);
-            (
-                Outcome::with_quality(
-                    !hard_fail,
-                    hard_fail,
-                    hard_fail,
-                    4,
-                    90,
-                    if hard_fail { 0.0 } else { 0.35 },
-                ),
-                if hard_fail { Some("timeout") } else { None },
-            )
+            if round.is_multiple_of(3) {
+                (Outcome::new(false, true, true, 4, 90), Some("timeout"))
+            } else {
+                (Outcome::with_quality(true, false, false, 4, 90, 0.35), None)
+            }
         }
     }
 }
@@ -106,7 +99,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "junk": outcome.junk,
             "hard_junk": outcome.hard_junk,
             "fail_kind": fail_kind,
-            "primary_f1": outcome.quality_score.unwrap_or(0.0),
+            "primary_f1": outcome.quality_score,
             "elapsed_ms": outcome.elapsed_ms,
             "cost_units": outcome.cost_units
         });
@@ -122,14 +115,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get("groups")
         .and_then(|v| v.as_array())
         .ok_or("aggregate output missing groups")?;
-    if groups.is_empty() {
-        return Err("expected at least one aggregated group".into());
+    assert_eq!(groups.len(), arms.len());
+    let summaries = history.summaries_for(None, &arms, Some(&[dataset]), true, 0);
+    for row in groups {
+        let arm = row["backend"].as_str().ok_or("missing backend")?;
+        let observed = &summaries[arm];
+        assert_eq!(Some(observed.calls), row["n"].as_u64());
+        let logged = row["mean_primary_f1"].as_f64().ok_or("missing logged F1")?;
+        let quality = observed.mean_quality_score.ok_or_else(|| {
+            format!("{arm}: missing dataset-scoped quality for logged F1 {logged}")
+        })?;
+        assert!(
+            (quality - logged).abs() < 1e-12,
+            "{arm}: {quality} vs {logged}"
+        );
     }
 
     let lines_outcome = agg
         .get("lines_outcome")
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
+    assert_eq!(lines_outcome, 12);
     println!(
         "wrote {lines_outcome} synthetic outcomes to {}",
         jsonl_path.display()

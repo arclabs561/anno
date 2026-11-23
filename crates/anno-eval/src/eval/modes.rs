@@ -157,7 +157,7 @@
 //! ```
 
 use super::datasets::GoldEntity;
-use anno::{Entity, EntityType};
+use anno::{Entity, SpanCoverage};
 use serde::{Deserialize, Serialize};
 
 // =============================================================================
@@ -326,7 +326,7 @@ impl ModeResults {
         if mode == EvalMode::Partial {
             return semeval_partial_results(predicted, gold, 0.0);
         }
-        let (tp, fp, fn_count) = count_matches(predicted, gold, mode);
+        let (tp, fp, fn_count) = count_matches(predicted, gold, mode, 0.0);
 
         let precision = if tp + fp > 0 {
             tp as f64 / (tp + fp) as f64
@@ -420,82 +420,35 @@ impl MultiModeResults {
 // =============================================================================
 
 /// Check if two entities match according to the given mode.
-fn entities_match(pred: &Entity, gold: &GoldEntity, mode: EvalMode) -> bool {
-    match mode {
-        EvalMode::Strict => {
-            // Exact boundary AND exact type
-            pred.start() == gold.start
-                && pred.end() == gold.end
-                && types_match(&pred.entity_type, &gold.entity_type)
+fn entities_match(pred: &Entity, gold: &GoldEntity, mode: EvalMode, min_overlap: f64) -> bool {
+    let predicted = pred.coverage();
+    let expected = gold.coverage();
+    let geometry_matches = match mode {
+        EvalMode::Strict | EvalMode::Exact => {
+            !expected.ranges().is_empty() && predicted.ranges() == expected.ranges()
         }
-        EvalMode::Exact => {
-            // Exact boundary only (type can differ)
-            pred.start() == gold.start && pred.end() == gold.end
+        EvalMode::Partial | EvalMode::Type => {
+            has_sufficient_overlap(&predicted, &expected, min_overlap)
         }
-        EvalMode::Partial => {
-            // Any overlap, type ignored. Scoring (half credit for inexact
-            // boundaries) happens in `semeval_partial_results`.
-            has_overlap(pred.start(), pred.end(), gold.start, gold.end)
-        }
-        EvalMode::Type => {
-            // Any overlap AND exact type
-            has_overlap(pred.start(), pred.end(), gold.start, gold.end)
-                && types_match(&pred.entity_type, &gold.entity_type)
-        }
-    }
+    };
+    geometry_matches
+        && (!matches!(mode, EvalMode::Strict | EvalMode::Type)
+            || super::entity_type_matches(&pred.entity_type, &gold.entity_type))
 }
 
-/// Check if two entity types match.
-fn types_match(a: &EntityType, b: &EntityType) -> bool {
-    // Use the existing entity_type_matches logic
-    super::entity_type_matches(a, b)
-}
-
-/// Check if two spans have any overlap.
-fn has_overlap(start1: usize, end1: usize, start2: usize, end2: usize) -> bool {
-    start1 < end2 && start2 < end1
-}
-
-/// Check if overlap meets minimum threshold.
-///
-/// This allows requiring a minimum overlap ratio for partial matches,
-/// useful when barely-touching spans shouldn't count as matches.
-/// Default threshold of 0.0 accepts any overlap.
 fn has_sufficient_overlap(
-    start1: usize,
-    end1: usize,
-    start2: usize,
-    end2: usize,
-    min_threshold: f64,
+    predicted: &SpanCoverage<'_>,
+    gold: &SpanCoverage<'_>,
+    threshold: f64,
 ) -> bool {
-    if !has_overlap(start1, end1, start2, end2) {
-        return false;
-    }
-    if min_threshold <= 0.0 {
-        return true;
-    }
-    overlap_ratio(start1, end1, start2, end2) >= min_threshold
+    let ratio = predicted.iou(gold);
+    ratio > 0.0 && ratio >= threshold
 }
 
 /// Calculate overlap ratio (IoU) between two spans.
 #[must_use]
 pub fn overlap_ratio(start1: usize, end1: usize, start2: usize, end2: usize) -> f64 {
-    let intersection_start = start1.max(start2);
-    let intersection_end = end1.min(end2);
-
-    if intersection_start >= intersection_end {
-        return 0.0;
-    }
-
-    let intersection = (intersection_end - intersection_start) as f64;
-    let union =
-        ((end1 - start1) + (end2 - start2) - (intersection_end - intersection_start)) as f64;
-
-    if union == 0.0 {
-        1.0
-    } else {
-        intersection / union
-    }
+    SpanCoverage::Contiguous(start1..end1).iou(&SpanCoverage::Contiguous(start2..end2))
 }
 
 /// Count true positives, false positives, and false negatives.
@@ -503,6 +456,7 @@ fn count_matches(
     predicted: &[Entity],
     gold: &[GoldEntity],
     mode: EvalMode,
+    min_overlap: f64,
 ) -> (usize, usize, usize) {
     let mut gold_matched = vec![false; gold.len()];
     let mut tp = 0;
@@ -517,7 +471,7 @@ fn count_matches(
                 continue;
             }
 
-            if entities_match(pred, g, mode) {
+            if entities_match(pred, g, mode, min_overlap) {
                 gold_matched[i] = true;
                 found_match = true;
                 tp += 1;
@@ -549,8 +503,10 @@ fn semeval_partial_results(
     let mut candidates: Vec<(bool, usize, usize)> = Vec::new();
     for (gold_idx, g) in gold.iter().enumerate() {
         for (pred_idx, p) in predicted.iter().enumerate() {
-            if has_sufficient_overlap(p.start(), p.end(), g.start, g.end, min_overlap) {
-                let exact = p.start() == g.start && p.end() == g.end;
+            let predicted = p.coverage();
+            let expected = g.coverage();
+            if has_sufficient_overlap(&predicted, &expected, min_overlap) {
+                let exact = predicted.ranges() == expected.ranges();
                 candidates.push((exact, gold_idx, pred_idx));
             }
         }
@@ -641,7 +597,7 @@ pub fn evaluate_with_config(
     if mode == EvalMode::Partial {
         return semeval_partial_results(predicted, gold, config.min_overlap);
     }
-    let (tp, fp, fn_count) = count_matches_with_config(predicted, gold, mode, config);
+    let (tp, fp, fn_count) = count_matches(predicted, gold, mode, config.min_overlap);
 
     let precision = if tp + fp > 0 {
         tp as f64 / (tp + fp) as f64
@@ -672,76 +628,6 @@ pub fn evaluate_with_config(
     }
 }
 
-/// Count matches with configuration.
-fn count_matches_with_config(
-    predicted: &[Entity],
-    gold: &[GoldEntity],
-    mode: EvalMode,
-    config: &EvalConfig,
-) -> (usize, usize, usize) {
-    let mut gold_matched = vec![false; gold.len()];
-    let mut tp = 0;
-    let mut fp = 0;
-
-    for pred in predicted {
-        let mut found_match = false;
-
-        for (i, g) in gold.iter().enumerate() {
-            if gold_matched[i] {
-                continue;
-            }
-
-            if entities_match_with_config(pred, g, mode, config) {
-                gold_matched[i] = true;
-                found_match = true;
-                tp += 1;
-                break;
-            }
-        }
-
-        if !found_match {
-            fp += 1;
-        }
-    }
-
-    let fn_count = gold_matched.iter().filter(|&&m| !m).count();
-
-    (tp, fp, fn_count)
-}
-
-/// Check if entities match with configuration.
-fn entities_match_with_config(
-    pred: &Entity,
-    gold: &GoldEntity,
-    mode: EvalMode,
-    config: &EvalConfig,
-) -> bool {
-    match mode {
-        EvalMode::Strict => {
-            pred.start() == gold.start
-                && pred.end() == gold.end
-                && types_match(&pred.entity_type, &gold.entity_type)
-        }
-        EvalMode::Exact => pred.start() == gold.start && pred.end() == gold.end,
-        EvalMode::Partial => has_sufficient_overlap(
-            pred.start(),
-            pred.end(),
-            gold.start,
-            gold.end,
-            config.min_overlap,
-        ),
-        EvalMode::Type => {
-            has_sufficient_overlap(
-                pred.start(),
-                pred.end(),
-                gold.start,
-                gold.end,
-                config.min_overlap,
-            ) && types_match(&pred.entity_type, &gold.entity_type)
-        }
-    }
-}
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -749,6 +635,7 @@ fn entities_match_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anno::EntityType;
 
     fn pred(text: &str, ty: EntityType, start: usize, end: usize) -> Entity {
         Entity::new(text, ty, start, end, 0.9)
@@ -756,6 +643,46 @@ mod tests {
 
     fn gold(text: &str, ty: EntityType, start: usize) -> GoldEntity {
         GoldEntity::new(text, ty, start)
+    }
+
+    #[test]
+    fn segmented_predictions_use_actual_intersection_and_union_at_thresholds() {
+        let mut split = pred("Aé🦊B", EntityType::Person, 0, 4);
+        split.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![0..1, 3..4]));
+        let predicted = [split];
+        for (gold_surface, start, iou) in [
+            ("Aé🦊B", 0, 0.5),
+            ("é🦊", 1, 0.0),
+            ("A", 0, 0.5),
+            ("Aé", 0, 1.0 / 3.0),
+        ] {
+            for same_type in [false, true] {
+                let label = if same_type {
+                    EntityType::Person
+                } else {
+                    EntityType::Organization
+                };
+                let gold = [gold(gold_surface, label, start)];
+                let scores = MultiModeResults::compute(&predicted, &gold);
+                assert_eq!(scores.strict.f1, 0.0);
+                assert_eq!(scores.exact.f1, 0.0);
+                assert_eq!(scores.partial.f1, if iou > 0.0 { 0.5 } else { 0.0 });
+                assert_eq!(scores.type_mode.f1, f64::from(iou > 0.0 && same_type));
+                for threshold in [0.0, 1.0 / 3.0, 0.5, 1.0] {
+                    let config = EvalConfig::new().with_min_overlap(threshold);
+                    let hit = iou > 0.0 && iou >= threshold;
+                    let partial =
+                        evaluate_with_config(&predicted, &gold, EvalMode::Partial, &config);
+                    let typed = evaluate_with_config(&predicted, &gold, EvalMode::Type, &config);
+                    assert_eq!(partial.f1, if hit { 0.5 } else { 0.0 });
+                    assert_eq!(typed.f1, f64::from(hit && same_type));
+                    let thresholded = super::super::metrics::calculate_partial_match_metrics(
+                        &predicted, &gold, threshold,
+                    );
+                    assert_eq!(thresholded.f1, f64::from(hit && same_type));
+                }
+            }
+        }
     }
 
     #[test]
@@ -1042,16 +969,32 @@ mod tests {
     #[test]
     fn test_has_sufficient_overlap() {
         // Any overlap with 0% threshold
-        assert!(has_sufficient_overlap(0, 10, 5, 15, 0.0));
+        assert!(has_sufficient_overlap(
+            &SpanCoverage::Contiguous(0..10),
+            &SpanCoverage::Contiguous(5..15),
+            0.0
+        ));
 
         // Needs at least 50% IoU
         // [0,10] and [5,15]: IoU = 5/15 ≈ 0.33
-        assert!(!has_sufficient_overlap(0, 10, 5, 15, 0.5));
+        assert!(!has_sufficient_overlap(
+            &SpanCoverage::Contiguous(0..10),
+            &SpanCoverage::Contiguous(5..15),
+            0.5
+        ));
 
         // [0,10] and [2,12]: IoU = 8/12 ≈ 0.67
-        assert!(has_sufficient_overlap(0, 10, 2, 12, 0.5));
+        assert!(has_sufficient_overlap(
+            &SpanCoverage::Contiguous(0..10),
+            &SpanCoverage::Contiguous(2..12),
+            0.5
+        ));
 
         // No overlap at all
-        assert!(!has_sufficient_overlap(0, 5, 10, 15, 0.0));
+        assert!(!has_sufficient_overlap(
+            &SpanCoverage::Contiguous(0..5),
+            &SpanCoverage::Contiguous(10..15),
+            0.0
+        ));
     }
 }

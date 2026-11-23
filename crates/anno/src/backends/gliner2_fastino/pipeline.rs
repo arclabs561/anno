@@ -452,33 +452,37 @@ pub(crate) fn decode_entities_with_thresholds(
     let num_labels = task.labels.len();
     let scores = &scorer_out.scores;
 
+    // Entity labels share one structural instance, even when the count
+    // head predicts several. Only structured records use later instances.
+    if pred_count == 0 {
+        return Vec::new();
+    }
     let mut candidates: Vec<crate::Entity> = Vec::new();
-    for c_idx in 0..pred_count.min(MAX_COUNT) {
-        for start in 0..num_words {
-            for width_idx in 0..MAX_WIDTH {
-                let end_word = (start + width_idx + 1).min(num_words);
-                for m in 0..num_labels {
-                    let prob = scores[[c_idx, start, width_idx, m]];
-                    if prob <= thresholds[m] {
-                        continue;
-                    }
-                    let (byte_start, _) = record.word_to_char_maps[start];
-                    let (_, byte_end) = record.word_to_char_maps[end_word - 1];
-                    if byte_end > text.len() || byte_start > byte_end {
-                        continue;
-                    }
-                    let surface = text[byte_start..byte_end].trim();
-                    if surface.is_empty() {
-                        continue;
-                    }
-                    let etype = crate::schema::map_to_canonical(&task.labels[m], None);
-                    // Convert byte offsets to char offsets (anno convention).
-                    let (cs, ce) = crate::offset::bytes_to_chars(text, byte_start, byte_end);
-                    candidates.push(crate::Entity::new(surface, etype, cs, ce, prob));
+    for start in 0..num_words {
+        for width_idx in 0..MAX_WIDTH.min(num_words - start) {
+            let end_word = start + width_idx + 1;
+            for m in 0..num_labels {
+                let prob = scores[[0, start, width_idx, m]];
+                if !(thresholds[m]..=1.0).contains(&prob) {
+                    continue;
                 }
+                let (byte_start, _) = record.word_to_char_maps[start];
+                let (_, byte_end) = record.word_to_char_maps[end_word - 1];
+                if byte_end > text.len() || byte_start > byte_end {
+                    continue;
+                }
+                let surface = text[byte_start..byte_end].trim();
+                if surface.is_empty() {
+                    continue;
+                }
+                let etype = crate::schema::map_to_canonical(&task.labels[m], None);
+                // Convert byte offsets to char offsets (anno convention).
+                let (cs, ce) = crate::offset::bytes_to_chars(text, byte_start, byte_end);
+                candidates.push(crate::Entity::new(surface, etype, cs, ce, prob));
             }
         }
     }
+
     super::nms::greedy_nms(candidates, flat_ner)
 }
 
@@ -521,7 +525,7 @@ pub(crate) fn decode_entities(
 /// `// TODO(Phase 2.5)` markers below for where they'd specialize.
 ///
 /// Threshold semantics: a (instance, field) candidate is dropped only if
-/// its best score is `<= threshold`. An instance with all fields dropped
+/// its best score is below `threshold`. An instance with all fields dropped
 /// becomes an empty `fields` map; the caller decides whether to keep
 /// such instances (this fn keeps them — see `extract_structure` for the
 /// emptiness filter).
@@ -555,12 +559,12 @@ pub(crate) fn decode_structure(
             // Find the best (start, width_idx) for this (instance, field).
             let mut best: Option<(f32, usize, usize)> = None;
             for start in 0..num_words {
-                for width_idx in 0..MAX_WIDTH {
+                for width_idx in 0..MAX_WIDTH.min(num_words - start) {
                     let prob = scores[[c_idx, start, width_idx, m]];
-                    if prob <= threshold {
+                    if !(threshold..=1.0).contains(&prob) {
                         continue;
                     }
-                    let end_word = (start + width_idx + 1).min(num_words);
+                    let end_word = start + width_idx + 1;
                     let (byte_start, _) = record.word_to_char_maps[start];
                     let (_, byte_end) = record.word_to_char_maps[end_word - 1];
                     if byte_end > text.len() || byte_start > byte_end {
@@ -577,7 +581,7 @@ pub(crate) fn decode_structure(
                 }
             }
             if let Some((_prob, start, width_idx)) = best {
-                let end_word = (start + width_idx + 1).min(num_words);
+                let end_word = start + width_idx + 1;
                 let (byte_start, _) = record.word_to_char_maps[start];
                 let (_, byte_end) = record.word_to_char_maps[end_word - 1];
                 let surface = text[byte_start..byte_end].trim().to_string();
@@ -752,6 +756,46 @@ mod tests {
         // and matches the all-labels-same-threshold case.
         let ents_global = decode_entities(text, &record, &task, &scorer_out, 1, 0.5, false);
         assert_eq!(ents_global.len(), 2);
+    }
+
+    #[test]
+    fn padded_widths_and_later_instances_cannot_invent_entities() {
+        use super::super::processor::{ProcessedRecord, TaskMapping};
+        use super::super::schema::{FieldType, StructureValue};
+
+        let record = ProcessedRecord {
+            input_ids: vec![],
+            attention_mask: vec![],
+            tasks: vec![],
+            text_start: 0,
+            text_end: 0,
+            word_to_token_maps: vec![(0, 1), (1, 2)],
+            word_to_char_maps: vec![(0, 4), (5, 9)],
+        };
+        let task = TaskMapping {
+            task_name: "entry".into(),
+            task_type: "entities".into(),
+            labels: vec!["person".into()],
+            prompt_tok_idx: 0,
+            field_tok_indices: vec![0],
+        };
+        let mut scores = ndarray::Array4::zeros((2, 2, MAX_WIDTH, 1));
+        scores[[0, 0, 0, 0]] = 0.5; // Jane meets the threshold exactly
+        scores[[0, 1, 1, 0]] = 0.99; // padded: beyond the final word
+        scores[[1, 1, 0, 0]] = 0.9; // John belongs to the second structured record
+        let scorer = ScorerOutput { scores };
+        let text = "Jane John";
+        let entities = decode_entities(text, &record, &task, &scorer, 2, 0.5, false);
+        assert_eq!(entities.len(), 1);
+        assert_eq!(entities[0].text, "Jane");
+        let fields = [("person".into(), FieldType::String)];
+        let structures = decode_structure(text, &record, &task, &scorer, 2, 0.5, &fields);
+        assert_eq!(structures.len(), 2);
+        for (structure, expected) in structures.iter().zip(["Jane", "John"]) {
+            assert!(
+                matches!(&structure.fields["person"], StructureValue::Single(value) if value == expected)
+            );
+        }
     }
 
     #[test]

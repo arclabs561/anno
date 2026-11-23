@@ -15,16 +15,21 @@ cargo build --release -p anno-cli --features "eval onnx candle" || {
     exit 1
 }
 
-# Run full benchmark
-if [ -n "${MAX_EXAMPLES:-}" ]; then
-    echo "Limiting to ${MAX_EXAMPLES} examples per dataset"
-    cargo run --release -p anno-cli --bin anno --features "eval onnx candle" -- benchmark \
-        --max-examples "${MAX_EXAMPLES}" \
-        --output "${OUTPUT}"
+# The CLI writes diagnostic reports even when individual evaluations fail.
+# Check the rows before reporting a successful full evaluation.
+result_json=$(mktemp)
+trap 'rm -f -- "$result_json"' EXIT
+args=(benchmark --output "$OUTPUT" --output-json "$result_json")
+if [[ -n "$MAX_EXAMPLES" ]]; then
+    echo "Limiting to $MAX_EXAMPLES examples per dataset"
+    args+=(--max-examples "$MAX_EXAMPLES")
 else
     echo "Running full evaluation (no example limit)"
-    cargo run --release -p anno-cli --bin anno --features "eval onnx candle" -- benchmark \
-        --output "${OUTPUT}"
+fi
+cargo run --release -p anno-cli --bin anno --features "eval onnx candle" -- "${args[@]}"
+if ! jq -e 'any(.results[]; .success == true and (.num_examples | type == "number" and . > 0))' "$result_json" >/dev/null; then
+    echo "Full evaluation produced no successful result with evaluated examples." >&2
+    exit 1
 fi
 
 echo "Full evaluation complete: ${OUTPUT}"

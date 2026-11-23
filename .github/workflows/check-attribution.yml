@@ -12,6 +12,10 @@ permissions:
 jobs:
   check:
     if: github.event.sender.id == github.event.repository.owner.id
+    # Each PR description edit supersedes its previous check. Reviews have independent bodies.
+    concurrency:
+      group: attribution-${{ github.event_name }}-${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

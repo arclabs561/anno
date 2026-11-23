@@ -1,24 +1,20 @@
 /// Preprocess text for RAG: chunk and rewrite pronouns.
 ///
-/// Splits a document into chunks and resolves pronouns so each chunk
-/// is self-contained for embedding and retrieval.
+/// Chunk boundaries and pronoun rewrites depend on the input and extractor.
+/// The offline model in this example returns named entities and leaves the
+/// pronouns unchanged.
 ///
 /// ```sh
-/// cargo run --example rag_preprocess
+/// cargo run -p anno --no-default-features --example rag_preprocess
 /// ```
 ///
 /// Example output:
 ///
 /// ```text
-/// --- Chunk 1 (chars 0..56) ---
-/// Original: Marie Curie moved to Paris. She joined the Sorbonne.
-/// Resolved: Marie Curie moved to Paris. Marie Curie joined the Sorbonne.
-///   1 rewrite(s), 2 entities
-///
-/// --- Chunk 2 (chars 56..109) ---
-/// Original: Her work on radioactivity earned a Nobel Prize.
-/// Resolved: Marie Curie's work on radioactivity earned a Nobel Prize.
-///   1 rewrite(s), 1 entities
+/// --- Chunk 1 (chars 0..100) ---
+/// Original: Marie Curie moved to Paris. She joined the Sorbonne. Her work on radioactivity earned a Nobel Prize.
+/// Resolved: Marie Curie moved to Paris. She joined the Sorbonne. Her work on radioactivity earned a Nobel Prize.
+///   0 rewrite(s), 4 entities
 /// ```
 fn main() -> anno::Result<()> {
     use anno::{rag, StackedNER};

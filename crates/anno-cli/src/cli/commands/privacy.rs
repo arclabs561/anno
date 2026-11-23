@@ -20,8 +20,8 @@ use anno::Entity;
 /// Privacy analysis and redaction
 #[derive(Parser, Debug)]
 pub struct PrivacyArgs {
-    /// Input file or text
-    #[arg(short, long)]
+    /// Read UTF-8 text from this file
+    #[arg(short, long, value_name = "PATH")]
     pub input: Option<PathBuf>,
 
     /// Input text directly
@@ -46,8 +46,9 @@ pub struct PrivacyArgs {
     #[arg(long)]
     pub export_map: Option<PathBuf>,
 
-    /// PII types to target (default: all)
-    #[arg(long, value_delimiter = ',')]
+    /// Comma-separated PII types to target (default: all). CONTACT includes email and phone.
+    #[arg(long, value_delimiter = ',', ignore_case = true,
+          value_parser = ["PERSON", "DOB", "ADDRESS", "CONTACT", "ID_NUMBER"])]
     pub types: Vec<String>,
 
     /// Quiet mode
@@ -61,7 +62,7 @@ pub enum PrivacyAction {
     /// Report PII detected (no modification)
     #[default]
     Report,
-    /// Replace PII with type tokens (\[PERSON_1\], \[DATE_3\], etc.)
+    /// Replace PII with type tokens such as `[CONTACT_1]` and `[ID_NUMBER_1]`
     Redact,
     /// Replace with consistent fake values
     Pseudonymize,
@@ -127,14 +128,14 @@ pub fn run(args: PrivacyArgs) -> Result<(), String> {
             print_pii_report(&report, args.quiet);
         }
         PrivacyAction::Redact => {
-            let redacted = redact_text(&text, &pii_entities);
+            let redacted = redact_text(&text, pii_entities);
             if let Some(path) = &args.output {
                 fs::write(path, &redacted).map_err(|e| format!("Failed to write: {}", e))?;
                 if !args.quiet {
                     eprintln!(
                         "{} Redacted {} PII entities, saved to {:?}",
                         color("32", "✓"),
-                        pii_entities.len(),
+                        report.entities.len(),
                         path
                     );
                 }
@@ -405,22 +406,12 @@ fn replacement_spans(text: &str, entities: &[PIIEntity]) -> Vec<PIIEntity> {
     spans
 }
 
-fn redact_text(text: &str, entities: &[PIIEntity]) -> String {
-    let mut result = text.to_string();
-    let mut type_counts: HashMap<&str, usize> = HashMap::new();
-
-    let spans = replacement_spans(text, entities);
-    for entity in spans.iter().rev() {
-        let Some((start, end)) = char_span_to_byte_range(text, entity.start, entity.end) else {
-            continue;
-        };
-        let count = type_counts.entry(&entity.pii_type).or_insert(0);
-        *count += 1;
-        let replacement = format!("[{}_{}]", entity.pii_type, count);
-        result.replace_range(start..end, &replacement);
-    }
-
-    result
+fn redact_text(text: &str, mut entities: Vec<PIIEntity>) -> String {
+    // CLI detectors may return invalid coordinates. Keep the CLI's skip
+    // behavior before handing valid spans to the shared redactor.
+    let char_count = text.chars().count();
+    entities.retain(|e| e.start < e.end && e.end <= char_count);
+    anno::pii::redact(text, &entities)
 }
 
 fn pseudonymize_text(text: &str, entities: &[PIIEntity]) -> (String, HashMap<String, String>) {
@@ -559,7 +550,7 @@ mod tests {
             risk_level: "HIGH".into(),
         };
         let detections = vec![person(3, 8), person(6, 14), person(3, 8)];
-        assert_eq!(redact_text(text, &detections), "éé [PERSON_1]!");
+        assert_eq!(redact_text(text, detections.clone()), "éé [PERSON_1]!");
         let (pseudonymized, mapping) = pseudonymize_text(text, &detections);
         assert_eq!(pseudonymized, "éé John Smith!");
         assert_eq!(mapping.len(), 1);
@@ -588,7 +579,7 @@ mod tests {
         let text = "東京の連絡先: bob@example.com";
         let entities = scan_structured_pii(text);
 
-        assert_eq!(redact_text(text, &entities), "東京の連絡先: [CONTACT_1]");
+        assert_eq!(redact_text(text, entities), "東京の連絡先: [CONTACT_1]");
     }
 
     #[test]
@@ -601,6 +592,24 @@ mod tests {
         assert_eq!(
             mapping.get("bob@example.com"),
             Some(&"contact@example.com".to_string())
+        );
+    }
+
+    #[test]
+    fn redact_skips_invalid_offsets_and_only_classifies_whole_address_indicators() {
+        let source = "😀 Studio 54 or 123 Main St.";
+        let venue = Entity::new("Studio 54", anno::EntityType::Location, 2, 11, 0.95);
+        assert!(classify_pii(&venue).is_none());
+        let address = Entity::new("123 Main St.", anno::EntityType::Location, 15, 27, 0.95);
+        let valid = classify_pii(&address).unwrap();
+        let spans = [(8, 8), (11, 1), (0, 28), (15, 27)].map(|(start, end)| PIIEntity {
+            start,
+            end,
+            ..valid.clone()
+        });
+        assert_eq!(
+            redact_text(source, spans.to_vec()),
+            "😀 Studio 54 or [ADDRESS_1]"
         );
     }
 
