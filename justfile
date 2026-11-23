@@ -282,8 +282,11 @@ qa-round $RECEIPTS $CLAIM $TRACE="":
     @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
 
 # Evaluate exact mentions and protected source ranges on the diagnostic panel.
-qa-spans $ANNO_BIN $MODEL="heuristic":
-    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL"
+qa-spans $ANNO_BIN $MODEL="heuristic" $FIXTURE="scripts/qa/fixtures/typed-span-assertions.json":
+    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL" --fixture "$FIXTURE"
+
+# Check authored typed spans and protected ranges across eight document domains.
+qa-domain-spans ANNO_BIN MODEL="stacked": (qa-spans ANNO_BIN MODEL "scripts/qa/fixtures/domain-span-assertions.json")
 
 # Run the offline Python QA contracts discovered by CI.
 qa-test:
