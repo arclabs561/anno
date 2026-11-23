@@ -501,34 +501,7 @@ pub(super) fn append_coref_clusters(
     if clusters.is_empty() {
         return Ok(0);
     }
-    let text = doc.text();
-    let offsets = anno::offset::SpanConverter::new(text);
-    let text_len = offsets.byte_to_char(text.len());
-    for cluster in clusters {
-        if cluster.spans.len() != cluster.mentions.len() {
-            return Err(format!(
-                "coreference cluster {} has {} mentions and {} spans",
-                cluster.id,
-                cluster.mentions.len(),
-                cluster.spans.len()
-            ));
-        }
-        if cluster
-            .spans
-            .iter()
-            .zip(&cluster.mentions)
-            .any(|(&(start, end), mention)| {
-                start >= end
-                    || end > text_len
-                    || text[offsets.char_to_byte(start)..offsets.char_to_byte(end)] != *mention
-            })
-        {
-            return Err(format!(
-                "coreference cluster {} has an invalid source span",
-                cluster.id
-            ));
-        }
-    }
+    validate_coref_clusters(doc.text(), clusters)?;
     let mut groups = clusters
         .iter()
         .filter(|cluster| cluster.mentions.len() >= 2)
@@ -561,6 +534,41 @@ pub(super) fn append_coref_clusters(
     }
     *doc = staged;
     Ok(tracks_added)
+}
+
+/// Source spans are in characters. Only character-to-byte lookups are needed.
+#[cfg(any(test, feature = "onnx", feature = "discourse"))]
+fn validate_coref_clusters(
+    text: &str,
+    clusters: &[anno::backends::coref::resolve::CorefCluster],
+) -> Result<(), String> {
+    let offsets = (!text.is_ascii()).then(|| anno::offset::build_char_to_byte_map(text));
+    let text_len = offsets.as_ref().map_or(text.len(), |map| map.len() - 1);
+    let byte = |i: usize| offsets.as_ref().map_or(i, |map| map[i]);
+    for cluster in clusters {
+        if cluster.spans.len() != cluster.mentions.len() {
+            return Err(format!(
+                "coreference cluster {} has {} mentions and {} spans",
+                cluster.id,
+                cluster.mentions.len(),
+                cluster.spans.len()
+            ));
+        }
+        if cluster
+            .spans
+            .iter()
+            .zip(&cluster.mentions)
+            .any(|(&(start, end), mention)| {
+                start >= end || end > text_len || text[byte(start)..byte(end)] != *mention
+            })
+        {
+            return Err(format!(
+                "coreference cluster {} has an invalid source span",
+                cluster.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Attach demo KB-style identities to tracks.
@@ -788,6 +796,55 @@ mod tests {
         assert_eq!(doc.tracks().count(), 0);
         assert_eq!(super::append_coref_clusters(&mut doc, &[valid]).unwrap(), 1);
         assert!(doc.validate().is_empty());
+    }
+
+    #[test]
+    fn unicode_coref_span_can_end_at_eof_but_cannot_exceed_it() {
+        use anno::backends::coref::resolve::CorefCluster;
+        let text = "🦊é🦊";
+        let mut cluster = CorefCluster {
+            id: 1,
+            canonical: "🦊".into(),
+            mentions: vec!["🦊".into(), "🦊".into()],
+            spans: vec![(0, 1), (2, 3)],
+        };
+        assert!(super::validate_coref_clusters(text, std::slice::from_ref(&cluster)).is_ok());
+        cluster.spans[1].1 = 4;
+        assert!(super::validate_coref_clusters(text, &[cluster]).is_err());
+    }
+
+    #[test]
+    fn alias_publication_preserves_original_scalar_spans_transactionally() {
+        use anno::backends::coref::resolve::CorefCluster;
+
+        let mut doc = GroundedDocument::new("aliases", "👩‍💻 e\u{301}. Zoë / Léa. End.");
+        let aliases = CorefCluster {
+            id: 1,
+            canonical: "Zoë".into(),
+            mentions: vec!["Zoë".into(), "Léa".into()],
+            spans: vec![(8, 11), (14, 17)],
+        };
+        assert_eq!(
+            super::append_coref_clusters(&mut doc, std::slice::from_ref(&aliases)).unwrap(),
+            1
+        );
+        let signals: Vec<_> = doc
+            .signals()
+            .iter()
+            .map(|s| (s.surface(), s.text_offsets()))
+            .collect();
+        assert_eq!(signals, [("Zoë", Some((8, 11))), ("Léa", Some((14, 17)))]);
+        let original = serde_json::to_value(&doc).unwrap();
+
+        let mut shifted = aliases.clone();
+        // UTF-16 start and end after the woman-technologist emoji.
+        shifted.spans[1] = (16, 19);
+        let mut normalized = aliases.clone();
+        normalized.mentions[1] = "Le\u{301}a".into();
+        for invalid in [shifted, normalized] {
+            assert!(super::append_coref_clusters(&mut doc, &[aliases.clone(), invalid]).is_err());
+            assert_eq!(serde_json::to_value(&doc).unwrap(), original);
+        }
     }
 
     use super::*;
@@ -1093,3 +1150,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, target_os = "linux"))]
+#[path = "coref_publication_rss.rs"]
+mod coref_publication_rss;

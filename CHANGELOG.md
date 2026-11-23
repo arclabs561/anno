@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- FCoref now returns an error for documents above its token budget. The default
+  budget is 512 tokens including special tokens. To process longer documents,
+  use `FCoref::from_path_with_document_budget` or
+  `FCoref::from_pretrained_with_document_budget`. The encoder still
+  uses `max_segment_len` tokens per segment and scores mentions across segments.
+
 ### Changed
 
 - Schema 2 evaluation receipts use `provenance.runtime.scheduling` to record
@@ -9,6 +17,8 @@
   `capability_unavailable` or `incompatible_entity_types`.
   `EvaluationScheduling::skip_reason()` returns the typed reason.
   `TaskEvalResult::is_skipped()` also handles schema 0 and 1 diagnostics.
+
+- CLI coreference uses less peak memory while validating character offsets in Unicode documents.
 
 ## [0.15.0]
 

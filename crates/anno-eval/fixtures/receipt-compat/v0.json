@@ -1,0 +1,17 @@
+{
+  "task": "NER",
+  "dataset": "WikiGold",
+  "backend": "stacked",
+  "backend_display": "stacked(regex+heuristic)",
+  "seed": 42,
+  "success": false,
+  "error": "Model failed to load",
+  "metrics": {},
+  "num_examples": 100,
+  "duration_ms": 500.0,
+  "label_shift": null,
+  "robustness": null,
+  "stratified": null,
+  "confidence_intervals": null,
+  "kb_version": null
+}
