@@ -257,7 +257,6 @@ impl GLiNERMultitaskOnnx {
             ));
         }
 
-        let mut entities = Vec::new();
         let num_words = text_words.len();
 
         // The pinned token-level export returns start, end and inside logits.
@@ -270,10 +269,12 @@ impl GLiNERMultitaskOnnx {
                 entity_types.len(),
                 threshold,
             );
-            entities = token_entities(text, text_words, entity_types, spans);
+            return Ok(token_entities(text, text_words, entity_types, spans));
         }
+
+        let mut entities = Vec::new();
         // Span-level model: shape [batch, num_words, max_width, num_classes]
-        else if shape.len() == 4 && shape[0] == 1 {
+        if shape.len() == 4 && shape[0] == 1 {
             let out_num_words = shape[1] as usize;
             let out_max_width = shape[2] as usize;
             let num_classes = shape[3] as usize;
@@ -558,16 +559,20 @@ fn token_entities(
     let converter = crate::offset::SpanConverter::new(text);
     spans
         .into_iter()
-        .map(|span| {
+        .filter_map(|span| {
             let (start, end) = word_span_to_char_offsets(text, words, span.start, span.end);
             let surface = &text[converter.char_to_byte(start)..converter.char_to_byte(end)];
-            Entity::new(
+            let (surface, trimmed_chars) = textprep::spans::clean_span_tail(surface);
+            if surface.is_empty() {
+                return None;
+            }
+            Some(Entity::new(
                 surface,
                 map_entity_type(entity_types[span.class]),
                 start,
-                end,
+                end - trimmed_chars,
                 f64::from(span.score),
-            )
+            ))
         })
         .collect()
 }
@@ -586,5 +591,16 @@ mod tests {
         assert_eq!(entities.len(), 1);
         assert_eq!((entities[0].start(), entities[0].end()), (3, 7));
         assert_eq!(entities[0].text, "é\t\u{2003}今");
+    }
+
+    #[test]
+    fn token_cleanup_drops_empty_predictions_and_keeps_exact_source_tail() {
+        let text = ". ... Monday.";
+        let words: Vec<_> = text.split_whitespace().collect();
+        let spans = token_decoder::decode(&[2.; 9], 3, 1, 3, 1, 0.0);
+        let entities = token_entities(text, &words, &["time expression"], spans);
+        assert_eq!(entities.len(), 1);
+        assert_eq!((entities[0].start(), entities[0].end()), (6, 12));
+        assert_eq!(entities[0].text, "Monday");
     }
 }
