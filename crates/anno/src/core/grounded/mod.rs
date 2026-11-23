@@ -786,7 +786,8 @@ pub struct Track {
     pub canonical_surface: String,
     /// Link to global identity (Level 3), if resolved
     pub identity_id: Option<IdentityId>,
-    /// Confidence that signals are correctly clustered
+    /// Producer-supplied score for this grouping. New tracks default to one
+    /// even when the producer has supplied no measurement.
     pub cluster_confidence: Confidence,
     /// Optional embedding for track-level representation
     /// (aggregated from signal embeddings)
@@ -1811,19 +1812,16 @@ impl GroundedDocument {
     /// Add a track after checking all its references. An error leaves the
     /// document and the next available track ID unchanged.
     pub fn try_add_track(&mut self, track: Track) -> super::error::Result<TrackId> {
-        self.validate_new_track(&track, |_| false)?;
-        Ok(self.insert_validated_track(track))
+        self.validate_track_links(&track, |_| false)?;
+        self.insert_validated_track(track)
     }
 
-    fn validate_new_track(
+    fn validate_track_links(
         &self,
         track: &Track,
         replacing: impl Fn(TrackId) -> bool,
     ) -> super::error::Result<()> {
         use super::error::Error;
-        if self.next_track_id.get() == u64::MAX {
-            return Err(Error::invalid_input("track IDs exhausted"));
-        }
         if let Some(id) = track.identity_id {
             if !self.identities.contains_key(&id) {
                 return Err(Error::track_ref(format!("unknown identity {id}")));
@@ -1849,8 +1847,11 @@ impl GroundedDocument {
         Ok(())
     }
 
-    fn insert_validated_track(&mut self, mut track: Track) -> TrackId {
+    fn insert_validated_track(&mut self, mut track: Track) -> super::error::Result<TrackId> {
         let id = self.next_track_id;
+        if id.get() == u64::MAX {
+            return Err(super::error::Error::invalid_input("track IDs exhausted"));
+        }
         track.id = id;
 
         // Update signal → track index
@@ -1863,7 +1864,7 @@ impl GroundedDocument {
 
         self.tracks.insert(id, track);
         self.next_track_id += 1;
-        id
+        Ok(id)
     }
 
     /// Get a track by ID.
@@ -2675,10 +2676,11 @@ impl GroundedDocument {
     }
 
     /// Merge tracks, ordering their members by source start, end, then signal ID.
-    /// Members without text offsets come last. Preserve the first input track's
-    /// canonical surface and the identity link if all populated links agree. Returns `None` without
-    /// changing the document for missing or duplicate tracks, conflicting identities,
-    /// or a merged track with no signals.
+    /// Members without text offsets come last. A single nonempty track keeps its ID
+    /// and metadata while its members are ordered in place. Merging multiple tracks
+    /// assigns a new ID, preserves the first track's canonical surface, and retains
+    /// the identity link if all populated links agree. Returns `None` without changing
+    /// the document for invalid inputs or when a required new ID is unavailable.
     pub fn merge_tracks(&mut self, track_ids: &[TrackId]) -> Option<TrackId> {
         let first = self.tracks.get(track_ids.first()?)?;
         let mut merged = Track::new(TrackId::ZERO, &first.canonical_surface);
@@ -2703,7 +2705,7 @@ impl GroundedDocument {
         if merged.signals.is_empty() {
             return None;
         }
-        self.validate_new_track(&merged, |owner| replacing.contains(&owner))
+        self.validate_track_links(&merged, |owner| replacing.contains(&owner))
             .ok()?;
         merged.signals.sort_by_cached_key(|member| {
             let offsets = self
@@ -2715,11 +2717,17 @@ impl GroundedDocument {
             member.position = u32::try_from(position).ok()?;
         }
 
+        if let [id] = track_ids {
+            self.tracks.get_mut(id)?.signals = merged.signals;
+            return Some(*id);
+        }
+
+        let merged_id = self.insert_validated_track(merged).ok()?;
         for id in track_ids {
             self.tracks.remove(id);
             self.track_to_identity.remove(id);
         }
-        Some(self.insert_validated_track(merged))
+        Some(merged_id)
     }
 
     /// Find all pairs of overlapping signals (potential duplicates or nested entities).
@@ -4850,16 +4858,25 @@ impl Corpus {
     /// Document links determine membership. Local-only identities and KB-only links
     /// carry no corpus coreference decision.
     pub fn current_coref_clusters(&self) -> Vec<(IdentityId, Vec<TrackRef>)> {
+        self.coref_clusters(None)
+    }
+
+    fn coref_clusters(&self, only: Option<IdentityId>) -> Vec<(IdentityId, Vec<TrackRef>)> {
         let mut clusters = std::collections::BTreeMap::<IdentityId, Vec<TrackRef>>::new();
         for document in self.documents() {
+            if only.is_some_and(|id| document.get_identity(id).is_none()) {
+                continue;
+            }
             for track in document.tracks() {
                 let Some(identity) = document.identity_for_track(track.id) else {
                     continue;
                 };
-                if matches!(
-                    identity.source,
-                    Some(IdentitySource::CrossDocCoref { .. } | IdentitySource::Hybrid { .. })
-                ) && self.is_shared_identity(identity)
+                if only.is_none_or(|id| id == identity.id)
+                    && matches!(
+                        identity.source,
+                        Some(IdentitySource::CrossDocCoref { .. } | IdentitySource::Hybrid { .. })
+                    )
+                    && self.is_shared_identity(identity)
                 {
                     clusters.entry(identity.id).or_default().push(TrackRef {
                         doc_id: document.id.clone(),
@@ -4898,7 +4915,11 @@ impl Corpus {
         if affected.is_empty() {
             return;
         }
-        let mut current: HashMap<_, _> = self.current_coref_clusters().into_iter().collect();
+        let only = match affected {
+            [id] => Some(*id),
+            _ => None,
+        };
+        let mut current: HashMap<_, _> = self.coref_clusters(only).into_iter().collect();
         for id in affected {
             let Some(previous) = self.get_identity(*id).cloned() else {
                 continue;
@@ -5078,11 +5099,52 @@ impl Corpus {
 
     /// Get a mutable reference to a document by ID.
     ///
-    /// Use `add_document` for replacement. Direct assignment through this reference
-    /// and manual insertion of retired track IDs bypass corpus reference maintenance.
+    /// Use [`Corpus::add_document`] for replacement and [`Corpus::merge_tracks`]
+    /// to merge tracks while updating shared identity records. Direct document
+    /// edits bypass corpus reference maintenance. Replacing the document here
+    /// or manually reinserting retired track IDs can rebind old handles.
     /// Returns `None` if the document doesn't exist.
     pub fn get_document_mut(&mut self, doc_id: &str) -> Option<&mut GroundedDocument> {
         self.documents.get_mut(doc_id)
+    }
+
+    /// Merge tracks in one document and reconcile references to their retired IDs.
+    ///
+    /// Shared identities keep their current members across all documents. A changed
+    /// membership invalidates its measured pair similarity. Returns the surviving
+    /// track ID, or `None` without mutation when the document or merge is invalid.
+    pub fn merge_tracks(&mut self, doc_id: &str, track_ids: &[TrackId]) -> Option<TrackId> {
+        let document = self.documents.get_mut(doc_id)?;
+        let merged = document.merge_tracks(track_ids)?;
+        if track_ids.len() == 1 {
+            return Some(merged);
+        }
+        let owner = document.identity_for_track(merged);
+        let shared_owner = owner
+            .filter(|identity| identity.matches_copy(self.identities.get(&identity.id)))
+            .map(|identity| identity.id);
+        let owner_id = owner.map(|identity| identity.id);
+        let retired: HashSet<_> = track_ids.iter().copied().collect();
+        let affected: Vec<_> = self
+            .identities
+            .values()
+            .filter(|identity| {
+                shared_owner == Some(identity.id)
+                    || identity.source.as_ref().is_some_and(|source| {
+                        source.track_refs().iter().any(|member| {
+                            member.doc_id == doc_id && retired.contains(&member.track_id)
+                        })
+                    })
+            })
+            .map(|identity| identity.id)
+            .collect();
+        self.refresh_coref_membership(&affected);
+        self.prune_local_track_refs(
+            doc_id,
+            |id| !retired.contains(&id),
+            owner_id.map(|id| (id, merged)),
+        );
+        Some(merged)
     }
 
     /// Add a document to the corpus.
@@ -5199,48 +5261,68 @@ impl Corpus {
         self.documents.insert(doc_id.clone(), document);
         self.refresh_coref_membership(&affected.into_iter().collect::<Vec<_>>());
         if replacing {
-            // Local identities in other documents may also cite the replaced
-            // document, even when those identities were never added to this corpus.
-            for doc in self.documents.values_mut() {
-                for identity in doc.identities.values_mut() {
-                    if identity.matches_copy(self.identities.get(&identity.id)) {
-                        continue;
-                    }
-                    let Some(refs) = identity
-                        .source
-                        .as_mut()
-                        .and_then(IdentitySource::track_refs_mut)
-                    else {
-                        continue;
+            self.prune_local_track_refs(&doc_id, |id| replacement_ids.contains(&id), None);
+        }
+        doc_id
+    }
+
+    // Imported identities can cite this document without belonging to the corpus
+    // identity map. Only the local owner of a merged track can assert the new link.
+    fn prune_local_track_refs(
+        &mut self,
+        doc_id: &str,
+        keep: impl Fn(TrackId) -> bool,
+        merged_owner: Option<(IdentityId, TrackId)>,
+    ) {
+        for doc in self.documents.values_mut() {
+            for identity in doc.identities.values_mut() {
+                if identity.matches_copy(self.identities.get(&identity.id)) {
+                    continue;
+                }
+                let Some(refs) = identity
+                    .source
+                    .as_mut()
+                    .and_then(IdentitySource::track_refs_mut)
+                else {
+                    continue;
+                };
+                let before = refs.len();
+                refs.retain(|member| member.doc_id != doc_id || keep(member.track_id));
+                if refs.len() == before {
+                    continue;
+                }
+                if let Some((_, track_id)) =
+                    merged_owner.filter(|(id, _)| doc.id == doc_id && identity.id == *id)
+                {
+                    let replacement = TrackRef {
+                        doc_id: doc_id.to_owned(),
+                        track_id,
                     };
-                    let before = refs.len();
-                    refs.retain(|member| {
-                        member.doc_id != doc_id || replacement_ids.contains(&member.track_id)
-                    });
-                    if refs.len() != before {
-                        if refs.is_empty() {
-                            identity.source = match identity.source.take() {
-                                Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) => {
-                                    Some(IdentitySource::KnowledgeBase { kb_name, kb_id })
-                                }
-                                _ => None,
-                            };
-                        }
-                        if identity.minimum_pair_similarity.take().is_some() {
-                            identity.confidence = Confidence::ZERO;
-                        }
+                    if !refs.contains(&replacement) {
+                        refs.push(replacement);
                     }
+                }
+                if refs.is_empty() {
+                    identity.source = match identity.source.take() {
+                        Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) => {
+                            Some(IdentitySource::KnowledgeBase { kb_name, kb_id })
+                        }
+                        _ => None,
+                    };
+                }
+                if identity.minimum_pair_similarity.take().is_some() {
+                    identity.confidence = Confidence::ZERO;
                 }
             }
         }
-        doc_id
     }
 
     /// Link a track to a knowledge base entity.
     ///
     /// This is the entity linking (NED) operation. It creates or updates
     /// an identity with KB information. A newly created KB identity receives the
-    /// legacy score zero (unmeasured); an existing cluster retains its evidence.
+    /// legacy score zero (unmeasured). An existing cluster retains its measured
+    /// evidence when its current track membership matches the recorded membership.
     ///
     /// # Parameters
     ///
@@ -5313,7 +5395,13 @@ impl Corpus {
                         kb_id: kb_id_str.clone(),
                     },
                 });
+                let has_coref_members =
+                    matches!(updated_identity.source, Some(IdentitySource::Hybrid { .. }));
                 self.update_shared_identity(updated_identity);
+                if has_coref_members {
+                    // A direct document edit may have changed the live links since resolution.
+                    self.refresh_coref_membership(&[existing_id]);
+                }
                 return Ok(existing_id);
             }
         }
@@ -6057,6 +6145,36 @@ mod tests {
         let merged = doc.get_track(merged_id.unwrap()).unwrap();
         assert_eq!(merged.len(), 2);
         assert_eq!(merged.canonical_surface, "John Smith"); // From first track
+    }
+
+    #[test]
+    fn merging_one_track_preserves_its_reference_and_evidence() {
+        let mut doc = GroundedDocument::new("doc", "Ada said she");
+        let ada = doc.add_signal(Signal::new(0, Location::text(0, 3), "Ada", "PER", 0.9));
+        let she = doc.add_signal(Signal::new(0, Location::text(9, 12), "she", "PER", 0.7));
+        let identity = doc.add_identity(Identity::new(0, "Ada"));
+        let mut track = Track::new(0, "Ada")
+            .with_type("PER")
+            .with_identity(identity)
+            .with_embedding(vec![0.5, 0.75]);
+        track.set_cluster_confidence(0.2);
+        track.add_signal(she, 0);
+        track.add_signal(ada, 1);
+        let id = doc.add_track(track);
+        let reference = doc.track_ref(id).unwrap();
+        let mut expected = doc.get_track(id).unwrap().clone();
+        expected.signals.clear();
+        expected.add_signal(ada, 0);
+        expected.add_signal(she, 1);
+
+        for _ in 0..2 {
+            assert_eq!(doc.merge_tracks(&[id]), Some(id));
+            assert_eq!(doc.get_track(reference.track_id), Some(&expected));
+            assert_eq!(doc.track_for_signal(she), Some(&expected));
+            assert_eq!(doc.identity_for_signal(ada).unwrap().id, identity);
+            assert!(doc.invariants_hold());
+        }
+        assert_eq!(doc.add_track(Track::new(0, "next")), id + 1);
     }
 
     #[test]

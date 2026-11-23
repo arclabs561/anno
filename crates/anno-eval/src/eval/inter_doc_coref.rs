@@ -323,6 +323,90 @@ mod tests {
     }
 
     #[test]
+    fn track_merge_updates_live_and_exported_partitions() {
+        let mut document = GroundedDocument::new("d", "Ada Ada");
+        let mut inputs = Vec::new();
+        for offset in [0, 4] {
+            let signal = document.add_signal(Signal::new(
+                0,
+                Location::text(offset, offset + 3),
+                "Ada",
+                "PERSON",
+                0.9,
+            ));
+            let mut track = Track::new(0, "Ada");
+            track.add_signal(signal, 0);
+            inputs.push(document.add_track(track));
+        }
+        let mut original = Corpus::new();
+        original.add_document(document);
+        let id =
+            anno::coalesce::Resolver::new().resolve_inter_doc_coref(&mut original, None, None)[0];
+        let initial = original.get_identity(id).unwrap().clone();
+        assert_eq!(initial.minimum_pair_similarity, Some(anno::Confidence::ONE));
+        assert!(original.merge_tracks("missing", &inputs).is_none());
+        assert!(original.merge_tracks("d", &[]).is_none());
+        assert!(original
+            .merge_tracks("d", &[inputs[0], inputs[0]])
+            .is_none());
+        assert_eq!(original.merge_tracks("d", &inputs[..1]), Some(inputs[0]));
+        assert_eq!(original.get_identity(id), Some(&initial));
+
+        // An independently serializable document can hold the canonical copy
+        // even when none of its own tracks are assigned to this identity.
+        let mut mirror = GroundedDocument::new("mirror", "");
+        assert_eq!(mirror.add_identity(initial), id);
+        original.add_document(mirror);
+
+        for direct_edit in [false, true] {
+            let mut corpus = original.clone();
+            let merged_id = if direct_edit {
+                corpus.get_document_mut("d").unwrap().merge_tracks(&inputs)
+            } else {
+                corpus.merge_tracks("d", &inputs)
+            }
+            .unwrap();
+            let merged = corpus
+                .get_document("d")
+                .unwrap()
+                .track_ref(merged_id)
+                .unwrap();
+            let gold = TrackPartition::from_clusters(&[vec![merged.clone()]]).unwrap();
+            for enrichment in 0..=2 {
+                if enrichment > 0 {
+                    assert_eq!(
+                        corpus
+                            .link_track_to_kb(&merged, "catalog", "ada", "Ada")
+                            .unwrap(),
+                        id
+                    );
+                } else if direct_edit {
+                    continue;
+                }
+                let identity = corpus.get_identity(id).unwrap();
+                assert_eq!(
+                    identity.source.as_ref().unwrap().track_refs(),
+                    std::slice::from_ref(&merged)
+                );
+                assert_eq!(identity.minimum_pair_similarity, None);
+                assert_eq!(identity.confidence, anno::Confidence::ZERO);
+                for doc in corpus.documents() {
+                    assert_eq!(doc.get_identity(id), Some(identity));
+                    assert!(doc.invariants_hold());
+                }
+                for predicted in [
+                    TrackPartition::from_corpus(&corpus).unwrap(),
+                    TrackPartition::from_identities(std::slice::from_ref(identity)).unwrap(),
+                ] {
+                    let metrics = InterDocCorefMetrics::from_partitions(&predicted, &gold);
+                    assert_eq!((metrics.num_correct, metrics.num_total), (1, 1));
+                    assert_eq!(metrics.f1(), 1.0);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn rejects_overlapping_partitions_and_bounds_legacy_scores() {
         let (corpus, gold) = create_test_corpus();
         let identity = corpus.identities().values().next().unwrap().clone();
