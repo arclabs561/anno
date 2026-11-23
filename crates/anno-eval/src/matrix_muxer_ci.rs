@@ -2379,73 +2379,124 @@ fn backend_candidates(_strategy: SampleStrategy, tasks: &[Task]) -> Vec<String> 
     out
 }
 
+fn task_dataset_catalog(tasks: &[Task]) -> Vec<DatasetId> {
+    let mut datasets: Vec<_> = tasks
+        .iter()
+        .flat_map(|&task| get_task_datasets(task))
+        .collect();
+    datasets.sort_by_key(|d| format!("{d:?}"));
+    datasets.dedup();
+    datasets
+}
+
+#[derive(Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+enum DatasetExclusion {
+    NonAutomatableSource,
+    SlowInFastProfile,
+    TemporalEvaluatorNeedsNer,
+    NoLoader,
+    CacheRequired,
+    FacetPin,
+}
+
+struct DatasetPolicy {
+    allow_non_automatable: bool,
+    exclude_slow: bool,
+    temporal_requested: bool,
+    require_cached: bool,
+}
+
+impl DatasetPolicy {
+    fn current(tasks: &[Task], require_cached: bool) -> Self {
+        let profile = std::env::var("ANNO_MUXER_PROFILE").unwrap_or_default();
+        let fast = matches!(
+            profile.trim().to_ascii_lowercase().as_str(),
+            "fast" | "fast-strict"
+        );
+        Self {
+            allow_non_automatable: mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false),
+            exclude_slow: fast && !mh::env_bool("ANNO_MATRIX_INCLUDE_SLOW_DATASETS", false),
+            temporal_requested: tasks.contains(&Task::Temporal),
+            require_cached,
+        }
+    }
+
+    fn exclusion(&self, loader: &DatasetLoader, ds: DatasetId) -> Option<DatasetExclusion> {
+        // Source policy applies even to a local cache hit. Some registered
+        // sources have known-bad parses or require manual acquisition.
+        if !self.allow_non_automatable && !ds.is_automatable_download() {
+            return Some(DatasetExclusion::NonAutomatableSource);
+        }
+        if self.exclude_slow && matches!(ds, DatasetId::OntoNotesSample | DatasetId::BioMNER) {
+            return Some(DatasetExclusion::SlowInFastProfile);
+        }
+        let tasks = dataset_tasks(ds);
+        if self.temporal_requested && tasks.contains(&Task::Temporal) && !tasks.contains(&Task::NER)
+        {
+            return Some(DatasetExclusion::TemporalEvaluatorNeedsNer);
+        }
+        let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
+            return Some(DatasetExclusion::NoLoader);
+        };
+        if self.require_cached && !loader.is_cached(loadable) && !loader.s3_enabled() {
+            return Some(DatasetExclusion::CacheRequired);
+        }
+        None
+    }
+}
+
 fn candidate_datasets_for_tasks(
     loader: &DatasetLoader,
     tasks: &[Task],
     require_cached: bool,
 ) -> Vec<DatasetId> {
-    let mut candidates: Vec<DatasetId> = Vec::new();
-    for &t in tasks {
-        for ds in get_task_datasets(t) {
-            candidates.push(ds);
-        }
-    }
-    candidates.sort_by_key(|d| format!("{d:?}"));
-    candidates.dedup();
+    let policy = DatasetPolicy::current(tasks, require_cached);
+    task_dataset_catalog(tasks)
+        .into_iter()
+        .filter(|&ds| policy.exclusion(loader, ds).is_none())
+        .collect()
+}
 
-    // Fast-profile sweeps are meant to be quick, lightweight sanity checks.
-    // Filter out a small set of known-slow datasets that can OOM/timeout in debug-mode runs.
-    //
-    // Override: set `ANNO_MATRIX_INCLUDE_SLOW_DATASETS=1`.
-    let profile = std::env::var("ANNO_MUXER_PROFILE")
-        .ok()
-        .unwrap_or_else(|| "off".to_string())
-        .trim()
-        .to_ascii_lowercase();
-    let fast_profile = matches!(profile.as_str(), "fast" | "fast-strict");
-    let include_slow = mh::env_bool("ANNO_MATRIX_INCLUDE_SLOW_DATASETS", false);
-
-    let mut out: Vec<DatasetId> = Vec::new();
-    let temporal_requested = tasks.contains(&Task::Temporal);
-    for ds in candidates {
-        // CI policy: avoid non-automatable sources unless explicitly requested.
-        //
-        // The registry contains many useful-but-not-directly-downloadable datasets (gated corpora,
-        // dead links, “contact authors”, etc.). Those are still valuable, but running them in CI
-        // wastes matrix budget and mostly produces hard-junk outcomes.
-        if !mh::env_bool("ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE", false)
-            && !ds.is_automatable_download()
-        {
-            // Dataset fails the automation check (broken URL, paywall, or known-bad
-            // parse like TweetNER7).  Skip it.  The is_automatable_download() hard
-            // exclusion list is authoritative -- these datasets produce hard-junk
-            // outcomes even when cached, so no cache fallback.
-            continue;
-        }
-        if fast_profile
-            && !include_slow
-            && matches!(ds, DatasetId::OntoNotesSample | DatasetId::BioMNER)
-        {
-            continue;
-        }
-        let ts = dataset_tasks(ds);
-        // Current contract: `temporal` runs through the NER-style evaluator (BIO tagging).
-        // Avoid scheduling “temporal-but-not-NER” datasets (e.g., temporal RE) until a dedicated
-        // temporal evaluator exists.
-        if temporal_requested && ts.contains(&Task::Temporal) && !ts.contains(&Task::NER) {
-            continue;
-        }
-        let Ok(loadable) = LoadableDatasetId::try_from(ds) else {
-            continue;
-        };
-        if require_cached && !loader.is_cached(loadable) && !loader.s3_enabled() {
-            continue;
-        }
-        out.push(ds);
-    }
-    out.sort_by_key(|d| format!("{d:?}"));
-    out.dedup();
-    out
+/// Explain the automatic dataset pool before sampling, loading data or reading history.
+/// Records the first applicable exclusion, including active language/domain pins.
+pub fn dataset_eligibility_report(
+    loader: &DatasetLoader,
+    task: Task,
+    cached_only: bool,
+) -> serde_json::Value {
+    let require_cached = cached_only || matrix_require_cached();
+    let policy = DatasetPolicy::current(&[task], require_cached);
+    let catalog: Vec<_> = task_dataset_catalog(&[task])
+        .into_iter()
+        .map(|ds| (ds, policy.exclusion(loader, ds)))
+        .collect();
+    let mut eligible: Vec<_> = catalog
+        .iter()
+        .filter_map(|&(ds, reason)| reason.is_none().then_some(ds))
+        .collect();
+    apply_dataset_facet_pins(&mut eligible);
+    let rows: Vec<_> = catalog
+        .into_iter()
+        .map(|(ds, reason)| {
+            let reason =
+                reason.or_else(|| (!eligible.contains(&ds)).then_some(DatasetExclusion::FacetPin));
+            let cached = LoadableDatasetId::try_from(ds)
+                .ok()
+                .is_some_and(|id| loader.is_cached(id));
+            serde_json::json!({
+                "dataset": format!("{ds:?}"),
+                "locally_cached": cached,
+                "eligible": reason.is_none(),
+                "exclusion": reason,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "schema_version": 1,
+        "task": task.code(), "require_cached": require_cached, "s3_enabled": loader.s3_enabled(),
+        "eligible_count": eligible.len(), "datasets": rows
+    })
 }
 
 #[test]
@@ -2710,6 +2761,11 @@ fn pinned_dataset_candidates(
     require_cached: bool,
 ) -> Vec<DatasetId> {
     let mut candidates = candidate_datasets_for_tasks(loader, tasks, require_cached);
+    apply_dataset_facet_pins(&mut candidates);
+    candidates
+}
+
+fn apply_dataset_facet_pins(candidates: &mut Vec<DatasetId>) {
     // Optional facet pins for dataset selection.
     //
     // This is intentionally simple and coarse: it constrains which datasets we *sample* so muxer
@@ -2764,7 +2820,6 @@ fn pinned_dataset_candidates(
             lang_ok && dom_ok
         });
     }
-    candidates
 }
 
 fn choose_datasets_for_run(
@@ -3263,6 +3318,12 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     require_cached_for_run,
                     loader.cache_dir()
                 );
+                if let [task] = tasks.as_slice() {
+                    eprintln!(
+                        "Inspect dataset policy with: anno sampler eligibility --task {}",
+                        task.code()
+                    );
+                }
                 return;
             }
         }
