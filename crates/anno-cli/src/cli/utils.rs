@@ -261,6 +261,7 @@ pub fn load_gold_from_file(
     let offsets = std::cell::LazyCell::new(|| anno::offset::build_char_to_byte_map(source));
     let mut gold = Vec::new();
     let mut document_id = None;
+    let mut saw_record = false;
     let digest = std::cell::LazyCell::new(|| source_sha256(source));
 
     for (line_num, line) in content.lines().enumerate() {
@@ -320,6 +321,7 @@ pub fn load_gold_from_file(
         let entities = entry["entities"]
             .as_array()
             .ok_or_else(|| format!("{path}:{}: expected an entities array", line_num + 1))?;
+        saw_record = true;
         for (i, ent) in entities.iter().enumerate() {
             let invalid = |field: &str| {
                 format!(
@@ -379,6 +381,11 @@ pub fn load_gold_from_file(
         }
     }
 
+    if !saw_record {
+        return Err(format!(
+            "{path}: expected a gold document with an entities array"
+        ));
+    }
     Ok((gold, document_id))
 }
 

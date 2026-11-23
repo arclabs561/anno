@@ -310,6 +310,14 @@ A gold JSONL record has an `entities` array with `text`, `label`, `start`, and `
 
 The ordered ranges must agree with the outer bounds and the original source. The surface can join the selected pieces with spaces or preserve the exact bounding substring from a legacy record. Empty BRAT boundary markers add no covered characters. Each scored mention must cover at least one character. A missing or null `segments` field identifies a contiguous span. Entity matching compares the covered positions and label. Boundary IoU, character masking, the HTML highlights and the detailed text error counts use the same positions.
 
+Use `{"text":"quiet","entities":[]}` for a document reviewed and found to contain no entities. Every predicted entity in that document counts as a false positive. With `--metric char-masking`, every character covered by its predictions contributes to the false-positive rate over all source characters. A blank gold file has no labeled document and is rejected.
+
 Replay validates the stored signals and matches the entire source text, including whitespace. The JSON report retains the grounded document ID, the SHA-256 of the evaluated UTF-8 text, and the saved signal IDs in the matches. Model and inference time are null during replay. The grounded artifact contains source text and detected surfaces, so store it with the same access controls as the original.
 
 Gold JSONL records may carry their source `text`, `source_sha256`, and a document ID (`id`, `doc_id`, or `document_id`). The evaluator checks any supplied text or hash against its input, requires one document ID throughout the file, and checks that ID against the saved predictions. To preserve a corpus document ID, use `anno batch --stdin --model pattern --format grounded` with an input record such as `{"id":"report-v1","text":"…"}`. Legacy entity-only gold records still validate each annotated surface. Identical text from distinct revisions can be distinguished only when the records carry distinct document IDs.
+
+## Interpret coreference dataset scores
+
+`anno dataset eval --dataset gap --task coref` reports an unweighted mean of document CoNLL F1 scores. It compares exact character spans and keeps supplied singleton chains. A document with no gold or predicted mentions contributes zero CoNLL F1. A dataset with one perfectly resolved two-mention chain and one correctly empty document therefore scores 0.50.
+
+The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection.
