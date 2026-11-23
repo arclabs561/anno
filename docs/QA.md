@@ -73,6 +73,26 @@ The catalog assigns one topic to each publisher, including its feeds. Each pass 
 
 The sibling JSON receipt records the original feed or page, selected article, final URL, requested backends and rendered text hashes. Replaying a receipt revisits its selected URLs and compares them to its original successful results. A changed final URL or rendered hash, a missing baseline or an incomplete current run yields a nonzero exit. The prior receipt stays available. Live RSS/Atom entries may change between seeded selections. `--no-rss` restricts sampling to standing pages. Use `--category all` for the wider multilingual discovery pool, or select a category such as `wikipedia`. A language filter alone searches the multilingual pool; pass `--cross-domain --lang ...` to limit the topical catalog. Contributor PRs run deterministic offline checks.
 
+## Score person highlights and referring expressions
+
+Use the local CPU FP32 export of `biu-nlp/f-coref` at revision `e91dfff12879495d882ba9460d0c5d5dd44ade59`. The model workflow pins the Python dependencies, verifies the original checkpoint, exports it and verifies all four converted files. Set `FCOREF_MODEL_DIR` to that export directory. The panel mode uses two inference threads, the example’s Unicode word boundaries and a 4,096-token document budget. [Export procedure and artifact hashes](../.github/workflows/fcoref-cli.yml)
+
+```sh
+panel=testdata/grounded/dual_span_people.json
+mkdir -p target/qa-person
+jq '[.documents[] | {id, text}]' "$panel" > target/qa-person/inputs.json
+ANNO_NO_DOWNLOADS=1 cargo run --locked -p anno --no-default-features --features onnx \
+  --example fcoref_word_spans -- "$FCOREF_MODEL_DIR" target/qa-person/inputs.json \
+  > target/qa-person/predictions.json
+python3 scripts/qa/score_person_mentions.py "$panel" target/qa-person/predictions.json
+```
+
+Each row in the receipt's `results` array supplies the document `id`, `source_sha256` of the verbatim UTF-8 input, `mentions` with scalar `start`, `end` and `surface`, and `clusters` of scalar range pairs. Each cluster member must appear among the candidates. A coarse caller-supplied word may project mentions from two model clusters onto the same source span. The scorer counts that span once in selection and each pair once if its endpoints share a cluster. It preserves the original clusters without inferring links between their other members. Documents with empty model output still need a row.
+
+The scorer evaluates the same output against each gold occurrence's compact highlight and accepted referring expressions. It reports all proposed spans and the subset used in clusters. For one-to-one person selection, use `covered_mentions / emitted` for precision and `covered_mentions / gold_mentions` for recall. Several accepted ranges can cover one occurrence. An exact hit on a marked distractor counts separately from other unmatched ranges. A general coreference model can legitimately propose non-person entities outside this panel's person task.
+
+For each boundary contract, `joined_positive / positive_pairs` measures end-to-end same-person pair recall. `joined_negative / negative_pairs` measures the fraction of distinct-person pairs merged. `covered_positive` and `covered_negative` count pairs whose endpoints were both proposed. A missed endpoint stays in the end-to-end denominator. Report zero denominators as unavailable. Unresolved references are reported separately and have no pair truth. The human–distractor counts cover pairs of an annotated human occurrence and an exact marked distractor within the same document. They expose contaminated clusters even when no distinct people were merged. These are within-document measurements. The receipt carries no external catalog or linking decisions.
+
 ## Find a dataset or add a case
 
 Use an eval-enabled CLI to browse the [dataset registry](../crates/anno-eval/src/eval/dataset_registry.rs).
