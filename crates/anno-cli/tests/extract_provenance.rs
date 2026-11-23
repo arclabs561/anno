@@ -159,3 +159,177 @@ fn full_page_extraction_keeps_a_table_contact_intact() {
     assert_eq!(signal["start"], prefix.chars().count());
     assert_eq!(signal["end"], prefix.chars().count() + email.len());
 }
+
+#[test]
+fn grounded_html_maps_unicode_split_tags_entities_and_synthetic_text() {
+    use anno::core::grounded::html_source::source_sha256;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("contact.html");
+    let export = dir.path().join("grounded.json");
+    let html = "<p>🔬 Contact al<b>ice</b>&#64;example.org or alice@example.org today.</p><p><img alt='team@example.org' src='logo.png'></p>";
+    std::fs::write(&path, html).unwrap();
+    let output = anno()
+        .args([
+            "extract",
+            "--model",
+            "pattern",
+            "--html-source-spans",
+            "--file",
+        ])
+        .arg(&path)
+        .arg("--export")
+        .arg(&export)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    let exported: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(export).unwrap()).unwrap();
+    assert_eq!(json, exported);
+    let doc: anno::GroundedDocument = serde_json::from_value(json.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&doc).unwrap(), json);
+
+    let rendered = doc.text();
+    let source = doc.html_source().unwrap();
+    assert_eq!(source.source_sha256, source_sha256(html));
+    assert_eq!(source.rendered_sha256, source_sha256(rendered));
+    assert_eq!(source.source_byte_length, html.len());
+    assert_eq!(doc.signals().len(), 3);
+    assert_eq!(source.spans.len(), 3);
+    let mut fragments = Vec::new();
+    for signal in doc.signals() {
+        let (start, end) = signal.text_offsets().unwrap();
+        let span = source
+            .spans
+            .iter()
+            .find(|span| span.rendered_chars == (start..end))
+            .unwrap();
+        assert_eq!(
+            rendered
+                .chars()
+                .skip(start)
+                .take(end - start)
+                .collect::<String>(),
+            signal.surface()
+        );
+        let reconstructed: String = span
+            .fragments
+            .iter()
+            .map(|fragment| &rendered[fragment.rendered_bytes.clone()])
+            .collect();
+        assert_eq!(reconstructed, signal.surface());
+    }
+    for span in &source.spans {
+        fragments.push(
+            span.fragments
+                .iter()
+                .map(|fragment| (fragment.kind, &html[fragment.source_bytes.clone().unwrap()]))
+                .collect::<Vec<_>>(),
+        );
+    }
+    use anno::core::grounded::html_source::HtmlFragmentKind::{Direct, EntityDecoded, Synthetic};
+    assert_eq!(
+        fragments[0],
+        [
+            (Direct, "al"),
+            (Direct, "ice"),
+            (EntityDecoded, "&#64;"),
+            (Direct, "example.org")
+        ]
+    );
+    assert_eq!(fragments[1], [(Direct, "alice@example.org")]);
+    assert_eq!(
+        fragments[2],
+        [(Synthetic, "<img alt='team@example.org' src='logo.png'>")]
+    );
+    assert_eq!(
+        source.spans[1].fragments[0]
+            .source_bytes
+            .as_ref()
+            .unwrap()
+            .start,
+        html.rfind("alice@example.org").unwrap()
+    );
+
+    let mut stale = json.clone();
+    stale["text"] = serde_json::json!(format!("{rendered} "));
+    assert!(serde_json::from_value::<anno::GroundedDocument>(stale)
+        .unwrap_err()
+        .to_string()
+        .contains("SHA-256"));
+    let mut invalid = json;
+    invalid["html_source"]["spans"][0]["fragments"][0]["source_bytes"]["end"] =
+        serde_json::json!(html.len() + 1);
+    assert!(serde_json::from_value::<anno::GroundedDocument>(invalid).is_err());
+}
+
+#[test]
+fn mapped_html_records_both_identities_for_empty_extractions() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.html");
+    std::fs::write(&path, "<p>plain words here</p>").unwrap();
+    for mapped in [false, true] {
+        let mut command = anno();
+        command
+            .args([
+                "extract", "--model", "pattern", "--format", "grounded", "--file",
+            ])
+            .arg(&path);
+        if mapped {
+            command.arg("--html-source-spans");
+        }
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let doc: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(doc["signals"], serde_json::json!([]));
+        if mapped {
+            assert_eq!(doc["html_source"]["renderer"], "deformat_strip");
+            assert_eq!(doc["html_source"]["spans"], serde_json::json!([]));
+            assert_ne!(
+                doc["html_source"]["source_sha256"],
+                doc["html_source"]["rendered_sha256"]
+            );
+        } else {
+            assert!(doc.get("html_source").is_none());
+        }
+    }
+}
+
+#[test]
+fn mapped_html_rejects_incompatible_inputs_and_output_formats() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("test.html");
+    std::fs::write(&path, "<p>test</p>").unwrap();
+    for args in [
+        &["--clean"][..],
+        &["--normalize"],
+        &["--format", "json"],
+        &["--url", "https://example.invalid"],
+    ] {
+        let output = anno()
+            .args(["extract", "--html-source-spans", "--file"])
+            .arg(&path)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+    }
+    std::fs::write(&path, b"<p>\xff</p>").unwrap();
+    let output = anno()
+        .args(["extract", "--html-source-spans", "--file"])
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("UTF-8"));
+}

@@ -113,6 +113,13 @@ pub fn get_input_text(
     Err("No input text provided. Use -t 'text' or -f file or pipe via stdin".to_string())
 }
 
+pub(crate) fn is_html_file(path: &str, content: &str) -> bool {
+    path.ends_with(".html")
+        || path.ends_with(".htm")
+        || path.ends_with(".xhtml")
+        || deformat::detect::is_html(content)
+}
+
 /// Validate a user-supplied name used as one filename component.
 pub(crate) fn validate_path_component<'a>(value: &'a str, kind: &str) -> Result<&'a str, String> {
     use std::path::{Component, Path};
@@ -168,8 +175,7 @@ pub fn read_input_file(path: &str) -> Result<String, String> {
         .map_err(|e| format_error("read file", &format!("{}: {}", path, e)))?;
 
     // Detect HTML by extension or content
-    let is_html_ext = path.ends_with(".html") || path.ends_with(".htm") || path.ends_with(".xhtml");
-    if is_html_ext || deformat::detect::is_html(&content) {
+    if is_html_file(path, &content) {
         eprintln!(
             "note: detected HTML content in '{}', converting to text",
             path
@@ -240,13 +246,7 @@ pub fn parse_gold_spec(s: &str) -> Option<GoldSpec> {
     })
 }
 
-pub(crate) fn source_sha256(text: &str) -> String {
-    use sha2::{Digest, Sha256};
-    Sha256::digest(text.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
-}
+pub(crate) use anno::core::grounded::html_source::source_sha256;
 
 /// Load gold-standard annotations from a JSONL file.
 ///
