@@ -134,6 +134,55 @@ def verify_with_onnxruntime(onnx_path: str | Path, input_dict: dict) -> list:
     return sess.run(None, feed)
 
 
+def export_inventory(directory: Path) -> dict:
+    """Describe the two supported label interfaces and every referenced weight file."""
+    import onnx
+
+    def tensors(message):
+        if isinstance(message, onnx.TensorProto):
+            yield message
+            return
+        for field, value in message.ListFields():
+            if field.message_type is not None:
+                for child in [value] if hasattr(value, "ListFields") else value:
+                    yield from tensors(child)
+
+    main = onnx.load(str(directory / "model.onnx"), load_external_data=False)
+    inputs = {value.name for value in main.graph.input}
+    graphs = [main]
+    if "labels_embeddings" in inputs:
+        label_input = "embeddings"
+        encoder = onnx.load(str(directory / "label_encoder.onnx"), load_external_data=False)
+        if "labels_embeddings" not in {v.name for v in encoder.graph.output}:
+            raise ValueError("Label graph has no labels_embeddings output")
+        graphs.append(encoder)
+    elif "labels_input_ids" in inputs:
+        label_input = "token_ids"
+    else:
+        raise ValueError("Unsupported label inputs for GLiNER bi-encoder")
+    external = set()
+    for graph in graphs:
+        for tensor in tensors(graph):
+            if tensor.data_location == onnx.TensorProto.EXTERNAL:
+                location = next((e.value for e in tensor.external_data if e.key == "location"), "")
+                path = Path(location)
+                if not location or path.is_absolute() or ".." in path.parts or any(c in location for c in "\\:"):
+                    raise ValueError("Invalid relative external data location")
+                external.add(location)
+    for file in [*external, "tokenizer.json", "label_tokenizer.json"]:
+        if not (directory / file).is_file():
+            raise ValueError(f"Missing GLiNER bi-encoder export asset: {file}")
+    return {"schema_version": 1, "label_input": label_input, "external_data": sorted(external)}
+
+
+def write_export_inventory(directory: Path) -> None:
+    import tempfile
+    inventory = export_inventory(directory)
+    with tempfile.NamedTemporaryFile("w", dir=directory, delete=False) as out:
+        json.dump(inventory, out)
+    Path(out.name).replace(directory / "anno_poly_export.json")
+
+
 def quantize_model(onnx_path: Path, output_path: Path) -> None:
     """Apply INT8 dynamic quantization to an ONNX model."""
     log(f"Quantizing {onnx_path.name}...")
@@ -185,6 +234,9 @@ def try_library_export(model_id: str, output_dir: Path, quantize: bool) -> bool:
         if onnx_path.exists():
             log("Strategy 1 succeeded.")
             check_onnx_model(onnx_path)
+            save_tokenizer(model, output_dir)
+            get_label_tokenizer(model).backend_tokenizer.save(str(output_dir / "label_tokenizer.json"))
+            export_inventory(output_dir)
             return True
         else:
             log(f"Strategy 1: export_to_onnx returned {result} but model.onnx not found.")
@@ -490,20 +542,7 @@ def export_main_model(gliner_model, output_dir: Path, dummy_inputs: dict, labels
     return onnx_path
 
 
-def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Path:
-    """Export the label encoder (sentence-transformer) to a separate ONNX file."""
-    import torch
-
-    log("Exporting label encoder to ONNX...")
-
-    WrapperCls = _build_wrapper_class()
-    wrapper = WrapperCls(gliner_model, mode="label_encoder")
-    wrapper.eval()
-
-    onnx_path = output_dir / "label_encoder.onnx"
-
-    dummy_labels = ["person", "organization", "location"]
-
+def get_label_tokenizer(gliner_model):
     # Find the label tokenizer
     label_tokenizer = None
     if hasattr(gliner_model, "data_processor"):
@@ -520,6 +559,25 @@ def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Pat
             label_tokenizer = AutoTokenizer.from_pretrained(label_model_name)
     if label_tokenizer is None:
         raise RuntimeError("Cannot find label tokenizer on the model.")
+
+    return label_tokenizer
+
+
+def export_label_encoder(gliner_model, output_dir: Path, opset: int = 17) -> Path:
+    """Export the label encoder (sentence-transformer) to a separate ONNX file."""
+    import torch
+
+    log("Exporting label encoder to ONNX...")
+
+    WrapperCls = _build_wrapper_class()
+    wrapper = WrapperCls(gliner_model, mode="label_encoder")
+    wrapper.eval()
+
+    onnx_path = output_dir / "label_encoder.onnx"
+
+    dummy_labels = ["person", "organization", "location"]
+
+    label_tokenizer = get_label_tokenizer(gliner_model)
 
     # Keep the native split export usable without fetching a second tokenizer.
     label_tokenizer.backend_tokenizer.save(str(output_dir / "label_tokenizer.json"))
@@ -845,10 +903,16 @@ def main():
             "'auto' tries library first then falls back to manual (default: auto)"
         ),
     )
+    parser.add_argument("--inventory-only", action="store_true",
+                        help="Inspect an existing export and write its offline sampler inventory.")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
+    if args.inventory_only:
+        write_export_inventory(output_dir)
+        return
+    (output_dir / "anno_poly_export.json").unlink(missing_ok=True)
 
     if args.max_width < 12:
         log(
@@ -889,6 +953,7 @@ def main():
             print(f"\nExport rejected: {error}", file=sys.stderr)
             sys.exit(1)
         print("\n" + "=" * 60)
+        write_export_inventory(output_dir)
         print("Export complete.")
         print(f"Output directory: {output_dir}")
         print()

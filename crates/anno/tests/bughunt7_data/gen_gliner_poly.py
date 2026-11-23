@@ -39,3 +39,22 @@ save("model.onnx", [info("labels_embeddings", T.FLOAT, ["labels", 1])],
          node("Where", ["span", "per_label", "low"], ["logits"]),
      ], [tensor("span", T.BOOL, [1, 3, 2, 1], [0, 0, 0, 1, 0, 0]),
          tensor("threshold", T.FLOAT, [1], [6.0]), tensor("low", T.FLOAT, [1], [-12.0])])
+
+# Fused equivalent with the threshold stored as an external data sidecar.
+# The Hub replay copies it beside model.onnx in an immutable snapshot.
+import numpy as np
+from onnx import numpy_helper
+
+main = onnx.load(DEST / "model.onnx")
+labels = onnx.load(DEST / "label_encoder.onnx")
+del main.graph.input[:]
+main.graph.input.extend(labels.graph.input)
+nodes = list(main.graph.node)
+del main.graph.node[:]
+main.graph.node.extend([*labels.graph.node, *nodes])
+for item in main.graph.initializer:
+    if item.name == "threshold":
+        item.CopyFrom(numpy_helper.from_array(np.array([6.0], dtype=np.float32), "threshold"))
+(DEST / "fused.weights").unlink(missing_ok=True)
+onnx.save_model(main, DEST / "fused.onnx", save_as_external_data=True,
+                all_tensors_to_one_file=True, location="fused.weights", size_threshold=0)

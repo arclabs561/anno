@@ -3,6 +3,7 @@
 //! Handles model loading from HuggingFace Hub, tokenization, tensor construction,
 //! and output decoding. Follows the same patterns as `gliner_onnx::inference`.
 
+use super::export::Export;
 use super::*;
 
 /// Special token IDs for GLiNER poly-encoder models.
@@ -19,31 +20,21 @@ pub(super) const MAX_SPAN_WIDTH: usize = 12;
 
 #[cfg(feature = "onnx")]
 impl GLiNERPoly {
-    /// Is a self-contained split export ready for offline sampler discovery?
+    /// Is a self-contained bi-encoder export ready for offline sampling?
     #[must_use]
     pub fn local_export_available() -> bool {
-        Self::prepared_export_dir().is_some()
+        Self::prepared_export_dir(crate::models::GLINER_POLY).is_some()
     }
 
-    pub(super) fn is_prepared_export(dir: &std::path::Path) -> bool {
-        [
-            "model.onnx",
-            "label_encoder.onnx",
-            "tokenizer.json",
-            "label_tokenizer.json",
-        ]
-        .iter()
-        .all(|file| dir.join(file).is_file())
-    }
-
-    fn prepared_export_dir() -> Option<std::path::PathBuf> {
+    fn prepared_export_dir(model_name: &str) -> Option<std::path::PathBuf> {
         if let Some(path) = std::env::var_os("GLINER_POLY_MODEL_PATH").filter(|p| !p.is_empty()) {
             let dir = std::path::PathBuf::from(path);
-            return Self::is_prepared_export(&dir).then_some(dir);
+            return Export::ready(&dir).then_some(dir);
         }
         super::local_model_cache_candidates()
             .into_iter()
-            .find(|dir| Self::is_prepared_export(dir))
+            .find(|dir| Export::ready(dir))
+            .or_else(|| Export::hub_dir(&hf_hub::Cache::from_env(), model_name))
     }
 
     fn uses_label_encoder(session: &ort::session::Session) -> Result<bool> {
@@ -72,7 +63,7 @@ impl GLiNERPoly {
         if let Some(path) = std::env::var_os("GLINER_POLY_MODEL_PATH").filter(|p| !p.is_empty()) {
             return Self::from_dir(path.as_ref());
         }
-        if let Some(dir) = Self::prepared_export_dir() {
+        if let Some(dir) = Self::prepared_export_dir(model_name) {
             return Self::from_dir(&dir);
         }
         // Explicit callers may also load older exports with a separately cached tokenizer.
@@ -113,6 +104,7 @@ impl GLiNERPoly {
     ) -> Result<Self> {
         use crate::backends::hf_loader::{create_onnx_session, OnnxSessionConfig};
 
+        let receipt = Export::read(dir)?;
         let model_path = dir.join("model.onnx");
         let tokenizer_path = dir.join("tokenizer.json");
 
@@ -136,7 +128,16 @@ impl GLiNERPoly {
             ..Default::default()
         };
         let session = create_onnx_session(&model_path, options())?;
-        let label_encoder = if Self::uses_label_encoder(&session)? {
+        let split = Self::uses_label_encoder(&session)?;
+        if receipt
+            .as_ref()
+            .is_some_and(|export| export.split() != split)
+        {
+            return Err(Error::Retrieval(
+                "GLiNER Poly label inputs differ from its export inventory".into(),
+            ));
+        }
+        let label_encoder = if split {
             Some(Mutex::new(create_onnx_session(
                 &dir.join("label_encoder.onnx"),
                 options(),
@@ -163,6 +164,7 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
+            source_only_text: split || receipt.is_some(),
             label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
@@ -225,6 +227,9 @@ impl GLiNERPoly {
     ) -> Result<Self> {
         use crate::backends::hf_loader;
 
+        if let Some(dir) = Export::hub_dir(&hf_hub::Cache::from_env(), model_name) {
+            return Self::from_dir_with_options(&dir, optimization_level, num_threads);
+        }
         let api = hf_loader::hf_api()?;
         let repo = api.model(model_name.to_string());
 
@@ -290,6 +295,7 @@ impl GLiNERPoly {
 
         Ok(Self {
             session: Mutex::new(session),
+            source_only_text: label_encoder.is_some(),
             label_encoder,
             tokenizer: std::sync::Arc::new(tokenizer),
             label_tokenizer: std::sync::Arc::new(label_tokenizer),
@@ -327,7 +333,7 @@ impl GLiNERPoly {
             return Ok(vec![]);
         }
 
-        let text_words: Vec<&str> = if self.label_encoder.is_some() {
+        let text_words: Vec<&str> = if self.source_only_text {
             // GLiNER's Python WhitespaceTokenSplitter groups hyphenated words and
             // emits punctuation separately (Python regex: \w+(?:[-_]\w+)*|\S).
             static WORDS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -344,7 +350,7 @@ impl GLiNERPoly {
         }
 
         // The bi-encoder's text tokenizer sees the source words alone.
-        let (input_ids, attention_mask, words_mask) = if self.label_encoder.is_some() {
+        let (input_ids, attention_mask, words_mask) = if self.source_only_text {
             self.encode_source_words(&text_words)?
         } else {
             self.encode_prompt(&text_words, entity_types)?

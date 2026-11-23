@@ -42,6 +42,8 @@
 #![allow(unused_imports)] // EntityType used conditionally
 
 #[cfg(feature = "onnx")]
+mod export;
+#[cfg(feature = "onnx")]
 mod inference;
 
 use crate::backends::inference::ZeroShotNER;
@@ -96,6 +98,7 @@ pub struct GLiNERPoly {
     session: Mutex<ort::session::Session>,
     /// The repository exporter emits a separate model producing label embeddings.
     label_encoder: Option<Mutex<ort::session::Session>>,
+    source_only_text: bool,
     /// Text tokenizer (DeBERTa-v3 vocab, ~128k tokens).
     tokenizer: std::sync::Arc<tokenizers::Tokenizer>,
     /// Label tokenizer (BGE vocab, 30522 tokens) -- separate because the bi-encoder
@@ -355,7 +358,13 @@ mod tests {
         for filename in ["tokenizer.json", "label_tokenizer.json"] {
             std::fs::copy(&tokenizer, dir.path().join(filename)).unwrap();
         }
-        assert!(GLiNERPoly::is_prepared_export(dir.path()));
+        assert!(!export::Export::ready(dir.path()));
+        std::fs::write(
+            dir.path().join(export::FILE),
+            r#"{"schema_version":1,"label_input":"embeddings","external_data":[]}"#,
+        )
+        .unwrap();
+        assert!(export::Export::ready(dir.path()));
         let model = GLiNERPoly::from_dir(dir.path()).unwrap();
         let (ids, attention, words) = model.encode_source_words(&["À", "John", "Smith"]).unwrap();
         assert_eq!(ids, [3, 7, 8]);
@@ -372,7 +381,7 @@ mod tests {
         }
         assert!(model.extract(text, &["location"], 0.5).unwrap().is_empty());
         std::fs::remove_file(dir.path().join("label_encoder.onnx")).unwrap();
-        assert!(!GLiNERPoly::is_prepared_export(dir.path()));
+        assert!(!export::Export::ready(dir.path()));
         assert!(GLiNERPoly::from_dir(dir.path()).is_err());
     }
 
