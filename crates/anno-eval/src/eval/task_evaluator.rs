@@ -2959,6 +2959,9 @@ impl TaskEvaluator {
                         }
                     }
 
+                    // Clusters may group distant mentions together. Expose only document
+                    // order to a resolver that uses previous mentions as antecedents.
+                    gold_entities.sort_by_key(|entity| (entity.start(), entity.end()));
                     let resolved_entities = resolver.resolve(&gold_entities);
                     entities_to_chains(&resolved_entities)
                 }
@@ -4838,6 +4841,45 @@ mod tests {
             .collect();
         assert!(joined.contains(first_id.as_str()));
         assert!(joined.contains(second_id.as_str()));
+    }
+
+    #[test]
+    fn gold_mentions_reach_the_resolver_in_document_order() {
+        struct CheckInputOrder;
+
+        impl crate::eval::coref_resolver::CoreferenceResolver for CheckInputOrder {
+            fn name(&self) -> &'static str {
+                "check_input_order"
+            }
+
+            fn resolve(&self, entities: &[crate::Entity]) -> Vec<crate::Entity> {
+                let spans: Vec<_> = entities.iter().map(|e| (e.start(), e.end())).collect();
+                assert_eq!(spans, [(0, 3), (0, 9), (14, 17), (22, 25)]);
+                assert!(entities.iter().all(|e| e.canonical_id.is_none()));
+                entities.to_vec()
+            }
+        }
+
+        let cache = tempfile::tempdir().unwrap();
+        let evaluator = TaskEvaluator::with_cache_dir(cache.path()).unwrap();
+        std::fs::write(
+            cache.path().join(DatasetId::PreCo.cache_filename()),
+            r#"{"id":"order","sentences":[["Ada","Lovel","saw","Bob","and","she"]],"mention_clusters":[[[0,0,2],[0,5,6]],[[0,3,4]],[[0,0,1]]]}"#,
+        )
+        .unwrap();
+        let report = evaluator
+            .evaluate_all(TaskEvalConfig {
+                tasks: vec![Task::IntraDocCoref],
+                datasets: vec![DatasetId::PreCo],
+                backends: vec!["coref_resolver".into()],
+                require_cached: true,
+                coref_use_gold_mentions: true,
+                custom_coref_resolver: Some(std::sync::Arc::new(CheckInputOrder)),
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(report.results.len(), 1);
+        assert!(report.results[0].success, "{:?}", report.results[0].error);
     }
 
     #[test]
