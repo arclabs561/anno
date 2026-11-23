@@ -1038,6 +1038,33 @@ fn append_jsonl<T: serde::Serialize>(path: &str, v: &T) {
     }
 }
 
+/// Small, source-free counts that explain scores on the two structural tasks.
+fn structural_counts(row: &TaskEvalResult) -> BTreeMap<&'static str, f64> {
+    let keys: &[&'static str] = match row.task {
+        Task::IntraDocCoref => &[
+            "input_mentions",
+            "matched_input_mentions",
+            "gold_mentions",
+            "reachable_gold_links",
+            "matched_coref_links",
+            "predicted_coref_links",
+            "gold_coref_links",
+        ],
+        Task::Temporal => &[
+            "gold_spans",
+            "predicted_spans",
+            "matched_spans",
+            "unmatched_predictions_overlapping_missed_gold",
+            "gold_empty_sentences",
+            "gold_empty_sentences_with_predictions",
+        ],
+        _ => &[],
+    };
+    keys.iter()
+        .filter_map(|&key| row.metrics.get(key).map(|&count| (key, count)))
+        .collect()
+}
+
 #[derive(Debug, Clone, serde::Serialize)]
 struct DecisionOutcomeLog {
     // Independent schema for post-run outcome events.
@@ -1063,6 +1090,8 @@ struct DecisionOutcomeLog {
     backend_display: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     primary_f1: Option<f64>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    structural_counts: BTreeMap<&'static str, f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     junk_f1_threshold: Option<f64>,
     ok: bool,
@@ -4392,6 +4421,7 @@ fn run_matrix_sample(seed: u64, selection_receipt: Option<&std::path::Path>) {
                     backend: r.backend.clone(),
                     backend_display: r.backend_display.clone(),
                     primary_f1: o.quality_score,
+                    structural_counts: structural_counts(r),
                     junk_f1_threshold: Some(thr),
                     ok,
                     junk,

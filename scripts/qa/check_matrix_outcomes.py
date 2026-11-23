@@ -35,7 +35,7 @@ def outcomes(lines, decisions=None):
         yield task if strategy == "random" else strategy, row
 
 
-def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
+def check_fixed_sample(lines, *, task, dataset, backend, examples, exact, counts=None):
     rows = list(outcomes(lines))
     if len(rows) == 1:
         lane, row = rows[0]
@@ -43,7 +43,9 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
                 and not row["hard_junk"] and row["cost_units"] == examples
                 and type(score) in (float, int) and 0 <= score <= 1
-                and (not exact or score == 1.0)):
+                and (not exact or score == 1.0)
+                and (counts is None or all(
+                    row.get("structural_counts", {}).get(k) == v for k, v in counts.items()))):
             print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
     print(f"Unexpected fixed sample result for {task} / {dataset} / {backend}.", file=sys.stderr)
@@ -57,7 +59,10 @@ def check_wikigold(lines, bootstrap=False):
 
 def check_temporal_smoke(lines):
     return check_fixed_sample(lines, task="temporal", dataset="TimexRecognitionSentenceOriginal",
-                              backend="pattern", examples=2, exact=True)
+                              backend="pattern", examples=2, exact=True,
+                              counts={"gold_spans": 1, "predicted_spans": 1, "matched_spans": 1,
+                                      "gold_empty_sentences": 1, "gold_empty_sentences_with_predictions": 0,
+                                      "unmatched_predictions_overlapping_missed_gold": 0})
 
 
 def check(lines, report=False):

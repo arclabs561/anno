@@ -91,10 +91,13 @@ class CoverageTest(unittest.TestCase):
 
     def test_temporal_fixture_requires_the_positive_and_negative_documents(self):
         row = dict(outcome("temporal", examples=2), dataset="TimexRecognitionSentenceOriginal",
-                   backend="pattern", primary_f1=1.0)
+                   backend="pattern", primary_f1=1.0,
+                   structural_counts={"gold_spans": 1, "predicted_spans": 1, "matched_spans": 1,
+                                      "gold_empty_sentences": 1, "gold_empty_sentences_with_predictions": 0,
+                                      "unmatched_predictions_overlapping_missed_gold": 0})
         with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertTrue(check_temporal_smoke([json.dumps(row)]))
-            for change in ({"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
+            for change in ({"structural_counts": {}}, {"cost_units": 1}, {"primary_f1": 0.8}, {"hard_junk": True},
                            {"slice": "ner.lang=en"}, {"dataset": "WikiGold"}):
                 self.assertFalse(check_temporal_smoke([json.dumps(row | change)]))
 
