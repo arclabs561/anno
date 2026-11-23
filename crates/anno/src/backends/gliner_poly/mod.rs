@@ -15,6 +15,7 @@
 //! - `text_lengths`: `[batch, 1]` (i64) -- number of words in each text
 //! - `span_idx`: `[batch, num_spans, 2]` (i64) -- start/end word indices per span
 //! - `span_mask`: `[batch, num_spans]` (bool) -- which spans are valid
+//!
 //! The split export sends label IDs and masks to `label_encoder.onnx`, then passes
 //! its `labels_embeddings` output to `model.onnx`. Fused graphs accept these inputs directly.
 //!
