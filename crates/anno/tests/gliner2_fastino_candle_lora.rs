@@ -1,22 +1,17 @@
-//! Phase 4 M9 — adapter merge correctness tests.
+//! GLiNER2 Fastino Candle adapter integration tests.
 //!
-//! Two test classes:
+//! These opt-in tests require the base model and a supported accelerator.
+//! To test two synthetic adapters on CUDA, run:
 //!
-//! 1. **Synthetic-adapter test** (`synthetic_zero_adapter_is_noop`,
-//!    `synthetic_adapter_changes_inference`) — auto-runs in CI. Builds
-//!    a tiny PEFT-format adapter from in-memory tensors targeting a
-//!    handful of encoder layers, merges it into the engine, verifies
-//!    behavior. Does not require a public adapter.
-//!
-//! 2. **Real-adapter test** (`real_adapter_changes_inference`) —
-//!    `#[ignore]`-gated. Reads adapter dir from
-//!    `GLINER2_TEST_ADAPTER_DIR` env var. Skip if unset.
-//!
-//! Run with:
 //! ```bash
 //! cargo test -p anno --features gliner2-fastino-candle-cuda \
-//!     --test gliner2_fastino_candle_lora
-//! # plus, if you have a real adapter:
+//!     --test gliner2_fastino_candle_lora -- synthetic_ --ignored
+//! ```
+//!
+//! Use `gliner2-fastino-candle-metal` on Apple Silicon. To include the
+//! real-adapter and sequential-swap tests, supply a PEFT adapter:
+//!
+//! ```bash
 //! GLINER2_TEST_ADAPTER_DIR=/path/to/adapter \
 //!     cargo test -p anno --features gliner2-fastino-candle-cuda \
 //!     --test gliner2_fastino_candle_lora -- --ignored
