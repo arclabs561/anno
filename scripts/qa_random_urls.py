@@ -366,6 +366,16 @@ def feed_entry_links(data: bytes) -> list[str]:
 MAX_PUBLISHER_FEED_BYTES = 2 * 1024 * 1024
 
 
+def is_publisher_article(source: Source, entry: str) -> bool:
+    if entry == source.url or "\\" in entry or any(ch.isspace() or ord(ch) < 32 for ch in entry):
+        return False
+    try:
+        url = urlsplit(entry)
+        return url.scheme == "https" and url.netloc == urlsplit(source.url).netloc
+    except ValueError:
+        return False
+
+
 def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
     """Read one bounded feed and choose one same-host HTTPS article, without crawling."""
     request = urllib.request.Request(source.url, headers={"User-Agent": "anno-qa/1.0"})
@@ -373,12 +383,7 @@ def discover_publisher_article(source: Source, seed: int, timeout: int) -> str:
         data = response.read(MAX_PUBLISHER_FEED_BYTES + 1)
     if len(data) > MAX_PUBLISHER_FEED_BYTES:
         raise ValueError("feed exceeds 2 MiB limit")
-    origin = urlsplit(source.url).netloc
-    candidates = []
-    for entry in feed_entry_links(data):
-        url = urlsplit(entry)
-        if url.scheme == "https" and url.netloc == origin and entry != source.url:
-            candidates.append(entry)
+    candidates = [entry for entry in feed_entry_links(data) if is_publisher_article(source, entry)]
     if not candidates:
         raise ValueError("feed has no same-host HTTPS article links")
     # Sorting and per-publisher randomness keep feed order and other publishers'
@@ -857,8 +862,7 @@ def replay_sources(receipt):
             raise ValueError("receipt source or domain is outside the cross-domain catalog")
         article = row["selected_url"]
         if source.discover_from_feed:
-            if article is not None and (urlsplit(article).netloc != urlsplit(source.url).netloc
-                                        or article == source.url or "\\" in article):
+            if article is not None and not is_publisher_article(source, article):
                 raise ValueError("receipt feed article must belong to its catalog publisher")
         elif article != source.url:
             raise ValueError("receipt fixed page must equal its catalog URL")
@@ -979,7 +983,8 @@ def main() -> int:
 
         urls[source] = url
         if args.dry_run:
-            print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{source.category}]")
+            group = source.domain if cross_domain else source.category
+            print(f"  [{i}/{count}] {source.name} ({source.lang}/{source.script}) [{group}]")
             if url != source.url:
                 print(f"           source: {source.url}")
             print(f"           url:  {url or error}")
@@ -1043,7 +1048,9 @@ def main() -> int:
     # Summary
     ok_count = sum(1 for r in all_results if r.status == "OK")
     total = len(all_results)
-    print(f"Done: {ok_count}/{total} OK")
+    print(f"Done: {ok_count}/{total} checks OK")
+    if cross_domain and not verified:
+        print("Input comparison incomplete or changed; see the domain coverage report.")
 
     return 0 if verified and ok_count == total else 1
 

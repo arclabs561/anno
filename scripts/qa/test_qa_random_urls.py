@@ -209,6 +209,7 @@ class PublisherFeeds(unittest.TestCase):
                 self.assertEqual(fetch.call_args.kwargs["timeout"], 15)
                 return page
         links = ["https://news.example/a", "https://news.example/b", "https://other.example/c"]
+        self.assertEqual(choose(["https://news.example/invalid path", "https://[broken", links[0]]), links[0])
         self.assertIn(choose(links), links[:2])
         self.assertEqual(choose(links), choose(reversed(links)))
 
