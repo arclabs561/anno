@@ -3,7 +3,6 @@
 import argparse
 from collections import Counter
 import json
-import math
 from pathlib import Path
 import sys
 
@@ -43,7 +42,7 @@ def check_fixed_sample(lines, *, task, dataset, backend, examples, exact):
         score = row.get("primary_f1")
         if (lane == task and row.get("dataset") == dataset and row.get("backend") == backend
                 and not row["hard_junk"] and row["cost_units"] == examples
-                and type(score) in (float, int) and math.isfinite(score)
+                and type(score) in (float, int) and 0 <= score <= 1
                 and (not exact or score == 1.0)):
             print(f"{dataset} / {backend}: {examples} examples, F1 {score:.4f}.")
             return True
