@@ -8,6 +8,12 @@
 
 - GLiNER2 Fastino Candle requires a supported accelerator while its CPU attention kernel is affected. For CPU inference use the Fastino ONNX backend and export any LoRA adapter merged into the model.
 
+- `anno-eval` adds `ExecutionProvenanceStatus::Skipped { reason }`. Rust callers
+  that match exhaustively must handle the new variant. Schema 2 receipts record
+  `provenance.backend.execution.status` as `skipped` with reason
+  `capability_unavailable` or `incompatible_entity_types`. Use
+  `TaskEvalResult::is_skipped()` when reading mixed history. It interprets legacy
+  diagnostic text for schema 0 and 1 and uses the typed status for schema 2.
 - Library constructors no longer load `.env` from the working directory or its
   parents. The CLI still loads it at startup. Rust callers can opt in with
   `anno::env::load_dotenv()`. Python callers can set the environment before
