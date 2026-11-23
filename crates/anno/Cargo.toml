@@ -200,3 +200,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 name = "fcoref_word_spans"
 test = true
 required-features = ["onnx"]
+
+[[example]]
+name = "fcoref_resource_profile"
+required-features = ["onnx"]
