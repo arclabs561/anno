@@ -22,25 +22,51 @@ def span(value, text):
     return tuple(value)
 
 
+def gold_span(value, surface, text, label):
+    bounds = span(value, text)
+    if text[slice(*bounds)] != surface:
+        raise ValueError(f"{label}: recorded surface differs from source at {bounds}")
+    return bounds
+
+
 def annotation_maps(doc):
     text = doc["text"]
+    if not isinstance(text, str):
+        raise ValueError(f"{doc['id']}: expected source text")
     people = indexed(doc["people"], "people")
     mentions = indexed(doc["mentions"], "gold mentions")
     lookups = {"highlight": {}, "referential": {}}
+    owners = {}
     for key, m in mentions.items():
+        label = f"{doc['id']}/{key}"
         if m["person_id"] is not None and m["person_id"] not in people:
-            raise ValueError(f"unknown person for {key}")
-        highlight = span(m["highlight"], text)
+            raise ValueError(f"{label}: unknown person")
+        highlight = gold_span(m["highlight"], m.get("highlight_surface"), text, label)
         refs = m["referential_spans"]
+        surfaces = m.get("referential_surfaces")
         if not isinstance(refs, list) or not refs:
-            raise ValueError(f"missing referential spans for {key}")
-        for contract, spans in [("highlight", [highlight]),
-                                ("referential", [span(r, text) for r in refs])]:
+            raise ValueError(f"{label}: missing referential spans")
+        if not isinstance(surfaces, list) or len(refs) != len(surfaces):
+            raise ValueError(f"{label}: expected one recorded surface per referential span")
+        references = [gold_span(r, surface, text, label) for r, surface in zip(refs, surfaces)]
+        for start, end in references:
+            if not start <= highlight[0] < highlight[1] <= end:
+                raise ValueError(f"{label}: referential span must contain the highlight")
+        for contract, spans in [("highlight", [highlight]), ("referential", references)]:
             for r in spans:
-                if r in lookups[contract]:
-                    raise ValueError(f"ambiguous or duplicate {contract} span {r}")
+                if r in lookups[contract] or owners.setdefault(r, key) != key:
+                    raise ValueError(f"{label}: ambiguous or duplicate {contract} span {r}")
                 lookups[contract][r] = key
-    return mentions, lookups
+
+    negatives = set()
+    for n in objects(doc["negative_spans"], "negative spans"):
+        r = gold_span(n["span"], n.get("surface"), text, f"{doc['id']}/negative")
+        if r in negatives:
+            raise ValueError(f"{doc['id']}: duplicate negative span {r}")
+        if any(r[0] < end and start < r[1] for start, end in owners):
+            raise ValueError(f"{doc['id']}: negative span {r} overlaps a person mention")
+        negatives.add(r)
+    return mentions, lookups, negatives
 
 
 def model_spans(doc, row):
@@ -129,14 +155,11 @@ def score(gold, predictions):
     results = []
     totals = {}
     for key, doc in docs.items():
-        mentions, lookups = annotation_maps(doc)
-        negatives = {span(n["span"], doc["text"]) for n in doc["negative_spans"]}
+        mentions, lookups, negatives = annotation_maps(doc)
         proposed, clusters = model_spans(doc, rows[key])
         clustered = set().union(*clusters)
         scores = {}
         for contract, lookup in lookups.items():
-            if negatives & lookup.keys():
-                raise ValueError("gold span has conflicting positive and negative judgments")
             scores[contract] = {
                 "candidates": selection(proposed, lookup, negatives, len(mentions)),
                 "cluster_members": selection(clustered, lookup, negatives, len(mentions)),

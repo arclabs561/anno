@@ -47,6 +47,7 @@ fn extract_once_then_rescore_the_same_unicode_source() {
         assert!(replay["model"].is_null());
         assert!(replay["elapsed_ms"].is_null());
         assert_eq!(replay["predictions"]["document_id"], "extract");
+        assert!(replay["predictions"].get("html_source").is_none());
         assert_eq!(
             replay["predictions"]["source_sha256"],
             "154527a734e13c9a3e2a5735553f36eebd46c6457513317e17bae2aa5ca5434e"
@@ -122,6 +123,52 @@ fn extract_once_then_rescore_the_same_unicode_source() {
     assert!(String::from_utf8_lossy(&both_sources.stderr).contains("--model"));
     std::fs::write(&file, "{}").unwrap();
     rejection(SOURCE, "parse GroundedDocument JSON");
+}
+
+#[test]
+fn saved_html_predictions_identify_originals_with_identical_rendered_text() {
+    use anno::core::grounded::html_source::source_sha256;
+
+    let dir = tempfile::tempdir().unwrap();
+    let html = dir.path().join("page.html");
+    let predictions = dir.path().join("predictions.json");
+    let rendered = "alice@example.org";
+
+    for source in [
+        "<p>alice@example.org</p>",
+        "<article><b>alice</b>&#64;example.org</article>",
+    ] {
+        std::fs::write(&html, source).unwrap();
+        let doc = json_output(&[
+            "extract",
+            "--model",
+            "pattern",
+            "--file",
+            html.to_str().unwrap(),
+            "--html-source-spans",
+        ]);
+        assert_eq!(doc["text"], rendered);
+        std::fs::write(&predictions, doc.to_string()).unwrap();
+        let score = json_output(&[
+            "eval",
+            "--text",
+            rendered,
+            "--gold",
+            "alice@example.org:EMAIL:0:17",
+            "--predictions",
+            predictions.to_str().unwrap(),
+            "--json",
+        ]);
+        assert_eq!(score["f1"], 1.0);
+        assert_eq!(
+            score["predictions"]["source_sha256"],
+            source_sha256(rendered)
+        );
+        assert_eq!(
+            score["predictions"]["html_source"],
+            json!({"source_sha256": source_sha256(source), "renderer": "deformat_strip"})
+        );
+    }
 }
 
 #[test]

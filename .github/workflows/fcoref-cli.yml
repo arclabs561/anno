@@ -88,9 +88,12 @@ jobs:
           python3 -m unittest discover -s scripts/qa/fcoref_cgroup
           cargo build --locked --release -p anno --no-default-features --features onnx,ort/load-dynamic --example fcoref_resource_profile
       - name: Replay the FP32 boundary matrix with one CPU and 2 GiB
+        id: replay
         env:
           RUNTIME_IMAGE: ubuntu:24.04@sha256:9c7f200c07e3d4a03e7249d2c16bf66a51120fb876aa2242cf31451412543289
         run: |
+          receipt_dir=$(mktemp -d "$RUNNER_TEMP/fcoref-receipt.XXXXXX")
+          echo "receipt=$receipt_dir/fcoref-cgroup.json" >> "$GITHUB_OUTPUT"
           wheel_dir=$(mktemp -d)
           python3 -m pip download --no-deps --only-binary=:all: --platform manylinux_2_27_x86_64 --implementation cp --python-version 3.12 --abi cp312 -d "$wheel_dir" 'onnxruntime==1.24.4'
           wheel=$(find "$wheel_dir" -name '*.whl')
@@ -101,10 +104,10 @@ jobs:
           cpu=$(python3 -c 'import os; print(min(os.sched_getaffinity(0)))')
           python3 scripts/qa/fcoref_cgroup/replay.py \
             --binary target/release/examples/fcoref_resource_profile --model "$FCOREF_MODEL_PATH" \
-            --ort "$ort" --image "$RUNTIME_IMAGE" --cpu "$cpu" --output fcoref-cgroup.json
+            --ort "$ort" --image "$RUNTIME_IMAGE" --cpu "$cpu" --output "$receipt_dir/fcoref-cgroup.json"
       - name: Upload the container resource receipt
-        if: always() && hashFiles('fcoref-cgroup.json') != ''
+        if: always() && steps.replay.outputs.receipt != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: fcoref-cgroup
-          path: fcoref-cgroup.json
+          path: ${{ steps.replay.outputs.receipt }}

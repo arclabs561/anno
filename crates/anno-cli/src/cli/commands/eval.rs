@@ -13,6 +13,7 @@ use super::super::utils::{
     get_input_text, load_gold_from_file, parse_gold_spec, parse_grounded_document, source_sha256,
 };
 
+use anno::core::grounded::html_source::HtmlRenderer;
 use anno::core::grounded::{
     render_eval_html, EvalComparison, EvalMatch, Location, Signal, SignalId,
 };
@@ -106,6 +107,7 @@ enum PredictionSource {
     },
     Saved {
         document_id: String,
+        html_source: Option<(String, HtmlRenderer)>,
     },
 }
 
@@ -179,6 +181,9 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
             doc.signals().to_vec(),
             PredictionSource::Saved {
                 document_id: doc.id().to_owned(),
+                html_source: doc
+                    .html_source()
+                    .map(|source| (source.source_sha256.clone(), source.renderer)),
             },
         )
     } else {
@@ -275,13 +280,22 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 output["model"] = serde_json::json!(model.name());
                 output["elapsed_ms"] = serde_json::json!(elapsed.as_secs_f64() * 1000.0);
             }
-            PredictionSource::Saved { document_id } => {
+            PredictionSource::Saved {
+                document_id,
+                html_source,
+            } => {
                 output["model"] = serde_json::Value::Null;
                 output["elapsed_ms"] = serde_json::Value::Null;
                 output["predictions"] = serde_json::json!({
                     "document_id": document_id,
                     "source_sha256": source_sha256(&text),
                 });
+                if let Some((original_sha256, renderer)) = html_source {
+                    output["predictions"]["html_source"] = serde_json::json!({
+                        "source_sha256": original_sha256,
+                        "renderer": renderer,
+                    });
+                }
             }
         }
 
@@ -363,7 +377,7 @@ pub fn run(args: EvalArgs) -> Result<(), String> {
                 model.name(),
                 elapsed.as_secs_f64() * 1000.0
             ),
-            PredictionSource::Saved { document_id } => println!(
+            PredictionSource::Saved { document_id, .. } => println!(
                 "  {}  saved predictions for {}",
                 color("1;36", "EVALUATION"),
                 document_id
