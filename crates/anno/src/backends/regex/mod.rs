@@ -69,6 +69,31 @@ impl Default for RegexNER {
 static DATE_ISO: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{4}-\d{2}-\d{2}\b").expect("valid regex"));
 
+/// Check Gregorian month lengths after DATE_ISO has matched the numeric shape.
+fn is_calendar_date(iso: &str) -> bool {
+    // DATE_ISO also recognizes Unicode decimal digits. Keep those lexical matches.
+    if !iso.is_ascii() {
+        return true;
+    }
+    let mut fields = iso.split('-').map(str::parse::<u16>);
+    let (Some(Ok(year)), Some(Ok(month)), Some(Ok(day))) =
+        (fields.next(), fields.next(), fields.next())
+    else {
+        return false;
+    };
+    // ISO year 0000 is the proleptic Gregorian year corresponding to 1 BCE.
+    let leap_year =
+        year.is_multiple_of(400) || (year.is_multiple_of(4) && !year.is_multiple_of(100));
+    let last_day = match month {
+        2 if leap_year => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        _ => return false,
+    };
+    (1..=last_day).contains(&day)
+}
+
 static DATE_US: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b").expect("valid regex"));
 
@@ -350,9 +375,13 @@ impl Model for RegexNER {
 
         // Dates (high confidence - very specific patterns)
         let date_text = table::with_cell_boundaries(text);
+        for m in DATE_ISO.find_iter(&date_text) {
+            if is_calendar_date(m.as_str()) {
+                add_entity(m, EntityType::Date, 0.95, "DATE_ISO");
+            }
+        }
         // English dates
         let date_patterns_en: &[(&LazyLock<Regex>, &'static str)] = &[
-            (&DATE_ISO, "DATE_ISO"),
             (&DATE_US, "DATE_US"),
             (&DATE_EU, "DATE_EU"),
             (&DATE_YEAR_MONTH_DAY, "DATE_YEAR_MONTH_DAY"),
@@ -629,6 +658,30 @@ mod tests {
     fn date_iso_format() {
         let e = extract("Meeting on 2024-01-15.");
         assert!(find_text(&e, "2024-01-15").is_some());
+    }
+
+    #[test]
+    fn iso_dates_follow_the_gregorian_calendar() {
+        let text = concat!(
+            "0000-00-00 2024-01-00 2024-13-01 2024-04-31 1900-02-29 2023-02-29 ",
+            "0000-02-29 2000-02-29 2024-02-29 2023-04-30 9999-12-31 ٢٠٢٤-٠٢-٢٩",
+        );
+        let dates: Vec<_> = extract(text)
+            .into_iter()
+            .filter(|e| e.entity_type == EntityType::Date)
+            .map(|e| e.text)
+            .collect();
+        assert_eq!(
+            dates,
+            [
+                "0000-02-29",
+                "2000-02-29",
+                "2024-02-29",
+                "2023-04-30",
+                "9999-12-31",
+                "٢٠٢٤-٠٢-٢٩"
+            ]
+        );
     }
 
     #[test]
