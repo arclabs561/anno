@@ -265,6 +265,10 @@ eval-wide MAX_EXAMPLES="50":
 eval-sanity:
     ./scripts/eval-sanity.sh
 
+# Prepare local pinned sources for paired exact-span QA.
+qa-prepare-domains $DATA $OUT $PER_SPLIT="32" $SEED="anno-domain-transfer-20261123-v1":
+    python3 scripts/qa/prepare_domain_fixtures.py prepare "$DATA" "$OUT" --per-split "$PER_SPLIT" --seed "$SEED"
+
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
 qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":

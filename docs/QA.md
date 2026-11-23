@@ -41,7 +41,9 @@ just qa-round "$OUT" "Does removing spaces inside parentheses change organizatio
 
 The same command accepts a matrix slot's receipt directory. To time agent calls and their replay, follow the [traced round](ADVERSARIAL_QA.md#trace-one-author-and-one-replay). Start directly with the [coordinator prompt](ADVERSARIAL_QA.md) for fuzzing or web discovery before a panel exists.
 
-### Check what a negative span means
+#For an equal-budget comparison on public, labeled text across ten domains, prepare [the domain fixtures](DOMAIN_QA.md).
+
+## Check what a negative span means
 
 Use `exact_span` when the source range must receive one of the listed types. Use `no_overlap` when the specified types must leave the entire range clear. Both use half-open Unicode scalar offsets. For example, an ORG spanning `Iona Tress (CPA` violates a protected range for `CPA` even if the extractor never emits the credential on its own. A prediction ending at the first character of the protected range may pass. Pair a negative range with a positive mention so an empty extractor cannot pass the whole case.
 

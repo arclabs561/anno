@@ -1,0 +1,64 @@
+{
+  "ai.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/ai/test.txt",
+    "sha256": "7595ad386e0a98067100fe47f86811b38867a236011fee97cfaa90f778c37bcf",
+    "download_bytes": 134455
+  },
+  "atis.in": {
+    "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/atis/test/seq.in",
+    "sha256": "4b2119fc59c37f9398c6605db435d4f467505009e6ee3e5af04fed09f39dc397",
+    "download_bytes": 52122
+  },
+  "atis.out": {
+    "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/atis/test/seq.out",
+    "sha256": "a4690d6bceadc06876d1ff99bc401744aa981cb321e598ae12a3859d7be53254",
+    "download_bytes": 81238
+  },
+  "conll2003.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/conll2003/test.txt",
+    "sha256": "18d9d738defc506ebc5d6748cb580245327ef5c4357b026d7d9ba7c6e55fe841",
+    "download_bytes": 416873
+  },
+  "cuad.json": {
+    "url": "https://raw.githubusercontent.com/TheAtticusProject/cuad/67faa0e6023b04fcaae6cc09497ab00e5d63a2a2/data.zip",
+    "sha256": "007b6a40b0c65247f881627375c3d2e9b6aeeb5dfa89957494feed0765a1a073",
+    "member": "test.json",
+    "download_bytes": 18309308,
+    "archive_sha256": "f8161d18bea4e9c05e78fa6dda61c19c846fb8087ea969c172753bc2f45b999a"
+  },
+  "literature.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/literature/test.txt",
+    "sha256": "77267f8b3e8afe993865c64cfc605f65671f6a0ac9cba65de970f12180fed20e",
+    "download_bytes": 155256
+  },
+  "music.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/music/test.txt",
+    "sha256": "c66e345f959ac65593f76c6b1bd8c6d75f2a6f0bc197389b2e6700d101fd094c",
+    "download_bytes": 208331
+  },
+  "politics.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/politics/test.txt",
+    "sha256": "05cadc5e129d394f7f92b4a052cf4b6ea4c60878d32a833e500cf046c297455f",
+    "download_bytes": 325917
+  },
+  "science.bio": {
+    "url": "https://raw.githubusercontent.com/zliucr/CrossNER/2e7ba2a7798c961e3f29fbc51252c5a8d40224bf/ner_data/science/test.txt",
+    "sha256": "3616d59d4d2b9dbf4c1126f8d8ba47ff97886223c95f93649bfd527343e64ced",
+    "download_bytes": 220459
+  },
+  "snips.in": {
+    "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/snips/test/seq.in",
+    "sha256": "c1e341173fcea2951a8ca371956a6f81c76de87b9583c62eb87edd6158fa3a7c",
+    "download_bytes": 33121
+  },
+  "snips.out": {
+    "url": "https://raw.githubusercontent.com/monologg/JointBERT/00324f60dda4a491b2913bc3065ae93966caea3f/data/snips/test/seq.out",
+    "sha256": "58c07c9097d5e1f78889765c2a535a160f6455b90b3142055c8051847afcca47",
+    "download_bytes": 50918
+  },
+  "wnut.bio": {
+    "url": "https://raw.githubusercontent.com/leondz/emerging_entities_17/e52a2d2a71ac1a051ca2d532eef28653c5c02603/emerging.test.annotated",
+    "sha256": "2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0",
+    "download_bytes": 192425
+  }
+}
