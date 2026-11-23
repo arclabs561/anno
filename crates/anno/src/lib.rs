@@ -138,7 +138,8 @@ pub use crate::core::{
     Gender, GroundedDocument, HashMapLexicon, HierarchicalConfidence, Identity, IdentityId,
     IdentitySource, Lexicon, Location, Mention, MentionType, Modality, Number, Person, PhiFeatures,
     Provenance, Quantifier, RaggedBatch, Relation, Signal, SignalId, SignalRef, Span,
-    SpanCandidate, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper, ValidationIssue,
+    SpanCandidate, SpanCoverage, Track, TrackId, TrackRef, TrackStats, TypeLabel, TypeMapper,
+    ValidationIssue,
 };
 
 pub use crate::core::grounded::SignalValidationError;

@@ -15,13 +15,47 @@ on:
         type: string
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let an active default-branch run finish publishing its measured policy state.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 permissions:
   contents: read
 jobs:
+  live-document-qa:
+    name: Live document extraction
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ANNO: ./target/debug/anno
+      ANNO_NO_DOWNLOADS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16
+      - name: Build the offline models and URL reader
+        id: build
+        run: cargo build --locked -p anno-cli --no-default-features --features eval,extractor-html2text
+      # Sample six pages per run. Keep the document and feed checks, then
+      # exercise three distinct publishers using the pattern backend.
+      - name: Sample two published documents
+        run: python3 scripts/qa_random_urls.py --category documents --count 2 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/documents.md
+      - name: Sample one article from a feed
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/qa_random_urls.py --category rss --count 1 --seed "$GITHUB_RUN_ID" --backends pattern,heuristic --timeout 30 --output qa/reports/feeds.md
+      - name: Compare extraction across three publishers
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/qa_random_urls.py --cross-domain --count 3 --seed "$GITHUB_RUN_ID" --backends pattern --timeout 30 --output qa/reports/publishers.md
+      - name: Save live QA reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: live-document-qa
+          path: qa/reports/*.md
+          if-no-files-found: error
   # ==========================================================================
   # Quick checks (fast feedback) - runs in parallel
   # ==========================================================================
@@ -84,10 +118,17 @@ jobs:
         run: uvx ty check scripts/docs_audit.py scripts/apply_registry_enrichment.py
       - name: Test attribution footer matching
         run: uv run --with markdown-it-py==4.2.0 python -m unittest discover -s .github/scripts -p test_strip_attribution.py
+      - name: Test optional research routing
+        timeout-minutes: 2
+        run: |
+          test_dir="$RUNNER_TEMP/anno-routing-tests"
+          npm install --prefix "$test_dir" --ignore-scripts --no-audit --no-fund --no-package-lock --no-save @actions/expressions@0.3.61 yaml@2.8.4
+          cp .github/scripts/test_research_routing.mjs "$test_dir/"
+          node "$test_dir/test_research_routing.mjs"
       - name: Test profiling JSON analysis
         run: python3 -m unittest discover -s scripts -p test_analyze_test_profile.py
-      - name: Test fixed QA panel contracts (offline fixtures)
-        run: python3 -m unittest discover -s scripts/qa -p 'test_*.py'
+      - name: Test QA panels, matrix outcomes, and CI scripts
+        run: python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
       - name: Test BERT trace artifact identity (offline fixtures)
         run: python3 -m unittest discover -s scripts -p test_compare_bert_onnx_traces.py
       - name: Test HuggingFace downloader regression (offline fixtures)
@@ -113,22 +154,17 @@ jobs:
       # All targets (lib + tests + bins + examples) so test code is also linted.
       - run: cargo clippy --workspace --all-targets --features "eval discourse" -- -D warnings
   # ------------------------------------------------------------
-  # Clippy runs across feature combos that the default CI step
-  # doesn't exercise. Each combo is a separate job so a failure
-  # names the feature set directly.
-  # ------------------------------------------------------------
-  # Clippy on feature combos the primary (eval discourse) job doesn't cover.
-  # Scoped to lib + unit tests; integration tests live under the main job.
+  # Check each optional feature independently. The two lightweight checks
+  # share a runner and dependency artifacts. Candle has its own runner.
   clippy-extra:
-    name: Clippy (${{ matrix.features }})
+    name: Clippy (${{ matrix.label }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        features:
-          - "analysis"
-          - "schema"
-          - "candle"
+        include:
+          - { feature: analysis, label: 'analysis and schema' }
+          - { feature: candle, label: candle }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,9 +174,14 @@ jobs:
           toolchain: "stable"
           components: clippy
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        id: cache
         with:
           cache-all-crates: true
-      - run: cargo clippy -p anno --lib --features "${{ matrix.features }}" -- -D warnings
+      - name: Lint ${{ matrix.feature }}
+        run: cargo clippy -p anno --lib --features "${{ matrix.feature }}" -- -D warnings
+      - name: Lint schema
+        if: ${{ !cancelled() && matrix.feature == 'analysis' && steps.cache.outcome == 'success' }}
+        run: cargo clippy -p anno --lib --features schema -- -D warnings
   # ==========================================================================
   # Unit tests - no features (zero-dependency baseline)
   # ==========================================================================
@@ -172,10 +213,10 @@ jobs:
   test-eval:
     name: Test (eval)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &test-eval-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -236,6 +277,15 @@ jobs:
         run: cargo test --package anno --tests --features "discourse graph bundled-crf-weights bundled-hmm-params"
       - name: Run doc tests
         run: cargo test -p anno --doc --features discourse
+  test-eval-trusted:
+    name: Test (eval) (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *test-eval-steps
+
   # ==========================================================================
   # Cross-platform tests (core features only)
   # ==========================================================================
@@ -266,8 +316,9 @@ jobs:
         run: cargo build --workspace --no-default-features --features anno-cli/extractor-html2text
       - name: Test
         run: cargo test --workspace --no-default-features --features anno-cli/extractor-html2text --lib
-      - name: Check the watch clock in a non-UTC timezone
-        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test watch_local_time
+      - name: Run portable CLI integration tests
+        shell: bash
+        run: cargo test --locked -p anno-cli --no-default-features --features extractor-html2text --test '*'
       - name: Test eval history persistence
         run: 'cargo test -p anno-eval --lib --features eval eval::history::tests::'
       # Compile/lint the Windows provider path; hosted runners do not provide
@@ -298,10 +349,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Build ONNX backend
         run: cargo build --workspace --features onnx
       - name: Test ONNX (unit)
@@ -343,10 +394,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Build Candle backend
         run: cargo build --workspace --features "candle gliner2-fastino-candle"
       - name: Test Candle (unit)
@@ -362,6 +413,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        id: toolchain
         with:
           toolchain: "stable"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
@@ -370,12 +422,18 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "onnx,eval,discourse"
       - name: Test
         run: cargo test --workspace --lib --features "onnx,eval,discourse"
+      # Reuse the workspace test build and retain the dedicated 100-case run.
+      - name: Run property tests
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: cargo test --workspace --lib --features "eval discourse" -- proptest
+        env:
+          PROPTEST_CASES: 100
   test-candle-eval:
     name: Test (Candle + eval)
     runs-on: ubuntu-latest
@@ -392,8 +450,8 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build
         run: cargo build --workspace --features "candle,eval,discourse"
       - name: Test
@@ -416,8 +474,8 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
       - name: Build Metal backend
         run: cargo build --workspace --features "metal"
       - name: Test Metal (unit)
@@ -507,36 +565,17 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
   # ==========================================================================
-  # Property tests (proptest)
-  # ==========================================================================
-  proptest:
-    name: Property Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
-        with:
-          cache-all-crates: true
-      - name: Run property tests
-        run: cargo test --workspace --lib --features "eval discourse" -- proptest
-        env:
-          PROPTEST_CASES: 100
-  # ==========================================================================
   # Randomized Matrix Test (backends x datasets x tasks)
   # ==========================================================================
   matrix-test:
     name: Randomized Matrix Test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
+      actions: read
       contents: read
-      id-token: write
-    steps:
+    steps: &matrix-test-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -549,8 +588,15 @@ jobs:
       - name: Set ANNO cache dir and eval history path (matches actions/cache)
         run: |
           {
+            echo "MATRIX_CHECKPOINT=matrix-feedback-v1-$RUNNER_OS-$RUNNER_ARCH-${{ hashFiles('crates/anno-eval/src/eval/provenance.rs', 'crates/anno-eval/src/muxer_history.rs') }}"
+            # Keep the measurement cohort compatible across PR and default-branch runs.
+            echo "ANNO_MATRIX_REQUIRE_CACHED=1"
+            echo "ANNO_MAX_EXAMPLES=5"
             echo "ANNO_CACHE_DIR=$HOME/.anno_cache"
             echo "ANNO_EVAL_HISTORY=$HOME/.anno_cache/eval-results.jsonl"
+            # PRs use restored datasets and weights. Main and scheduled runs can refill them.
+            echo "ANNO_NO_DOWNLOADS=${{ github.event_name == 'pull_request' && '1' || '0' }}"
+            echo "ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY=${{ github.event_name == 'pull_request' && '0' || '1' }}"
             # Keep current-run evidence outside restored cache state so the outcome gate cannot
             # pass on decision records from an earlier workflow run.
             echo "ANNO_MUXER_DECISIONS_FILE=$RUNNER_TEMP/muxer-decisions.jsonl"
@@ -572,115 +618,160 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
-      - name: Cache datasets
+            hf-hub-models-${{ runner.os }}-
+      - name: Cache external datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.anno_cache
-          key: anno-datasets-${{ runner.os }}-v3-${{ github.run_id }}
+          path: ~/.anno_cache/datasets
+          key: anno-matrix-datasets-${{ runner.os }}-v1-${{ github.run_id }}
           restore-keys: |
-            anno-datasets-${{ runner.os }}-v3-
-      # Preserve state used by the randomized and worst-first samples when a matching cache is
-      # available. Cache restoration is best-effort and does not prove selector convergence.
-      - name: Cache matrix history for later sampled runs (best effort)
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.anno_cache/muxer_history.*.json
-            ~/.anno_cache/linucb_global_state.json
-            ~/.anno_cache/eval-results.jsonl
-            ~/.anno_cache/eval-history.db
-          key: anno-muxer-${{ runner.os }}-v1-${{ github.run_id }}
-          restore-keys: |
-            anno-muxer-${{ runner.os }}-v1-
-      - name: Build matrix sampler harness (enable ML backends)
-        run: cargo build -p anno-eval --features "onnx,eval,discourse"
-      - name: Run randomized matrix test (NER)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+            anno-matrix-datasets-${{ runner.os }}-v1-
+      - name: Check the offline sampler on a labeled fixture
         env:
-          ANNO_MATRIX_PERSPECTIVE: ner
+          ANNO_CACHE_DIR: ${{ runner.temp }}/matrix-smoke
+          ANNO_EVAL_HISTORY: ${{ runner.temp }}/matrix-smoke/eval-results.jsonl
+          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
+          ANNO_MATRIX_TASK: ner
           ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: ${{ github.run_id }}
-          ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          # Prefer cache in PRs, but fall back to downloads if empty.
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
-          # Keep downloads bounded if enabled.
-          ANNO_MAX_DOWNLOAD_BYTES: 8000000
-      - name: Run randomized matrix test (RE)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+          ANNO_CI_SEED: "42"
+          ANNO_MUXER_PIN_BACKEND: heuristic
+          ANNO_ML_IN_MATRIX: "0"
+          ANNO_MATRIX_REQUIRE_CACHED: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_S3_CACHE: "0"
+          ANNO_MAX_EXAMPLES: "1"
+        run: |
+          install -D scripts/qa/fixtures/matrix-smoke.conll "$ANNO_CACHE_DIR/datasets/WikiGold.cache"
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          python3 scripts/qa/check_matrix_outcomes.py --smoke "$ANNO_MUXER_DECISIONS_FILE"
+      - name: Replay adaptive selection across isolated CI histories
+        run: python3 scripts/qa/replay_matrix_feedback.py --features onnx,eval,discourse
+      - name: Restore the latest compatible default-branch checkpoint
+        id: prior
         env:
-          ANNO_MATRIX_PERSPECTIVE: re
-          ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: ${{ github.run_id }}
-          ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
-          ANNO_MAX_DOWNLOAD_BYTES: 8000000
-      - name: Run randomized matrix test (Coref)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 scripts/qa/matrix_checkpoint.py restore
+      - name: Prepare the pinned public WikiGold input
+        # External sampling is advisory on PRs if the source and cache are unavailable.
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: bash scripts/qa/prepare_matrix_wikigold.sh
+      - name: Bootstrap a cold trusted run on the public WikiGold corpus
+        if: steps.prior.outputs.restored == 'false' && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         env:
-          ANNO_MATRIX_PERSPECTIVE: coref
+          ANNO_MUXER_DECISIONS_FILE: ${{ runner.temp }}/matrix-bootstrap.jsonl
+          ANNO_MATRIX_TASK: ner
           ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: ${{ github.run_id }}
-          ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
-          ANNO_MAX_DOWNLOAD_BYTES: 8000000
-      - name: Run randomized matrix test (Temporal)
-        run: cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
-        env:
-          ANNO_MATRIX_PERSPECTIVE: temporal
-          ANNO_SAMPLE_STRATEGY: random
-          ANNO_CI_SEED: ${{ github.run_id }}
-          ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
-          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+          ANNO_CI_SEED: "42"
+          ANNO_MUXER_PIN_BACKEND: heuristic
+          ANNO_MUXER_FIXED_DATASETS: WikiGold
+          ANNO_ML_IN_MATRIX: "0"
+          ANNO_MATRIX_REQUIRE_CACHED: "1"
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
+          ANNO_NO_DOWNLOADS: "1"
+          ANNO_MAX_EXAMPLES: "5"
+        run: |
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+          python3 scripts/qa/check_matrix_outcomes.py --bootstrap "$ANNO_MUXER_DECISIONS_FILE" >> "$GITHUB_STEP_SUMMARY"
       - name: Run worst-first matrix test (+ regression detection)
         run: |
-          cargo test -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --ignored --nocapture
+          cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
         env:
+          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "0"
           ANNO_SAMPLE_STRATEGY: worst-first
           ANNO_CI_SEED: ${{ github.run_id }}
           ANNO_ML_IN_MATRIX: "1"
-          ANNO_MATRIX_TRY_DOWNLOAD_ON_EMPTY: "1"
-          ANNO_MATRIX_REQUIRE_CACHED: ${{ github.event_name == 'pull_request' && '1' || '0' }}
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
           # Enable eval-history regression detection. It compares each cell's last 5
           # observations against its pre-existing mean and alerts when Cohen's d >= 2.0
           # (requires >= 20 historical observations per cell).
           # ADVISORY ONLY: alerts are printed to stderr and the step does not fail.
-          # The history is cache-restored across runs and seeds/subsets vary per run, so
+          # The history is restored from a trusted checkpoint and seeds/subsets vary per run, so
           # the detector is a heuristic without an established false-positive rate;
           # failing on it would gate PRs on noise. Promote to a failing check only after
           # alerts are reproduced on a fixed panel. See docs/EVALUATION_SAMPLING.md.
           ANNO_CHECK_REGRESSIONS: "1"
-      - name: Verify matrix decision log
+      - name: Run randomized matrix test (NER)
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+        env:
+          ANNO_MATRIX_TASK: ner
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          # Keep downloads bounded if enabled.
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+      - name: Run randomized matrix test (RE)
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+        env:
+          ANNO_MATRIX_TASK: re
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+      - name: Run randomized matrix test (Coref)
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+        env:
+          ANNO_MATRIX_TASK: intra-coref
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+      - name: Run randomized matrix test (Temporal)
+        run: cargo test --locked -p anno-eval --lib --features "onnx,eval,discourse" muxer_matrix::test_randomized_matrix_sample -- --exact --ignored --nocapture
+        env:
+          ANNO_MATRIX_TASK: temporal
+          ANNO_SAMPLE_STRATEGY: random
+          ANNO_CI_SEED: ${{ github.run_id }}
+          ANNO_ML_IN_MATRIX: "1"
+          ANNO_MAX_DOWNLOAD_BYTES: 8000000
+      - name: Report sampled coverage and unavailable tasks
         if: always()
         run: |
-          if [ ! -s "$ANNO_MUXER_DECISIONS_FILE" ]; then
-            echo "::error::Matrix sampler produced no decision/outcome JSONL; inspect the matrix test logs."
-            exit 1
-          fi
-          outcome_count="$(grep -c '"record_type":"outcome"' "$ANNO_MUXER_DECISIONS_FILE" || true)"
-          if [ "${outcome_count:-0}" -eq 0 ]; then
-            echo "::error::Matrix sampler produced no non-skipped evaluation outcomes; inspect the matrix test logs."
-            exit 1
-          fi
-          printf 'matrix outcome records: %s\n' "$outcome_count"
+          set -o pipefail
+          touch "$ANNO_MUXER_DECISIONS_FILE"
+          python3 scripts/qa/check_matrix_outcomes.py --report "$ANNO_MUXER_DECISIONS_FILE" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Prepare updated policy history on the default branch
+        id: checkpoint
+        env:
+          JOURNAL_START: ${{ steps.prior.outputs.journal_start }}
+        if: success() && steps.prior.outputs.can_publish == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          python3 scripts/qa/matrix_checkpoint.py snapshot --journal-start "$JOURNAL_START" "$RUNNER_TEMP/matrix-checkpoint" \
+            "$ANNO_MUXER_DECISIONS_FILE" "$RUNNER_TEMP/matrix-bootstrap.jsonl"
+      - name: Publish trusted matrix checkpoint
+        if: steps.checkpoint.outcome == 'success' && steps.checkpoint.outputs.observations != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ env.MATRIX_CHECKPOINT }}
+          path: ${{ runner.temp }}/matrix-checkpoint/
+          if-no-files-found: error
+          retention-days: 60
       - name: Upload matrix decision and outcome log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: matrix-muxer-decisions
+          name: matrix-muxer-decisions${{ github.run_attempt != '1' && format('-attempt-{0}', github.run_attempt) || '' }}
           path: |
             ${{ runner.temp }}/muxer-decisions.jsonl
+            ${{ runner.temp }}/matrix-bootstrap.jsonl
+            ${{ runner.temp }}/matrix-smoke/outcomes.jsonl
             Cargo.lock
           if-no-files-found: warn
+  matrix-test-trusted:
+    name: Randomized Matrix Test (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      actions: read # Restore trusted matrix checkpoints across workflow runs.
+      contents: read
+      id-token: write
+    steps: *matrix-test-steps
+
   # ==========================================================================
   # Examples (compile check)
   # ==========================================================================
@@ -703,6 +794,8 @@ jobs:
         run: cargo build -p anno --examples --features "onnx"
       - name: Test provider diagnostic validation (no GPU required)
         run: cargo test -p anno --no-default-features --example onnx_bert_cuda_provider_probe --example onnx_bert_provider_probe
+      - name: Check CUAD passage ranking on a labeled offline fixture
+        run: cargo test --locked -p anno-eval --example cuad_retrieval --features "eval discourse"
       - name: Run muxer decision-loop example (offline smoke)
         run: cargo run -p anno-eval --example muxer_decision_loop --features "eval discourse"
       - name: Run grounded extraction and constituency import (offline smoke)
@@ -717,10 +810,10 @@ jobs:
     name: Eval Sanity (small samples)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-sanity-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -751,10 +844,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Cache datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -777,6 +870,8 @@ jobs:
         run: ./scripts/eval-sanity.sh
         env:
           ANNO_ARTIFACT_DIR: reports
+          # Use cached models when available. The WikiGold download uses its own byte cap.
+          ANNO_NO_DOWNLOADS: "1"
           MAX_EXAMPLES: 20
           RANDOM_SEED: 42
           ANNO_MAX_DOWNLOAD_BYTES: 8000000
@@ -790,20 +885,30 @@ jobs:
             reports/eval-sanity-report.md
             reports/eval-sanity-report.json
           if-no-files-found: warn
+  eval-sanity-trusted:
+    name: Eval Sanity (small samples) (trusted branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-sanity-steps
+
   # ==========================================================================
   # Full Evaluations (only on eval-* branches or manual trigger)
   # ==========================================================================
   eval-full:
     name: Eval Full (all combinations)
     runs-on: ubuntu-latest
-    if: |
-      startsWith(github.ref, 'refs/heads/eval-') ||
-      github.event_name == 'workflow_dispatch'
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master' &&
+      !startsWith(github.ref, 'refs/heads/eval-')
     timeout-minutes: 120
     permissions:
       contents: read
-      id-token: write
-    steps:
+    steps: &eval-full-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -834,10 +939,10 @@ jobs:
       - name: Cache HF models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/huggingface
-          key: hf-models-${{ runner.os }}-v2
+          path: ~/.cache/huggingface/hub
+          key: hf-hub-models-${{ runner.os }}-v2
           restore-keys: |
-            hf-models-${{ runner.os }}-
+            hf-hub-models-${{ runner.os }}-
       - name: Cache datasets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -865,6 +970,20 @@ jobs:
         with:
           name: eval-full-report
           path: eval-full-report.md
+  eval-full-trusted:
+    name: Eval Full (all combinations) (trusted branch)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request' &&
+      (startsWith(github.ref, 'refs/heads/eval-') ||
+       (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')))
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    steps: *eval-full-steps
+
   # ==========================================================================
   # Security audit
   # ==========================================================================
@@ -878,8 +997,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
         with:
           toolchain: "stable"
-      # Library crates gitignore Cargo.lock; generate one for the audit scan.
-      - run: cargo generate-lockfile
       - name: Cache cargo-audit
         id: cache-audit
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -889,9 +1006,14 @@ jobs:
       - name: Install cargo-audit
         if: steps.cache-audit.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-audit --version 0.22.2
-      - name: Check RustSec advisories
-        # Vulnerabilities fail; informational advisories remain visible warnings.
+      - name: Audit the checked-in Cargo.lock
+        id: locked
         run: cargo audit
+      - name: Audit a fresh dependency resolution
+        if: ${{ !cancelled() && (steps.locked.outcome == 'success' || steps.locked.outcome == 'failure') }}
+        run: |
+          cargo generate-lockfile
+          cargo audit
 
   semver-checks:
     name: Cargo Semver Checks
@@ -986,10 +1108,10 @@ jobs:
     runs-on: ubuntu-latest
     # Keep the job advisory until the remaining packs parse and their precision is measured.
     continue-on-error: true
+    if: github.event_name == 'pull_request' || (github.ref != 'refs/heads/main' && github.ref != 'refs/heads/master')
     permissions:
       contents: read
-      security-events: write
-    steps:
+    steps: &opengrep-steps
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -1109,7 +1231,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload SARIF results
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
+        if: always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         continue-on-error: true
         with:
           sarif_file: opengrep-results.sarif
@@ -1145,6 +1267,15 @@ jobs:
             opengrep-error-results.json
             opengrep-memory-results.json
           if-no-files-found: error
+  opengrep-trusted:
+    name: OpenGrep Static Analysis (trusted branch)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps: *opengrep-steps
   # Code coverage (optional, runs on schedule or manual trigger)
   # Only runs on push to main/master, schedule, or manual trigger (too slow for PRs).
   # PR coverage for the `analysis`/`schema` features runs in test-minimal instead.
@@ -1199,36 +1330,35 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        id: toolchain
         with:
           toolchain: "stable"
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           cache-all-crates: true
+      - name: Reject a packaged caller of a removed API
+        run: |
+          set -o pipefail
+          bash scripts/test-validate-publish.sh 2>&1 | tee publish-regression.log
       - name: Validate packaged workspace
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -o pipefail
           scripts/validate-publish.sh 2>&1 | tee publish-validation.log
+      # bundled-* features include_str! these; the include whitelist once
+      # shipped without them (broken on crates.io despite green local builds)
+      - name: bundled assets in cargo package
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: |
+          cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
+          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
+          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
       - name: Upload publish validation log
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: publish-validation-report
-          path: publish-validation.log
-
-  packaged-assets:
-    name: Packaged assets present
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
-        with:
-          toolchain: "stable"
-      # bundled-* features include_str! these; the include whitelist once
-      # shipped without them (broken on crates.io despite green local builds)
-      - name: bundled assets in cargo package
-        run: |
-          cargo package --list --allow-dirty -p anno > /tmp/pkg.txt
-          grep -q 'src/backends/hmm_params.json' /tmp/pkg.txt
-          grep -q 'src/backends/crf_weights.json' /tmp/pkg.txt
+          path: |
+            publish-regression.log
+            publish-validation.log

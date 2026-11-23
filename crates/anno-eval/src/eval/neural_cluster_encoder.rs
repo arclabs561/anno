@@ -442,14 +442,14 @@ impl CDCRAdapter {
             }
 
             // Also add singletons (entities not in chains)
-            let chained_starts: std::collections::HashSet<usize> = doc
+            let chained_spans: std::collections::HashSet<_> = doc
                 .coref_chains
                 .iter()
-                .flat_map(|c| c.mentions.iter().map(|m| m.start))
+                .flat_map(|c| c.mentions.iter().map(|m| (m.start, m.end)))
                 .collect();
 
             for entity in &doc.entities {
-                if !chained_starts.contains(&entity.start()) {
+                if !chained_spans.contains(&(entity.start(), entity.end())) {
                     let mut cluster = LocalCluster::new(clusters.len(), doc_idx);
                     cluster.add_mention(ClusterMention {
                         start: entity.start(),
@@ -475,7 +475,7 @@ impl CDCRAdapter {
     ) -> Vec<crate::eval::cdcr::CrossDocCluster> {
         merged
             .iter()
-            .map(|m| {
+            .filter_map(|m| {
                 let mut cluster = crate::eval::cdcr::CrossDocCluster::new(
                     m.id as u64,
                     m.canonical.as_deref().unwrap_or(""),
@@ -484,16 +484,17 @@ impl CDCRAdapter {
                 for mention in &m.mentions {
                     if let Some(doc) = docs.get(mention.context_id) {
                         // Find entity index in document
-                        let entity_idx = doc
+                        if let Some(entity_idx) = doc
                             .entities
                             .iter()
                             .position(|e| e.start() == mention.start && e.end() == mention.end)
-                            .unwrap_or(0);
-                        cluster.add_mention(&doc.id, entity_idx);
+                        {
+                            cluster.add_mention(&doc.id, entity_idx);
+                        }
                     }
                 }
 
-                cluster
+                (!cluster.mentions.is_empty()).then_some(cluster)
             })
             .collect()
     }
@@ -806,6 +807,40 @@ impl<E: ClusterEncoder, S: MergeScorer> UnifiedCrossContextResolver<E, S> {
 mod tests {
     use super::*;
     use crate::eval::cluster_encoder::{CosineMergeScorer, HeuristicClusterEncoder};
+
+    #[test]
+    fn cdcr_adapter_preserves_nested_mentions_and_omits_unmapped_entities() {
+        use crate::eval::cdcr::Document;
+        use crate::eval::coref::{CorefChain, Mention};
+        use anno::{Entity, EntityType};
+
+        let doc = Document::new("d", "New York grew.")
+            .with_entities(vec![
+                Entity::new("New", EntityType::Location, 0, 3, 1.0),
+                Entity::new("New York", EntityType::Location, 0, 8, 1.0),
+            ])
+            .with_coref(vec![
+                CorefChain::new(vec![Mention::new("New", 0, 3)]),
+                CorefChain::new(vec![Mention::new("grew", 9, 13)]),
+            ]);
+        let resolver = UnifiedCrossContextResolver::new(
+            HeuristicClusterEncoder::new(64),
+            CosineMergeScorer::new(),
+            CrossContextConfig {
+                merge_threshold: 2.0,
+                ..Default::default()
+            },
+        );
+        let clusters = resolver.resolve_documents(&[doc]);
+        let mut indices: Vec<_> = clusters
+            .iter()
+            .flat_map(|c| &c.mentions)
+            .map(|(_, i)| *i)
+            .collect();
+        indices.sort_unstable();
+        assert_eq!(clusters.len(), 2);
+        assert_eq!(indices, vec![0, 1]);
+    }
 
     #[test]
     fn test_cdcr_adapter_empty() {

@@ -3,14 +3,17 @@
 /// Uses `anno::extract()` -- the simplest possible API.
 ///
 /// ```sh
-/// cargo run --example quickstart
+/// cargo run -p anno --no-default-features --example quickstart
 /// ```
 ///
-/// Example output:
+/// Output with the offline build above:
 ///
 /// ```text
-/// Sophie Wilson [PER] (0,13) 0.95
-/// ARM [ORG] (27,30) 0.90
+/// Sophie Wilson [PER] (0,13) 0.60
+/// ARM [ORG] (27,30) 0.55
+///
+/// People: 1
+/// High-confidence: 0
 /// ```
 fn main() -> anno::Result<()> {
     // One-liner extraction

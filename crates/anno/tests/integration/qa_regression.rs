@@ -192,10 +192,12 @@ fn qa_w5_wikipedia_references_stripped() {
         "article content preserved"
     );
     assert!(text.contains("Nobel Prize"), "article content preserved");
-    assert!(
-        !text.contains("cite_note"),
-        "reference list should be stripped, got: {text}"
-    );
+    for citation in ["The new frontier", "Multiplex genome engineering"] {
+        assert!(
+            !text.contains(citation),
+            "reference list retained citation text: {text}"
+        );
+    }
 }
 
 #[test]

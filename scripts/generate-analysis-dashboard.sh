@@ -92,55 +92,45 @@ cat > "$DASHBOARD_FILE" <<'EOF'
 EOF
 
 # Collect metrics
-UNSAFE_COUNT=0
-FINDINGS_COUNT=0
-UNUSED_DEPS=0
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UNSAFE_COUNT="Not measured"
+FINDINGS_COUNT="Not measured"
+UNUSED_DEPS="Not measured"
 TOOLS_INSTALLED=0
-UNICODE_FINDINGS=0
-METAL_FINDINGS=0
+UNICODE_FINDINGS="Not measured"
+METAL_FINDINGS="Not measured"
 DOCS_AUDIT_STATUS="INFO: Not Run"
 DOCS_AUDIT_CLASS="status-warn"
 
-if command -v cargo-geiger &> /dev/null; then
-    cargo geiger --output-format json > .geiger-tmp.json 2>/dev/null || echo "{}" > .geiger-tmp.json
-    if command -v jq &> /dev/null; then
-        UNSAFE_COUNT=$(jq -r '[.packages[] | select(.geiger.unsafe_used > 0)] | length' .geiger-tmp.json 2>/dev/null || echo "0")
-    fi
-    ((TOOLS_INSTALLED++))
-    rm -f .geiger-tmp.json
+if command -v cargo-geiger >/dev/null; then
+    ((TOOLS_INSTALLED+=1))
+    UNSAFE_COUNT=$(cargo geiger --output-format json | jq -er -L "$script_dir" 'include "scan_metrics"; geiger_rows | map(select(.count > 0)) | length') || UNSAFE_COUNT="Not measured"
 fi
-
-if command -v opengrep &> /dev/null; then
-    opengrep scan --config auto --json crates/anno/ 2>/dev/null | jq -r '.results | length' > .opengrep-tmp.txt 2>/dev/null || echo "0" > .opengrep-tmp.txt
-    FINDINGS_COUNT=$(cat .opengrep-tmp.txt)
-    ((TOOLS_INSTALLED++))
-    rm -f .opengrep-tmp.txt
+if command -v opengrep >/dev/null; then
+    ((TOOLS_INSTALLED+=1))
+    FINDINGS_COUNT=$(opengrep scan --config auto --json crates/anno/ | jq -er -L "$script_dir" 'include "scan_metrics"; analyzed_findings | length') || FINDINGS_COUNT="Not measured"
 fi
-
-if command -v ast-grep &> /dev/null && command -v jq &> /dev/null; then
-    ast-grep scan --rule .opengrep/rules/rust-unicode-offsets.yaml --json=compact crates/anno/ > .ast-grep-unicode-tmp.json 2>/dev/null || echo "[]" > .ast-grep-unicode-tmp.json
-    UNICODE_FINDINGS=$(jq -r 'length' .ast-grep-unicode-tmp.json 2>/dev/null || echo "0")
-    rm -f .ast-grep-unicode-tmp.json
-
-    ast-grep scan --rule .opengrep/rules/rust-candle-metal.yaml --json=compact crates/anno/ > .ast-grep-metal-tmp.json 2>/dev/null || echo "[]" > .ast-grep-metal-tmp.json
-    METAL_FINDINGS=$(jq -r 'length' .ast-grep-metal-tmp.json 2>/dev/null || echo "0")
-    rm -f .ast-grep-metal-tmp.json
+if command -v ast-grep >/dev/null; then
+    count_rule() {
+        ast-grep scan --rule "$1" --json=compact crates/anno/ | jq -er 'if type == "array" then length else error("invalid scan") end'
+    }
+    UNICODE_FINDINGS=$(count_rule .opengrep/rules/rust-unicode-offsets.yaml) || UNICODE_FINDINGS="Not measured"
+    METAL_FINDINGS=$(count_rule .opengrep/rules/rust-candle-metal.yaml) || METAL_FINDINGS="Not measured"
 fi
 
 if command -v cargo-machete &> /dev/null; then
-    ./scripts/static-analysis-common.sh machete > .machete-output.txt 2>&1 || true
-    if command -v rg &> /dev/null; then
-        UNUSED_DEPS=$(rg -c "unused" .machete-output.txt 2>/dev/null || echo "0")
+    if ./scripts/static-analysis-common.sh machete > /dev/null 2>&1; then
+        UNUSED_DEPS=0
     else
-        UNUSED_DEPS=$(grep -c "unused" .machete-output.txt 2>/dev/null || echo "0")
+        # A nonzero tool status can mean findings or an execution failure.
+        UNUSED_DEPS="Review cargo machete output (exit $?)"
     fi
-    ((TOOLS_INSTALLED++))
-    rm -f .machete-output.txt
+    ((TOOLS_INSTALLED+=1))
 fi
 
 # Docs hygiene
 if command -v python3 &> /dev/null && [ -f "scripts/docs_audit.py" ]; then
-    if python3 scripts/docs_audit.py > .docs-audit-output.txt 2>&1; then
+    if python3 scripts/docs_audit.py > /dev/null 2>&1; then
         DOCS_AUDIT_STATUS="OK"
         DOCS_AUDIT_CLASS="status-ok"
     else
@@ -148,7 +138,6 @@ if command -v python3 &> /dev/null && [ -f "scripts/docs_audit.py" ]; then
         DOCS_AUDIT_STATUS="FAIL (exit ${rc})"
         DOCS_AUDIT_CLASS="status-error"
     fi
-    rm -f .docs-audit-output.txt
 fi
 
 # Generate dashboard content

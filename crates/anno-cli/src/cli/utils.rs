@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read};
 
+use anno::backends::coref::CorefBackend;
 use anno::{GroundedDocument, Identity, IdentityId, SignalId, TrackId};
 
 #[cfg(not(any(feature = "extractor-readability", feature = "extractor-html2text")))]
@@ -13,31 +14,51 @@ compile_error!(
      `extractor-html2text` (no MPL-2.0 transitives, lower quality)"
 );
 
-/// Extract HTML into a `deformat::Extracted` (text + metadata). Routes to
-/// a deformat backend based on compile-time `extractor-readability` /
-/// `extractor-html2text` features:
-///
-/// - `extractor-readability` (default): readability-class article
-///   extraction. Best quality on news/article pages. Pulls cssparser /
-///   selectors MPL-2.0 transitives.
-/// - `extractor-html2text` only: tag-strip via `html5ever`. No MPL deps.
-///   Lower quality on boilerplate-heavy pages; `title`/`excerpt` will be
-///   `None`.
-///
-/// If both are enabled, readability wins (strict precedence -- users opt
-/// out of readability by *disabling* the default feature).
+/// Extracted text and the provenance recorded by the URL resolver.
+#[cfg_attr(not(feature = "eval"), allow(dead_code))]
+pub(crate) struct HtmlExtraction {
+    pub text: String,
+    pub extractor: deformat::Extractor,
+    pub title: Option<String>,
+    pub fallback: bool,
+}
+
+// Readability takes precedence when both backends are compiled.
 #[cfg(feature = "extractor-readability")]
-pub(crate) fn extract_html(html: &str, url: Option<&str>) -> deformat::Extracted {
-    deformat::extract_readable(html, url)
+pub(crate) fn extract_html(html: &str, url: Option<&str>) -> HtmlExtraction {
+    let article = deformat::extract_readable(html, url);
+    HtmlExtraction {
+        text: article.text,
+        extractor: article.extractor,
+        title: article.title,
+        fallback: article.fallback,
+    }
 }
 
 #[cfg(all(
     not(feature = "extractor-readability"),
     feature = "extractor-html2text"
 ))]
-pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> deformat::Extracted {
-    // html2text wraps to a fixed width; URL has no role.
-    deformat::extract_html2text(html, 80)
+pub(crate) fn extract_html(html: &str, _url: Option<&str>) -> HtmlExtraction {
+    // Render each cell in document order. Display columns interleave other cells
+    // into wrapped identifiers before the entity detector sees them.
+    let rendered = html2text::config::plain()
+        .raw_mode(true)
+        .string_from_read(html.as_bytes(), 80);
+    let (text, extractor, fallback) = match rendered {
+        Ok(text) => (text, deformat::Extractor::Html2text, false),
+        Err(_) => (
+            deformat::html::strip_to_text(html),
+            deformat::Extractor::Strip,
+            true,
+        ),
+    };
+    HtmlExtraction {
+        text,
+        extractor,
+        title: None,
+        fallback,
+    }
 }
 
 /// Convenience: extract HTML and return only the text. Same backend
@@ -190,6 +211,8 @@ pub struct GoldSpec {
     pub start: usize,
     /// Character offset where entity ends.
     pub end: usize,
+    /// Validated covered character ranges for segmented file annotations.
+    pub segments: Option<anno::DiscontinuousSpan>,
 }
 
 /// Parse gold spec with format: "text:label:start:end"
@@ -211,18 +234,32 @@ pub fn parse_gold_spec(s: &str) -> Option<GoldSpec> {
         label,
         start,
         end,
+        segments: None,
     })
+}
+
+pub(crate) fn source_sha256(text: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 /// Load gold-standard annotations from a JSONL file.
 ///
 /// Each line should be a JSON object with an `entities` array.
 /// Entities are objects with `text`, `label`, `start`, and `end` fields.
-pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
+pub fn load_gold_from_file(
+    path: &str,
+    source: &str,
+) -> Result<(Vec<GoldSpec>, Option<String>), String> {
     let content =
         fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
+    let offsets = std::cell::LazyCell::new(|| anno::offset::build_char_to_byte_map(source));
     let mut gold = Vec::new();
-    let mut warnings = Vec::new();
+    let mut document_id = None;
+    let digest = std::cell::LazyCell::new(|| source_sha256(source));
 
     for (line_num, line) in content.lines().enumerate() {
         if line.trim().is_empty() {
@@ -232,55 +269,115 @@ pub fn load_gold_from_file(path: &str) -> Result<Vec<GoldSpec>, String> {
         let entry: serde_json::Value = serde_json::from_str(line)
             .map_err(|e| format!("Invalid JSON in gold file at line {}: {}", line_num + 1, e))?;
 
-        if let Some(entities) = entry["entities"].as_array() {
-            for (i, ent) in entities.iter().enumerate() {
-                // Validate required fields are present
-                let start = match ent["start"].as_u64() {
-                    Some(v) => v as usize,
-                    None => {
-                        warnings.push(format!(
-                            "{}:{}: entity[{}] missing 'start' field, defaulting to 0",
-                            path,
-                            line_num + 1,
-                            i
-                        ));
-                        0
-                    }
-                };
-                let end = match ent["end"].as_u64() {
-                    Some(v) => v as usize,
-                    None => {
-                        warnings.push(format!(
-                            "{}:{}: entity[{}] missing 'end' field, defaulting to 0",
-                            path,
-                            line_num + 1,
-                            i
-                        ));
-                        0
-                    }
-                };
-
-                gold.push(GoldSpec {
-                    text: ent["text"].as_str().unwrap_or("").to_string(),
-                    label: ent["type"]
-                        .as_str()
-                        .or(ent["label"].as_str())
-                        .unwrap_or("UNK")
-                        .to_string(),
-                    start,
-                    end,
-                });
+        let location = || format!("{path}:{}", line_num + 1);
+        if entry
+            .get("text")
+            .is_some_and(|text| text.as_str() != Some(source))
+        {
+            return Err(format!(
+                "{}: gold source text differs from evaluation input",
+                location()
+            ));
+        }
+        if let Some(hash) = entry.get("source_sha256") {
+            if !hash
+                .as_str()
+                .is_some_and(|s| s.eq_ignore_ascii_case(&digest))
+            {
+                return Err(format!(
+                    "{}: gold source_sha256 differs from evaluation input",
+                    location()
+                ));
             }
+        }
+        for field in ["id", "doc_id", "document_id"] {
+            if let Some(id) = entry.get(field) {
+                let id = match id {
+                    serde_json::Value::String(s) if !s.is_empty() => s.clone(),
+                    serde_json::Value::Number(n) if n.is_i64() || n.is_u64() => n.to_string(),
+                    _ => {
+                        return Err(format!(
+                            "{}: expected a nonempty string or integer {field}",
+                            location()
+                        ))
+                    }
+                };
+                if document_id
+                    .as_deref()
+                    .is_some_and(|previous| previous != id)
+                {
+                    return Err(format!(
+                        "{}: conflicting gold document IDs in a single-text evaluation",
+                        location()
+                    ));
+                }
+                document_id.get_or_insert(id);
+            }
+        }
+
+        let entities = entry["entities"]
+            .as_array()
+            .ok_or_else(|| format!("{path}:{}: expected an entities array", line_num + 1))?;
+        for (i, ent) in entities.iter().enumerate() {
+            let invalid = |field: &str| {
+                format!(
+                    "{path}:{}: entity[{i}] has missing or invalid {field}",
+                    line_num + 1
+                )
+            };
+            let offset = |field: &str| {
+                ent[field]
+                    .as_u64()
+                    .and_then(|n| usize::try_from(n).ok())
+                    .ok_or_else(|| invalid(field))
+            };
+            let start = offset("start")?;
+            let end = offset("end")?;
+            let text = ent["text"].as_str().ok_or_else(|| invalid("text"))?;
+            let segments = if let Some(raw) = ent.get("segments").filter(|v| !v.is_null()) {
+                let ranges: Vec<std::ops::Range<usize>> =
+                    serde_json::from_value(raw.clone()).map_err(|_| invalid("segments"))?;
+                if ranges.is_empty()
+                    || start >= end
+                    || end >= offsets.len()
+                    || ranges.first().is_none_or(|r| r.start != start)
+                    || ranges.last().is_none_or(|r| r.end != end)
+                    || ranges.iter().any(|r| r.start > r.end)
+                    || ranges.windows(2).any(|p| p[0].end > p[1].start)
+                {
+                    return Err(invalid("segments or bounding offsets"));
+                }
+                let joined = ranges
+                    .iter()
+                    .map(|r| &source[offsets[r.start]..offsets[r.end]])
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if text != joined && text != &source[offsets[start]..offsets[end]] {
+                    return Err(invalid("segment surface text"));
+                }
+                let coverage = anno::DiscontinuousSpan::new(ranges);
+                if coverage.segments().is_empty() {
+                    return Err(invalid("empty segment coverage"));
+                }
+                Some(coverage)
+            } else {
+                None
+            };
+            gold.push(GoldSpec {
+                text: text.to_owned(),
+                label: ent["type"]
+                    .as_str()
+                    .or_else(|| ent["label"].as_str())
+                    .ok_or_else(|| invalid("type or label"))?
+                    .to_owned(),
+                start,
+                end,
+                segments,
+            });
         }
     }
 
-    // Report warnings to stderr
-    for warning in &warnings {
-        use super::output::color;
-        eprintln!("{} {}", color("33", "warning:"), warning);
-    }
-
-    Ok(gold)
+    Ok((gold, document_id))
 }
 
 /// Resolve coreference by grouping signals into tracks.
@@ -308,7 +405,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
                 match FCoref::from_path(path) {
                     Ok(model) => match model.resolve(text) {
                         Ok(clusters) => {
-                            fcoref_clusters_to_tracks(doc, &clusters, text);
+                            clusters_to_tracks(doc, &clusters, model.name());
                             return;
                         }
                         Err(e) => {
@@ -326,7 +423,7 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
         match FCoref::from_pretrained("biu-nlp/f-coref") {
             Ok(model) => match model.resolve(text) {
                 Ok(clusters) => {
-                    fcoref_clusters_to_tracks(doc, &clusters, text);
+                    clusters_to_tracks(doc, &clusters, model.name());
                     return;
                 }
                 Err(e) => {
@@ -341,18 +438,21 @@ pub fn resolve_coreference(doc: &mut GroundedDocument, text: &str, _signal_ids: 
 
     // Fallback: heuristic mention-ranking
     let coref = anno::backends::coref::mention_ranking::MentionRankingCoref::new();
-    if let Err(e) = coref.resolve_into_document(text, doc) {
-        use super::output::color;
-        eprintln!("{} coref failed: {}", color("33", "warning:"), e);
+    match coref.resolve_into_document(text, doc) {
+        Ok(_) => doc.set_coref_backend(coref.name()),
+        Err(e) => {
+            use super::output::color;
+            eprintln!("{} coref failed: {}", color("33", "warning:"), e);
+        }
     }
 }
 
-/// Convert f-coref clusters into GroundedDocument tracks.
-#[cfg(feature = "onnx")]
-fn fcoref_clusters_to_tracks(
+/// Convert coreference clusters into GroundedDocument tracks.
+#[cfg(any(feature = "onnx", feature = "discourse"))]
+pub(super) fn clusters_to_tracks(
     doc: &mut GroundedDocument,
     clusters: &[anno::backends::coref::resolve::CorefCluster],
-    _text: &str,
+    backend_name: &str,
 ) {
     for cluster in clusters {
         if cluster.mentions.len() < 2 || cluster.spans.len() != cluster.mentions.len() {
@@ -375,6 +475,7 @@ fn fcoref_clusters_to_tracks(
         let new_ids = doc.add_signals(signals);
         doc.create_track_from_signals(cluster.canonical.clone(), &new_ids);
     }
+    doc.set_coref_backend(backend_name);
 }
 
 /// Attach demo KB-style identities to tracks.

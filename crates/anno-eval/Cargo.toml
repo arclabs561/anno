@@ -93,6 +93,7 @@ candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 
 [dev-dependencies]
+lexir = { version = "0.5.2", default-features = false }
 proptest = { workspace = true }
 tempfile = "3.27.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
