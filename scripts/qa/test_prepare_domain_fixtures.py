@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -70,6 +72,47 @@ class DomainFixturesTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA-256"):
                 panel.prepare(root, root / "bad", **kwargs)
             self.assertFalse((root / "bad").exists())
+
+    def test_prepared_fixture_reports_each_domains_paired_changes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            pins = {}
+            for domain, token in [("ai", "Ada"), ("music", "Zoë")]:
+                raw = f"{token} B-person\n".encode()
+                name = domain + ".bio"
+                (root / name).write_bytes(raw)
+                pins[name] = {"sha256": panel.digest(raw)}
+            prepared = root / "panel"
+            panel.prepare(root, prepared, seed="fixed", per_split=1, domains=["ai", "music"], pins=pins)
+            fixture = prepared / "discovery.json"
+            cases = json.loads(fixture.read_bytes())
+            self.assertEqual([c["domain"] for c in cases], ["ai", "music"])
+            predictions = {"ai": root / "candidate.jsonl", "music": root / "baseline.jsonl"}
+            for hit_domain, path in predictions.items():
+                with path.open("w", encoding="utf-8") as stream:
+                    for case in cases:
+                        entities = []
+                        if case["domain"] == hit_domain:
+                            rule, = case["assertions"]
+                            entities.append({"start": rule["start"], "end": rule["end"],
+                                             "type": rule["types"][0], "text": rule["text"]})
+                        stream.write(json.dumps({"id": case["id"], "source_sha256": case["source_sha256"],
+                                                 "entities": entities}) + "\n")
+            checker = Path(__file__).with_name("check_span_assertions.py")
+            result = subprocess.run([sys.executable, checker, "--fixture", fixture,
+                                     "--predictions", predictions["ai"],
+                                     "--baseline-predictions", predictions["music"]],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 1, result.stderr)  # One lost assertion.
+            report = json.loads(result.stdout)
+            domains = {row["domain"]: row for row in report["domains"]}
+            self.assertEqual(set(domains), {"ai", "music"})
+            for domain, baseline, candidate in [("ai", 0, 1), ("music", 1, 0)]:
+                row = domains[domain]
+                self.assertEqual(row["documents"], 1)
+                self.assertEqual(row["exact_span"], {"passed": candidate, "total": 1})
+                self.assertEqual(row["comparison"], {"baseline_passed": baseline,
+                                                     "gained": candidate, "lost": baseline})
 
     def test_download_rejects_wrong_content_before_publishing(self):
         with tempfile.TemporaryDirectory() as temp:

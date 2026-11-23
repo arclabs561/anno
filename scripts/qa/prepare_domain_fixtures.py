@@ -163,7 +163,7 @@ def prepare(data_dir, output, *, seed, per_split, domains, pins):
             rule = {"kind": "exact_span", "start": row.start, "end": row.end, "types": [row.label],
                     "text": row.text[row.start:row.end]}
             part = "discovery" if picked < per_split else "reserved"
-            parts[part].append({"id": f"{domain}/{text_hash[:20]}", "text": row.text,
+            parts[part].append({"id": f"{domain}/{text_hash[:20]}", "domain": domain, "text": row.text,
                                 "source_record": index, "source_sha256": text_hash, "assertions": [rule]})
             picked += 1
             selected_texts.add(text_hash)
