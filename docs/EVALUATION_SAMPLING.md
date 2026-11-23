@@ -46,6 +46,10 @@ then `anno sampler run --task temporal --fixed-backend pattern --require-cached 
 The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
 still be evaluated from their original row text and annotations. [Pinned test split](https://huggingface.co/datasets/mdg-nlp/timex-recognition-sentence-original/blob/904e35a7d2d0ee97c5594735621f94b04f8b7cef/test.jsonl)
 
+Default-branch CI verifies the pinned public file and scores all 390 sentences with the
+pattern backend. The check requires a finite score and the full sentence count. Its receipt
+is archived separately from the five-example adaptive history. PRs exercise the two-sentence
+offline temporal fixture.
 
 ## Choose a mode
 
