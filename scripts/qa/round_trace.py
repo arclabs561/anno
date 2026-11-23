@@ -1,5 +1,6 @@
 """Record and inspect one local QA round. No model provider or exporter is required."""
 import argparse
+from collections import Counter
 from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
@@ -165,7 +166,12 @@ def report(db):
                     elapsed_seconds=duration / 1e9 if duration >= 0 else None, elapsed_basis=basis)
         spans.append(span)
     agents = [s for s in spans if s["kind"] == "agent"]
-    usage = {"agents": len(agents), "known_model": sum(s["model"] is not None for s in agents),
+    statuses = Counter(s["status"] for s in agents)
+    # Keep the historical "agents" field as an alias. Each start records one dispatch attempt.
+    usage = {"agents": len(agents), "attempts": len(agents), "completed": statuses["ok"],
+             "errors": statuses["error"], "interrupted": statuses["interrupted"],
+             "open": statuses["open"], "assertion_failed": statuses["assertion_failed"],
+             "known_model": sum(s["model"] is not None for s in agents),
              "known_tokens": sum(s["input_tokens"] is not None and s["output_tokens"] is not None
                                  for s in agents)}
     for field, known in (("cost_usd", "known_cost"), ("input_tokens", "known_input_tokens"),
