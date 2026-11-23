@@ -75,10 +75,16 @@ The sibling JSON receipt records the original feed or page, selected article, fi
 
 ## Score person highlights and referring expressions
 
-Run the offline scorer on a fully annotated person mention fixture and a source-bound word-aligned coreference receipt.
+Use the local CPU FP32 export of `biu-nlp/f-coref` at revision `e91dfff12879495d882ba9460d0c5d5dd44ade59`. The model workflow pins the Python dependencies, verifies the original checkpoint, exports it and verifies all four converted files. Set `FCOREF_MODEL_DIR` to that export directory. The panel mode uses two inference threads, the example’s Unicode word boundaries and a 4,096-token document budget. [Export procedure and artifact hashes](../.github/workflows/fcoref-cli.yml)
 
 ```sh
-python3 scripts/qa/score_person_mentions.py testdata/grounded/dual_span_people.json predictions.json
+panel=testdata/grounded/dual_span_people.json
+mkdir -p target/qa-person
+jq '[.documents[] | {id, text}]' "$panel" > target/qa-person/inputs.json
+ANNO_NO_DOWNLOADS=1 cargo run --locked -p anno --no-default-features --features onnx \
+  --example fcoref_word_spans -- "$FCOREF_MODEL_DIR" target/qa-person/inputs.json \
+  > target/qa-person/predictions.json
+python3 scripts/qa/score_person_mentions.py "$panel" target/qa-person/predictions.json
 ```
 
 Each row in the receipt's `results` array supplies the document `id`, `source_sha256` of the verbatim UTF-8 input, `mentions` with scalar `start`, `end` and `surface`, and `clusters` of scalar range pairs. Each cluster member must appear among the candidates. A coarse caller-supplied word may project mentions from two model clusters onto the same source span. The scorer counts that span once in selection and each pair once if its endpoints share a cluster. It preserves the original clusters without inferring links between their other members. Documents with empty model output still need a row.

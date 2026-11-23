@@ -1,10 +1,20 @@
 //! Preserve the original document when a caller supplies its own word boundaries.
 //!
-//! Pass a local FCoref export as the sole argument. The printed offsets are
+//! Pass a local FCoref export to run the demo. Add a text-only JSON panel path
+//! as a second argument to emit a source-bound prediction receipt. Offsets are
 //! half-open. A mention score is an uncalibrated model logit.
-use anno::{backends::coref::FCoref, SpanConverter};
+use anno::{core::grounded::html_source::source_sha256, FCoref, FCorefConfig, SpanConverter};
 use regex::Regex;
-use std::error::Error;
+use serde::Deserialize;
+use serde_json::json;
+use std::{collections::HashSet, error::Error, fs::File, io::BufReader};
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Document {
+    id: String,
+    text: String,
+}
 
 const TEXT: &str = "Émilie\nDurand reviewed the proposal. Émilie Durand said she approved it.";
 
@@ -16,10 +26,56 @@ fn words(text: &str) -> Result<Vec<(usize, usize)>, regex::Error> {
         .collect())
 }
 
+fn write_panel_receipt(model_dir: &str, panel: &str) -> Result<(), Box<dyn Error>> {
+    let docs: Vec<Document> = serde_json::from_reader(BufReader::new(File::open(panel)?))?;
+    let mut ids = HashSet::new();
+    for doc in &docs {
+        if doc.id.trim().is_empty() || !ids.insert(&doc.id) {
+            return Err("expected distinct nonempty document IDs".into());
+        }
+    }
+    let model = FCoref::from_path_with_document_budget(
+        model_dir,
+        FCorefConfig {
+            num_threads: 2,
+            ..Default::default()
+        },
+        Some(4096),
+    )?;
+    let mut results = Vec::with_capacity(docs.len());
+    for doc in docs {
+        let output = model.analyze_words(&doc.text, &words(&doc.text)?)?;
+        let mentions: Vec<_> = output
+            .mentions
+            .into_iter()
+            .map(|m| {
+                json!({
+                    "start": m.character_start, "end": m.character_end,
+                    "surface": m.text, "logit": m.raw_mention_score,
+                })
+            })
+            .collect();
+        let clusters: Vec<_> = output.clusters.into_iter().map(|c| c.spans).collect();
+        results.push(json!({
+            "id": doc.id, "source_sha256": source_sha256(&doc.text),
+            "mentions": mentions, "clusters": clusters,
+        }));
+    }
+    serde_json::to_writer(std::io::stdout().lock(), &json!({"results": results}))?;
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    let model_dir = std::env::args()
-        .nth(1)
-        .ok_or("usage: fcoref_word_spans MODEL_DIR")?;
+    let mut args = std::env::args().skip(1);
+    let model_dir = args
+        .next()
+        .ok_or("usage: fcoref_word_spans MODEL_DIR [TEXT_PANEL.json]")?;
+    if let Some(panel) = args.next() {
+        if args.next().is_some() {
+            return Err("usage: fcoref_word_spans MODEL_DIR [TEXT_PANEL.json]".into());
+        }
+        return write_panel_receipt(&model_dir, &panel);
+    }
     let model = FCoref::from_path(&model_dir)?;
     let analysis = model.analyze_words(TEXT, &words(TEXT)?)?;
     let offsets = SpanConverter::new(TEXT);
@@ -47,6 +103,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn panel_input_accepts_only_ids_and_verbatim_text() {
+        let doc: Document = serde_json::from_str(r#"{"id":"empty","text":""}"#).unwrap();
+        assert!(doc.text.is_empty());
+        assert!(
+            serde_json::from_str::<Document>(r#"{"id":"x","text":"a","mentions":[]}"#).is_err()
+        );
+    }
 
     #[test]
     fn word_ranges_survive_combining_marks_emoji_and_whitespace() {
