@@ -86,12 +86,15 @@
 //! - CDLKT: Cross-document Language-Knowledge Transfer
 //! - Groma: Grounded multimodal assistant
 
+mod projection;
+pub use projection::EntityProjectionError;
+
 use super::confidence::Confidence;
 use super::entity::{
     DiscontinuousSpan, Entity, EntityType, HierarchicalConfidence, Provenance, Span,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // =============================================================================
 // Modality: The Semiotic Distinction
@@ -383,12 +386,28 @@ impl<L> Signal<L> {
         label: impl Into<super::types::TypeLabel>,
         confidence: f32,
     ) -> Self {
-        Self {
-            id: id.into(),
+        Self::with_score(
+            id.into(),
             location,
-            surface: surface.into(),
-            label: label.into(),
-            confidence: Confidence::new(confidence as f64),
+            surface.into(),
+            label.into(),
+            confidence.into(),
+        )
+    }
+
+    fn with_score(
+        id: SignalId,
+        location: L,
+        surface: String,
+        label: super::types::TypeLabel,
+        confidence: Confidence,
+    ) -> Self {
+        Self {
+            id,
+            location,
+            surface,
+            label,
+            confidence,
             hierarchical: None,
             provenance: None,
             modality: Modality::default(),
@@ -696,7 +715,7 @@ impl std::error::Error for SignalValidationError {}
 /// Preserves text segments, normalization, provenance and hierarchical confidence.
 impl From<&Entity> for Signal<Location> {
     fn from(e: &Entity) -> Self {
-        let mut signal = Signal::new(
+        let mut signal = Signal::with_score(
             SignalId::ZERO,
             e.discontinuous_span.as_ref().map_or_else(
                 || Location::text(e.start(), e.end()),
@@ -704,9 +723,9 @@ impl From<&Entity> for Signal<Location> {
                     segments: span.segments().iter().map(|r| (r.start, r.end)).collect(),
                 },
             ),
-            &e.text,
-            e.entity_type.as_label(),
-            f32::from(e.confidence),
+            e.text.clone(),
+            e.entity_type.as_label().into(),
+            e.confidence,
         );
         signal.normalized = e.normalized.clone();
         signal.provenance = e.provenance.clone();
@@ -1304,6 +1323,52 @@ impl Identity {
 // GroundedDocument: The Container
 // =============================================================================
 
+/// A failed backend attempt during the most recent reported coreference run.
+/// Only the backend and phase are persisted, so diagnostics cannot leak source text or paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "stage", rename_all = "snake_case")]
+pub enum CorefAttemptFailure {
+    /// The model could not be loaded.
+    Load {
+        /// Stable backend name.
+        backend: String,
+    },
+    /// A backend produced clusters that could not be attached to the document.
+    InvalidOutput {
+        /// Stable backend name.
+        backend: String,
+    },
+    /// A loaded model failed to resolve the input.
+    Inference {
+        /// Stable backend name.
+        backend: String,
+    },
+}
+
+/// Outcome of one coreference invocation. Failures are ordered by attempt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum CorefRunReport {
+    /// A backend completed, including runs that created zero tracks.
+    Completed {
+        /// Successful producer.
+        backend: String,
+        /// Tracks added by this invocation.
+        tracks_added: usize,
+        /// Earlier backend attempts that failed before success.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        prior_failures: Vec<CorefAttemptFailure>,
+    },
+    /// All attempted backends failed.
+    Failed {
+        /// Terminal attempt that ended the run.
+        last_failure: CorefAttemptFailure,
+        /// Earlier failed attempts in invocation order.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        prior_failures: Vec<CorefAttemptFailure>,
+    },
+}
+
 /// Wire format for [`GroundedDocument`] — contains only the persisted fields.
 /// Internal indexes are rebuilt automatically via [`GroundedDocument::rebuild_indexes`]
 /// during deserialization.
@@ -1313,6 +1378,8 @@ struct GroundedDocumentWire {
     text: String,
     #[serde(default)]
     coref_backend: Option<String>,
+    #[serde(default)]
+    coref_run: Option<CorefRunReport>,
     signals: Vec<Signal<Location>>,
     tracks: HashMap<TrackId, Track>,
     identities: HashMap<IdentityId, Identity>,
@@ -1331,10 +1398,18 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
         {
             return Err("document IDs must leave room for the next ID".into());
         }
+        let mut coref_backend = wire.coref_backend;
+        if let Some(CorefRunReport::Completed { backend, .. }) = &wire.coref_run {
+            if coref_backend.as_ref().is_some_and(|last| last != backend) {
+                return Err("coref_backend conflicts with completed coref_run".into());
+            }
+            coref_backend = Some(backend.clone());
+        }
         let mut doc = Self {
             id: wire.id,
             text: wire.text,
-            coref_backend: wire.coref_backend,
+            coref_backend,
+            coref_run: wire.coref_run,
             signals: wire.signals,
             tracks: wire.tracks,
             identities: wire.identities,
@@ -1429,6 +1504,9 @@ pub struct GroundedDocument {
     /// Most recent successful coreference backend recorded for this document.
     #[serde(skip_serializing_if = "Option::is_none")]
     coref_backend: Option<String>,
+    /// Most recent coreference invocation with a reported outcome.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    coref_run: Option<CorefRunReport>,
     /// Level 1: Raw signals (detections)
     signals: Vec<Signal<Location>>,
     /// Level 2: Tracks (within-document coreference chains)
@@ -1465,6 +1543,7 @@ impl GroundedDocument {
             id: id.into(),
             text: text.into(),
             coref_backend: None,
+            coref_run: None,
             signals: Vec::new(),
             tracks: HashMap::new(),
             identities: HashMap::new(),
@@ -1497,6 +1576,20 @@ impl GroundedDocument {
     /// Record a successful coreference run, including a run that yielded zero tracks.
     pub fn set_coref_backend(&mut self, backend: impl Into<String>) {
         self.coref_backend = Some(backend.into());
+        self.coref_run = None;
+    }
+
+    /// Most recent reported run, absent when a producer supplied no attempt evidence.
+    pub fn coref_run(&self) -> Option<&CorefRunReport> {
+        self.coref_run.as_ref()
+    }
+
+    /// Record an invocation. A failed retry preserves the last successful producer.
+    pub fn record_coref_run(&mut self, report: CorefRunReport) {
+        if let CorefRunReport::Completed { backend, .. } = &report {
+            self.coref_backend = Some(backend.clone());
+        }
+        self.coref_run = Some(report);
     }
 
     /// Get a mutable reference to the signals vector.
@@ -1589,7 +1682,12 @@ impl GroundedDocument {
     #[must_use]
     pub fn get_signal(&self, id: impl Into<SignalId>) -> Option<&Signal<Location>> {
         let id = id.into();
-        self.signals.iter().find(|s| s.id == id)
+        // In ordinary documents signal IDs are their vector positions. Imported
+        // documents may carry sparse or reordered IDs.
+        self.signals
+            .get(id.get() as usize)
+            .filter(|s| s.id == id)
+            .or_else(|| self.signals.iter().find(|s| s.id == id))
     }
 
     /// Get all signals.
@@ -1601,8 +1699,58 @@ impl GroundedDocument {
     // Track operations (Level 2)
     // -------------------------------------------------------------------------
 
-    /// Add a track and return its ID.
-    pub fn add_track(&mut self, mut track: Track) -> TrackId {
+    /// Add a track and return its assigned ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics for invalid references, signals already assigned to a track,
+    /// or exhausted track IDs. Use [`Self::try_add_track`] for fallible input.
+    pub fn add_track(&mut self, track: Track) -> TrackId {
+        self.try_add_track(track).expect("invalid grounded track")
+    }
+
+    /// Add a track after checking all its references. An error leaves the
+    /// document and the next available track ID unchanged.
+    pub fn try_add_track(&mut self, track: Track) -> super::error::Result<TrackId> {
+        self.validate_new_track(&track, |_| false)?;
+        Ok(self.insert_validated_track(track))
+    }
+
+    fn validate_new_track(
+        &self,
+        track: &Track,
+        replacing: impl Fn(TrackId) -> bool,
+    ) -> super::error::Result<()> {
+        use super::error::Error;
+        if self.next_track_id.get() == u64::MAX {
+            return Err(Error::invalid_input("track IDs exhausted"));
+        }
+        if let Some(id) = track.identity_id {
+            if !self.identities.contains_key(&id) {
+                return Err(Error::track_ref(format!("unknown identity {id}")));
+            }
+        }
+        let mut seen = HashSet::new();
+        for member in &track.signals {
+            let id = member.signal_id;
+            if self.get_signal(id).is_none() {
+                return Err(Error::track_ref(format!("unknown signal {id}")));
+            }
+            if !seen.insert(id) {
+                return Err(Error::track_ref(format!("repeated signal {id}")));
+            }
+            if let Some(owner) = self.signal_to_track.get(&id) {
+                if !replacing(*owner) {
+                    return Err(Error::track_ref(format!(
+                        "signal {id} belongs to track {owner}"
+                    )));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn insert_validated_track(&mut self, mut track: Track) -> TrackId {
         let id = self.next_track_id;
         track.id = id;
 
@@ -1782,7 +1930,11 @@ impl GroundedDocument {
     // Conversion utilities
     // -------------------------------------------------------------------------
 
-    /// Convert to legacy Entity format for backwards compatibility.
+    /// Project each signal into a flat entity in signal order.
+    ///
+    /// The track ID becomes the entity's document-local canonical ID, including for
+    /// singleton tracks. Each member of a linked track receives the same KB ID.
+    /// Mention type is absent, and the entity category is inferred from the label.
     #[must_use]
     pub fn to_entities(&self) -> Vec<Entity> {
         self.signals
@@ -1816,7 +1968,7 @@ impl GroundedDocument {
             .collect()
     }
 
-    /// Create a document with full-fidelity signals from extracted entities.
+    /// Create a document with detection signals from extracted entities.
     ///
     /// This preserves entity locations, normalized values, provenance, and hierarchical
     /// confidence without creating tracks or identities. Use this when a later pipeline stage
@@ -1837,7 +1989,9 @@ impl GroundedDocument {
     /// Create from a legacy Entity slice, including tracks and identities.
     ///
     /// Entities with the same canonical ID share a track. Entities without one receive
-    /// singleton tracks. Use [`from_entity_signals`](Self::from_entity_signals) when callers
+    /// singleton tracks. The first populated KB ID in a group becomes its identity link.
+    /// Use [`try_from_entities`](Self::try_from_entities) to detect conflicting links and
+    /// unrepresentable mention metadata. Use [`from_entity_signals`](Self::from_entity_signals) when callers
     /// need signals only.
     #[must_use]
     pub fn from_entities(
@@ -2373,7 +2527,8 @@ impl GroundedDocument {
 
     /// Create a track from a list of signal IDs.
     ///
-    /// Automatically sets positions based on order.
+    /// Sets positions in input order. Returns `None` for empty, missing,
+    /// repeated, or already assigned signals.
     pub fn create_track_from_signals(
         &mut self,
         canonical: impl Into<String>,
@@ -2385,55 +2540,51 @@ impl GroundedDocument {
 
         let mut track = Track::new(TrackId::ZERO, canonical);
         for (pos, &id) in signal_ids.iter().enumerate() {
-            track.add_signal(id, pos as u32);
+            track.add_signal(id, u32::try_from(pos).ok()?);
         }
-        Some(self.add_track(track))
+        self.try_add_track(track).ok()
     }
 
-    /// Merge multiple tracks into one.
-    ///
-    /// The resulting track has all signals from the input tracks.
-    /// The canonical surface comes from the first track.
+    /// Merge tracks in input order, preserving the first track's canonical surface
+    /// and the identity link if all populated links agree. Returns `None` without
+    /// changing the document for missing or duplicate tracks, conflicting identities,
+    /// or a merged track with no signals.
     pub fn merge_tracks(&mut self, track_ids: &[TrackId]) -> Option<TrackId> {
-        if track_ids.is_empty() {
-            return None;
-        }
-
-        // Collect all signals from tracks to merge
-        let mut all_signals: Vec<SignalRef> = Vec::new();
-        let mut canonical = String::new();
-        let mut entity_type = None;
-
-        for &track_id in track_ids {
-            if let Some(track) = self.tracks.get(&track_id) {
-                if canonical.is_empty() {
-                    canonical = track.canonical_surface.clone();
-                    entity_type = track.entity_type.clone();
-                }
-                all_signals.extend(track.signals.iter().cloned());
+        let first = self.tracks.get(track_ids.first()?)?;
+        let mut merged = Track::new(TrackId::ZERO, &first.canonical_surface);
+        merged.entity_type = first.entity_type.clone();
+        let mut replacing = HashSet::new();
+        for id in track_ids {
+            if !replacing.insert(*id) {
+                return None;
             }
+            let track = self.tracks.get(id)?;
+            if let Some(identity) = track.identity_id {
+                if merged
+                    .identity_id
+                    .is_some_and(|existing| existing != identity)
+                {
+                    return None;
+                }
+                merged.identity_id = Some(identity);
+            }
+            merged.signals.extend_from_slice(&track.signals);
         }
-
-        if all_signals.is_empty() {
+        if merged.signals.is_empty() {
             return None;
         }
-
-        // Sort by position
-        all_signals.sort_by_key(|s| s.position);
-
-        // Remove old tracks
-        for &track_id in track_ids {
-            self.tracks.remove(&track_id);
+        self.validate_new_track(&merged, |owner| replacing.contains(&owner))
+            .ok()?;
+        merged.signals.sort_by_key(|member| member.position);
+        for (position, member) in merged.signals.iter_mut().enumerate() {
+            member.position = u32::try_from(position).ok()?;
         }
 
-        // Create new merged track
-        let mut new_track = Track::new(TrackId::ZERO, canonical);
-        new_track.entity_type = entity_type;
-        for (pos, signal_ref) in all_signals.iter().enumerate() {
-            new_track.add_signal(signal_ref.signal_id, pos as u32);
+        for id in track_ids {
+            self.tracks.remove(id);
+            self.track_to_identity.remove(id);
         }
-
-        Some(self.add_track(new_track))
+        Some(self.insert_validated_track(merged))
     }
 
     /// Find all pairs of overlapping signals (potential duplicates or nested entities).
@@ -6483,6 +6634,60 @@ mod proptests {
         doc.link_track_to_identity(first, 99);
         assert!(doc.get_track(first).unwrap().identity_id.is_none());
         assert!(doc.invariants_hold());
+    }
+
+    #[test]
+    fn checked_track_insertions_are_atomic() {
+        let mut doc = GroundedDocument::new("doc", "Ada met Jo");
+        let ada = doc.add_signal(Signal::new(0, Location::text(0, 3), "Ada", "PER", 1.0));
+        let jo = doc.add_signal(Signal::new(0, Location::text(8, 10), "Jo", "PER", 1.0));
+        let existing = doc.create_track_from_signals("Ada", &[ada]).unwrap();
+        let before = serde_json::to_value(&doc).unwrap();
+
+        for bad in [ada, jo, SignalId::new(18)] {
+            assert!(doc.create_track_from_signals("Jo", &[jo, bad]).is_none());
+        }
+        let linked = Track::new(0, "empty").with_identity(IdentityId::new(99));
+        assert!(doc.try_add_track(linked).is_err());
+        assert_eq!(serde_json::to_value(&doc).unwrap(), before);
+        assert_eq!(doc.track_for_signal(ada).unwrap().id, existing);
+        assert!(doc.track_for_signal(jo).is_none());
+        assert!(doc.invariants_hold());
+        assert_eq!(
+            doc.try_add_track(Track::new(0, "empty")).unwrap(),
+            existing + 1
+        );
+    }
+
+    #[test]
+    fn merge_preflights_sources_and_preserves_agreed_identity() {
+        let mut doc = GroundedDocument::new("doc", "Ada saw her");
+        let ada = doc.add_signal(Signal::new(0, Location::text(0, 3), "Ada", "PER", 1.0));
+        let her = doc.add_signal(Signal::new(0, Location::text(8, 11), "her", "PER", 1.0));
+        let left = doc.create_track_from_signals("Ada", &[ada]).unwrap();
+        let right = doc.create_track_from_signals("her", &[her]).unwrap();
+        let identity = doc.add_identity(Identity::new(0, "Ada"));
+        let other = doc.add_identity(Identity::new(0, "Another person"));
+        doc.link_track_to_identity(left, identity);
+        doc.link_track_to_identity(right, other);
+        let before = serde_json::to_value(&doc).unwrap();
+        for invalid in [left, right, TrackId::new(99)] {
+            assert!(doc.merge_tracks(&[left, invalid]).is_none());
+        }
+        assert_eq!(serde_json::to_value(&doc).unwrap(), before);
+        assert!(doc.invariants_hold());
+
+        doc.link_track_to_identity(right, identity);
+        let merged = doc.merge_tracks(&[left, right]).unwrap();
+        assert_eq!(merged, right + 1);
+        assert_eq!(doc.identity_for_signal(her).unwrap().id, identity);
+        assert!(doc.identity_for_track(left).is_none());
+        assert!(doc.identity_for_track(right).is_none());
+        assert_eq!(doc.track_for_signal(ada).unwrap().id, merged);
+        assert!(doc.invariants_hold());
+        let restored: GroundedDocument =
+            serde_json::from_value(serde_json::to_value(&doc).unwrap()).unwrap();
+        assert_eq!(restored.identity_for_signal(ada).unwrap().id, identity);
     }
 
     #[test]

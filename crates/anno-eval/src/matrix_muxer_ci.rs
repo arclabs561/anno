@@ -4733,7 +4733,14 @@ fn test_matrix_muxer_outcome_uses_primary_f1_keys() {
     };
     row.error = Some("backend crashed".into());
     assert_eq!(routing_reward(&row), Some(0.0));
-    row.error = Some("incompatible: no backend for this task".into());
+    row.error = Some("backend crashed: Feature not available during inference".into());
+    assert_eq!(routing_reward(&row), Some(0.0));
+    row.provenance.runtime.scheduling = EvaluationScheduling::NotRun {
+        reason: crate::eval::provenance::EvalSkipReason::IncompatibleEntityTypes
+            .code()
+            .into(),
+    };
+    row.error = Some("backend cannot score dataset labels".into());
     assert_eq!(routing_reward(&row), None);
     // The evaluator still records an uncached dataset as a failed result, but
     // no backend was attempted. Neither learner should receive feedback.

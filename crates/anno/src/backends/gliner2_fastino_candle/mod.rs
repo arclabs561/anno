@@ -126,6 +126,27 @@ impl std::fmt::Debug for GLiNER2FastinoCandle {
     }
 }
 
+const CPU_UNAVAILABLE: &str = "GLiNER2 Candle CPU inference is disabled while candle-core 0.11.1 uses an uninitialized attention-mask buffer. Use GLiNER2Fastino with the ONNX export on CPU, or select a CUDA or Metal device.";
+
+fn check_device(device: &Device) -> crate::Result<()> {
+    if device.is_cpu() {
+        return Err(crate::Error::Backend(CPU_UNAVAILABLE.into()));
+    }
+    Ok(())
+}
+
+fn default_device() -> crate::Result<Device> {
+    #[cfg(any(feature = "gliner2-fastino-candle-cuda", feature = "cuda"))]
+    if let Ok(device) = Device::new_cuda(0) {
+        return Ok(device);
+    }
+    #[cfg(any(feature = "gliner2-fastino-candle-metal", feature = "metal"))]
+    if let Ok(device) = Device::new_metal(0) {
+        return Ok(device);
+    }
+    Err(crate::Error::Backend(CPU_UNAVAILABLE.into()))
+}
+
 impl GLiNER2FastinoCandle {
     /// Active adapter name, or `None` if running on pure base weights.
     pub fn active_adapter(&self) -> Option<&str> {
@@ -206,11 +227,9 @@ impl GLiNER2FastinoCandle {
     /// Load from a local directory containing the PyTorch artifacts:
     /// `tokenizer.json`, `config.json`, `model.safetensors`.
     ///
-    /// **Phase 4 / experimental.** No GPU device override yet — uses
-    /// CPU. Phase 4.5 may add `from_local_with_config` analogous to
-    /// the ONNX backend's pattern.
+    /// Selects an available CUDA or Metal device. CPU inference uses the ONNX backend.
     pub fn from_local(model_dir: &Path) -> crate::Result<Self> {
-        Self::from_local_on_device(model_dir, &Device::Cpu)
+        Self::from_local_on_device(model_dir, &default_device()?)
     }
 
     /// Load from a local directory with an explicit Candle device.
@@ -226,11 +245,12 @@ impl GLiNER2FastinoCandle {
     /// `fastino/gliner2-multi-v1`), NOT the SemplificaAI ONNX export.
     /// They're different artifacts.
     pub fn from_pretrained(model_id: &str) -> crate::Result<Self> {
-        Self::from_pretrained_with_device(model_id, &Device::Cpu)
+        Self::from_pretrained_with_device(model_id, &default_device()?)
     }
 
     /// Load from HuggingFace Hub with an explicit Candle device.
     pub fn from_pretrained_with_device(model_id: &str, device: &Device) -> crate::Result<Self> {
+        check_device(device)?;
         let api = crate::backends::hf_loader::hf_api()
             .map_err(|e| crate::Error::Backend(format!("hf_api: {e}")))?;
         let repo = api.model(model_id.to_string());
@@ -286,6 +306,7 @@ impl GLiNER2FastinoCandle {
         }
 
         validate_supported_model_metadata(model_dir, &config_path)?;
+        check_device(device)?;
 
         let tokenizer = crate::backends::hf_loader::load_tokenizer(&tokenizer_path)
             .map_err(|e| crate::Error::Backend(format!("tokenizer: {e}")))?;
@@ -605,6 +626,18 @@ impl ZeroShotNER for GLiNER2FastinoCandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cpu_loaders_reject_before_download_or_weight_loading() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("model.safetensors"), "").unwrap();
+        std::fs::write(dir.path().join("config.json"), r#"{"hidden_size":768}"#).unwrap();
+        let local = GLiNER2FastinoCandle::from_local_with_device(dir.path(), &Device::Cpu);
+        let remote = GLiNER2FastinoCandle::from_pretrained_with_device("unused", &Device::Cpu);
+        for result in [local, remote] {
+            assert!(result.unwrap_err().to_string().contains("ONNX"));
+        }
+    }
 
     #[test]
     fn from_local_with_device_rejects_missing_weights() {
