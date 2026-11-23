@@ -34,6 +34,16 @@ class TestSpanAssertions(unittest.TestCase):
                              entity(6, 9, "CPA", "LOC")])
         self.assertEqual((report["passed"], report["total"]), (2, 2))
 
+    def test_sparse_coverage_counts_each_emission_once_across_rules(self):
+        self.row["assertions"].append(self.positive.copy())
+        report = self.score([entity(1, 4, "Zoë", "PER"), entity(6, 9, "CPA", "ORG"),
+                             entity(6, 9, "CPA", "LOC"), entity(1, 3, "Zo", "PER"),
+                             entity(4, 6, " (", "ORG")])
+        self.assertEqual((report["passed"], report["total"]), (2, 3))
+        self.assertEqual(report["prediction_coverage"], {
+            "scope": "supplied_assertions", "total": 5, "unassessed": 3})
+        self.assertEqual(self.score([])["prediction_coverage"]["total"], 0)
+
     def test_swallowed_partial_and_exact_negative(self):
         for prediction in [entity(1, 9, "Zoë (CPA", "ORG"), entity(8, 10, "A)", "PER"),
                            entity(6, 9, "CPA", "ORG")]:
