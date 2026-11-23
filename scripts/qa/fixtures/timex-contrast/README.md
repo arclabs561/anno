@@ -46,3 +46,6 @@ ANNO_CACHE_DIR="$panel_cache" ANNO_NO_DOWNLOADS=1 ANNO_S3_CACHE=0 \
 ```
 
 To compare another installed temporal backend, use the same file and seed in a fresh cache.
+
+For independently annotated news and task-oriented specification cases, prepare the two
+[source-pinned temporal panels](../../temporal_sources/README.md).
