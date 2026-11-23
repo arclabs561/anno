@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "offset_unit": "unicode_scalar",
+  "annotation_scope": {
+    "language": "en",
+    "origin": "Hand-authored synthetic texts. Frozen before running any model on these documents.",
+    "population": "Every explicit singular human mention in each document, including names, aliases, vocatives, personal and possessive pronouns, and definite descriptions. Repeated occurrences count separately. Each noun phrase denotes one mention; nested components are alternative boundaries of the same occurrence.",
+    "highlight": "The exact lexical name, alias, pronoun, or nominal head for a compact user-visible highlight. For example, both divers highlight the word diver; identity is supplied by the containing phrase.",
+    "referential_spans": "Acceptable complete source references for the same occurrence. Titles may be included or omitted for a proper name. Definite descriptions retain their determiner and distinguishing modifier. Surrounding punctuation is excluded; punctuation internal to a name is included. Any one listed alternative matches.",
+    "identity": "IDs are document-local people. A null person_id denotes an addressed person whose identity is unresolved. Coreference scoring excludes unknown pair truth. There is no cross-document identity, KB or NIL label.",
+    "negatives": "Entity-like non-person distractors are marked individually. A negative control is hit only by an exact match to its marked span. Overlap alone is diagnostic. All negative spans are disjoint from positive mentions, and no allowed span belongs to multiple mentions. For person mention detection the inventory is exhaustive across each full text, including documents with no person mentions. Non-person pronouns, quoted product labels, vessels and places are out of scope.",
+    "offsets": "All ranges are half-open Unicode scalar indices into the verbatim text; no normalization."
+  },
+  "documents": [
+    {
+      "id": "titled_returns",
+      "text": "At noon, Professor Edda Quill arrived. She paused. Quill returned after dusk.",
+      "people": [{"id": "A"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [19, 29], "highlight_surface": "Edda Quill", "referential_spans": [[9, 29], [19, 29]], "referential_surfaces": ["Professor Edda Quill", "Edda Quill"]},
+        {"id": "m2", "person_id": "A", "kind": "pronoun", "highlight": [39, 42], "highlight_surface": "She", "referential_spans": [[39, 42]], "referential_surfaces": ["She"]},
+        {"id": "m3", "person_id": "A", "kind": "name", "highlight": [51, 56], "highlight_surface": "Quill", "referential_spans": [[51, 56]], "referential_surfaces": ["Quill"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "stage_alias",
+      "text": "Backstage, Nia Pell performed as Vesper. Vesper bowed. She left.",
+      "people": [{"id": "A"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [11, 19], "highlight_surface": "Nia Pell", "referential_spans": [[11, 19]], "referential_surfaces": ["Nia Pell"]},
+        {"id": "m2", "person_id": "A", "kind": "alias", "highlight": [33, 39], "highlight_surface": "Vesper", "referential_spans": [[33, 39]], "referential_surfaces": ["Vesper"]},
+        {"id": "m3", "person_id": "A", "kind": "alias", "highlight": [41, 47], "highlight_surface": "Vesper", "referential_spans": [[41, 47]], "referential_surfaces": ["Vesper"]},
+        {"id": "m4", "person_id": "A", "kind": "pronoun", "highlight": [55, 58], "highlight_surface": "She", "referential_spans": [[55, 58]], "referential_surfaces": ["She"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "same_name_roles",
+      "text": "Mechanic Asa Vale arrived. Gardener Asa Vale stayed. The mechanic waved. The gardener nodded. “Vale?”",
+      "people": [{"id": "A"}, {"id": "B"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [9, 17], "highlight_surface": "Asa Vale", "referential_spans": [[0, 17], [9, 17]], "referential_surfaces": ["Mechanic Asa Vale", "Asa Vale"]},
+        {"id": "m2", "person_id": "B", "kind": "name", "highlight": [36, 44], "highlight_surface": "Asa Vale", "referential_spans": [[27, 44], [36, 44]], "referential_surfaces": ["Gardener Asa Vale", "Asa Vale"]},
+        {"id": "m3", "person_id": "A", "kind": "nominal", "highlight": [57, 65], "highlight_surface": "mechanic", "referential_spans": [[53, 65]], "referential_surfaces": ["The mechanic"]},
+        {"id": "m4", "person_id": "B", "kind": "nominal", "highlight": [77, 85], "highlight_surface": "gardener", "referential_spans": [[73, 85]], "referential_surfaces": ["The gardener"]},
+        {"id": "m5", "person_id": null, "kind": "ambiguous", "highlight": [95, 99], "highlight_surface": "Vale", "referential_spans": [[95, 99]], "referential_surfaces": ["Vale"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "surname_collision",
+      "text": "Ravi Sen packed the map. Lila Sen packed the lamp. Lila left. Ravi stayed. “Sen?”",
+      "people": [{"id": "A"}, {"id": "B"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [0, 8], "highlight_surface": "Ravi Sen", "referential_spans": [[0, 8]], "referential_surfaces": ["Ravi Sen"]},
+        {"id": "m2", "person_id": "B", "kind": "name", "highlight": [25, 33], "highlight_surface": "Lila Sen", "referential_spans": [[25, 33]], "referential_surfaces": ["Lila Sen"]},
+        {"id": "m3", "person_id": "B", "kind": "name", "highlight": [51, 55], "highlight_surface": "Lila", "referential_spans": [[51, 55]], "referential_surfaces": ["Lila"]},
+        {"id": "m4", "person_id": "A", "kind": "name", "highlight": [62, 66], "highlight_surface": "Ravi", "referential_spans": [[62, 66]], "referential_surfaces": ["Ravi"]},
+        {"id": "m5", "person_id": null, "kind": "ambiguous", "highlight": [76, 79], "highlight_surface": "Sen", "referential_spans": [[76, 79]], "referential_surfaces": ["Sen"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "compound_punctuation",
+      "text": "📬 Entry: Captain Éva D’Aro signed. “D’Aro!” She turned.",
+      "people": [{"id": "A"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [17, 27], "highlight_surface": "Éva D’Aro", "referential_spans": [[9, 27], [17, 27]], "referential_surfaces": ["Captain Éva D’Aro", "Éva D’Aro"]},
+        {"id": "m2", "person_id": "A", "kind": "name", "highlight": [37, 42], "highlight_surface": "D’Aro", "referential_spans": [[37, 42]], "referential_surfaces": ["D’Aro"]},
+        {"id": "m3", "person_id": "A", "kind": "pronoun", "highlight": [45, 48], "highlight_surface": "She", "referential_spans": [[45, 48]], "referential_surfaces": ["She"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "alias_collision",
+      "text": "Ida Bell used the call sign Lark. Orin Foss also used Lark. Orin checked in. “Lark?”",
+      "people": [{"id": "A"}, {"id": "B"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [0, 8], "highlight_surface": "Ida Bell", "referential_spans": [[0, 8]], "referential_surfaces": ["Ida Bell"]},
+        {"id": "m2", "person_id": "A", "kind": "alias", "highlight": [28, 32], "highlight_surface": "Lark", "referential_spans": [[28, 32]], "referential_surfaces": ["Lark"]},
+        {"id": "m3", "person_id": "B", "kind": "name", "highlight": [34, 43], "highlight_surface": "Orin Foss", "referential_spans": [[34, 43]], "referential_surfaces": ["Orin Foss"]},
+        {"id": "m4", "person_id": "B", "kind": "alias", "highlight": [54, 58], "highlight_surface": "Lark", "referential_spans": [[54, 58]], "referential_surfaces": ["Lark"]},
+        {"id": "m5", "person_id": "B", "kind": "name", "highlight": [60, 64], "highlight_surface": "Orin", "referential_spans": [[60, 64]], "referential_surfaces": ["Orin"]},
+        {"id": "m6", "person_id": null, "kind": "ambiguous", "highlight": [78, 82], "highlight_surface": "Lark", "referential_spans": [[78, 82]], "referential_surfaces": ["Lark"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "quoted_nonperson",
+      "text": "A Marin lamp stood beside a Marin radio. The paint was called Robin.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [2, 7], "surface": "Marin", "kind": "product"}, {"span": [28, 33], "surface": "Marin", "kind": "product"}, {"span": [62, 67], "surface": "Robin", "kind": "color"}]
+    },
+    {
+      "id": "roles_only",
+      "text": "The first diver surfaced. The second diver waited. The second diver surfaced next.",
+      "people": [{"id": "A"}, {"id": "B"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "nominal", "highlight": [10, 15], "highlight_surface": "diver", "referential_spans": [[0, 15]], "referential_surfaces": ["The first diver"]},
+        {"id": "m2", "person_id": "B", "kind": "nominal", "highlight": [37, 42], "highlight_surface": "diver", "referential_spans": [[26, 42]], "referential_surfaces": ["The second diver"]},
+        {"id": "m3", "person_id": "B", "kind": "nominal", "highlight": [62, 67], "highlight_surface": "diver", "referential_spans": [[51, 67]], "referential_surfaces": ["The second diver"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "name_or_vessel",
+      "text": "Mira Cove painted the ship Mira. Mira worked until noon. The ship Mira sailed at dusk.",
+      "people": [{"id": "A"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [0, 9], "highlight_surface": "Mira Cove", "referential_spans": [[0, 9]], "referential_surfaces": ["Mira Cove"]},
+        {"id": "m2", "person_id": "A", "kind": "name", "highlight": [33, 37], "highlight_surface": "Mira", "referential_spans": [[33, 37]], "referential_surfaces": ["Mira"]}
+      ],
+      "negative_spans": [{"span": [18, 31], "surface": "the ship Mira", "kind": "vessel"}, {"span": [57, 70], "surface": "The ship Mira", "kind": "vessel"}]
+    },
+    {
+      "id": "honorific_and_possessive",
+      "text": "Dr. Tobin Pryce left his notebook. Auditor Sana Leith returned it to Pryce. Leith stayed.",
+      "people": [{"id": "A"}, {"id": "B"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [4, 15], "highlight_surface": "Tobin Pryce", "referential_spans": [[0, 15], [4, 15]], "referential_surfaces": ["Dr. Tobin Pryce", "Tobin Pryce"]},
+        {"id": "m2", "person_id": "A", "kind": "pronoun", "highlight": [21, 24], "highlight_surface": "his", "referential_spans": [[21, 24]], "referential_surfaces": ["his"]},
+        {"id": "m3", "person_id": "B", "kind": "name", "highlight": [43, 53], "highlight_surface": "Sana Leith", "referential_spans": [[35, 53], [43, 53]], "referential_surfaces": ["Auditor Sana Leith", "Sana Leith"]},
+        {"id": "m4", "person_id": "A", "kind": "name", "highlight": [69, 74], "highlight_surface": "Pryce", "referential_spans": [[69, 74]], "referential_surfaces": ["Pryce"]},
+        {"id": "m5", "person_id": "B", "kind": "name", "highlight": [76, 81], "highlight_surface": "Leith", "referential_spans": [[76, 81]], "referential_surfaces": ["Leith"]}
+      ],
+      "negative_spans": []
+    },
+    {
+      "id": "single_named_person",
+      "text": "At dawn Iben Moss boarded the Night Lark.",
+      "people": [{"id": "A"}],
+      "mentions": [
+        {"id": "m1", "person_id": "A", "kind": "name", "highlight": [8, 17], "highlight_surface": "Iben Moss", "referential_spans": [[8, 17]], "referential_surfaces": ["Iben Moss"]}
+      ],
+      "negative_spans": [{"span": [26, 40], "surface": "the Night Lark", "kind": "train"}]
+    },
+    {
+      "id": "no_people",
+      "text": "Cedar Gate flooded. Willow Bend froze. Nothing moved.",
+      "people": [],
+      "mentions": [
+      ],
+      "negative_spans": [{"span": [0, 10], "surface": "Cedar Gate", "kind": "place"}, {"span": [20, 31], "surface": "Willow Bend", "kind": "place"}]
+    }
+  ]
+}
