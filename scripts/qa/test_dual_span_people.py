@@ -3,6 +3,8 @@ import json
 import unittest
 from pathlib import Path
 
+from score_person_mentions import score, source_sha256
+
 
 FIXTURE = Path(__file__).resolve().parents[2] / "testdata/grounded/dual_span_people.json"
 
@@ -13,26 +15,14 @@ class DualSpanPersonPanel(unittest.TestCase):
         cls.panel = json.loads(FIXTURE.read_text(encoding="utf-8"))
         cls.docs = cls.panel["documents"]
 
-    def test_all_spans_recover_recorded_surfaces(self):
-        self.assertEqual(self.panel["offset_unit"], "unicode_scalar")
-        for doc in self.docs:
-            text = doc["text"]
-            for m in doc["mentions"]:
-                self.assertTrue(m["referential_spans"])
-                self.assertEqual(len(m["referential_spans"]), len(m["referential_surfaces"]))
-                pairs = list(zip(m["referential_spans"], m["referential_surfaces"]))
-                pairs.append((m["highlight"], m["highlight_surface"]))
-                for (a, b), surface in pairs:
-                    with self.subTest(doc=doc["id"], mention=m["id"], surface=surface):
-                        self.assertTrue(0 <= a < b <= len(text))
-                        self.assertEqual(text[a:b], surface)
-                a, b = m["highlight"]
-                for s, e in m["referential_spans"]:
-                    self.assertTrue(s <= a < b <= e)
-            for negative in doc["negative_spans"]:
-                a, b = negative["span"]
-                self.assertTrue(0 <= a < b <= len(text))
-                self.assertEqual(text[a:b], negative["surface"])
+    def test_frozen_panel_passes_the_public_scorer_with_no_proposals(self):
+        rows = [{"id": d["id"], "source_sha256": source_sha256(d["text"]),
+                 "mentions": [], "clusters": []} for d in self.docs]
+        results = score(self.panel, {"results": rows})
+        self.assertEqual(len(results["documents"]), len(self.docs))
+        for contract in ("highlight", "referential"):
+            self.assertEqual(results["totals"][contract]["candidates"]["gold_mentions"], 37)
+            self.assertEqual(results["totals"][contract]["candidates"]["covered_mentions"], 0)
 
     def test_distinct_units_and_local_identity_references(self):
         self.assertEqual(len({d["id"] for d in self.docs}), len(self.docs))
