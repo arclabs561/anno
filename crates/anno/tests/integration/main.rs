@@ -4,6 +4,7 @@
 mod backend_properties;
 mod enrich_findings;
 mod fixture_regression;
+mod grounded_namesakes;
 mod grounded_rebuild;
 mod identity_tests;
 mod invariants;
