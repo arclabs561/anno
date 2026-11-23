@@ -1,0 +1,18 @@
+{
+  "text": "🦊 Cafe\u0301 log. Dr. Léa Noor (alias Finch) signed. She returned. A different Léa Noor, the pilot, spoke. The pilot left. Noor?",
+  "offset_unit": "unicode_scalar",
+  "catalog": "fixture-catalog-v1",
+  "tracks": [
+    { "id": "A", "label": "Léa Noor", "catalog_id": "A" },
+    { "id": "B", "label": "Léa Noor", "catalog_id": null }
+  ],
+  "mentions": [
+    { "surface": "Léa Noor", "start": 17, "end": 25, "kind": "name", "track": "A" },
+    { "surface": "Finch", "start": 33, "end": 38, "kind": "alias", "track": "A" },
+    { "surface": "She", "start": 48, "end": 51, "kind": "pronoun", "track": "A" },
+    { "surface": "Léa Noor", "start": 74, "end": 82, "kind": "name", "track": "B" },
+    { "surface": "the pilot", "start": 84, "end": 93, "kind": "nominal", "track": "B" },
+    { "surface": "The pilot", "start": 102, "end": 111, "kind": "nominal", "track": "B" },
+    { "surface": "Noor", "start": 118, "end": 122, "kind": "ambiguous", "track": null }
+  ]
+}
