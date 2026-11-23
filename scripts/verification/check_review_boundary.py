@@ -2,13 +2,10 @@
 """Compile valid and invalid Rust callers of anno's reviewed catalog assignment API."""
 
 import json
-import os
 from pathlib import Path
 import subprocess
-import tempfile
 
-FIXTURE = Path(__file__).resolve().with_name("review_boundary.rs")
-ROOT = FIXTURE.parents[2]
+ROOT = Path(__file__).resolve().parents[2]
 CASES = {
     "permitted": None,
     "direct_data": "E0616",
@@ -23,46 +20,32 @@ CASES = {
 }
 
 
-def build_library():
-    build = subprocess.run(
-        ["cargo", "build", "--locked", "-p", "anno", "--lib", "--no-default-features",
-         "--message-format=json-render-diagnostics"],
-        cwd=ROOT, stdout=subprocess.PIPE, text=True, check=True,
-    )
-    for line in build.stdout.splitlines():
-        event = json.loads(line)
-        if event["reason"] == "compiler-artifact" and event["target"]["name"] == "anno":
-            return next(Path(f) for f in event["filenames"] if f.endswith(".rlib"))
-    raise SystemExit("Cargo built no anno library")
-
-
-def check(library, output_dir, case, expected):
-    invocation = subprocess.run(
-        [os.environ.get("RUSTC", "rustc"), "--edition=2021", "--crate-type=lib",
-         "--emit=metadata", "--error-format=json", "--out-dir", output_dir,
-         "--extern", f"anno={library}", "-L", f"dependency={library.parent / 'deps'}",
-         "--cfg", f'review_case="{case}"', str(FIXTURE)],
+def check(case, expected):
+    # Cargo supplies the target toolchain, dependencies and build directories.
+    # Arguments following -- affect this fixture alone.
+    result = subprocess.run(
+        ["cargo", "rustc", "--locked", "-p", "anno", "--no-default-features",
+         "--test", "reviewed_kb_compile", "--message-format=json", "--",
+         "--cfg", f'review_case="{case}"'],
         cwd=ROOT, capture_output=True, text=True,
     )
-    errors = [msg for line in invocation.stderr.splitlines()
-              if (msg := json.loads(line)).get("level") == "error"]
-    codes = [msg["code"]["code"] for msg in errors if msg.get("code")]
+    errors = []
+    for line in result.stdout.splitlines():
+        event = json.loads(line)
+        if event["reason"] == "compiler-message" and event["message"]["level"] == "error":
+            errors.append(event["message"])
+    codes = [error["code"]["code"] for error in errors if error.get("code")]
     if expected is None:
-        matched = invocation.returncode == 0
+        matched = result.returncode == 0
     else:
-        matched = invocation.returncode != 0 and codes == [expected]
+        matched = result.returncode != 0 and codes == [expected]
     if not matched:
-        details = "".join(msg.get("rendered", "") for msg in errors)
-        raise SystemExit(f"{case}: expected {expected or 'success'}, got {codes}\n{details}")
+        diagnostics = "".join(error.get("rendered", "") for error in errors)
+        raise SystemExit(f"{case}: expected {expected or 'success'}, got {codes}\n"
+                         f"{diagnostics}{result.stderr}")
     print(f"{case}: {expected or 'compiled'}")
 
 
-def main():
-    library = build_library()
-    with tempfile.TemporaryDirectory() as output_dir:
-        for case, expected in CASES.items():
-            check(library, output_dir, case, expected)
-
-
 if __name__ == "__main__":
-    main()
+    for name, diagnostic in CASES.items():
+        check(name, diagnostic)
