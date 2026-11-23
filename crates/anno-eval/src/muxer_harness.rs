@@ -617,7 +617,7 @@ pub fn env_bool(name: &str, default: bool) -> bool {
 
 /// Coarse, domain-agnostic failure kind classification from an error string.
 ///
-/// This is intended for *triage* and regression hunting, not for selection math. Keep it stable and
+/// Used for triage and to identify identical repeated dataset/I/O faults. Keep it stable and
 /// low-cardinality so history files remain readable and comparisons remain meaningful across time.
 pub fn classify_failure_kind(err: &str) -> &'static str {
     let e = err.to_ascii_lowercase();

@@ -67,7 +67,7 @@ pub struct ThresholdPoint {
     pub threshold: f64,
     /// Precision at this threshold
     pub precision: f64,
-    /// Recall at this threshold (relative to total correct predictions at threshold 0)
+    /// Fraction of correct input predictions retained, or zero if none were correct.
     pub recall: f64,
     /// F1 at this threshold
     pub f1: f64,
@@ -90,7 +90,7 @@ pub struct ThresholdCurve {
     pub optimal_precision: f64,
     /// Recall at optimal threshold
     pub optimal_recall: f64,
-    /// Area under precision-recall curve (approximation)
+    /// Trapezoidal area under the sampled precision-recall curve.
     pub auc_pr: f64,
     /// Total predictions analyzed
     pub total_predictions: usize,
@@ -217,7 +217,7 @@ impl ThresholdAnalyzer {
         };
 
         let recall = if total_correct == 0 {
-            1.0
+            0.0
         } else {
             num_correct as f64 / total_correct as f64
         };
@@ -239,19 +239,15 @@ impl ThresholdAnalyzer {
     }
 
     fn compute_auc_pr(&self, points: &[ThresholdPoint]) -> f64 {
-        if points.len() < 2 {
-            return 0.0;
-        }
-
-        // Sort by recall (descending) for proper AUC computation
-        let mut sorted: Vec<_> = points.iter().collect();
-        sorted.sort_by(|a, b| b.recall.total_cmp(&a.recall));
-
+        // Walk from rejecting all predictions toward keeping them all. A sample
+        // at threshold 1.0 can still include predictions with confidence 1.0.
+        let mut previous_recall = 0.0;
+        let mut previous_precision = 1.0;
         let mut auc = 0.0;
-        for i in 1..sorted.len() {
-            let recall_diff = sorted[i - 1].recall - sorted[i].recall;
-            let avg_precision = (sorted[i - 1].precision + sorted[i].precision) / 2.0;
-            auc += recall_diff * avg_precision;
+        for point in points.iter().rev() {
+            auc += (point.recall - previous_recall) * (point.precision + previous_precision) / 2.0;
+            previous_recall = point.recall;
+            previous_precision = point.precision;
         }
 
         auc
@@ -300,27 +296,20 @@ pub fn format_threshold_table(curve: &ThresholdCurve) -> String {
     output
 }
 
-/// Interpret threshold curve quality.
+/// Describe the sampled precision-recall tradeoff for the supplied predictions.
+/// For probability calibration, use [`CalibrationEvaluator`](super::calibration::CalibrationEvaluator).
 pub fn interpret_curve(curve: &ThresholdCurve) -> Vec<String> {
-    let mut insights = Vec::new();
-
-    // AUC-PR interpretation
-    if curve.auc_pr >= 0.9 {
-        insights.push("Excellent calibration (AUC-PR >= 0.9)".into());
-    } else if curve.auc_pr >= 0.7 {
-        insights.push("Good calibration (AUC-PR >= 0.7)".into());
-    } else if curve.auc_pr >= 0.5 {
-        insights.push("Moderate calibration (AUC-PR >= 0.5)".into());
-    } else {
-        insights.push("Poor calibration (AUC-PR < 0.5) - confidence scores unreliable".into());
+    if curve.total_predictions == 0 {
+        return vec!["No predictions to analyze.".into()];
+    }
+    if curve.total_correct == 0 {
+        return vec!["No input predictions were correct. F1 is zero at every threshold.".into()];
     }
 
-    // Optimal threshold interpretation
-    if curve.optimal_threshold < 0.3 {
-        insights.push("Low optimal threshold suggests model is underconfident".into());
-    } else if curve.optimal_threshold > 0.7 {
-        insights.push("High optimal threshold suggests model tends to overpredict".into());
-    }
+    let mut insights = vec![format!(
+        "Sampled AUC-PR is {:.3}. Recall is relative to correct input predictions.",
+        curve.auc_pr
+    )];
 
     // Precision-recall tradeoff
     if curve.optimal_precision > 0.9 && curve.optimal_recall < 0.7 {
@@ -330,10 +319,13 @@ pub fn interpret_curve(curve: &ThresholdCurve) -> Vec<String> {
     }
 
     // High-precision availability
-    if curve.high_precision_threshold.is_some() {
-        insights.push("Can achieve 95%+ precision with threshold tuning".into());
+    if let Some(threshold) = curve.high_precision_threshold {
+        insights.push(format!(
+            "The lowest sampled threshold with at least 95% precision is {threshold:.2}."
+        ));
     } else {
-        insights.push("Cannot achieve 95% precision at any threshold".into());
+        insights
+            .push("No sampled threshold retained predictions with at least 95% precision.".into());
     }
 
     insights
@@ -346,6 +338,37 @@ pub fn interpret_curve(curve: &ThresholdCurve) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejecting_every_incorrect_prediction_does_not_earn_f1() {
+        let curve = ThresholdAnalyzer::default()
+            .analyze(&[PredictionWithConfidence::new("A", "T", 0.4, false)]);
+
+        assert_eq!(curve.optimal_f1, 0.0);
+        assert_eq!(curve.high_recall_threshold, None);
+        assert!(curve.points.iter().all(|p| p.f1 == 0.0 && p.recall == 0.0));
+        assert_eq!(
+            interpret_curve(&curve),
+            ["No input predictions were correct. F1 is zero at every threshold."]
+        );
+    }
+
+    #[test]
+    fn interpret_a_perfect_ranking_with_low_confidence_scores() {
+        let curve = ThresholdAnalyzer::default().analyze(&[
+            PredictionWithConfidence::new("A", "T", 0.2, true),
+            PredictionWithConfidence::new("B", "T", 0.1, false),
+        ]);
+
+        assert_eq!(curve.auc_pr, 1.0);
+        assert_eq!(
+            interpret_curve(&curve),
+            [
+                "Sampled AUC-PR is 1.000. Recall is relative to correct input predictions.",
+                "The lowest sampled threshold with at least 95% precision is 0.15.",
+            ]
+        );
+    }
 
     #[test]
     fn test_perfect_predictions() {
@@ -392,6 +415,7 @@ mod tests {
 
         assert_eq!(curve.total_predictions, 0);
         assert!(curve.points.is_empty());
+        assert_eq!(interpret_curve(&curve), ["No predictions to analyze."]);
     }
 
     #[test]
@@ -409,6 +433,23 @@ mod tests {
         // Optimal should be around 0.5 to filter out the low-confidence wrong predictions
         assert!(curve.optimal_threshold >= 0.3);
         assert!(curve.optimal_threshold <= 0.9);
+    }
+
+    #[test]
+    fn sampled_pr_area_includes_rejecting_max_confidence_predictions() {
+        let analyzer = ThresholdAnalyzer::default();
+        for confidence in [0.95, 1.0] {
+            let correct = PredictionWithConfidence::new("A", "T", confidence, true);
+            let wrong = PredictionWithConfidence::new("B", "T", confidence, false);
+            assert_eq!(analyzer.analyze(std::slice::from_ref(&correct)).auc_pr, 1.0);
+            // The tied group enters the sampled curve at recall 1, precision 1/2.
+            // The trapezoid from recall 0, precision 1 therefore has area 3/4.
+            assert_eq!(
+                analyzer.analyze(&[correct.clone(), wrong.clone()]).auc_pr,
+                0.75
+            );
+            assert_eq!(analyzer.analyze(&[wrong, correct]).auc_pr, 0.75);
+        }
     }
 
     #[test]

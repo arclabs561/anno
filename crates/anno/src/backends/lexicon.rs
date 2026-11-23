@@ -98,13 +98,6 @@ impl Model for LexiconNER {
     fn extract_entities(&self, text: &str, language: Option<Language>) -> Result<Vec<Entity>> {
         let mut entities = Vec::new();
 
-        // For efficiency with large lexicons, we scan the text and check potential spans
-        // against the lexicon. This is O(n*m) where n=text length, m=avg entity length.
-        // For production with large lexicons, consider Aho-Corasick algorithm.
-
-        let text_chars: Vec<char> = text.chars().collect();
-        let text_len = text_chars.len();
-
         // Detect if this is a CJK language (no word boundaries)
         let is_cjk = language.is_some_and(|l| l.is_cjk());
 
@@ -126,35 +119,37 @@ impl Model for LexiconNER {
             }
         };
 
+        let mut offsets: Vec<_> = text
+            .char_indices()
+            .map(|(byte, c)| (byte, is_word_boundary_char(c)))
+            .collect();
+        let text_len = offsets.len();
+        offsets.push((text.len(), true));
+        let max_width = self.lexicon.max_entry_chars().unwrap_or(text_len);
+
         // Try all possible spans (word boundaries if word_boundary=true, or all substrings)
         for start in 0..text_len {
-            // Try spans of increasing length
-            for end in (start + 1)..=text_len.min(start + 50) {
-                // Limit max span length
-                let span_text: String = text_chars[start..end].iter().collect();
-
-                // Check word boundary if required
-                if self.word_boundary {
-                    let is_word_start =
-                        start == 0 || is_word_boundary_char(text_chars[start.saturating_sub(1)]);
-                    let is_word_end = end >= text_len || is_word_boundary_char(text_chars[end]);
-                    if !is_word_start || !is_word_end {
-                        continue;
-                    }
+            if self.word_boundary && start > 0 && !offsets[start - 1].1 {
+                continue;
+            }
+            for end in (start + 1)..=text_len.min(start.saturating_add(max_width)) {
+                if self.word_boundary && !offsets[end].1 {
+                    continue;
                 }
+                let span_text = &text[offsets[start].0..offsets[end].0];
 
                 // Try exact match
                 // For case-insensitive: we need to check if lexicon has the entry in any case
                 // Since Lexicon trait only supports exact lookup, we try both original and lowercase
                 // In a production system, consider using a case-normalized lexicon or Aho-Corasick
                 let matched = if self.case_sensitive {
-                    self.lexicon.lookup(&span_text)
+                    self.lexicon.lookup(span_text)
                 } else {
                     // Try original case first, then lowercase
                     // Note: This assumes lexicon entries are stored in a specific case
                     // For better case-insensitive matching, lexicon should normalize internally
                     self.lexicon
-                        .lookup(&span_text)
+                        .lookup(span_text)
                         .or_else(|| {
                             let lower = span_text.to_lowercase();
                             if lower != span_text {
@@ -183,13 +178,6 @@ impl Model for LexiconNER {
                 };
 
                 if let Some((entity_type, confidence)) = matched {
-                    // start/end are already character indices (from text_chars: Vec<char>)
-                    let char_start = start;
-                    let char_end = end;
-
-                    // Extract actual text span (preserving original case)
-                    let actual_span: String = text.chars().skip(start).take(end - start).collect();
-
                     let provenance = crate::Provenance {
                         source: std::borrow::Cow::Borrowed("lexicon"),
                         method: crate::ExtractionMethod::Heuristic,
@@ -203,10 +191,10 @@ impl Model for LexiconNER {
                     };
 
                     entities.push(Entity::with_provenance(
-                        actual_span,
+                        span_text,
                         entity_type,
-                        char_start,
-                        char_end,
+                        start,
+                        end,
                         confidence,
                         provenance,
                     ));
@@ -259,6 +247,23 @@ impl Model for LexiconNER {
 mod tests {
     use super::*;
     use crate::HashMapLexicon;
+
+    #[test]
+    fn matches_long_entries_in_character_coordinates() {
+        for width in [49, 50, 51, 80] {
+            let name = "é".repeat(width);
+            let mut lexicon = HashMapLexicon::new("catalog");
+            lexicon.insert(&name, EntityType::Organization, 0.9);
+            let found = LexiconNER::new(lexicon)
+                .extract_entities(&format!("🙂 {name}."), None)
+                .unwrap();
+            assert_eq!(found.len(), 1);
+            assert_eq!(
+                (found[0].start(), found[0].end(), &found[0].text),
+                (2, 2 + width, &name)
+            );
+        }
+    }
 
     #[test]
     fn test_lexicon_ner_basic() {

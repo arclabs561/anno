@@ -14,7 +14,7 @@
 //! anno extract --text "Lynn Conway worked at IBM and Xerox PARC in California."
 //!
 //! # Debug coreference
-//! anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+//! anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
 //!
 //! # Evaluate against gold annotations
 //! anno eval -t "Lynn Conway worked at IBM." -g "Lynn Conway:PER:0:11"

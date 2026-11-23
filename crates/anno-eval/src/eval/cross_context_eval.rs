@@ -38,7 +38,7 @@
 
 use crate::eval::cdcr::{CrossDocCluster, Document};
 use crate::eval::cluster_encoder::{ClusterEncoder, MergeScorer};
-use crate::eval::coref::{CorefChain, Mention};
+use crate::eval::coref::{offset_chains, CorefChain, Mention};
 use crate::eval::coref_metrics::{conll_f1, CorefScores};
 use crate::eval::neural_cluster_encoder::{
     CrossContextConfig, UnifiedCrossContextResolver, WindowOutput,
@@ -380,20 +380,51 @@ pub fn evaluate_cross_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone
     let mut total_gold_clusters = 0;
     let mut total_pred_clusters = 0;
 
+    // The metric functions identify mentions by offsets. Place each document in
+    // a disjoint range, including documents with the same ID in different topics.
+    let mut next_offset = 0;
     for topic in topics {
-        // Convert gold clusters to chains for evaluation
-        let topic_gold_chains =
-            cross_doc_clusters_to_chains(&topic.gold_clusters, &topic.documents);
+        if per_topic.contains_key(&topic.id) {
+            return Err(crate::Error::InvalidInput(format!(
+                "Duplicate topic ID {}",
+                topic.id
+            )));
+        }
+        let mut documents = HashMap::new();
+        for doc in &topic.documents {
+            if documents
+                .insert(doc.id.as_str(), (doc, next_offset))
+                .is_some()
+            {
+                return Err(crate::Error::InvalidInput(format!(
+                    "Duplicate document {} in topic {}",
+                    doc.id, topic.id
+                )));
+            }
+            let len = doc.text.chars().count();
+            if doc
+                .entities
+                .iter()
+                .any(|e| e.start() > e.end() || e.end() > len)
+            {
+                return Err(crate::Error::InvalidInput(format!(
+                    "Invalid entity span in document {}",
+                    doc.id
+                )));
+            }
+            next_offset += len + 1;
+        }
+        let topic_gold_chains = cross_doc_clusters_to_chains(&topic.gold_clusters, &documents)?;
         total_gold_clusters += topic.gold_clusters.len();
 
         // Resolve across documents in this topic
         let pred_clusters = resolver.resolve_documents(&topic.documents);
         total_pred_clusters += pred_clusters.len();
 
-        let topic_pred_chains = cross_doc_clusters_to_chains(&pred_clusters, &topic.documents);
+        let topic_pred_chains = cross_doc_clusters_to_chains(&pred_clusters, &documents)?;
 
         // Compute per-topic metrics
-        let topic_f1 = conll_f1(&topic_gold_chains, &topic_pred_chains);
+        let topic_f1 = conll_f1(&topic_pred_chains, &topic_gold_chains);
 
         per_topic.insert(
             topic.id.clone(),
@@ -419,7 +450,7 @@ pub fn evaluate_cross_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone
         crate::eval::coref_metrics::ceaf_e_score(&all_pred_chains, &all_gold_chains);
     let (lea_p, lea_r, lea_f1) =
         crate::eval::coref_metrics::lea_score(&all_pred_chains, &all_gold_chains);
-    let conll = conll_f1(&all_gold_chains, &all_pred_chains);
+    let conll = (muc_f1 + b3_f1 + ceaf_f1) / 3.0;
 
     let num_contexts: usize = topics.iter().map(|t| t.documents.len()).sum();
     let total_mentions: usize = all_pred_chains.iter().map(|c| c.len()).sum();
@@ -470,49 +501,37 @@ pub fn evaluate_long_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone>
     let mut all_pred_chains: Vec<CorefChain> = Vec::new();
     let mut per_document = HashMap::new();
 
+    let mut doc_base = 0usize;
     for doc in documents {
-        // Use pre-computed windows if available, otherwise would need to compute
-        let windows = doc.windows.clone().unwrap_or_default();
-
-        if windows.is_empty() {
-            // No pre-computed windows: treat the entire document as a single window
-            // and let the resolver merge from that single context.
-            let single_window = WindowOutput::new(
-                0,
-                0,
-                doc.char_len(),
-                if config.use_gold_mentions {
+        let len = doc.char_len();
+        let fallback;
+        let windows = match doc.windows.as_deref() {
+            Some(windows) if !windows.is_empty() => windows,
+            _ => {
+                // Without precomputed windows or gold mentions, this harness has no mention detector.
+                let chains = if config.use_gold_mentions {
                     doc.gold_chains.clone()
                 } else {
-                    // Without gold mentions we have no mention detector here;
-                    // produce an empty prediction so metrics reflect the gap.
                     Vec::new()
-                },
-            );
-            let pred_chains = resolver.resolve_long_document_windows(&[single_window]);
-
-            let doc_f1 = conll_f1(&doc.gold_chains, &pred_chains);
-            per_document.insert(
-                doc.id.clone(),
-                DocumentResults {
-                    doc_id: doc.id.clone(),
-                    num_tokens: doc.approx_tokens(),
-                    num_windows: 1,
-                    conll_f1: doc_f1,
-                    num_gold_chains: doc.gold_chains.len(),
-                    num_pred_chains: pred_chains.len(),
-                },
-            );
-
-            all_gold_chains.extend(doc.gold_chains.clone());
-            all_pred_chains.extend(pred_chains);
-            continue;
+                };
+                fallback = [WindowOutput::new(0, 0, len, chains)];
+                &fallback
+            }
+        };
+        let pred_chains = resolver.resolve_long_document_windows(windows);
+        if doc
+            .gold_chains
+            .iter()
+            .chain(&pred_chains)
+            .flat_map(|chain| &chain.mentions)
+            .any(|mention| mention.start > mention.end || mention.end > len)
+        {
+            return Err(crate::Error::InvalidInput(format!(
+                "Invalid mention span in document {}",
+                doc.id
+            )));
         }
-
-        let pred_chains = resolver.resolve_long_document_windows(&windows);
-
-        // Compute per-document metrics
-        let doc_f1 = conll_f1(&doc.gold_chains, &pred_chains);
+        let doc_f1 = conll_f1(&pred_chains, &doc.gold_chains);
 
         per_document.insert(
             doc.id.clone(),
@@ -526,8 +545,16 @@ pub fn evaluate_long_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone>
             },
         );
 
-        all_gold_chains.extend(doc.gold_chains.clone());
-        all_pred_chains.extend(pred_chains);
+        // Mention IDs in the scorer are coordinate pairs. A match must stay within its document.
+        let next_base = doc_base
+            .checked_add(len)
+            .and_then(|end| end.checked_add(1))
+            .ok_or_else(|| {
+                crate::Error::InvalidInput("Corpus character offsets overflow".into())
+            })?;
+        all_gold_chains.extend(offset_chains(doc.gold_chains.clone(), doc_base));
+        all_pred_chains.extend(offset_chains(pred_chains, doc_base));
+        doc_base = next_base;
     }
 
     // Compute aggregate metrics
@@ -539,7 +566,7 @@ pub fn evaluate_long_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone>
         crate::eval::coref_metrics::ceaf_e_score(&all_pred_chains, &all_gold_chains);
     let (lea_p, lea_r, lea_f1) =
         crate::eval::coref_metrics::lea_score(&all_pred_chains, &all_gold_chains);
-    let conll = conll_f1(&all_gold_chains, &all_pred_chains);
+    let conll = (muc_f1 + b3_f1 + ceaf_f1) / 3.0;
 
     let total_mentions: usize = all_pred_chains.iter().map(|c| c.len()).sum();
     let avg_cluster_size = if !all_pred_chains.is_empty() {
@@ -573,32 +600,34 @@ pub fn evaluate_long_document<E: ClusterEncoder + Clone, S: MergeScorer + Clone>
 /// Convert cross-document clusters to coreference chains.
 fn cross_doc_clusters_to_chains(
     clusters: &[CrossDocCluster],
-    docs: &[Document],
-) -> Vec<CorefChain> {
-    clusters
-        .iter()
-        .map(|cluster| {
-            let mentions: Vec<Mention> = cluster
-                .mentions
-                .iter()
-                .filter_map(|(doc_id, entity_idx)| {
-                    let doc = docs.iter().find(|d| &d.id == doc_id)?;
-                    let entity = doc.entities.get(*entity_idx)?;
-                    Some(Mention {
-                        text: entity.text.clone(),
-                        start: entity.start(),
-                        end: entity.end(),
-                        head_start: None,
-                        head_end: None,
-                        entity_type: Some(entity.entity_type.as_label().to_string()),
-                        mention_type: None,
-                    })
-                })
-                .collect();
-            CorefChain::new(mentions)
-        })
-        .filter(|c| !c.is_empty())
-        .collect()
+    documents: &HashMap<&str, (&Document, usize)>,
+) -> Result<Vec<CorefChain>> {
+    let mut chains = Vec::new();
+    for cluster in clusters {
+        let mut mentions = Vec::new();
+        for (doc_id, idx) in &cluster.mentions {
+            let (doc, base) = documents.get(doc_id.as_str()).ok_or_else(|| {
+                crate::Error::InvalidInput(format!(
+                    "Cluster {} refers to unknown document {doc_id}",
+                    cluster.id
+                ))
+            })?;
+            let entity = doc.entities.get(*idx).ok_or_else(|| {
+                crate::Error::InvalidInput(format!(
+                    "Cluster {} refers to missing entity {idx} in {doc_id}",
+                    cluster.id
+                ))
+            })?;
+            let mut mention =
+                Mention::new(&entity.text, base + entity.start(), base + entity.end());
+            mention.entity_type = Some(entity.entity_type.as_label().to_string());
+            mentions.push(mention);
+        }
+        if !mentions.is_empty() {
+            chains.push(CorefChain::new(mentions));
+        }
+    }
+    Ok(chains)
 }
 
 // =============================================================================
@@ -745,6 +774,45 @@ mod tests {
 
         assert!(doc.approx_tokens() > 100);
         assert_eq!(doc.gold_chains.len(), 1);
+    }
+
+    #[test]
+    fn cross_document_scores_keep_repeated_offsets_distinct_across_topics() {
+        let mut linked = Topic::new("linked");
+        let mut separate = Topic::new("separate");
+        let mut pair = CrossDocCluster::new(0u64, "Zoë");
+        for id in ["first", "second"] {
+            let doc = Document::new(id, "Zoë").with_entities(vec![Entity::new(
+                "Zoë",
+                EntityType::Person,
+                0,
+                3,
+                1.0,
+            )]);
+            linked.add_document(doc.clone());
+            separate.add_document(doc);
+            pair.add_mention(id, 0);
+            let mut singleton = CrossDocCluster::new(separate.gold_clusters.len() as u64, "Zoë");
+            singleton.add_mention(id, 0);
+            separate.add_gold_cluster(singleton);
+        }
+        linked.add_gold_cluster(pair);
+        let results = evaluate_cross_document(
+            &[linked, separate],
+            HeuristicClusterEncoder::new(64),
+            CosineMergeScorer::new(),
+            &CrossContextEvalConfig {
+                merge_threshold: 2.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        // The scorer predicted four singletons. Two mentions earn half recall
+        // for the missed pair, and the two true singletons each earn full recall.
+        assert_eq!(results.num_pred_clusters, 4);
+        assert_eq!(results.b_cubed.precision, 1.0);
+        assert_eq!(results.b_cubed.recall, 0.75);
+        assert_eq!(results.muc.recall, 0.0);
     }
 
     #[test]
@@ -918,6 +986,46 @@ mod tests {
 
         // Predicted clusters should be non-zero (heuristic encoder finds something)
         assert!(results.num_pred_clusters > 0);
+    }
+
+    #[test]
+    fn long_document_scores_keep_identical_local_offsets_in_separate_documents() {
+        let chain = CorefChain::new(vec![Mention::new("A", 0, 1), Mention::new("A", 2, 3)]);
+        let mut spurious = LongDocument::new("spurious", "A A", vec![]);
+        spurious.windows = Some(vec![WindowOutput::new(0, 0, 3, vec![chain.clone()])]);
+        let missed = LongDocument::new("missed", "A A", vec![chain]);
+        let evaluate = |docs: &[LongDocument]| {
+            evaluate_long_document(
+                docs,
+                HeuristicClusterEncoder::new(64),
+                CosineMergeScorer::new(),
+                &CrossContextEvalConfig {
+                    use_gold_mentions: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+        };
+        for docs in [[spurious.clone(), missed.clone()], [missed, spurious]] {
+            let results = evaluate(&docs);
+            assert_eq!(results.num_gold_clusters, 1);
+            assert_eq!(results.num_pred_clusters, 1);
+            assert!(results
+                .per_document
+                .unwrap()
+                .values()
+                .all(|d| d.conll_f1 == 0.0));
+            assert_eq!(
+                [
+                    results.muc.f1,
+                    results.b_cubed.f1,
+                    results.ceaf_e.f1,
+                    results.lea.f1,
+                    results.conll_f1
+                ],
+                [0.0; 5]
+            );
+        }
     }
 
     #[test]

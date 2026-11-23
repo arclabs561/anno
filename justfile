@@ -18,7 +18,7 @@ check:
         cargo nextest run --manifest-path Cargo.toml --profile quick --workspace --features "eval discourse"
     else
         cargo test --manifest-path Cargo.toml --workspace --lib --features "eval discourse"
-        cargo test --manifest-path Cargo.toml -p anno-cli --test extract_provenance --features "eval discourse"
+        cargo test --manifest-path Cargo.toml -p anno-cli --test '*' --features "eval discourse"
     fi
 
 # Run standard checks with sccache-friendly compilation settings.
@@ -213,6 +213,7 @@ pre-tag: ci
 
 # Run randomized matrix test (backends x datasets x tasks)
 # Strategies: random, ml-only, worst-first, ml-all
+# The perspective is a sampling hint. Set ANNO_MATRIX_TASK for an exact task.
 # Example: just matrix worst-first 42
 matrix strategy="random" seed="" perspective="ner":
     #!/usr/bin/env bash
@@ -266,8 +267,27 @@ eval-sanity:
 
 # Validate a fixed cached panel using an explicitly selected, already-built binary.
 # Build once with: cargo build -p anno-cli --features "eval onnx discourse"
-qa-panel ANNO_BIN SUITE="smoke" OUT=".generated/anno-qa/fixed-panel":
-    python3 scripts/qa/run_panel.py --anno-bin {{quote(ANNO_BIN)}} --suite {{quote(SUITE)}} --output-dir {{quote(OUT)}}
+qa-panel $ANNO_BIN $SUITE="smoke" $OUT="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "$OUT" ]]; then
+        mkdir -p .generated/anno-qa
+        OUT=$(mktemp -d "$PWD/.generated/anno-qa/fixed-panel.XXXXXXXX")
+    fi
+    echo "QA panel output: $OUT"
+    python3 scripts/qa/run_panel.py --anno-bin "$ANNO_BIN" --suite "$SUITE" --output-dir "$OUT"
+
+# Prepare a coordinator prompt from a fixed panel or a muxer slot.
+qa-round $RECEIPTS $CLAIM $TRACE="":
+    @if [ -n "$TRACE" ]; then python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM" --trace "$TRACE"; else python3 scripts/qa/brief_round.py "$RECEIPTS" "$CLAIM"; fi
+
+# Evaluate exact mentions and protected source ranges on the diagnostic panel.
+qa-spans $ANNO_BIN $MODEL="heuristic":
+    python3 scripts/qa/check_span_assertions.py --binary "$ANNO_BIN" --model "$MODEL"
+
+# Run the offline Python QA contracts discovered by CI.
+qa-test:
+    python3 -m unittest discover -v -s scripts/qa -p 'test_*.py'
 
 # Exercise the fixed-panel failure gates without models or network access.
 qa-panel-test:
@@ -330,32 +350,26 @@ eval-results:
 
 # === QA Random URL Testing ===
 
-# Run QA with random URLs from multilingual Wikipedia + diverse sites
-qa-random count="10" backends="stacked" seed="":
+# Sample URLs with the selected backends. Set ANNO to reuse a built CLI.
+qa-random $count="10" $backends="stacked" $seed="" $category="all":
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build --release -p anno-cli --features "eval onnx"
-    mkdir -p qa/reports
-    seed_args=""
-    if [ -n "{{seed}}" ]; then seed_args="--seed {{seed}}"; fi
-    ANNO="./target/release/anno" uv run scripts/qa_random_urls.py \
-        --count {{count}} --backends {{backends}} \
-        $seed_args \
-        --output "qa/reports/qa-random-$(date +%Y%m%d-%H%M%S).md"
+    if [[ -z "${ANNO:-}" ]]; then
+        cargo build --locked --release -p anno-cli --features eval
+        target_dir=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json, sys; print(json.load(sys.stdin)["target_directory"])')
+        export ANNO="$target_dir/release/anno"
+    fi
+    args=(--count "$count" --backends "$backends" --category "$category")
+    if [[ -n "$seed" ]]; then args+=(--seed "$seed"); fi
+    python3 scripts/qa_random_urls.py "${args[@]}"
 
-# Validate qa-random source pool integrity (no anno binary or network needed)
+# Exercise the URL runner's inventory and verdicts offline.
 qa-random-selftest:
-    uv run scripts/qa_random_urls.py --self-test
+    python3 -m unittest discover -v -s scripts/qa -p test_qa_random_urls.py
 
-# Quick QA smoke test (5 URLs, Wikipedia only, no RSS)
+# Sample five Wikipedia pages with the default backend.
 qa-random-quick:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cargo build --release -p anno-cli --features "eval onnx"
-    mkdir -p qa/reports
-    ANNO="./target/release/anno" uv run scripts/qa_random_urls.py \
-        --count 5 --no-rss --category wikipedia \
-        --output "qa/reports/qa-random-quick-$(date +%Y%m%d-%H%M%S).md"
+    just qa-random 5 stacked "" wikipedia
 
 # === Backend Tests ===
 
@@ -498,9 +512,9 @@ example-muxer:
 
 # === Mutation Testing ===
 
-# Run mutation tests on entity.rs (fast, targeted)
+# Check discontinuous character coverage against the original source segments.
 mutants-fast:
-    cargo mutants --file "src/entity.rs" --timeout 120 --minimum-test-timeout 60 --features "eval discourse"
+    ./scripts/mutants-fast.sh
 
 # Run mutation tests on specific file
 mutants-file FILE:
@@ -856,7 +870,7 @@ analysis-nlp-ml:
     @just check-ml-backends || echo "warning:  Some ML backend issues found"
     @echo ""
     @echo "=== Evaluation Invariants ==="
-    @just check-eval-invariants || echo "warning:  Some invariant issues found"
+    @just check-eval-invariants
     @echo ""
     @echo "=== OpenGrep Custom Rules ==="
     @just opengrep-custom || echo "warning:  OpenGrep not installed"
@@ -1030,7 +1044,7 @@ spot-upload-src:
     aws s3 cp /tmp/anno-src.tar.gz "s3://$bucket/src/anno-src.tar.gz"
     echo "Source uploaded to s3://$bucket/src/anno-src.tar.gz"
 
-# Run CI-style muxer-backed sampler locally.
+# Run the exploratory worst-first sampler locally with a soft task perspective.
 # Uses ~/.anno_cache to match the CI actions/cache path for both muxer state and eval history.
 # Override with ANNO_HISTORY_FILE, ANNO_EVAL_HISTORY, or ANNO_LINUCB_STATE_FILE for isolation.
 ci-matrix-local SEED="42" PERSPECTIVE="ner":
@@ -1053,7 +1067,7 @@ check-regressions SEED="42":
     ANNO_CI_SEED="{{SEED}}" \
     ANNO_MUXER_VERBOSE=1 \
     ANNO_CHECK_REGRESSIONS=1 \
-    ANNO_MATRIX_PERSPECTIVE=ner \
+    ANNO_MATRIX_TASK=ner \
     ANNO_MUXER_BACKENDS_PER_RUN=4 \
     ANNO_MUXER_FIXED_DATASETS=WikiGold,Wnut17,MasakhaNER \
     cargo test --release -p anno-eval --lib --features "eval onnx" \

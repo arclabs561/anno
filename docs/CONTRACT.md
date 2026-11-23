@@ -4,91 +4,38 @@ This contract describes the input text, offsets, and feature flags that callers
 must account for when using `anno`. Start with the [quickstart](QUICKSTART.md)
 for runnable examples.
 
-## What `anno` is
+## Source text and offsets
 
-`anno` turns **UTF-8 text** into **structured extractions**:
+Anno consumes plain UTF-8 text. Entity offsets are half-open character ranges
+`[start, end)` counted in Unicode scalar values. In `🦊 Email ada@example.org`,
+the email spans characters `8..23` and UTF-8 bytes `11..26`. Rust string slicing
+uses byte indices. Convert at that boundary using `anno::offset::SpanConverter`.
+Use `CharOffset` and `ByteOffset` when passing positions between Rust components.
 
-- **NER**: span detection + entity typing (fixed or zero-shot custom types)
-- **Relation extraction**: typed `(head, relation, tail)` triples; available on `RelationCapable` backends (`tplinker`, `gliner_multitask`)
-- **Within-document coreference**: cluster mentions into tracks
-- **Cross-document coalescing**: cluster tracks across documents into identities
+Keep the document ID, exact text revision and coordinate convention with saved
+annotations. When OCR cleanup, newline normalization, `--clean` or `--normalize`
+changes the input, the positions refer to the processed text. To highlight the
+original, keep the mapping back to that revision. Grounded JSON stores the text
+with its signals and tracks. [Runnable example](QUICKSTART.md#save-annotations-with-the-source-text)
 
-## Primary interoperability contract
+## Library and CLI features
 
-- **Offsets are character offsets** (Unicode scalar values), not byte offsets.
-- **Core types are the interface**: use the types re-exported through
-  `anno::core::*`: `Entity`, `Signal`, `Track`, `Identity`, `GroundedDocument`,
-  and `Corpus`.
+| Need | Enable or use |
+|---|---|
+| Offline pattern and heuristic extraction | `anno` with `default-features = false` |
+| ONNX backends and French heuristics | Default `anno` features |
+| Candle inference | `anno/candle` |
+| Within-document and cross-context scoring primitives | `anno/analysis` exposes `anno::metrics` |
+| Graph construction and export | `anno/graph` |
+| Discourse utilities | `anno/discourse` |
+| Compare predictions with gold spans for one text | `anno eval` in the standard CLI |
+| Dataset benchmarks and cross-document clustering | Install `anno-cli` with `--features eval` |
 
-## Input text contract (what backends expect)
-
-`anno` backends operate on **plain UTF-8 text**. They will run on "messy" text, but you should be
-explicit about what the *authoritative* input string is, because offsets are always relative to the
-exact string you pass in.
-
-- **Accepted**: raw text, OCR text, and extracted HTML/PDF text *after* you've turned it into a
-  single plain string.
-- **Recommended upstream normalization** (in your ingestion layer, e.g. `textprep`):
-  - normalize newlines (`\r\n`/`\r` → `\n`) if your sources vary
-  - remove bidi controls / suspicious invisibles if your corpora come from untrusted sources
-  - avoid "pretty reflow" that changes character positions after extraction (it invalidates spans)
-- **CLI convenience**: the CLI exposes `--clean` and `--normalize` flags as opt-in helpers;
-  offsets in the output are relative to the post-normalized string.
-- **Not a product goal**: `anno` does not promise to be an HTML/PDF parser or a crawler. Feed it
-  text; keep parsing/cleaning upstream.
-
-## Scope (what's in / out)
-
-**In scope**
-- Inference-time extraction (regex/heuristics/ML backends).
-- Zero-shot extraction with custom entity types (`ZeroShotNER` backends: GLiNER, GLiNER multi-task, NuNER -- use `extract_with_types`; CLI `--extract-types`).
-- Relation extraction (`RelationCapable` backends: `tplinker`, `gliner_multitask`).
-- Graph/KG export: the `graph` feature exposes `GraphDocument` and N-Triples export.
-- Constituency tree interchange with external parsers; see [CONSTITUENCY.md](CONSTITUENCY.md).
-- Evaluation + dataset loading behind feature flags (for benchmarking, not required for usage).
-
-**Out of scope by design**
-- Training.
-- Document parsing as a product (HTML/PDF pipelines, crawling, etc.). Feed `anno` text; keep ingestion upstream.
-- Heavy graph algorithms (community detection, node ranking, etc.). Export via N-Triples and run algorithms downstream (e.g. in `lattix`).
-
-## Feature gating (how to depend on it)
-
-The published `anno` crate is the main library. Feature flags select optional capabilities.
-
-- `anno` has `default = ["onnx", "heuristic-fr"]`. ONNX ML backends and French heuristics are on by default.
-- Use `default-features = false` in your `Cargo.toml` to opt out of ONNX and pull only what you need.
-
-Major feature flags:
-
-- `onnx`: ONNX Runtime backends (GLiNER, BERT-NER, etc.)
-- `candle`: pure-Rust transformer backend (GPU via platform support)
-- `analysis`: lightweight analysis primitives (metrics, encoders), available at inference time for production use
-- `eval` on `anno-cli` / `anno-eval`: evaluation harnesses (dataset loading, benchmarking); this is not a feature of the main `anno` library.
-- `discourse`: discourse-level utilities
-- `graph`: graph/KG export surface
-
-Treat feature flags as **capability toggles**: depend on the narrowest set you need. In particular, do not include `eval` in a production dependency; use `analysis` instead if you need metrics primitives.
-
-## CLI
-
-The CLI lives in `anno-cli` (`crates/anno-cli/`). Install with
-`cargo install anno-cli` for extraction and batch processing. Add
-`--features eval` for evaluation, datasets, and cross-document clustering.
-
-## Integration posture
-
-- **Upstream**: `textprep` handles text cleaning and normalization; `anno` consumes the resulting text. (Internally, `anno::core` uses `sketchir` for similarity sketching during coalescing. This is not a user-facing dependency.)
-- **Downstream**: other code can safely:
-  - index/store entities/tracks/identities (using the stable `anno` shapes),
-  - join with other signals (audio/vision/etc.) using the shared offset discipline,
-  - export graphs via `anno::graph::entities_to_knowledge_graph` (which owns the triple construction) or `GraphDocument`, then run algorithms on the exported data. Requires `anno = { features = ["graph"] }`.
-
-## Minimal usage obligations
-
-- If you persist results, keep the document ID and provenance of the source text
-  alongside the spans and their character offsets.
-- Don't reinterpret spans as byte offsets.
+Use `Entity` for extraction results and `GroundedDocument` for text, signals,
+tracks and identities. For custom entity types use `extract_with_types` or CLI
+`--extract-types`. Relation-capable backends return typed triples. The graph
+feature exposes `GraphDocument` and N-Triples export. Keep training, document parsing and downstream graph algorithms in their
+respective tools. [Backend selection](BACKENDS.md) · [Constituency interchange](CONSTITUENCY.md)
 
 ## PII pattern limits
 
@@ -127,10 +74,50 @@ top-level `provenance.model`. Each emitted entity that carries library provenanc
 nested `provenance` object with its actual `source`, extraction `method`, and available
 pattern, raw-confidence, model-version, and timestamp metadata.
 
+With `--detect-lang`, a fetched HTML page's recognized language declaration
+supplies `provenance.language` (its primary language code) and
+`provenance.language_source = "html_declaration"`. Other inputs use
+`"text_heuristic"`, which estimates language from Unicode scripts and can
+identify Latin-script languages as English. These fields describe the input.
+
 Top-level `provenance.entity_sources`, when present, is a sorted unique list of source names
 from the entities actually emitted after filtering and validation. It is omitted when no emitted
 entity has source metadata. It does not infer a single producing model for stacked output, a
 model artifact version, or provider/device placement.
+
+`anno pipeline --coref --format json` and `--format grounded` record the successful
+resolver in each document’s optional `coref_backend` field. `fcoref` identifies the
+neural model and `mention-ranking` the heuristic fallback. Successful runs record
+the backend even when they produce zero tracks. Documents without a recorded
+coreference run omit this field.
+
+### Speaker-attributed first person
+
+Build the CLI with `--features discourse` to use `anno pipeline --coref --speaker-turns turns.json --files transcript.txt --format json`.
+Use one transcript per invocation. For example, the text `Éva: I took my bag.` takes this sidecar:
+
+```json
+[{"speaker": "channel-A", "text": "I took my bag.", "start": 5, "end": 19}]
+```
+
+Offsets count Unicode scalar values in the original text, with an exclusive end. Turns must be in order and disjoint. Leave turns with unknown speakers out of the array. For a recorder that supplies audio times, compute text offsets as you assemble the transcript and keep the audio times separately.
+
+Providing this sidecar selects a speaker-only resolver. General name and third-person chains from the ordinary resolver are omitted. The resolver records `speaker-turns` in `coref_backend` and uses document-local speaker IDs as track names. It groups English `I`, `me`, `my`, `mine`, and `myself` when at least two mentions belong to one speaker. A missing turn language defaults to English. Turns bearing quotation marks and turns marked with another language are skipped. The resolver leaves second-person references unresolved. Its output depends on the accuracy of the supplied speaker annotations.
+
+## CoNLL BIO export
+
+`anno export --format conll` and `anno::export::to_conll` split the source at
+contiguous mention boundaries. The CLI rejects discontinuous mentions and
+supports brat output for preserving their separate segments. For example, a pair of parentheses around an email address
+gets separate `O` rows, and the address gets a `B-EMAIL` row. BIO carries one
+label per token. When mentions overlap, the exporter keeps the earliest
+starting mention, preferring the longer span for a tied start.
+
+These rows depend on the supplied mentions. For evaluation on a pretokenized
+corpus, align predictions to the corpus's token rows and sentence boundaries
+before scoring. The shared-task definition assigns `B` to the first word of
+each entity and `I` to its remaining words.
+[CoNLL-2002 shared task, section 2](https://aclanthology.org/W02-2024.pdf)
 
 ## Evaluation (two layers)
 

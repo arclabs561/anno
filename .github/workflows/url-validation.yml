@@ -23,6 +23,12 @@ jobs:
       - name: Install dependencies
         run: pip install httpx
 
+      - name: Test registry input handling
+        run: python3 -m unittest discover -s scripts -p test_validate_urls.py
+
+      - name: Export dataset URLs from the checked-out registry
+        run: cargo test --locked -p anno-eval --lib eval::registry_exports::generate_datasets_json -- --ignored --exact
+
       - name: Run URL validation
         run: |
           python scripts/validate_urls.py --output url_validation_results.json
@@ -56,8 +62,7 @@ jobs:
           path: url_validation_results.json
           retention-days: 30
 
-      - name: Create issue if too many broken URLs
-        if: always()
+      - name: Warn if too many URLs are broken
         run: |
           python3 << 'EOF'
           import json

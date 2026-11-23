@@ -106,6 +106,50 @@ fn grounded_input_preserves_discontinuous_mention_identity() {
 }
 
 #[test]
+fn discontinuous_export_preserves_brat_segments_and_rejects_flat_bio() {
+    let temp = tempfile::tempdir().unwrap();
+    let input = temp.path().join("report.json");
+    let out = temp.path().join("out");
+    let source = "🦊 Ada met Zoë";
+    // Older grounded files retain the entire bounding surface.
+    let mut entity = anno::Entity::new("Ada met Zoë", anno::EntityType::Person, 2, 13, 1.0);
+    entity.set_discontinuous_span(anno::DiscontinuousSpan::new(vec![2..5, 10..13]));
+    let doc = anno::GroundedDocument::from_entity_signals("report", source, &[entity]);
+    fs::write(&input, serde_json::to_vec(&doc).unwrap()).unwrap();
+    let run = |format| {
+        Command::new(env!("CARGO_BIN_EXE_anno"))
+            .arg("export")
+            .arg("--input")
+            .arg(&input)
+            .arg("--output")
+            .arg(&out)
+            .args(["--model", "pattern", "--format", format, "--overwrite"])
+            .output()
+            .unwrap()
+    };
+
+    let brat = run("brat");
+    assert!(
+        brat.status.success(),
+        "{}",
+        String::from_utf8_lossy(&brat.stderr)
+    );
+    assert_eq!(fs::read_to_string(out.join("report.txt")).unwrap(), source);
+    assert_eq!(
+        fs::read_to_string(out.join("report.ann")).unwrap(),
+        "T1\tPER 2 5;10 13\tAda Zoë"
+    );
+
+    let conll_path = out.join("report.conll");
+    fs::write(&conll_path, "existing corpus").unwrap();
+    let conll = run("conll");
+    assert!(!conll.status.success());
+    assert!(String::from_utf8_lossy(&conll.stderr)
+        .contains("CoNLL BIO cannot represent a discontinuous mention"));
+    assert_eq!(fs::read_to_string(conll_path).unwrap(), "existing corpus");
+}
+
+#[test]
 fn document_iri_must_identify_one_rdf_input() {
     let temp = tempfile::tempdir().unwrap();
     let file = temp.path().join("text.txt");

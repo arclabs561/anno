@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed (breaking)
+
+- FCoref now returns an error for documents above its token budget. The default
+  budget is 512 tokens including special tokens. To process longer documents,
+  raise `FCorefConfig::max_doc_tokens`. Existing Rust struct literals must add
+  `max_doc_tokens: Some(512)` or use `..Default::default()`. The encoder still
+  uses `max_segment_len` tokens per segment and scores mentions across segments.
+
 ### Changed
 
 - Library constructors no longer load `.env` from the working directory or its
@@ -11,6 +19,7 @@
 
 ### Fixed
 
+- brat export writes character offsets for annotations in non-ASCII text. Regenerate older `.ann` files if their spans have shifted.
 - FCoref excludes surrounding whitespace from both mention text and its source offsets.
 
 - `anno-eval`: `AgreementStats::fleiss_kappa` computes chance agreement from the pooled category frequencies. It was fixed at 0.5, which overstates agreement when one type dominates: nine spans agreed and one split gave 0.8 where Fleiss' kappa is -0.05. Each annotator supplies at most one vote per span. Repeated identical labels count once, and contradictory labels from the same annotator are omitted for that span. Reported kappa values change. The module's doc table no longer lists Krippendorff's alpha, which was never implemented.

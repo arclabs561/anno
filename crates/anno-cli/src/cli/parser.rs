@@ -20,7 +20,7 @@ EXAMPLES:
     --text "Aspirin can treat headaches and reduce fever."
   anno extract --extract-relations --relation-types "FOUNDED,WORKS_FOR" \
     --text "Steve Jobs founded Apple in 1976."
-  anno debug --coref -t "Sophie Wilson designed the ARM processor. She revolutionized computing."
+  anno debug --model heuristic --coref -t "Marie Curie moved to Paris. Marie Curie later returned."
   anno batch --dir ./docs --output ./results --format json
   anno models download ...
   anno info
