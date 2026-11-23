@@ -112,7 +112,7 @@ fn same_existing_file(left: &Path, right: &Path) -> Result<bool, String> {
 
 // Compare directory entries even when the target (e.g. an optional companion)
 // does not exist yet. Symlinked parent directories may spell the same location.
-fn same_entry(left: &Path, right: &Path) -> Result<bool, String> {
+pub(super) fn same_entry(left: &Path, right: &Path) -> Result<bool, String> {
     fn parent(path: &Path) -> &Path {
         path.parent()
             .filter(|p| !p.as_os_str().is_empty())
