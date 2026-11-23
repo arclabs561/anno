@@ -93,9 +93,9 @@ mod projection;
 pub use projection::EntityProjectionError;
 
 use super::confidence::Confidence;
-use super::entity::{
-    DiscontinuousSpan, Entity, EntityType, HierarchicalConfidence, Provenance, Span,
-};
+#[cfg(test)]
+use super::entity::EntityType;
+use super::entity::{DiscontinuousSpan, Entity, HierarchicalConfidence, Provenance, Span};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -238,27 +238,24 @@ impl Default for Location {
     }
 }
 
-impl From<&Span> for Location {
-    fn from(span: &Span) -> Self {
+impl TryFrom<&Span> for Location {
+    type Error = super::error::Error;
+
+    fn try_from(span: &Span) -> Result<Self, Self::Error> {
         match span {
-            Span::Text { start, end } => Self::Text {
-                start: *start,
-                end: *end,
-            },
-            // BoundingBox and Hybrid spans have no Location equivalent;
-            // extract text offsets where available, otherwise default.
-            Span::BoundingBox { .. } => Self::Text { start: 0, end: 0 },
-            Span::Hybrid { start, end, .. } => Self::Text {
-                start: *start,
-                end: *end,
-            },
+            Span::Text { start, end } => Ok(Self::text(*start, *end)),
+            Span::BoundingBox { .. } | Span::Hybrid { .. } => Err(Self::Error::invalid_input(
+                "text locations cannot preserve visual span geometry",
+            )),
         }
     }
 }
 
-impl From<Span> for Location {
-    fn from(span: Span) -> Self {
-        Self::from(&span)
+impl TryFrom<Span> for Location {
+    type Error = super::error::Error;
+
+    fn try_from(span: Span) -> Result<Self, Self::Error> {
+        Self::try_from(&span)
     }
 }
 
@@ -267,6 +264,14 @@ impl From<Span> for Location {
 /// - `Location::Text` -> `Span::Text`
 /// - `Location::Discontinuous` -> `None` (use `DiscontinuousSpan` instead)
 impl Location {
+    /// Project the text component of a span, discarding any visual geometry.
+    /// A bounding box alone has no text component.
+    #[must_use]
+    pub fn project_text(span: &Span) -> Option<Self> {
+        span.text_offsets()
+            .map(|(start, end)| Self::text(start, end))
+    }
+
     /// Try to convert this Location to a Span.
     ///
     /// Returns `None` for `Location::Discontinuous`.
@@ -508,7 +513,6 @@ impl Signal<Location> {
         source_text: &str,
         offsets: Option<&[usize]>,
     ) -> Option<SignalValidationError> {
-        use std::borrow::Cow;
         // An empty segment list has no source span.
         let (start, end) = self.location.text_offsets().unwrap_or((0, 0));
 
@@ -531,7 +535,7 @@ impl Signal<Location> {
             });
         }
 
-        if let Location::Discontinuous { segments } = &self.location {
+        let segments = if let Location::Discontinuous { segments } = &self.location {
             // The bounding end checked above is the maximum of all segment ends.
             if let Some(&(start, end)) = segments.iter().find(|(s, e)| s >= e) {
                 return Some(SignalValidationError::InvalidSpan {
@@ -540,41 +544,22 @@ impl Signal<Location> {
                     end,
                 });
             }
-            // Entity conversion sorts segments and coalesces touching ranges.
-            // A joined surface must use that same order and segmentation.
-            if segments.windows(2).all(|pair| pair[0].1 < pair[1].0) {
-                let offsets = offsets.map_or_else(
-                    || Cow::Owned(crate::offset::build_char_to_byte_map(source_text)),
-                    Cow::Borrowed,
-                );
-                let joined = segments.iter().enumerate().flat_map(|(index, &(s, e))| {
-                    let separator = if index == 0 { "" } else { " " };
-                    separator
-                        .bytes()
-                        .chain(source_text[offsets[s]..offsets[e]].bytes())
-                });
-                if joined.eq(self.surface.bytes()) {
-                    return None;
-                }
-            }
-        }
-
-        let actual: Cow<'_, str> = match offsets {
-            Some(map) => Cow::Borrowed(&source_text[map[start]..map[end]]),
-            None => Cow::Owned(source_text.chars().skip(start).take(end - start).collect()),
+            // Legacy unsorted, overlapping or touching segments use their bounding surface.
+            segments
+                .windows(2)
+                .all(|pair| pair[0].1 < pair[1].0)
+                .then(|| segments.iter().copied())
+        } else {
+            None
         };
-
-        if actual != self.surface {
-            return Some(SignalValidationError::TextMismatch {
+        super::entity::surface_mismatch(source_text, &self.surface, start..end, segments, offsets)
+            .map(|actual| SignalValidationError::TextMismatch {
                 signal_id: self.id,
                 expected: self.surface.clone(),
-                actual: actual.into_owned(),
+                actual,
                 start,
                 end,
-            });
-        }
-
-        None
+            })
     }
 
     /// Check if this signal is valid against the given source text.
@@ -727,7 +712,7 @@ impl From<&Entity> for Signal<Location> {
                 },
             ),
             e.text.clone(),
-            e.entity_type.as_label().into(),
+            e.entity_type.clone().into(),
             e.confidence,
         );
         signal.normalized = e.normalized.clone();
@@ -749,15 +734,17 @@ pub use super::types::TrackId;
 pub struct SignalRef {
     /// Signal ID
     pub signal_id: SignalId,
-    /// Position in document order (for antecedent relationships)
+    /// Ordering position within this track. Positions from different tracks
+    /// are independent. Text locations determine document order when merging.
     pub position: u32,
 }
 
 /// A reference to a track in a specific document.
 ///
 /// Used for cross-document operations where we need to reference
-/// tracks without copying them. This enables efficient inter-document
-/// coreference resolution.
+/// tracks without copying them. Corpus document replacement retires old track
+/// IDs. Directly inserting an old key into the raw tracks map or replacing a
+/// document through a mutable reference bypasses corpus ownership checks.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TrackRef {
     /// Document ID containing the track
@@ -789,7 +776,7 @@ pub struct TrackRef {
 pub struct Track {
     /// Unique identifier within the document
     pub id: TrackId,
-    /// Signal references in this track (document order)
+    /// Signal references in this track.
     pub signals: Vec<SignalRef>,
     /// Entity type (consensus from signals).
     ///
@@ -1130,6 +1117,25 @@ pub enum IdentitySource {
     },
 }
 
+impl IdentitySource {
+    /// Tracks recorded by a coreference decision, including one subsequently linked to a KB.
+    pub fn track_refs(&self) -> &[TrackRef] {
+        match self {
+            Self::CrossDocCoref { track_refs } | Self::Hybrid { track_refs, .. } => track_refs,
+            Self::KnowledgeBase { .. } => &[],
+        }
+    }
+
+    fn track_refs_mut(&mut self) -> Option<&mut Vec<TrackRef>> {
+        match self {
+            Self::CrossDocCoref { track_refs } | Self::Hybrid { track_refs, .. } => {
+                Some(track_refs)
+            }
+            Self::KnowledgeBase { .. } => None,
+        }
+    }
+}
+
 /// A global identity: a real-world entity linked to a knowledge base.
 ///
 /// # The Modal Gap
@@ -1172,8 +1178,15 @@ pub struct Identity {
     pub embedding: Option<Vec<f32>>,
     /// Alias names (other known surface forms)
     pub aliases: Vec<String>,
-    /// Confidence that this identity is correctly resolved
+    /// Producer-supplied score. The automatic coreference resolver mirrors
+    /// `minimum_pair_similarity` here, using zero when there is no pair to score.
+    /// A direct corpus KB link also uses zero when no score was supplied.
     pub confidence: Confidence,
+    /// Weakest pairwise similarity in this resolver cluster, including pairs joined
+    /// transitively. A singleton or an unmeasured identity has no such score.
+    /// Similarity is evidence for a grouping, not a calibrated probability.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_pair_similarity: Option<Confidence>,
     /// Source of identity formation (how it was created)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<IdentitySource>,
@@ -1192,6 +1205,7 @@ impl Identity {
             description: None,
             embedding: None,
             aliases: Vec::new(),
+            minimum_pair_similarity: None,
             confidence: Confidence::ONE,
             source: None,
         }
@@ -1216,12 +1230,39 @@ impl Identity {
             description: None,
             embedding: None,
             aliases: Vec::new(),
+            minimum_pair_similarity: None,
             confidence: Confidence::ONE,
             source: Some(IdentitySource::KnowledgeBase {
                 kb_name: kb_name_str,
                 kb_id: kb_id_str,
             }),
         }
+    }
+
+    // Mirrored records are copied byte-for-byte. Floating-point NaNs compare
+    // unequal even to their copies; handle that case without changing public equality.
+    fn matches_copy(&self, other: Option<&Self>) -> bool {
+        let Some(other) = other else { return false };
+        if self == other {
+            return true;
+        }
+        let (Some(left), Some(right)) = (&self.embedding, &other.embedding) else {
+            return false;
+        };
+        if !left.iter().any(|v| v.is_nan())
+            || left.len() != right.len()
+            || !left
+                .iter()
+                .zip(right)
+                .all(|(a, b)| a == b || a.to_bits() == b.to_bits())
+        {
+            return false;
+        }
+        let mut left = self.clone();
+        let mut right = other.clone();
+        left.embedding = None;
+        right.embedding = None;
+        left == right
     }
 
     /// Add an alias.
@@ -1251,6 +1292,17 @@ impl Identity {
     #[must_use]
     pub fn kb_name(&self) -> Option<&str> {
         self.kb_name.as_deref()
+    }
+
+    /// Return the named knowledge base and accession when they identify an external record.
+    /// Flat imports use `"unknown"` for an unspecified namespace.
+    #[must_use]
+    pub fn qualified_kb_ref(&self) -> Option<(&str, &str)> {
+        let (name, accession) = self.kb_name().zip(self.kb_id())?;
+        (!name.trim().is_empty()
+            && !name.trim().eq_ignore_ascii_case("unknown")
+            && !accession.trim().is_empty())
+        .then_some((name, accession))
     }
 
     /// Get the aliases.
@@ -1426,6 +1478,7 @@ impl TryFrom<GroundedDocumentWire> for GroundedDocument {
             track_to_identity: HashMap::new(),
             next_signal_id: SignalId::ZERO,
             next_track_id: TrackId::ZERO,
+            corpus_managed: false,
             next_identity_id: IdentityId::ZERO,
         };
         doc.rebuild_indexes();
@@ -1541,6 +1594,9 @@ pub struct GroundedDocument {
     /// Not serialized; rebuilt on deserialization.
     #[serde(skip)]
     next_track_id: TrackId,
+    /// Keep allocated track IDs retired while this document participates in a corpus.
+    #[serde(skip)]
+    corpus_managed: bool,
     /// Next identity ID.
     /// Not serialized; rebuilt on deserialization.
     #[serde(skip)]
@@ -1564,6 +1620,7 @@ impl GroundedDocument {
             track_to_identity: HashMap::new(),
             next_signal_id: SignalId::ZERO,
             next_track_id: TrackId::ZERO,
+            corpus_managed: false,
             next_identity_id: IdentityId::ZERO,
         }
     }
@@ -1657,7 +1714,8 @@ impl GroundedDocument {
     /// After raw collection edits, call this before querying reverse links or
     /// allocating IDs. It derives both reverse indexes from the tracks and
     /// sets each next ID from the greatest remaining ID in that namespace.
-    /// Removing the greatest ID can therefore make it available again.
+    /// Removing the greatest ID can therefore make it available again. A corpus
+    /// document retains its track allocation high-water mark across rebuilds.
     ///
     /// This leaves the supplied collections intact. Use [`Self::validate_invariants`]
     /// to check for invalid references, duplicate membership, mismatched keys, or
@@ -1684,12 +1742,14 @@ impl GroundedDocument {
             .map_or(SignalId::ZERO, |id| {
                 SignalId::new(id.get().saturating_add(1))
             });
-        self.next_track_id = self
-            .tracks
-            .keys()
-            .copied()
-            .max()
-            .map_or(TrackId::ZERO, |id| TrackId::new(id.get().saturating_add(1)));
+        let track_floor = if self.corpus_managed {
+            self.next_track_id
+        } else {
+            TrackId::ZERO
+        };
+        self.next_track_id = self.tracks.keys().copied().max().map_or(track_floor, |id| {
+            track_floor.max(TrackId::new(id.get().saturating_add(1)))
+        });
         self.next_identity_id = self
             .identities
             .keys()
@@ -1979,7 +2039,7 @@ impl GroundedDocument {
     ///
     /// The track ID becomes the entity's document-local canonical ID, including for
     /// singleton tracks. Each member of a linked track receives the same KB ID.
-    /// Mention type is absent, and the entity category is inferred from the label.
+    /// Mention type is absent. Each entity retains its signal’s label and category.
     #[must_use]
     pub fn to_entities(&self) -> Vec<Entity> {
         self.signals
@@ -1992,7 +2052,7 @@ impl GroundedDocument {
                 {
                     let mut entity = Entity::new(
                         signal.surface.clone(),
-                        EntityType::from_label(signal.label.as_str()),
+                        signal.label.to_entity_type(),
                         start,
                         end,
                         signal.confidence,
@@ -2087,8 +2147,7 @@ impl GroundedDocument {
         for (_key, signal_ids) in track_groups {
             if let Some(first_signal) = signal_ids.first().and_then(|id| doc.get_signal(*id)) {
                 let mut track = Track::new(doc.next_track_id, &first_signal.surface);
-                track.entity_type =
-                    Some(super::types::TypeLabel::from(first_signal.label.as_str()));
+                track.entity_type = Some(first_signal.label.clone());
 
                 for (pos, &signal_id) in signal_ids.iter().enumerate() {
                     track.add_signal(signal_id, pos as u32);
@@ -2121,7 +2180,9 @@ impl GroundedDocument {
     fn signal_from_entity(entity: &Entity) -> Signal<Location> {
         let mut signal = Signal::from(entity);
         if let (None, Some(visual)) = (&entity.discontinuous_span, &entity.visual_span) {
-            signal.location = Location::from(visual);
+            if let Some(location) = Location::project_text(visual) {
+                signal.location = location;
+            }
         }
         signal
     }
@@ -2130,7 +2191,10 @@ impl GroundedDocument {
     #[must_use]
     pub fn signals_with_label(&self, label: &str) -> Vec<&Signal<Location>> {
         let want = super::types::TypeLabel::from(label);
-        self.signals.iter().filter(|s| s.label == want).collect()
+        self.signals
+            .iter()
+            .filter(|s| s.label.as_str() == want.as_str() || s.label.as_str() == label)
+            .collect()
     }
 
     /// Get signals above a confidence threshold.
@@ -2610,8 +2674,9 @@ impl GroundedDocument {
         self.try_add_track(track).ok()
     }
 
-    /// Merge tracks in input order, preserving the first track's canonical surface
-    /// and the identity link if all populated links agree. Returns `None` without
+    /// Merge tracks, ordering their members by source start, end, then signal ID.
+    /// Members without text offsets come last. Preserve the first input track's
+    /// canonical surface and the identity link if all populated links agree. Returns `None` without
     /// changing the document for missing or duplicate tracks, conflicting identities,
     /// or a merged track with no signals.
     pub fn merge_tracks(&mut self, track_ids: &[TrackId]) -> Option<TrackId> {
@@ -2640,7 +2705,12 @@ impl GroundedDocument {
         }
         self.validate_new_track(&merged, |owner| replacing.contains(&owner))
             .ok()?;
-        merged.signals.sort_by_key(|member| member.position);
+        merged.signals.sort_by_cached_key(|member| {
+            let offsets = self
+                .get_signal(member.signal_id)
+                .and_then(Signal::text_offsets);
+            (offsets.is_none(), offsets, member.signal_id)
+        });
         for (position, member) in merged.signals.iter_mut().enumerate() {
             member.position = u32::try_from(position).ok()?;
         }
@@ -4769,6 +4839,108 @@ impl Corpus {
         self.identities.get(&id)
     }
 
+    /// Whether this document identity matches the corpus record with its ID.
+    /// Handles copied embedding coordinates even when they contain a NaN.
+    #[must_use]
+    pub fn is_shared_identity(&self, identity: &Identity) -> bool {
+        identity.matches_copy(self.get_identity(identity.id))
+    }
+
+    /// Current coreference assignments, ordered by identity and then by document and track.
+    /// Document links determine membership. Local-only identities and KB-only links
+    /// carry no corpus coreference decision.
+    pub fn current_coref_clusters(&self) -> Vec<(IdentityId, Vec<TrackRef>)> {
+        let mut clusters = std::collections::BTreeMap::<IdentityId, Vec<TrackRef>>::new();
+        for document in self.documents() {
+            for track in document.tracks() {
+                let Some(identity) = document.identity_for_track(track.id) else {
+                    continue;
+                };
+                if matches!(
+                    identity.source,
+                    Some(IdentitySource::CrossDocCoref { .. } | IdentitySource::Hybrid { .. })
+                ) && self.is_shared_identity(identity)
+                {
+                    clusters.entry(identity.id).or_default().push(TrackRef {
+                        doc_id: document.id.clone(),
+                        track_id: track.id,
+                    });
+                }
+            }
+        }
+        for members in clusters.values_mut() {
+            members.sort_by(|a, b| (&a.doc_id, a.track_id).cmp(&(&b.doc_id, b.track_id)));
+        }
+        clusters.into_iter().collect()
+    }
+
+    /// Update the canonical record and matching self-contained document copies.
+    /// A document-local record can independently have the same numeric ID.
+    pub(crate) fn update_shared_identity(&mut self, identity: Identity) {
+        let id = identity.id;
+        if identity.matches_copy(self.identities.get(&id)) {
+            return;
+        }
+        let previous = self
+            .identities
+            .insert(id, identity.clone())
+            .expect("updating an existing corpus identity");
+        for document in self.documents.values_mut() {
+            if previous.matches_copy(document.identities.get(&id)) {
+                document.identities.insert(id, identity.clone());
+            }
+        }
+    }
+
+    // A replacement or reclustering may retire a pure coreference identity.
+    // KB identities survive loss of their final track.
+    pub(crate) fn refresh_coref_membership(&mut self, affected: &[IdentityId]) {
+        if affected.is_empty() {
+            return;
+        }
+        let mut current: HashMap<_, _> = self.current_coref_clusters().into_iter().collect();
+        for id in affected {
+            let Some(previous) = self.get_identity(*id).cloned() else {
+                continue;
+            };
+            let mut identity = previous.clone();
+            let Some(refs) = identity
+                .source
+                .as_mut()
+                .and_then(IdentitySource::track_refs_mut)
+            else {
+                continue;
+            };
+            let members = current.remove(id).unwrap_or_default();
+            if *refs == members && !members.is_empty() {
+                continue;
+            }
+            if members.is_empty()
+                && matches!(previous.source, Some(IdentitySource::CrossDocCoref { .. }))
+            {
+                self.identities.remove(id);
+                for document in self.documents.values_mut() {
+                    if previous.matches_copy(document.identities.get(id)) {
+                        document.identities.remove(id);
+                    }
+                }
+                continue;
+            }
+            *refs = members;
+            if refs.is_empty() {
+                if let Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) = identity.source.take()
+                {
+                    identity.source = Some(IdentitySource::KnowledgeBase { kb_name, kb_id });
+                }
+            }
+            // A score for an earlier set of members does not measure its replacement.
+            if identity.minimum_pair_similarity.take().is_some() {
+                identity.confidence = Confidence::ZERO;
+            }
+            self.update_shared_identity(identity);
+        }
+    }
+
     /// Add an identity to the corpus and return its ID.
     ///
     /// This method assigns the next available identity ID and inserts the identity.
@@ -4906,6 +5078,8 @@ impl Corpus {
 
     /// Get a mutable reference to a document by ID.
     ///
+    /// Use `add_document` for replacement. Direct assignment through this reference
+    /// and manual insertion of retired track IDs bypass corpus reference maintenance.
     /// Returns `None` if the document doesn't exist.
     pub fn get_document_mut(&mut self, doc_id: &str) -> Option<&mut GroundedDocument> {
         self.documents.get_mut(doc_id)
@@ -4913,18 +5087,92 @@ impl Corpus {
 
     /// Add a document to the corpus.
     ///
-    /// If a document with the same ID already exists, it will be replaced.
-    /// Returns the document ID.
+    /// Replacing a document invalidates its old track references. Incoming track IDs
+    /// that could name a previous track receive fresh IDs; obtain new references
+    /// from the stored document. Returns the document ID.
     pub fn add_document(&mut self, mut document: GroundedDocument) -> String {
+        let mut affected = HashSet::new();
+        document.corpus_managed = true;
+        let replacing = self.documents.contains_key(document.id());
+        if let Some(previous) = self.documents.get(document.id()) {
+            affected.extend(
+                self.identities
+                    .values()
+                    .filter(|identity| {
+                        identity.source.as_ref().is_some_and(|source| {
+                            source
+                                .track_refs()
+                                .iter()
+                                .any(|member| member.doc_id == document.id)
+                        })
+                    })
+                    .map(|identity| identity.id),
+            );
+            let floor = previous.next_track_id;
+            let mut next = floor;
+            let mut reassign: Vec<_> = document
+                .tracks
+                .keys()
+                .copied()
+                .filter(|id| *id < floor)
+                .collect();
+            reassign.sort_unstable();
+            let mut remapped = HashMap::new();
+            for old in reassign {
+                while document.tracks.contains_key(&next) {
+                    next = TrackId::new(
+                        next.get()
+                            .checked_add(1)
+                            .expect("track IDs exhausted during replacement"),
+                    );
+                }
+                let id = next;
+                next = TrackId::new(
+                    id.get()
+                        .checked_add(1)
+                        .expect("track IDs exhausted during replacement"),
+                );
+                let mut track = document
+                    .tracks
+                    .remove(&old)
+                    .expect("track came from this document");
+                track.id = id;
+                document.tracks.insert(id, track);
+                remapped.insert(old, id);
+            }
+            // Shared copies are reconciled against live assignments after insertion.
+            for identity in document.identities.values_mut() {
+                if identity.matches_copy(self.identities.get(&identity.id)) {
+                    continue;
+                }
+                if let Some(refs) = identity
+                    .source
+                    .as_mut()
+                    .and_then(IdentitySource::track_refs_mut)
+                {
+                    for member in refs
+                        .iter_mut()
+                        .filter(|member| member.doc_id == document.id)
+                    {
+                        if let Some(id) = remapped.get(&member.track_id) {
+                            member.track_id = *id;
+                        }
+                    }
+                }
+            }
+            document.next_track_id = document.next_track_id.max(next);
+            document.rebuild_indexes();
+        }
         let mut identity_ids: Vec<IdentityId> = document.identities.keys().copied().collect();
         identity_ids.sort_unstable();
         for identity_id in identity_ids {
             let Some(corpus_identity) = self.identities.get(&identity_id).cloned() else {
                 continue;
             };
-            if document.identities.get(&identity_id) == Some(&corpus_identity) {
+            if corpus_identity.matches_copy(document.identities.get(&identity_id)) {
                 // Preserve the canonical corpus copy in an independently
                 // serializable document when this is the same shared identity.
+                affected.insert(identity_id);
                 document.identities.insert(identity_id, corpus_identity);
                 continue;
             }
@@ -4943,14 +5191,56 @@ impl Corpus {
                 .max(IdentityId::new(max_identity_id.get().saturating_add(1)));
         }
         let doc_id = document.id.clone();
+        let replacement_ids: HashSet<_> = if replacing {
+            document.tracks.keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
         self.documents.insert(doc_id.clone(), document);
+        self.refresh_coref_membership(&affected.into_iter().collect::<Vec<_>>());
+        if replacing {
+            // Local identities in other documents may also cite the replaced
+            // document, even when those identities were never added to this corpus.
+            for doc in self.documents.values_mut() {
+                for identity in doc.identities.values_mut() {
+                    if identity.matches_copy(self.identities.get(&identity.id)) {
+                        continue;
+                    }
+                    let Some(refs) = identity
+                        .source
+                        .as_mut()
+                        .and_then(IdentitySource::track_refs_mut)
+                    else {
+                        continue;
+                    };
+                    let before = refs.len();
+                    refs.retain(|member| {
+                        member.doc_id != doc_id || replacement_ids.contains(&member.track_id)
+                    });
+                    if refs.len() != before {
+                        if refs.is_empty() {
+                            identity.source = match identity.source.take() {
+                                Some(IdentitySource::Hybrid { kb_name, kb_id, .. }) => {
+                                    Some(IdentitySource::KnowledgeBase { kb_name, kb_id })
+                                }
+                                _ => None,
+                            };
+                        }
+                        if identity.minimum_pair_similarity.take().is_some() {
+                            identity.confidence = Confidence::ZERO;
+                        }
+                    }
+                }
+            }
+        }
         doc_id
     }
 
     /// Link a track to a knowledge base entity.
     ///
     /// This is the entity linking (NED) operation. It creates or updates
-    /// an identity with KB information.
+    /// an identity with KB information. A newly created KB identity receives the
+    /// legacy score zero (unmeasured); an existing cluster retains its evidence.
     ///
     /// # Parameters
     ///
@@ -4995,8 +5285,6 @@ impl Corpus {
             .cloned();
         let entity_type = track.entity_type.clone();
         let embedding = track.embedding.clone();
-        let confidence = track.cluster_confidence;
-
         let kb_name_str = kb_name.into();
         let kb_id_str = kb_id.into();
         let canonical_name_str = canonical_name.into();
@@ -5006,13 +5294,16 @@ impl Corpus {
             local_identity,
             existing_identity_id.and_then(|id| self.identities.get(&id).cloned()),
         ) {
-            if local_identity == canonical_identity {
+            if canonical_identity.matches_copy(Some(&local_identity)) {
                 let mut updated_identity = canonical_identity.clone();
                 updated_identity.kb_id = Some(kb_id_str.clone());
                 updated_identity.kb_name = Some(kb_name_str.clone());
                 updated_identity.canonical_name = canonical_name_str.clone();
                 updated_identity.source = Some(match updated_identity.source.take() {
-                    Some(IdentitySource::CrossDocCoref { track_refs }) => IdentitySource::Hybrid {
+                    Some(
+                        IdentitySource::CrossDocCoref { track_refs }
+                        | IdentitySource::Hybrid { track_refs, .. },
+                    ) => IdentitySource::Hybrid {
                         track_refs,
                         kb_name: kb_name_str.clone(),
                         kb_id: kb_id_str.clone(),
@@ -5022,15 +5313,7 @@ impl Corpus {
                         kb_id: kb_id_str.clone(),
                     },
                 });
-                self.identities
-                    .insert(existing_id, updated_identity.clone());
-                for document in self.documents.values_mut() {
-                    if document.identities.get(&existing_id) == Some(&canonical_identity) {
-                        document
-                            .identities
-                            .insert(existing_id, updated_identity.clone());
-                    }
-                }
+                self.update_shared_identity(updated_identity);
                 return Ok(existing_id);
             }
         }
@@ -5044,7 +5327,8 @@ impl Corpus {
             description: None,
             embedding,
             aliases: Vec::new(),
-            confidence,
+            minimum_pair_similarity: None,
+            confidence: Confidence::ZERO,
             source: Some(IdentitySource::KnowledgeBase {
                 kb_name: kb_name_str,
                 kb_id: kb_id_str,
@@ -5354,8 +5638,28 @@ mod tests {
     #[test]
     fn test_location_from_span() {
         let span = Span::Text { start: 0, end: 10 };
-        let location = Location::from(&span);
+        let location = Location::try_from(&span).unwrap();
         assert_eq!(location.text_offsets(), Some((0, 10)));
+    }
+
+    #[test]
+    fn span_conversion_requires_an_explicit_text_projection_for_geometry() {
+        let bbox = Span::bbox(0.1, 0.2, 0.3, 0.4);
+        assert!(Location::try_from(&bbox).is_err());
+        assert_eq!(Location::project_text(&bbox), None);
+
+        let mut entity = Entity::new("Ada", EntityType::Person, 2, 5, 1.0);
+        entity.set_visual_span(bbox.clone());
+        let doc = GroundedDocument::from_entity_signals("doc", "..Ada", &[entity]);
+        assert_eq!(doc.signals()[0].location, Location::text(2, 5));
+
+        let hybrid = Span::Hybrid {
+            start: 2,
+            end: 5,
+            bbox: Box::new(bbox),
+        };
+        assert!(Location::try_from(hybrid.clone()).is_err());
+        assert_eq!(Location::project_text(&hybrid), Some(Location::text(2, 5)));
     }
 
     #[test]
@@ -5418,6 +5722,7 @@ mod tests {
                 let json = serde_json::to_string(&doc).unwrap();
                 let restored: GroundedDocument = serde_json::from_str(&json).unwrap();
                 let restored_entity = &restored.to_entities()[0];
+                assert!(restored_entity.validate(source).is_empty());
                 assert_eq!(restored_entity.text, surface);
                 assert_eq!(restored_entity.discontinuous_span.as_ref(), Some(&span));
             }
@@ -5752,6 +6057,29 @@ mod tests {
         let merged = doc.get_track(merged_id.unwrap()).unwrap();
         assert_eq!(merged.len(), 2);
         assert_eq!(merged.canonical_surface, "John Smith"); // From first track
+    }
+
+    #[test]
+    fn merged_track_uses_source_order_across_independent_member_ranks() {
+        let mut doc = GroundedDocument::new("doc", "A B C D");
+        let ids = doc.add_signals([("D", 6), ("B", 2), ("A", 0), ("C", 4)].map(
+            |(surface, start)| Signal::new(0, Location::text(start, start + 1), surface, "X", 1.0),
+        ));
+        let early = doc
+            .create_track_from_signals("early", &[ids[2], ids[1]])
+            .unwrap();
+        let late = doc
+            .create_track_from_signals("late", &[ids[3], ids[0]])
+            .unwrap();
+        let merged = doc.merge_tracks(&[late, early]).unwrap();
+        let members = &doc.get_track(merged).unwrap().signals;
+        assert_eq!(
+            members
+                .iter()
+                .map(|m| (m.signal_id, m.position))
+                .collect::<Vec<_>>(),
+            [(ids[2], 0), (ids[1], 1), (ids[3], 2), (ids[0], 3)]
+        );
     }
 
     #[test]

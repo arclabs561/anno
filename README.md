@@ -18,7 +18,7 @@ Run `cargo add anno` to install the current published release. This source tree 
 
 ```toml
 [dependencies]
-anno = "0.15"
+anno = "0.16"
 ```
 
 ```rust,no_run

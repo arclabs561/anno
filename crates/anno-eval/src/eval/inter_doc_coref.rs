@@ -2,9 +2,106 @@
 //!
 //! Provides metrics specific to cross-document entity clustering,
 //! complementing the standard coreference metrics in `coref_metrics.rs`.
+//!
+//! Score a corpus snapshot against one gold partition:
+//!
+//! ```
+//! use anno::{Corpus, TrackRef};
+//! use anno_eval::eval::{InterDocCorefMetrics, TrackPartition};
+//!
+//! fn evaluate(corpus: &Corpus, gold: &[Vec<TrackRef>]) -> anno::Result<InterDocCorefMetrics> {
+//!     let current = TrackPartition::from_corpus(corpus)?;
+//!     let expected = TrackPartition::from_clusters(gold)?;
+//!     Ok(InterDocCorefMetrics::from_partitions(&current, &expected))
+//! }
+//! ```
 
-use anno::{Identity, IdentityId, TrackRef};
+use anno::{Corpus, Identity, TrackRef};
 use std::collections::{HashMap, HashSet};
+
+/// One assignment of document-scoped tracks to clusters. The cluster labels are
+/// local to this partition: prediction and gold labels need not match.
+#[derive(Debug, Clone, Default)]
+pub struct TrackPartition {
+    assignments: HashMap<TrackRef, u64>,
+}
+
+impl TrackPartition {
+    /// Read the current corpus assignments. Historical identity records do
+    /// not add memberships to the scored population.
+    pub fn from_corpus(corpus: &Corpus) -> anno::Result<Self> {
+        Self::checked(
+            corpus
+                .current_coref_clusters()
+                .into_iter()
+                .flat_map(|(id, members)| members.into_iter().map(move |track| (track, id.get()))),
+        )
+    }
+
+    /// Validate track groups such as a gold annotation or a single saved run.
+    /// Repeated tracks, including duplicates within a group, are rejected.
+    pub fn from_clusters(clusters: &[Vec<TrackRef>]) -> anno::Result<Self> {
+        Self::checked(cluster_assignments(clusters))
+    }
+
+    /// Validate the membership of identities exported from a single run.
+    /// Both coreference and KB-enriched coreference identities carry members.
+    pub fn from_identities(identities: &[Identity]) -> anno::Result<Self> {
+        let mut seen = HashSet::new();
+        for identity in identities {
+            if !seen.insert(identity.id) {
+                return Err(anno::Error::invalid_input(format!(
+                    "repeated identity ID {}",
+                    identity.id
+                )));
+            }
+        }
+        Self::checked(identity_assignments(identities))
+    }
+
+    fn checked(assignments: impl IntoIterator<Item = (TrackRef, u64)>) -> anno::Result<Self> {
+        use std::collections::hash_map::Entry;
+
+        let mut partition = Self::default();
+        for (track, cluster) in assignments {
+            match partition.assignments.entry(track) {
+                Entry::Vacant(entry) => {
+                    entry.insert(cluster);
+                }
+                Entry::Occupied(entry) => {
+                    let track = entry.key();
+                    return Err(anno::Error::track_ref(format!(
+                        "repeated track {} in document {:?} (clusters {} and {cluster})",
+                        track.track_id,
+                        track.doc_id,
+                        entry.get()
+                    )));
+                }
+            }
+        }
+        Ok(partition)
+    }
+}
+
+fn identity_assignments(identities: &[Identity]) -> impl Iterator<Item = (TrackRef, u64)> + '_ {
+    identities.iter().flat_map(|identity| {
+        identity
+            .source
+            .iter()
+            .flat_map(|source| source.track_refs())
+            .cloned()
+            .map(move |track| (track, identity.id.get()))
+    })
+}
+
+fn cluster_assignments(clusters: &[Vec<TrackRef>]) -> impl Iterator<Item = (TrackRef, u64)> + '_ {
+    clusters.iter().enumerate().flat_map(|(index, members)| {
+        members
+            .iter()
+            .cloned()
+            .map(move |track| (track, index as u64))
+    })
+}
 
 /// Metrics for inter-document coreference resolution quality.
 #[derive(Debug, Clone)]
@@ -24,126 +121,67 @@ pub struct InterDocCorefMetrics {
 }
 
 impl InterDocCorefMetrics {
-    /// Compute metrics comparing predicted identities to gold standard.
-    ///
-    /// # Arguments
-    ///
-    /// * `predicted` - Predicted identities from corpus
-    /// * `gold` - Gold standard identities (track_refs grouped by identity)
-    ///
-    /// # Returns
-    ///
-    /// Metrics with purity, completeness, and counts.
+    /// Score two validated partitions. Each track in their union contributes
+    /// once to the denominator, including tracks missing on either side.
     #[must_use]
-    pub fn compute(predicted: &[Identity], gold: &[Vec<TrackRef>]) -> Self {
-        if predicted.is_empty() && gold.is_empty() {
-            return Self::default();
-        }
-
-        // Build track_ref -> identity_id mapping for predicted
-        let mut pred_map: HashMap<TrackRef, IdentityId> = HashMap::new();
-        for identity in predicted {
-            if let Some(anno::IdentitySource::CrossDocCoref { track_refs }) = &identity.source {
-                for track_ref in track_refs {
-                    pred_map.insert(track_ref.clone(), identity.id);
-                }
+    pub fn from_partitions(predicted: &TrackPartition, gold: &TrackPartition) -> Self {
+        let mut overlap = HashMap::new();
+        let mut num_total = gold.assignments.len();
+        for (track, &prediction) in &predicted.assignments {
+            if let Some(&target) = gold.assignments.get(track) {
+                *overlap.entry((prediction, target)).or_insert(0usize) += 1;
+            } else {
+                num_total += 1;
             }
         }
-
-        // Build track_ref -> gold cluster index mapping
-        let mut gold_map: HashMap<TrackRef, usize> = HashMap::new();
-        for (idx, cluster) in gold.iter().enumerate() {
-            for track_ref in cluster {
-                gold_map.insert(track_ref.clone(), idx);
-            }
-        }
-
-        // Get all track refs
-        let all_tracks: HashSet<_> = pred_map.keys().chain(gold_map.keys()).cloned().collect();
-        let num_total = all_tracks.len();
-
         if num_total == 0 {
             return Self::default();
         }
 
-        // Compute cluster purity and completeness
-        let mut total_purity = 0.0;
-        let mut total_completeness = 0.0;
-        let mut num_correct = 0;
-
-        // For each predicted identity, compute purity
-        for identity in predicted {
-            if let Some(anno::IdentitySource::CrossDocCoref { track_refs }) = &identity.source {
-                if track_refs.is_empty() {
-                    continue;
-                }
-
-                // Count how many tracks in this identity share the same gold cluster
-                let mut gold_cluster_counts: HashMap<usize, usize> = HashMap::new();
-                for track_ref in track_refs {
-                    if let Some(&gold_cluster) = gold_map.get(track_ref) {
-                        *gold_cluster_counts.entry(gold_cluster).or_insert(0) += 1;
-                    }
-                }
-
-                // Purity: fraction of tracks that share the most common gold cluster
-                let max_count = gold_cluster_counts.values().max().copied().unwrap_or(0);
-                let purity = if track_refs.is_empty() {
-                    0.0
-                } else {
-                    max_count as f64 / track_refs.len() as f64
-                };
-                total_purity += purity * track_refs.len() as f64;
-
-                // Count correct links
-                num_correct += max_count;
-            }
+        // A predicted cluster's largest intersection contributes to purity.
+        // The largest intersection for each gold cluster contributes to completeness.
+        let mut best_prediction = HashMap::new();
+        let mut best_gold = HashMap::new();
+        for ((prediction, target), count) in overlap {
+            let p = best_prediction.entry(prediction).or_insert(0usize);
+            *p = (*p).max(count);
+            let g = best_gold.entry(target).or_insert(0usize);
+            *g = (*g).max(count);
         }
-
-        // For each gold cluster, compute completeness
-        for cluster in gold.iter() {
-            if cluster.is_empty() {
-                continue;
-            }
-
-            // Count how many tracks in this gold cluster share the same predicted identity
-            let mut pred_identity_counts: HashMap<IdentityId, usize> = HashMap::new();
-            for track_ref in cluster {
-                if let Some(&pred_identity) = pred_map.get(track_ref) {
-                    *pred_identity_counts.entry(pred_identity).or_insert(0) += 1;
-                }
-            }
-
-            // Completeness: fraction of tracks that share the most common predicted identity
-            let max_count = pred_identity_counts.values().max().copied().unwrap_or(0);
-            let completeness = if cluster.is_empty() {
-                0.0
-            } else {
-                max_count as f64 / cluster.len() as f64
-            };
-            total_completeness += completeness * cluster.len() as f64;
-        }
-
-        let cluster_purity = if num_total > 0 {
-            total_purity / num_total as f64
-        } else {
-            0.0
-        };
-
-        let cluster_completeness = if num_total > 0 {
-            total_completeness / num_total as f64
-        } else {
-            0.0
-        };
-
+        let num_correct = best_prediction.values().sum::<usize>();
         Self {
-            cluster_purity,
-            cluster_completeness,
-            num_pred_identities: predicted.len(),
-            num_gold_identities: gold.len(),
+            cluster_purity: num_correct as f64 / num_total as f64,
+            cluster_completeness: best_gold.values().sum::<usize>() as f64 / num_total as f64,
+            num_pred_identities: predicted.assignments.values().collect::<HashSet<_>>().len(),
+            num_gold_identities: gold.assignments.values().collect::<HashSet<_>>().len(),
             num_correct,
             num_total,
         }
+    }
+
+    /// Score an identity export and gold clusters, rejecting ambiguous or repeated membership.
+    pub fn try_compute(predicted: &[Identity], gold: &[Vec<TrackRef>]) -> anno::Result<Self> {
+        Ok(Self::from_partitions(
+            &TrackPartition::from_identities(predicted)?,
+            &TrackPartition::from_clusters(gold)?,
+        ))
+    }
+
+    /// Compatibility adapter for identity exports. For repeated tracks, the
+    /// final assignment in input order wins on each side, as in the original
+    /// reverse lookup. Only clusters with assigned tracks count toward the result.
+    /// Use [`Self::try_compute`] to detect overlap or [`TrackPartition::from_corpus`]
+    /// to select current assignments independently of historical record order.
+    #[must_use]
+    pub fn compute(predicted: &[Identity], gold: &[Vec<TrackRef>]) -> Self {
+        Self::from_partitions(
+            &TrackPartition {
+                assignments: identity_assignments(predicted).collect(),
+            },
+            &TrackPartition {
+                assignments: cluster_assignments(gold).collect(),
+            },
+        )
     }
 
     /// Compute F1 score from purity and completeness.
@@ -258,26 +296,70 @@ mod tests {
     }
 
     #[test]
-    fn test_inter_doc_coref_metrics_basic() {
+    fn current_partition_survives_kb_enrichment() {
+        let (mut corpus, gold) = create_test_corpus();
+        let enriched_track = gold[0][0].clone();
+        let expected = TrackPartition::from_clusters(&gold).unwrap();
+        for enrichment_count in 0..=2 {
+            if enrichment_count > 0 {
+                corpus
+                    .link_track_to_kb(&enriched_track, "test", "apple", "Apple")
+                    .unwrap();
+            }
+            let metrics = InterDocCorefMetrics::from_partitions(
+                &TrackPartition::from_corpus(&corpus).unwrap(),
+                &expected,
+            );
+            assert_eq!((metrics.num_correct, metrics.num_total), (4, 4));
+            assert_eq!(metrics.f1(), 1.0);
+            let records: Vec<_> = corpus.identities().values().cloned().collect();
+            assert_eq!(
+                InterDocCorefMetrics::try_compute(&records, &gold)
+                    .unwrap()
+                    .f1(),
+                1.0
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_overlapping_partitions_and_bounds_legacy_scores() {
         let (corpus, gold) = create_test_corpus();
+        let identity = corpus.identities().values().next().unwrap().clone();
+        let members = identity.source.as_ref().unwrap().track_refs().to_vec();
+        let mut historical_copy = identity.clone();
+        historical_copy.id = anno::IdentityId::new(999);
+        let mut disjoint_copy = identity.clone();
+        disjoint_copy.source = None;
+        assert!(TrackPartition::from_identities(&[identity.clone(), disjoint_copy]).is_err());
+        let overlapping = [identity, historical_copy];
+        assert!(TrackPartition::from_identities(&overlapping).is_err());
+        assert!(TrackPartition::from_clusters(&[members.clone(), members.clone()]).is_err());
+        assert!(TrackPartition::from_clusters(&[vec![members[0].clone(); 2]]).is_err());
+        assert!(InterDocCorefMetrics::try_compute(&overlapping, &gold).is_err());
 
-        let identity_ids: Vec<_> = corpus
-            .identities()
-            .values()
-            .filter(|id| matches!(id.source, Some(anno::IdentitySource::CrossDocCoref { .. })))
-            .map(|id| id.id)
-            .collect();
-        let predicted: Vec<_> = identity_ids
-            .iter()
-            .filter_map(|&id| corpus.get_identity(id))
-            .cloned()
-            .collect();
+        let metrics = InterDocCorefMetrics::compute(&overlapping, std::slice::from_ref(&members));
+        assert_eq!(
+            (metrics.num_correct, metrics.num_total),
+            (members.len(), members.len())
+        );
+        assert_eq!(metrics.num_pred_identities, 1);
+        assert_eq!(metrics.f1(), 1.0);
+    }
 
-        let metrics = InterDocCorefMetrics::compute(&predicted, &gold);
-
-        assert!(metrics.cluster_purity >= 0.0 && metrics.cluster_purity <= 1.0);
-        assert!(metrics.cluster_completeness >= 0.0 && metrics.cluster_completeness <= 1.0);
-        assert!(metrics.f1() >= 0.0 && metrics.f1() <= 1.0);
+    #[test]
+    fn purity_and_completeness_use_unique_tracks_including_unmatched() {
+        let (_, gold) = create_test_corpus();
+        // Split a gold cluster and omit the second gold cluster.
+        let predicted = vec![vec![gold[0][0].clone()], vec![gold[0][1].clone()]];
+        let metrics = InterDocCorefMetrics::from_partitions(
+            &TrackPartition::from_clusters(&predicted).unwrap(),
+            &TrackPartition::from_clusters(&gold).unwrap(),
+        );
+        assert_eq!(metrics.num_correct, 2);
+        assert_eq!(metrics.num_total, 4);
+        assert_eq!(metrics.cluster_purity, 0.5);
+        assert_eq!(metrics.cluster_completeness, 0.25);
     }
 
     #[test]

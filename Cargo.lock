@@ -80,7 +80,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 
 [[package]]
 name = "anno"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "candle-core",
  "candle-nn",
@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "anno-cli"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "anno",
  "anno-eval",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "anno-eval"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "anno",
  "bitflags",
@@ -725,9 +725,9 @@ checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "cookie"
-version = "0.18.1"
+version = "0.18.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ddef33a339a91ea89fb53151bd0a4689cfce27055c291dfa69945475d22c747"
+checksum = "d55f2d6c30eeec7d5c6f98bd4395d4abb1895629eab97ee6522d340623615f8a"
 dependencies = [
  "percent-encoding",
  "time",

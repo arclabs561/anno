@@ -15,8 +15,8 @@ categories = ["command-line-utilities", "text-processing"]
 [dependencies]
 same-file = "1"
 tempfile = "3.27.0"
-anno = { path = "../anno", version = "0.15.0", default-features = false }
-anno-eval = { path = "../anno-eval", version = "0.15.0" }
+anno = { path = "../anno", version = "0.16.0", default-features = false }
+anno-eval = { path = "../anno-eval", version = "0.16.0" }
 
 clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 clap_complete = { workspace = true }

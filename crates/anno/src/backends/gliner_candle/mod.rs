@@ -164,11 +164,8 @@ impl crate::Model for GLiNERCandle {
         "Zero-shot NER using GLiNER bi-encoder (pure Rust with Metal/CUDA support)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            zero_shot: true,
-            ..Default::default()
-        }
+    fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
+        Some(self)
     }
 }
 

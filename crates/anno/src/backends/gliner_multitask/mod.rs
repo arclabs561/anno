@@ -308,14 +308,6 @@ impl crate::Model for GLiNERMultitaskOnnx {
         "Multi-task information extraction via GLiNER multi-task (ONNX backend)"
     }
 
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            relation_capable: true,
-            zero_shot: true,
-            ..Default::default()
-        }
-    }
-
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {
         Some(self)
     }
@@ -372,14 +364,6 @@ impl crate::Model for GLiNERMultitaskCandle {
 
     fn description(&self) -> &'static str {
         "Multi-task information extraction via GLiNER multi-task (native Rust/Candle)"
-    }
-
-    fn capabilities(&self) -> crate::ModelCapabilities {
-        crate::ModelCapabilities {
-            relation_capable: true,
-            zero_shot: true,
-            ..Default::default()
-        }
     }
 
     fn as_zero_shot(&self) -> Option<&dyn crate::backends::inference::ZeroShotNER> {

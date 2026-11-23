@@ -2,7 +2,25 @@
 
 ## [Unreleased]
 
+## [0.16.0]
+
 ### Changed (breaking)
+
+- Convert text spans with `Location::try_from`. Call `Location::project_text` to
+  intentionally discard a hybrid span's visual geometry. [Migration](docs/LOCATION.md)
+- `GraphDocument` node IDs now distinguish KB namespaces, tracks and individual
+  occurrences. Re-export persisted graphs before joining on these IDs.
+- Entity labels with explicit custom spelling or category overrides may now
+  serialize as tagged custom types. Readers accept the earlier string format.
+- In `anno-eval`, `ErrorSummary::{boundary_errors, type_errors}` and
+  `DataQualitySummary::leakage_detected` use `ReportedMeasurement<T>`. Match the
+  measured, unavailable, and legacy variants when reading them. Report readers
+  accept older scalar values. Code constructing a `CalibrationSummary` literal
+  must supply its new `sample` field.
+- On document replacement, obtain fresh track references from the stored
+  document. Resolver-produced identities expose optional minimum pair similarity.
+  Callers constructing `Identity` or `CrossDocCluster` literals should update
+  them for the new fields, or use the constructors.
 
 - FCoref now returns an error for documents above its token budget. The default
   budget is 512 tokens including special tokens. To process longer documents,
@@ -11,6 +29,18 @@
   uses `max_segment_len` tokens per segment and scores mentions across segments.
 
 ### Changed
+
+- Cross-document resolution reuses unchanged assignments and preserves KB
+  anchors. Use `TrackPartition::from_corpus` to score active memberships.
+  Calibration and precision share one prediction-to-gold matching pass.
+- `ExtractionMethod::is_calibrated` is deprecated. To select the same predictions,
+  match `ExtractionMethod::Neural`. Evaluate calibration on observed outcomes.
+- Byte and character ranges returned by `TextSpan` constructors now select
+  the same source text for partial UTF-8 characters and out-of-bounds input.
+  Track merges order signals by source location. Flat and grounded validators
+  agree on discontinuous surfaces.
+- A model's zero-shot, relation and discontinuous capability flags reflect the
+  operations accessible through `dyn Model` in the enabled feature configuration.
 
 - Schema 2 evaluation receipts use `provenance.runtime.scheduling` to record
   skips. The existing `not_run` strategy carries a reason of
