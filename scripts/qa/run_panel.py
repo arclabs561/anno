@@ -182,12 +182,12 @@ def incompatible_result(result: dict[str, Any], cell: Cell) -> bool:
         raise ContractError(f"{cell}: invalid receipt version")
     if version < 2:
         return str(result.get("error", "")).startswith("incompatible:")
-    backend = provenance.get("backend")
-    execution = backend.get("execution") if isinstance(backend, dict) else None
+    runtime = provenance.get("runtime")
+    scheduling = runtime.get("scheduling") if isinstance(runtime, dict) else None
     return (
-        isinstance(execution, dict)
-        and execution.get("status") == "skipped"
-        and execution.get("reason") == "incompatible_entity_types"
+        isinstance(scheduling, dict)
+        and scheduling.get("strategy") == "not_run"
+        and scheduling.get("reason") == "incompatible_entity_types"
     )
 
 
