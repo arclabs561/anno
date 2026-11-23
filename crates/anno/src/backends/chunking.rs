@@ -99,13 +99,17 @@ pub(crate) fn chunk_text_with_hints(
     config: &ChunkConfig,
     hints: &[usize],
 ) -> Result<Vec<TextChunk>> {
-    if hints.is_empty() {
-        return Ok(chunk_text(text, config));
-    }
     if hints.iter().any(|&hint| !text.is_char_boundary(hint)) {
         return Err(crate::Error::InvalidInput(
             "breakpoint hints must be UTF-8 byte positions in the source text".into(),
         ));
+    }
+    Ok(split_text(text, config, hints))
+}
+
+fn hints_in_chars(text: &str, hints: &[usize]) -> Vec<CharOffset> {
+    if hints.is_empty() {
+        return Vec::new();
     }
     let mut hints: Vec<_> = hints.iter().copied().map(ByteOffset::new).collect();
     hints.sort_unstable();
@@ -121,12 +125,15 @@ pub(crate) fn chunk_text_with_hints(
         if hints.peek() == Some(&ByteOffset::new(byte_offset)) {
             char_hints.push(CharOffset::new(char_offset));
             hints.next();
+            if hints.peek().is_none() {
+                break;
+            }
         }
     }
-    Ok(split_text(text, config, &char_hints))
+    char_hints
 }
 
-fn split_text(text: &str, config: &ChunkConfig, hints: &[CharOffset]) -> Vec<TextChunk> {
+fn split_text(text: &str, config: &ChunkConfig, byte_hints: &[usize]) -> Vec<TextChunk> {
     let chars: Vec<char> = text.chars().collect();
     let text_len = chars.len();
 
@@ -143,6 +150,7 @@ fn split_text(text: &str, config: &ChunkConfig, hints: &[CharOffset]) -> Vec<Tex
         }];
     }
 
+    let hints = hints_in_chars(text, byte_hints);
     let mut chunks = Vec::new();
     let mut position = 0;
     let mut previous_end = 0;
@@ -587,6 +595,20 @@ mod tests {
         let small = chunk_text_with_hints("abc", &config, &[1]).unwrap();
         assert_eq!(small.len(), 1);
         assert_eq!(small[0].text, "abc");
+    }
+
+    #[test]
+    fn breakpoint_hints_are_validated_when_multibyte_text_fits_one_chunk() {
+        let text = "É李😀";
+        let config = ChunkConfig {
+            chunk_size: 3,
+            ..Default::default()
+        };
+        let chunks = chunk_text_with_hints(text, &config, &[5, 2, 2, 0, 9]).unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].text, text);
+        assert_eq!(chunks[0].char_offset, 0);
+        assert!(chunk_text_with_hints(text, &config, &[5, 2, 6]).is_err());
     }
 
     #[test]
