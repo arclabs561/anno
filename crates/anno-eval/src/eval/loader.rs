@@ -2752,7 +2752,7 @@ impl DatasetLoader {
             DatasetId::TweetNER7 => ("tner/tweetner7", "dataset/2020.dev.json"),
             DatasetId::BroadTwitterCorpus => ("GateNLP/broad_twitter_corpus", "test/a.conll"),
             DatasetId::CADEC => ("KevinSpaghetti/cadec", "data/test.jsonl"),
-            DatasetId::PreCo => ("coref-data/preco", "data/test.jsonl"),
+            DatasetId::PreCo => ("coref-data/preco_raw", "dev.jsonl"),
             // Gated datasets that require HF_TOKEN
             DatasetId::MultiCoNER => ("MultiCoNER/multiconer_v1", "en/test.conll"),
             DatasetId::MultiCoNERv2 => ("MultiCoNER/multiconer_v2", "en/test.conll"),
@@ -3235,7 +3235,7 @@ impl DatasetLoader {
         // whose registry format is CoNLL. Dispatch it before the format-specific
         // parser: treating the one-line JSON document as CoNLL creates one enormous
         // token and can make downstream model evaluation exhaust memory.
-        if self.is_hf_api_response(content) {
+        if id != DatasetId::PreCo && self.is_hf_api_response(content) {
             return match plan {
                 DatasetParsePlan::CadecHybrid => self.parse_cadec_hf_api(content, id),
                 _ => self.parse_hf_api_response(content, id),
@@ -3324,7 +3324,7 @@ impl DatasetLoader {
     }
 
     /// Ensure a complete Dataset Viewer cache has one ordered row for every advertised index.
-    fn validate_hf_dataset_viewer_envelope(parsed: &serde_json::Value) -> Result<()> {
+    pub(super) fn validate_hf_dataset_viewer_envelope(parsed: &serde_json::Value) -> Result<()> {
         let Some(total) = parsed
             .get("num_rows_total")
             .and_then(|value| value.as_u64())
@@ -5083,57 +5083,29 @@ impl DatasetLoader {
     /// for NER evaluation (which will have 0 entities). Use `load_coref()` for coreference.
     fn parse_preco_jsonl(&self, content: &str, id: DatasetId) -> Result<LoadedDataset> {
         let mut sentences = Vec::new();
-        let mut line_count = 0usize;
-        let mut parsed_count = 0usize;
-
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            line_count += 1;
-
-            let parsed: serde_json::Value = match serde_json::from_str(line) {
-                Ok(v) => v,
-                Err(e) => {
-                    // Log first few parse errors for debugging
-                    if parsed_count < 3 {
-                        log::warn!("PreCo JSONL parse error on line {}: {}", line_count, e);
-                    }
-                    continue; // Skip malformed lines
-                }
-            };
-
-            // PreCo format: {"sentences": [[token1, token2, ...], ...]}
-            if let Some(sents) = parsed.get("sentences").and_then(|v| v.as_array()) {
-                parsed_count += 1;
-                for sent_tokens in sents {
-                    if let Some(token_array) = sent_tokens.as_array() {
-                        let tokens: Vec<AnnotatedToken> = token_array
-                            .iter()
-                            .filter_map(|t| t.as_str())
-                            .map(|t| AnnotatedToken {
-                                text: t.to_string(),
-                                ner_tag: "O".to_string(), // PreCo has no NER annotations
-                            })
-                            .collect();
-
-                        if !tokens.is_empty() {
-                            sentences.push(AnnotatedSentence {
-                                tokens,
-                                source_dataset: id,
-                            });
-                        }
-                    }
-                }
+        #[derive(Deserialize)]
+        struct SentenceRecord {
+            sentences: Vec<Vec<String>>,
+        }
+        for record in super::coref_loader::preco_records::<SentenceRecord>(content)? {
+            for sentence in record.sentences.into_iter().filter(|s| !s.is_empty()) {
+                let tokens = sentence
+                    .into_iter()
+                    .map(|text| AnnotatedToken {
+                        text,
+                        ner_tag: "O".into(), // PreCo has no NER annotations.
+                    })
+                    .collect();
+                sentences.push(AnnotatedSentence {
+                    tokens,
+                    source_dataset: id,
+                });
             }
         }
-
         if sentences.is_empty() {
-            return Err(Error::InvalidInput(format!(
-                "PreCo JSONL file contains no valid sentences (parsed {} of {} lines)",
-                parsed_count, line_count
-            )));
+            return Err(Error::InvalidInput(
+                "PreCo JSON contains no valid sentences".into(),
+            ));
         }
 
         let now = super::timestamp::now();
@@ -5444,32 +5416,10 @@ impl DatasetLoader {
                     .map(|ex| ex.to_coref_document())
                     .collect())
             }
-            DatasetId::PreCo => {
-                // PreCo can be JSONL (one JSON object per line) or JSON array
-                // Try JSONL first (more common), then fall back to JSON array
-                if content.trim().starts_with('[') {
-                    // JSON array format
-                    let docs = super::coref_loader::parse_preco_json(content)?;
-                    Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
-                } else {
-                    // JSONL format - parse each line and convert to JSON array format
-                    let mut json_objects = Vec::new();
-                    for line in content.lines() {
-                        let line = line.trim();
-                        if line.is_empty() {
-                            continue;
-                        }
-                        // Validate it's valid JSON
-                        if serde_json::from_str::<serde_json::Value>(line).is_ok() {
-                            json_objects.push(line);
-                        }
-                    }
-                    // Convert JSONL to JSON array format
-                    let json_array = format!("[{}]", json_objects.join(","));
-                    let docs = super::coref_loader::parse_preco_json(&json_array)?;
-                    Ok(docs.into_iter().map(|d| d.to_coref_document()).collect())
-                }
-            }
+            DatasetId::PreCo => Ok(super::coref_loader::parse_preco_json(content)?
+                .into_iter()
+                .map(|doc| doc.to_coref_document())
+                .collect()),
             DatasetId::LitBank => {
                 // LitBank coreference - parse .ann format for chains
                 self.parse_litbank_coref(content)
@@ -9510,6 +9460,76 @@ g1\tJohn met Mary. He waved.\tHe\t14\tJohn\t0\tTRUE\tMary\t9\tFALSE\thttp://exam
         let ds = loader.parse_gap(sample, DatasetId::GAP).unwrap();
         assert_eq!(ds.sentences.len(), 1);
         assert!(!ds.sentences[0].tokens.is_empty());
+    }
+
+    #[test]
+    fn preco_cached_formats_preserve_the_same_documents_and_gold_mentions() {
+        let dir = tempfile::tempdir().unwrap();
+        let loader = DatasetLoader::with_cache_dir(dir.path()).unwrap();
+        let id = DatasetId::PreCo;
+        let a = serde_json::json!({"id":"dev_00001", "sentences":[["Été", "met", "Jo"],["She", "left"]], "mention_clusters":[[[0,0,1],[1,0,1]],[[0,2,3]]]});
+        let b =
+            serde_json::json!({"id":"dev_00002", "sentences":[["Rain"]], "mention_clusters":[]});
+        let viewer = serde_json::json!({
+            "features": [], "num_rows_total":2,
+            "rows":[{"row_idx":0,"row":a,"truncated_cells":[]},{"row_idx":1,"row":b,"truncated_cells":[]}]
+        });
+        for cache in [
+            viewer.to_string(),
+            serde_json::json!([a, b]).to_string(),
+            format!("{a}\n{b}\n"),
+        ] {
+            std::fs::write(loader.cache_path_for(id), cache).unwrap();
+            let flat = loader
+                .load(LoadableDatasetId::try_from(id).unwrap())
+                .unwrap();
+            assert_eq!(flat.sentences.len(), 3);
+            let docs = loader.load_coref(id).unwrap();
+            assert_eq!(docs.len(), 2);
+            assert!(docs[1].chains.is_empty());
+            assert!(docs.iter().all(|doc| doc.includes_singletons));
+            let mut chains: Vec<_> = docs[0]
+                .chains
+                .iter()
+                .map(|chain| {
+                    chain
+                        .mentions
+                        .iter()
+                        .map(|m| (m.start, m.end, m.text.as_str()))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            chains.sort();
+            assert_eq!(
+                chains,
+                vec![vec![(0, 3, "Été"), (11, 14, "She")], vec![(8, 10, "Jo")]]
+            );
+        }
+
+        let mut partial = viewer.clone();
+        partial["num_rows_total"] = 3.into();
+        let mut reordered = viewer.clone();
+        reordered["rows"][1]["row_idx"] = 0.into();
+        let mut truncated = viewer.clone();
+        truncated["rows"][0]["truncated_cells"] = serde_json::json!(["mention_clusters"]);
+        for bad in [partial, reordered, truncated] {
+            std::fs::write(loader.cache_path_for(id), bad.to_string()).unwrap();
+            assert!(loader.load_coref(id).is_err());
+            assert!(loader
+                .load(LoadableDatasetId::try_from(id).unwrap())
+                .is_err());
+        }
+        let no_gold = serde_json::json!({"sentences":[["Jo"]]});
+        let mut reversed = a.clone();
+        reversed["mention_clusters"][0][1] = serde_json::json!([1, 1, 0]);
+        for bad in [
+            no_gold.to_string(),
+            format!("{a}\n{{"),
+            reversed.to_string(),
+        ] {
+            std::fs::write(loader.cache_path_for(id), bad).unwrap();
+            assert!(loader.load_coref(id).is_err());
+        }
     }
 
     #[test]

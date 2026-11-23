@@ -552,11 +552,9 @@ impl PreCoDocument {
     pub fn to_coref_document(&self) -> CorefDocument {
         // Reconstruct text from sentences
         let mut text = String::new();
-        let mut sentence_offsets: Vec<usize> = Vec::new();
         let mut token_offsets: Vec<Vec<(usize, usize)>> = Vec::new();
 
         for sentence in &self.sentences {
-            sentence_offsets.push(text.len());
             let mut sent_offsets = Vec::new();
 
             for (i, token) in sentence.iter().enumerate() {
@@ -603,7 +601,9 @@ impl PreCoDocument {
             .map(|(id, mentions)| CorefChain::with_id(mentions, id as u64))
             .collect();
 
-        CorefDocument::with_id(text, &self.id, chains)
+        let mut doc = CorefDocument::with_id(text, &self.id, chains);
+        doc.includes_singletons = true;
+        doc
     }
 }
 
@@ -753,83 +753,94 @@ pub fn parse_gap_tsv(content: &str) -> Result<Vec<GapExample>> {
     Ok(examples)
 }
 
-/// Parse PreCo JSON format.
-/// Parse PreCo JSON format (public for use by DatasetLoader).
-pub fn parse_preco_json(content: &str) -> Result<Vec<PreCoDocument>> {
-    let parsed: serde_json::Value = serde_json::from_str(content)
-        .map_err(|e| Error::InvalidInput(format!("Invalid PreCo JSON: {}", e)))?;
+#[derive(Deserialize)]
+struct PreCoRecord {
+    id: Option<String>,
+    sentences: Vec<Vec<String>>,
+    mention_clusters: Option<Vec<Vec<[usize; 3]>>>,
+}
 
-    let mut docs = Vec::new();
-
-    if let Some(doc_array) = parsed.as_array() {
-        for (idx, doc) in doc_array.iter().enumerate() {
-            // Extract sentences
-            let sentences: Vec<Vec<String>> = doc
-                .get("sentences")
-                .and_then(|s| s.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|sent| {
-                            sent.as_array().map(|tokens| {
-                                tokens
-                                    .iter()
-                                    .filter_map(|t| t.as_str().map(String::from))
-                                    .collect()
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-
-            // Extract mentions
-            let mentions: Vec<(usize, usize, usize, usize)> =
-                doc.get("mention_clusters")
-                    .and_then(|m| m.as_array())
-                    .map(|clusters| {
-                        clusters
-                            .iter()
-                            .enumerate()
-                            .flat_map(|(cluster_id, cluster)| {
-                                cluster.as_array().into_iter().flatten().filter_map(
-                                    move |mention| {
-                                        let arr = mention.as_array()?;
-                                        if arr.len() >= 3 {
-                                            Some((
-                                                arr[0].as_u64()? as usize,
-                                                arr[1].as_u64()? as usize,
-                                                arr[2].as_u64()? as usize,
-                                                cluster_id,
-                                            ))
-                                        } else {
-                                            None
-                                        }
-                                    },
-                                )
-                            })
-                            .collect()
-                    })
-                    .unwrap_or_default();
-
-            let id = doc
-                .get("id")
-                .and_then(|i| i.as_str())
-                .unwrap_or(&format!("doc_{}", idx))
-                .to_string();
-
-            docs.push(PreCoDocument {
-                id,
-                sentences,
-                mentions,
-            });
+/// Both the generic sentence loader and coreference scorer must see the same records.
+pub(super) fn preco_records<T: serde::de::DeserializeOwned>(content: &str) -> Result<Vec<T>> {
+    let invalid =
+        |err: serde_json::Error| Error::InvalidInput(format!("Invalid PreCo JSON: {err}"));
+    let mut records = Vec::new();
+    for item in serde_json::Deserializer::from_str(content).into_iter::<serde_json::Value>() {
+        let value = item.map_err(invalid)?;
+        match value {
+            serde_json::Value::Array(array) => {
+                for doc in array {
+                    records.push(serde_json::from_value(doc).map_err(invalid)?);
+                }
+            }
+            mut envelope if envelope.get("rows").is_some() => {
+                super::loader::DatasetLoader::validate_hf_dataset_viewer_envelope(&envelope)?;
+                let rows = envelope["rows"].as_array_mut().ok_or_else(|| {
+                    Error::InvalidInput("PreCo Dataset Viewer payload requires a rows array".into())
+                })?;
+                for (idx, entry) in rows.iter_mut().enumerate() {
+                    if entry
+                        .get("truncated_cells")
+                        .and_then(|v| v.as_array())
+                        .is_some_and(|v| !v.is_empty())
+                    {
+                        return Err(Error::InvalidInput(format!(
+                            "PreCo Dataset Viewer row {idx} contains truncated cells"
+                        )));
+                    }
+                    let row = entry.get_mut("row").ok_or_else(|| {
+                        Error::InvalidInput(format!("PreCo Dataset Viewer entry {idx} has no row"))
+                    })?;
+                    records.push(serde_json::from_value(row.take()).map_err(invalid)?);
+                }
+            }
+            doc => records.push(serde_json::from_value(doc).map_err(invalid)?),
         }
     }
-
-    if docs.is_empty() {
+    if records.is_empty() {
         return Err(Error::InvalidInput(
-            "PreCo JSON contains no valid documents".to_string(),
+            "PreCo JSON contains no documents".into(),
         ));
     }
+    Ok(records)
+}
 
+/// Parse PreCo JSONL, arrays, and Hugging Face Dataset Viewer records with gold coreference.
+pub fn parse_preco_json(content: &str) -> Result<Vec<PreCoDocument>> {
+    let mut docs = Vec::new();
+    for (idx, record) in preco_records::<PreCoRecord>(content)?
+        .into_iter()
+        .enumerate()
+    {
+        let id = record.id.unwrap_or_else(|| format!("doc_{idx}"));
+        if !record
+            .sentences
+            .iter()
+            .flatten()
+            .any(|token| !token.is_empty())
+        {
+            return Err(Error::InvalidInput(format!("PreCo {id}: empty document")));
+        }
+        let clusters = record
+            .mention_clusters
+            .ok_or_else(|| Error::InvalidInput(format!("PreCo {id}: missing mention_clusters")))?;
+        let mut mentions = Vec::new();
+        for (cluster_id, cluster) in clusters.into_iter().enumerate() {
+            for [sent, start, end] in cluster {
+                if start >= end || record.sentences.get(sent).is_none_or(|s| end > s.len()) {
+                    return Err(Error::InvalidInput(format!(
+                        "PreCo {id}: invalid mention [{sent}, {start}, {end}] in cluster {cluster_id}"
+                    )));
+                }
+                mentions.push((sent, start, end, cluster_id));
+            }
+        }
+        docs.push(PreCoDocument {
+            id,
+            sentences: record.sentences,
+            mentions,
+        });
+    }
     Ok(docs)
 }
 
