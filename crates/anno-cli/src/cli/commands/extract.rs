@@ -1,5 +1,8 @@
 //! Extract command - Level 1 (Signal): Raw entity extraction
 
+mod html_source;
+use html_source::MappedHtml;
+
 use clap::Parser;
 use std::fs;
 use std::time::Instant;
@@ -110,6 +113,10 @@ pub struct ExtractArgs {
     #[arg(long, value_name = "URL")]
     pub url: Option<String>,
 
+    /// Render a UTF-8 HTML file with source byte fragments in grounded JSON
+    #[arg(long, requires = "file", conflicts_with_all = ["url", "text", "positional", "clean", "normalize"])]
+    pub html_source_spans: bool,
+
     /// Clean and normalize text before extraction
     #[arg(long)]
     pub clean: bool,
@@ -154,7 +161,20 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     validate_confidence_threshold("--relation-threshold", relation_threshold)?;
 
     let model = args.model.unwrap_or_default();
-    let format = args.format.unwrap_or_default();
+    let format = if args.html_source_spans {
+        if args
+            .format
+            .is_some_and(|format| !matches!(format, OutputFormat::Grounded))
+            || (args.export.is_some() && args.export_format != "full")
+        {
+            return Err(CliError::from(
+                "--html-source-spans requires grounded output and full exports",
+            ));
+        }
+        OutputFormat::Grounded
+    } else {
+        args.format.unwrap_or_default()
+    };
     // Level 1 (Signal): Raw entity extraction from single document
     // This is the foundation for all other commands:
     // - `debug` adds Level 2 (Track) via coreference resolution
@@ -162,7 +182,18 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // - `crossdoc`/`coalesce` clusters Level 1 entities across multiple documents
 
     // Resolve input: URL, file, text, or stdin
-    let (mut raw_text, source_url, declared_language) = if let Some(url) = &args.url {
+    let mapped_html = if args.html_source_spans {
+        let path = args
+            .file
+            .as_deref()
+            .ok_or("--html-source-spans requires --file")?;
+        Some(MappedHtml::read(path)?)
+    } else {
+        None
+    };
+    let (mut raw_text, source_url, declared_language) = if let Some(html) = &mapped_html {
+        (html.text.clone(), None, None)
+    } else if let Some(url) = &args.url {
         #[cfg(feature = "eval")]
         {
             use crate::cli::ingest::UrlResolver;
@@ -509,6 +540,9 @@ pub fn run(args: ExtractArgs) -> Result<(), CliError> {
     // Build grounded document with validation using library method
     let mut doc = GroundedDocument::new("extract", &text);
     let validation_errors = doc.add_signals_validated(signals);
+    if let Some(html) = mapped_html {
+        html.record(&mut doc)?;
+    }
 
     // Report validation errors
     if !validation_errors.is_empty() && !args.quiet {

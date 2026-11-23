@@ -230,7 +230,10 @@ pub fn to_conll(text: &str, entities: &[Entity]) -> String {
     lines.join("\n")
 }
 
-/// Export entities as JSONL (one JSON object per entity).
+/// Export entities as JSONL (one JSON object per entity). Discontinuous
+/// entities include their original character ranges. For a legacy bounding
+/// surface with lexical gaps, only the covered pieces are emitted, joined
+/// with spaces. A multiline surface split only by line breaks is retained.
 ///
 /// `source_label` is an arbitrary string identifying the source document
 /// (e.g., a filename or URI).
@@ -245,6 +248,35 @@ pub fn to_jsonl(entities: &[Entity], source_label: &str, include_confidence: boo
                 "end": e.end(),
                 "source": source_label,
             });
+            if let Some(span) = e
+                .discontinuous_span
+                .as_ref()
+                .filter(|s| s.is_discontinuous())
+            {
+                let segments = span.segments();
+                obj["segments"] = serde_json::json!(segments);
+                // A signal can carry the original bounding substring instead of
+                // the joined pieces. Interpret offsets relative to that substring
+                // only when its scalar length matches the segment envelope.
+                let base = segments[0].start;
+                let end = segments[segments.len() - 1].end;
+                let bytes = crate::offset::build_char_to_byte_map(&e.text);
+                if bytes.len() - 1 == end - base {
+                    let slice =
+                        |start: usize, end: usize| &e.text[bytes[start - base]..bytes[end - base]];
+                    if segments.windows(2).any(|parts| {
+                        !slice(parts[0].end, parts[1].start)
+                            .bytes()
+                            .all(|c| matches!(c, b'\r' | b'\n'))
+                    }) {
+                        obj["text"] = serde_json::json!(segments
+                            .iter()
+                            .map(|part| slice(part.start, part.end))
+                            .collect::<Vec<_>>()
+                            .join(" "));
+                    }
+                }
+            }
             if include_confidence {
                 obj["confidence"] = serde_json::json!(e.confidence);
             }

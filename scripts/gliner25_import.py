@@ -5,7 +5,7 @@
 """Extract one UTF-8 document as JSONL for `anno dataset import --format jsonl`.
 
     uv run scripts/gliner25_import.py letter.txt person organization > mentions.jsonl
-    anno dataset import --input mentions.jsonl --format jsonl --output annotations.jsonl
+    anno dataset import --format jsonl --input mentions.jsonl --source-text letter.txt --output annotations.jsonl
 
 The first run downloads Fastino's pinned GLiNER2.5 Multi checkpoint. Extraction
 runs locally through the upstream Python boundary decoder. Each input file is a

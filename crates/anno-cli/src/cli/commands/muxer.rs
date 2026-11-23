@@ -89,6 +89,16 @@ pub struct MuxerArgs {
 /// Subcommands for `anno muxer`.
 #[derive(Subcommand, Debug)]
 pub enum MuxerAction {
+    /// Explain the automatic dataset candidate pool as JSON before sampling or downloading.
+    Eligibility {
+        /// Task code, as used by `sampler run --task`.
+        #[arg(long)]
+        task: String,
+        /// Apply the same cache policy as `sampler run --require-cached`.
+        #[arg(long)]
+        require_cached: bool,
+    },
+
     /// Print coverage + per-arm window stats.
     Stats {
         /// Show per-arm breakdown by dataset (keys like `arm@@DatasetId`).
@@ -1526,6 +1536,23 @@ fn backend_candidates(tasks: &[Task], include_ml: bool) -> Vec<String> {
 #[cfg(feature = "eval")]
 /// Execute the muxer command.
 pub fn run(args: MuxerArgs) -> Result<(), String> {
+    // Eligibility applies before the selector sees its first observation.
+    if let MuxerAction::Eligibility {
+        task,
+        require_cached,
+    } = &args.action
+    {
+        anno::env::load_dotenv();
+        let task = Task::from_code(task).ok_or_else(|| format!("Unknown task: {task}"))?;
+        let loader = anno_eval::eval::loader::DatasetLoader::new().map_err(|e| e.to_string())?;
+        let report =
+            anno_eval::muxer_matrix::dataset_eligibility_report(&loader, task, *require_cached);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|e| e.to_string())?
+        );
+        return Ok(());
+    }
     let perspective = args.perspective.unwrap_or(MuxerPerspective::Ner);
     let inherited_strategy = std::env::var("ANNO_SAMPLE_STRATEGY").ok();
     // Explicit strategy wins, then the explicit mode default, then inherited harness state.
@@ -1597,6 +1624,9 @@ pub fn run(args: MuxerArgs) -> Result<(), String> {
     };
 
     match args.action {
+        MuxerAction::Eligibility { .. } => {
+            unreachable!("eligibility is handled before history loading")
+        }
         MuxerAction::Run {
             runs,
             seed_base,

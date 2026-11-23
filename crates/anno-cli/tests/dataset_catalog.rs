@@ -46,3 +46,60 @@ fn docred_is_reported_as_catalog_only() {
     assert!(output.contains("Supported by the standard loader: 0"));
     assert!(!output.contains("Warnings"));
 }
+
+#[test]
+fn sampler_explains_cached_sources_filtered_by_policy_and_pins() {
+    let cache = tempfile::tempdir().unwrap();
+    let datasets = cache.path().join("datasets");
+    std::fs::create_dir(&datasets).unwrap();
+    std::fs::write(datasets.join("Wnut17.cache"), "data\tO\n").unwrap();
+    let history = cache.path().join("bad-history.json");
+    std::fs::write(&history, "{incomplete").unwrap();
+
+    let inspect = |allow: bool, domain: &str| {
+        let result = Command::new(env!("CARGO_BIN_EXE_anno"))
+            .arg("sampler")
+            .arg("--history-file")
+            .arg(&history)
+            .args(["eligibility", "--task", "ner", "--require-cached"])
+            .env("ANNO_CACHE_DIR", cache.path())
+            .env("ANNO_S3_CACHE", "0")
+            .env(
+                "ANNO_MATRIX_INCLUDE_NON_AUTOMATABLE",
+                if allow { "1" } else { "0" },
+            )
+            .env("ANNO_MUXER_PIN_DOMAIN", domain)
+            .env("ANNO_MUXER_FILTER_DOMAIN", "")
+            .env("ANNO_MUXER_PIN_LANG", "")
+            .env("ANNO_MUXER_FILTER_LANG", "")
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let report: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+        let rows = report["datasets"].as_array().unwrap();
+        assert_eq!(
+            report["eligible_count"],
+            rows.iter().filter(|r| r["eligible"] == true).count()
+        );
+        assert_eq!(report["require_cached"], true);
+        let wnut = rows.iter().find(|r| r["dataset"] == "Wnut17").unwrap();
+        assert_eq!(wnut["locally_cached"], true);
+        let wiki = rows.iter().find(|r| r["dataset"] == "WikiGold").unwrap();
+        assert_eq!(wiki["locally_cached"], false);
+        assert_eq!(wiki["exclusion"], "cache_required");
+        (
+            wnut["eligible"].as_bool().unwrap(),
+            wnut["exclusion"].clone(),
+        )
+    };
+    assert_eq!(inspect(false, ""), (false, "non_automatable_source".into()));
+    assert_eq!(inspect(true, ""), (true, serde_json::Value::Null));
+    assert_eq!(
+        inspect(true, "unmatched_domain"),
+        (false, "facet_pin".into())
+    );
+}
