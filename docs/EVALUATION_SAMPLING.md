@@ -41,6 +41,8 @@ baseline maps DATE and TIME spans to TIMEX. The GLiNER multi-task backend receiv
 this metric. The receipt records raw annotations, distinct gold spans, predictions, matches and
 micro F1. The generic tokenized NER view has a different denominator.
 
+Matrix rows report `unmatched_predictions_overlapping_missed_gold`. Each unmatched prediction counts once if it intersects any missed annotation in its sentence. Several predictions can overlap the same missed annotation. Use `gold_empty_sentences_with_predictions` and `gold_empty_sentences` to measure how often a sentence with no gold spans raises a false alarm.
+
 Run a complete baseline with `anno dataset download --dataset TimexRecognitionSentenceOriginal`,
 then `anno sampler run --task temporal --fixed-backend pattern --require-cached --runs 1 --max-examples 390`.
 The loader verifies the pinned source file before caching it. Older Dataset Viewer caches can
@@ -379,6 +381,8 @@ Gold JSONL records may carry their source `text`, `source_sha256`, and a documen
 `anno dataset eval --dataset gap --task coref` reports an unweighted mean of document CoNLL F1 scores. It compares exact character spans and keeps supplied singleton chains. A document with no gold or predicted mentions contributes zero CoNLL F1. A dataset with one perfectly resolved two-mention chain and one correctly empty document therefore scores 0.50.
 
 The link counts show how many within-document mention pairs the resolver matched, added or missed across the dataset. In the example above the counts are one matched, zero extra and zero missed. Add `--coref-oracle-mentions` to supply gold mentions and measure clustering separately from mention detection. The resolver receives the spans in document order and any type attached to each mention. On corpora with many singletons, report correct links and total gold links alongside CoNLL F1. A system that places every mention in a separate chain can score well on B³ and CEAF-e while recovering zero links.
+
+Matrix rows record `matched_coref_links`, `predicted_coref_links` and `gold_coref_links`. For resolvers that take mention spans, divide `matched_input_mentions` by `input_mentions` for exact mention precision and by `gold_mentions` for recall. Divide `reachable_gold_links` by `gold_coref_links` to see how many gold links the resolver could form from its inputs. Counts sum distinct spans and pairs within each document. A zero denominator leaves the corresponding rate undefined. Raw-text FCoref exposes its final clusters only, so its rows omit input coverage.
 
 The matrix sampler uses separate coverage histories for detected and supplied mentions. Earlier results that omitted the mention source keep their historical cohort. To compare the modes on the full PreCo validation split, run the same cached command twice with `ANNO_COREF_GOLD=0` and `ANNO_COREF_GOLD=1`:
 

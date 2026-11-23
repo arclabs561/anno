@@ -53,6 +53,9 @@ pub(super) fn score(
     let mut gold_count = 0;
     let mut predicted_count = 0;
     let mut correct = 0;
+    let mut overlapping_unmatched = 0;
+    let mut gold_empty_sentences = 0;
+    let mut gold_empty_with_predictions = 0;
     for sentence in sentences {
         let source: Vec<char> = sentence.text.chars().collect();
         let gold = sentence.gold_spans(&source)?;
@@ -78,6 +81,21 @@ pub(super) fn score(
             }
             predicted.insert((start, end));
         }
+        // Both differences iterate in start order. Count each unmatched prediction
+        // once, even if it intersects several missed or nested annotations.
+        let mut missed = gold.difference(&predicted).peekable();
+        for &(start, end) in predicted.difference(&gold) {
+            while missed.peek().is_some_and(|span| span.1 <= start) {
+                missed.next();
+            }
+            if missed.peek().is_some_and(|span| span.0 < end) {
+                overlapping_unmatched += 1;
+            }
+        }
+        if gold.is_empty() {
+            gold_empty_sentences += 1;
+            gold_empty_with_predictions += usize::from(!predicted.is_empty());
+        }
         correct += predicted.intersection(&gold).count();
         predicted_count += predicted.len();
         gold_count += gold.len();
@@ -90,6 +108,15 @@ pub(super) fn score(
         ),
         ("precision".into(), ratio(correct, predicted_count)),
         ("recall".into(), ratio(correct, gold_count)),
+        (
+            "unmatched_predictions_overlapping_missed_gold".into(),
+            overlapping_unmatched as f64,
+        ),
+        ("gold_empty_sentences".into(), gold_empty_sentences as f64),
+        (
+            "gold_empty_sentences_with_predictions".into(),
+            gold_empty_with_predictions as f64,
+        ),
         ("gold_annotations".into(), raw_annotations as f64),
         ("gold_spans".into(), gold_count as f64),
         ("predicted_spans".into(), predicted_count as f64),
@@ -127,6 +154,37 @@ mod tests {
         assert_eq!(metrics["predicted_spans"], 2.0);
         assert_eq!(metrics["matched_spans"], 1.0);
         assert_eq!(metrics["f1"], 0.5);
+        assert_eq!(metrics["gold_empty_sentences"], 1.0);
+        assert_eq!(metrics["gold_empty_sentences_with_predictions"], 1.0);
+        assert_eq!(
+            metrics["unmatched_predictions_overlapping_missed_gold"],
+            0.0
+        );
+    }
+
+    #[test]
+    fn counts_overlapping_unmatched_predictions_once_and_excludes_touching_spans() {
+        let rows: Vec<TimexSentence> = serde_json::from_value(serde_json::json!([{
+            "text":"a b c d", "time_expressions":[
+                {"text":"a b c","start_char":0,"end_char":5},
+                {"text":"b c","start_char":2,"end_char":5},
+                {"text":"d","start_char":6,"end_char":7}]
+        }]))
+        .unwrap();
+        let model = AnyModel::new("boundary-test", "", vec![], |_, _| {
+            Ok(vec![
+                Entity::new("a b", EntityType::Date, 0, 3, 1.0),
+                Entity::new("c", EntityType::Time, 4, 5, 1.0),
+                Entity::new(" d", EntityType::Date, 5, 7, 1.0),
+                Entity::new("d", EntityType::Date, 6, 7, 1.0),
+            ])
+        });
+        let (metrics, _) = score(&rows, &model).unwrap();
+        assert_eq!(metrics["matched_spans"], 1.0);
+        assert_eq!(
+            metrics["unmatched_predictions_overlapping_missed_gold"],
+            2.0
+        );
     }
 
     #[test]

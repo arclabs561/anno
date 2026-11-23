@@ -2894,6 +2894,13 @@ impl TaskEvaluator {
             // Collect gold chains from the document
             all_gold_chains.extend(offset_chains(doc.chains.clone(), doc_base));
 
+            let mut input_spans = None;
+            let mut resolve_entities =
+                |resolver: &dyn crate::eval::coref_resolver::CoreferenceResolver,
+                 entities: &[crate::Entity]| {
+                    input_spans = Some(entities.iter().map(|e| (e.start(), e.end())).collect());
+                    entities_to_chains(&resolver.resolve(entities))
+                };
             let predicted_chains = match &resolver {
                 Resolver::Text(backend) => {
                     use crate::eval::coref::{CorefChain, Mention};
@@ -2962,8 +2969,7 @@ impl TaskEvaluator {
                     // Clusters may group distant mentions together. Expose only document
                     // order to a resolver that uses previous mentions as antecedents.
                     gold_entities.sort_by_key(|entity| (entity.start(), entity.end()));
-                    let resolved_entities = resolver.resolve(&gold_entities);
-                    entities_to_chains(&resolved_entities)
+                    resolve_entities(resolver.as_ref(), &gold_entities)
                 }
                 Resolver::Entities(resolver) => {
                     // End-to-end mode: extract mentions via NER backend, then cluster.
@@ -2981,7 +2987,7 @@ impl TaskEvaluator {
                             doc.doc_id
                         ))
                     })?;
-                    entities_to_chains(&resolver.resolve(&entities))
+                    resolve_entities(resolver.as_ref(), &entities)
                 }
             };
 
@@ -2999,7 +3005,7 @@ impl TaskEvaluator {
                     fs.missing_mentions_in_multiwindow_chains;
             }
 
-            blanc.add_document(&predicted_chains, &doc.chains);
+            blanc.add_document_with_inputs(&predicted_chains, &doc.chains, input_spans.as_ref());
             all_predicted_chains.extend(offset_chains(predicted_chains, doc_base));
         }
 
@@ -3012,6 +3018,22 @@ impl TaskEvaluator {
 
         let mut metrics = HashMap::new();
         metrics.insert("num_docs".to_string(), gold_docs.len() as f64);
+        let links = blanc.coreferent_links();
+        metrics.insert("matched_coref_links".into(), links.matched as f64);
+        metrics.insert("predicted_coref_links".into(), links.predicted as f64);
+        metrics.insert("gold_coref_links".into(), links.gold as f64);
+        if let Some(inputs) = blanc.resolver_inputs() {
+            metrics.insert("input_mentions".into(), inputs.proposed_mentions as f64);
+            metrics.insert(
+                "matched_input_mentions".into(),
+                inputs.matched_mentions as f64,
+            );
+            metrics.insert("gold_mentions".into(), inputs.gold_mentions as f64);
+            metrics.insert(
+                "reachable_gold_links".into(),
+                inputs.reachable_gold_links as f64,
+            );
+        }
         metrics.insert("muc_precision".to_string(), eval.muc.precision);
         metrics.insert("muc_recall".to_string(), eval.muc.recall);
         metrics.insert("muc_f1".to_string(), eval.muc.f1);
@@ -4856,7 +4878,7 @@ mod tests {
                 let spans: Vec<_> = entities.iter().map(|e| (e.start(), e.end())).collect();
                 assert_eq!(spans, [(0, 3), (0, 9), (14, 17), (22, 25)]);
                 assert!(entities.iter().all(|e| e.canonical_id.is_none()));
-                entities.to_vec()
+                Vec::new()
             }
         }
 
@@ -4880,6 +4902,14 @@ mod tests {
             .unwrap();
         assert_eq!(report.results.len(), 1);
         assert!(report.results[0].success, "{:?}", report.results[0].error);
+        let metrics = &report.results[0].metrics;
+        assert_eq!(metrics["input_mentions"], 4.0);
+        assert_eq!(metrics["matched_input_mentions"], 4.0);
+        assert_eq!(metrics["gold_mentions"], 4.0);
+        assert_eq!(metrics["reachable_gold_links"], 1.0);
+        assert_eq!(metrics["gold_coref_links"], 1.0);
+        assert_eq!(metrics["predicted_coref_links"], 0.0);
+        assert_eq!(metrics["matched_coref_links"], 0.0);
     }
 
     #[test]
